@@ -34,3 +34,8 @@
 {"ts": "2026-08-25T16:16:53Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-08-25"}
 {"ts": "2026-08-25T16:35:43Z", "kind": "task", "actor": "aletheia", "subject": "task:operator-setup", "text": "created — Operator: merge, FLEET_TOKEN, Pages, ChatGPT Project, run the Core (docs/SETUP.md)"}
 {"ts": "2026-08-25T16:35:43Z", "kind": "task", "actor": "aletheia", "subject": "task:operator-setup", "text": "QUEUED -> WAITING_OPERATOR — checklist written to docs/SETUP.md"}
+{"ts": "2026-08-25T16:47:41Z", "kind": "event", "actor": "aletheia", "subject": "repo:aletheia", "text": "health unknown -> green"}
+{"ts": "2026-08-25T16:47:41Z", "kind": "alert", "actor": "aletheia", "subject": "repo:shorts_pipeline", "text": "health unknown -> red"}
+{"ts": "2026-08-25T16:47:41Z", "kind": "alert", "actor": "aletheia", "subject": "repo:schwab_trader", "text": "health unknown -> red"}
+{"ts": "2026-08-25T16:47:42Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue opened — Shorts-pipeline, schwab-trader"}
+{"ts": "2026-08-25T16:47:42Z", "kind": "event", "actor": "aletheia", "subject": "approval:delegate-email-vertical-slice", "text": "requested — delegate task email-vertical-slice to claude"}
