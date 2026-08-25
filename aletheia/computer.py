@@ -18,6 +18,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -39,12 +40,22 @@ ACTION_FIELDS = {
 WINDOW_SELECTOR_FIELDS = {"title", "title_re", "class_name", "auto_id", "control_type"}
 CONTROL_SELECTOR_FIELDS = WINDOW_SELECTOR_FIELDS | {"best_match"}
 DEFAULT_TIMEOUT_S = 10.0
+MAX_STEPS = 50
+MAX_TEXT_CHARS = 20_000
+MAX_APP_CHARS = 1_024
+MAX_ARGUMENTS = 32
+MAX_ARGUMENT_CHARS = 4_096
+MAX_SELECTOR_CHARS = 256
 ACTOR = "aletheia-computer"
 _CLAIM_LOCK = threading.Lock()
 
 
 class ApprovalRequired(PermissionError):
     """A computer action was attempted without an approved operator decision."""
+
+
+class VerificationFailed(RuntimeError):
+    """The adapter acted but could not verify the requested local outcome."""
 
 
 class ComputerBackend(Protocol):
@@ -77,6 +88,14 @@ def _selector(value: object, name: str, allowed: set[str]) -> list[str]:
     for key, item in value.items():
         if key in allowed and (not isinstance(item, str) or not item.strip()):
             problems.append(f"{name}.{key}: expected a non-empty string")
+        elif key in allowed and len(item) > MAX_SELECTOR_CHARS:
+            problems.append(
+                f"{name}.{key}: exceeds {MAX_SELECTOR_CHARS} characters")
+        elif key == "title_re":
+            try:
+                re.compile(item)
+            except re.error as exc:
+                problems.append(f"{name}.title_re: invalid regular expression ({exc})")
     return problems
 
 
@@ -84,6 +103,8 @@ def validate_steps(steps: object) -> list[str]:
     """Validate the complete plan before approval lookup or desktop access."""
     if not isinstance(steps, list) or not steps:
         return ["steps must be a non-empty list"]
+    if len(steps) > MAX_STEPS:
+        return [f"steps exceeds the maximum of {MAX_STEPS}"]
     problems: list[str] = []
     for index, step in enumerate(steps):
         label = f"steps[{index}]"
@@ -103,19 +124,41 @@ def validate_steps(steps: object) -> list[str]:
                 or not 0 < float(step["timeout_s"]) <= 60):
             problems.append(f"{label}.timeout_s: expected a number from 0 to 60")
         if action == "open_app":
-            if not isinstance(step.get("app"), str) or not step["app"].strip():
+            app = step.get("app")
+            if not isinstance(app, str) or not app.strip():
                 problems.append(f"{label}.app: expected a non-empty executable or path")
+            elif len(app) > MAX_APP_CHARS:
+                problems.append(f"{label}.app: exceeds {MAX_APP_CHARS} characters")
+            elif any(char in app for char in ("\x00", "\r", "\n")):
+                problems.append(f"{label}.app: control characters are not accepted")
             args = step.get("arguments", [])
             if not isinstance(args, list) or any(not isinstance(v, str) for v in args):
                 problems.append(f"{label}.arguments: expected a list of strings")
+            elif len(args) > MAX_ARGUMENTS:
+                problems.append(
+                    f"{label}.arguments: exceeds the maximum of {MAX_ARGUMENTS}")
+            else:
+                for arg_index, arg in enumerate(args):
+                    if len(arg) > MAX_ARGUMENT_CHARS:
+                        problems.append(
+                            f"{label}.arguments[{arg_index}]: exceeds "
+                            f"{MAX_ARGUMENT_CHARS} characters")
+                    if any(char in arg for char in ("\x00", "\r", "\n")):
+                        problems.append(
+                            f"{label}.arguments[{arg_index}]: control characters "
+                            "are not accepted")
         else:
             problems += _selector(step.get("window"), f"{label}.window",
                                   WINDOW_SELECTOR_FIELDS)
         if action in ("invoke", "set_text"):
             problems += _selector(step.get("control"), f"{label}.control",
                                   CONTROL_SELECTOR_FIELDS)
-        if action == "set_text" and not isinstance(step.get("text"), str):
-            problems.append(f"{label}.text: expected a string")
+        if action == "set_text":
+            if not isinstance(step.get("text"), str):
+                problems.append(f"{label}.text: expected a string")
+            elif len(step["text"]) > MAX_TEXT_CHARS:
+                problems.append(
+                    f"{label}.text: exceeds {MAX_TEXT_CHARS} characters")
     return problems
 
 
@@ -206,7 +249,8 @@ class WindowsUIABackend:
             return {"action": action, "verified": "focus requested through UI Automation"}
         if action == "close_window":
             window.close()
-            return {"action": action, "verified": "close requested through UI Automation"}
+            window.wait_not("exists", timeout=self._timeout(step))
+            return {"action": action, "verified": "window no longer exists"}
 
         control = window.child_window(**step["control"])
         control.wait("exists visible enabled ready", timeout=self._timeout(step))
@@ -217,8 +261,26 @@ class WindowsUIABackend:
         if action == "set_text":
             wrapper.set_edit_text(step["text"])
             observed = wrapper.window_text()
-            return {"action": action, "verified": observed == step["text"]}
+            if observed != step["text"]:
+                raise VerificationFailed(
+                    "set_text completed but exact text verification failed")
+            return {"action": action, "verified": True}
         raise AssertionError(f"validated action was not implemented: {action}")
+
+
+def _journal_evidence(evidence: dict) -> dict:
+    """Keep verification useful without persisting typed/observed content."""
+    safe = {}
+    for key in ("action", "verified", "process_id"):
+        value = evidence.get(key)
+        if isinstance(value, (bool, int, float)) or value is None:
+            safe[key] = value
+        elif isinstance(value, str):
+            safe[key] = value[:256]
+    omitted = sorted(set(evidence) - set(safe))
+    if omitted:
+        safe["redacted_fields"] = omitted
+    return safe
 
 
 def execute(steps: object, approval_id: str, backend: ComputerBackend | None = None,
@@ -226,6 +288,8 @@ def execute(steps: object, approval_id: str, backend: ComputerBackend | None = N
     """Execute one approved plan, checking halt before setup and every step."""
     if backend is not None and backend_factory is not None:
         raise ValueError("provide backend or backend_factory, not both")
+    if not isinstance(requested_by, str) or not requested_by.strip():
+        raise ValueError("requested_by must be a non-empty string")
     problems = validate_steps(steps)
     if problems:
         raise ValueError("; ".join(problems))
@@ -238,17 +302,21 @@ def execute(steps: object, approval_id: str, backend: ComputerBackend | None = N
         policy.ensure_not_halted()
         try:
             evidence = driver.perform(step)
+            if not isinstance(evidence, dict):
+                raise VerificationFailed(
+                    f"backend returned non-object evidence for {step['action']}")
         except Exception as exc:
             journal.append(
                 "action", f"computer:{step['action']}",
                 f"FAILED run={run_id} step={index} approval={approval_id} "
-                f"error={type(exc).__name__}: {exc}", actor=ACTOR)
+                f"error={type(exc).__name__}", actor=ACTOR)
             raise
         results.append(evidence)
+        journal_evidence = _journal_evidence(evidence)
         journal.append(
             "action", f"computer:{step['action']}",
             f"DONE run={run_id} step={index} approval={approval_id} "
-            f"verification={json.dumps(evidence, ensure_ascii=False, sort_keys=True)}",
+            f"verification={json.dumps(journal_evidence, ensure_ascii=False, sort_keys=True)}",
             actor=ACTOR)
     journal.append(
         "action", "computer:run",

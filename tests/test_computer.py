@@ -70,6 +70,22 @@ class ComputerCase(unittest.TestCase):
         self.assertTrue(any("coordinates" in error or "unsupported" in error
                             for error in errors))
 
+    def test_plan_and_input_bounds_are_enforced(self):
+        self.assertIn("maximum", computer.validate_steps(
+            [{"action": "open_app", "app": "notepad.exe"}]
+            * (computer.MAX_STEPS + 1))[0])
+        errors = computer.validate_steps([
+            {"action": "open_app", "app": "notepad.exe",
+             "arguments": ["x"] * (computer.MAX_ARGUMENTS + 1)},
+            {"action": "set_text", "window": {"title": "Notepad"},
+             "control": {"control_type": "Document"},
+             "text": "x" * (computer.MAX_TEXT_CHARS + 1)},
+            {"action": "wait_window", "window": {"title_re": "("}},
+        ])
+        self.assertTrue(any("arguments" in error for error in errors))
+        self.assertTrue(any(".text" in error for error in errors))
+        self.assertTrue(any("regular expression" in error for error in errors))
+
     def test_approved_plan_executes_in_order_and_is_journaled(self):
         backend = FakeBackend()
         result = computer.execute(self.steps, self.approve(), backend=backend)
@@ -130,6 +146,41 @@ class ComputerCase(unittest.TestCase):
         with self.assertRaisesRegex(computer.ApprovalRequired, "exact computer plan"):
             computer.execute(self.steps, aid, backend=backend)
         self.assertEqual(backend.steps, [])
+
+    def test_sensitive_backend_evidence_is_redacted_only_in_journal(self):
+        class SensitiveBackend:
+            def perform(inner_self, step):
+                return {"action": step["action"], "verified": True,
+                        "text": "secret typed text"}
+
+        aid = self.approve("computer-redact", self.steps[:1])
+        result = computer.execute(self.steps[:1], aid, backend=SensitiveBackend())
+        self.assertEqual(result["results"][0]["text"], "secret typed text")
+        entry = self.computer_step_entries()[-1]
+        self.assertNotIn("secret typed text", entry["text"])
+        self.assertIn("redacted_fields", entry["text"])
+
+    def test_backend_exception_message_is_not_persisted(self):
+        class LeakyFailure:
+            def perform(inner_self, step):
+                raise RuntimeError("secret desktop content")
+
+        aid = self.approve("computer-error-redact", self.steps[:1])
+        with self.assertRaisesRegex(RuntimeError, "secret desktop content"):
+            computer.execute(self.steps[:1], aid, backend=LeakyFailure())
+        entry = self.computer_step_entries()[-1]
+        self.assertIn("RuntimeError", entry["text"])
+        self.assertNotIn("secret desktop content", entry["text"])
+
+    def test_backend_must_return_structured_evidence(self):
+        class BadEvidence:
+            def perform(inner_self, step):
+                return "done"
+
+        aid = self.approve("computer-bad-evidence", self.steps[:1])
+        with self.assertRaisesRegex(computer.VerificationFailed, "non-object"):
+            computer.execute(self.steps[:1], aid, backend=BadEvidence())
+        self.assertIn("VerificationFailed", self.computer_step_entries()[-1]["text"])
 
     def test_harmless_acceptance_example_validates(self):
         plan = json.loads(Path("examples/computer/notepad-acceptance.json")
