@@ -30,6 +30,9 @@ Wall URL (open fullscreen with F11):
 
 ## 4. Give Thea her voice (ChatGPT — no API keys)
 
+**Everything is pre-written — see `exchange/CHATGPT_PROJECT.md` and paste
+its lower half.** The short version:
+
 1. In the ChatGPT app: **Projects → New project**, name it **Aletheia**.
 2. Enable the **GitHub connector** for it.
 3. Open `exchange/INTERCOM.md` in this repo, copy the block under

@@ -67,14 +67,30 @@ def render_work_order(task: dict) -> str:
     )
 
 
+def cleared(task: dict) -> bool:
+    """Is this task cleared for delegation?
+
+    THREE things must hold, and the first is the important one: the task's
+    STORED status must be READY. `tasks.ready()` answers "nothing blocks
+    this" — which is true of the whole backlog — so using it alone made the
+    director file work orders for roadmap placeholders nobody had started
+    (found on the first live pulse, 2026-08-25). QUEUED means "on the list";
+    READY means "start this now", and only a human, the orchestrator, or an
+    intercom command promotes one to the other.
+    """
+    return (task.get("status") == "READY"
+            and bool(task.get("assigned_worker"))
+            and tasks.is_ready(task))
+
+
 def dispatch_ready(repo_full: str, request=gh.request) -> list[dict]:
-    """One director pass. For each READY task with a worker:
+    """One director pass over tasks CLEARED for delegation (see `cleared`):
     approval APPROVED → file the work order; no approval → request it
     (idempotently); DENIED → mark the task BLOCKED. Returns actions taken."""
     policy.ensure_not_halted()
     actions = []
-    for task in tasks.ready():
-        if not task.get("assigned_worker"):
+    for task in tasks.all_tasks():
+        if not cleared(task):
             continue
         tid = task["id"]
         aid = _approval_id(tid)
