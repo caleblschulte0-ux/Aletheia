@@ -1,32 +1,32 @@
 # Fleet briefing
 
-Generated 2026-08-25T16:47:34Z from fleet registry rev 3 via GitHubSource.
+Generated 2026-08-25T19:01:16Z from fleet registry rev 3 via GitHubSource.
 
-## 🟢 `Aletheia` — hub (active)
+## 🔴 `Aletheia` — hub (active)
 
 The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.
 
-Last commit `11fe9e014b57` at 2026-08-25T16:47:06Z: Aletheia: personal operating system foundation (playbook phases 0–6, 9, 16)
+Last commit `2271aea9a82a` at 2026-08-25T17:22:48Z: Merge pull request #10 from caleblschulte0-ux/claude/project-alathea-interface-ah59fv
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-08-25T16:47:32Z
-- `ci.yml`: success at 2026-08-25T16:47:21Z
+- `pulse.yml`: in_progress at 2026-08-25T19:01:13Z
+- `ci.yml`: failure at 2026-08-25T17:23:01Z
 
 ## 🔴 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `d73dc9b1860e` at 2026-08-25T15:58:27Z: watchdog: chatgpt task verdicts 20260825 [skip ci]
+Last commit `127931b2620b` at 2026-08-25T18:32:57Z: doctor: consolidate ChatGPT scheduled task router
 
-Vitals — trending posted: 282 · explainer posted: 200 · third posted: 373 · curiosity posted: 1
+Vitals — trending posted: 282 · explainer posted: 201 · third posted: 373 · curiosity posted: 1
 
 Watched workflows:
 - `daily.yml`: failure at 2026-08-25T14:41:34Z
 - `exchange_phase_a.yml`: success at 2026-08-25T10:05:12Z
 - `exchange_phase_b.yml`: success at 2026-08-25T15:12:08Z
-- `story_forge.yml`: success at 2026-08-25T05:52:56Z
+- `story_forge.yml`: success at 2026-08-25T17:50:10Z
 - `third.yml`: success at 2026-08-25T12:51:58Z
-- `explainer.yml`: in_progress at 2026-08-25T14:23:22Z
+- `explainer.yml`: in_progress at 2026-08-25T18:05:15Z
 - `retro.yml`: success at 2026-08-25T01:53:43Z
 - `doctor.yml`: success at 2026-08-25T05:45:10Z
 
@@ -40,9 +40,9 @@ Vitals — realized P&L: $-40.82 · win rate: 14.3% · closed trades: 14 · open
 
 Watched workflows:
 - `brain.yml`: failure at 2026-08-06T15:57:15Z
-- `sell-brain.yml`: failure at 2026-08-25T15:35:20Z
+- `sell-brain.yml`: failure at 2026-08-25T18:35:21Z
 - `trader.yml`: failure at 2026-08-06T15:57:15Z
-- `watchdog.yml`: success at 2026-08-25T16:40:57Z
+- `watchdog.yml`: success at 2026-08-25T18:25:50Z
 
 ## 💤 `Money_Machine` — unbuilt (stub)
 

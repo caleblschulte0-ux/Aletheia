@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-25T16:47:34Z",
+  "generated_at": "2026-08-25T19:01:16Z",
   "fleet_revision": 3,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,58 +11,58 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
-          "sha": "11fe9e014b57",
-          "date": "2026-08-25T16:47:06Z",
-          "message": "Aletheia: personal operating system foundation (playbook phases 0\u20136, 9, 16)"
+          "sha": "2271aea9a82a",
+          "date": "2026-08-25T17:22:48Z",
+          "message": "Merge pull request #10 from caleblschulte0-ux/claude/project-alathea-interface-ah59fv"
         },
         {
-          "sha": "9f77d8d3e93c",
-          "date": "2026-08-25T16:35:56Z",
-          "message": "Add docs/SETUP.md: the operator's six-step checklist to get Aletheia running"
+          "sha": "efaf9b9ce34d",
+          "date": "2026-08-25T17:22:30Z",
+          "message": "Phase 8: browser control \u2014 the rung that reaches sites with no API"
         },
         {
-          "sha": "f8e9f544f883",
-          "date": "2026-08-25T16:16:53Z",
-          "message": "Local Core V0 + Command Center V1: Aletheia as a persistent service"
+          "sha": "7bfcec22cfe1",
+          "date": "2026-08-25T17:10:52Z",
+          "message": "Merge pull request #9 from caleblschulte0-ux/claude/project-alathea-interface-ah59fv"
         },
         {
-          "sha": "30b43c99219a",
-          "date": "2026-08-25T16:12:43Z",
-          "message": "Phases 4, 5, 9, 16: policy engine, orchestrator, agent director, structured memory"
+          "sha": "dc5bcdea5bae",
+          "date": "2026-08-25T17:10:39Z",
+          "message": "bootstrap: install git and Python automatically via winget"
         },
         {
-          "sha": "11c753f21cce",
-          "date": "2026-08-25T15:57:19Z",
-          "message": "Refoundation: master playbook adopted \u2014 contracts, capability registry, task engine, intercom"
+          "sha": "91f692b4756b",
+          "date": "2026-08-25T16:57:47Z",
+          "message": "Merge pull request #8 from caleblschulte0-ux/claude/project-alathea-interface-ah59fv"
         }
       ],
       "commit": {
-        "sha": "11fe9e014b57",
-        "date": "2026-08-25T16:47:06Z",
-        "message": "Aletheia: personal operating system foundation (playbook phases 0\u20136, 9, 16)"
+        "sha": "2271aea9a82a",
+        "date": "2026-08-25T17:22:48Z",
+        "message": "Merge pull request #10 from caleblschulte0-ux/claude/project-alathea-interface-ah59fv"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-08-25T16:47:32Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/32874051613"
+          "updated_at": "2026-08-25T19:01:13Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/32887165863"
         },
         "ci.yml": {
           "status": "completed",
-          "conclusion": "success",
-          "updated_at": "2026-08-25T16:47:21Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/32874024961"
+          "conclusion": "failure",
+          "updated_at": "2026-08-25T17:23:01Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/32877536359"
         }
       },
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 11483
+          "bytes": 14157
         }
       },
-      "health": "green"
+      "health": "red"
     },
     "shorts_pipeline": {
       "github": "Shorts-pipeline",
@@ -70,6 +70,16 @@
       "status": "active",
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
+        {
+          "sha": "127931b2620b",
+          "date": "2026-08-25T18:32:57Z",
+          "message": "doctor: consolidate ChatGPT scheduled task router"
+        },
+        {
+          "sha": "4dbf640660b1",
+          "date": "2026-08-25T18:05:03Z",
+          "message": "explainer: update posted log + analytics [skip ci]"
+        },
         {
           "sha": "d73dc9b1860e",
           "date": "2026-08-25T15:58:27Z",
@@ -84,22 +94,12 @@
           "sha": "67f8f1b63372",
           "date": "2026-08-25T14:41:29Z",
           "message": "daily: 2026-08-25 report + state [skip ci]"
-        },
-        {
-          "sha": "902257b55a97",
-          "date": "2026-08-25T14:25:04Z",
-          "message": "exchange: phase B applied for 20260825 [skip ci]"
-        },
-        {
-          "sha": "cecee1054e45",
-          "date": "2026-08-25T14:12:16Z",
-          "message": "explainer: update posted log + analytics [skip ci]"
         }
       ],
       "commit": {
-        "sha": "d73dc9b1860e",
-        "date": "2026-08-25T15:58:27Z",
-        "message": "watchdog: chatgpt task verdicts 20260825 [skip ci]"
+        "sha": "127931b2620b",
+        "date": "2026-08-25T18:32:57Z",
+        "message": "doctor: consolidate ChatGPT scheduled task router"
       },
       "vitals": [
         {
@@ -108,7 +108,7 @@
         },
         {
           "label": "explainer posted",
-          "value": 200
+          "value": 201
         },
         {
           "label": "third posted",
@@ -141,8 +141,8 @@
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-08-25T05:52:56Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/32814463830"
+          "updated_at": "2026-08-25T17:50:10Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/32880046998"
         },
         "third.yml": {
           "status": "completed",
@@ -153,8 +153,8 @@
         "explainer.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-08-25T14:23:22Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/32859154892"
+          "updated_at": "2026-08-25T18:05:15Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/32879601901"
         },
         "retro.yml": {
           "status": "completed",
@@ -176,7 +176,7 @@
         },
         "state/explainer_posted_log.json": {
           "exists": true,
-          "bytes": 47256
+          "bytes": 47522
         },
         "state/third_posted_log.json": {
           "exists": true,
@@ -188,7 +188,7 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 288981
+          "bytes": 274857
         },
         "config/channel_registry.json": {
           "exists": true,
@@ -269,8 +269,8 @@
         "sell-brain.yml": {
           "status": "completed",
           "conclusion": "failure",
-          "updated_at": "2026-08-25T15:35:20Z",
-          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/32866696185"
+          "updated_at": "2026-08-25T18:35:21Z",
+          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/32884600539"
         },
         "trader.yml": {
           "status": "completed",
@@ -281,8 +281,8 @@
         "watchdog.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-08-25T16:40:57Z",
-          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/32873391931"
+          "updated_at": "2026-08-25T18:25:50Z",
+          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/32883675277"
         }
       },
       "state_files": {
@@ -362,23 +362,19 @@
     {
       "repo": "aletheia",
       "github": "Aletheia",
-      "from": "unknown",
-      "to": "green"
-    },
-    {
-      "repo": "shorts_pipeline",
-      "github": "Shorts-pipeline",
-      "from": "unknown",
-      "to": "red"
-    },
-    {
-      "repo": "schwab_trader",
-      "github": "schwab-trader",
-      "from": "unknown",
+      "from": "green",
       "to": "red"
     }
   ],
   "alerts": [
+    {
+      "repo": "aletheia",
+      "github": "Aletheia",
+      "health": "red",
+      "failing": [
+        "ci.yml"
+      ]
+    },
     {
       "repo": "shorts_pipeline",
       "github": "Shorts-pipeline",
@@ -404,16 +400,16 @@
       {
         "slug": "light-up-the-wall",
         "title": "Light up the wall",
-        "done": 0,
+        "done": 1,
         "total": 4
       }
     ]
   },
   "tasks": {
-    "live": 8,
+    "live": 9,
     "by_status": {
-      "COMPLETED": 4,
-      "QUEUED": 6,
+      "COMPLETED": 5,
+      "QUEUED": 7,
       "WAITING_OPERATOR": 2
     },
     "items": [
@@ -421,11 +417,6 @@
         "id": "operator-setup",
         "status": "WAITING_OPERATOR",
         "description": "Operator: merge, FLEET_TOKEN, Pages, ChatGPT Project, run the Core (docs/SETUP.md)"
-      },
-      {
-        "id": "light-up-the-wall-s1",
-        "status": "QUEUED",
-        "description": "Merge claude/project-alathea-interface-ah59fv to main"
       },
       {
         "id": "light-up-the-wall-s2",
@@ -443,6 +434,12 @@
         "description": "Point a ChatGPT scheduled task at state/pulse/briefing.md with the exchange/README.md contract"
       },
       {
+        "id": "core-processes-commands",
+        "status": "QUEUED",
+        "description": "Let the local Core process exchange/commands itself, so voice-relayed commands can use PC-only capabilities (browser, later computer control) instead of failing in Actions",
+        "worker": "claude"
+      },
+      {
         "id": "computer-browser-v0",
         "status": "QUEUED",
         "description": "Phases 7-8: accessibility-first Windows control + dedicated browser profile on the local Core",
@@ -455,9 +452,9 @@
         "worker": "claude"
       },
       {
-        "id": "email-vertical-slice",
+        "id": "computer-v0",
         "status": "QUEUED",
-        "description": "Phase 13: email read/draft/approve/send/verify with operator_always gate",
+        "description": "Phase 7: accessibility-first Windows computer control, written and verified against the running local Core",
         "worker": "claude"
       }
     ]
