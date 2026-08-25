@@ -27,8 +27,11 @@ API:
     GET  /api/approvals     every approval
     GET  /api/capabilities  the capability registry
     GET  /api/journal?last=N
+    GET  /api/computer/status
     POST /api/command       {"kind": …, …args} (+optional "operator_quote")
                             → {outcome, detail}, executed inline, journaled
+    POST /api/computer      {steps, approval_id}
+                            → executes only through computer.execute gates
 """
 from __future__ import annotations
 
@@ -38,13 +41,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from aletheia import act, capabilities, intercom, journal, policy, tasks
+from aletheia import act, capabilities, computer, intercom, journal, policy, tasks
 from aletheia.fleet import REPO_ROOT, load_fleet
 from aletheia.pulse import PULSE_DIR
 
 INTERFACE_DIR = REPO_ROOT / "interface"
 ACTOR = "operator-local-core"
 DEFAULT_PORT = 8777
+MAX_BODY_BYTES = 64 * 1024
 
 
 def status_payload() -> dict:
@@ -98,6 +102,7 @@ def run_command(payload: dict, fleet: dict) -> dict:
 
 class Handler(BaseHTTPRequestHandler):
     fleet: dict = {}
+    computer_backend_factory = None
 
     def log_message(self, fmt, *args):  # quiet by default; journal is the record
         pass
@@ -125,6 +130,20 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _payload(self) -> dict:
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError as exc:
+            raise ValueError("Content-Length must be an integer") from exc
+        if length <= 0:
+            raise ValueError("request body is empty")
+        if length > MAX_BODY_BYTES:
+            raise ValueError(f"request body exceeds {MAX_BODY_BYTES} bytes")
+        payload = json.loads(self.rfile.read(length).decode("utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("payload must be an object")
+        return payload
+
     def do_GET(self):
         url = urlparse(self.path)
         if url.path == "/api/status":
@@ -135,6 +154,16 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(policy.all_approvals())
         if url.path == "/api/capabilities":
             return self._json(capabilities.load_registry())
+        if url.path == "/api/computer/status":
+            ok, reason = computer.available()
+            entry = capabilities.get("computer.control")
+            return self._json({
+                "available_locally": ok,
+                "reason": reason,
+                "registry_status": entry["status"],
+                # what the registry says is unverified — never a frozen literal
+                "registry_notes": entry.get("notes", ""),
+            })
         if url.path == "/api/journal":
             last = int(parse_qs(url.query).get("last", ["50"])[0])
             return self._json(journal.entries()[-last:])
@@ -155,24 +184,60 @@ class Handler(BaseHTTPRequestHandler):
         return self._static(rel)
 
     def do_POST(self):
-        if urlparse(self.path).path != "/api/command":
+        path = urlparse(self.path).path
+        if path not in ("/api/command", "/api/computer"):
             return self.send_error(404)
         try:
-            length = int(self.headers.get("Content-Length", "0"))
-            payload = json.loads(self.rfile.read(length).decode("utf-8"))
-            if not isinstance(payload, dict):
-                raise ValueError("payload must be an object")
+            payload = self._payload()
         except (ValueError, json.JSONDecodeError) as exc:
             return self._json({"outcome": "invalid", "detail": str(exc)}, code=400)
-        self._json(run_command(payload, self.fleet))
+        if path == "/api/command":
+            return self._json(run_command(payload, self.fleet))
+
+        unknown = set(payload) - {"steps", "approval_id"}
+        if unknown:
+            return self._json(
+                {"outcome": "invalid", "detail": f"unsupported fields {sorted(unknown)}"},
+                code=400)
+        approval_id = payload.get("approval_id")
+        if not isinstance(approval_id, str) or not approval_id:
+            return self._json(
+                {"outcome": "invalid", "detail": "approval_id must be a non-empty string"},
+                code=400)
+        try:
+            result = computer.execute(
+                payload.get("steps"), approval_id,
+                requested_by="operator-local-core",
+                backend_factory=self.computer_backend_factory)
+        except computer.ApprovalRequired as exc:
+            return self._json({"outcome": "refused", "detail": str(exc)}, code=403)
+        except policy.Halted as exc:
+            return self._json({"outcome": "halted", "detail": str(exc)}, code=409)
+        except ValueError as exc:
+            return self._json({"outcome": "invalid", "detail": str(exc)}, code=400)
+        except RuntimeError as exc:
+            return self._json(
+                {"outcome": "unavailable", "detail": f"{type(exc).__name__}: {exc}"},
+                code=503)
+        except Exception as exc:
+            return self._json(
+                {"outcome": "error", "detail": f"{type(exc).__name__}: {exc}"},
+                code=500)
+        return self._json({"outcome": "done", "result": result})
 
 
-def make_server(host: str = "127.0.0.1", port: int = DEFAULT_PORT) -> ThreadingHTTPServer:
+def make_server(host: str = "127.0.0.1", port: int = DEFAULT_PORT,
+                computer_backend_factory=None) -> ThreadingHTTPServer:
     if host not in ("127.0.0.1", "localhost"):
         raise ValueError(
             "the Core V0 has no authentication — it binds loopback only (§59 fail closed)")
-    Handler.fleet = load_fleet()
-    return ThreadingHTTPServer((host, port), Handler)
+    class BoundHandler(Handler):
+        pass
+
+    BoundHandler.fleet = load_fleet()
+    BoundHandler.computer_backend_factory = (
+        staticmethod(computer_backend_factory) if computer_backend_factory else None)
+    return ThreadingHTTPServer((host, port), BoundHandler)
 
 
 def main(argv: list[str] | None = None) -> int:

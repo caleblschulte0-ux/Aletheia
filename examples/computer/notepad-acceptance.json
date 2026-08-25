@@ -1,0 +1,29 @@
+[
+  {
+    "action": "open_app",
+    "app": "notepad.exe"
+  },
+  {
+    "action": "wait_window",
+    "window": {
+      "title_re": ".*Notepad.*"
+    },
+    "timeout_s": 15
+  },
+  {
+    "action": "focus_window",
+    "window": {
+      "title_re": ".*Notepad.*"
+    }
+  },
+  {
+    "action": "set_text",
+    "window": {
+      "title_re": ".*Notepad.*"
+    },
+    "control": {
+      "control_type": "Document"
+    },
+    "text": "Aletheia Phase 7 local acceptance passed this harmless Notepad step."
+  }
+]
