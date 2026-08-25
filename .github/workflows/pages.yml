@@ -1,0 +1,66 @@
+name: pages
+
+# Publishes THE WALL to GitHub Pages — and enables Pages itself on first
+# run (actions/configure-pages enablement), so the operator never has to
+# touch repository settings.
+#
+# Published surface is deliberately narrow: the wall + the pulse JSON it
+# reads. The Command Center is NOT published — it is a command surface and
+# belongs only to the loopback-bound local Core.
+
+on:
+  workflow_run:
+    workflows: [pulse]
+    types: [completed]
+  push:
+    branches: [main]
+    paths: ["interface/**", "state/pulse/latest.json", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Assemble the published site (wall + pulse only)
+        run: |
+          mkdir -p site/interface site/state/pulse
+          cp interface/index.html site/interface/index.html
+          cp state/pulse/latest.json site/state/pulse/latest.json
+          # root redirect so the bare Pages URL lands on the wall
+          cat > site/index.html <<'HTML'
+          <!doctype html><meta charset="utf-8">
+          <title>ALETHEIA</title>
+          <meta http-equiv="refresh" content="0; url=./interface/">
+          <body style="background:#04060b;color:#dfe6f2;font-family:system-ui;
+                       display:grid;place-items:center;height:100vh;margin:0">
+            <a href="./interface/" style="color:#62d0e8;letter-spacing:.4em;
+               text-decoration:none">ALETHEIA →</a>
+          </body>
+          HTML
+
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

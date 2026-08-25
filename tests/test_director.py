@@ -23,6 +23,7 @@ class DirectorCase(unittest.TestCase):
             p.start(); self.addCleanup(p.stop)
         tasks.create("fix-shorts", "Diagnose and repair the failing finalizer",
                      assigned_worker="claude")
+        tasks.set_status("fix-shorts", "READY")  # cleared to start
 
     def test_first_pass_requests_approval_not_work_order(self):
         api = RecordingAPI()
@@ -32,7 +33,7 @@ class DirectorCase(unittest.TestCase):
         posts = [c for c in api.calls if c[0] == "POST"]
         self.assertEqual(len(posts), 1)
         self.assertIn(policy.ISSUE_PREFIX, posts[0][2]["title"])
-        self.assertEqual(tasks.load("fix-shorts")["status"], "QUEUED")
+        self.assertEqual(tasks.load("fix-shorts")["status"], "READY")  # not yet dispatched
 
     def test_pending_approval_waits_silently(self):
         director.dispatch_ready("o/r", request=RecordingAPI())
@@ -66,8 +67,19 @@ class DirectorCase(unittest.TestCase):
 
     def test_unassigned_tasks_are_left_alone(self):
         tasks.create("solo", "no worker on this one")
+        tasks.set_status("solo", "READY")
         director.dispatch_ready("o/r", request=RecordingAPI())
-        self.assertEqual(tasks.load("solo")["status"], "QUEUED")
+        self.assertEqual(tasks.load("solo")["status"], "READY")
+
+    def test_queued_backlog_is_never_auto_delegated(self):
+        """The bug the first live pulse found: an unstarted roadmap task with
+        a worker must NOT draw a work order just because nothing blocks it."""
+        tasks.create("someday-email", "Phase 13 backlog item",
+                     assigned_worker="claude")
+        api = RecordingAPI()
+        actions = director.dispatch_ready("o/r", request=api)
+        self.assertEqual([a["task"] for a in actions], ["fix-shorts"])
+        self.assertEqual(tasks.load("someday-email")["status"], "QUEUED")
 
 
 if __name__ == "__main__":

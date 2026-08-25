@@ -130,6 +130,10 @@ def is_ready(task: dict, index: dict[str, dict] | None = None) -> bool:
 
 
 def ready() -> list[dict]:
+    """Tasks nothing BLOCKS (dependencies satisfied). This is candidacy, not
+    clearance: a QUEUED backlog item is 'ready' here. Delegation requires the
+    stronger `director.cleared` — stored status READY — so the whole backlog
+    is never dispatched at once."""
     index = {t["id"]: t for t in all_tasks()}
     out = [t for t in index.values() if is_ready(t, index)]
     return sorted(out, key=lambda t: (t.get("priority", 3), t["created_at"]))
