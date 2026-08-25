@@ -3,8 +3,8 @@
   "description": "Operator: merge, FLEET_TOKEN, Pages, ChatGPT Project, run the Core (docs/SETUP.md)",
   "status": "WAITING_OPERATOR",
   "created_at": "2026-08-25T16:35:43Z",
-  "updated_at": "2026-08-25T16:35:43Z",
+  "updated_at": "2026-08-25T16:57:08Z",
   "attempts": 0,
   "priority": 1,
-  "result": "checklist written to docs/SETUP.md"
+  "result": "reduced to 3 steps: Pages toggle, ChatGPT Project, run the Core. Merge done by Claude; FLEET_TOKEN demoted to optional"
 }

@@ -82,7 +82,7 @@ python -m unittest discover tests        # the whole suite, stdlib only
 
 ## Setup that needs the operator
 
-1. Merge the working branch; add the **`FLEET_TOKEN`** secret
+1. Turn on **GitHub Pages** (Settings → Pages → Source: GitHub Actions)
    (fine-grained PAT, read contents+actions across the fleet) so the
    pulse sees everything.
 2. Enable **GitHub Pages** (main, root) → the wall lives at
