@@ -22,6 +22,7 @@ import re
 import subprocess
 import sys
 import threading
+import time
 import uuid
 from pathlib import Path
 from typing import Protocol
@@ -31,7 +32,7 @@ from aletheia.fleet import REPO_ROOT
 
 
 ACTION_FIELDS = {
-    "open_app": {"action", "app", "arguments", "timeout_s"},
+    "open_app": {"action", "app", "arguments"},
     "list_windows": {"action", "max_results"},
     "wait_window": {"action", "window", "timeout_s"},
     "focus_window": {"action", "window", "timeout_s"},
@@ -52,6 +53,8 @@ MAX_ARGUMENT_CHARS = 4_096
 MAX_SELECTOR_CHARS = 256
 MAX_OBSERVATIONS = 200
 MAX_FILENAME_CHARS = 120
+MAX_PLAN_WAIT_S = 300.0
+WAIT_POLL_S = 0.5
 CAPTURE_DIR = REPO_ROOT / "cache" / "computer-captures"
 ACTOR = "aletheia-computer"
 _CLAIM_LOCK = threading.Lock()
@@ -113,6 +116,7 @@ def validate_steps(steps: object) -> list[str]:
     if len(steps) > MAX_STEPS:
         return [f"steps exceeds the maximum of {MAX_STEPS}"]
     problems: list[str] = []
+    total_wait_s = 0.0
     for index, step in enumerate(steps):
         label = f"steps[{index}]"
         if not isinstance(step, dict):
@@ -130,6 +134,8 @@ def validate_steps(steps: object) -> list[str]:
                 or not isinstance(step["timeout_s"], (int, float))
                 or not 0 < float(step["timeout_s"]) <= 60):
             problems.append(f"{label}.timeout_s: expected a number from 0 to 60")
+        elif "timeout_s" in ACTION_FIELDS[action]:
+            total_wait_s += float(step.get("timeout_s", DEFAULT_TIMEOUT_S))
         if action == "open_app":
             app = step.get("app")
             if not isinstance(app, str) or not app.strip():
@@ -185,6 +191,9 @@ def validate_steps(steps: object) -> list[str]:
                 problems.append(
                     f"{label}.filename: expected a simple .png basename up to "
                     f"{MAX_FILENAME_CHARS} characters")
+    if total_wait_s > MAX_PLAN_WAIT_S:
+        problems.append(
+            f"plan wait budget {total_wait_s:g}s exceeds {MAX_PLAN_WAIT_S:g}s")
     return problems
 
 
@@ -247,9 +256,11 @@ class WindowsUIABackend:
         if not ok:
             raise RuntimeError(f"computer control unavailable: {reason}")
         from pywinauto import Application, Desktop
+        from pywinauto.timings import TimeoutError as UIATimeoutError
 
         self._Application = Application
         self._Desktop = Desktop
+        self._TimeoutError = UIATimeoutError
 
     @staticmethod
     def _timeout(step: dict) -> float:
@@ -257,8 +268,23 @@ class WindowsUIABackend:
 
     def _window(self, step: dict):
         window = self._Desktop(backend="uia").window(**step["window"])
-        window.wait("exists visible enabled ready", timeout=self._timeout(step))
+        self._wait_interruptibly(
+            window.wait, "exists visible enabled ready", self._timeout(step))
         return window
+
+    def _wait_interruptibly(self, wait_fn, condition: str, timeout: float) -> None:
+        deadline = time.monotonic() + timeout
+        while True:
+            policy.ensure_not_halted()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise self._TimeoutError(
+                    f"timed out waiting for UIA condition {condition!r}")
+            try:
+                wait_fn(condition, timeout=min(WAIT_POLL_S, remaining))
+                return
+            except self._TimeoutError:
+                continue
 
     @staticmethod
     def _describe(wrapper) -> dict:
@@ -319,11 +345,13 @@ class WindowsUIABackend:
             return {"action": action, "verified": True, "path": str(out)}
         if action == "close_window":
             window.close()
-            window.wait_not("exists", timeout=self._timeout(step))
+            self._wait_interruptibly(
+                window.wait_not, "exists", self._timeout(step))
             return {"action": action, "verified": "window no longer exists"}
 
         control = window.child_window(**step["control"])
-        control.wait("exists visible enabled ready", timeout=self._timeout(step))
+        self._wait_interruptibly(
+            control.wait, "exists visible enabled ready", self._timeout(step))
         wrapper = control.wrapper_object()
         if action == "invoke":
             wrapper.invoke()

@@ -85,6 +85,11 @@ class ComputerCase(unittest.TestCase):
         self.assertTrue(any("arguments" in error for error in errors))
         self.assertTrue(any(".text" in error for error in errors))
         self.assertTrue(any("regular expression" in error for error in errors))
+        budget = computer.validate_steps([
+            {"action": "wait_window", "window": {"title": f"Window {index}"},
+             "timeout_s": 60}
+            for index in range(6)])
+        self.assertTrue(any("wait budget" in error for error in budget))
 
     def test_observation_and_screenshot_inputs_are_bounded(self):
         errors = computer.validate_steps([

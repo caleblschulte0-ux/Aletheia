@@ -42,6 +42,9 @@ class FakeWindow:
         self.state = state
 
     def wait(self, condition, timeout):
+        if self.state.get("window_timeouts", 0):
+            self.state["window_timeouts"] -= 1
+            raise FakeUIATimeout("not ready")
         self.state["window_wait"] = (condition, timeout)
 
     def wait_not(self, condition, timeout):
@@ -127,6 +130,10 @@ class FakeApplication:
         return FakeStartedApp()
 
 
+class FakeUIATimeout(RuntimeError):
+    pass
+
+
 class UIABackendCase(unittest.TestCase):
     def backend(self, observed=None):
         state = {}
@@ -135,8 +142,10 @@ class UIABackendCase(unittest.TestCase):
         module = types.SimpleNamespace(
             Application=lambda backend: FakeApplication(state, backend),
             Desktop=lambda backend: FakeDesktop(state, backend))
+        timings = types.SimpleNamespace(TimeoutError=FakeUIATimeout)
         available = mock.patch.object(computer, "available", return_value=(True, "ready"))
-        modules = mock.patch.dict("sys.modules", {"pywinauto": module})
+        modules = mock.patch.dict(
+            "sys.modules", {"pywinauto": module, "pywinauto.timings": timings})
         available.start(); modules.start()
         self.addCleanup(available.stop); self.addCleanup(modules.stop)
         return computer.WindowsUIABackend(), state
@@ -191,7 +200,8 @@ class UIABackendCase(unittest.TestCase):
             "window": {"title": "Harmless test window"},
             "timeout_s": 7})
         self.assertTrue(state["closed"])
-        self.assertEqual(state["window_wait_not"], ("exists", 7.0))
+        self.assertEqual(state["window_wait_not"][0], "exists")
+        self.assertLessEqual(state["window_wait_not"][1], computer.WAIT_POLL_S)
         self.assertIn("no longer exists", result["verified"])
 
     def test_lists_windows_and_bounds_results(self):
@@ -236,6 +246,30 @@ class UIABackendCase(unittest.TestCase):
                         "window": {"title": "Test Window"},
                         "filename": "evidence.png"})
             self.assertEqual(out.read_bytes(), b"original")
+
+    def test_uia_wait_retries_in_short_interruptible_polls(self):
+        backend, state = self.backend()
+        state["window_timeouts"] = 1
+        with mock.patch.object(computer.policy, "ensure_not_halted") as guard:
+            backend.perform({
+                "action": "wait_window",
+                "window": {"title": "Slow Window"},
+                "timeout_s": 2})
+        self.assertGreaterEqual(guard.call_count, 2)
+        self.assertLessEqual(state["window_wait"][1], computer.WAIT_POLL_S)
+
+    def test_halt_interrupts_while_uia_wait_is_retrying(self):
+        backend, state = self.backend()
+        state["window_timeouts"] = 5
+        with mock.patch.object(
+                computer.policy, "ensure_not_halted",
+                side_effect=[None, computer.policy.Halted("stop")]):
+            with self.assertRaises(computer.policy.Halted):
+                backend.perform({
+                    "action": "wait_window",
+                    "window": {"title": "Slow Window"},
+                    "timeout_s": 10})
+        self.assertEqual(state["window_timeouts"], 4)
 
 
 if __name__ == "__main__":
