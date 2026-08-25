@@ -15,10 +15,21 @@ class FakeSource:
         self.failed_workflows = set(failed_workflows)
         self.missing_files = set(missing_files)
 
-    def latest_commit(self, gh, branch):
+    def recent_commits(self, gh, branch, n=5):
         if gh in self.dead_repos:
             raise RuntimeError("repo unreachable")
-        return {"sha": "abc123abc123", "date": "2026-08-25T00:00:00Z", "message": "hello"}
+        return [{"sha": "abc123abc123", "date": "2026-08-25T00:00:00Z", "message": "hello"}]
+
+    def read_json(self, gh, path, branch):
+        # enough shape for every vital declared in the registry
+        return {
+            "posted": ["a", "b", "c"],
+            "positions": {"SLDB": {}, "TISI": {}},
+            "total_realized": -40.82,
+            "win_rate": 14.3,
+            "n": 14,
+            "cash": 2.50,
+        }
 
     def workflow_run(self, gh, workflow):
         conclusion = "failure" if workflow in self.failed_workflows else "success"
@@ -61,6 +72,24 @@ class TestCollect(unittest.TestCase):
         text = briefing(pulse)
         self.assertIn("Unreachable:", text)
         self.assertIn("Shorts-pipeline", text)
+
+    def test_vitals_are_evaluated_from_registry_probes(self):
+        pulse = collect(self.fleet, FakeSource())
+        vitals = {v["label"]: v for v in pulse["repos"]["schwab_trader"]["vitals"]}
+        self.assertEqual(vitals["open positions"]["value"], 2)
+        self.assertEqual(vitals["realized P&L"]["value"], -40.82)
+        self.assertEqual(vitals["realized P&L"]["unit"], "usd")
+        shorts = {v["label"]: v for v in pulse["repos"]["shorts_pipeline"]["vitals"]}
+        self.assertEqual(shorts["trending posted"]["value"], 3)
+
+    def test_broken_vital_is_recorded_not_fatal(self):
+        class BrokenVitals(FakeSource):
+            def read_json(self, gh, path, branch):
+                raise RuntimeError("corrupt file")
+        pulse = collect(self.fleet, BrokenVitals())
+        record = pulse["repos"]["schwab_trader"]
+        self.assertTrue(all("error" in v for v in record["vitals"]))
+        self.assertIn(record["health"], ("green", "red"))  # pulse still stands
 
     def test_write_pulse_emits_latest_briefing_and_history(self):
         pulse = collect(self.fleet, FakeSource())

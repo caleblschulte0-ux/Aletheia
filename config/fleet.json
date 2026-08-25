@@ -1,5 +1,5 @@
 {
-  "revision": 1,
+  "revision": 2,
   "fleet": "aletheia",
   "owner": "caleblschulte0-ux",
   "repos": {
@@ -10,13 +10,30 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "default_branch": "main",
       "agents": [
-        {"name": "interactive Claude session", "kind": "claude", "writes": "code, docs, contracts, rulings"},
-        {"name": "pulse workflow", "kind": "ci", "writes": "state/pulse/*"},
-        {"name": "ChatGPT advisor", "kind": "chatgpt", "writes": "exchange/suggestions/*.json only"}
+        {
+          "name": "interactive Claude session",
+          "kind": "claude",
+          "writes": "code, docs, contracts, rulings"
+        },
+        {
+          "name": "pulse workflow",
+          "kind": "ci",
+          "writes": "state/pulse/*"
+        },
+        {
+          "name": "ChatGPT advisor",
+          "kind": "chatgpt",
+          "writes": "exchange/suggestions/*.json only"
+        }
       ],
       "watch": {
-        "workflows": ["pulse.yml", "ci.yml"],
-        "state_files": ["state/pulse/latest.json"]
+        "workflows": [
+          "pulse.yml",
+          "ci.yml"
+        ],
+        "state_files": [
+          "state/pulse/latest.json"
+        ]
       }
     },
     "shorts_pipeline": {
@@ -26,13 +43,38 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "default_branch": "main",
       "agents": [
-        {"name": "Routine", "kind": "claude", "writes": "the day's packages via PR"},
-        {"name": "showrunner", "kind": "claude", "writes": "sovereign publish verdicts"},
-        {"name": "ChatGPT exchange workers", "kind": "chatgpt", "writes": "day content + media pointers"},
-        {"name": "doctor reviewer", "kind": "chatgpt", "writes": "doctor/reports/<date>.json"}
+        {
+          "name": "Routine",
+          "kind": "claude",
+          "writes": "the day's packages via PR"
+        },
+        {
+          "name": "showrunner",
+          "kind": "claude",
+          "writes": "sovereign publish verdicts"
+        },
+        {
+          "name": "ChatGPT exchange workers",
+          "kind": "chatgpt",
+          "writes": "day content + media pointers"
+        },
+        {
+          "name": "doctor reviewer",
+          "kind": "chatgpt",
+          "writes": "doctor/reports/<date>.json"
+        }
       ],
       "watch": {
-        "workflows": ["daily.yml", "exchange_phase_a.yml", "exchange_phase_b.yml", "story_forge.yml", "third.yml", "explainer.yml", "retro.yml", "doctor.yml"],
+        "workflows": [
+          "daily.yml",
+          "exchange_phase_a.yml",
+          "exchange_phase_b.yml",
+          "story_forge.yml",
+          "third.yml",
+          "explainer.yml",
+          "retro.yml",
+          "doctor.yml"
+        ],
         "state_files": [
           "state/posted_log.json",
           "state/explainer_posted_log.json",
@@ -41,7 +83,33 @@
           "state/showrunner_verdicts.jsonl",
           "config/channel_registry.json"
         ]
-      }
+      },
+      "vitals": [
+        {
+          "label": "trending posted",
+          "file": "state/posted_log.json",
+          "probe": "count",
+          "path": "posted"
+        },
+        {
+          "label": "explainer posted",
+          "file": "state/explainer_posted_log.json",
+          "probe": "count",
+          "path": "posted"
+        },
+        {
+          "label": "third posted",
+          "file": "state/third_posted_log.json",
+          "probe": "count",
+          "path": "posted"
+        },
+        {
+          "label": "curiosity posted",
+          "file": "state/curiosity_posted_log.json",
+          "probe": "count",
+          "path": "posted"
+        }
+      ]
     },
     "schwab_trader": {
       "github": "schwab-trader",
@@ -50,19 +118,71 @@
       "summary": "Guardrailed paper-trading day-trading bot for Charles Schwab: separate Claude BUY and SELL brains, executor on GitHub Actions, significance-gated sell approvals.",
       "default_branch": "main",
       "agents": [
-        {"name": "BUY brain", "kind": "claude", "writes": "signals/orders.json"},
-        {"name": "SELL brain", "kind": "claude", "writes": "signals/proposed_sells.json"},
-        {"name": "executor", "kind": "ci", "writes": "holdings, ledgers, reports"}
+        {
+          "name": "BUY brain",
+          "kind": "claude",
+          "writes": "signals/orders.json"
+        },
+        {
+          "name": "SELL brain",
+          "kind": "claude",
+          "writes": "signals/proposed_sells.json"
+        },
+        {
+          "name": "executor",
+          "kind": "ci",
+          "writes": "holdings, ledgers, reports"
+        }
       ],
       "watch": {
-        "workflows": ["brain.yml", "sell-brain.yml", "trader.yml", "watchdog.yml"],
+        "workflows": [
+          "brain.yml",
+          "sell-brain.yml",
+          "trader.yml",
+          "watchdog.yml"
+        ],
         "state_files": [
           "signals/holdings.json",
           "signals/paper_account.json",
           "signals/performance.json",
           "reports/track_record.md"
         ]
-      }
+      },
+      "vitals": [
+        {
+          "label": "realized P&L",
+          "file": "signals/performance.json",
+          "probe": "field",
+          "path": "total_realized",
+          "unit": "usd"
+        },
+        {
+          "label": "win rate",
+          "file": "signals/performance.json",
+          "probe": "field",
+          "path": "win_rate",
+          "unit": "%"
+        },
+        {
+          "label": "closed trades",
+          "file": "signals/performance.json",
+          "probe": "field",
+          "path": "n"
+        },
+        {
+          "label": "open positions",
+          "file": "signals/paper_account.json",
+          "probe": "count",
+          "path": "positions"
+        },
+        {
+          "label": "cash",
+          "file": "signals/paper_account.json",
+          "probe": "field",
+          "path": "cash",
+          "unit": "usd"
+        }
+      ]
     },
     "money_machine": {
       "github": "Money_Machine",
@@ -71,7 +191,10 @@
       "summary": "Empty stub — nothing but a README. No behaviour to observe yet.",
       "default_branch": "main",
       "agents": [],
-      "watch": {"workflows": [], "state_files": []}
+      "watch": {
+        "workflows": [],
+        "state_files": []
+      }
     },
     "etsy_maker": {
       "github": "etsy_maker",
@@ -80,7 +203,10 @@
       "summary": "Empty stub — nothing but a README. No behaviour to observe yet.",
       "default_branch": "main",
       "agents": [],
-      "watch": {"workflows": [], "state_files": []}
+      "watch": {
+        "workflows": [],
+        "state_files": []
+      }
     },
     "fosstester": {
       "github": "fosstester",
@@ -89,7 +215,10 @@
       "summary": "Empty stub — nothing but a README. No behaviour to observe yet.",
       "default_branch": "main",
       "agents": [],
-      "watch": {"workflows": [], "state_files": []}
+      "watch": {
+        "workflows": [],
+        "state_files": []
+      }
     }
   }
 }

@@ -17,7 +17,8 @@ wired it.
 |---|---|---|
 | A1 | Fleet registry — one source of truth for what exists | `config/fleet.json` via `aletheia/fleet.py`; README table generated; `tests/test_fleet.py` |
 | A2 | Fleet pulse — live status of every repo, honest about blind spots | `aletheia/pulse.py`; `pulse.yml` (scheduled); `tests/test_pulse.py` |
-| A3 | Static dashboard | `interface/index.html` reading `state/pulse/latest.json`; GitHub Pages-ready |
+| A3 | The wall — cinematic fleet display (operator ruling 2026-08-25: this is the centerpiece, projected behind the monitors) | `interface/index.html` reading `state/pulse/latest.json`; orbital fleet map, live clock, vitals, activity ticker; GitHub Pages-ready |
+| A3b | Vitals in the pulse — real numbers (paper P&L, win rate, positions, videos posted per channel) declared in the registry, probed generically | `vitals` in `config/fleet.json`; `_vitals` in `aletheia/pulse.py`; `tests/test_pulse.py` |
 | A4 | ChatGPT advisory seat — suggestions in, rulings out, never code | `exchange/` contract; `aletheia/suggestions.py`; CI validation; `tests/test_suggestions.py` |
 
 ## Tickets

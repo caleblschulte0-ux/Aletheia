@@ -1,12 +1,12 @@
 # Fleet briefing
 
-Generated 2026-08-25T13:01:50Z from fleet registry rev 1 via LocalSource.
+Generated 2026-08-25T14:34:26Z from fleet registry rev 2 via LocalSource.
 
 ## ⚪ `Aletheia` — hub (active)
 
 The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.
 
-Last commit `6bcf0ee50ba9` at 2026-08-25T07:50:41-05:00: Initial commit
+Last commit `9bd8519c1791` at 2026-08-25T13:02:58+00:00: Aletheia v1: fleet registry, pulse collector, dashboard, ChatGPT suggestion inbox
 
 Watched workflows:
 - `pulse.yml`: unavailable offline
@@ -17,6 +17,8 @@ Watched workflows:
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
 Last commit `11798512bdbf` at 2026-08-25T12:51:49+00:00: third: analytics [skip ci]
+
+Vitals — trending posted: 280 · explainer posted: 198 · third posted: 373 · curiosity posted: 1
 
 Watched workflows:
 - `daily.yml`: unavailable offline
@@ -33,6 +35,8 @@ Watched workflows:
 Guardrailed paper-trading day-trading bot for Charles Schwab: separate Claude BUY and SELL brains, executor on GitHub Actions, significance-gated sell approvals.
 
 Last commit `431388b9c9e2` at 2026-08-25T12:37:06+00:00: sell-brain: update exit decisions [skip ci]
+
+Vitals — realized P&L: $-40.82 · win rate: 14.3% · closed trades: 14 · open positions: 13 · cash: $2.50
 
 Watched workflows:
 - `brain.yml`: unavailable offline

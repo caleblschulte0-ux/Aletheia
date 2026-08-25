@@ -78,13 +78,28 @@ python -m aletheia.suggestions list --state new
 python -m aletheia.suggestions rule <id> doing --because "..."
 ```
 
-## The interface is static and dumb on purpose
+## The interface is the CENTERPIECE — and still a pure view
 
-`interface/index.html` renders `state/pulse/latest.json` with zero build
-step, zero dependencies, zero server — so it can never disagree with the
-pulse and never breaks in a way the pulse doesn't already show. Smarts go
-in the collector, not the page. A richer app is ticket A8, not a reason to
-grow JavaScript here quietly.
+Operator ruling 2026-08-25: the interface is not a status page, it is the
+wall — projected behind the operator's monitors, the visible face of
+everything they've built. Treat its craft accordingly: cinematic,
+ambient, legible from across a room. But two rules keep its ambition
+honest:
+
+- **It stays a static single file** rendering `state/pulse/latest.json` —
+  zero build step, zero dependencies, zero server — so it can never
+  disagree with the pulse and never breaks in a way the pulse doesn't
+  already show. Smarts (new numbers, new probes) go in the COLLECTOR and
+  the registry's `vitals`, then the wall renders them.
+- **Status is never color-alone.** Every health dot travels with its word
+  (OPERATIONAL / FAULT / NO TELEMETRY / DORMANT) — the red/green pair is
+  not CVD-safe by itself and a wall display is read at a glance.
+
+It deliberately commits to one dark look (it is a projection surface, not
+a document), auto-refreshes, and shows honest staleness (`PULSE STALE`)
+when the pulse is old. An INTERACTIVE command surface — buttons, chat,
+approvals — is ticket A8 and a different artifact; do not grow controls
+into this page quietly.
 
 ## Storage rules
 

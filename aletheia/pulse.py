@@ -55,13 +55,23 @@ class GitHubSource:
         with urllib.request.urlopen(req, timeout=30) as resp:
             return json.loads(resp.read().decode("utf-8"))
 
-    def latest_commit(self, gh: str, branch: str) -> dict:
-        c = self._get(f"/repos/{self.owner}/{gh}/commits/{branch}")
-        return {
-            "sha": c["sha"][:12],
-            "date": c["commit"]["committer"]["date"],
-            "message": c["commit"]["message"].splitlines()[0][:120],
-        }
+    def recent_commits(self, gh: str, branch: str, n: int = 5) -> list[dict]:
+        commits = self._get(f"/repos/{self.owner}/{gh}/commits?sha={branch}&per_page={n}")
+        return [
+            {
+                "sha": c["sha"][:12],
+                "date": c["commit"]["committer"]["date"],
+                "message": c["commit"]["message"].splitlines()[0][:120],
+            }
+            for c in commits
+        ]
+
+    def read_json(self, gh: str, path: str, branch: str):
+        meta = self._get(f"/repos/{self.owner}/{gh}/contents/{path}?ref={branch}")
+        if not isinstance(meta, dict) or meta.get("encoding") != "base64":
+            raise ValueError(f"{path} is not a base64-encoded file")
+        import base64
+        return json.loads(base64.b64decode(meta["content"]).decode("utf-8"))
 
     def workflow_run(self, gh: str, workflow: str) -> dict:
         try:
@@ -108,13 +118,19 @@ class LocalSource:
             raise FileNotFoundError(f"no clone at {d}")
         return d
 
-    def latest_commit(self, gh: str, branch: str) -> dict:
+    def recent_commits(self, gh: str, branch: str, n: int = 5) -> list[dict]:
         out = subprocess.run(
-            ["git", "log", "-1", "--format=%H%x00%cI%x00%s"],
+            ["git", "log", f"-{n}", "--format=%H%x00%cI%x00%s"],
             cwd=self._dir(gh), capture_output=True, text=True, check=True,
         ).stdout.strip()
-        sha, date, msg = out.split("\x00")
-        return {"sha": sha[:12], "date": date, "message": msg[:120]}
+        commits = []
+        for line in out.splitlines():
+            sha, date, msg = line.split("\x00")
+            commits.append({"sha": sha[:12], "date": date, "message": msg[:120]})
+        return commits
+
+    def read_json(self, gh: str, path: str, branch: str):
+        return json.loads((self._dir(gh) / path).read_text(encoding="utf-8"))
 
     def workflow_run(self, gh: str, workflow: str) -> dict:
         return {"error": "unavailable offline"}
@@ -126,6 +142,36 @@ class LocalSource:
         if not p.is_file():
             return {"exists": False}
         return {"exists": True, "bytes": p.stat().st_size}
+
+
+def _dig(data, path: str):
+    """Follow a dotted path into parsed JSON."""
+    for part in path.split("."):
+        data = data[part]
+    return data
+
+
+def _vitals(repo: dict, source) -> list[dict]:
+    """Evaluate the registry's declared vitals. Each failure is recorded on
+    the vital itself — a broken probe never takes the pulse down."""
+    out = []
+    gh, branch = repo["github"], repo["default_branch"]
+    cache: dict[str, object] = {}
+    for vital in repo.get("vitals", []):
+        entry = {"label": vital["label"]}
+        if "unit" in vital:
+            entry["unit"] = vital["unit"]
+        try:
+            if vital["file"] not in cache:
+                cache[vital["file"]] = source.read_json(gh, vital["file"], branch)
+            node = cache[vital["file"]]
+            if vital.get("path"):
+                node = _dig(node, vital["path"])
+            entry["value"] = len(node) if vital["probe"] == "count" else node
+        except Exception as exc:
+            entry["error"] = f"{type(exc).__name__}: {exc}"
+        out.append(entry)
+    return out
 
 
 def _health(record: dict, status: str) -> str:
@@ -166,10 +212,12 @@ def collect(fleet: dict, source) -> dict:
         }
         gh, branch = repo["github"], repo["default_branch"]
         try:
-            record["commit"] = source.latest_commit(gh, branch)
+            record["commits"] = source.recent_commits(gh, branch)
+            record["commit"] = record["commits"][0] if record["commits"] else None
         except Exception as exc:  # a dead repo is a finding, not a crash
             record["error"] = f"{type(exc).__name__}: {exc}"
         if "error" not in record:
+            record["vitals"] = _vitals(repo, source)
             record["workflows"] = {}
             for wf in repo["watch"]["workflows"]:
                 try:
@@ -212,6 +260,23 @@ def briefing(pulse: dict) -> str:
         if c:
             lines.append("")
             lines.append(f"Last commit `{c['sha']}` at {c['date']}: {c['message']}")
+        vitals = r.get("vitals", [])
+        if vitals:
+            lines.append("")
+            parts = []
+            for v in vitals:
+                if "error" in v:
+                    parts.append(f"{v['label']}: unreadable ({v['error']})")
+                else:
+                    unit = v.get("unit", "")
+                    val = v["value"]
+                    if unit == "usd" and isinstance(val, (int, float)):
+                        parts.append(f"{v['label']}: ${val:,.2f}")
+                    elif unit == "%":
+                        parts.append(f"{v['label']}: {val}%")
+                    else:
+                        parts.append(f"{v['label']}: {val}")
+            lines.append("Vitals — " + " · ".join(parts))
         wf_lines = []
         for name, w in r.get("workflows", {}).items():
             if "error" in w:

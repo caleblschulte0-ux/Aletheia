@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-25T13:01:50Z",
-  "fleet_revision": 1,
+  "generated_at": "2026-08-25T14:34:26Z",
+  "fleet_revision": 2,
   "owner": "caleblschulte0-ux",
   "source": "LocalSource",
   "repos": {
@@ -9,11 +9,24 @@
       "role": "hub",
       "status": "active",
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
+      "commits": [
+        {
+          "sha": "9bd8519c1791",
+          "date": "2026-08-25T13:02:58+00:00",
+          "message": "Aletheia v1: fleet registry, pulse collector, dashboard, ChatGPT suggestion inbox"
+        },
+        {
+          "sha": "6bcf0ee50ba9",
+          "date": "2026-08-25T07:50:41-05:00",
+          "message": "Initial commit"
+        }
+      ],
       "commit": {
-        "sha": "6bcf0ee50ba9",
-        "date": "2026-08-25T07:50:41-05:00",
-        "message": "Initial commit"
+        "sha": "9bd8519c1791",
+        "date": "2026-08-25T13:02:58+00:00",
+        "message": "Aletheia v1: fleet registry, pulse collector, dashboard, ChatGPT suggestion inbox"
       },
+      "vitals": [],
       "workflows": {
         "pulse.yml": {
           "error": "unavailable offline"
@@ -25,7 +38,7 @@
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 5113
+          "bytes": 8776
         }
       },
       "health": "unknown"
@@ -35,11 +48,56 @@
       "role": "youtube-automation",
       "status": "active",
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
+      "commits": [
+        {
+          "sha": "11798512bdbf",
+          "date": "2026-08-25T12:51:49+00:00",
+          "message": "third: analytics [skip ci]"
+        },
+        {
+          "sha": "0564c79d5c5e",
+          "date": "2026-08-25T12:51:39+00:00",
+          "message": "third: update posted log + analytics [skip ci]"
+        },
+        {
+          "sha": "e6821f37c5f4",
+          "date": "2026-08-25T12:51:35+00:00",
+          "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
+        },
+        {
+          "sha": "cea83d1aa163",
+          "date": "2026-08-25T11:57:39+00:00",
+          "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
+        },
+        {
+          "sha": "46fc651c0d8f",
+          "date": "2026-08-25T11:52:23+00:00",
+          "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
+        }
+      ],
       "commit": {
         "sha": "11798512bdbf",
         "date": "2026-08-25T12:51:49+00:00",
         "message": "third: analytics [skip ci]"
       },
+      "vitals": [
+        {
+          "label": "trending posted",
+          "value": 280
+        },
+        {
+          "label": "explainer posted",
+          "value": 198
+        },
+        {
+          "label": "third posted",
+          "value": 373
+        },
+        {
+          "label": "curiosity posted",
+          "value": 1
+        }
+      ],
       "workflows": {
         "daily.yml": {
           "error": "unavailable offline"
@@ -99,11 +157,63 @@
       "role": "trading-bot",
       "status": "active",
       "summary": "Guardrailed paper-trading day-trading bot for Charles Schwab: separate Claude BUY and SELL brains, executor on GitHub Actions, significance-gated sell approvals.",
+      "commits": [
+        {
+          "sha": "431388b9c9e2",
+          "date": "2026-08-25T12:37:06+00:00",
+          "message": "sell-brain: update exit decisions [skip ci]"
+        },
+        {
+          "sha": "7543d2031b71",
+          "date": "2026-08-24T18:37:03+00:00",
+          "message": "sell-brain: update exit decisions [skip ci]"
+        },
+        {
+          "sha": "0719287c3893",
+          "date": "2026-08-24T15:37:04+00:00",
+          "message": "sell-brain: update exit decisions [skip ci]"
+        },
+        {
+          "sha": "26b44025fe52",
+          "date": "2026-08-24T12:36:29+00:00",
+          "message": "sell-brain: update exit decisions [skip ci]"
+        },
+        {
+          "sha": "35c0eb7ad510",
+          "date": "2026-08-21T18:36:32+00:00",
+          "message": "sell-brain: update exit decisions [skip ci]"
+        }
+      ],
       "commit": {
         "sha": "431388b9c9e2",
         "date": "2026-08-25T12:37:06+00:00",
         "message": "sell-brain: update exit decisions [skip ci]"
       },
+      "vitals": [
+        {
+          "label": "realized P&L",
+          "unit": "usd",
+          "value": -40.82
+        },
+        {
+          "label": "win rate",
+          "unit": "%",
+          "value": 14.3
+        },
+        {
+          "label": "closed trades",
+          "value": 14
+        },
+        {
+          "label": "open positions",
+          "value": 13
+        },
+        {
+          "label": "cash",
+          "unit": "usd",
+          "value": 2.5024000000001148
+        }
+      ],
       "workflows": {
         "brain.yml": {
           "error": "unavailable offline"
@@ -143,11 +253,19 @@
       "role": "unbuilt",
       "status": "stub",
       "summary": "Empty stub \u2014 nothing but a README. No behaviour to observe yet.",
+      "commits": [
+        {
+          "sha": "53c6507f6afe",
+          "date": "2026-08-05T14:11:54-05:00",
+          "message": "Initial commit"
+        }
+      ],
       "commit": {
         "sha": "53c6507f6afe",
         "date": "2026-08-05T14:11:54-05:00",
         "message": "Initial commit"
       },
+      "vitals": [],
       "workflows": {},
       "state_files": {},
       "health": "dormant"
@@ -157,11 +275,19 @@
       "role": "unbuilt",
       "status": "stub",
       "summary": "Empty stub \u2014 nothing but a README. No behaviour to observe yet.",
+      "commits": [
+        {
+          "sha": "1ecd2656a55d",
+          "date": "2026-05-30T12:59:18-05:00",
+          "message": "Initial commit"
+        }
+      ],
       "commit": {
         "sha": "1ecd2656a55d",
         "date": "2026-05-30T12:59:18-05:00",
         "message": "Initial commit"
       },
+      "vitals": [],
       "workflows": {},
       "state_files": {},
       "health": "dormant"
@@ -171,11 +297,19 @@
       "role": "unbuilt",
       "status": "stub",
       "summary": "Empty stub \u2014 nothing but a README. No behaviour to observe yet.",
+      "commits": [
+        {
+          "sha": "41ea84afb060",
+          "date": "2026-06-03T10:08:19-05:00",
+          "message": "Initial commit"
+        }
+      ],
       "commit": {
         "sha": "41ea84afb060",
         "date": "2026-06-03T10:08:19-05:00",
         "message": "Initial commit"
       },
+      "vitals": [],
       "workflows": {},
       "state_files": {},
       "health": "dormant"

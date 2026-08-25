@@ -76,6 +76,15 @@ def validate(fleet: dict) -> None:
             problems.append(f"{where}.watch: must have exactly workflows + state_files")
         if status == "stub" and (watch.get("workflows") or watch.get("state_files")):
             problems.append(f"{where}: a stub has nothing to watch — clear watch or change status")
+        for i, vital in enumerate(repo.get("vitals", [])):
+            v_where = f"{where}.vitals[{i}]"
+            for key in ("label", "file", "probe"):
+                if not vital.get(key):
+                    problems.append(f"{v_where}: needs {key}")
+            if vital.get("probe") not in ("count", "field"):
+                problems.append(f"{v_where}: probe {vital.get('probe')!r} not in ['count', 'field']")
+            if vital.get("probe") == "field" and not vital.get("path"):
+                problems.append(f"{v_where}: a field probe needs a path")
     if problems:
         raise FleetError("fleet registry invalid:\n  " + "\n  ".join(problems))
 
