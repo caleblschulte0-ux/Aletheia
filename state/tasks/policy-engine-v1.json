@@ -1,0 +1,10 @@
+{
+  "id": "policy-engine-v1",
+  "description": "Phase 4: approval store, operator_once/always intercom flow, delegated authority, kill switch",
+  "status": "QUEUED",
+  "created_at": "2026-08-25T15:56:51Z",
+  "updated_at": "2026-08-25T15:56:51Z",
+  "attempts": 0,
+  "priority": 1,
+  "assigned_worker": "claude"
+}

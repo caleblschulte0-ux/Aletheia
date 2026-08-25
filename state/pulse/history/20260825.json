@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-25T14:47:43Z",
+  "generated_at": "2026-08-25T15:57:01Z",
   "fleet_revision": 3,
   "owner": "caleblschulte0-ux",
   "source": "LocalSource",
@@ -10,6 +10,11 @@
       "status": "active",
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
+        {
+          "sha": "c805655a95cc",
+          "date": "2026-08-25T14:47:59+00:00",
+          "message": "Capabilities: journal, sentinel, morning brief, plans, front-door actions"
+        },
         {
           "sha": "9e601f0b83d3",
           "date": "2026-08-25T14:35:26+00:00",
@@ -27,9 +32,9 @@
         }
       ],
       "commit": {
-        "sha": "9e601f0b83d3",
-        "date": "2026-08-25T14:35:26+00:00",
-        "message": "The wall: rebuild the interface as the fleet's cinematic centerpiece, feed it real vitals"
+        "sha": "c805655a95cc",
+        "date": "2026-08-25T14:47:59+00:00",
+        "message": "Capabilities: journal, sentinel, morning brief, plans, front-door actions"
       },
       "vitals": [],
       "workflows": {
@@ -330,6 +335,44 @@
         "title": "Light up the wall",
         "done": 0,
         "total": 4
+      }
+    ]
+  },
+  "tasks": {
+    "live": 5,
+    "by_status": {
+      "QUEUED": 5
+    },
+    "items": [
+      {
+        "id": "policy-engine-v1",
+        "status": "QUEUED",
+        "description": "Phase 4: approval store, operator_once/always intercom flow, delegated authority, kill switch",
+        "worker": "claude"
+      },
+      {
+        "id": "agent-director-v1",
+        "status": "QUEUED",
+        "description": "Phase 9: task-driven delegation to Claude sessions with durable dependency chains",
+        "worker": "claude"
+      },
+      {
+        "id": "orchestrator-v1",
+        "status": "QUEUED",
+        "description": "Phase 5: deterministic goal-to-tasks compiler with per-step verification",
+        "worker": "claude"
+      },
+      {
+        "id": "computer-browser-v0",
+        "status": "QUEUED",
+        "description": "Phases 7-8: accessibility-first Windows control + dedicated browser profile on the local Core",
+        "worker": "claude"
+      },
+      {
+        "id": "local-core-bootstrap",
+        "status": "QUEUED",
+        "description": "Phase 6+: persistent local service on the Windows PC adopting the same contracts and stores",
+        "worker": "claude"
       }
     ]
   }

@@ -107,16 +107,15 @@ def cmd_list(fleet: dict, state_filter: str | None) -> int:
     return 0
 
 
-def cmd_rule(sid: str, state: str, because: str) -> int:
+def rule(sid: str, state: str, because: str, actor: str = "claude") -> None:
+    """Record a ruling. Raises ValueError/KeyError on bad input — callers
+    (the CLI here, the intercom) present the failure their own way."""
     if state not in VALID_STATES:
-        print(f"state must be one of {sorted(VALID_STATES)}", file=sys.stderr)
-        return 1
+        raise ValueError(f"state must be one of {sorted(VALID_STATES)}")
     if not because.strip():
-        print("a real --because is required — it is quoted back to the reviewer", file=sys.stderr)
-        return 1
+        raise ValueError("a real because is required — it is quoted back to the reviewer")
     if not (SUGGESTIONS_DIR / f"{sid}.json").exists():
-        print(f"no suggestion {sid!r} in {SUGGESTIONS_DIR}", file=sys.stderr)
-        return 1
+        raise KeyError(f"no suggestion {sid!r} in {SUGGESTIONS_DIR}")
     verdicts = load_verdicts()
     verdicts[sid] = {
         "state": state,
@@ -125,7 +124,15 @@ def cmd_rule(sid: str, state: str, because: str) -> int:
     }
     save_verdicts(verdicts)
     from aletheia import journal
-    journal.append("decision", f"suggestion:{sid}", f"{state} — {because}", actor="claude")
+    journal.append("decision", f"suggestion:{sid}", f"{state} — {because}", actor=actor)
+
+
+def cmd_rule(sid: str, state: str, because: str) -> int:
+    try:
+        rule(sid, state, because)
+    except (ValueError, KeyError) as exc:
+        print(exc, file=sys.stderr)
+        return 1
     print(f"{sid} -> {state}")
     return 0
 

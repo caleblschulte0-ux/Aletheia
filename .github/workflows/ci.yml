@@ -17,8 +17,11 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Registry validates
+      - name: Fleet registry validates
         run: python -m aletheia.fleet --validate
+
+      - name: Capability registry validates
+        run: python -m aletheia.capabilities --validate
 
       - name: ChatGPT inbox validates
         run: python -m aletheia.suggestions validate

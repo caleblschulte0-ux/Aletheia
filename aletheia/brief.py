@@ -113,6 +113,14 @@ def compose(pulse: dict, prev: dict | None, journal_entries: list[dict],
             lines.append(f"- **{p['title']}** — {p['done']}/{p['total']} steps done (`{p['slug']}`)")
         lines.append("")
 
+    live_tasks = (pulse.get("tasks") or {}).get("items", [])
+    if live_tasks:
+        lines.append("## Tasks in flight")
+        for t in live_tasks:
+            worker = f" → {t['worker']}" if t.get("worker") else ""
+            lines.append(f"- [{t['status']}] {t['description']} (`{t['id']}`){worker}")
+        lines.append("")
+
     if new_suggestions:
         lines.append(f"## Inbox: {new_suggestions} ChatGPT suggestion(s) awaiting a ruling")
         lines.append("Rule with `python -m aletheia.suggestions list --state new`.")

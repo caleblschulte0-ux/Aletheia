@@ -5,3 +5,9 @@
 {"ts": "2026-08-25T14:45:23Z", "kind": "plan", "actor": "aletheia", "subject": "plan:light-up-the-wall", "text": "step 4 added — Point a ChatGPT scheduled task at state/pulse/briefing.md with the exchange/README.md contract"}
 {"ts": "2026-08-25T14:46:05Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-08-25"}
 {"ts": "2026-08-25T14:47:59Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-08-25"}
+{"ts": "2026-08-25T15:56:51Z", "kind": "task", "actor": "aletheia", "subject": "task:policy-engine-v1", "text": "created — Phase 4: approval store, operator_once/always intercom flow, delegated authority, kill switch"}
+{"ts": "2026-08-25T15:56:51Z", "kind": "task", "actor": "aletheia", "subject": "task:orchestrator-v1", "text": "created — Phase 5: deterministic goal-to-tasks compiler with per-step verification"}
+{"ts": "2026-08-25T15:56:51Z", "kind": "task", "actor": "aletheia", "subject": "task:agent-director-v1", "text": "created — Phase 9: task-driven delegation to Claude sessions with durable dependency chains"}
+{"ts": "2026-08-25T15:56:51Z", "kind": "task", "actor": "aletheia", "subject": "task:local-core-bootstrap", "text": "created — Phase 6+: persistent local service on the Windows PC adopting the same contracts and stores"}
+{"ts": "2026-08-25T15:56:51Z", "kind": "task", "actor": "aletheia", "subject": "task:computer-browser-v0", "text": "created — Phases 7-8: accessibility-first Windows control + dedicated browser profile on the local Core"}
+{"ts": "2026-08-25T15:57:01Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-08-25"}

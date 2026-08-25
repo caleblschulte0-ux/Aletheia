@@ -20,7 +20,7 @@ from pathlib import Path
 from aletheia.fleet import REPO_ROOT
 
 JOURNAL_PATH = REPO_ROOT / "state" / "journal" / "journal.jsonl"
-KINDS = {"decision", "event", "alert", "recovery", "action", "brief", "plan", "note"}
+KINDS = {"decision", "event", "alert", "recovery", "action", "brief", "plan", "note", "task"}
 
 
 def append(kind: str, subject: str, text: str, actor: str = "aletheia",

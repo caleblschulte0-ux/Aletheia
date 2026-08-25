@@ -1,0 +1,200 @@
+{
+  "revision": 1,
+  "providers": [
+    {"id": "aletheia.local", "description": "Aletheia's own Python modules, run locally or in CI", "kind": "local_module"},
+    {"id": "github.actions", "description": "GitHub Actions in this repo executing on schedule or push", "kind": "github_actions"},
+    {"id": "github.api", "description": "GitHub REST API via aletheia.gh (FLEET_TOKEN / GITHUB_TOKEN)", "kind": "api", "authentication": "FLEET_TOKEN or GITHUB_TOKEN"},
+    {"id": "chatgpt.app", "description": "ChatGPT app (subscription): voice/text interface + GitHub connector writes", "kind": "subscription_client", "authentication": "operator's ChatGPT subscription"},
+    {"id": "claude.session", "description": "Claude Code sessions (subscription): builds and maintains Aletheia and the fleet", "kind": "subscription_client", "authentication": "operator's Claude subscription"}
+  ],
+  "capabilities": [
+    {
+      "id": "fleet.read",
+      "description": "Resolve the fleet registry: repos, roles, agents, watch lists, front-door grants",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.pulse, aletheia.act, aletheia.intercom, CLI"
+    },
+    {
+      "id": "pulse.collect",
+      "description": "Observe every fleet repo: commits, workflows, state files, vitals, transitions, alerts",
+      "provider": "github.api",
+      "status": "NEEDS_CONFIGURATION",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "pulse.yml (6-hourly) and CLI",
+      "verification": "pulse names every registry repo or records why not",
+      "notes": "AVAILABLE for this repo and local clones today; full-fleet telemetry needs the FLEET_TOKEN secret"
+    },
+    {
+      "id": "brief.compose",
+      "description": "Compose the morning digest with day-over-day deltas and deliver via rolling issue",
+      "provider": "github.actions",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "brief.yml (daily) and CLI"
+    },
+    {
+      "id": "sentinel.alert",
+      "description": "Notice health transitions; open/comment/close the rolling fleet-alert issue",
+      "provider": "github.actions",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "pulse.yml after each pulse"
+    },
+    {
+      "id": "journal.append",
+      "description": "Durable append-only memory: decisions, events, actions, notes",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "every capability that acts; CLI for operator notes"
+    },
+    {
+      "id": "journal.search",
+      "description": "Search the memory by term, kind, or recency",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "CLI; brief.compose (last-24h section)"
+    },
+    {
+      "id": "goal.plan",
+      "description": "Goals as tracked data: open plans, steps with states, journaled lifecycle",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "CLI, intercom plan_* commands; surfaced by pulse/brief/wall"
+    },
+    {
+      "id": "task.persist",
+      "description": "Durable task engine: lifecycle, dependencies, retries surviving restarts",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "CLI (aletheia.tasks); intercom wiring is the next milestone",
+      "verification": "state/tasks/*.json round-trips through contracts.validate_task"
+    },
+    {
+      "id": "github.workflow.dispatch",
+      "description": "Run a fleet repo's workflow through its front door",
+      "provider": "github.api",
+      "status": "AVAILABLE",
+      "risk_class": "medium",
+      "approval_policy": "registry_grant",
+      "caller": "aletheia.act CLI and intercom 'dispatch' commands",
+      "verification": "next pulse shows the run",
+      "notes": "gated by front_door in config/fleet.json — default grants only Aletheia's own workflows"
+    },
+    {
+      "id": "github.issue.create",
+      "description": "File an issue on a fleet repo",
+      "provider": "github.api",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "registry_grant",
+      "caller": "aletheia.act CLI and intercom 'issue' commands"
+    },
+    {
+      "id": "suggestion.rule",
+      "description": "Record a ruling on a ChatGPT suggestion (doing/not_doing/later/in_progress/done)",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "CLI; intercom 'rule' commands"
+    },
+    {
+      "id": "intercom.relay",
+      "description": "Operator speaks to ChatGPT (voice/text, no API keys); commands relayed as JSON, executed through registry gates, receipts written back",
+      "provider": "chatgpt.app",
+      "status": "NEEDS_CONFIGURATION",
+      "risk_class": "medium",
+      "approval_policy": "registry_grant",
+      "caller": "intercom.yml on exchange/commands pushes",
+      "verification": "every command gets a committed .result.json receipt",
+      "notes": "executor is built and tested; needs the operator to create the ChatGPT Project per exchange/INTERCOM.md"
+    },
+    {
+      "id": "agent.delegate",
+      "description": "Hand a durable task to an AI worker (Claude builds; ChatGPT reviews/authors) and track it",
+      "provider": "claude.session",
+      "status": "EXPERIMENTAL",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "operator-started Claude sessions against plans/tasks today; the Agent Director (Phase 9) makes it programmatic",
+      "notes": "works via each app's own scheduled tasks and sessions — proven daily in Shorts-pipeline; not yet dispatchable by Aletheia itself"
+    },
+    {
+      "id": "computer.control",
+      "description": "Operate the Windows PC: observe, open apps, click, type (accessibility-first)",
+      "provider": "aletheia.local",
+      "status": "NOT_BUILT",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "caller": "ticket — Phase 7 (Playbook §121), needs the local Core runtime on the PC first"
+    },
+    {
+      "id": "browser.control",
+      "description": "Drive a dedicated authenticated browser profile: navigate, read, fill, extract",
+      "provider": "aletheia.local",
+      "status": "NOT_BUILT",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "caller": "ticket — Phase 8 (Playbook §122), needs the local Core runtime"
+    },
+    {
+      "id": "phone.call",
+      "description": "Place and hold a phone conversation on the operator's behalf (identifies itself as Aletheia)",
+      "provider": "aletheia.local",
+      "status": "NOT_BUILT",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "caller": "ticket — Phone V0 (Playbook §17): desktop call app + virtual audio + ChatGPT Voice, local PC only"
+    },
+    {
+      "id": "voice.wake",
+      "description": "Room voice: local wake word ('Thea'), spoken requests into the same Core",
+      "provider": "aletheia.local",
+      "status": "NOT_BUILT",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "ticket — Phase 10 (Playbook §124)"
+    },
+    {
+      "id": "email.send",
+      "description": "Draft and send email with approval gate",
+      "provider": "aletheia.local",
+      "status": "NOT_BUILT",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "caller": "ticket — Phase 13 (Playbook §127)"
+    },
+    {
+      "id": "calendar.read",
+      "description": "Read availability, reason about work hours and buffers",
+      "provider": "aletheia.local",
+      "status": "NOT_BUILT",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "ticket — Phase 14 (Playbook §128)"
+    },
+    {
+      "id": "room.scene",
+      "description": "Unified device layer (Home Assistant or equivalent): lights, scenes, media",
+      "provider": "aletheia.local",
+      "status": "NOT_BUILT",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "ticket — Phase 18 (Playbook §132)"
+    }
+  ]
+}

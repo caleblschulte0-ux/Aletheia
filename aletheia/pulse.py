@@ -280,6 +280,20 @@ def enrich(pulse: dict, prev: dict | None) -> dict:
             for p in open_plans
         ],
     }
+    from aletheia import contracts, tasks as tasks_mod
+    all_t = tasks_mod.all_tasks()
+    live = [t for t in all_t if t["status"] not in contracts.TASK_TERMINAL]
+    pulse["tasks"] = {
+        "live": len(live),
+        "by_status": {},
+        "items": [
+            {"id": t["id"], "status": t["status"], "description": t["description"],
+             **({"worker": t["assigned_worker"]} if t.get("assigned_worker") else {})}
+            for t in sorted(live, key=lambda t: (t.get("priority", 3), t["created_at"]))[:8]
+        ],
+    }
+    for t in all_t:
+        pulse["tasks"]["by_status"][t["status"]] = pulse["tasks"]["by_status"].get(t["status"], 0) + 1
     return pulse
 
 

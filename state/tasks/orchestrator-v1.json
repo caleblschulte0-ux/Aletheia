@@ -1,0 +1,13 @@
+{
+  "id": "orchestrator-v1",
+  "description": "Phase 5: deterministic goal-to-tasks compiler with per-step verification",
+  "status": "QUEUED",
+  "created_at": "2026-08-25T15:56:51Z",
+  "updated_at": "2026-08-25T15:56:51Z",
+  "attempts": 0,
+  "priority": 2,
+  "dependencies": [
+    "policy-engine-v1"
+  ],
+  "assigned_worker": "claude"
+}
