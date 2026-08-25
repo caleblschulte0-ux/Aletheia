@@ -1,0 +1,58 @@
+name: pulse
+
+# Collect the fleet pulse and commit it. Preflight truth: without a
+# FLEET_TOKEN secret (fine-grained PAT, read-only contents + actions on
+# every fleet repo) the default GITHUB_TOKEN sees only this repo, and the
+# pulse will honestly record every other repo as unreachable.
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pulse
+  cancel-in-progress: false
+
+jobs:
+  pulse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Preflight — which token is the pulse running on?
+        env:
+          FLEET_TOKEN: ${{ secrets.FLEET_TOKEN }}
+        run: |
+          if [ -n "$FLEET_TOKEN" ]; then
+            echo "FLEET_TOKEN present — full-fleet visibility."
+          else
+            echo "::warning::No FLEET_TOKEN secret — pulse can only see this repo; siblings will be recorded as unreachable. Add a fine-grained read PAT as FLEET_TOKEN (see README)."
+          fi
+
+      - name: Collect pulse
+        env:
+          FLEET_TOKEN: ${{ secrets.FLEET_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python -m aletheia.pulse
+
+      - name: Commit pulse state
+        run: |
+          git config user.name "aletheia-pulse"
+          git config user.email "actions@users.noreply.github.com"
+          git add state/pulse
+          if git diff --cached --quiet; then
+            echo "pulse unchanged — nothing to commit"
+          else
+            git commit -m "pulse: $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push origin main
+          fi

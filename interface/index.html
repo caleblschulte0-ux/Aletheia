@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aletheia — fleet pulse</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --ink: #1a1d21; --muted: #5c6470;
+    --line: #e3e6ea; --green: #1a9e4b; --red: #d43a3a; --grey: #8b93a0;
+    --dormant: #b08c2e; --accent: #3b5bdb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101216; --card: #191c22; --ink: #e8eaee; --muted: #98a0ac;
+      --line: #2a2f38; --green: #3ecf72; --red: #ff6b6b; --grey: #7a8290;
+      --dormant: #d4aa3f; --accent: #7c96ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header { max-width: 960px; margin: 0 auto; padding: 2rem 1rem 0.5rem; }
+  h1 { font-size: 1.5rem; margin: 0 0 0.25rem; }
+  h1 span { color: var(--muted); font-weight: 400; font-size: 1rem; }
+  #meta { color: var(--muted); font-size: 0.85rem; }
+  main {
+    max-width: 960px; margin: 0 auto; padding: 1rem;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem;
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem;
+  }
+  .card h2 { margin: 0; font-size: 1.05rem; display: flex; align-items: center; gap: 0.5rem; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .green .dot { background: var(--green); }
+  .red .dot { background: var(--red); }
+  .unknown .dot { background: var(--grey); }
+  .dormant .dot { background: var(--dormant); }
+  .tag { font-size: 0.72rem; color: var(--muted); border: 1px solid var(--line);
+         border-radius: 99px; padding: 0.05rem 0.5rem; }
+  .summary { color: var(--muted); font-size: 0.85rem; margin: 0; }
+  .commit, .wf { font-size: 0.8rem; }
+  .commit code { color: var(--accent); }
+  code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.92em; }
+  ul { margin: 0; padding-left: 1.1rem; }
+  .fail { color: var(--red); }
+  .ok { color: var(--green); }
+  .na { color: var(--muted); }
+  .error-box {
+    grid-column: 1 / -1; background: var(--card); border: 1px solid var(--line);
+    border-radius: 10px; padding: 1rem; color: var(--muted);
+  }
+  footer { max-width: 960px; margin: 0 auto; padding: 0 1rem 2rem; color: var(--muted); font-size: 0.8rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Aletheia <span>— fleet pulse</span></h1>
+  <div id="meta">loading…</div>
+</header>
+<main id="fleet"></main>
+<footer>
+  Truth source: <code>state/pulse/latest.json</code>, written by
+  <code>aletheia/pulse.py</code>. This page only renders it — smarts live in the collector.
+  Override the source with <code>?src=&lt;url&gt;</code>.
+</footer>
+<script>
+  const esc = s => String(s ?? "").replace(/[&<>"]/g,
+    c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+  function workflowLine(name, w) {
+    if (w.error) return `<li class="na"><code>${esc(name)}</code>: ${esc(w.error)}</li>`;
+    const verdict = w.conclusion || w.status;
+    const cls = w.conclusion === "success" ? "ok" : (w.conclusion ? "fail" : "na");
+    return `<li><code>${esc(name)}</code>: <span class="${cls}">${esc(verdict)}</span></li>`;
+  }
+
+  function card(id, r) {
+    const missing = Object.entries(r.state_files || {})
+      .filter(([, f]) => f && f.exists === false).map(([p]) => p);
+    const wfs = Object.entries(r.workflows || {});
+    return `<section class="card ${esc(r.health)}">
+      <h2><span class="dot"></span>${esc(r.github)}
+        <span class="tag">${esc(r.role)}</span><span class="tag">${esc(r.status)}</span></h2>
+      <p class="summary">${esc(r.summary)}</p>
+      ${r.error ? `<div class="wf fail">unreachable: ${esc(r.error)}</div>` : ""}
+      ${r.commit ? `<div class="commit"><code>${esc(r.commit.sha)}</code>
+        ${esc(r.commit.date)}<br>${esc(r.commit.message)}</div>` : ""}
+      ${wfs.length ? `<div class="wf"><ul>${wfs.map(([n, w]) => workflowLine(n, w)).join("")}</ul></div>` : ""}
+      ${missing.length ? `<div class="wf fail">missing: ${missing.map(esc).map(p => `<code>${p}</code>`).join(", ")}</div>` : ""}
+    </section>`;
+  }
+
+  const src = new URLSearchParams(location.search).get("src") || "../state/pulse/latest.json";
+  fetch(src).then(r => {
+    if (!r.ok) throw new Error(`HTTP ${r.status} fetching ${src}`);
+    return r.json();
+  }).then(p => {
+    document.getElementById("meta").textContent =
+      `generated ${p.generated_at} · registry rev ${p.fleet_revision} · via ${p.source}`;
+    document.getElementById("fleet").innerHTML =
+      Object.entries(p.repos).map(([id, r]) => card(id, r)).join("");
+  }).catch(err => {
+    document.getElementById("meta").textContent = "no pulse loaded";
+    document.getElementById("fleet").innerHTML =
+      `<div class="error-box">Could not load <code>${esc(src)}</code> — ${esc(err.message)}.<br>
+       Serve the repo root (e.g. <code>python -m http.server</code>) or enable GitHub Pages;
+       opening this file directly with <code>file://</code> blocks the fetch.</div>`;
+  });
+</script>
+</body>
+</html>

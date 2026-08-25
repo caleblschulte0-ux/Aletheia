@@ -1,0 +1,184 @@
+{
+  "generated_at": "2026-08-25T13:01:50Z",
+  "fleet_revision": 1,
+  "owner": "caleblschulte0-ux",
+  "source": "LocalSource",
+  "repos": {
+    "aletheia": {
+      "github": "Aletheia",
+      "role": "hub",
+      "status": "active",
+      "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
+      "commit": {
+        "sha": "6bcf0ee50ba9",
+        "date": "2026-08-25T07:50:41-05:00",
+        "message": "Initial commit"
+      },
+      "workflows": {
+        "pulse.yml": {
+          "error": "unavailable offline"
+        },
+        "ci.yml": {
+          "error": "unavailable offline"
+        }
+      },
+      "state_files": {
+        "state/pulse/latest.json": {
+          "exists": true,
+          "bytes": 5113
+        }
+      },
+      "health": "unknown"
+    },
+    "shorts_pipeline": {
+      "github": "Shorts-pipeline",
+      "role": "youtube-automation",
+      "status": "active",
+      "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
+      "commit": {
+        "sha": "11798512bdbf",
+        "date": "2026-08-25T12:51:49+00:00",
+        "message": "third: analytics [skip ci]"
+      },
+      "workflows": {
+        "daily.yml": {
+          "error": "unavailable offline"
+        },
+        "exchange_phase_a.yml": {
+          "error": "unavailable offline"
+        },
+        "exchange_phase_b.yml": {
+          "error": "unavailable offline"
+        },
+        "story_forge.yml": {
+          "error": "unavailable offline"
+        },
+        "third.yml": {
+          "error": "unavailable offline"
+        },
+        "explainer.yml": {
+          "error": "unavailable offline"
+        },
+        "retro.yml": {
+          "error": "unavailable offline"
+        },
+        "doctor.yml": {
+          "error": "unavailable offline"
+        }
+      },
+      "state_files": {
+        "state/posted_log.json": {
+          "exists": true,
+          "bytes": 85824
+        },
+        "state/explainer_posted_log.json": {
+          "exists": true,
+          "bytes": 46675
+        },
+        "state/third_posted_log.json": {
+          "exists": true,
+          "bytes": 197508
+        },
+        "state/curiosity_posted_log.json": {
+          "exists": true,
+          "bytes": 273
+        },
+        "state/showrunner_verdicts.jsonl": {
+          "exists": true,
+          "bytes": 262750
+        },
+        "config/channel_registry.json": {
+          "exists": true,
+          "bytes": 15208
+        }
+      },
+      "health": "unknown"
+    },
+    "schwab_trader": {
+      "github": "schwab-trader",
+      "role": "trading-bot",
+      "status": "active",
+      "summary": "Guardrailed paper-trading day-trading bot for Charles Schwab: separate Claude BUY and SELL brains, executor on GitHub Actions, significance-gated sell approvals.",
+      "commit": {
+        "sha": "431388b9c9e2",
+        "date": "2026-08-25T12:37:06+00:00",
+        "message": "sell-brain: update exit decisions [skip ci]"
+      },
+      "workflows": {
+        "brain.yml": {
+          "error": "unavailable offline"
+        },
+        "sell-brain.yml": {
+          "error": "unavailable offline"
+        },
+        "trader.yml": {
+          "error": "unavailable offline"
+        },
+        "watchdog.yml": {
+          "error": "unavailable offline"
+        }
+      },
+      "state_files": {
+        "signals/holdings.json": {
+          "exists": true,
+          "bytes": 1892
+        },
+        "signals/paper_account.json": {
+          "exists": true,
+          "bytes": 12504
+        },
+        "signals/performance.json": {
+          "exists": true,
+          "bytes": 504
+        },
+        "reports/track_record.md": {
+          "exists": true,
+          "bytes": 4429
+        }
+      },
+      "health": "unknown"
+    },
+    "money_machine": {
+      "github": "Money_Machine",
+      "role": "unbuilt",
+      "status": "stub",
+      "summary": "Empty stub \u2014 nothing but a README. No behaviour to observe yet.",
+      "commit": {
+        "sha": "53c6507f6afe",
+        "date": "2026-08-05T14:11:54-05:00",
+        "message": "Initial commit"
+      },
+      "workflows": {},
+      "state_files": {},
+      "health": "dormant"
+    },
+    "etsy_maker": {
+      "github": "etsy_maker",
+      "role": "unbuilt",
+      "status": "stub",
+      "summary": "Empty stub \u2014 nothing but a README. No behaviour to observe yet.",
+      "commit": {
+        "sha": "1ecd2656a55d",
+        "date": "2026-05-30T12:59:18-05:00",
+        "message": "Initial commit"
+      },
+      "workflows": {},
+      "state_files": {},
+      "health": "dormant"
+    },
+    "fosstester": {
+      "github": "fosstester",
+      "role": "unbuilt",
+      "status": "stub",
+      "summary": "Empty stub \u2014 nothing but a README. No behaviour to observe yet.",
+      "commit": {
+        "sha": "41ea84afb060",
+        "date": "2026-06-03T10:08:19-05:00",
+        "message": "Initial commit"
+      },
+      "workflows": {},
+      "state_files": {},
+      "health": "dormant"
+    }
+  }
+}

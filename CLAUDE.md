@@ -1,0 +1,98 @@
+# Aletheia — notes for Claude sessions
+
+Aletheia is the hub of a fleet of repos under one operator. It observes the
+whole fleet, briefs the humans and the agents, and hosts the contracts by
+which the agents cooperate. It inherits its working culture from
+`Shorts-pipeline/CLAUDE.md`; the rules below are the local constitution.
+
+## Rule zero (inherited): if you can fix it, fix it — do not just name it
+
+Same ruling as Shorts-pipeline, 2026-08-01. A finding you could have fixed
+and didn't is worse than no finding. Never build a capability and leave it
+unwired — everything in this repo either has a real caller or is listed in
+`docs/ROADMAP.md` as a ticket, explicitly and honestly.
+
+## What Aletheia is — and the line it does not cross
+
+Aletheia **observes and coordinates; it does not operate**. The pulse reads
+other repos, it never writes to them, dispatches their workflows, or edits
+their state. Each fleet repo keeps its own gates, its own brains, its own
+doctrine — the Shorts-pipeline showrunner, the trader's guardrails —
+and nothing here may reach in and override them. If Aletheia ever grows an
+"act on a repo" capability (ROADMAP ticket A7), it goes through that repo's
+own front door (a workflow dispatch, a PR) with the same authority any
+outside caller has, never a bypass.
+
+## `config/fleet.json` is the ONLY place the fleet's composition lives
+
+Which repos exist, their roles and status, which agents act in them, what
+the pulse watches — all of it, resolved through `aletheia/fleet.py`:
+
+```bash
+python -m aletheia.fleet             # every repo, one line
+python -m aletheia.fleet --validate
+python -m aletheia.fleet --markdown  # the README table
+```
+
+Never write the fleet's shape anywhere else. The README table is generated
+and `tests/test_fleet.py` fails if it drifts. A missing or invalid registry
+fails CLOSED — no caller guesses a fleet.
+
+Adding a repo to the fleet = one entry in that file (plus `FLEET_TOKEN`
+scope for the pulse). Nothing else should need editing; if it does, that is
+a bug in Aletheia, fix Aletheia.
+
+## The pulse never lies by omission
+
+`aletheia/pulse.py` writes `state/pulse/latest.json` + `briefing.md`. Its
+contract: **every repo in the registry appears in every pulse.** A repo the
+source cannot reach is recorded with its error and health `unknown` — never
+skipped, never guessed green. Local mode (`--local ROOT`) honestly marks
+workflow runs "unavailable offline". Health is derived (`_health`), never
+asserted, and `tests/test_pulse.py` holds the derivation.
+
+`pulse.yml` runs it on a schedule with `FLEET_TOKEN` (a read-only
+fine-grained PAT across the fleet — the default `GITHUB_TOKEN` sees only
+this repo). Without the secret the pulse still runs and says exactly what
+it could not see.
+
+## WHO MAY EDIT — Claude, and only Claude (fleet-wide)
+
+The operator's standing ruling, same as Shorts-pipeline: **Claude is the
+only agent that edits code**, in this repo and every fleet repo. ChatGPT's
+seat is `exchange/`:
+
+- ChatGPT **reads** `state/pulse/briefing.md` and anything else public.
+- ChatGPT **writes** only `exchange/suggestions/*.json` — prose findings
+  (bug / fix / idea / plan). The validator refuses payload keys (`patch`,
+  `diff`, `code`, …) and oversized files; a suggestion is *about* the code,
+  never the code.
+- **Claude rules** on each suggestion in the operator's vocabulary —
+  `doing / not_doing / later / in_progress / done` — with a real
+  `--because`, kept durable in `exchange/verdicts.json`. Nothing is ever
+  applied automatically.
+
+```bash
+python -m aletheia.suggestions validate
+python -m aletheia.suggestions list --state new
+python -m aletheia.suggestions rule <id> doing --because "..."
+```
+
+## The interface is static and dumb on purpose
+
+`interface/index.html` renders `state/pulse/latest.json` with zero build
+step, zero dependencies, zero server — so it can never disagree with the
+pulse and never breaks in a way the pulse doesn't already show. Smarts go
+in the collector, not the page. A richer app is ticket A8, not a reason to
+grow JavaScript here quietly.
+
+## Storage rules
+
+Small JSON and markdown only; no media, nothing over 256KB.
+`state/pulse/history/` keeps one small file per day. `exchange/verdicts.json`
+is durable ruling state — append/update, never prune to tidy up.
+
+## Branch discipline
+
+Interactive sessions work on `claude/*` branches and push there. There is
+no auto-merge in this repo; merges to `main` are deliberate.
