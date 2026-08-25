@@ -1,91 +1,78 @@
-# Caleb's checklist — get Aletheia running
+# Caleb's checklist
 
-Six steps. Everything else is already built and tested; these are the
-things only you can do. Do them in order; each one takes minutes.
+**Three things left.** Everything else is done, merged, and verified
+running live on `main`.
 
-## 1. Merge the branch — ✅ DONE (Claude merged PR #1)
+## ✅ Already done (Claude did these)
 
-Nothing to do — `main` now carries the whole system, CI is green, and the
-pulse, brief, sentinel and director have all run live on it.
-
-## 2. (OPTIONAL) FLEET_TOKEN — only for PRIVATE repos
-
-Skip this unless you care about `etsy_maker`. Verified live: the pulse
-already reads every public fleet repo with no secret at all. `etsy_maker`
-is private, so it shows as a 404 until you add this.
-
-1. https://github.com/settings/personal-access-tokens/new
-2. Fine-grained token, **All repositories** (or pick the six),
-   permissions: **Contents: Read** and **Actions: Read**. Create it, copy it.
-3. https://github.com/caleblschulte0-ux/Aletheia/settings/secrets/actions
-   → **New repository secret** → name it exactly `FLEET_TOKEN`, paste, save.
-
-Check: Actions tab → run **pulse** → the repos stop saying NO TELEMETRY.
-
-## 3. Turn on GitHub Pages — puts the wall on your projector
-
-https://github.com/caleblschulte0-ux/Aletheia/settings/pages →
-Source: **GitHub Actions**. That is the whole step — the `pages` workflow
-does the rest and redeploys the wall after every pulse.
-
-(Claude cannot flip this one: GitHub blocks Pages *creation* for workflow
-tokens. The workflow already exists and waits for the toggle.)
-
-Wall URL, once it deploys (open fullscreen with F11):
-`https://caleblschulte0-ux.github.io/Aletheia/`
-
-**The repo is public**, so anything committed here — pulse, briefs,
-journal, memory — is world-readable. That is fine for fleet status; keep
-genuinely private facts out of `memory/`, or make the repo private later
-(Pages then needs a paid plan; everything else keeps working).
-
-## 4. Give Thea her voice (ChatGPT — no API keys)
-
-**Everything is pre-written — see `exchange/CHATGPT_PROJECT.md` and paste
-its lower half.** The short version:
-
-1. In the ChatGPT app: **Projects → New project**, name it **Aletheia**.
-2. Enable the **GitHub connector** for it.
-3. Open `exchange/INTERCOM.md` in this repo, copy the block under
-   "ChatGPT Project instructions", paste it as the project instructions.
-4. Optional: add a ChatGPT **scheduled task** — "Read Aletheia's brief
-   and message me the highlights" — for a morning voice check-in.
-
-Test it: say *"Thea, what's going on?"* then *"Thea, leave a note that
-the intercom works."* — a receipt lands in `exchange/commands/`.
-
-## 5. Run the Core on your Windows PC
-
-Install Python 3.11+ and git, then in PowerShell:
-
-```powershell
-git clone https://github.com/caleblschulte0-ux/Aletheia.git
-cd Aletheia
-python -m aletheia.core
-```
-
-Then open:
-- the wall → http://127.0.0.1:8777/
-- the Command Center → http://127.0.0.1:8777/command.html
-
-Keep the window open (it is the service). To refresh its data:
-`git pull`.
-
-## 6. Come back and say "keep building"
-
-Then the next session builds, in this order:
-
-1. **Windows computer control** — Aletheia operates apps on your PC
-2. **Browser control** — a logged-in browser it can drive
-3. **Voice wake word** — say "Thea" without touching anything
-4. **Phone V0** — calls through virtual audio + ChatGPT Voice
-5. **Email** with an approval gate
-
-Steps 1–3 unlock those. Nothing here costs money except, eventually, a
-telephony provider if you outgrow Phone V0.
+- Merged to `main` (PR #1) — CI green
+- Ran `pulse`, `brief`, `intercom` live on main; all pass
+- The sentinel opened a real fleet alert (issue #2) — see the bottom
+- Wrote the Pages workflow, the Windows installer, and the ChatGPT paste
+- Found + fixed a delegation bug the first live pulse exposed
+- Discovered `FLEET_TOKEN` isn't needed for public repos — dropped it
+  from this list
 
 ---
 
-Status any time: `python -m aletheia.capabilities` (what Thea can
-really do) · `python -m aletheia.tasks list` (what's queued) ·
-`python -m aletheia.policy status` (halted or running).
+## 1. Turn on Pages — 30 seconds
+
+https://github.com/caleblschulte0-ux/Aletheia/settings/pages →
+Source: **GitHub Actions**. Done.
+
+The `pages` workflow is already written and waiting; it deploys the wall
+and redeploys after every pulse. (Claude can't flip this — GitHub blocks
+Pages creation for workflow tokens.)
+
+Wall, once live — fullscreen with F11 on the projector:
+`https://caleblschulte0-ux.github.io/Aletheia/`
+
+## 2. Give Thea her voice — 2 minutes
+
+Open **`exchange/CHATGPT_PROJECT.md`** and follow it: new ChatGPT
+Project named Aletheia, turn on the GitHub connector, paste the block.
+
+Then talk to it — voice mode works: *"Thea, what's going on?"*
+
+## 3. Run the Core on your PC — 1 command
+
+PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/caleblschulte0-ux/Aletheia/main/scripts/bootstrap.ps1 | iex
+```
+
+It checks git/Python, clones to `~\Aletheia`, runs the tests, starts the
+Core, and opens the Command Center. Afterwards just double-click
+`start-aletheia.bat`.
+
+- Wall: http://127.0.0.1:8777/
+- Command Center: http://127.0.0.1:8777/command.html
+
+---
+
+## Then say "keep building"
+
+Next up, in order: **Windows computer control → browser control → voice
+wake word → Phone V0 → email**. Steps 1–3 are what unlock them.
+
+## Optional
+
+- **`FLEET_TOKEN`** — only if you want `etsy_maker` (private) watched.
+  Fine-grained PAT, Contents+Actions read → repo Settings → Secrets →
+  Actions → name it `FLEET_TOKEN`. Every public repo already works
+  without it.
+- **Privacy** — this repo is public, so `memory/`, `state/` and the
+  journal are world-readable. Keep genuinely private facts out, or make
+  the repo private (Pages then needs a paid plan; nothing else changes).
+
+## Heads up — Aletheia's first real catch
+
+Issue #2 is not noise. The pulse found **Shorts-pipeline `daily.yml`
+failing** and **all three schwab-trader workflows failing** (`brain`,
+`sell-brain`, `trader`). Say the word and that gets fixed next.
+
+---
+
+Status any time: `python -m aletheia.capabilities` · `python -m
+aletheia.tasks list` · `python -m aletheia.policy status`
