@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-25T16:11:39Z",
+  "generated_at": "2026-08-25T16:16:53Z",
   "fleet_revision": 3,
   "owner": "caleblschulte0-ux",
   "source": "LocalSource",
@@ -10,6 +10,11 @@
       "status": "active",
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
+        {
+          "sha": "30b43c99219a",
+          "date": "2026-08-25T16:12:43+00:00",
+          "message": "Phases 4, 5, 9, 16: policy engine, orchestrator, agent director, structured memory"
+        },
         {
           "sha": "11c753f21cce",
           "date": "2026-08-25T15:57:19+00:00",
@@ -29,17 +34,12 @@
           "sha": "9bd8519c1791",
           "date": "2026-08-25T13:02:58+00:00",
           "message": "Aletheia v1: fleet registry, pulse collector, dashboard, ChatGPT suggestion inbox"
-        },
-        {
-          "sha": "6bcf0ee50ba9",
-          "date": "2026-08-25T07:50:41-05:00",
-          "message": "Initial commit"
         }
       ],
       "commit": {
-        "sha": "11c753f21cce",
-        "date": "2026-08-25T15:57:19+00:00",
-        "message": "Refoundation: master playbook adopted \u2014 contracts, capability registry, task engine, intercom"
+        "sha": "30b43c99219a",
+        "date": "2026-08-25T16:12:43+00:00",
+        "message": "Phases 4, 5, 9, 16: policy engine, orchestrator, agent director, structured memory"
       },
       "vitals": [],
       "workflows": {
@@ -53,7 +53,7 @@
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 10655
+          "bytes": 11447
         }
       },
       "health": "unknown"
@@ -344,10 +344,11 @@
     ]
   },
   "tasks": {
-    "live": 8,
+    "live": 7,
     "by_status": {
-      "COMPLETED": 3,
-      "QUEUED": 8
+      "COMPLETED": 4,
+      "QUEUED": 6,
+      "WAITING_OPERATOR": 1
     },
     "items": [
       {
@@ -378,14 +379,8 @@
       },
       {
         "id": "local-core-bootstrap",
-        "status": "QUEUED",
+        "status": "WAITING_OPERATOR",
         "description": "Phase 6+: persistent local service on the Windows PC adopting the same contracts and stores",
-        "worker": "claude"
-      },
-      {
-        "id": "command-center-v1",
-        "status": "QUEUED",
-        "description": "Phase 6: interactive command surface on the local Core (tasks, approvals, conversation)",
         "worker": "claude"
       },
       {

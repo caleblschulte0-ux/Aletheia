@@ -18,6 +18,12 @@ sessions working here is `CLAUDE.md`.
 
 ## What works today
 
+- **The local Core + Command Center** — `python -m aletheia.core` on
+  your PC starts Aletheia as a persistent service: the wall at `/`, the
+  interactive Command Center at `/command.html` (live task queue,
+  approvals with approve/deny buttons, HALT/RESUME kill switch, a
+  15-kind command composer), and the internal API every future
+  interface shares. Loopback-only until authentication exists.
 - **The intercom** — talk to Thea through ChatGPT (voice or text, your
   subscription, zero API keys). It reads Aletheia's truth from this repo
   and relays your asks as validated commands; a workflow executes them

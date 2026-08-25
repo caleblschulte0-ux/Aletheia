@@ -1,5 +1,5 @@
 {
-  "revision": 2,
+  "revision": 3,
   "providers": [
     {
       "id": "aletheia.local",
@@ -163,7 +163,7 @@
       "status": "NOT_BUILT",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "ticket — Phase 7 (Playbook §121), needs the local Core runtime on the PC first"
+      "caller": "ticket — Phase 7 (Playbook §121), Core V0 code is shipped — needs it RUNNING on the PC"
     },
     {
       "id": "browser.control",
@@ -172,7 +172,7 @@
       "status": "NOT_BUILT",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "ticket — Phase 8 (Playbook §122), needs the local Core runtime"
+      "caller": "ticket — Phase 8 (Playbook §122), Core V0 code is shipped — needs it RUNNING on the PC"
     },
     {
       "id": "phone.call",
@@ -264,6 +264,17 @@
       "risk_class": "read",
       "approval_policy": "none",
       "caller": "CLI; ChatGPT reads memory/ raw for reference resolution"
+    },
+    {
+      "id": "core.serve",
+      "description": "The local Core V0: persistent service on the operator's PC — internal API (/api/*), the wall at /, Command Center at /command.html; loopback-only until authentication exists",
+      "provider": "aletheia.local",
+      "status": "NEEDS_CONFIGURATION",
+      "risk_class": "medium",
+      "approval_policy": "none",
+      "caller": "operator runs `python -m aletheia.core` on the Windows PC; Command Center + wall are its clients",
+      "verification": "GET /api/status; 7 tests in test_core.py incl. live HTTP round-trips",
+      "notes": "code built and tested in CI; NEEDS_CONFIGURATION = the operator starting it on the PC"
     }
   ],
   "agents": [

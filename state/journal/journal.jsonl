@@ -28,3 +28,7 @@
 {"ts": "2026-08-25T16:11:27Z", "kind": "task", "actor": "aletheia", "subject": "task:light-up-the-wall-s4", "text": "created — Point a ChatGPT scheduled task at state/pulse/briefing.md with the exchange/README.md contract"}
 {"ts": "2026-08-25T16:11:27Z", "kind": "plan", "actor": "aletheia", "subject": "plan:light-up-the-wall", "text": "compiled — 4 task(s) created"}
 {"ts": "2026-08-25T16:11:39Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-08-25"}
+{"ts": "2026-08-25T16:15:27Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8901"}
+{"ts": "2026-08-25T16:16:17Z", "kind": "task", "actor": "aletheia", "subject": "task:command-center-v1", "text": "QUEUED -> COMPLETED — interface/command.html served by the Core: live approvals with approve/deny, task queue, 15-kind command composer, HALT/RESUME, receipts; verified rendering against the running Core"}
+{"ts": "2026-08-25T16:16:17Z", "kind": "task", "actor": "aletheia", "subject": "task:local-core-bootstrap", "text": "QUEUED -> WAITING_OPERATOR — Core V0 built+tested (aletheia/core.py, 7 tests, loopback-only): remaining step is the operator running 'python -m aletheia.core' on the Windows PC"}
+{"ts": "2026-08-25T16:16:53Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-08-25"}

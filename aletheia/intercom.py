@@ -61,6 +61,28 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 }
 
 
+def validate_kind_args(cmd, fleet: dict) -> list[str]:
+    """Validate the inner command object (kind + args). Shared with the
+    local Core's /api/command — one grammar, every channel."""
+    problems: list[str] = []
+    if not isinstance(cmd, dict) or "kind" not in cmd:
+        return ["command must be an object with a kind"]
+    kind = cmd["kind"]
+    if kind not in KIND_ARGS:
+        return [f"kind {kind!r} not in {sorted(KIND_ARGS)} — "
+                "commands are named slots, never arbitrary asks"]
+    required, optional = KIND_ARGS[kind]
+    args = set(cmd) - {"kind"}
+    if required - args:
+        problems.append(f"{kind}: missing args {sorted(required - args)}")
+    if args - required - optional:
+        problems.append(f"{kind}: unexpected args {sorted(args - required - optional)}")
+    repo = cmd.get("repo")
+    if repo is not None and repo != "fleet" and repo not in fleet["repos"]:
+        problems.append(f"repo {repo!r} is not 'fleet' or a fleet registry key")
+    return problems
+
+
 def validate_command(path: Path, fleet: dict) -> list[str]:
     """Every problem with one command file; empty list = valid."""
     problems: list[str] = []
@@ -85,23 +107,7 @@ def validate_command(path: Path, fleet: dict) -> list[str]:
                         "the intercom relays the operator's words, nothing else")
     if not str(c.get("operator_quote", "")).strip():
         problems.append("operator_quote is required — the command must carry the operator's words")
-    cmd = c.get("command")
-    if not isinstance(cmd, dict) or "kind" not in cmd:
-        return problems + ["command must be an object with a kind"]
-    kind = cmd["kind"]
-    if kind not in KIND_ARGS:
-        return problems + [f"kind {kind!r} not in {sorted(KIND_ARGS)} — "
-                           "the intercom executes named slots, never arbitrary asks"]
-    required, optional = KIND_ARGS[kind]
-    args = set(cmd) - {"kind"}
-    if required - args:
-        problems.append(f"{kind}: missing args {sorted(required - args)}")
-    if args - required - optional:
-        problems.append(f"{kind}: unexpected args {sorted(args - required - optional)}")
-    repo = cmd.get("repo")
-    if repo is not None and repo != "fleet" and repo not in fleet["repos"]:
-        problems.append(f"repo {repo!r} is not 'fleet' or a fleet registry key")
-    return problems
+    return problems + validate_kind_args(c.get("command"), fleet)
 
 
 def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "") -> str:
