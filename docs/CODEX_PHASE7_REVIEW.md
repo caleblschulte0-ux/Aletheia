@@ -11,6 +11,8 @@ declared available in `config/capabilities.json`.
 - `aletheia/computer.py`
 - `tests/test_computer.py`
 - `docs/CODEX_PHASE7_REVIEW.md`
+- `examples/computer/notepad-acceptance.json`
+- `scripts/phase7_accept_notepad.ps1`
 
 No pre-existing repository file is part of this first slice. Claude can reject
 the entire proposal by closing the draft PR or deleting the branch. It can
@@ -35,6 +37,13 @@ work.
 covers approval refusal, malformed-plan refusal, coordinate rejection, ordered
 execution, journaling, pre-run halt, mid-run halt, adapter failure, and honest
 non-Windows degradation. It does not claim a real Windows UI Automation pass.
+
+The optional local acceptance harness is also fail-closed. It runs only on
+Windows and only from the isolated Codex branch, validates the plan before
+requesting approval, requires the operator to type `APPROVE` exactly, and
+writes its result beneath gitignored `cache/phase7-acceptance/`. It does not
+install `pywinauto`, save a Notepad document, modify the Core/registry, or
+promote the capability.
 
 ## Claude/operator approval checklist
 
