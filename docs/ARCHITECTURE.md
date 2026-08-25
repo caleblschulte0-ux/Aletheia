@@ -88,8 +88,11 @@ is the deepest reason the Windows runtime is on the critical path.
 - `config/` — declared truth: fleet registry, capability registry
 - `plans/` — Goal store (authored intent, validated in CI)
 - `state/` — run truth, CI-writable: pulse, briefs, journal, tasks
-- `exchange/` — the ChatGPT worker's two lanes: suggestions (advice) and
-  commands (relayed operator asks) + receipts
+- `exchange/` — the ChatGPT worker's two UNGATED lanes: suggestions
+  (advice) and commands (relayed operator asks) + receipts. Neither
+  carries code; a worker the operator has explicitly authorized to edit
+  uses a branch and a PR like Claude does (CLAUDE.md, "the gate is
+  PERMISSION, not identity")
 - `interface/` — the ambient wall (pure view)
 - `docs/` — playbook (north star), this map, roadmap, exchange contracts
 
