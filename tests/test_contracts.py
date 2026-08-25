@@ -76,6 +76,35 @@ class TestCapabilityRegistry(unittest.TestCase):
             if c["status"] == "NOT_BUILT":
                 self.assertIn("ticket", c["caller"].lower(), c["id"])
 
+    def test_not_built_is_falsifiable(self):
+        """NOT_BUILT must mean no code performs it.
+
+        The drift this catches, found reviewing the Phase 7 stack on
+        2026-08-25: `computer.control` sat at NOT_BUILT while 458 lines of
+        aletheia/computer.py were live behind the Core's POST /api/computer.
+        A registry that under-claims is as dishonest as one that over-claims
+        (§104/§106) — a session reading NOT_BUILT would rebuild what exists,
+        and the operator asking "can you?" would be told no.
+        """
+        import importlib.util
+        for c in load_registry()["capabilities"]:
+            module = c.get("module")
+            if not module:
+                continue
+            found = importlib.util.find_spec(module) is not None
+            if found and c["status"] == "NOT_BUILT":
+                self.fail(f"{c['id']} is NOT_BUILT but {module} is importable — "
+                          "say what it actually is (EXPERIMENTAL / DEGRADED / AVAILABLE)")
+            if not found and c["status"] in ("AVAILABLE", "DEGRADED", "EXPERIMENTAL"):
+                self.fail(f"{c['id']} claims {c['status']} but {module} does not import")
+
+    def test_experimental_entries_say_what_is_unverified(self):
+        """EXPERIMENTAL is a promise to name the gap, not a shrug."""
+        for c in load_registry()["capabilities"]:
+            if c["status"] == "EXPERIMENTAL":
+                self.assertTrue(c.get("notes", "").strip(),
+                                f"{c['id']}: EXPERIMENTAL needs notes saying what is unverified")
+
     def test_registry_gated_capabilities_exist_in_fleet_grants(self):
         """A capability claiming registry_grant must actually be gated by
         something in config/fleet.json's front_door model."""

@@ -156,11 +156,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(capabilities.load_registry())
         if url.path == "/api/computer/status":
             ok, reason = computer.available()
+            entry = capabilities.get("computer.control")
             return self._json({
                 "available_locally": ok,
                 "reason": reason,
-                "registry_status": capabilities.get("computer.control")["status"],
-                "wired_for_review_only": True,
+                "registry_status": entry["status"],
+                # what the registry says is unverified — never a frozen literal
+                "registry_notes": entry.get("notes", ""),
             })
         if url.path == "/api/journal":
             last = int(parse_qs(url.query).get("last", ["50"])[0])

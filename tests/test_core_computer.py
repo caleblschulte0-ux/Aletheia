@@ -69,13 +69,18 @@ class CoreComputerCase(unittest.TestCase):
         except urllib.error.HTTPError as exc:
             return exc.code, json.loads(exc.read().decode("utf-8"))
 
-    def test_status_is_honest_and_does_not_construct_backend(self):
+    def test_status_mirrors_the_registry_and_does_not_construct_backend(self):
+        """Assert the contract, not a snapshot: this test previously froze the
+        literal "NOT_BUILT" and so survived the registry going stale. It now
+        fails only if the endpoint and the registry disagree."""
+        from aletheia import capabilities
         with urllib.request.urlopen(
                 f"http://127.0.0.1:{self.port}/api/computer/status") as response:
             body = json.loads(response.read().decode("utf-8"))
-        self.assertEqual(body["registry_status"], "NOT_BUILT")
-        self.assertTrue(body["wired_for_review_only"])
-        self.assertEqual(self.backends, [])
+        entry = capabilities.get("computer.control")
+        self.assertEqual(body["registry_status"], entry["status"])
+        self.assertEqual(body["registry_notes"], entry.get("notes", ""))
+        self.assertEqual(self.backends, [])  # status never builds a backend
 
     def test_unapproved_request_is_refused_before_backend_creation(self):
         code, body = self.post({"steps": PLAN, "approval_id": "missing"})

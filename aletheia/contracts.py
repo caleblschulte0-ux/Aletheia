@@ -81,6 +81,9 @@ def validate_capability(c: dict) -> list[str]:
         "caller": str,                  # rule zero: what really invokes it, or the ticket
     }, optional={
         "inputs": list, "outputs": list, "verification": str, "notes": str,
+        # the importable module that performs this capability. Declaring it
+        # makes NOT_BUILT falsifiable: see tests/test_contracts.py.
+        "module": str,
     })
 
 

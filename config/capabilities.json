@@ -1,5 +1,5 @@
 {
-  "revision": 5,
+  "revision": 6,
   "providers": [
     {
       "id": "aletheia.local",
@@ -38,7 +38,8 @@
       "status": "AVAILABLE",
       "risk_class": "read",
       "approval_policy": "none",
-      "caller": "aletheia.pulse, aletheia.act, aletheia.intercom, CLI"
+      "caller": "aletheia.pulse, aletheia.act, aletheia.intercom, CLI",
+      "module": "aletheia.fleet"
     },
     {
       "id": "pulse.collect",
@@ -49,7 +50,8 @@
       "approval_policy": "none",
       "caller": "pulse.yml (6-hourly) and CLI",
       "verification": "pulse names every registry repo or records why not",
-      "notes": "verified live on main 2026-08-25: reads commits, workflow outcomes, state files and vitals for every PUBLIC fleet repo using the default GITHUB_TOKEN. Only private repos need the FLEET_TOKEN secret — today that is etsy_maker alone, which the pulse records honestly as a 404 rather than omitting."
+      "notes": "verified live on main 2026-08-25: reads commits, workflow outcomes, state files and vitals for every PUBLIC fleet repo using the default GITHUB_TOKEN. Only private repos need the FLEET_TOKEN secret — today that is etsy_maker alone, which the pulse records honestly as a 404 rather than omitting.",
+      "module": "aletheia.pulse"
     },
     {
       "id": "brief.compose",
@@ -58,7 +60,8 @@
       "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "none",
-      "caller": "brief.yml (daily) and CLI"
+      "caller": "brief.yml (daily) and CLI",
+      "module": "aletheia.brief"
     },
     {
       "id": "sentinel.alert",
@@ -67,7 +70,8 @@
       "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "none",
-      "caller": "pulse.yml after each pulse"
+      "caller": "pulse.yml after each pulse",
+      "module": "aletheia.sentinel"
     },
     {
       "id": "journal.append",
@@ -76,7 +80,8 @@
       "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "none",
-      "caller": "every capability that acts; CLI for operator notes"
+      "caller": "every capability that acts; CLI for operator notes",
+      "module": "aletheia.journal"
     },
     {
       "id": "journal.search",
@@ -85,7 +90,8 @@
       "status": "AVAILABLE",
       "risk_class": "read",
       "approval_policy": "none",
-      "caller": "CLI; brief.compose (last-24h section)"
+      "caller": "CLI; brief.compose (last-24h section)",
+      "module": "aletheia.journal"
     },
     {
       "id": "goal.plan",
@@ -94,7 +100,8 @@
       "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "none",
-      "caller": "CLI, intercom plan_* commands; surfaced by pulse/brief/wall"
+      "caller": "CLI, intercom plan_* commands; surfaced by pulse/brief/wall",
+      "module": "aletheia.plans"
     },
     {
       "id": "task.persist",
@@ -104,7 +111,8 @@
       "risk_class": "low",
       "approval_policy": "none",
       "caller": "CLI (aletheia.tasks); intercom wiring is the next milestone",
-      "verification": "state/tasks/*.json round-trips through contracts.validate_task"
+      "verification": "state/tasks/*.json round-trips through contracts.validate_task",
+      "module": "aletheia.tasks"
     },
     {
       "id": "github.workflow.dispatch",
@@ -133,7 +141,8 @@
       "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "none",
-      "caller": "CLI; intercom 'rule' commands"
+      "caller": "CLI; intercom 'rule' commands",
+      "module": "aletheia.suggestions"
     },
     {
       "id": "intercom.relay",
@@ -144,7 +153,8 @@
       "approval_policy": "registry_grant",
       "caller": "intercom.yml on exchange/commands pushes",
       "verification": "every command gets a committed .result.json receipt",
-      "notes": "executor built and tested (15 command kinds incl. halt/resume/approve/deny/remember/tasks); needs the operator to create the ChatGPT Project per exchange/INTERCOM.md"
+      "notes": "executor built and tested (15 command kinds incl. halt/resume/approve/deny/remember/tasks); needs the operator to create the ChatGPT Project per exchange/INTERCOM.md",
+      "module": "aletheia.intercom"
     },
     {
       "id": "agent.delegate",
@@ -154,16 +164,20 @@
       "risk_class": "medium",
       "approval_policy": "operator_once",
       "caller": "director in pulse.yml: files approval-gated work orders for READY assigned tasks",
-      "notes": "dispatch half is built+tested; EXPERIMENTAL until the first live round-trip (worker completes a work order with evidence). Worker wake-up is still each app's own scheduled tasks."
+      "notes": "dispatch half is built+tested; EXPERIMENTAL until the first live round-trip (worker completes a work order with evidence). Worker wake-up is still each app's own scheduled tasks.",
+      "module": "aletheia.director"
     },
     {
       "id": "computer.control",
       "description": "Operate the Windows PC: observe, open apps, click, type (accessibility-first)",
       "provider": "aletheia.local",
-      "status": "NOT_BUILT",
+      "status": "EXPERIMENTAL",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "ticket — Phase 7 (Playbook §121), Core V0 code is shipped — needs it RUNNING on the PC"
+      "caller": "aletheia.computer.execute — reachable through the local Core's POST /api/computer and the CLI; every run needs an approval bound to that exact plan",
+      "module": "aletheia.computer",
+      "verification": "policy layer verified hermetically (41 tests, injected backend): exact-plan approval binding by sha256, single-use claim, halt checked before setup and every step, screen coordinates refused, plan validated before any desktop access",
+      "notes": "EXPERIMENTAL, not AVAILABLE: the Windows UI Automation backend has never executed on Windows — no reviewer here has that platform. scripts/phase7_accept_notepad.ps1 is the acceptance run that decides whether this becomes AVAILABLE or gets repaired."
     },
     {
       "id": "phone.call",
@@ -265,7 +279,8 @@
       "approval_policy": "none",
       "caller": "operator runs `python -m aletheia.core` on the Windows PC; Command Center + wall are its clients",
       "verification": "GET /api/status; 7 tests in test_core.py incl. live HTTP round-trips",
-      "notes": "code built and tested in CI; NEEDS_CONFIGURATION = the operator starting it on the PC"
+      "notes": "code built and tested in CI; NEEDS_CONFIGURATION = the operator starting it on the PC",
+      "module": "aletheia.core"
     },
     {
       "id": "browser.read",
@@ -276,7 +291,8 @@
       "approval_policy": "none",
       "caller": "aletheia.browse CLI (read/shot); the local Core once it runs on the PC",
       "verification": "12 hermetic tests in tests/test_browse.py drive a real Chromium against a loopback fixture site",
-      "notes": "requires the optional playwright dependency; browse.available() reports honestly and callers degrade rather than crash"
+      "notes": "requires the optional playwright dependency; browse.available() reports honestly and callers degrade rather than crash",
+      "module": "aletheia.browse"
     },
     {
       "id": "browser.interact",
@@ -287,7 +303,8 @@
       "approval_policy": "operator_always",
       "caller": "aletheia.browse.interact — refuses without an APPROVED approval, before the browser opens",
       "verification": "tested end to end: an approved run fills a form, selects an option and submits it; unapproved, denied, malformed and halted runs are all refused",
-      "notes": "never bypasses authentication: the operator signs in once via 'python -m aletheia.browse login <url>' into a dedicated persistent profile (cache/browser-profile, gitignored). Permission to read a page is never permission to press its buttons (§61)."
+      "notes": "never bypasses authentication: the operator signs in once via 'python -m aletheia.browse login <url>' into a dedicated persistent profile (cache/browser-profile, gitignored). Permission to read a page is never permission to press its buttons (§61).",
+      "module": "aletheia.browse"
     }
   ],
   "agents": [

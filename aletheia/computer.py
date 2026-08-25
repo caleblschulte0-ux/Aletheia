@@ -1,12 +1,20 @@
-"""Approval-gated Windows computer control (Phase 7, isolated Codex draft).
+"""Approval-gated Windows computer control (Playbook §§12-13, 121; Phase 7).
 
-This module is intentionally not wired into the Core or capability registry yet.
-It is the first reviewable slice: a typed action plan, fail-closed policy checks,
-an accessibility-first Windows UI Automation backend, and an injectable backend
-for hermetic tests.  It accepts no screen coordinates and performs no automatic
-fallback to visual clicking.
+A typed action plan, fail-closed policy checks, an accessibility-first Windows
+UI Automation backend, and an injectable backend for hermetic tests.  It accepts
+no screen coordinates and performs no automatic fallback to visual clicking
+(§13: semantic UI elements before pixels, always).
 
-Proposed CLI after review::
+Authority is bound to the PLAN, not to the session: an approval authorizes one
+run of one exact step list (sha256), is consumed once, and is re-checked before
+setup and before every step, so a halt stops a run mid-plan.
+
+Registered EXPERIMENTAL, and the word is load-bearing: the policy layer above is
+verified hermetically, but the Windows backend has never executed on Windows.
+`scripts/phase7_accept_notepad.ps1` is the acceptance run that decides whether
+this becomes AVAILABLE or gets repaired.
+
+CLI::
 
     python -m aletheia.computer status
     python -m aletheia.computer plan steps.json
