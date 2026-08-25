@@ -56,6 +56,8 @@ def check_issues(fleet: dict, rid: str) -> None:
 
 def dispatch(fleet: dict, rid: str, workflow: str, ref: str | None = None,
              request=gh.request) -> None:
+    from aletheia import policy
+    policy.ensure_not_halted()
     check_dispatch(fleet, rid, workflow)
     repo = _repo(fleet, rid)
     ref = ref or repo["default_branch"]
@@ -66,6 +68,8 @@ def dispatch(fleet: dict, rid: str, workflow: str, ref: str | None = None,
 
 
 def file_issue(fleet: dict, rid: str, title: str, body: str, request=gh.request) -> dict:
+    from aletheia import policy
+    policy.ensure_not_halted()
     check_issues(fleet, rid)
     repo = _repo(fleet, rid)
     journal.append("action", f"repo:{rid}", f"filing issue: {title}")

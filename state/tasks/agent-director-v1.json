@@ -1,13 +1,14 @@
 {
   "id": "agent-director-v1",
   "description": "Phase 9: task-driven delegation to Claude sessions with durable dependency chains",
-  "status": "QUEUED",
+  "status": "COMPLETED",
   "created_at": "2026-08-25T15:56:51Z",
-  "updated_at": "2026-08-25T15:56:51Z",
+  "updated_at": "2026-08-25T16:10:41Z",
   "attempts": 0,
   "priority": 2,
   "dependencies": [
     "orchestrator-v1"
   ],
-  "assigned_worker": "claude"
+  "assigned_worker": "claude",
+  "result": "aletheia/director.py: approval-gated work orders with full delegation contract, halt-aware, run every pulse; 6 tests. Live round-trip pending first real work order"
 }

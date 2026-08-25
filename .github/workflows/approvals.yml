@@ -1,0 +1,72 @@
+name: approvals
+
+# Turns the operator's approve/deny comment on a "🔐 Approval required"
+# issue into a recorded policy decision. Only the repository owner's
+# comments count — anyone else's are ignored here by the job condition.
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: approvals
+  cancel-in-progress: false
+
+jobs:
+  decide:
+    if: >
+      startsWith(github.event.issue.title, '🔐 Approval required:') &&
+      github.event.comment.user.login == github.repository_owner
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Record the decision
+        id: decide
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          OUT=$(python -m aletheia.policy comment-decide \
+            --title "$ISSUE_TITLE" --body "$COMMENT_BODY" \
+            --via "operator-issue-comment")
+          echo "outcome=$OUT" >> "$GITHUB_OUTPUT"
+          echo "$OUT"
+
+      - name: Commit decision state
+        run: |
+          git config user.name "aletheia-policy"
+          git config user.email "actions@users.noreply.github.com"
+          git add state
+          if git diff --cached --quiet; then
+            echo "no decision recorded"
+          else
+            git commit -m "policy: ${{ steps.decide.outputs.outcome }}"
+            git pull --rebase origin main
+            git push origin main
+          fi
+
+      - name: Close the issue once decided
+        if: contains(steps.decide.outputs.outcome, '->')
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.issue.number }}
+        run: |
+          python - <<'EOF'
+          import os
+          from aletheia import gh
+          repo = os.environ["GITHUB_REPOSITORY"]
+          n = os.environ["NUMBER"]
+          gh.request("PATCH", f"/repos/{repo}/issues/{n}", {"state": "closed"})
+          EOF
+        continue-on-error: true

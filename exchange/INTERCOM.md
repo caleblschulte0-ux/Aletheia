@@ -59,6 +59,14 @@ Command kinds and their arguments (anything else is refused):
 | `plan_set` | `slug`, `state`, `because?` | close/drop/reopen a plan |
 | `task_new` | `id`, `description`, `goal?`, `worker?`, `deadline?` | create a durable task (survives every conversation) |
 | `task_status` | `id`, `state`, `note?` | move a task through its lifecycle |
+| `halt` | `reason?` | **the kill switch** — everything acting stops until resume |
+| `resume` | — | lift the halt (the only command that executes while halted) |
+| `approve` | `id` | approve a pending 🔐 approval by voice |
+| `deny` | `id`, `because?` | deny a pending approval |
+| `remember` | `domain`, `key`, `value`, `memory_kind?` | store a memory with the operator's words as provenance (domains: identity, preferences, people, organizations) |
+
+While Aletheia is halted, every command except `resume` comes back with a
+`halted` receipt — relay that honestly.
 
 Non-negotiables:
 

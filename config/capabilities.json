@@ -1,11 +1,34 @@
 {
-  "revision": 1,
+  "revision": 2,
   "providers": [
-    {"id": "aletheia.local", "description": "Aletheia's own Python modules, run locally or in CI", "kind": "local_module"},
-    {"id": "github.actions", "description": "GitHub Actions in this repo executing on schedule or push", "kind": "github_actions"},
-    {"id": "github.api", "description": "GitHub REST API via aletheia.gh (FLEET_TOKEN / GITHUB_TOKEN)", "kind": "api", "authentication": "FLEET_TOKEN or GITHUB_TOKEN"},
-    {"id": "chatgpt.app", "description": "ChatGPT app (subscription): voice/text interface + GitHub connector writes", "kind": "subscription_client", "authentication": "operator's ChatGPT subscription"},
-    {"id": "claude.session", "description": "Claude Code sessions (subscription): builds and maintains Aletheia and the fleet", "kind": "subscription_client", "authentication": "operator's Claude subscription"}
+    {
+      "id": "aletheia.local",
+      "description": "Aletheia's own Python modules, run locally or in CI",
+      "kind": "local_module"
+    },
+    {
+      "id": "github.actions",
+      "description": "GitHub Actions in this repo executing on schedule or push",
+      "kind": "github_actions"
+    },
+    {
+      "id": "github.api",
+      "description": "GitHub REST API via aletheia.gh (FLEET_TOKEN / GITHUB_TOKEN)",
+      "kind": "api",
+      "authentication": "FLEET_TOKEN or GITHUB_TOKEN"
+    },
+    {
+      "id": "chatgpt.app",
+      "description": "ChatGPT app (subscription): voice/text interface + GitHub connector writes",
+      "kind": "subscription_client",
+      "authentication": "operator's ChatGPT subscription"
+    },
+    {
+      "id": "claude.session",
+      "description": "Claude Code sessions (subscription): builds and maintains Aletheia and the fleet",
+      "kind": "subscription_client",
+      "authentication": "operator's Claude subscription"
+    }
   ],
   "capabilities": [
     {
@@ -121,17 +144,17 @@
       "approval_policy": "registry_grant",
       "caller": "intercom.yml on exchange/commands pushes",
       "verification": "every command gets a committed .result.json receipt",
-      "notes": "executor is built and tested; needs the operator to create the ChatGPT Project per exchange/INTERCOM.md"
+      "notes": "executor built and tested (15 command kinds incl. halt/resume/approve/deny/remember/tasks); needs the operator to create the ChatGPT Project per exchange/INTERCOM.md"
     },
     {
       "id": "agent.delegate",
       "description": "Hand a durable task to an AI worker (Claude builds; ChatGPT reviews/authors) and track it",
-      "provider": "claude.session",
+      "provider": "github.actions",
       "status": "EXPERIMENTAL",
       "risk_class": "medium",
       "approval_policy": "operator_once",
-      "caller": "operator-started Claude sessions against plans/tasks today; the Agent Director (Phase 9) makes it programmatic",
-      "notes": "works via each app's own scheduled tasks and sessions — proven daily in Shorts-pipeline; not yet dispatchable by Aletheia itself"
+      "caller": "director in pulse.yml: files approval-gated work orders for READY assigned tasks",
+      "notes": "dispatch half is built+tested; EXPERIMENTAL until the first live round-trip (worker completes a work order with evidence). Worker wake-up is still each app's own scheduled tasks."
     },
     {
       "id": "computer.control",
@@ -195,6 +218,80 @@
       "risk_class": "medium",
       "approval_policy": "operator_once",
       "caller": "ticket — Phase 18 (Playbook §132)"
+    },
+    {
+      "id": "policy.halt",
+      "description": "The kill switch: halt suspends every acting capability until an operator resume",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "intercom halt/resume commands, CLI; enforced in act + intercom + director",
+      "verification": "state/policy/halt.json; halted receipts"
+    },
+    {
+      "id": "policy.approve",
+      "description": "Durable approval objects: requested as issues or by workers, decided by owner comment or by voice",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "director (delegate gate), approvals.yml on owner comments, intercom approve/deny, CLI"
+    },
+    {
+      "id": "orchestrator.compile",
+      "description": "Deterministic goal-to-tasks compiler with evidence-gated completion (a step is done only when its task completed WITH evidence)",
+      "provider": "github.actions",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "pulse.yml every run; CLI"
+    },
+    {
+      "id": "memory.remember",
+      "description": "Structured memory with provenance (identity/preferences/people/organizations); corrections overwrite but record what they replaced",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "intercom remember commands, CLI, Claude sessions"
+    },
+    {
+      "id": "memory.recall",
+      "description": "Recall a memory and answer 'why do you think that' from provenance",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "CLI; ChatGPT reads memory/ raw for reference resolution"
+    }
+  ],
+  "agents": [
+    {
+      "id": "claude",
+      "provider": "claude.session",
+      "description": "Builds and maintains Aletheia and the fleet; the only worker that edits code",
+      "roles": [
+        "CODING",
+        "CODE_REVIEW",
+        "DEEP_REASONING",
+        "PLANNING"
+      ],
+      "strengths": "implementation, repo surgery, tests",
+      "limitations": "woken by sessions/scheduled tasks, not yet by Aletheia itself"
+    },
+    {
+      "id": "chatgpt",
+      "provider": "chatgpt.app",
+      "description": "Thea's voice and advisor; relays operator commands, reviews, researches",
+      "roles": [
+        "VOICE",
+        "GENERAL_REASONING",
+        "RESEARCH",
+        "WRITING",
+        "CODE_REVIEW"
+      ],
+      "limitations": "writes only exchange/suggestions and exchange/commands"
     }
   ]
 }

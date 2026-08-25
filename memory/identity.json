@@ -1,0 +1,32 @@
+{
+  "main_computer": {
+    "kind": "explicit",
+    "source": "PLAYBOOK.md §5",
+    "ts": "2026-08-25T16:10:41Z",
+    "value": "Windows PC"
+  },
+  "mobile_device": {
+    "kind": "explicit",
+    "source": "PLAYBOOK.md §5",
+    "ts": "2026-08-25T16:10:41Z",
+    "value": "iPhone"
+  },
+  "operator_name": {
+    "kind": "explicit",
+    "source": "PLAYBOOK.md (operator-authored)",
+    "ts": "2026-08-25T16:10:41Z",
+    "value": "Caleb"
+  },
+  "spoken_name": {
+    "kind": "explicit",
+    "source": "PLAYBOOK.md",
+    "ts": "2026-08-25T16:10:41Z",
+    "value": "Thea"
+  },
+  "system_name": {
+    "kind": "explicit",
+    "source": "PLAYBOOK.md",
+    "ts": "2026-08-25T16:10:41Z",
+    "value": "Aletheia"
+  }
+}

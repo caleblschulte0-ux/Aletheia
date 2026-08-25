@@ -1,0 +1,13 @@
+{
+  "id": "light-up-the-wall-s2",
+  "description": "Add FLEET_TOKEN secret (fine-grained PAT: contents+actions read on all six repos) — turns NO TELEMETRY into live green/red",
+  "status": "QUEUED",
+  "created_at": "2026-08-25T16:11:27Z",
+  "updated_at": "2026-08-25T16:11:27Z",
+  "attempts": 0,
+  "priority": 2,
+  "goal": "light-up-the-wall",
+  "dependencies": [
+    "light-up-the-wall-s1"
+  ]
+}

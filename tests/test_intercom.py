@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from aletheia import intercom, journal, plans, tasks
+from aletheia import intercom, journal, memory, plans, policy, tasks
 from aletheia.fleet import load_fleet
 from tests.test_capabilities import RecordingAPI
 
@@ -28,7 +28,8 @@ class IntercomCase(unittest.TestCase):
         self.dir = Path(self.tmp.name)
         self.addCleanup(self.tmp.cleanup)
         for target, attr in ((journal, "JOURNAL_PATH"), (plans, "PLANS_DIR"),
-                             (tasks, "TASKS_DIR")):
+                             (tasks, "TASKS_DIR"), (memory, "MEMORY_DIR"),
+                             (policy, "APPROVALS_DIR"), (policy, "HALT_PATH")):
             p = mock.patch.object(target, attr, self.dir / attr.lower())
             p.start(); self.addCleanup(p.stop)
 
@@ -117,6 +118,43 @@ class TestExecution(IntercomCase):
         t = tasks.load("call-dentist")
         self.assertEqual(t["status"], "WAITING_EXTERNAL")
         self.assertEqual(t["result"], "left a voicemail")
+
+    def test_halt_by_voice_then_only_resume_executes(self):
+        self._write(_cmd("20260825-h", kind="halt", reason="stop everything"))
+        results = intercom.run_pending(self.fleet, request=RecordingAPI(),
+                                       commands_dir=self.dir)
+        self.assertEqual(results[0]["outcome"], "done")
+        # while halted, an action command is held...
+        self._write(_cmd("20260825-x", kind="dispatch", repo="aletheia",
+                         workflow="pulse.yml"))
+        results = intercom.run_pending(self.fleet, request=RecordingAPI(),
+                                       commands_dir=self.dir)
+        self.assertEqual(results[0]["outcome"], "halted")
+        # ...and a resume goes through and lifts it
+        self._write(_cmd("20260825-r", kind="resume"))
+        results = intercom.run_pending(self.fleet, request=RecordingAPI(),
+                                       commands_dir=self.dir)
+        self.assertEqual(results[0]["outcome"], "done")
+        self.assertIsNone(policy.halted())
+
+    def test_approve_by_voice_decides_the_approval(self):
+        policy.request("delegate-fix-shorts", "delegate", "why", "worker acts",
+                       reversible=True)
+        self._write(_cmd("20260825-a", kind="approve", id="delegate-fix-shorts"))
+        results = intercom.run_pending(self.fleet, request=RecordingAPI(),
+                                       commands_dir=self.dir)
+        self.assertEqual(results[0]["outcome"], "done")
+        self.assertTrue(policy.is_approved("delegate-fix-shorts"))
+
+    def test_remember_by_voice_carries_operator_provenance(self):
+        c = _cmd("20260825-m", kind="remember", domain="preferences",
+                 key="after_work", value="after 17:30 on workdays")
+        c["operator_quote"] = "when I say after work I mean after 5:30"
+        self._write(c)
+        results = intercom.run_pending(self.fleet, request=RecordingAPI(),
+                                       commands_dir=self.dir)
+        self.assertEqual(results[0]["outcome"], "done")
+        self.assertIn("after 5:30", memory.why("preferences", "after_work"))
 
     def test_invalid_command_gets_invalid_receipt_not_crash(self):
         (self.dir / "20260825-bad.json").write_text("{not json", encoding="utf-8")

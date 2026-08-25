@@ -32,7 +32,7 @@ import json
 import sys
 from pathlib import Path
 
-from aletheia import act, gh, journal, plans, suggestions, tasks
+from aletheia import act, gh, journal, plans, policy, suggestions, tasks
 from aletheia.fleet import REPO_ROOT, load_fleet
 
 COMMANDS_DIR = REPO_ROOT / "exchange" / "commands"
@@ -53,6 +53,11 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "plan_set":      ({"slug", "state"}, {"because"}),
     "task_new":      ({"id", "description"}, {"goal", "worker", "deadline"}),
     "task_status":   ({"id", "state"}, {"note"}),
+    "halt":          (set(), {"reason"}),
+    "resume":        (set(), set()),
+    "approve":       ({"id"}, set()),
+    "deny":          ({"id"}, {"because"}),
+    "remember":      ({"domain", "key", "value"}, {"memory_kind"}),
 }
 
 
@@ -99,7 +104,7 @@ def validate_command(path: Path, fleet: dict) -> list[str]:
     return problems
 
 
-def execute_command(cmd: dict, fleet: dict, request=gh.request) -> str:
+def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "") -> str:
     """Run one validated command. Returns a human-readable detail line.
     Raises act.Refused / ValueError / KeyError — the caller records them."""
     kind = cmd["kind"]
@@ -134,6 +139,24 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request) -> str:
     if kind == "task_status":
         t = tasks.set_status(cmd["id"], cmd["state"], cmd.get("note", ""))
         return f"task {cmd['id']} -> {t['status']}"
+    if kind == "halt":
+        policy.halt(cmd.get("reason", ""), via=ACTOR)
+        return "KILL SWITCH ON — nothing acts until resume"
+    if kind == "resume":
+        policy.resume(via=ACTOR)
+        return "resumed"
+    if kind == "approve":
+        policy.decide(cmd["id"], "APPROVED", via=ACTOR)
+        return f"approval {cmd['id']} -> APPROVED"
+    if kind == "deny":
+        policy.decide(cmd["id"], "DENIED", via=ACTOR, because=cmd.get("because", ""))
+        return f"approval {cmd['id']} -> DENIED"
+    if kind == "remember":
+        from aletheia import memory
+        memory.remember(cmd["domain"], cmd["key"], cmd["value"],
+                        source=f"operator via intercom: {quote[:120]}",
+                        kind=cmd.get("memory_kind", "explicit"))
+        return f"remembered {cmd['domain']}.{cmd['key']}"
     raise ValueError(f"unhandled kind {kind!r}")  # unreachable after validation
 
 
@@ -163,21 +186,33 @@ def run_pending(fleet: dict, request=gh.request, commands_dir: Path | None = Non
             result["detail"] = "; ".join(problems)
         else:
             c = json.loads(path.read_text(encoding="utf-8"))
+            # the kill switch holds everything except the resume that lifts it
+            if policy.halted() and c["command"]["kind"] != "resume":
+                result["outcome"] = "halted"
+                result["detail"] = "Aletheia is halted — only a resume command executes"
+                _write_receipt_and_journal(path, result)
+                results.append(result)
+                continue
             try:
                 result["outcome"] = "done"
-                result["detail"] = execute_command(c["command"], fleet, request=request)
+                result["detail"] = execute_command(c["command"], fleet, request=request,
+                                                   quote=c.get("operator_quote", ""))
             except act.Refused as exc:
                 result["outcome"] = "refused"
                 result["detail"] = str(exc)
             except Exception as exc:
                 result["outcome"] = "error"
                 result["detail"] = f"{type(exc).__name__}: {exc}"
-        _result_path(path).write_text(
-            json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-        journal.append("action", f"intercom:{path.stem}",
-                       f"{result['outcome']} — {result['detail']}", actor=ACTOR)
+        _write_receipt_and_journal(path, result)
         results.append(result)
     return results
+
+
+def _write_receipt_and_journal(path: Path, result: dict) -> None:
+    _result_path(path).write_text(
+        json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    journal.append("action", f"intercom:{path.stem}",
+                   f"{result['outcome']} — {result['detail']}", actor=ACTOR)
 
 
 def main(argv: list[str] | None = None) -> int:

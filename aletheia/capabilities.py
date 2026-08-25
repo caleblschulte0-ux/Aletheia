@@ -46,6 +46,10 @@ def validate(reg: dict) -> list[str]:
     providers = {p.get("id") for p in reg.get("providers", [])}
     for p in reg.get("providers", []):
         problems += contracts.validate_provider(p)
+    for a in reg.get("agents", []):
+        problems += contracts.validate_agent(a)
+        if a.get("provider") not in providers:
+            problems.append(f"agent {a.get('id')}: provider {a.get('provider')!r} not declared")
     seen: set[str] = set()
     for c in reg.get("capabilities", []):
         problems += contracts.validate_capability(c)

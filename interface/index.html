@@ -366,7 +366,11 @@ function orbitSVG(pulse) {
     <text class="core-num" x="${cx}" y="${cy + 10}" text-anchor="middle" fill="${faults ? "var(--bad)" : "var(--ok)"}">${faults ? faults + " FAULT" + (faults > 1 ? "S" : "") : "NOMINAL"}</text>
     <text class="core-stat" x="${cx}" y="${cy + 30}" text-anchor="middle">${actives.length + (hub ? 1 : 0)} ACTIVE · ${stubs.length} DORMANT</text>`;
   const openPlans = (pulse.plans || {}).open || 0;
-  if (openPlans) s += `<text class="core-stat" x="${cx}" y="${cy + 44}" text-anchor="middle" fill="var(--accent)">${openPlans} PLAN${openPlans > 1 ? "S" : ""} IN MOTION</text>`;
+  const liveTasks = (pulse.tasks || {}).live || 0;
+  const motion = [];
+  if (openPlans) motion.push(`${openPlans} PLAN${openPlans > 1 ? "S" : ""}`);
+  if (liveTasks) motion.push(`${liveTasks} TASK${liveTasks > 1 ? "S" : ""}`);
+  if (motion.length) s += `<text class="core-stat" x="${cx}" y="${cy + 44}" text-anchor="middle" fill="var(--accent)">${motion.join(" · ")} IN MOTION</text>`;
   document.getElementById("orbit").innerHTML = s;
 }
 

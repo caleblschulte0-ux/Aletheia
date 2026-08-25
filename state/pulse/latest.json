@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-25T15:57:01Z",
+  "generated_at": "2026-08-25T16:11:39Z",
   "fleet_revision": 3,
   "owner": "caleblschulte0-ux",
   "source": "LocalSource",
@@ -10,6 +10,11 @@
       "status": "active",
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
+        {
+          "sha": "11c753f21cce",
+          "date": "2026-08-25T15:57:19+00:00",
+          "message": "Refoundation: master playbook adopted \u2014 contracts, capability registry, task engine, intercom"
+        },
         {
           "sha": "c805655a95cc",
           "date": "2026-08-25T14:47:59+00:00",
@@ -32,9 +37,9 @@
         }
       ],
       "commit": {
-        "sha": "c805655a95cc",
-        "date": "2026-08-25T14:47:59+00:00",
-        "message": "Capabilities: journal, sentinel, morning brief, plans, front-door actions"
+        "sha": "11c753f21cce",
+        "date": "2026-08-25T15:57:19+00:00",
+        "message": "Refoundation: master playbook adopted \u2014 contracts, capability registry, task engine, intercom"
       },
       "vitals": [],
       "workflows": {
@@ -48,7 +53,7 @@
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 9218
+          "bytes": 10655
         }
       },
       "health": "unknown"
@@ -339,28 +344,31 @@
     ]
   },
   "tasks": {
-    "live": 5,
+    "live": 8,
     "by_status": {
-      "QUEUED": 5
+      "COMPLETED": 3,
+      "QUEUED": 8
     },
     "items": [
       {
-        "id": "policy-engine-v1",
+        "id": "light-up-the-wall-s1",
         "status": "QUEUED",
-        "description": "Phase 4: approval store, operator_once/always intercom flow, delegated authority, kill switch",
-        "worker": "claude"
+        "description": "Merge claude/project-alathea-interface-ah59fv to main"
       },
       {
-        "id": "agent-director-v1",
+        "id": "light-up-the-wall-s2",
         "status": "QUEUED",
-        "description": "Phase 9: task-driven delegation to Claude sessions with durable dependency chains",
-        "worker": "claude"
+        "description": "Add FLEET_TOKEN secret (fine-grained PAT: contents+actions read on all six repos) \u2014 turns NO TELEMETRY into live green/red"
       },
       {
-        "id": "orchestrator-v1",
+        "id": "light-up-the-wall-s3",
         "status": "QUEUED",
-        "description": "Phase 5: deterministic goal-to-tasks compiler with per-step verification",
-        "worker": "claude"
+        "description": "Enable GitHub Pages (main, root) and point the projector at /interface/ fullscreen"
+      },
+      {
+        "id": "light-up-the-wall-s4",
+        "status": "QUEUED",
+        "description": "Point a ChatGPT scheduled task at state/pulse/briefing.md with the exchange/README.md contract"
       },
       {
         "id": "computer-browser-v0",
@@ -372,6 +380,18 @@
         "id": "local-core-bootstrap",
         "status": "QUEUED",
         "description": "Phase 6+: persistent local service on the Windows PC adopting the same contracts and stores",
+        "worker": "claude"
+      },
+      {
+        "id": "command-center-v1",
+        "status": "QUEUED",
+        "description": "Phase 6: interactive command surface on the local Core (tasks, approvals, conversation)",
+        "worker": "claude"
+      },
+      {
+        "id": "email-vertical-slice",
+        "status": "QUEUED",
+        "description": "Phase 13: email read/draft/approve/send/verify with operator_always gate",
         "worker": "claude"
       }
     ]
