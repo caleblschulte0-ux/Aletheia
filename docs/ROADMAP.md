@@ -17,7 +17,7 @@ above its truth. Statuses: **BUILT** · **PARTIAL** · **IN PROGRESS** ·
 | 6 | Command Center V1 | **BUILT** v1 | `interface/command.html` served by the Core: approvals with approve/deny, live task queue, 15-kind command composer, HALT/RESUME, receipts — every button the same gated grammar as the intercom. The intercom remains the remote/voice channel |
 | 6+ | Local Core runtime on the Windows PC | **BUILT** v0 code — **WAITING_OPERATOR** to run it | `aletheia/core.py`: persistent stdlib service, internal API (§110), serves wall + Command Center, executes commands through intercom grammar + policy gates, loopback-only (no auth yet, refuses wider binds); 7 live-HTTP tests. Start with `python -m aletheia.core` on the PC |
 | 7 | Windows computer control V0 | **BLOCKED** by local Core | `computer.control` NOT_BUILT in registry; accessibility-first per §13 |
-| 8 | Browser control | **BLOCKED** by local Core | `browser.control` NOT_BUILT; dedicated authenticated profile per §14 |
+| 8 | Browser control | **BUILT** v1 | `aletheia/browse.py`: persistent authorized profile, `read_page`/`screenshot` open, `interact` gated behind an APPROVED approval and refused before the browser opens; halt-aware; playwright optional with honest degradation. 12 hermetic tests drive real Chromium against a loopback fixture — including an approved form fill + submit |
 | 9 | Agent Director (programmatic delegation to Claude/Codex) | **BUILT** v1 (dispatch) | `aletheia/director.py`: approval-gated work orders carrying the full §67 contract, filed automatically each pulse for READY assigned tasks; dependency chains on disk; 6 tests. EXPERIMENTAL until the first live round-trip; programmatic worker WAKE-UP still each app's own scheduled tasks |
 | 10 | Voice V0 (room) | **TICKET** | Interim: ChatGPT Voice through the intercom's Project is voice-to-Thea today, minus wake word |
 | 11 | Audio Router | **BLOCKED** by local Core | Windows-only subsystem |
@@ -36,14 +36,15 @@ above its truth. Statuses: **BUILT** · **PARTIAL** · **IN PROGRESS** ·
 ## Next five engineering milestones (priority order, per §137)
 
 1. **Run the Core on the PC + first live round-trips** (task
-   `local-core-bootstrap`, WAITING_OPERATOR): `git clone` +
+   `local-core-bootstrap`, WAITING_OPERATOR) — also what makes browser
+   control usable by voice, since the intercom executes in Actions where
+   no browser exists (task `core-processes-commands`): `git clone` +
    `python -m aletheia.core` on the Windows PC; then one real intercom
    command and one approved work order completed with evidence — flips
    `intercom.relay` and `agent.delegate` to AVAILABLE.
-2. **Phase 7/8 — Computer + browser control V0** on the running Core
-   (task `computer-browser-v0`): accessibility-first Windows control
-   and a dedicated browser profile — the two primitives that most
-   expand the reachable world (§138).
+2. **Phase 7 — Windows computer control V0** on the running Core (task
+   `computer-v0`): accessibility-first, the other half of §138. Written
+   against a live Core so it can be verified rather than guessed.
 3. **Phase 13 — Email vertical slice** (task `email-vertical-slice`):
    read/draft/approve/send/verify behind `operator_always`, using the
    now-real Approval Center.

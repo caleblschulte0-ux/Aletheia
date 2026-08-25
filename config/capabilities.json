@@ -1,5 +1,5 @@
 {
-  "revision": 4,
+  "revision": 5,
   "providers": [
     {
       "id": "aletheia.local",
@@ -166,15 +166,6 @@
       "caller": "ticket — Phase 7 (Playbook §121), Core V0 code is shipped — needs it RUNNING on the PC"
     },
     {
-      "id": "browser.control",
-      "description": "Drive a dedicated authenticated browser profile: navigate, read, fill, extract",
-      "provider": "aletheia.local",
-      "status": "NOT_BUILT",
-      "risk_class": "high",
-      "approval_policy": "operator_always",
-      "caller": "ticket — Phase 8 (Playbook §122), Core V0 code is shipped — needs it RUNNING on the PC"
-    },
-    {
       "id": "phone.call",
       "description": "Place and hold a phone conversation on the operator's behalf (identifies itself as Aletheia)",
       "provider": "aletheia.local",
@@ -275,6 +266,28 @@
       "caller": "operator runs `python -m aletheia.core` on the Windows PC; Command Center + wall are its clients",
       "verification": "GET /api/status; 7 tests in test_core.py incl. live HTTP round-trips",
       "notes": "code built and tested in CI; NEEDS_CONFIGURATION = the operator starting it on the PC"
+    },
+    {
+      "id": "browser.read",
+      "description": "Observe any web page through the authorized browser profile: title, visible text, links, screenshots",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.browse CLI (read/shot); the local Core once it runs on the PC",
+      "verification": "12 hermetic tests in tests/test_browse.py drive a real Chromium against a loopback fixture site",
+      "notes": "requires the optional playwright dependency; browse.available() reports honestly and callers degrade rather than crash"
+    },
+    {
+      "id": "browser.interact",
+      "description": "Act on a web page — click, type, select, submit — inside the operator's own authenticated session",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "caller": "aletheia.browse.interact — refuses without an APPROVED approval, before the browser opens",
+      "verification": "tested end to end: an approved run fills a form, selects an option and submits it; unapproved, denied, malformed and halted runs are all refused",
+      "notes": "never bypasses authentication: the operator signs in once via 'python -m aletheia.browse login <url>' into a dedicated persistent profile (cache/browser-profile, gitignored). Permission to read a page is never permission to press its buttons (§61)."
     }
   ],
   "agents": [

@@ -1,0 +1,7 @@
+# Aletheia core is stdlib-only. These unlock optional capabilities and are
+# never required for the registries, task engine, Core API, or any test
+# outside the ones that name them.
+
+# browser.read / browser.interact (Playbook §14, Phase 8)
+#   pip install -r requirements-optional.txt && python -m playwright install chromium
+playwright>=1.40
