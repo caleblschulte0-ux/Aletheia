@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: pulse
@@ -45,14 +46,22 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: python -m aletheia.pulse
 
-      - name: Commit pulse state
+      # The sentinel manages the rolling fleet-alert issue on THIS repo:
+      # opens on new faults, comments on change, closes on recovery.
+      - name: Sentinel — reconcile the alert issue
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python -m aletheia.sentinel --repo "${{ github.repository }}"
+
+      - name: Commit pulse + journal state
         run: |
           git config user.name "aletheia-pulse"
           git config user.email "actions@users.noreply.github.com"
-          git add state/pulse
+          git add state
           if git diff --cached --quiet; then
             echo "pulse unchanged — nothing to commit"
           else
             git commit -m "pulse: $(date -u +%Y-%m-%dT%H:%MZ)"
+            git pull --rebase origin main
             git push origin main
           fi

@@ -1,5 +1,5 @@
 {
-  "revision": 2,
+  "revision": 3,
   "fleet": "aletheia",
   "owner": "caleblschulte0-ux",
   "repos": {
@@ -34,6 +34,14 @@
         "state_files": [
           "state/pulse/latest.json"
         ]
+      },
+      "front_door": {
+        "dispatch": [
+          "pulse.yml",
+          "ci.yml",
+          "brief.yml"
+        ],
+        "issues": true
       }
     },
     "shorts_pipeline": {
@@ -109,7 +117,11 @@
           "probe": "count",
           "path": "posted"
         }
-      ]
+      ],
+      "front_door": {
+        "dispatch": [],
+        "issues": true
+      }
     },
     "schwab_trader": {
       "github": "schwab-trader",
@@ -182,7 +194,11 @@
           "path": "cash",
           "unit": "usd"
         }
-      ]
+      ],
+      "front_door": {
+        "dispatch": [],
+        "issues": true
+      }
     },
     "money_machine": {
       "github": "Money_Machine",

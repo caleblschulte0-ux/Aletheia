@@ -76,6 +76,12 @@ def validate(fleet: dict) -> None:
             problems.append(f"{where}.watch: must have exactly workflows + state_files")
         if status == "stub" and (watch.get("workflows") or watch.get("state_files")):
             problems.append(f"{where}: a stub has nothing to watch — clear watch or change status")
+        fd = repo.get("front_door")
+        if fd is not None:
+            if not isinstance(fd, dict) or set(fd) - {"dispatch", "issues"}:
+                problems.append(f"{where}.front_door: only dispatch + issues are grantable")
+            elif not isinstance(fd.get("dispatch", []), list) or not isinstance(fd.get("issues", False), bool):
+                problems.append(f"{where}.front_door: dispatch is a list of workflows, issues a bool")
         for i, vital in enumerate(repo.get("vitals", [])):
             v_where = f"{where}.vitals[{i}]"
             for key in ("label", "file", "probe"):

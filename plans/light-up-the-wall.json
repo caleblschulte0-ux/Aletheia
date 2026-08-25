@@ -1,0 +1,33 @@
+{
+  "slug": "light-up-the-wall",
+  "title": "Light up the wall",
+  "goal": "Get Aletheia fully live: full-fleet telemetry, public dashboard, agents in their seats",
+  "state": "open",
+  "created": "2026-08-25T14:45:23Z",
+  "steps": [
+    {
+      "n": 1,
+      "text": "Merge claude/project-alathea-interface-ah59fv to main",
+      "state": "todo",
+      "repo": "aletheia"
+    },
+    {
+      "n": 2,
+      "text": "Add FLEET_TOKEN secret (fine-grained PAT: contents+actions read on all six repos) — turns NO TELEMETRY into live green/red",
+      "state": "todo",
+      "repo": "aletheia"
+    },
+    {
+      "n": 3,
+      "text": "Enable GitHub Pages (main, root) and point the projector at /interface/ fullscreen",
+      "state": "todo",
+      "repo": "aletheia"
+    },
+    {
+      "n": 4,
+      "text": "Point a ChatGPT scheduled task at state/pulse/briefing.md with the exchange/README.md contract",
+      "state": "todo",
+      "repo": "fleet"
+    }
+  ]
+}

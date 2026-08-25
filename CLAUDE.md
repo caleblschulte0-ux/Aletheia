@@ -56,6 +56,44 @@ fine-grained PAT across the fleet — the default `GITHUB_TOKEN` sees only
 this repo). Without the secret the pulse still runs and says exactly what
 it could not see.
 
+## The capabilities — each wired, each with a line it does not cross
+
+Built 2026-08-25 on the operator's ask ("Aletheia needs capabilities of
+its own"). Every one has a real caller today; every one is journaled.
+
+- **The journal** (`aletheia/journal.py` → `state/journal/journal.jsonl`)
+  is Aletheia's durable memory: rulings, health transitions, actions,
+  briefs, plan changes. Append-only with the same standing as the posted
+  logs — never edit or prune an entry. Writers: suggestions rulings, the
+  pulse (transitions), the sentinel, the brief, plans, front-door
+  actions, and `python -m aletheia.journal add` for operator notes.
+- **The sentinel** (`aletheia/sentinel.py`, run by `pulse.yml`) notices.
+  The pulse now carries `transitions` (health changes vs the previous
+  pulse) and `alerts` (active repos red or unreachable); the sentinel
+  reconciles ONE rolling "🚨 Fleet alert" issue on THIS repo — opens on
+  fault, comments on change, closes on recovery. It is the smoke
+  detector, not the fire brigade: it never dispatches, never fixes,
+  never touches another repo.
+- **The morning brief** (`aletheia/brief.py`, run daily by `brief.yml`)
+  composes "here is your empire" — vitals with day-over-day deltas from
+  pulse history, transitions, open plans, the ChatGPT inbox, the
+  journal's last 24h — into `state/brief/` and a rolling "☀️ Fleet
+  brief" issue whose daily comment is the notification. Composition is
+  pure and tested; delivery degrades honestly without a token.
+- **Front-door actions** (`aletheia/act.py`) are Aletheia's hands, and
+  the registry is the whole safety model: a repo's `front_door` grant
+  lists exactly which workflows may be dispatched and whether issues may
+  be filed. The default grant is stingy (only Aletheia's own workflows
+  are dispatchable; issues on active repos). Widening it is a
+  `config/fleet.json` change reviewed like any other — never a code path
+  around the check, which runs BEFORE any network call. Callers are the
+  operator and interactive Claude sessions; nothing autonomous acts.
+- **Plans** (`aletheia/plans.py` → `plans/*.json`) hold large-scale
+  intent as data with a lifecycle (open/done/dropped; steps
+  todo/doing/done/blocked, each optionally aimed at a fleet repo). The
+  pulse embeds a summary, so the wall and the brief both show what is in
+  motion. Validated in CI; every mutation journaled.
+
 ## WHO MAY EDIT — Claude, and only Claude (fleet-wide)
 
 The operator's standing ruling, same as Shorts-pipeline: **Claude is the

@@ -124,6 +124,8 @@ def cmd_rule(sid: str, state: str, because: str) -> int:
         "ruled": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
     save_verdicts(verdicts)
+    from aletheia import journal
+    journal.append("decision", f"suggestion:{sid}", f"{state} — {because}", actor="claude")
     print(f"{sid} -> {state}")
     return 0
 

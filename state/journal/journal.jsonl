@@ -1,0 +1,7 @@
+{"ts": "2026-08-25T14:45:23Z", "kind": "plan", "actor": "aletheia", "subject": "plan:light-up-the-wall", "text": "opened — Light up the wall"}
+{"ts": "2026-08-25T14:45:23Z", "kind": "plan", "actor": "aletheia", "subject": "plan:light-up-the-wall", "text": "step 1 added — Merge claude/project-alathea-interface-ah59fv to main"}
+{"ts": "2026-08-25T14:45:23Z", "kind": "plan", "actor": "aletheia", "subject": "plan:light-up-the-wall", "text": "step 2 added — Add FLEET_TOKEN secret (fine-grained PAT: contents+actions read on all six repos) — turns NO TELEMETRY into live green/red"}
+{"ts": "2026-08-25T14:45:23Z", "kind": "plan", "actor": "aletheia", "subject": "plan:light-up-the-wall", "text": "step 3 added — Enable GitHub Pages (main, root) and point the projector at /interface/ fullscreen"}
+{"ts": "2026-08-25T14:45:23Z", "kind": "plan", "actor": "aletheia", "subject": "plan:light-up-the-wall", "text": "step 4 added — Point a ChatGPT scheduled task at state/pulse/briefing.md with the exchange/README.md contract"}
+{"ts": "2026-08-25T14:46:05Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-08-25"}
+{"ts": "2026-08-25T14:47:59Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-08-25"}

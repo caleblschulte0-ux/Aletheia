@@ -26,13 +26,12 @@ import os
 import subprocess
 import sys
 import urllib.error
-import urllib.request
 from pathlib import Path
 
+from aletheia import gh
 from aletheia.fleet import REPO_ROOT, load_fleet
 
 PULSE_DIR = REPO_ROOT / "state" / "pulse"
-API = "https://api.github.com"
 
 
 def _utcnow() -> str:
@@ -47,13 +46,7 @@ class GitHubSource:
         self.token = token or os.environ.get("FLEET_TOKEN") or os.environ.get("GITHUB_TOKEN")
 
     def _get(self, path: str) -> dict | list:
-        req = urllib.request.Request(f"{API}{path}")
-        req.add_header("Accept", "application/vnd.github+json")
-        req.add_header("X-GitHub-Api-Version", "2022-11-28")
-        if self.token:
-            req.add_header("Authorization", f"Bearer {self.token}")
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            return json.loads(resp.read().decode("utf-8"))
+        return gh.request("GET", path, tok=self.token)
 
     def recent_commits(self, gh: str, branch: str, n: int = 5) -> list[dict]:
         commits = self._get(f"/repos/{self.owner}/{gh}/commits?sha={branch}&per_page={n}")
@@ -235,7 +228,64 @@ def collect(fleet: dict, source) -> dict:
     return pulse
 
 
+def transitions(prev: dict | None, cur: dict) -> list[dict]:
+    """Health changes since the previous pulse — what the sentinel acts on."""
+    out = []
+    prev_repos = (prev or {}).get("repos", {})
+    for rid, r in cur["repos"].items():
+        before = prev_repos.get(rid, {}).get("health")
+        if before and before != r["health"]:
+            out.append({"repo": rid, "github": r["github"], "from": before, "to": r["health"]})
+    return out
+
+
+def find_alerts(pulse: dict) -> list[dict]:
+    """Active repos in trouble RIGHT NOW: red health or unreachable.
+    Offline-mode 'unknown' (no error, just no telemetry) is not an alert."""
+    out = []
+    for rid, r in pulse["repos"].items():
+        if r["status"] != "active":
+            continue
+        if r["health"] != "red" and not r.get("error"):
+            continue
+        alert = {"repo": rid, "github": r["github"], "health": r["health"]}
+        if r.get("error"):
+            alert["error"] = r["error"]
+        failing = [
+            n for n, w in (r.get("workflows") or {}).items()
+            if w.get("status") == "completed" and w.get("conclusion") not in ("success", "skipped")
+        ]
+        missing = [p for p, f in (r.get("state_files") or {}).items() if f.get("exists") is False]
+        if failing:
+            alert["failing"] = failing
+        if missing:
+            alert["missing"] = missing
+        out.append(alert)
+    return out
+
+
+def enrich(pulse: dict, prev: dict | None) -> dict:
+    """Fold change-awareness and fleet intent into the pulse: transitions
+    vs the previous pulse, current alerts, and open-plan summary. The wall
+    and the brief read all of it from this one file."""
+    from aletheia import plans as plans_mod
+    pulse["transitions"] = transitions(prev, pulse)
+    pulse["alerts"] = find_alerts(pulse)
+    open_plans = [p for p in plans_mod.all_plans() if p["state"] == "open"]
+    pulse["plans"] = {
+        "open": len(open_plans),
+        "items": [
+            {"slug": p["slug"], "title": p["title"],
+             "done": plans_mod.progress(p)[0], "total": plans_mod.progress(p)[1]}
+            for p in open_plans
+        ],
+    }
+    return pulse
+
+
 HEALTH_MARK = {"green": "🟢", "red": "🔴", "unknown": "⚪", "dormant": "💤"}
+# the wall's vocabulary — status is never color-alone anywhere Aletheia speaks
+STATUS_WORDS = {"green": "OPERATIONAL", "red": "FAULT", "unknown": "NO TELEMETRY", "dormant": "DORMANT"}
 
 
 def briefing(pulse: dict) -> str:
@@ -329,7 +379,20 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
     pulse = collect(fleet, source)
-    paths = write_pulse(pulse, Path(args.out))
+    out_dir = Path(args.out)
+    prev = None
+    prev_path = out_dir / "latest.json"
+    if prev_path.exists():
+        try:
+            prev = json.loads(prev_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            prev = None
+    enrich(pulse, prev)
+    for t in pulse["transitions"]:
+        from aletheia import journal
+        kind = "alert" if t["to"] == "red" else ("recovery" if t["from"] == "red" else "event")
+        journal.append(kind, f"repo:{t['repo']}", f"health {t['from']} -> {t['to']}")
+    paths = write_pulse(pulse, out_dir)
     for rid, r in pulse["repos"].items():
         print(f"{HEALTH_MARK.get(r['health'], '?')} {rid}: {r['health']}"
               + (f" ({r['error']})" if r.get("error") else ""))

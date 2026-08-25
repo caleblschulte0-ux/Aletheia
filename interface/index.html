@@ -100,6 +100,22 @@
   .pulse-meta .live.stale .beat { background: var(--warn); box-shadow: 0 0 10px var(--warn); animation: none; }
   @keyframes beat { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.55); opacity: 0.5; } }
 
+  /* ---- alert banner: only exists when something is wrong ---- */
+  .alertbar {
+    display: none; margin: 0.2rem 2rem 0; padding: 0.45rem 1rem;
+    border: 1px solid rgba(255, 93, 93, 0.5); border-radius: 3px;
+    background: rgba(255, 93, 93, 0.08);
+    font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.12em;
+    color: var(--bad); text-align: center;
+    animation: alertglow 2.4s ease-in-out infinite;
+  }
+  .alertbar.show { display: block; }
+  .alertbar .sep { color: var(--faint); margin: 0 0.8rem; }
+  @keyframes alertglow {
+    0%, 100% { box-shadow: 0 0 12px rgba(255, 93, 93, 0.12); }
+    50% { box-shadow: 0 0 26px rgba(255, 93, 93, 0.32); }
+  }
+
   /* ---- main stage ---- */
   main {
     flex: 1; display: flex; align-items: center; justify-content: center;
@@ -204,6 +220,8 @@
     <div id="meta-line">awaiting pulse…</div>
   </div>
 </header>
+
+<div class="alertbar" id="alertbar"></div>
 
 <main>
   <div class="col" id="col-left"></div>
@@ -347,6 +365,8 @@ function orbitSVG(pulse) {
     <text class="core-title" x="${cx + 4}" y="${cy - 18}" text-anchor="middle">ALETHEIA</text>
     <text class="core-num" x="${cx}" y="${cy + 10}" text-anchor="middle" fill="${faults ? "var(--bad)" : "var(--ok)"}">${faults ? faults + " FAULT" + (faults > 1 ? "S" : "") : "NOMINAL"}</text>
     <text class="core-stat" x="${cx}" y="${cy + 30}" text-anchor="middle">${actives.length + (hub ? 1 : 0)} ACTIVE · ${stubs.length} DORMANT</text>`;
+  const openPlans = (pulse.plans || {}).open || 0;
+  if (openPlans) s += `<text class="core-stat" x="${cx}" y="${cy + 44}" text-anchor="middle" fill="var(--accent)">${openPlans} PLAN${openPlans > 1 ? "S" : ""} IN MOTION</text>`;
   document.getElementById("orbit").innerHTML = s;
 }
 
@@ -379,6 +399,15 @@ function render(pulse) {
     `<span class="stub"><span class="dot"></span>${esc(r.github)} · dormant</span>`).join("");
   orbitSVG(pulse);
   tickerHTML(pulse);
+
+  /* alert banner — present only when the pulse carries alerts */
+  const alerts = pulse.alerts || [];
+  const bar = document.getElementById("alertbar");
+  bar.classList.toggle("show", alerts.length > 0);
+  bar.innerHTML = alerts.map(a => {
+    const why = a.failing ? a.failing.join(", ") : (a.error ? "unreachable" : (a.missing ? "missing state" : "fault"));
+    return `⚠ ${esc(a.github.toUpperCase())} — ${esc(why)}`;
+  }).join('<span class="sep">│</span>');
 
   const ageMs = Date.now() - new Date(pulse.generated_at).getTime();
   const stale = !isFinite(ageMs) || ageMs > 12 * 3600 * 1000;

@@ -1,0 +1,51 @@
+name: brief
+
+# The morning brief — composed from the latest pulse, day-over-day vital
+# deltas, transitions, open plans, the ChatGPT inbox, and the journal's
+# last 24h. Delivered as committed state AND a rolling "☀️ Fleet brief"
+# issue (the daily comment on it is the operator's notification).
+#
+# 11:00 UTC = 06:00 Central in summer / 05:00 in winter — early either way.
+
+on:
+  schedule:
+    - cron: "0 11 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: brief
+  cancel-in-progress: false
+
+jobs:
+  brief:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compose and deliver the brief
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python -m aletheia.brief --repo "${{ github.repository }}"
+
+      - name: Commit brief + journal state
+        run: |
+          git config user.name "aletheia-brief"
+          git config user.email "actions@users.noreply.github.com"
+          git add state
+          if git diff --cached --quiet; then
+            echo "nothing to commit"
+          else
+            git commit -m "brief: $(date -u +%Y-%m-%d)"
+            git pull --rebase origin main
+            git push origin main
+          fi

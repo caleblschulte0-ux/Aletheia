@@ -47,14 +47,23 @@ exchange/suggestions/      ChatGPT reads the briefing, files suggestions;
 ```bash
 python -m aletheia.fleet                 # one line per repo
 python -m aletheia.fleet --validate      # registry structural check
-python -m aletheia.fleet --markdown      # the table above
 python -m aletheia.pulse                 # collect via GitHub API (needs token)
 python -m aletheia.pulse --local ~/repos # collect from sibling clones, offline
-python -m aletheia.suggestions validate  # check ChatGPT's inbox
-python -m aletheia.suggestions list      # suggestions + rulings
+python -m aletheia.brief                 # compose the morning brief from the pulse
+python -m aletheia.journal list          # the fleet's memory (add / search too)
+python -m aletheia.plans list            # plans in motion (new / add-step / step / show)
+python -m aletheia.act grants            # what the registry lets Aletheia touch
+python -m aletheia.act dispatch aletheia pulse.yml   # act, through a front door
+python -m aletheia.suggestions list      # ChatGPT's inbox + rulings
 python -m aletheia.suggestions rule <id> doing --because "..."
 python -m unittest discover tests        # the whole test suite, no deps
 ```
+
+Aletheia's own capabilities — the pulse that sees, the sentinel that
+notices (and opens/closes a fleet-alert issue by itself), the morning
+brief that reports with day-over-day deltas, the journal that remembers,
+plans that hold intent, and registry-gated front-door actions — are
+documented in `CLAUDE.md` and ledgered in `docs/ROADMAP.md`.
 
 ## Setup that needs the operator
 

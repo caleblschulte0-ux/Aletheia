@@ -1,12 +1,12 @@
 # Fleet briefing
 
-Generated 2026-08-25T14:34:26Z from fleet registry rev 2 via LocalSource.
+Generated 2026-08-25T14:47:43Z from fleet registry rev 3 via LocalSource.
 
 ## ⚪ `Aletheia` — hub (active)
 
 The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.
 
-Last commit `9bd8519c1791` at 2026-08-25T13:02:58+00:00: Aletheia v1: fleet registry, pulse collector, dashboard, ChatGPT suggestion inbox
+Last commit `9e601f0b83d3` at 2026-08-25T14:35:26+00:00: The wall: rebuild the interface as the fleet's cinematic centerpiece, feed it real vitals
 
 Watched workflows:
 - `pulse.yml`: unavailable offline

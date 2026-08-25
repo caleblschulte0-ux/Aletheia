@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-25T14:34:26Z",
-  "fleet_revision": 2,
+  "generated_at": "2026-08-25T14:47:43Z",
+  "fleet_revision": 3,
   "owner": "caleblschulte0-ux",
   "source": "LocalSource",
   "repos": {
@@ -10,6 +10,11 @@
       "status": "active",
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
+        {
+          "sha": "9e601f0b83d3",
+          "date": "2026-08-25T14:35:26+00:00",
+          "message": "The wall: rebuild the interface as the fleet's cinematic centerpiece, feed it real vitals"
+        },
         {
           "sha": "9bd8519c1791",
           "date": "2026-08-25T13:02:58+00:00",
@@ -22,9 +27,9 @@
         }
       ],
       "commit": {
-        "sha": "9bd8519c1791",
-        "date": "2026-08-25T13:02:58+00:00",
-        "message": "Aletheia v1: fleet registry, pulse collector, dashboard, ChatGPT suggestion inbox"
+        "sha": "9e601f0b83d3",
+        "date": "2026-08-25T14:35:26+00:00",
+        "message": "The wall: rebuild the interface as the fleet's cinematic centerpiece, feed it real vitals"
       },
       "vitals": [],
       "workflows": {
@@ -38,7 +43,7 @@
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 8776
+          "bytes": 9218
         }
       },
       "health": "unknown"
@@ -314,5 +319,18 @@
       "state_files": {},
       "health": "dormant"
     }
+  },
+  "transitions": [],
+  "alerts": [],
+  "plans": {
+    "open": 1,
+    "items": [
+      {
+        "slug": "light-up-the-wall",
+        "title": "Light up the wall",
+        "done": 0,
+        "total": 4
+      }
+    ]
   }
 }

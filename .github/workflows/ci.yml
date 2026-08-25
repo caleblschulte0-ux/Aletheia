@@ -23,5 +23,8 @@ jobs:
       - name: ChatGPT inbox validates
         run: python -m aletheia.suggestions validate
 
+      - name: Plans validate
+        run: python -m aletheia.plans validate
+
       - name: Tests
         run: python -m unittest discover -s tests -v
