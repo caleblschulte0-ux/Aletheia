@@ -1,5 +1,5 @@
 {
-  "revision": 3,
+  "revision": 4,
   "providers": [
     {
       "id": "aletheia.local",
@@ -44,12 +44,12 @@
       "id": "pulse.collect",
       "description": "Observe every fleet repo: commits, workflows, state files, vitals, transitions, alerts",
       "provider": "github.api",
-      "status": "NEEDS_CONFIGURATION",
+      "status": "AVAILABLE",
       "risk_class": "read",
       "approval_policy": "none",
       "caller": "pulse.yml (6-hourly) and CLI",
       "verification": "pulse names every registry repo or records why not",
-      "notes": "AVAILABLE for this repo and local clones today; full-fleet telemetry needs the FLEET_TOKEN secret"
+      "notes": "verified live on main 2026-08-25: reads commits, workflow outcomes, state files and vitals for every PUBLIC fleet repo using the default GITHUB_TOKEN. Only private repos need the FLEET_TOKEN secret — today that is etsy_maker alone, which the pulse records honestly as a 404 rather than omitting."
     },
     {
       "id": "brief.compose",
