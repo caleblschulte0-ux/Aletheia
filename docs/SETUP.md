@@ -3,14 +3,16 @@
 Six steps. Everything else is already built and tested; these are the
 things only you can do. Do them in order; each one takes minutes.
 
-## 1. Merge the branch
+## 1. Merge the branch — ✅ DONE (Claude merged PR #1)
 
-Open https://github.com/caleblschulte0-ux/Aletheia/branches — click
-**New pull request** on `claude/project-alathea-interface-ah59fv`, then
-merge it. (Or run `git checkout main && git merge
-claude/project-alathea-interface-ah59fv && git push`.)
+Nothing to do — `main` now carries the whole system, CI is green, and the
+pulse, brief, sentinel and director have all run live on it.
 
-## 2. Add the FLEET_TOKEN secret — makes the pulse see all six repos
+## 2. (OPTIONAL) FLEET_TOKEN — only for PRIVATE repos
+
+Skip this unless you care about `etsy_maker`. Verified live: the pulse
+already reads every public fleet repo with no secret at all. `etsy_maker`
+is private, so it shows as a 404 until you add this.
 
 1. https://github.com/settings/personal-access-tokens/new
 2. Fine-grained token, **All repositories** (or pick the six),
