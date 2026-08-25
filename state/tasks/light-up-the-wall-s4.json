@@ -1,0 +1,13 @@
+{
+  "id": "light-up-the-wall-s4",
+  "description": "Point a ChatGPT scheduled task at state/pulse/briefing.md with the exchange/README.md contract",
+  "status": "QUEUED",
+  "created_at": "2026-08-25T16:11:27Z",
+  "updated_at": "2026-08-25T16:11:27Z",
+  "attempts": 0,
+  "priority": 2,
+  "goal": "light-up-the-wall",
+  "dependencies": [
+    "light-up-the-wall-s3"
+  ]
+}

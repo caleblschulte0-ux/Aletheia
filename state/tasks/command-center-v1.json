@@ -1,0 +1,14 @@
+{
+  "id": "command-center-v1",
+  "description": "Phase 6: interactive command surface on the local Core (tasks, approvals, conversation)",
+  "status": "COMPLETED",
+  "created_at": "2026-08-25T16:10:41Z",
+  "updated_at": "2026-08-25T16:16:17Z",
+  "attempts": 0,
+  "priority": 3,
+  "dependencies": [
+    "local-core-bootstrap"
+  ],
+  "assigned_worker": "claude",
+  "result": "interface/command.html served by the Core: live approvals with approve/deny, task queue, 15-kind command composer, HALT/RESUME, receipts; verified rendering against the running Core"
+}

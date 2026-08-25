@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ALETHEIA — command</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  /* Command Center V1 — interactive sibling of the wall. Served by the
+     local Core (python -m aletheia.core); every button is a POST to
+     /api/command, the same gated grammar the intercom speaks. */
+  :root {
+    --bg:#04060b; --panel:rgba(13,18,28,.85); --line:rgba(96,118,156,.22);
+    --ink:#dfe6f2; --muted:#7d8aa3; --faint:#4a5670; --accent:#62d0e8;
+    --accent2:#7c96ff; --ok:#35d07f; --bad:#ff5d5d; --warn:#d9a53f;
+    --sans:"Space Grotesk",system-ui,sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);min-height:100vh;
+       display:flex;flex-direction:column}
+  header{display:flex;align-items:center;justify-content:space-between;
+         padding:1rem 1.6rem;border-bottom:1px solid var(--line)}
+  h1{font-size:1.15rem;letter-spacing:.4em;font-weight:700}
+  h1 span{color:var(--muted);font-weight:300;letter-spacing:.2em;font-size:.75rem}
+  .haltwrap{display:flex;align-items:center;gap:.9rem;font-family:var(--mono);font-size:.7rem}
+  #halt-state{letter-spacing:.25em}
+  #halt-state.ok{color:var(--ok)} #halt-state.halted{color:var(--bad);animation:blink 1.2s infinite}
+  @keyframes blink{50%{opacity:.4}}
+  button{font-family:var(--mono);font-size:.68rem;letter-spacing:.12em;cursor:pointer;
+         background:transparent;color:var(--ink);border:1px solid var(--line);
+         border-radius:3px;padding:.38rem .8rem}
+  button:hover{border-color:var(--accent);color:var(--accent)}
+  button.danger{border-color:rgba(255,93,93,.5);color:var(--bad)}
+  button.danger:hover{background:rgba(255,93,93,.12)}
+  button.good{border-color:rgba(53,208,127,.5);color:var(--ok)}
+  main{flex:1;display:grid;grid-template-columns:1.1fr .9fr;gap:1rem;padding:1rem 1.6rem;
+       align-items:start}
+  @media (max-width:900px){main{grid-template-columns:1fr}}
+  section{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:1rem}
+  section h2{font-size:.72rem;letter-spacing:.3em;color:var(--muted);margin-bottom:.7rem;
+             text-transform:uppercase}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:.8rem;
+       padding:.4rem 0;border-bottom:1px solid rgba(96,118,156,.1);font-size:.78rem}
+  .row:last-child{border-bottom:0}
+  .row .id{font-family:var(--mono);color:var(--accent2);font-size:.68rem}
+  .row .st{font-family:var(--mono);font-size:.6rem;letter-spacing:.15em;color:var(--muted);
+           white-space:nowrap}
+  .row .st.PENDING{color:var(--warn)} .row .st.WAITING_EXTERNAL{color:var(--warn)}
+  .row .st.RUNNING{color:var(--accent)} .row .st.BLOCKED{color:var(--bad)}
+  .empty{color:var(--faint);font-family:var(--mono);font-size:.7rem}
+  form{display:grid;gap:.6rem}
+  select,input,textarea{background:rgba(4,6,11,.8);border:1px solid var(--line);
+    border-radius:3px;color:var(--ink);font-family:var(--mono);font-size:.75rem;
+    padding:.45rem .6rem;width:100%}
+  select:focus,input:focus,textarea:focus{outline:none;border-color:var(--accent)}
+  label{font-family:var(--mono);font-size:.6rem;letter-spacing:.2em;color:var(--muted);
+        text-transform:uppercase}
+  #args{display:grid;gap:.6rem}
+  #receipts{font-family:var(--mono);font-size:.68rem;display:flex;flex-direction:column-reverse;
+            gap:.4rem;max-height:16rem;overflow-y:auto}
+  .rc .o{letter-spacing:.15em}
+  .rc .o.done{color:var(--ok)} .rc .o.refused,.rc .o.error,.rc .o.invalid{color:var(--bad)}
+  .rc .o.halted{color:var(--warn)}
+  .rc .d{color:var(--muted)}
+  footer{padding:.6rem 1.6rem;color:var(--faint);font-family:var(--mono);font-size:.62rem;
+         border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+<header>
+  <h1>ALETHEIA <span>COMMAND</span></h1>
+  <div class="haltwrap">
+    <span id="halt-state" class="ok">CHECKING…</span>
+    <button id="halt-btn" class="danger" onclick="toggleHalt()">HALT</button>
+    <a href="/" style="color:var(--muted);font-family:var(--mono);font-size:.65rem">→ the wall</a>
+  </div>
+</header>
+
+<main>
+  <div style="display:grid;gap:1rem">
+    <section>
+      <h2>Approvals pending</h2>
+      <div id="approvals" class="empty">loading…</div>
+    </section>
+    <section>
+      <h2>Tasks</h2>
+      <div id="tasks" class="empty">loading…</div>
+    </section>
+  </div>
+  <div style="display:grid;gap:1rem">
+    <section>
+      <h2>Command</h2>
+      <form id="cmd-form" onsubmit="return sendCommand(event)">
+        <div><label>kind</label><select id="kind" onchange="renderArgs()"></select></div>
+        <div id="args"></div>
+        <button type="submit" class="good">EXECUTE</button>
+      </form>
+    </section>
+    <section>
+      <h2>Receipts</h2>
+      <div id="receipts"></div>
+    </section>
+  </div>
+</main>
+<footer>local Core · every command runs through the same registry gates as the intercom · truth: /api/status</footer>
+
+<script>
+"use strict";
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* mirror of aletheia.intercom.KIND_ARGS — [required, optional] */
+const KINDS = {
+  note:          [["text"], []],
+  dispatch:      [["repo", "workflow"], ["ref"]],
+  issue:         [["repo", "title"], ["body"]],
+  rule:          [["id", "state", "because"], []],
+  plan_new:      [["slug", "title", "goal"], []],
+  plan_add_step: [["slug", "text"], ["repo"]],
+  plan_step:     [["slug", "n", "state"], []],
+  plan_set:      [["slug", "state"], ["because"]],
+  task_new:      [["id", "description"], ["goal", "worker", "deadline"]],
+  task_status:   [["id", "state"], ["note"]],
+  approve:       [["id"], []],
+  deny:          [["id"], ["because"]],
+  remember:      [["domain", "key", "value"], ["memory_kind"]],
+  halt:          [[], ["reason"]],
+  resume:        [[], []],
+};
+
+function renderArgs() {
+  const kind = document.getElementById("kind").value;
+  const [req, opt] = KINDS[kind];
+  document.getElementById("args").innerHTML =
+    req.map(a => `<div><label>${a}</label><input name="${a}" required></div>`).join("") +
+    opt.map(a => `<div><label>${a} (optional)</label><input name="${a}"></div>`).join("");
+}
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  return r.json();
+}
+
+async function post(cmd) {
+  const res = await api("/api/command", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(cmd),
+  });
+  const div = document.createElement("div");
+  div.className = "rc";
+  div.innerHTML = `<span class="o ${esc(res.outcome)}">${esc(res.outcome.toUpperCase())}</span>
+    <span class="d">${esc(cmd.kind)} — ${esc(res.detail)}</span>`;
+  document.getElementById("receipts").appendChild(div);
+  refresh();
+  return res;
+}
+
+function sendCommand(ev) {
+  ev.preventDefault();
+  const kind = document.getElementById("kind").value;
+  const cmd = { kind };
+  for (const input of document.querySelectorAll("#args input")) {
+    if (input.value.trim() !== "") {
+      cmd[input.name] = input.name === "n" ? Number(input.value) : input.value;
+    }
+  }
+  post(cmd);
+  return false;
+}
+
+let haltedNow = false;
+async function toggleHalt() {
+  await post(haltedNow ? {kind: "resume"} : {kind: "halt", reason: "operator pressed HALT"});
+}
+
+async function refresh() {
+  try {
+    const s = await api("/api/status");
+    haltedNow = !!s.halted;
+    const hs = document.getElementById("halt-state");
+    hs.textContent = haltedNow ? "HALTED — " + esc(s.halted.reason || "") : "RUNNING";
+    hs.className = haltedNow ? "halted" : "ok";
+    document.getElementById("halt-btn").textContent = haltedNow ? "RESUME" : "HALT";
+    document.getElementById("halt-btn").className = haltedNow ? "good" : "danger";
+
+    const aps = await api("/api/approvals");
+    const pending = aps.filter(a => a.state === "PENDING");
+    document.getElementById("approvals").innerHTML = pending.length ? pending.map(a =>
+      `<div class="row"><div><div>${esc(a.requested_action)}</div>
+         <div class="id">${esc(a.id)}</div></div>
+       <div style="display:flex;gap:.4rem">
+         <button class="good" onclick='post({kind:"approve",id:"${esc(a.id)}"})'>APPROVE</button>
+         <button class="danger" onclick='post({kind:"deny",id:"${esc(a.id)}",because:"denied from command center"})'>DENY</button>
+       </div></div>`).join("") : `<div class="empty">nothing waiting on you</div>`;
+
+    const ts = await api("/api/tasks");
+    const live = ts.filter(t => !["COMPLETED","CANCELLED","FAILED_TERMINAL"].includes(t.status));
+    document.getElementById("tasks").innerHTML = live.length ? live.map(t =>
+      `<div class="row"><div><div>${esc(t.description)}</div><div class="id">${esc(t.id)}</div></div>
+       <span class="st ${esc(t.status)}">${esc(t.status)}</span></div>`).join("")
+      : `<div class="empty">no live tasks</div>`;
+  } catch (e) {
+    document.getElementById("halt-state").textContent = "CORE UNREACHABLE";
+    document.getElementById("halt-state").className = "halted";
+  }
+}
+
+document.getElementById("kind").innerHTML =
+  Object.keys(KINDS).map(k => `<option>${k}</option>`).join("");
+renderArgs();
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,195 @@
+"""The local Core V0 — Aletheia as a persistent service (Playbook §§108–110).
+
+Runs on the operator's Windows PC (or anywhere Python runs):
+
+    python -m aletheia.core            # http://127.0.0.1:8777
+
+One process, stdlib only, serving the internal API every interface uses
+(§110) plus the static interfaces (the wall at `/`, the Command Center at
+`/command.html`). It executes commands through the SAME grammar and
+gates as the intercom — `intercom.validate_kind_args` →
+`intercom.execute_command` → policy/halt/front-door checks → journal —
+so voice-via-ChatGPT and the local console can never drift apart.
+
+The repo working copy is the durable memory: the Core reads and writes
+the same `state/`, `plans/`, `memory/` stores. Sync with GitHub stays
+git's job (the operator pulls/pushes, or a scheduled `git pull` keeps
+the mirror fresh); the Core never invents a second source of truth.
+
+Security V0: binds 127.0.0.1 ONLY by default — the API is the
+operator's own machine talking to itself. Exposing it further needs
+authentication that does not exist yet; `--host` therefore refuses
+non-loopback values rather than pretending (§59 fail closed).
+
+API:
+    GET  /api/status        halt state, pulse meta, task/approval counts
+    GET  /api/tasks         every task
+    GET  /api/approvals     every approval
+    GET  /api/capabilities  the capability registry
+    GET  /api/journal?last=N
+    POST /api/command       {"kind": …, …args} (+optional "operator_quote")
+                            → {outcome, detail}, executed inline, journaled
+"""
+from __future__ import annotations
+
+import argparse
+import json
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
+from aletheia import act, capabilities, intercom, journal, policy, tasks
+from aletheia.fleet import REPO_ROOT, load_fleet
+from aletheia.pulse import PULSE_DIR
+
+INTERFACE_DIR = REPO_ROOT / "interface"
+ACTOR = "operator-local-core"
+DEFAULT_PORT = 8777
+
+
+def status_payload() -> dict:
+    pulse_meta = {}
+    latest = PULSE_DIR / "latest.json"
+    if latest.exists():
+        try:
+            p = json.loads(latest.read_text(encoding="utf-8"))
+            pulse_meta = {
+                "generated_at": p.get("generated_at"),
+                "alerts": len(p.get("alerts") or []),
+                "plans_open": (p.get("plans") or {}).get("open", 0),
+            }
+        except json.JSONDecodeError:
+            pulse_meta = {"error": "pulse unreadable"}
+    all_t = tasks.all_tasks()
+    return {
+        "halted": policy.halted(),
+        "pulse": pulse_meta,
+        "tasks": {
+            "total": len(all_t),
+            "live": sum(1 for t in all_t
+                        if t["status"] not in ("COMPLETED", "CANCELLED", "FAILED_TERMINAL")),
+            "ready": [t["id"] for t in tasks.ready()],
+        },
+        "approvals_pending": [a["id"] for a in policy.all_approvals()
+                              if a["state"] == "PENDING"],
+    }
+
+
+def run_command(payload: dict, fleet: dict) -> dict:
+    """The Core's command path — same grammar, same gates, inline answer."""
+    quote = str(payload.pop("operator_quote", "typed into the local command center"))
+    problems = intercom.validate_kind_args(payload, fleet)
+    if problems:
+        return {"outcome": "invalid", "detail": "; ".join(problems)}
+    if policy.halted() and payload["kind"] != "resume":
+        return {"outcome": "halted",
+                "detail": "Aletheia is halted — only a resume command executes"}
+    try:
+        result = {"outcome": "done",
+                  "detail": intercom.execute_command(payload, fleet, quote=quote)}
+    except act.Refused as exc:
+        result = {"outcome": "refused", "detail": str(exc)}
+    except Exception as exc:
+        result = {"outcome": "error", "detail": f"{type(exc).__name__}: {exc}"}
+    journal.append("action", f"core:{payload.get('kind')}",
+                   f"{result['outcome']} — {result['detail']}", actor=ACTOR)
+    return result
+
+
+class Handler(BaseHTTPRequestHandler):
+    fleet: dict = {}
+
+    def log_message(self, fmt, *args):  # quiet by default; journal is the record
+        pass
+
+    def _json(self, obj, code: int = 200) -> None:
+        body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _static(self, rel: str) -> None:
+        target = (INTERFACE_DIR / rel).resolve()
+        if not str(target).startswith(str(INTERFACE_DIR.resolve())) or not target.is_file():
+            self.send_error(404)
+            return
+        ctype = {"html": "text/html", "json": "application/json",
+                 "js": "text/javascript", "css": "text/css"}.get(
+                     target.suffix.lstrip("."), "application/octet-stream")
+        body = target.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", f"{ctype}; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        url = urlparse(self.path)
+        if url.path == "/api/status":
+            return self._json(status_payload())
+        if url.path == "/api/tasks":
+            return self._json(tasks.all_tasks())
+        if url.path == "/api/approvals":
+            return self._json(policy.all_approvals())
+        if url.path == "/api/capabilities":
+            return self._json(capabilities.load_registry())
+        if url.path == "/api/journal":
+            last = int(parse_qs(url.query).get("last", ["50"])[0])
+            return self._json(journal.entries()[-last:])
+        if url.path.startswith("/state/pulse/"):
+            # the wall fetches ../state/pulse/latest.json — serve it read-only
+            target = (REPO_ROOT / url.path.lstrip("/")).resolve()
+            if str(target).startswith(str((REPO_ROOT / "state").resolve())) and target.is_file():
+                body = target.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
+            return self.send_error(404)
+        rel = "index.html" if url.path in ("/", "/interface/", "/interface/index.html") \
+            else url.path.removeprefix("/interface/").lstrip("/")
+        return self._static(rel)
+
+    def do_POST(self):
+        if urlparse(self.path).path != "/api/command":
+            return self.send_error(404)
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            if not isinstance(payload, dict):
+                raise ValueError("payload must be an object")
+        except (ValueError, json.JSONDecodeError) as exc:
+            return self._json({"outcome": "invalid", "detail": str(exc)}, code=400)
+        self._json(run_command(payload, self.fleet))
+
+
+def make_server(host: str = "127.0.0.1", port: int = DEFAULT_PORT) -> ThreadingHTTPServer:
+    if host not in ("127.0.0.1", "localhost"):
+        raise ValueError(
+            "the Core V0 has no authentication — it binds loopback only (§59 fail closed)")
+    Handler.fleet = load_fleet()
+    return ThreadingHTTPServer((host, port), Handler)
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="Aletheia local Core V0.")
+    ap.add_argument("--port", type=int, default=DEFAULT_PORT)
+    ap.add_argument("--host", default="127.0.0.1")
+    args = ap.parse_args(argv)
+    server = make_server(args.host, args.port)
+    journal.append("event", "core", f"local Core up on {args.host}:{args.port}")
+    print(f"Aletheia Core: http://{args.host}:{args.port}  "
+          f"(wall at /, command center at /command.html) — Ctrl+C stops")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        journal.append("event", "core", "local Core stopped")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

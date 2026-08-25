@@ -1,0 +1,11 @@
+{
+  "id": "local-core-bootstrap",
+  "description": "Phase 6+: persistent local service on the Windows PC adopting the same contracts and stores",
+  "status": "WAITING_OPERATOR",
+  "created_at": "2026-08-25T15:56:51Z",
+  "updated_at": "2026-08-25T16:16:17Z",
+  "attempts": 0,
+  "priority": 3,
+  "assigned_worker": "claude",
+  "result": "Core V0 built+tested (aletheia/core.py, 7 tests, loopback-only): remaining step is the operator running 'python -m aletheia.core' on the Windows PC"
+}
