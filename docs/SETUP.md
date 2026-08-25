@@ -23,10 +23,19 @@ Check: Actions tab → run **pulse** → the repos stop saying NO TELEMETRY.
 ## 3. Turn on GitHub Pages — puts the wall on your projector
 
 https://github.com/caleblschulte0-ux/Aletheia/settings/pages →
-Source: **Deploy from a branch**, Branch: **main / (root)**, Save.
+Source: **GitHub Actions**. That is the whole step — the `pages` workflow
+does the rest and redeploys the wall after every pulse.
 
-Wall URL (open fullscreen with F11):
-`https://caleblschulte0-ux.github.io/Aletheia/interface/`
+(Claude cannot flip this one: GitHub blocks Pages *creation* for workflow
+tokens. The workflow already exists and waits for the toggle.)
+
+Wall URL, once it deploys (open fullscreen with F11):
+`https://caleblschulte0-ux.github.io/Aletheia/`
+
+**The repo is public**, so anything committed here — pulse, briefs,
+journal, memory — is world-readable. That is fine for fleet status; keep
+genuinely private facts out of `memory/`, or make the repo private later
+(Pages then needs a paid plan; everything else keeps working).
 
 ## 4. Give Thea her voice (ChatGPT — no API keys)
 

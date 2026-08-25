@@ -54,13 +54,29 @@ jobs:
           </body>
           HTML
 
-      - uses: actions/configure-pages@v5
+      # Tries to enable Pages itself. GitHub blocks site CREATION for the
+      # default workflow token ("Resource not accessible by integration"),
+      # so this legitimately needs one operator toggle the first time. We
+      # wait politely instead of failing red forever: once Pages is on with
+      # Source = GitHub Actions, every later run deploys normally.
+      - id: configure
+        uses: actions/configure-pages@v5
+        continue-on-error: true
         with:
           enablement: true
 
+      - name: Pages not enabled yet — say exactly what to do, then stop
+        if: steps.configure.outcome != 'success'
+        run: |
+          echo "::notice title=Pages not enabled::Turn it on once: repo Settings -> Pages -> Source: GitHub Actions. Then re-run this workflow and the wall goes live at https://caleblschulte0-ux.github.io/Aletheia/"
+          echo "Pages is not enabled on this repository yet — nothing deployed."
+          echo "This is not a build failure; it is a one-time setting."
+
       - uses: actions/upload-pages-artifact@v3
+        if: steps.configure.outcome == 'success'
         with:
           path: site
 
       - id: deployment
+        if: steps.configure.outcome == 'success'
         uses: actions/deploy-pages@v4
