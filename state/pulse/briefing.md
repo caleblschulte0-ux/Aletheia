@@ -1,12 +1,12 @@
 # Fleet briefing
 
-Generated 2026-08-25T16:16:53Z from fleet registry rev 3 via LocalSource.
+Generated 2026-08-25T16:35:56Z from fleet registry rev 3 via LocalSource.
 
 ## ⚪ `Aletheia` — hub (active)
 
 The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.
 
-Last commit `30b43c99219a` at 2026-08-25T16:12:43+00:00: Phases 4, 5, 9, 16: policy engine, orchestrator, agent director, structured memory
+Last commit `f8e9f544f883` at 2026-08-25T16:16:53+00:00: Local Core V0 + Command Center V1: Aletheia as a persistent service
 
 Watched workflows:
 - `pulse.yml`: unavailable offline

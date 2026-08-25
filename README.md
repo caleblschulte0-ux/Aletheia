@@ -10,6 +10,9 @@ he wants; Aletheia figures out how to move reality toward it** — across
 Windows, iPhone, the room, the fleet of repos, and the people and
 services around him.
 
+**New here / coming back? Start with `docs/SETUP.md`** — the six-step
+operator checklist to get Aletheia running.
+
 The full vision is the operator's master playbook —
 **`docs/PLAYBOOK.md`** — which supersedes every earlier definition.
 `docs/ARCHITECTURE.md` maps it onto the code that exists;

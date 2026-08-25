@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-25T16:16:53Z",
+  "generated_at": "2026-08-25T16:35:56Z",
   "fleet_revision": 3,
   "owner": "caleblschulte0-ux",
   "source": "LocalSource",
@@ -10,6 +10,11 @@
       "status": "active",
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
+        {
+          "sha": "f8e9f544f883",
+          "date": "2026-08-25T16:16:53+00:00",
+          "message": "Local Core V0 + Command Center V1: Aletheia as a persistent service"
+        },
         {
           "sha": "30b43c99219a",
           "date": "2026-08-25T16:12:43+00:00",
@@ -29,17 +34,12 @@
           "sha": "9e601f0b83d3",
           "date": "2026-08-25T14:35:26+00:00",
           "message": "The wall: rebuild the interface as the fleet's cinematic centerpiece, feed it real vitals"
-        },
-        {
-          "sha": "9bd8519c1791",
-          "date": "2026-08-25T13:02:58+00:00",
-          "message": "Aletheia v1: fleet registry, pulse collector, dashboard, ChatGPT suggestion inbox"
         }
       ],
       "commit": {
-        "sha": "30b43c99219a",
-        "date": "2026-08-25T16:12:43+00:00",
-        "message": "Phases 4, 5, 9, 16: policy engine, orchestrator, agent director, structured memory"
+        "sha": "f8e9f544f883",
+        "date": "2026-08-25T16:16:53+00:00",
+        "message": "Local Core V0 + Command Center V1: Aletheia as a persistent service"
       },
       "vitals": [],
       "workflows": {
@@ -53,7 +53,7 @@
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 11447
+          "bytes": 11317
         }
       },
       "health": "unknown"
@@ -344,13 +344,18 @@
     ]
   },
   "tasks": {
-    "live": 7,
+    "live": 8,
     "by_status": {
       "COMPLETED": 4,
       "QUEUED": 6,
-      "WAITING_OPERATOR": 1
+      "WAITING_OPERATOR": 2
     },
     "items": [
+      {
+        "id": "operator-setup",
+        "status": "WAITING_OPERATOR",
+        "description": "Operator: merge, FLEET_TOKEN, Pages, ChatGPT Project, run the Core (docs/SETUP.md)"
+      },
       {
         "id": "light-up-the-wall-s1",
         "status": "QUEUED",

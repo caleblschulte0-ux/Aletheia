@@ -32,3 +32,5 @@
 {"ts": "2026-08-25T16:16:17Z", "kind": "task", "actor": "aletheia", "subject": "task:command-center-v1", "text": "QUEUED -> COMPLETED — interface/command.html served by the Core: live approvals with approve/deny, task queue, 15-kind command composer, HALT/RESUME, receipts; verified rendering against the running Core"}
 {"ts": "2026-08-25T16:16:17Z", "kind": "task", "actor": "aletheia", "subject": "task:local-core-bootstrap", "text": "QUEUED -> WAITING_OPERATOR — Core V0 built+tested (aletheia/core.py, 7 tests, loopback-only): remaining step is the operator running 'python -m aletheia.core' on the Windows PC"}
 {"ts": "2026-08-25T16:16:53Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-08-25"}
+{"ts": "2026-08-25T16:35:43Z", "kind": "task", "actor": "aletheia", "subject": "task:operator-setup", "text": "created — Operator: merge, FLEET_TOKEN, Pages, ChatGPT Project, run the Core (docs/SETUP.md)"}
+{"ts": "2026-08-25T16:35:43Z", "kind": "task", "actor": "aletheia", "subject": "task:operator-setup", "text": "QUEUED -> WAITING_OPERATOR — checklist written to docs/SETUP.md"}
