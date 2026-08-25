@@ -86,6 +86,25 @@ class ComputerCase(unittest.TestCase):
         self.assertTrue(any(".text" in error for error in errors))
         self.assertTrue(any("regular expression" in error for error in errors))
 
+    def test_observation_and_screenshot_inputs_are_bounded(self):
+        errors = computer.validate_steps([
+            {"action": "list_windows",
+             "max_results": computer.MAX_OBSERVATIONS + 1},
+            {"action": "inspect_controls", "window": {"title": "Notepad"},
+             "max_results": 0},
+            {"action": "screenshot_window", "window": {"title": "Notepad"},
+             "filename": "../outside.png"},
+            {"action": "screenshot_window", "window": {"title": "Notepad"},
+             "filename": "..\\outside.png"},
+        ])
+        self.assertTrue(any("max_results" in error for error in errors))
+        self.assertTrue(any("filename" in error for error in errors))
+        self.assertEqual(computer.validate_steps([
+            {"action": "list_windows", "max_results": 10},
+            {"action": "screenshot_window", "window": {"title": "Notepad"},
+             "filename": "notepad.png"},
+        ]), [])
+
     def test_approved_plan_executes_in_order_and_is_journaled(self):
         backend = FakeBackend()
         result = computer.execute(self.steps, self.approve(), backend=backend)

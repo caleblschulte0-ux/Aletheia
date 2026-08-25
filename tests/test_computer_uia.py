@@ -1,7 +1,9 @@
 """Mocked contract tests for the Windows UI Automation backend."""
 import subprocess
+import tempfile
 import types
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from aletheia import computer
@@ -55,6 +57,47 @@ class FakeWindow:
         self.state["control_selector"] = selector
         return FakeControl(self.state)
 
+    def descendants(self):
+        return [FakeInspectable(f"Control {index}") for index in range(5)]
+
+    def capture_as_image(self):
+        return FakeImage()
+
+    def window_text(self):
+        return self.state.get("window_name", "Test Window")
+
+    def class_name(self):
+        return "TestClass"
+
+    def control_type(self):
+        return "Window"
+
+    def process_id(self):
+        return 123
+
+
+class FakeInspectable:
+    def __init__(self, name):
+        self.name = name
+
+    def window_text(self):
+        return self.name
+
+    def class_name(self):
+        return "ChildClass"
+
+    def control_type(self):
+        return "Button"
+
+    def process_id(self):
+        return 123
+
+
+class FakeImage:
+    def save(self, path, format):
+        self.format = format
+        Path(path).write_bytes(b"\x89PNG\r\n\x1a\nmock")
+
 
 class FakeDesktop:
     def __init__(self, state, backend):
@@ -64,6 +107,10 @@ class FakeDesktop:
     def window(self, **selector):
         self.state["window_selector"] = selector
         return FakeWindow(self.state)
+
+    def windows(self):
+        return [FakeWindow({"window_name": f"Window {index}"})
+                for index in range(4)]
 
 
 class FakeStartedApp:
@@ -146,6 +193,49 @@ class UIABackendCase(unittest.TestCase):
         self.assertTrue(state["closed"])
         self.assertEqual(state["window_wait_not"], ("exists", 7.0))
         self.assertIn("no longer exists", result["verified"])
+
+    def test_lists_windows_and_bounds_results(self):
+        backend, _ = self.backend()
+        result = backend.perform({"action": "list_windows", "max_results": 2})
+        self.assertEqual(result["count"], 2)
+        self.assertEqual(result["windows"][0]["name"], "Window 0")
+        self.assertEqual(result["windows"][0]["process_id"], 123)
+
+    def test_inspects_named_window_controls_with_a_limit(self):
+        backend, _ = self.backend()
+        result = backend.perform({
+            "action": "inspect_controls",
+            "window": {"title": "Test Window"},
+            "max_results": 3})
+        self.assertEqual(result["count"], 3)
+        self.assertEqual(
+            [row["name"] for row in result["controls"]],
+            ["Control 0", "Control 1", "Control 2"])
+
+    def test_screenshot_is_confined_to_capture_dir_and_verified(self):
+        backend, _ = self.backend()
+        with tempfile.TemporaryDirectory() as directory:
+            with mock.patch.object(computer, "CAPTURE_DIR", Path(directory)):
+                result = backend.perform({
+                    "action": "screenshot_window",
+                    "window": {"title": "Test Window"},
+                    "filename": "evidence.png"})
+                out = Path(result["path"])
+                self.assertEqual(out.parent, Path(directory))
+                self.assertEqual(out.read_bytes()[:8], b"\x89PNG\r\n\x1a\n")
+
+    def test_screenshot_never_overwrites_existing_evidence(self):
+        backend, _ = self.backend()
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory) / "evidence.png"
+            out.write_bytes(b"original")
+            with mock.patch.object(computer, "CAPTURE_DIR", Path(directory)):
+                with self.assertRaisesRegex(FileExistsError, "never overwritten"):
+                    backend.perform({
+                        "action": "screenshot_window",
+                        "window": {"title": "Test Window"},
+                        "filename": "evidence.png"})
+            self.assertEqual(out.read_bytes(), b"original")
 
 
 if __name__ == "__main__":
