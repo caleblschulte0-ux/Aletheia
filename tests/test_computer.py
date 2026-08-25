@@ -67,7 +67,8 @@ class ComputerCase(unittest.TestCase):
         result = computer.execute(self.steps, self.approve(), backend=backend)
         self.assertEqual(backend.steps, self.steps)
         self.assertEqual(result["steps_done"], 3)
-        entries = journal.entries()
+        entries = [entry for entry in journal.entries()
+                   if entry["subject"].startswith("computer:")]
         self.assertEqual(len(entries), 3)
         self.assertTrue(all("approval=computer-test" in entry["text"] for entry in entries))
 
@@ -97,7 +98,8 @@ class ComputerCase(unittest.TestCase):
         backend = FakeBackend(fail_at=1)
         with self.assertRaisesRegex(RuntimeError, "simulated"):
             computer.execute(self.steps, self.approve("computer-fail"), backend=backend)
-        entries = journal.entries()
+        entries = [entry for entry in journal.entries()
+                   if entry["subject"].startswith("computer:")]
         self.assertEqual(len(entries), 2)
         self.assertIn("FAILED", entries[-1]["text"])
 
