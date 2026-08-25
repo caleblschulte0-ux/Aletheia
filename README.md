@@ -10,8 +10,8 @@ he wants; Aletheia figures out how to move reality toward it** — across
 Windows, iPhone, the room, the fleet of repos, and the people and
 services around him.
 
-**New here / coming back? Start with `docs/SETUP.md`** — the six-step
-operator checklist to get Aletheia running.
+**New here / coming back? Start with `docs/SETUP.md`** — three steps
+stand between this repo and Aletheia running.
 
 The full vision is the operator's master playbook —
 **`docs/PLAYBOOK.md`** — which supersedes every earlier definition.
@@ -82,10 +82,14 @@ python -m unittest discover tests        # the whole suite, stdlib only
 
 ## Setup that needs the operator
 
-1. Turn on **GitHub Pages** (Settings → Pages → Source: GitHub Actions)
-   (fine-grained PAT, read contents+actions across the fleet) so the
-   pulse sees everything.
-2. Enable **GitHub Pages** (main, root) → the wall lives at
-   `…github.io/Aletheia/interface/`, fullscreen on the projector.
-3. Create the **ChatGPT Project** per `exchange/INTERCOM.md` → Thea
-   gains her voice: unlimited conversation, no API keys.
+Three steps, all in **`docs/SETUP.md`**:
+
+1. **Pages** — Settings → Pages → Source: *GitHub Actions* (the wall goes
+   live; the workflow is already written and waiting)
+2. **Thea's voice** — paste `exchange/CHATGPT_PROJECT.md` into a ChatGPT
+   Project; unlimited conversation, no API keys
+3. **The Core** — one PowerShell line (`scripts/bootstrap.ps1`) starts
+   Aletheia on the PC
+
+`main` is merged and CI is green; the pulse, brief, sentinel, director
+and intercom have all been verified running live on it.
