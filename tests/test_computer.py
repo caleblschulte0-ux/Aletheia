@@ -38,11 +38,18 @@ class ComputerCase(unittest.TestCase):
              "control": {"control_type": "Edit"}, "text": "hello"},
         ]
 
-    def approve(self, aid="computer-test"):
-        policy.request(aid, "run Windows control test", "test",
+    def approve(self, aid="computer-test", steps=None):
+        steps = self.steps if steps is None else steps
+        policy.request(aid, computer.approval_action(steps), "test",
                        "fake backend receives steps", reversible=True)
         policy.decide(aid, "APPROVED", via="test")
         return aid
+
+    @staticmethod
+    def computer_step_entries():
+        return [entry for entry in journal.entries()
+                if entry["subject"].startswith("computer:")
+                and entry["subject"] != "computer:run"]
 
     def test_unapproved_plan_is_refused_before_backend(self):
         backend = FakeBackend()
@@ -68,8 +75,7 @@ class ComputerCase(unittest.TestCase):
         result = computer.execute(self.steps, self.approve(), backend=backend)
         self.assertEqual(backend.steps, self.steps)
         self.assertEqual(result["steps_done"], 3)
-        entries = [entry for entry in journal.entries()
-                   if entry["subject"].startswith("computer:")]
+        entries = self.computer_step_entries()
         self.assertEqual(len(entries), 3)
         self.assertTrue(all("approval=computer-test" in entry["text"] for entry in entries))
 
@@ -99,8 +105,7 @@ class ComputerCase(unittest.TestCase):
         backend = FakeBackend(fail_at=1)
         with self.assertRaisesRegex(RuntimeError, "simulated"):
             computer.execute(self.steps, self.approve("computer-fail"), backend=backend)
-        entries = [entry for entry in journal.entries()
-                   if entry["subject"].startswith("computer:")]
+        entries = self.computer_step_entries()
         self.assertEqual(len(entries), 2)
         self.assertIn("FAILED", entries[-1]["text"])
 
@@ -109,6 +114,22 @@ class ComputerCase(unittest.TestCase):
             ok, reason = computer.available()
         self.assertFalse(ok)
         self.assertIn("Windows", reason)
+
+    def test_approval_is_single_use_even_after_success(self):
+        plan = self.steps[:1]
+        aid = self.approve("computer-once", plan)
+        computer.execute(plan, aid, backend=FakeBackend())
+        second = FakeBackend()
+        with self.assertRaisesRegex(computer.ApprovalRequired, "already consumed"):
+            computer.execute(plan, aid, backend=second)
+        self.assertEqual(second.steps, [])
+
+    def test_approval_for_different_plan_is_refused(self):
+        aid = self.approve("computer-wrong-plan", self.steps[:1])
+        backend = FakeBackend()
+        with self.assertRaisesRegex(computer.ApprovalRequired, "exact computer plan"):
+            computer.execute(self.steps, aid, backend=backend)
+        self.assertEqual(backend.steps, [])
 
     def test_harmless_acceptance_example_validates(self):
         plan = json.loads(Path("examples/computer/notepad-acceptance.json")

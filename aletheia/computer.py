@@ -15,10 +15,12 @@ Proposed CLI after review::
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
 import sys
+import threading
 import uuid
 from pathlib import Path
 from typing import Protocol
@@ -38,6 +40,7 @@ WINDOW_SELECTOR_FIELDS = {"title", "title_re", "class_name", "auto_id", "control
 CONTROL_SELECTOR_FIELDS = WINDOW_SELECTOR_FIELDS | {"best_match"}
 DEFAULT_TIMEOUT_S = 10.0
 ACTOR = "aletheia-computer"
+_CLAIM_LOCK = threading.Lock()
 
 
 class ApprovalRequired(PermissionError):
@@ -116,10 +119,55 @@ def validate_steps(steps: object) -> list[str]:
     return problems
 
 
-def _require_approval(approval_id: str) -> None:
-    if not approval_id or not policy.is_approved(approval_id):
+def plan_digest(steps: list[dict]) -> str:
+    canonical = json.dumps(
+        steps, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def approval_action(steps: list[dict]) -> str:
+    """Exact requested_action stored in the approval object for this plan."""
+    return f"computer.control:{plan_digest(steps)}"
+
+
+def _require_approval(approval_id: str, steps: list[dict]) -> None:
+    if not approval_id:
         raise ApprovalRequired(
             f"approval {approval_id!r} is not APPROVED; computer control never self-authorizes")
+    try:
+        approval = policy.load(approval_id)
+    except (OSError, json.JSONDecodeError, KeyError):
+        approval = {}
+    if approval.get("state") != "APPROVED":
+        raise ApprovalRequired(
+            f"approval {approval_id!r} is not APPROVED; computer control never self-authorizes")
+    expected = approval_action(steps)
+    if approval.get("requested_action") != expected:
+        raise ApprovalRequired(
+            f"approval {approval_id!r} is not bound to this exact computer plan")
+
+
+def _claim_approval(approval_id: str, steps: list[dict], run_id: str,
+                    requested_by: str) -> None:
+    """Atomically consume an approval once within the local Core process.
+
+    An operator_always approval authorizes one run, not an unlimited reusable
+    desktop-control token. A STARTED record consumes it even if the adapter
+    later fails; retrying therefore requires a fresh operator decision.
+    """
+    ref = f"approval:{approval_id}"
+    with _CLAIM_LOCK:
+        _require_approval(approval_id, steps)
+        if any(entry.get("subject") == "computer:run"
+               and ref in entry.get("refs", [])
+               and str(entry.get("text", "")).startswith("STARTED")
+               for entry in journal.entries()):
+            raise ApprovalRequired(
+                f"approval {approval_id!r} was already consumed by a computer run")
+        journal.append(
+            "action", "computer:run",
+            f"STARTED run={run_id} approval={approval_id} requested_by={requested_by}",
+            actor=ACTOR, refs=[ref, f"run:{run_id}"])
 
 
 class WindowsUIABackend:
@@ -174,15 +222,17 @@ class WindowsUIABackend:
 
 
 def execute(steps: object, approval_id: str, backend: ComputerBackend | None = None,
-            requested_by: str = "operator") -> dict:
+            requested_by: str = "operator", backend_factory=None) -> dict:
     """Execute one approved plan, checking halt before setup and every step."""
+    if backend is not None and backend_factory is not None:
+        raise ValueError("provide backend or backend_factory, not both")
     problems = validate_steps(steps)
     if problems:
         raise ValueError("; ".join(problems))
-    _require_approval(approval_id)
     policy.ensure_not_halted()
-    driver = backend or WindowsUIABackend()
     run_id = f"computer-{uuid.uuid4().hex[:12]}"
+    _claim_approval(approval_id, steps, run_id, requested_by)
+    driver = backend or (backend_factory() if backend_factory else WindowsUIABackend())
     results = []
     for index, step in enumerate(steps):
         policy.ensure_not_halted()
@@ -200,6 +250,10 @@ def execute(steps: object, approval_id: str, backend: ComputerBackend | None = N
             f"DONE run={run_id} step={index} approval={approval_id} "
             f"verification={json.dumps(evidence, ensure_ascii=False, sort_keys=True)}",
             actor=ACTOR)
+    journal.append(
+        "action", "computer:run",
+        f"COMPLETED run={run_id} approval={approval_id} steps={len(results)}",
+        actor=ACTOR, refs=[f"approval:{approval_id}", f"run:{run_id}"])
     return {"run_id": run_id, "requested_by": requested_by,
             "approval_id": approval_id, "steps_done": len(results), "results": results}
 
