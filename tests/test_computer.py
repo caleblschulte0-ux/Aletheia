@@ -1,4 +1,5 @@
 """Phase 7 computer-control tests: hermetic; no desktop is touched."""
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -108,6 +109,13 @@ class ComputerCase(unittest.TestCase):
             ok, reason = computer.available()
         self.assertFalse(ok)
         self.assertIn("Windows", reason)
+
+    def test_harmless_acceptance_example_validates(self):
+        plan = json.loads(Path("examples/computer/notepad-acceptance.json")
+                          .read_text(encoding="utf-8"))
+        self.assertEqual(computer.validate_steps(plan), [])
+        self.assertEqual(plan[0]["app"], "notepad.exe")
+        self.assertFalse(any(step["action"] == "close_window" for step in plan))
 
 
 if __name__ == "__main__":
