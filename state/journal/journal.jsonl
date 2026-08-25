@@ -40,3 +40,4 @@
 {"ts": "2026-08-25T16:47:42Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue opened — Shorts-pipeline, schwab-trader"}
 {"ts": "2026-08-25T16:47:42Z", "kind": "event", "actor": "aletheia", "subject": "approval:delegate-email-vertical-slice", "text": "requested — delegate task email-vertical-slice to claude"}
 {"ts": "2026-08-25T16:50:33Z", "kind": "decision", "actor": "claude", "subject": "approval:delegate-email-vertical-slice", "text": "withdrawn — auto-requested by the director before the READY clearance gate existed; email-vertical-slice is backlog, not started work. Bug fixed in director.cleared(); the operator never saw this request."}
+{"ts": "2026-08-25T16:53:49Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-08-25"}
