@@ -1,0 +1,13 @@
+{
+  "id": "computer-v0",
+  "description": "Phase 7: accessibility-first Windows computer control, written and verified against the running local Core",
+  "status": "QUEUED",
+  "created_at": "2026-08-25T17:22:23Z",
+  "updated_at": "2026-08-25T17:22:23Z",
+  "attempts": 0,
+  "priority": 3,
+  "dependencies": [
+    "local-core-bootstrap"
+  ],
+  "assigned_worker": "claude"
+}
