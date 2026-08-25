@@ -82,6 +82,24 @@ docs. No model API keys anywhere (§6): both workers run on the
 operator's subscriptions through official clients; a surface that stops
 being supported degrades honestly.
 
+**The one exception on record, closed.** 2026-08-25 the operator
+authorized Codex to write production code for the Phase 7 Windows
+computer-control slice — his words, journaled: *"For the record, I gave
+it permission in this instance to do code."* It arrived as PRs #11, #12,
+#14, #15, #16 (plus #13, a CI repair). A Claude session reviewed every
+line before merge: the design was RATIFIED (approvals bound to a sha256
+of the exact plan and consumed once, halt re-checked per step, screen
+coordinates refused) and three honesty defects were REPAIRED — a
+capability sitting at NOT_BUILT while live behind the Core, a docstring
+claiming it was unwired, and a test that froze the stale literal instead
+of asserting the contract. See `docs/ROADMAP.md` Phase 7 and the journal.
+
+That was a scoped authorization for named work, reviewed before it
+landed. It does not move the line: the rule above stands, and the next
+time code arrives from a non-Claude worker it needs the operator saying
+so again — and the same line-by-line review, which is what made this one
+safe.
+
 ## Tasks and goals are durable, verification is real
 
 Real-world work outlives conversations (§27): anything multi-step or
