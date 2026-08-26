@@ -1,17 +1,16 @@
-"""Capability-aware ActionRecord helpers.
+"""Capability-aware ActionRecord helpers and durable receipt reconciliation.
 
-`outcomes.py` is the durable evidence store. This module adds one missing
-piece: capability-specific verification profiles that distinguish execution
-proof from outcome proof. A successful API/UI call is recorded as an attempt;
-it is only auto-VERIFIED when the capability's low-level result is itself the
-promised outcome (for example computer UIA read-back or a provider-confirmed
-calendar write). Email send, browser interaction, schedule dispatch and agent
-delegation deliberately remain AWAITING_VERIFICATION after execution.
+`outcomes.py` remains the evidence store. This module adds capability-specific
+verification profiles that distinguish execution proof from outcome proof, then
+reconciles facts that existing adapters already persist (mail receipts, UIA and
+browser journal records, agent task state) into private ActionRecords. It never
+changes an execution gate or grants authority.
 """
 from __future__ import annotations
 
 import hashlib
 import json
+import re
 import uuid
 
 from aletheia import outcomes
@@ -105,3 +104,121 @@ def execution_record(capability: str, *, provider: str, intent: str, plan: dict,
     return record_execution(record["id"], succeeded=succeeded, result_summary=result_summary,
                             evidence=evidence, auto_verify=auto_verify,
                             failure_terminal=failure_terminal)
+
+
+def reconcile_mail_receipts() -> list[dict]:
+    from aletheia import mail, policy
+    if not mail.MAIL_DIR.is_dir():
+        return []
+    out = []
+    for receipt_path in sorted(mail.MAIL_DIR.glob("mail-*.sent.json")):
+        try:
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            draft_id = receipt["id"]
+            approval = policy.load(draft_id)
+        except (OSError, json.JSONDecodeError, KeyError, ValueError):
+            continue
+        plan = {"draft_id": draft_id, "approved_action": approval.get("requested_action", "")}
+        aid = new_action_id("email.send", seed=plan)
+        try:
+            value = execution_record(
+                "email.send", provider="smtp", intent=f"send approved email {draft_id}", plan=plan,
+                succeeded=receipt.get("outcome") == "sent", result_summary=receipt.get("detail", ""),
+                evidence=[{"id":"sent-receipt","kind":"truthy","observed":receipt.get("outcome") == "sent","source":"mail receipt"}],
+                requested_by="operator", approval_id=draft_id,
+                policy_decision=approval.get("state"), reversible=False,
+                action_id=aid, auto_verify=False,
+            )
+            out.append({"capability":"email.send","action_record":value["id"],"status":value["status"]})
+        except ValueError:
+            continue
+    return out
+
+
+def reconcile_computer_journal() -> list[dict]:
+    from aletheia import journal, policy
+    out = []
+    pattern = re.compile(r"^COMPLETED run=(\S+) approval=(\S+) steps=(\d+)$")
+    for entry in journal.entries():
+        if entry.get("subject") != "computer:run":
+            continue
+        match = pattern.match(str(entry.get("text", "")))
+        if not match:
+            continue
+        run_id, approval_id, steps = match.groups()
+        try:
+            approval = policy.load(approval_id)
+        except Exception:
+            continue
+        plan = {"run_id": run_id, "approval_action": approval.get("requested_action", ""), "steps": int(steps)}
+        aid = new_action_id("computer.control", seed=plan)
+        try:
+            value = execution_record(
+                "computer.control", provider="windows-uia", intent=f"approved desktop run {run_id}", plan=plan,
+                succeeded=True, result_summary=entry["text"],
+                evidence=[{"id":"computer-completed","kind":"truthy","observed":True,"source":"computer journal"}],
+                requested_by="operator", approval_id=approval_id,
+                policy_decision=approval.get("state"), reversible=True, action_id=aid,
+            )
+            out.append({"capability":"computer.control","action_record":value["id"],"status":value["status"]})
+        except ValueError:
+            continue
+    return out
+
+
+def reconcile_browser_journal() -> list[dict]:
+    from aletheia import journal
+    out = []
+    for entry in journal.entries():
+        if entry.get("subject") != "browser:interact":
+            continue
+        text = str(entry.get("text", ""))
+        plan = {"journal_ts":entry.get("ts", ""), "execution_summary":text}
+        aid = new_action_id("browser.interact", seed=plan)
+        try:
+            value = execution_record(
+                "browser.interact", provider="playwright", intent="approved browser interaction", plan=plan,
+                succeeded=True, result_summary=text,
+                evidence=[{"id":"browser-executed","kind":"truthy","observed":True,"source":"browser journal"}],
+                requested_by="operator", reversible=False, action_id=aid, auto_verify=False,
+            )
+            out.append({"capability":"browser.interact","action_record":value["id"],"status":value["status"]})
+        except ValueError:
+            continue
+    return out
+
+
+def reconcile_agent_tasks() -> list[dict]:
+    from aletheia import tasks
+    out=[]
+    for task in tasks.all_tasks():
+        result=str(task.get("result", ""))
+        if task.get("status") not in {"WAITING_EXTERNAL", "COMPLETED"} or "work order issue #" not in result:
+            continue
+        plan={"task_id":task["id"],"worker":task.get("assigned_worker", ""),"work_order":result}
+        aid=new_action_id("agent.delegate",seed=plan)
+        try:
+            value=execution_record(
+                "agent.delegate",provider="github.actions",intent=f"delegate task {task['id']}",plan=plan,
+                succeeded=True,result_summary=result,
+                evidence=[{"id":"work-order","kind":"truthy","observed":True,"source":"task state"}],
+                requested_by="operator",reversible=True,action_id=aid,auto_verify=False)
+            if task.get("status") == "COMPLETED" and str(task.get("result", "")).strip() and value["status"] == "AWAITING_VERIFICATION":
+                # The task engine's COMPLETED+result is the existing evidence contract
+                # for delegated work; add it as outcome evidence and verify.
+                try:
+                    outcomes.add_evidence(value["id"],"worker-result",kind="truthy",observed=True,source="task completion")
+                    value=outcomes.verify(value["id"])
+                except (ValueError, FileExistsError):
+                    value=outcomes.load(value["id"])
+            out.append({"capability":"agent.delegate","action_record":value["id"],"status":value["status"]})
+        except ValueError:
+            continue
+    return out
+
+
+def reconcile_durable_receipts() -> list[dict]:
+    out=[]
+    for fn in (reconcile_mail_receipts,reconcile_computer_journal,reconcile_browser_journal,reconcile_agent_tasks):
+        out.extend(fn())
+    return out
