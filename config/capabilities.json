@@ -1,5 +1,5 @@
 {
-  "revision": 16,
+  "revision": 17,
   "providers": [
     {
       "id": "aletheia.local",
@@ -245,12 +245,12 @@
       "id": "email.send",
       "description": "Draft and send email with approval gate",
       "provider": "aletheia.local",
-      "status": "EXPERIMENTAL",
+      "status": "AVAILABLE",
       "risk_class": "high",
       "approval_policy": "operator_always",
       "caller": "aletheia.mail.send_approved â€” the Core delivers every APPROVED draft each sync tick; drafts come from voice ('Thea, email X that ...'), the intercom kind email_draft, or the Command Center",
-      "verification": "tests/test_mail.py: approval bound to a sha256 of the exact draft (edited-after-approval refused), operator_always per send, sent exactly once, DENIED retires, transport failure retries, unknown recipient refused rather than guessed, state/mail gitignored (privacy â€” public repo)",
-      "notes": "Credentials configured 2026-08-26; SMTP send path built+tested hermetically but no live delivery yet. Draft mail-a1e1957d0f awaits its operator_always approval — flips to AVAILABLE on verified real delivery, not before.",
+      "verification": "live end to end on the operator's PC 2026-08-26: draft mail-a1e1957d0f -> operator_always approval decided with the operator's own word ('Approved', quoted in the decision) -> SMTP delivery -> exactly-once .sent receipt -> the message verified PRESENT in the inbox by independent IMAP read. Plus tests/test_mail.py (15) on the content-bound approval discipline.",
+      "notes": "Credentials in ~/.aletheia/mail.json (app password, revocable). Every send remains operator_always, bound to the sha256 of the exact draft.",
       "module": "aletheia.mail"
     },
     {
