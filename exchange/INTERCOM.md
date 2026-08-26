@@ -64,9 +64,20 @@ Command kinds and their arguments (anything else is refused):
 | `approve` | `id` | approve a pending 🔐 approval by voice |
 | `deny` | `id`, `because?` | deny a pending approval |
 | `remember` | `domain`, `key`, `value`, `memory_kind?` | store a memory with the operator's words as provenance (domains: identity, preferences, people, organizations) |
+| `browse_read` | `url` (http/https) | **PC-only**: read a page in the PC's real browser — receipt carries title + a text excerpt to speak back |
+| `browse_shot` | `url` (http/https) | **PC-only**: screenshot a page; the image stays on the PC (media never enters git), the receipt names its local path |
 
 While Aletheia is halted, every command except `resume` comes back with a
 `halted` receipt — relay that honestly.
+
+**PC-only kinds wait for the PC.** `browse_read` and `browse_shot` are
+executed by the Core running on the operator's computer, not by the cloud
+workflow. No receipt means the PC hasn't picked it up yet — the Core is
+off or offline. Say exactly that ("your computer hasn't answered yet");
+never guess at a page's content, and never treat a missing receipt as
+failure. Browser *interaction* (clicking, typing into sites) is
+deliberately not a command kind — it requires an approval bound to exact
+steps, which a relayed sentence cannot carry.
 
 Non-negotiables:
 

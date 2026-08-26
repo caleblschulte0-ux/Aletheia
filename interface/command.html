@@ -112,27 +112,14 @@
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 /* mirror of aletheia.intercom.KIND_ARGS — [required, optional] */
-const KINDS = {
-  note:          [["text"], []],
-  dispatch:      [["repo", "workflow"], ["ref"]],
-  issue:         [["repo", "title"], ["body"]],
-  rule:          [["id", "state", "because"], []],
-  plan_new:      [["slug", "title", "goal"], []],
-  plan_add_step: [["slug", "text"], ["repo"]],
-  plan_step:     [["slug", "n", "state"], []],
-  plan_set:      [["slug", "state"], ["because"]],
-  task_new:      [["id", "description"], ["goal", "worker", "deadline"]],
-  task_status:   [["id", "state"], ["note"]],
-  approve:       [["id"], []],
-  deny:          [["id"], ["because"]],
-  remember:      [["domain", "key", "value"], ["memory_kind"]],
-  halt:          [[], ["reason"]],
-  resume:        [[], []],
-};
+// The command grammar comes from the Core (/api/kinds), which reads it
+// straight from the intercom validator. No copy lives in this file — a
+// hand-maintained KINDS map here once drifted the moment new kinds landed.
+let KINDS = {};
 
 function renderArgs() {
   const kind = document.getElementById("kind").value;
-  const [req, opt] = KINDS[kind];
+  const [req, opt] = KINDS[kind] || [[], []];
   document.getElementById("args").innerHTML =
     req.map(a => `<div><label>${a}</label><input name="${a}" required></div>`).join("") +
     opt.map(a => `<div><label>${a} (optional)</label><input name="${a}"></div>`).join("");
@@ -207,9 +194,14 @@ async function refresh() {
   }
 }
 
-document.getElementById("kind").innerHTML =
-  Object.keys(KINDS).map(k => `<option>${k}</option>`).join("");
-renderArgs();
+api("/api/kinds").then(kinds => {
+  KINDS = kinds;
+  document.getElementById("kind").innerHTML =
+    Object.keys(KINDS).map(k => `<option>${k}</option>`).join("");
+  renderArgs();
+}).catch(() => {
+  document.getElementById("kind").innerHTML = "<option>core unreachable</option>";
+});
 refresh();
 setInterval(refresh, 5000);
 </script>

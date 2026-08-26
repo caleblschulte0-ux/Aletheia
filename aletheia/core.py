@@ -21,8 +21,16 @@ operator's own machine talking to itself. Exposing it further needs
 authentication that does not exist yet; `--host` therefore refuses
 non-loopback values rather than pretending (§59 fail closed).
 
+The Core is also the PC-side half of the intercom: a background sync
+loop (aletheia.sync) pulls the repo, executes commands whose kind is in
+`intercom.LOCAL_KINDS` (the real browser lives here, not in Actions),
+and pushes the receipts + journal back — so a voice command reaches the
+PC with no human running git. `--no-sync` disables it; outside a cloned
+repo it degrades honestly (loop OFF, /api/sync says why).
+
 API:
     GET  /api/status        halt state, pulse meta, task/approval counts
+    GET  /api/sync          the sync loop's live state (last tick, pull/push)
     GET  /api/tasks         every task
     GET  /api/approvals     every approval
     GET  /api/capabilities  the capability registry
@@ -36,7 +44,9 @@ API:
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -44,11 +54,17 @@ from urllib.parse import parse_qs, urlparse
 from aletheia import act, capabilities, computer, intercom, journal, policy, tasks
 from aletheia.fleet import REPO_ROOT, load_fleet
 from aletheia.pulse import PULSE_DIR
+from aletheia.sync import GitSync
 
 INTERFACE_DIR = REPO_ROOT / "interface"
 ACTOR = "operator-local-core"
 DEFAULT_PORT = 8777
 MAX_BODY_BYTES = 64 * 1024
+SYNC_INTERVAL_S = 60
+
+# live view of the sync loop, served at /api/sync — mutated only by core_tick
+SYNC_STATUS: dict = {"enabled": False, "last_tick": None, "pull": None,
+                     "push": None, "commands_executed": 0}
 
 
 def status_payload() -> dict:
@@ -98,6 +114,40 @@ def run_command(payload: dict, fleet: dict) -> dict:
     journal.append("action", f"core:{payload.get('kind')}",
                    f"{result['outcome']} — {result['detail']}", actor=ACTOR)
     return result
+
+
+def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS) -> dict:
+    """One beat of the Core's sync loop — synchronous and fully testable.
+
+    pull (new commands arrive) -> execute pending LOCAL kinds through the
+    intercom's own gates -> push receipts + journal. Never raises: every
+    failure lands in `status` (served at /api/sync) and is retried next
+    tick. Journal only state CHANGES, so an offline weekend is two lines,
+    not two thousand.
+    """
+    status["last_tick"] = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    prev_pull = status.get("pull")
+    ok, detail = syncer.pull()
+    status["pull"] = {"ok": ok, "detail": detail}
+    if prev_pull is not None and prev_pull.get("ok") != ok:
+        journal.append("event", "core:sync",
+                       f"pull {'recovered' if ok else 'failing'}: {detail}", actor=ACTOR)
+    results = []
+    try:
+        results = intercom.run_pending(fleet, commands_dir=None, side="local")
+    except Exception as exc:  # a broken command must not stop the loop
+        journal.append("event", "core:sync",
+                       f"local command processing error: {type(exc).__name__}: {exc}",
+                       actor=ACTOR)
+    if results:
+        status["commands_executed"] += len(results)
+        ok, detail = syncer.commit_push(
+            ["exchange/commands", "state/journal"],
+            f"core: {len(results)} local command receipt(s)")
+        status["push"] = {"ok": ok, "detail": detail}
+        if not ok:
+            journal.append("event", "core:sync", f"push failed: {detail}", actor=ACTOR)
+    return status
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -164,6 +214,13 @@ class Handler(BaseHTTPRequestHandler):
                 # what the registry says is unverified — never a frozen literal
                 "registry_notes": entry.get("notes", ""),
             })
+        if url.path == "/api/sync":
+            return self._json(SYNC_STATUS)
+        if url.path == "/api/kinds":
+            # the command grammar, straight from the validator — the
+            # Command Center renders THIS, never its own copy
+            return self._json({k: [sorted(req), sorted(opt)]
+                               for k, (req, opt) in intercom.KIND_ARGS.items()})
         if url.path == "/api/journal":
             last = int(parse_qs(url.query).get("last", ["50"])[0])
             return self._json(journal.entries()[-last:])
@@ -240,12 +297,48 @@ def make_server(host: str = "127.0.0.1", port: int = DEFAULT_PORT,
     return ThreadingHTTPServer((host, port), BoundHandler)
 
 
+def start_sync_loop(fleet: dict, interval_s: float = SYNC_INTERVAL_S,
+                    stop: threading.Event | None = None) -> threading.Event:
+    """Run core_tick forever in a daemon thread; returns the stop event.
+
+    Enabled only when the working copy honestly has a usable remote —
+    otherwise SYNC_STATUS says why and the Core still serves everything
+    local-only, degraded rather than dead.
+    """
+    stop = stop or threading.Event()
+    syncer = GitSync()
+    ok, detail = syncer.available()
+    SYNC_STATUS["enabled"] = ok
+    SYNC_STATUS["remote"] = detail
+    if not ok:
+        journal.append("event", "core:sync",
+                       f"sync loop OFF — {detail}; voice commands needing the PC "
+                       "will wait until the Core runs inside a cloned repo", actor=ACTOR)
+        return stop
+
+    def loop():
+        while not stop.is_set():
+            core_tick(syncer, fleet)
+            stop.wait(interval_s)
+
+    threading.Thread(target=loop, name="core-sync", daemon=True).start()
+    journal.append("event", "core:sync",
+                   f"sync loop ON every {interval_s:g}s — {detail}", actor=ACTOR)
+    return stop
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Aletheia local Core V0.")
     ap.add_argument("--port", type=int, default=DEFAULT_PORT)
     ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument("--sync-interval", type=float, default=SYNC_INTERVAL_S,
+                    help="seconds between pull/process/push beats (default 60)")
+    ap.add_argument("--no-sync", action="store_true",
+                    help="serve the API only; no git sync, no local command processing")
     args = ap.parse_args(argv)
     server = make_server(args.host, args.port)
+    if not args.no_sync:
+        start_sync_loop(load_fleet(), interval_s=args.sync_interval)
     journal.append("event", "core", f"local Core up on {args.host}:{args.port}")
     print(f"Aletheia Core: http://{args.host}:{args.port}  "
           f"(wall at /, command center at /command.html) — Ctrl+C stops")

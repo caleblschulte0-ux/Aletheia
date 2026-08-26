@@ -1,0 +1,122 @@
+"""The Core's sync loop, end to end against a real local bare repo.
+
+The scenario is Aletheia's actual life: ChatGPT relays "what does this
+page say" as a browse_read command and pushes it; the Core on the PC
+pulls, executes it in the (stubbed) local browser, and pushes the
+receipt; the relay side pulls and reads the receipt back to the
+operator. One synchronous core_tick per beat — no threads in tests.
+"""
+import json
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+from aletheia import core, intercom, journal
+from aletheia.fleet import load_fleet
+from aletheia.sync import GitSync
+
+
+def run(args, cwd):
+    subprocess.run(args, cwd=str(cwd), check=True, capture_output=True, text=True)
+
+
+def command_payload(cid, kind, **args):
+    return {
+        "id": cid, "filed": "2026-08-26T16:00:00Z", "by": "chatgpt",
+        "relayed_from": "operator", "operator_quote": "what does that page say",
+        "command": {"kind": kind, **args},
+    }
+
+
+class CoreSyncCase(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        base = Path(self.tmp.name)
+        self.origin = base / "origin.git"
+        run(["git", "init", "--bare", "-b", "main", str(self.origin)], base)
+        self.relay = base / "relay"
+        self.pc = base / "pc"
+        for clone in (self.relay, self.pc):
+            run(["git", "clone", str(self.origin), str(clone)], base)
+            run(["git", "config", "user.email", "t@t"], clone)
+            run(["git", "config", "user.name", "t"], clone)
+        (self.relay / "exchange" / "commands").mkdir(parents=True)
+        (self.relay / "exchange" / "commands" / ".gitkeep").write_text("")
+        run(["git", "add", "."], self.relay)
+        run(["git", "commit", "-m", "seed"], self.relay)
+        run(["git", "push", "origin", "main"], self.relay)
+        run(["git", "pull", "origin", "main"], self.pc)
+        # the Core under test lives in the PC clone
+        self.fleet = load_fleet()
+        self.syncer = GitSync(repo_root=self.pc, branch="main")
+        self.status = {"enabled": True, "last_tick": None, "pull": None,
+                       "push": None, "commands_executed": 0}
+        for target, attr, value in (
+                (intercom, "COMMANDS_DIR", self.pc / "exchange" / "commands"),
+                (journal, "JOURNAL_PATH", self.pc / "state" / "journal" / "journal.jsonl")):
+            p = mock.patch.object(target, attr, value)
+            p.start(); self.addCleanup(p.stop)
+
+    def relay_files_command(self, cid, kind, **args):
+        path = self.relay / "exchange" / "commands" / f"{cid}.json"
+        path.write_text(json.dumps(command_payload(cid, kind, **args)), encoding="utf-8")
+        run(["git", "add", "."], self.relay)
+        run(["git", "commit", "-m", f"chatgpt: {cid}"], self.relay)
+        run(["git", "push", "origin", "main"], self.relay)
+
+    def test_voice_command_round_trip(self):
+        self.relay_files_command("20260826-read", "browse_read", url="https://example.com")
+        page = {"url": "https://example.com/", "title": "Example Domain",
+                "text": "Illustrative examples live here.", "links": []}
+        with mock.patch("aletheia.browse.read_page", return_value=page):
+            status = core.core_tick(self.syncer, self.fleet, self.status)
+        self.assertTrue(status["pull"]["ok"], status["pull"])
+        self.assertEqual(status["commands_executed"], 1)
+        self.assertTrue(status["push"]["ok"], status["push"])
+        # the relay side sees the receipt and can speak it back
+        run(["git", "pull", "origin", "main"], self.relay)
+        receipt = json.loads(
+            (self.relay / "exchange" / "commands" / "20260826-read.result.json")
+            .read_text(encoding="utf-8"))
+        self.assertEqual(receipt["outcome"], "done")
+        self.assertIn("Example Domain", receipt["detail"])
+        # and the journal entry rode along in the same push
+        self.assertTrue(
+            (self.relay / "state" / "journal" / "journal.jsonl").exists())
+
+    def test_receipt_makes_second_tick_a_noop(self):
+        self.relay_files_command("20260826-read", "browse_read", url="https://example.com")
+        page = {"url": "https://example.com/", "title": "T", "text": "x", "links": []}
+        with mock.patch("aletheia.browse.read_page", return_value=page) as rp:
+            core.core_tick(self.syncer, self.fleet, self.status)
+            core.core_tick(self.syncer, self.fleet, self.status)
+        self.assertEqual(rp.call_count, 1)
+        self.assertEqual(self.status["commands_executed"], 1)
+
+    def test_cloud_kinds_are_left_for_actions(self):
+        self.relay_files_command("20260826-note", "note", text="hello")
+        core.core_tick(self.syncer, self.fleet, self.status)
+        self.assertEqual(self.status["commands_executed"], 0)
+        self.assertFalse(
+            (self.pc / "exchange" / "commands" / "20260826-note.result.json").exists())
+
+    def test_tick_survives_a_dead_remote(self):
+        # remote vanishes mid-life; the tick reports and returns, never raises
+        import shutil
+        shutil.rmtree(self.origin)
+        status = core.core_tick(self.syncer, self.fleet, self.status)
+        self.assertFalse(status["pull"]["ok"])
+
+    def test_start_sync_loop_disabled_outside_a_repo(self):
+        with mock.patch("aletheia.core.GitSync") as gs:
+            gs.return_value.available.return_value = (False, "no remote")
+            stop = core.start_sync_loop(self.fleet, interval_s=0.01)
+        stop.set()
+        self.assertFalse(core.SYNC_STATUS["enabled"])
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,5 +1,5 @@
 {
-  "revision": 6,
+  "revision": 7,
   "providers": [
     {
       "id": "aletheia.local",
@@ -151,7 +151,7 @@
       "status": "NEEDS_CONFIGURATION",
       "risk_class": "medium",
       "approval_policy": "registry_grant",
-      "caller": "intercom.yml on exchange/commands pushes",
+      "caller": "intercom.yml on exchange/commands pushes (cloud kinds) + the Core's sync loop on the PC (LOCAL_KINDS: browse_read, browse_shot) — static partition, one executor per command",
       "verification": "every command gets a committed .result.json receipt",
       "notes": "executor built and tested (15 command kinds incl. halt/resume/approve/deny/remember/tasks); needs the operator to create the ChatGPT Project per exchange/INTERCOM.md",
       "module": "aletheia.intercom"
@@ -283,13 +283,25 @@
       "module": "aletheia.core"
     },
     {
+      "id": "core.sync",
+      "description": "The Core keeps the repo fresh: pull commands, execute PC-only kinds, push receipts + journal",
+      "provider": "aletheia.local",
+      "status": "NEEDS_CONFIGURATION",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "aletheia.core.start_sync_loop — on by default when `python -m aletheia.core` runs inside a cloned repo; degrades honestly (loop OFF, /api/sync says why) outside one",
+      "verification": "tests/test_sync.py + tests/test_core_sync.py drive the full round trip against a real local bare repo, including push races, rebase-conflict abort, receipt idempotency, and a dead remote",
+      "notes": "NEEDS_CONFIGURATION until the Core runs on the PC — same single blocker as core.serve. Uses the operator's own git credentials; a push that cannot authenticate is journaled, never worked around.",
+      "module": "aletheia.sync"
+    },
+    {
       "id": "browser.read",
       "description": "Observe any web page through the authorized browser profile: title, visible text, links, screenshots",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "read",
       "approval_policy": "none",
-      "caller": "aletheia.browse CLI (read/shot); the local Core once it runs on the PC",
+      "caller": "aletheia.browse CLI (read/shot); intercom kinds browse_read/browse_shot via the Core's sync loop; the Command Center's /api/command",
       "verification": "12 hermetic tests in tests/test_browse.py drive a real Chromium against a loopback fixture site",
       "notes": "requires the optional playwright dependency; browse.available() reports honestly and callers degrade rather than crash",
       "module": "aletheia.browse"

@@ -1,10 +1,11 @@
 {
   "id": "core-processes-commands",
   "description": "Let the local Core process exchange/commands itself, so voice-relayed commands can use PC-only capabilities (browser, later computer control) instead of failing in Actions",
-  "status": "QUEUED",
+  "status": "COMPLETED",
   "created_at": "2026-08-25T17:22:23Z",
-  "updated_at": "2026-08-25T17:22:23Z",
+  "updated_at": "2026-08-26T03:13:48Z",
   "attempts": 0,
   "priority": 2,
-  "assigned_worker": "claude"
+  "assigned_worker": "claude",
+  "result": "Built: aletheia/sync.py + core_tick sync loop; browse_read/browse_shot LOCAL_KINDS with static cloud/local partition; verified against a real bare repo (12 new tests). Live verification on the PC is part of local-core-bootstrap."
 }
