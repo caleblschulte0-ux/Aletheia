@@ -1,25 +1,28 @@
 [
   {
     "action": "open_app",
-    "app": "notepad.exe"
+    "app": "notepad.exe",
+    "arguments": [
+      "cache\\aletheia-acceptance.txt"
+    ]
   },
   {
     "action": "wait_window",
     "window": {
-      "title_re": ".*Notepad.*"
+      "title_re": ".*aletheia-acceptance.*"
     },
     "timeout_s": 15
   },
   {
     "action": "focus_window",
     "window": {
-      "title_re": ".*Notepad.*"
+      "title_re": ".*aletheia-acceptance.*"
     }
   },
   {
     "action": "set_text",
     "window": {
-      "title_re": ".*Notepad.*"
+      "title_re": ".*aletheia-acceptance.*"
     },
     "control": {
       "control_type": "Document"

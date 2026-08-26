@@ -365,13 +365,52 @@ class WindowsUIABackend:
             wrapper.invoke()
             return {"action": action, "verified": "UI Automation Invoke pattern completed"}
         if action == "set_text":
-            wrapper.set_edit_text(step["text"])
-            observed = wrapper.window_text()
+            self._set_text(wrapper, step["text"])
+            observed = self._read_text(wrapper)
             if observed != step["text"]:
                 raise VerificationFailed(
                     "set_text completed but exact text verification failed")
             return {"action": action, "verified": True}
         raise AssertionError(f"validated action was not implemented: {action}")
+
+    @staticmethod
+    def _set_text(wrapper, text: str) -> None:
+        """Set a control's full text on both old and new Windows edits.
+
+        Classic Edit controls expose set_edit_text; Windows 11 apps
+        (Notepad's RichEditD2DPT Document among them) do not — the first
+        live acceptance run died right here with AttributeError. Try the
+        edit API, then the UIA Value pattern; both replace the WHOLE
+        text, so a wrong target cannot silently append.
+        """
+        if hasattr(wrapper, "set_edit_text"):
+            wrapper.set_edit_text(text)
+            return
+        try:
+            wrapper.iface_value.SetValue(text)
+            return
+        except Exception as exc:
+            raise VerificationFailed(
+                "control supports neither the edit API nor the UIA Value "
+                f"pattern; refusing keyboard fallback ({type(exc).__name__})") from exc
+
+    @staticmethod
+    def _read_text(wrapper) -> str:
+        """Read a control's full text back for exact verification."""
+        for reader in (
+            lambda: wrapper.get_value(),
+            lambda: wrapper.iface_value.CurrentValue,
+            lambda: wrapper.window_text(),
+            lambda: wrapper.iface_text.DocumentRange.GetText(-1),
+        ):
+            try:
+                value = reader()
+            except Exception:
+                continue
+            if isinstance(value, str) and value:
+                # Windows 11 Notepad reports a trailing document newline
+                return value.rstrip(chr(13) + chr(10))
+        return ""
 
 
 def _journal_evidence(evidence: dict) -> dict:

@@ -30,6 +30,12 @@ if (-not (Test-Path $plan)) {
   throw "Acceptance plan not found: $plan"
 }
 
+# The plan opens THIS file, so window matching can never reach a document
+# the operator already has open (the first live run attached to his real
+# Notepad session - a near-miss the redesign forbids by construction).
+New-Item -ItemType Directory -Force "cache" | Out-Null
+Set-Content -Path "cache\aletheia-acceptance.txt" -Value "" -Encoding ascii
+
 & $py -m aletheia.computer status
 if ($LASTEXITCODE -ne 0) {
   Write-Host ""
@@ -53,7 +59,7 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host ""
 Write-Host "Approval required" -ForegroundColor Yellow
 Write-Host "Action: Open Notepad and enter one harmless sentence."
-Write-Host "Consequence: An unsaved Notepad window remains open. Nothing is submitted or saved."
+Write-Host "Consequence: a Notepad tab named aletheia-acceptance.txt (Aletheia's own scratch file) shows one sentence. Your documents are untouchable by construction."
 Write-Host "Approval ID: $approvalId"
 $answer = Read-Host "Type APPROVE exactly to continue"
 
