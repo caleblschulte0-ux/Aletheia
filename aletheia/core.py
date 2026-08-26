@@ -168,6 +168,14 @@ def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
         journal.append("event", "core:sync",
                        f"local command processing error: {type(exc).__name__}: {exc}",
                        actor=ACTOR)
+    try:
+        from aletheia import mail
+        if mail.available()[0]:
+            for sent in mail.send_approved():
+                results.append(sent)
+    except Exception as exc:
+        journal.append("event", "core:sync",
+                       f"mail delivery error: {type(exc).__name__}: {exc}", actor=ACTOR)
     status["commands_executed"] += len(results)
     # push every tick: receipts when there are any, and any checkpoint
     # commits from quiet ticks (commit_push no-ops when nothing waits)

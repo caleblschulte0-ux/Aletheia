@@ -22,7 +22,7 @@ above its truth. Statuses: **BUILT** · **PARTIAL** · **IN PROGRESS** ·
 | 10 | Voice V0 (room) | **TICKET** | Interim: ChatGPT Voice through the intercom's Project is voice-to-Thea today, minus wake word |
 | 11 | Audio Router | **BLOCKED** by local Core | Windows-only subsystem |
 | 12 | Phone V0 (call app ↔ virtual audio ↔ ChatGPT Voice) | **BLOCKED** by local Core + Phase 11 | EXPERIMENTAL until measured per §126; conduct rules §19 already doctrine |
-| 13 | Email vertical slice | **TICKET** | read/draft/approve/send/verify; `email.send` NOT_BUILT, `operator_always` |
+| 13 | Email vertical slice | **BUILT** v0 code — NEEDS_CONFIGURATION | `aletheia/mail.py`: check unread by voice; 'Thea, email <name> that ...' -> local draft (gitignored — repo is public) + approval bound to a sha256 of the exact content -> 'Thea, approve' -> the Core sends it next tick and writes a receipt. Edited-after-approval refused; unknown recipient refused, never guessed; DENIED retires the draft. 15 tests. Needs ALETHEIA_MAIL_ADDRESS + app password on the PC |
 | 14 | Calendar + contacts | **TICKET** | `calendar.read` NOT_BUILT |
 | 15 | Multi-capability scheduling | **BLOCKED** by 13+14 | the first big orchestration acceptance test |
 | 16 | Memory V1 (identity/preferences/people/orgs with provenance) | **BUILT** v1 | `aletheia/memory.py` → `memory/`: four domains, provenance on every entry, correction-learning (§46) records what it replaced, "why do you think that" answerable; writable by voice (`remember`); 6 tests. Richer person/org schemas later |

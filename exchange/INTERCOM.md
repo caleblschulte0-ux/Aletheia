@@ -66,6 +66,8 @@ Command kinds and their arguments (anything else is refused):
 | `remember` | `domain`, `key`, `value`, `memory_kind?` | store a memory with the operator's words as provenance (domains: identity, preferences, people, organizations) |
 | `browse_read` | `url` (http/https) | **PC-only**: read a page in the PC's real browser — receipt carries title + a text excerpt to speak back |
 | `browse_shot` | `url` (http/https) | **PC-only**: screenshot a page; the image stays on the PC (media never enters git), the receipt names its local path |
+| `email_check` | — | **PC-only**: unread senders + subjects (read-only, marks nothing) |
+| `email_draft` | `to`, `body`, `subject?` | **PC-only**: draft an email + file its approval — NOTHING SENDS until the operator approves; `to` is a remembered person's name or a spoken address |
 
 While Aletheia is halted, every command except `resume` comes back with a
 `halted` receipt — relay that honestly.
