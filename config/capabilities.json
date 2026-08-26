@@ -1,5 +1,5 @@
 {
-  "revision": 15,
+  "revision": 16,
   "providers": [
     {
       "id": "aletheia.local",
@@ -217,7 +217,8 @@
       "status": "NOT_BUILT",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "ticket â€” Phone V0 (Playbook Â§17): desktop call app + virtual audio + ChatGPT Voice, local PC only"
+      "caller": "ticket â€” Phone V0 (Playbook Â§17): desktop call app + virtual audio + ChatGPT Voice, local PC only",
+      "notes": "The authorization layer is BUILT (aletheia.calls, ChatGPT authored, Claude reviewed 2026-08-26): plans name contact/purpose/disclosure-boundaries/time-budget, the AI-identity disclosure is hash-enforced and unalterable, approval binds to the exact plan sha256, the halt outranks approval, outcomes record exactly once. What remains NOT_BUILT is the thing that dials: Phase 11/12 audio + call transport on the PC."
     },
     {
       "id": "voice.wake",
@@ -670,7 +671,8 @@
       "status": "NOT_BUILT",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "ticket — Phase 22 purchase provider must verify item, total and receipt before this can exist"
+      "caller": "ticket — Phase 22 purchase provider must verify item, total and receipt before this can exist",
+      "notes": "The authorization layer is BUILT (aletheia.purchases, ChatGPT authored, Claude reviewed 2026-08-26): Decimal-exact line items, total computed and sha256-bound, approval binds to exact content, expiry enforced, observed-vs-approved total recorded honestly, no card data ever stored. What remains NOT_BUILT is any checkout transport — spending stays operator_always L4."
     },
     {
       "id": "subscription.track",
@@ -756,8 +758,8 @@
       "provider": "aletheia.local",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "status": "NOT_BUILT",
-      "caller": "ticket: no live Google/Outlook adapter exists. The full seam is BUILT and tested hermetically: normalized events, bounded window sync with conflict handling, write plans sha256-bound to an operator approval, halt-checked, provider state verified against the approved plan before VERIFIED, ActionRecord persisted",
+      "status": "EXPERIMENTAL",
+      "caller": "aletheia.calendar_provider.execute_write_plan — fully gated and hermetically tested; no live Google/Outlook adapter exists yet, so nothing real can be written",
       "notes": "The seam means a live adapter only implements list/create/update/cancel; every gate already exists and is tested (tests/test_calendar_provider.py).",
       "verification": "tests/test_calendar_provider.py: approval binding, hash mismatch refusal, provider-verification failure raises, conflict on locally-dirty events"
     }
