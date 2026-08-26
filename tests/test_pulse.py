@@ -51,7 +51,7 @@ class TestCollect(unittest.TestCase):
             self.assertEqual(pulse["repos"][rid]["health"], expected, rid)
 
     def test_failed_workflow_turns_repo_red(self):
-        pulse = collect(self.fleet, FakeSource(failed_workflows={"trader.yml"}))
+        pulse = collect(self.fleet, FakeSource(failed_workflows={"watchdog.yml"}))
         self.assertEqual(pulse["repos"]["schwab_trader"]["health"], "red")
         self.assertEqual(pulse["repos"]["shorts_pipeline"]["health"], "green")
 
