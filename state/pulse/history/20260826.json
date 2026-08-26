@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-26T07:12:01Z",
+  "generated_at": "2026-08-26T13:25:59Z",
   "fleet_revision": 3,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,55 +11,55 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
-          "sha": "09f8b2c88e4c",
-          "date": "2026-08-26T03:54:47Z",
-          "message": "Merge pull request #22 from caleblschulte0-ux/claude/project-alathea-interface-ah59fv"
+          "sha": "829c5ee1107d",
+          "date": "2026-08-26T12:45:34Z",
+          "message": "Merge pull request #26 from caleblschulte0-ux/claude/project-alathea-interface-ah59fv"
         },
         {
-          "sha": "334688451940",
-          "date": "2026-08-26T03:54:32Z",
-          "message": "Voice on the page itself: talk to the wall, Thea answers \u2014 no side app"
+          "sha": "ee62b5706c51",
+          "date": "2026-08-26T12:45:12Z",
+          "message": "Phase 13: email \u2014 the first capability that touches the real world"
         },
         {
-          "sha": "63f22a545eb9",
-          "date": "2026-08-26T03:42:50Z",
-          "message": "Merge pull request #21 from caleblschulte0-ux/claude/project-alathea-interface-ah59fv"
+          "sha": "0efdb7170f8c",
+          "date": "2026-08-26T12:26:49Z",
+          "message": "Merge pull request #25 from caleblschulte0-ux/claude/project-alathea-interface-ah59fv"
         },
         {
-          "sha": "d1bc31a3009c",
-          "date": "2026-08-26T03:42:34Z",
-          "message": "Always-on: supervisor + self-update make the Core a permanent resident"
+          "sha": "3e53a91a2938",
+          "date": "2026-08-26T12:26:32Z",
+          "message": "Bootstrap: kill the recursive helper, BOM-proof the salvage, wait for the Core"
         },
         {
-          "sha": "4626c9c4de22",
-          "date": "2026-08-26T03:16:29Z",
-          "message": "Merge pull request #20 from caleblschulte0-ux/claude/project-alathea-interface-ah59fv"
+          "sha": "524989d82c07",
+          "date": "2026-08-26T12:11:38Z",
+          "message": "Merge pull request #24 from caleblschulte0-ux/claude/project-alathea-interface-ah59fv"
         }
       ],
       "commit": {
-        "sha": "09f8b2c88e4c",
-        "date": "2026-08-26T03:54:47Z",
-        "message": "Merge pull request #22 from caleblschulte0-ux/claude/project-alathea-interface-ah59fv"
+        "sha": "829c5ee1107d",
+        "date": "2026-08-26T12:45:34Z",
+        "message": "Merge pull request #26 from caleblschulte0-ux/claude/project-alathea-interface-ah59fv"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-08-26T07:11:57Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/32941593161"
+          "updated_at": "2026-08-26T13:25:57Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/32974153832"
         },
         "ci.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-08-26T03:55:43Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/32928225512"
+          "updated_at": "2026-08-26T12:46:22Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/32970309865"
         }
       },
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 14107
+          "bytes": 13955
         }
       },
       "health": "green"
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "89c722a2549f",
-          "date": "2026-08-26T05:47:31Z",
-          "message": "doctor: evidence pack + backlog 2026-08-26 [skip ci]"
+          "sha": "b980858a72ad",
+          "date": "2026-08-26T13:15:15Z",
+          "message": "watchdog: chatgpt task verdicts 20260826 [skip ci]"
         },
         {
-          "sha": "2cc9fe49ac9f",
-          "date": "2026-08-26T05:17:59Z",
-          "message": "doctor: mark 7414ad03de3e done [skip ci]"
+          "sha": "bf90fe83c808",
+          "date": "2026-08-26T12:57:35Z",
+          "message": "third: analytics [skip ci]"
         },
         {
-          "sha": "532ab5994258",
-          "date": "2026-08-26T05:17:01Z",
-          "message": "exchange: phase A bundle for 20260826 [skip ci]"
+          "sha": "a29598444ca9",
+          "date": "2026-08-26T12:57:28Z",
+          "message": "third: update posted log + analytics [skip ci]"
         },
         {
-          "sha": "4fb5f082e2b2",
-          "date": "2026-08-26T05:16:45Z",
-          "message": "exchange: attest Phase B media cache hits against today's claim (#317)"
+          "sha": "cca02d70491d",
+          "date": "2026-08-26T12:57:23Z",
+          "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
         },
         {
-          "sha": "ed89843f2290",
-          "date": "2026-08-26T04:06:18Z",
-          "message": "doctor: evidence pack + backlog 2026-08-26 [skip ci]"
+          "sha": "573519d65ac9",
+          "date": "2026-08-26T12:46:20Z",
+          "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
         }
       ],
       "commit": {
-        "sha": "89c722a2549f",
-        "date": "2026-08-26T05:47:31Z",
-        "message": "doctor: evidence pack + backlog 2026-08-26 [skip ci]"
+        "sha": "b980858a72ad",
+        "date": "2026-08-26T13:15:15Z",
+        "message": "watchdog: chatgpt task verdicts 20260826 [skip ci]"
       },
       "vitals": [
         {
@@ -112,7 +112,7 @@
         },
         {
           "label": "third posted",
-          "value": 373
+          "value": 387
         },
         {
           "label": "curiosity posted",
@@ -129,8 +129,8 @@
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-08-26T05:17:06Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/32933436109"
+          "updated_at": "2026-08-26T10:17:31Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/32957433871"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
@@ -147,14 +147,14 @@
         "third.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-08-25T12:51:58Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/32843181350"
+          "updated_at": "2026-08-26T12:57:42Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/32964318998"
         },
         "explainer.yml": {
-          "status": "completed",
-          "conclusion": "success",
-          "updated_at": "2026-08-25T21:42:54Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/32879601901"
+          "status": "in_progress",
+          "conclusion": null,
+          "updated_at": "2026-08-26T09:22:27Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/32952623873"
         },
         "retro.yml": {
           "status": "completed",
@@ -165,8 +165,8 @@
         "doctor.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-08-26T05:47:36Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/32935421245"
+          "updated_at": "2026-08-26T11:05:21Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/32961516375"
         }
       },
       "state_files": {
@@ -180,7 +180,7 @@
         },
         "state/third_posted_log.json": {
           "exists": true,
-          "bytes": 197508
+          "bytes": 204613
         },
         "state/curiosity_posted_log.json": {
           "exists": true,
@@ -204,6 +204,11 @@
       "summary": "Guardrailed paper-trading day-trading bot for Charles Schwab: separate Claude BUY and SELL brains, executor on GitHub Actions, significance-gated sell approvals.",
       "commits": [
         {
+          "sha": "6852237794a0",
+          "date": "2026-08-26T12:36:50Z",
+          "message": "sell-brain: update exit decisions [skip ci]"
+        },
+        {
           "sha": "431388b9c9e2",
           "date": "2026-08-25T12:37:06Z",
           "message": "sell-brain: update exit decisions [skip ci]"
@@ -222,16 +227,11 @@
           "sha": "26b44025fe52",
           "date": "2026-08-24T12:36:29Z",
           "message": "sell-brain: update exit decisions [skip ci]"
-        },
-        {
-          "sha": "35c0eb7ad510",
-          "date": "2026-08-21T18:36:32Z",
-          "message": "sell-brain: update exit decisions [skip ci]"
         }
       ],
       "commit": {
-        "sha": "431388b9c9e2",
-        "date": "2026-08-25T12:37:06Z",
+        "sha": "6852237794a0",
+        "date": "2026-08-26T12:36:50Z",
         "message": "sell-brain: update exit decisions [skip ci]"
       },
       "vitals": [
@@ -268,9 +268,9 @@
         },
         "sell-brain.yml": {
           "status": "completed",
-          "conclusion": "failure",
-          "updated_at": "2026-08-25T18:35:21Z",
-          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/32884600539"
+          "conclusion": "success",
+          "updated_at": "2026-08-26T12:36:55Z",
+          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/32969341148"
         },
         "trader.yml": {
           "status": "completed",
@@ -374,7 +374,6 @@
       "health": "red",
       "failing": [
         "brain.yml",
-        "sell-brain.yml",
         "trader.yml"
       ]
     }
@@ -391,10 +390,10 @@
     ]
   },
   "tasks": {
-    "live": 9,
+    "live": 8,
     "by_status": {
-      "COMPLETED": 6,
-      "QUEUED": 7,
+      "COMPLETED": 7,
+      "QUEUED": 6,
       "WAITING_OPERATOR": 2
     },
     "items": [
