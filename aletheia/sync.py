@@ -25,6 +25,7 @@ Design rules:
 """
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -35,10 +36,18 @@ PUSH_ATTEMPTS = 3
 
 
 def _git(args: list[str], cwd: Path) -> tuple[int, str]:
+    # A daemon must never let git ask a human for credentials. On Windows,
+    # an HTTPS push without stored credentials pops a credential-manager
+    # GUI; our timeout then kills git but the prompt process keeps the
+    # pipes open and subprocess.run blocks forever reaping them — the
+    # sync loop died exactly this way live on the operator's PC
+    # (2026-08-26). Non-interactive git fails fast and honestly instead.
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0",
+           "GCM_INTERACTIVE": "never", "GIT_ASKPASS": "echo"}
     try:
         proc = subprocess.run(
             ["git", *args], cwd=str(cwd), capture_output=True, text=True,
-            timeout=GIT_TIMEOUT_S)
+            timeout=GIT_TIMEOUT_S, env=env)
     except (OSError, subprocess.TimeoutExpired) as exc:
         return 1, f"git {args[0]}: {type(exc).__name__}: {exc}"
     out = (proc.stdout + proc.stderr).strip()

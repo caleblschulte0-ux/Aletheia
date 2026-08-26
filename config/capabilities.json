@@ -1,81 +1,752 @@
 {
-  "revision": 11,
+  "revision": 12,
   "providers": [
-    {"id":"aletheia.local","description":"Aletheia's own Python modules, run locally or in CI","kind":"local_module"},
-    {"id":"github.actions","description":"GitHub Actions in this repo executing on schedule or push","kind":"github_actions"},
-    {"id":"github.api","description":"GitHub REST API via aletheia.gh (FLEET_TOKEN / GITHUB_TOKEN)","kind":"api","authentication":"FLEET_TOKEN or GITHUB_TOKEN"},
-    {"id":"chatgpt.app","description":"ChatGPT app subscription: voice/text interface + connected tools","kind":"subscription_client","authentication":"operator's ChatGPT subscription"},
-    {"id":"claude.session","description":"Claude Code subscription sessions for implementation and review","kind":"subscription_client","authentication":"operator's Claude subscription"}
-  ],
-  "capabilities": [
-    {"id":"fleet.read","description":"Resolve the fleet registry and front-door grants","provider":"aletheia.local","status":"AVAILABLE","risk_class":"read","approval_policy":"none","caller":"aletheia.pulse, aletheia.act, aletheia.intercom, CLI","module":"aletheia.fleet"},
-    {"id":"pulse.collect","description":"Observe fleet repos, workflows, vitals, transitions and alerts","provider":"github.api","status":"AVAILABLE","risk_class":"read","approval_policy":"none","caller":"pulse.yml and CLI","verification":"pulse names every registry repo or records why not","module":"aletheia.pulse"},
-    {"id":"brief.compose","description":"Compose the morning digest with deltas","provider":"github.actions","status":"AVAILABLE","risk_class":"low","approval_policy":"none","caller":"brief.yml and CLI","module":"aletheia.brief"},
-    {"id":"sentinel.alert","description":"Open/update/close the rolling fleet health alert","provider":"github.actions","status":"AVAILABLE","risk_class":"low","approval_policy":"none","caller":"pulse.yml after pulse collection","module":"aletheia.sentinel"},
-    {"id":"journal.append","description":"Durable append-only decisions, events, actions and notes","provider":"aletheia.local","status":"AVAILABLE","risk_class":"low","approval_policy":"none","caller":"acting capabilities and CLI","module":"aletheia.journal"},
-    {"id":"journal.search","description":"Search durable journal memory","provider":"aletheia.local","status":"AVAILABLE","risk_class":"read","approval_policy":"none","caller":"CLI and brief.compose","module":"aletheia.journal"},
-    {"id":"goal.plan","description":"Goals as tracked plans and evidence-gated steps","provider":"aletheia.local","status":"AVAILABLE","risk_class":"low","approval_policy":"none","caller":"CLI, intercom plan commands, orchestrator","module":"aletheia.plans"},
-    {"id":"task.persist","description":"Durable task lifecycle, dependencies and retries","provider":"aletheia.local","status":"AVAILABLE","risk_class":"low","approval_policy":"none","caller":"CLI, intercom, orchestrator, gap materializer","module":"aletheia.tasks"},
-    {"id":"github.workflow.dispatch","description":"Run a fleet workflow through its registered front door","provider":"github.api","status":"AVAILABLE","risk_class":"medium","approval_policy":"registry_grant","caller":"aletheia.act and intercom dispatch","verification":"next pulse observes the workflow run"},
-    {"id":"github.issue.create","description":"File an issue on a fleet repo through its registered front door","provider":"github.api","status":"AVAILABLE","risk_class":"low","approval_policy":"registry_grant","caller":"aletheia.act and intercom issue"},
-    {"id":"suggestion.rule","description":"Record a ruling on a ChatGPT suggestion","provider":"aletheia.local","status":"AVAILABLE","risk_class":"low","approval_policy":"none","caller":"CLI and intercom rule","module":"aletheia.suggestions"},
-    {"id":"intercom.relay","description":"Relay operator commands from ChatGPT through named command slots","provider":"chatgpt.app","status":"NEEDS_CONFIGURATION","risk_class":"medium","approval_policy":"registry_grant","caller":"intercom.yml plus the local Core sync loop","verification":"each command gets a durable result receipt","notes":"Requires the operator's ChatGPT Project and the local Core for LOCAL_KINDS; sensitive private data should use the loopback Core rather than public Git-tracked command payloads.","module":"aletheia.intercom"},
-    {"id":"agent.delegate","description":"Hand a durable task to an approved AI worker and track it","provider":"github.actions","status":"EXPERIMENTAL","risk_class":"medium","approval_policy":"operator_once","caller":"aletheia.director in pulse.yml","notes":"Dispatch and evidence contracts exist; live autonomous worker wake-up/round-trip remains unverified.","module":"aletheia.director"},
-    {"id":"computer.control","description":"Operate the Windows PC through accessibility-first plans","provider":"aletheia.local","status":"EXPERIMENTAL","risk_class":"high","approval_policy":"operator_always","caller":"aletheia.computer.execute via Core and CLI","verification":"exact-plan approval binding and hermetic backend tests","notes":"Windows UI Automation backend still requires the real PC acceptance run.","module":"aletheia.computer"},
-    {"id":"phone.call","description":"Place and hold a phone conversation on the operator's behalf","provider":"aletheia.local","status":"NOT_BUILT","risk_class":"high","approval_policy":"operator_always","caller":"ticket — Phase 12 Phone V0 requires live PC audio/call-app integration"},
-    {"id":"voice.wake","description":"Room wake word and local always-listening voice entry","provider":"aletheia.local","status":"NOT_BUILT","risk_class":"medium","approval_policy":"operator_once","caller":"ticket — Phase 10 local wake-word/audio requires the operator's PC"},
-    {"id":"email.read","description":"Read unread sender/subject headers without marking mail read","provider":"aletheia.local","status":"NEEDS_CONFIGURATION","risk_class":"read","approval_policy":"none","caller":"aletheia.mail.check_unread via local Core","verification":"mail tests use readonly IMAP semantics","notes":"Requires mail credentials/configuration on the PC.","module":"aletheia.mail"},
-    {"id":"email.send","description":"Draft, approve, send and verify email","provider":"aletheia.local","status":"NEEDS_CONFIGURATION","risk_class":"high","approval_policy":"operator_always","caller":"aletheia.mail.send_approved via local Core","verification":"approval bound to exact draft hash; edited-after-approval refused","notes":"Requires mail credentials/configuration on the PC.","module":"aletheia.mail"},
-    {"id":"calendar.read","description":"Read a live external calendar into Aletheia","provider":"aletheia.local","status":"NEEDS_CONFIGURATION","risk_class":"read","approval_policy":"none","caller":"provider adapter ticket plus aletheia.calendar local model","notes":"Local calendar reasoning is built; a Google/Outlook provider is not configured.","module":"aletheia.calendar"},
-    {"id":"room.scene","description":"Execute a room scene through a live device provider","provider":"aletheia.local","status":"NEEDS_CONFIGURATION","risk_class":"medium","approval_policy":"operator_once","caller":"aletheia.room scene plan plus future Home Assistant adapter","notes":"Scene/device model is built; live Home Assistant/device provider is not configured.","module":"aletheia.room"},
-    {"id":"policy.halt","description":"Global kill switch; only operator resume lifts it","provider":"aletheia.local","status":"AVAILABLE","risk_class":"low","approval_policy":"none","caller":"intercom, CLI, act, director, runtime","verification":"halt file is fail-closed","module":"aletheia.policy"},
-    {"id":"policy.approve","description":"Durable operator approvals","provider":"aletheia.local","status":"AVAILABLE","risk_class":"low","approval_policy":"none","caller":"director, approvals.yml, intercom and CLI","module":"aletheia.policy"},
-    {"id":"policy.delegate","description":"Bounded standing authority grants with zero defaults","provider":"aletheia.local","status":"AVAILABLE","risk_class":"medium","approval_policy":"operator_once","caller":"aletheia.authority API; grants require an already-approved operator approval","verification":"exact capability ids, expiry, max uses, exclusive claims; high/operator_always refused","module":"aletheia.authority"},
-    {"id":"orchestrator.compile","description":"Deterministic goal-to-task compiler with evidence-gated completion","provider":"github.actions","status":"AVAILABLE","risk_class":"low","approval_policy":"none","caller":"pulse.yml and CLI","module":"aletheia.orchestrator"},
-    {"id":"memory.remember","description":"Structured memory with provenance and correction history","provider":"aletheia.local","status":"AVAILABLE","risk_class":"low","approval_policy":"none","caller":"intercom, CLI and authorized workers","module":"aletheia.memory"},
-    {"id":"memory.recall","description":"Recall structured memory with provenance","provider":"aletheia.local","status":"AVAILABLE","risk_class":"read","approval_policy":"none","caller":"CLI and reasoning channels","module":"aletheia.memory"},
-    {"id":"core.serve","description":"Persistent loopback-only local Core and interfaces","provider":"aletheia.local","status":"NEEDS_CONFIGURATION","risk_class":"medium","approval_policy":"none","caller":"operator starts python -m aletheia.core on the PC","verification":"live loopback HTTP tests","notes":"Code exists; operator must run it on the PC.","module":"aletheia.core"},
-    {"id":"core.sync","description":"Pull commands, process PC-only work and push receipts","provider":"aletheia.local","status":"NEEDS_CONFIGURATION","risk_class":"low","approval_policy":"none","caller":"aletheia.core sync loop","verification":"real local bare-repo sync tests","notes":"Requires the Core running inside the PC clone.","module":"aletheia.sync"},
-    {"id":"core.supervise","description":"Relaunch Core on crash/update and start at Windows logon","provider":"aletheia.local","status":"NEEDS_CONFIGURATION","risk_class":"low","approval_policy":"none","caller":"start-aletheia.bat/bootstrap.ps1 and aletheia.supervisor","verification":"supervisor backoff/self-update tests","notes":"Requires Windows installation/startup acceptance.","module":"aletheia.supervisor"},
-    {"id":"voice.wall","description":"Browser-page speech into the same Core command gates","provider":"aletheia.local","status":"NEEDS_CONFIGURATION","risk_class":"low","approval_policy":"none","caller":"interface/voice.js -> POST /api/voice","verification":"voice interpretation and endpoint tests","notes":"Requires Core plus browser microphone permission.","module":"aletheia.voice"},
-    {"id":"browser.read","description":"Observe web pages through the authorized browser profile","provider":"aletheia.local","status":"AVAILABLE","risk_class":"read","approval_policy":"none","caller":"aletheia.browse CLI and local intercom kinds","verification":"hermetic Chromium fixture tests","module":"aletheia.browse"},
-    {"id":"browser.interact","description":"Click/type/select/submit in an authenticated browser session","provider":"aletheia.local","status":"AVAILABLE","risk_class":"high","approval_policy":"operator_always","caller":"aletheia.browse.interact","verification":"approved interaction end-to-end fixture plus refusal tests","module":"aletheia.browse"},
-
-    {"id":"action.verify","description":"Action records with plan hashes, attempts and evidence-backed verification","provider":"aletheia.local","status":"AVAILABLE","risk_class":"low","approval_policy":"none","caller":"aletheia.outcomes API and tests; integration runtime consumes verification state","module":"aletheia.outcomes"},
-    {"id":"automation.define","description":"Define timezone-aware one-time/interval/daily/weekly schedules privately","provider":"aletheia.local","status":"AVAILABLE","risk_class":"low","approval_policy":"none","caller":"aletheia.scheduler API and local clients","verification":"exclusive occurrence receipts prevent duplicate claims","module":"aletheia.scheduler"},
-    {"id":"automation.execute","description":"Execute due private schedules through the existing command grammar and gates","provider":"aletheia.local","status":"EXPERIMENTAL","risk_class":"medium","approval_policy":"none","caller":"aletheia.runtime.run_due_schedules; Core wiring is in this draft stack","notes":"Hermetic runtime tests cover halt, revalidation and exact claims; live persistent Core execution awaits PC acceptance.","module":"aletheia.runtime"},
-    {"id":"contacts.resolve","description":"Private exact/alias contact resolution with ambiguity refusal","provider":"aletheia.local","status":"AVAILABLE","risk_class":"read","approval_policy":"none","caller":"aletheia.contacts API and meeting planner","module":"aletheia.contacts"},
-    {"id":"calendar.availability","description":"Timezone-aware local conflict, buffer, work-window and multi-day slot reasoning","provider":"aletheia.local","status":"AVAILABLE","risk_class":"read","approval_policy":"none","caller":"aletheia.calendar and aletheia.meetings","module":"aletheia.calendar"},
-    {"id":"meeting.plan","description":"Resolve a person and propose constrained meeting slots without contacting or booking","provider":"aletheia.local","status":"AVAILABLE","risk_class":"read","approval_policy":"none","caller":"aletheia.meetings.propose","module":"aletheia.meetings"},
-    {"id":"communication.track","description":"Private channel-neutral conversations, messages, expected replies and deadlines","provider":"aletheia.local","status":"AVAILABLE","risk_class":"low","approval_policy":"none","caller":"aletheia.communications and runtime reply monitor","module":"aletheia.communications"},
-    {"id":"notification.center","description":"Private deduped operator notifications with read/ack state","provider":"aletheia.local","status":"AVAILABLE","risk_class":"low","approval_policy":"none","caller":"aletheia.notifications and runtime reply monitor","module":"aletheia.notifications"},
-    {"id":"project.manage","description":"Private first-class projects linking goals, tasks, people, blockers and decisions","provider":"aletheia.local","status":"AVAILABLE","risk_class":"low","approval_policy":"none","caller":"aletheia.projects and current-state model","module":"aletheia.projects"},
-    {"id":"context.resolve","description":"Bounded explicit recent referents; ambiguous context is refused","provider":"aletheia.local","status":"AVAILABLE","risk_class":"read","approval_policy":"none","caller":"aletheia.context and handle-it planners","module":"aletheia.context"},
-    {"id":"current_state.read","description":"Canonical NOW aggregation across tasks, projects, approvals, replies, notices and schedules","provider":"aletheia.local","status":"AVAILABLE","risk_class":"read","approval_policy":"none","caller":"aletheia.current_state and local interfaces","module":"aletheia.current_state"},
-    {"id":"recovery.plan","description":"Classify failures and plan bounded retry/wait/escalation without executing retries","provider":"aletheia.local","status":"AVAILABLE","risk_class":"low","approval_policy":"none","caller":"aletheia.recovery API and workers","module":"aletheia.recovery"},
-    {"id":"capability.gap.assess","description":"Compare required capabilities to registry truth","provider":"aletheia.local","status":"AVAILABLE","risk_class":"read","approval_policy":"none","caller":"aletheia.gaps, handler and runtime","module":"aletheia.gaps"},
-    {"id":"capability.gap.materialize","description":"Turn missing/configuration/verification gaps into durable work","provider":"aletheia.local","status":"AVAILABLE","risk_class":"low","approval_policy":"none","caller":"aletheia.gaps.materialize and runtime self-expansion","verification":"configuration gaps become operator tasks; build gaps become worker tasks","module":"aletheia.gaps"},
-    {"id":"handle.plan","description":"Persist a resolved request, capability requirements and resume state","provider":"aletheia.local","status":"AVAILABLE","risk_class":"low","approval_policy":"none","caller":"aletheia.handler; command remains proposal until ordinary gates execute it","module":"aletheia.handler"},
-    {"id":"proactive.evaluate","description":"Evaluate bounded event rules into proposals with cooldown/dedupe","provider":"aletheia.local","status":"AVAILABLE","risk_class":"low","approval_policy":"none","caller":"aletheia.proactive API; proposals feed notification/task layers","verification":"rules never directly execute actions","module":"aletheia.proactive"},
-    {"id":"capability.compose","description":"Compose named outcomes from reusable capability requirements without authority escalation","provider":"aletheia.local","status":"AVAILABLE","risk_class":"read","approval_policy":"none","caller":"aletheia.composition plan API","module":"aletheia.composition"},
-    {"id":"brain.contract","description":"Model-independent bounded reasoning-provider output contract","provider":"aletheia.local","status":"AVAILABLE","risk_class":"read","approval_policy":"none","caller":"aletheia.brain provider adapters and fallback","verification":"unknown output fields and malformed proposals are refused","module":"aletheia.brain"},
-    {"id":"device.registry","description":"Private provider-neutral room/device identity, abilities and observed online state","provider":"aletheia.local","status":"AVAILABLE","risk_class":"low","approval_policy":"none","caller":"aletheia.devices and room scene planner","module":"aletheia.devices"},
-    {"id":"room.scene.plan","description":"Validate a room scene against verified-online devices and declared abilities","provider":"aletheia.local","status":"AVAILABLE","risk_class":"low","approval_policy":"none","caller":"aletheia.room.plan","module":"aletheia.room"},
-    {"id":"place.manage","description":"Private saved places and provenance-backed travel-time observations","provider":"aletheia.local","status":"AVAILABLE","risk_class":"read","approval_policy":"none","caller":"aletheia.places API","module":"aletheia.places"},
-    {"id":"document.intelligence","description":"Private bounded text ingestion, hashing and literal evidence search","provider":"aletheia.local","status":"AVAILABLE","risk_class":"read","approval_policy":"none","caller":"aletheia.documents API; parser adapters supply extracted text","module":"aletheia.documents"},
-    {"id":"shopping.plan","description":"Private requirements/candidates/selection workflow ending in an approval-bounded purchase proposal","provider":"aletheia.local","status":"AVAILABLE","risk_class":"low","approval_policy":"none","caller":"aletheia.shopping API","module":"aletheia.shopping"},
-    {"id":"purchase.execute","description":"Execute an actual purchase with money","provider":"aletheia.local","status":"NOT_BUILT","risk_class":"high","approval_policy":"operator_always","caller":"ticket — Phase 22 purchase provider must verify item, total and receipt before this can exist"},
-    {"id":"subscription.track","description":"Private recurring charge/renewal visibility and cancellation proposals","provider":"aletheia.local","status":"AVAILABLE","risk_class":"read","approval_policy":"none","caller":"aletheia.subscriptions API","module":"aletheia.subscriptions"},
-    {"id":"subscription.cancel","description":"Cancel a live external subscription","provider":"aletheia.local","status":"NOT_BUILT","risk_class":"high","approval_policy":"operator_always","caller":"ticket — Phase 22 provider-specific cancellation and verification adapter"},
-    {"id":"finance.visibility","description":"Private read-only balances/transactions snapshots and net-worth aggregation","provider":"aletheia.local","status":"AVAILABLE","risk_class":"read","approval_policy":"none","caller":"aletheia.finance API","module":"aletheia.finance"},
-    {"id":"finance.transact","description":"Move money, pay bills or trade assets","provider":"aletheia.local","status":"NOT_BUILT","risk_class":"high","approval_policy":"operator_always","caller":"ticket — Phase 22 financial action adapters require live provider, approval and verification design"},
-    {"id":"vehicle.manage","description":"Private vehicle facts, odometer and maintenance due calculations","provider":"aletheia.local","status":"AVAILABLE","risk_class":"read","approval_policy":"none","caller":"aletheia.vehicles API","module":"aletheia.vehicles"},
-    {"id":"travel.plan","description":"Private itinerary with observed booking facts and missing-component checks","provider":"aletheia.local","status":"AVAILABLE","risk_class":"low","approval_policy":"none","caller":"aletheia.travel API","module":"aletheia.travel"},
-    {"id":"reservation.plan","description":"Private reservation candidate/selection workflow with confirmation truth","provider":"aletheia.local","status":"AVAILABLE","risk_class":"low","approval_policy":"none","caller":"aletheia.reservations API","module":"aletheia.reservations"},
-    {"id":"reservation.book","description":"Book or cancel a live external reservation","provider":"aletheia.local","status":"NOT_BUILT","risk_class":"high","approval_policy":"operator_always","caller":"ticket — Phase 22 live provider booking adapter plus confirmation verification"}
+    {
+      "id": "aletheia.local",
+      "description": "Aletheia's own Python modules, run locally or in CI",
+      "kind": "local_module"
+    },
+    {
+      "id": "github.actions",
+      "description": "GitHub Actions in this repo executing on schedule or push",
+      "kind": "github_actions"
+    },
+    {
+      "id": "github.api",
+      "description": "GitHub REST API via aletheia.gh (FLEET_TOKEN / GITHUB_TOKEN)",
+      "kind": "api",
+      "authentication": "FLEET_TOKEN or GITHUB_TOKEN"
+    },
+    {
+      "id": "chatgpt.app",
+      "description": "ChatGPT app (subscription): voice/text interface + GitHub connector writes",
+      "kind": "subscription_client",
+      "authentication": "operator's ChatGPT subscription"
+    },
+    {
+      "id": "claude.session",
+      "description": "Claude Code sessions (subscription): builds and maintains Aletheia and the fleet",
+      "kind": "subscription_client",
+      "authentication": "operator's Claude subscription"
+    }
   ],
   "agents": [
-    {"id":"claude","provider":"claude.session","description":"Primary coding/review worker; builds and maintains Aletheia when authorized","roles":["CODING","CODE_REVIEW","DEEP_REASONING","PLANNING"],"strengths":"implementation, repo surgery, tests","limitations":"live PC/hardware work requires the operator's machine; wake-up remains provider/session dependent"},
-    {"id":"chatgpt","provider":"chatgpt.app","description":"Thea voice/advisor and an authorized coding/review worker for explicitly operator-assigned work","roles":["VOICE","GENERAL_REASONING","RESEARCH","WRITING","CODE_REVIEW","CODING","PLANNING"],"strengths":"connected tools, research, review, isolated draft implementation","limitations":"non-Claude code requires Claude line-by-line review before merge; no direct Windows PC access in this environment"}
+    {
+      "id": "claude",
+      "provider": "claude.session",
+      "description": "Primary coding/review worker; builds and maintains Aletheia when authorized",
+      "roles": [
+        "CODING",
+        "CODE_REVIEW",
+        "DEEP_REASONING",
+        "PLANNING"
+      ],
+      "strengths": "implementation, repo surgery, tests",
+      "limitations": "live PC/hardware work requires the operator's machine; wake-up remains provider/session dependent"
+    },
+    {
+      "id": "chatgpt",
+      "provider": "chatgpt.app",
+      "description": "Thea voice/advisor and an authorized coding/review worker for explicitly operator-assigned work",
+      "roles": [
+        "VOICE",
+        "GENERAL_REASONING",
+        "RESEARCH",
+        "WRITING",
+        "CODE_REVIEW",
+        "CODING",
+        "PLANNING"
+      ],
+      "strengths": "connected tools, research, review, isolated draft implementation",
+      "limitations": "non-Claude code requires Claude line-by-line review before merge; no direct Windows PC access in this environment"
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "fleet.read",
+      "description": "Resolve the fleet registry: repos, roles, agents, watch lists, front-door grants",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.pulse, aletheia.act, aletheia.intercom, CLI",
+      "module": "aletheia.fleet"
+    },
+    {
+      "id": "pulse.collect",
+      "description": "Observe every fleet repo: commits, workflows, state files, vitals, transitions, alerts",
+      "provider": "github.api",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "pulse.yml (6-hourly) and CLI",
+      "verification": "pulse names every registry repo or records why not",
+      "notes": "verified live on main 2026-08-25: reads commits, workflow outcomes, state files and vitals for every PUBLIC fleet repo using the default GITHUB_TOKEN. Only private repos need the FLEET_TOKEN secret â€” today that is etsy_maker alone, which the pulse records honestly as a 404 rather than omitting.",
+      "module": "aletheia.pulse"
+    },
+    {
+      "id": "brief.compose",
+      "description": "Compose the morning digest with day-over-day deltas and deliver via rolling issue",
+      "provider": "github.actions",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "brief.yml (daily) and CLI",
+      "module": "aletheia.brief"
+    },
+    {
+      "id": "sentinel.alert",
+      "description": "Notice health transitions; open/comment/close the rolling fleet-alert issue",
+      "provider": "github.actions",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "pulse.yml after each pulse",
+      "module": "aletheia.sentinel"
+    },
+    {
+      "id": "journal.append",
+      "description": "Durable append-only memory: decisions, events, actions, notes",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "every capability that acts; CLI for operator notes",
+      "module": "aletheia.journal"
+    },
+    {
+      "id": "journal.search",
+      "description": "Search the memory by term, kind, or recency",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "CLI; brief.compose (last-24h section)",
+      "module": "aletheia.journal"
+    },
+    {
+      "id": "goal.plan",
+      "description": "Goals as tracked data: open plans, steps with states, journaled lifecycle",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "CLI, intercom plan_* commands; surfaced by pulse/brief/wall",
+      "module": "aletheia.plans"
+    },
+    {
+      "id": "task.persist",
+      "description": "Durable task engine: lifecycle, dependencies, retries surviving restarts",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "CLI (aletheia.tasks); intercom wiring is the next milestone",
+      "verification": "state/tasks/*.json round-trips through contracts.validate_task",
+      "module": "aletheia.tasks"
+    },
+    {
+      "id": "github.workflow.dispatch",
+      "description": "Run a fleet repo's workflow through its front door",
+      "provider": "github.api",
+      "status": "AVAILABLE",
+      "risk_class": "medium",
+      "approval_policy": "registry_grant",
+      "caller": "aletheia.act CLI and intercom 'dispatch' commands",
+      "verification": "next pulse shows the run",
+      "notes": "gated by front_door in config/fleet.json â€” default grants only Aletheia's own workflows"
+    },
+    {
+      "id": "github.issue.create",
+      "description": "File an issue on a fleet repo",
+      "provider": "github.api",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "registry_grant",
+      "caller": "aletheia.act CLI and intercom 'issue' commands"
+    },
+    {
+      "id": "suggestion.rule",
+      "description": "Record a ruling on a ChatGPT suggestion (doing/not_doing/later/in_progress/done)",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "CLI; intercom 'rule' commands",
+      "module": "aletheia.suggestions"
+    },
+    {
+      "id": "intercom.relay",
+      "description": "Operator speaks to ChatGPT (voice/text, no API keys); commands relayed as JSON, executed through registry gates, receipts written back",
+      "provider": "chatgpt.app",
+      "status": "NEEDS_CONFIGURATION",
+      "risk_class": "medium",
+      "approval_policy": "registry_grant",
+      "caller": "intercom.yml on exchange/commands pushes (cloud kinds) + the Core's sync loop on the PC (LOCAL_KINDS: browse_read, browse_shot) â€” static partition, one executor per command",
+      "verification": "every command gets a committed .result.json receipt",
+      "notes": "executor built and tested (15 command kinds incl. halt/resume/approve/deny/remember/tasks); needs the operator to create the ChatGPT Project per exchange/INTERCOM.md",
+      "module": "aletheia.intercom"
+    },
+    {
+      "id": "agent.delegate",
+      "description": "Hand a durable task to an AI worker (Claude builds; ChatGPT reviews/authors) and track it",
+      "provider": "github.actions",
+      "status": "EXPERIMENTAL",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "director in pulse.yml: files approval-gated work orders for READY assigned tasks",
+      "notes": "dispatch half is built+tested; EXPERIMENTAL until the first live round-trip (worker completes a work order with evidence). Worker wake-up is still each app's own scheduled tasks.",
+      "module": "aletheia.director"
+    },
+    {
+      "id": "computer.control",
+      "description": "Operate the Windows PC: observe, open apps, click, type (accessibility-first)",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "caller": "aletheia.computer.execute â€” reachable through the local Core's POST /api/computer and the CLI; every run needs an approval bound to that exact plan",
+      "module": "aletheia.computer",
+      "verification": "policy layer verified hermetically (41 tests, injected backend): exact-plan approval binding by sha256, single-use claim, halt checked before setup and every step, screen coordinates refused, plan validated before any desktop access",
+      "notes": "EXPERIMENTAL, not AVAILABLE: the Windows UI Automation backend has never executed on Windows â€” no reviewer here has that platform. scripts/phase7_accept_notepad.ps1 is the acceptance run that decides whether this becomes AVAILABLE or gets repaired."
+    },
+    {
+      "id": "phone.call",
+      "description": "Place and hold a phone conversation on the operator's behalf (identifies itself as Aletheia)",
+      "provider": "aletheia.local",
+      "status": "NOT_BUILT",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "caller": "ticket â€” Phone V0 (Playbook Â§17): desktop call app + virtual audio + ChatGPT Voice, local PC only"
+    },
+    {
+      "id": "voice.wake",
+      "description": "Room voice: local wake word ('Thea'), spoken requests into the same Core",
+      "provider": "aletheia.local",
+      "status": "NOT_BUILT",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "ticket â€” Phase 10 (Playbook Â§124)"
+    },
+    {
+      "id": "email.read",
+      "description": "Check the inbox: unread senders + subjects, spoken back ('Thea, check my email')",
+      "provider": "aletheia.local",
+      "status": "NEEDS_CONFIGURATION",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.mail.check_unread via intercom kind email_check (LOCAL â€” runs on the PC) and voice",
+      "verification": "tests/test_mail.py TestCheckAndVoice â€” speakable summary, empty inbox honest, IMAP opened readonly so checking never marks messages read",
+      "notes": "Same configuration as email.send; headers only, bodies are never fetched in v0.",
+      "module": "aletheia.mail"
+    },
+    {
+      "id": "email.send",
+      "description": "Draft and send email with approval gate",
+      "provider": "aletheia.local",
+      "status": "NEEDS_CONFIGURATION",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "caller": "aletheia.mail.send_approved â€” the Core delivers every APPROVED draft each sync tick; drafts come from voice ('Thea, email X that ...'), the intercom kind email_draft, or the Command Center",
+      "verification": "tests/test_mail.py: approval bound to a sha256 of the exact draft (edited-after-approval refused), operator_always per send, sent exactly once, DENIED retires, transport failure retries, unknown recipient refused rather than guessed, state/mail gitignored (privacy â€” public repo)",
+      "notes": "NEEDS_CONFIGURATION: set ALETHEIA_MAIL_ADDRESS + ALETHEIA_MAIL_PASSWORD (an app password) on the PC, or ~/.aletheia/mail.json. Gmail-shaped defaults; hosts overridable.",
+      "module": "aletheia.mail"
+    },
+    {
+      "id": "calendar.read",
+      "description": "Read availability, reason about work hours and buffers",
+      "provider": "aletheia.local",
+      "status": "NOT_BUILT",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "ticket â€” Phase 14 (Playbook Â§128)",
+      "notes": "Live Google/Outlook adapter NOT_BUILT — ticket: task build-calendar-read. The local calendar model (events the operator records) is AVAILABLE separately as calendar.availability."
+    },
+    {
+      "id": "room.scene",
+      "description": "Unified device layer (Home Assistant or equivalent): lights, scenes, media",
+      "provider": "aletheia.local",
+      "status": "NOT_BUILT",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "ticket â€” Phase 18 (Playbook Â§132)",
+      "notes": "Home Assistant (or equivalent) adapter NOT_BUILT — ticket: task build-room-scene. Local device registry and scene PLANNING are AVAILABLE separately as device.registry and room.scene.plan."
+    },
+    {
+      "id": "policy.halt",
+      "description": "The kill switch: halt suspends every acting capability until an operator resume",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "intercom halt/resume commands, CLI; enforced in act + intercom + director",
+      "verification": "state/policy/halt.json; halted receipts"
+    },
+    {
+      "id": "policy.approve",
+      "description": "Durable approval objects: requested as issues or by workers, decided by owner comment or by voice",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "director (delegate gate), approvals.yml on owner comments, intercom approve/deny, CLI"
+    },
+    {
+      "id": "orchestrator.compile",
+      "description": "Deterministic goal-to-tasks compiler with evidence-gated completion (a step is done only when its task completed WITH evidence)",
+      "provider": "github.actions",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "pulse.yml every run; CLI"
+    },
+    {
+      "id": "memory.remember",
+      "description": "Structured memory with provenance (identity/preferences/people/organizations); corrections overwrite but record what they replaced",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "intercom remember commands, CLI, Claude sessions"
+    },
+    {
+      "id": "memory.recall",
+      "description": "Recall a memory and answer 'why do you think that' from provenance",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "CLI; ChatGPT reads memory/ raw for reference resolution"
+    },
+    {
+      "id": "core.serve",
+      "description": "The local Core V0: persistent service on the operator's PC â€” internal API (/api/*), the wall at /, Command Center at /command.html; loopback-only until authentication exists",
+      "provider": "aletheia.local",
+      "status": "NEEDS_CONFIGURATION",
+      "risk_class": "medium",
+      "approval_policy": "none",
+      "caller": "operator runs `python -m aletheia.core` on the Windows PC; Command Center + wall are its clients",
+      "verification": "GET /api/status; 7 tests in test_core.py incl. live HTTP round-trips",
+      "notes": "code built and tested in CI; NEEDS_CONFIGURATION = the operator starting it on the PC",
+      "module": "aletheia.core"
+    },
+    {
+      "id": "core.sync",
+      "description": "The Core keeps the repo fresh: pull commands, execute PC-only kinds, push receipts + journal",
+      "provider": "aletheia.local",
+      "status": "NEEDS_CONFIGURATION",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "aletheia.core.start_sync_loop â€” on by default when `python -m aletheia.core` runs inside a cloned repo; degrades honestly (loop OFF, /api/sync says why) outside one",
+      "verification": "tests/test_sync.py + tests/test_core_sync.py drive the full round trip against a real local bare repo, including push races, rebase-conflict abort, receipt idempotency, and a dead remote",
+      "notes": "NEEDS_CONFIGURATION until the Core runs on the PC â€” same single blocker as core.serve. Uses the operator's own git credentials; a push that cannot authenticate is journaled, never worked around. The sync beat now also runs the local runtime tick: due schedules, reply expectations, bus-event consumption, capability-gap reconciliation (see automation.execute).",
+      "module": "aletheia.sync"
+    },
+    {
+      "id": "core.supervise",
+      "description": "Aletheia stays on: relaunch the Core on crash, restart it onto newly merged code, start at Windows logon",
+      "provider": "aletheia.local",
+      "status": "NEEDS_CONFIGURATION",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "start-aletheia.bat and bootstrap.ps1 run `python -m aletheia.supervisor`; `supervisor install` registers the hidden at-logon Scheduled Task",
+      "verification": "tests/test_supervisor.py (backoff doubles and caps, self-update restarts immediately and resets backoff, Ctrl+C stops, install refuses honestly off Windows) + tests/test_core_sync.py SelfUpdateCase (code commit fires restart against a real repo, state-only commit does not)",
+      "notes": "NEEDS_CONFIGURATION until it runs on the PC. Self-update chain: merge to main -> Core's sync pull sees CODE_PATHS changed -> exits RESTART_EXIT_CODE -> supervisor relaunches on the new code, within about one sync beat.",
+      "module": "aletheia.supervisor"
+    },
+    {
+      "id": "voice.wall",
+      "description": "Talk to the page itself: the wall/Command Center hear 'Thea, ...' and speak the answer â€” no side app",
+      "provider": "aletheia.local",
+      "status": "NEEDS_CONFIGURATION",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "interface/voice.js (Web Speech API in the operator's browser) -> POST /api/voice -> voice.interpret -> the same run_command gates as every channel",
+      "verification": "tests/test_voice.py: 15 tests â€” wake word, halt/resume, spoken URLs ('example dot com'), approve refuses to guess between two pending, unrecognized speech becomes a journaled note (never a guessed action), endpoint round trip on a live Core",
+      "notes": "NEEDS_CONFIGURATION until the Core runs on the PC and the operator clicks the mic indicator once (browser permission). Ears/mouth are the browser's own (Chrome/Edge); the interpreter is deterministic on purpose - unmatched speech is journaled and said so, never guessed (Â§104). ChatGPT Voice remains the away-from-home channel.",
+      "module": "aletheia.voice"
+    },
+    {
+      "id": "browser.read",
+      "description": "Observe any web page through the authorized browser profile: title, visible text, links, screenshots",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.browse CLI (read/shot); intercom kinds browse_read/browse_shot via the Core's sync loop; the Command Center's /api/command",
+      "verification": "12 hermetic tests in tests/test_browse.py drive a real Chromium against a loopback fixture site",
+      "notes": "requires the optional playwright dependency; browse.available() reports honestly and callers degrade rather than crash",
+      "module": "aletheia.browse"
+    },
+    {
+      "id": "browser.interact",
+      "description": "Act on a web page â€” click, type, select, submit â€” inside the operator's own authenticated session",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "caller": "aletheia.browse.interact â€” refuses without an APPROVED approval, before the browser opens",
+      "verification": "tested end to end: an approved run fills a form, selects an option and submits it; unapproved, denied, malformed and halted runs are all refused",
+      "notes": "never bypasses authentication: the operator signs in once via 'python -m aletheia.browse login <url>' into a dedicated persistent profile (cache/browser-profile, gitignored). Permission to read a page is never permission to press its buttons (Â§61).",
+      "module": "aletheia.browse"
+    },
+    {
+      "id": "event.emit",
+      "description": "Durable local event bus: immutable one-file-per-event records under private state",
+      "module": "aletheia.events",
+      "provider": "aletheia.local",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "status": "AVAILABLE",
+      "caller": "aletheia.core.core_tick emits core.sync_failed/core.sync_recovered on pull transitions; python -m aletheia.events emit; consumed by aletheia.runtime.process_new_events",
+      "notes": "Private by default (state/private/): event subjects/summaries carry personal facts and the repo is public. Sensitive attribute keys refused; 32KiB cap; occurred_at must be a real aware timestamp.",
+      "verification": "tests/test_events.py (13) + tests/test_runtime_expansion.py::TestEventConsumption"
+    },
+    {
+      "id": "event.watch",
+      "description": "Durable watchers: 'tell me when X' matched against every bus event, triggering exactly once (or persistently), surfacing as notifications",
+      "module": "aletheia.events",
+      "provider": "aletheia.local",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "status": "AVAILABLE",
+      "caller": "python -m aletheia.events watch/cancel/watchers; evaluated at emit time and consumed by aletheia.runtime.process_new_events -> notification.center",
+      "notes": "Immutable definitions + append-only cancellation/trigger receipts; a corrupt watcher is isolated, never fatal to the bus. At least one narrowing match required; no regex/code in matchers.",
+      "verification": "tests/test_events.py + tests/test_runtime_expansion.py::test_watcher_trigger_becomes_notification_once"
+    },
+    {
+      "id": "policy.delegate",
+      "description": "Bounded standing authority grants with zero defaults",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "aletheia.authority API; grants require an already-approved operator approval",
+      "verification": "tests/test_integration_primitives.py::TestAuthority + tests/test_assistant.py grant verbs",
+      "module": "aletheia.authority",
+      "notes": "Grant/claim RECORDS work and are tested (zero defaults, approval-gated, high-risk/operator_always never delegable, bounded uses via exclusive claims). But NO acting path consumes grants: delegation currently has no effect. Wiring consumption into act/policy would widen authority and waits on an explicit operator ruling — not a code change to make quietly."
+    },
+    {
+      "id": "action.verify",
+      "description": "Action records with plan hashes, attempts and evidence-backed verification",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.assistant outcome start/attempt/evidence/verify (workers record evidence-gated action records)",
+      "module": "aletheia.outcomes"
+    },
+    {
+      "id": "automation.define",
+      "description": "Define timezone-aware one-time/interval/daily/weekly schedules privately",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.assistant schedule add-once/add-interval/add-daily/add-weekly and python -m aletheia.scheduler list/due",
+      "verification": "exclusive occurrence receipts prevent duplicate claims",
+      "module": "aletheia.scheduler"
+    },
+    {
+      "id": "automation.execute",
+      "description": "Execute due private schedules through the existing command grammar and gates",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "medium",
+      "approval_policy": "none",
+      "caller": "aletheia.core.core_tick -> aletheia.runtime.run_due_schedules every sync beat; due commands revalidate through intercom.validate_kind_args and execute through intercom.execute_command with the same gates as voice",
+      "notes": "Wired into core_tick 2026-08-26 (Claude review of PR30 — its draft claimed the wiring existed; it did not, so it was built). Exactly-once via occurrence receipts; halt respected; failures notify the operator.",
+      "module": "aletheia.runtime",
+      "verification": "tests/test_core_sync.py::test_runtime_rides_the_sync_beat — a due schedule executes through the real intercom inside core_tick, exactly once; live /api/runtime check on the operator's PC 2026-08-26"
+    },
+    {
+      "id": "contacts.resolve",
+      "description": "Private exact/alias contact resolution with ambiguity refusal",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.contacts and aletheia.meetings.propose",
+      "module": "aletheia.contacts"
+    },
+    {
+      "id": "calendar.availability",
+      "description": "Timezone-aware local conflict, buffer, work-window and multi-day slot reasoning",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.calendar, aletheia.meetings.propose, python -m aletheia.assistant meet",
+      "module": "aletheia.calendar"
+    },
+    {
+      "id": "meeting.plan",
+      "description": "Resolve a person and propose constrained meeting slots without contacting or booking",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.assistant meet -> aletheia.meetings.propose",
+      "module": "aletheia.meetings"
+    },
+    {
+      "id": "communication.track",
+      "description": "Private channel-neutral conversations, messages, expected replies and deadlines",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.assistant comm thread/message/expect; aletheia.runtime.evaluate_replies each Core sync beat",
+      "module": "aletheia.communications"
+    },
+    {
+      "id": "notification.center",
+      "description": "Private deduped operator notifications with read/ack state",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "aletheia.runtime (reply transitions, watcher triggers, proactive proposals, schedule failures), Core GET /api/notifications + POST /api/notifications/ack, Command Center panel, python -m aletheia.assistant notifications/ack",
+      "module": "aletheia.notifications"
+    },
+    {
+      "id": "project.manage",
+      "description": "Private first-class projects linking goals, tasks, people, blockers and decisions",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.assistant project new/update/list; current_state.snapshot reads them",
+      "module": "aletheia.projects"
+    },
+    {
+      "id": "context.resolve",
+      "description": "Bounded explicit recent referents; ambiguous context is refused",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.assistant context remember/resolve",
+      "module": "aletheia.context"
+    },
+    {
+      "id": "current_state.read",
+      "description": "Canonical NOW aggregation across tasks, projects, approvals, replies, notices and schedules",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "Core GET /api/state and python -m aletheia.assistant state",
+      "module": "aletheia.current_state"
+    },
+    {
+      "id": "recovery.plan",
+      "description": "Classify failures and plan bounded retry/wait/escalation without executing retries",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.assistant recover",
+      "module": "aletheia.recovery"
+    },
+    {
+      "id": "capability.gap.assess",
+      "description": "Compare required capabilities to registry truth",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.runtime.reconcile_task_gaps each Core sync beat; aletheia.handler; aletheia.composition",
+      "module": "aletheia.gaps"
+    },
+    {
+      "id": "capability.gap.materialize",
+      "description": "Turn missing/configuration/verification gaps into durable work",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "aletheia.runtime.reconcile_task_gaps (gap tasks created, originals paused/resumed); aletheia.handler.create/refresh",
+      "verification": "configuration gaps become operator tasks; build gaps become worker tasks",
+      "module": "aletheia.gaps"
+    },
+    {
+      "id": "handle.plan",
+      "description": "Persist a resolved request, capability requirements and resume state",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.assistant handle new/refresh/done/cancel",
+      "module": "aletheia.handler"
+    },
+    {
+      "id": "proactive.evaluate",
+      "description": "Evaluate bounded event rules into proposals with cooldown/dedupe",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "aletheia.runtime.process_new_events each Core sync beat evaluates every rule against new bus events; rules from python -m aletheia.assistant rule new",
+      "verification": "rules never directly execute actions",
+      "module": "aletheia.proactive"
+    },
+    {
+      "id": "capability.compose",
+      "description": "Compose named outcomes from reusable capability requirements without authority escalation",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.assistant compose plan",
+      "module": "aletheia.composition"
+    },
+    {
+      "id": "brain.contract",
+      "description": "Model-independent bounded reasoning-provider output contract",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.assistant interpret (deterministic FALLBACK); provider adapters must pass validate_output before any proposal reaches planners",
+      "verification": "unknown output fields and malformed proposals are refused",
+      "module": "aletheia.brain"
+    },
+    {
+      "id": "device.registry",
+      "description": "Private provider-neutral room/device identity, abilities and observed online state",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.assistant device register/room; room scene planning",
+      "module": "aletheia.devices"
+    },
+    {
+      "id": "room.scene.plan",
+      "description": "Validate a room scene against verified-online devices and declared abilities",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.assistant scene new/plan",
+      "module": "aletheia.room"
+    },
+    {
+      "id": "place.manage",
+      "description": "Private saved places and provenance-backed travel-time observations",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.assistant place new/resolve/travel",
+      "module": "aletheia.places"
+    },
+    {
+      "id": "document.intelligence",
+      "description": "Private bounded text ingestion, hashing and literal evidence search",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.assistant doc ingest/search",
+      "module": "aletheia.documents"
+    },
+    {
+      "id": "shopping.plan",
+      "description": "Private requirements/candidates/selection workflow ending in an approval-bounded purchase proposal",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.assistant shop new/candidate/select/propose",
+      "module": "aletheia.shopping"
+    },
+    {
+      "id": "purchase.execute",
+      "description": "Execute an actual purchase with money",
+      "provider": "aletheia.local",
+      "status": "NOT_BUILT",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "caller": "ticket — Phase 22 purchase provider must verify item, total and receipt before this can exist"
+    },
+    {
+      "id": "subscription.track",
+      "description": "Private recurring charge/renewal visibility and cancellation proposals",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.assistant subs new/list/cancel-request",
+      "module": "aletheia.subscriptions"
+    },
+    {
+      "id": "subscription.cancel",
+      "description": "Cancel a live external subscription",
+      "provider": "aletheia.local",
+      "status": "NOT_BUILT",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "caller": "ticket — Phase 22 provider-specific cancellation and verification adapter"
+    },
+    {
+      "id": "finance.visibility",
+      "description": "Private read-only balances/transactions snapshots and net-worth aggregation",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.assistant finance account/accounts/net",
+      "module": "aletheia.finance"
+    },
+    {
+      "id": "finance.transact",
+      "description": "Move money, pay bills or trade assets",
+      "provider": "aletheia.local",
+      "status": "NOT_BUILT",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "caller": "ticket — Phase 22 financial action adapters require live provider, approval and verification design"
+    },
+    {
+      "id": "vehicle.manage",
+      "description": "Private vehicle facts, odometer and maintenance due calculations",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.assistant vehicle new/odometer/rule/due",
+      "module": "aletheia.vehicles"
+    },
+    {
+      "id": "travel.plan",
+      "description": "Private itinerary with observed booking facts and missing-component checks",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.assistant trip new/item/gaps",
+      "module": "aletheia.travel"
+    },
+    {
+      "id": "reservation.plan",
+      "description": "Private reservation candidate/selection workflow with confirmation truth",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.assistant reserve new/candidate/select/propose/confirm",
+      "module": "aletheia.reservations"
+    },
+    {
+      "id": "reservation.book",
+      "description": "Book or cancel a live external reservation",
+      "provider": "aletheia.local",
+      "status": "NOT_BUILT",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "caller": "ticket — Phase 22 live provider booking adapter plus confirmation verification"
+    }
   ]
 }

@@ -7,6 +7,7 @@ and pushes it back — including the race where both sides pushed.
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from aletheia.sync import GitSync
@@ -94,6 +95,22 @@ class GitSyncCase(unittest.TestCase):
         ok, detail = self.sync.commit_push(["exchange/commands"], "core: none")
         self.assertTrue(ok, detail)
         self.assertEqual(detail, "nothing to commit")
+
+    def test_git_never_prompts_a_human(self):
+        # the daemon's git must be non-interactive: a credential-manager
+        # GUI prompt hung the PC sync loop forever on 2026-08-26
+        from aletheia import sync as sync_mod
+        captured = {}
+        real_run = sync_mod.subprocess.run
+
+        def spy(cmd, **kwargs):
+            captured.update(kwargs.get("env") or {})
+            return real_run(cmd, **kwargs)
+
+        with mock.patch.object(sync_mod.subprocess, "run", side_effect=spy):
+            self.sync.pull()
+        self.assertEqual(captured.get("GIT_TERMINAL_PROMPT"), "0")
+        self.assertEqual(captured.get("GCM_INTERACTIVE"), "never")
 
     def test_rejected_push_rebases_and_retries(self):
         # both sides commit; the PC's push is rejected, must rebase and win
