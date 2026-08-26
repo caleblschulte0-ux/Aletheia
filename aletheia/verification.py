@@ -17,45 +17,17 @@ import uuid
 from aletheia import outcomes
 
 PROFILES = {
-    "computer.control": {
-        "auto_verify_execution": True,
-        "execution_evidence": "backend read-back/step verification",
-        "outcome_evidence": "the approved desktop plan itself is the bounded outcome",
-    },
-    "calendar.write": {
-        "auto_verify_execution": True,
-        "execution_evidence": "provider returned normalized state matching the approved plan",
-        "outcome_evidence": "provider state matches requested calendar state",
-    },
-    "browser.interact": {
-        "auto_verify_execution": False,
-        "execution_evidence": "approved browser steps completed",
-        "outcome_evidence": "site state proves the user's intended result",
-    },
-    "email.send": {
-        "auto_verify_execution": False,
-        "execution_evidence": "SMTP accepted the message and local exactly-once receipt exists",
-        "outcome_evidence": "delivery/receipt evidence or another independently observed result",
-    },
-    "automation.execute": {
-        "auto_verify_execution": False,
-        "execution_evidence": "occurrence claimed exactly once and command returned done",
-        "outcome_evidence": "the scheduled command's intended external result is independently observed",
-    },
-    "agent.delegate": {
-        "auto_verify_execution": False,
-        "execution_evidence": "work order created and task parked WAITING_EXTERNAL",
-        "outcome_evidence": "worker completes the task with evidence accepted by the orchestrator",
-    },
+    "computer.control": {"auto_verify_execution": True,"execution_evidence": "backend read-back/step verification","outcome_evidence": "the approved desktop plan itself is the bounded outcome"},
+    "calendar.write": {"auto_verify_execution": True,"execution_evidence": "provider returned normalized state matching the approved plan","outcome_evidence": "provider state matches requested calendar state"},
+    "browser.interact": {"auto_verify_execution": False,"execution_evidence": "approved browser steps completed","outcome_evidence": "site state proves the user's intended result"},
+    "email.send": {"auto_verify_execution": False,"execution_evidence": "SMTP accepted the message and local exactly-once receipt exists","outcome_evidence": "delivery/receipt evidence or another independently observed result"},
+    "automation.execute": {"auto_verify_execution": False,"execution_evidence": "occurrence claimed exactly once and command returned done","outcome_evidence": "the scheduled command's intended external result is independently observed"},
+    "agent.delegate": {"auto_verify_execution": False,"execution_evidence": "work order created and task parked WAITING_EXTERNAL","outcome_evidence": "worker completes the task with evidence accepted by the orchestrator"},
 }
 
 
 def profile(capability: str) -> dict:
-    return dict(PROFILES.get(capability, {
-        "auto_verify_execution": False,
-        "execution_evidence": "capability returned without exception",
-        "outcome_evidence": "independent evidence of the intended result",
-    }))
+    return dict(PROFILES.get(capability, {"auto_verify_execution": False,"execution_evidence": "capability returned without exception","outcome_evidence": "independent evidence of the intended result"}))
 
 
 def _digest(value: object) -> str:
@@ -83,33 +55,23 @@ def begin(capability: str, *, provider: str, intent: str, plan: dict,
         if existing["capability"] != capability or existing["plan_sha256"] != _digest(plan):
             raise ValueError("existing verification action does not match requested plan")
         return existing
-    return outcomes.start(
-        action_id, capability=capability, provider=provider, intent=intent, plan=plan,
-        requested_by=requested_by, approval_id=approval_id,
-        policy_decision=policy_decision, reversible=reversible,
-        inputs_summary=inputs_summary, data_disclosed=data_disclosed,
-    )
+    return outcomes.start(action_id, capability=capability, provider=provider, intent=intent, plan=plan,
+                          requested_by=requested_by, approval_id=approval_id,
+                          policy_decision=policy_decision, reversible=reversible,
+                          inputs_summary=inputs_summary, data_disclosed=data_disclosed)
 
 
 def record_execution(action_id: str, *, succeeded: bool, result_summary: str,
                      evidence: list[dict] | None = None,
                      failure_terminal: bool = False,
                      auto_verify: bool | None = None) -> dict:
-    """Record one execution attempt and bounded evidence.
-
-    Evidence items use the existing outcomes kinds: equals/contains/exists/truthy.
-    The function is idempotent for a terminal record; callers should choose a
-    deterministic action id when the underlying action is itself idempotent.
-    """
     value = outcomes.load(action_id)
     if value["status"] in outcomes.TERMINAL:
         return value
-    if not value["attempts"]:
-        outcomes.add_attempt(
-            action_id,
+    if value["status"] in {"STARTED", "FAILED_RETRYABLE"}:
+        outcomes.add_attempt(action_id,
             outcome="SUCCEEDED" if succeeded else ("FAILED_TERMINAL" if failure_terminal else "FAILED_RETRYABLE"),
-            result_summary=result_summary,
-        )
+            result_summary=result_summary)
     if not succeeded:
         return outcomes.load(action_id)
     for item in evidence or []:
@@ -117,10 +79,8 @@ def record_execution(action_id: str, *, succeeded: bool, result_summary: str,
         current = outcomes.load(action_id)
         if any(e.get("id") == eid for e in current["evidence"]):
             continue
-        outcomes.add_evidence(
-            action_id, eid, kind=item["kind"], observed=item.get("observed"),
-            expected=item.get("expected"), source=item.get("source", "local"),
-        )
+        outcomes.add_evidence(action_id, eid, kind=item["kind"], observed=item.get("observed"),
+                              expected=item.get("expected"), source=item.get("source", "local"))
     current = outcomes.load(action_id)
     should_verify = profile(current["capability"])["auto_verify_execution"] if auto_verify is None else auto_verify
     if should_verify and current["status"] == "AWAITING_VERIFICATION" and current["evidence"]:
@@ -137,14 +97,11 @@ def execution_record(capability: str, *, provider: str, intent: str, plan: dict,
                      action_id: str | None = None,
                      auto_verify: bool | None = None,
                      failure_terminal: bool = False) -> dict:
-    record = begin(
-        capability, provider=provider, intent=intent, plan=plan,
-        requested_by=requested_by, approval_id=approval_id,
-        policy_decision=policy_decision, reversible=reversible,
-        inputs_summary=inputs_summary, data_disclosed=data_disclosed,
-        action_id=action_id,
-    )
-    return record_execution(
-        record["id"], succeeded=succeeded, result_summary=result_summary,
-        evidence=evidence, auto_verify=auto_verify, failure_terminal=failure_terminal,
-    )
+    record = begin(capability, provider=provider, intent=intent, plan=plan,
+                   requested_by=requested_by, approval_id=approval_id,
+                   policy_decision=policy_decision, reversible=reversible,
+                   inputs_summary=inputs_summary, data_disclosed=data_disclosed,
+                   action_id=action_id)
+    return record_execution(record["id"], succeeded=succeeded, result_summary=result_summary,
+                            evidence=evidence, auto_verify=auto_verify,
+                            failure_terminal=failure_terminal)
