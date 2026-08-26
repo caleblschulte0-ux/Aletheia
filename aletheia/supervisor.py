@@ -150,6 +150,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("cmd", nargs="?", default="run",
                     choices=["run", "install", "uninstall"])
     args = ap.parse_args(argv)
+    journal.use_pc_journal()  # supervisor runs only on the PC
     if args.cmd == "install":
         return install()
     if args.cmd == "uninstall":

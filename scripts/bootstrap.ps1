@@ -66,12 +66,40 @@ Write-Host "  Using Python $pyv ($($py -join ' '))" -ForegroundColor Green
 function Py { & $py[0] @pyFlags @args; return $LASTEXITCODE }
 
 # ---- the repo --------------------------------------------------------------
+# This is a RECOVERY tool: it must end with the repo exactly at current
+# main, whatever state the checkout is in. A plain `git pull` once aborted
+# on a locally-written journal and the setup silently continued on STALE
+# code. Local journal lines are salvaged into the PC's own writer file
+# (journal-pc.jsonl — see aletheia/journal.py) before the hard reset;
+# anything else uncommitted on the PC is run-state the fresh main replaces.
 if (Test-Path $dest) {
   Write-Host "  Updating $dest ..."
-  git -C $dest pull --ff-only
+  git -C $dest fetch origin main
+  if ($LASTEXITCODE -ne 0) { throw "git fetch failed - is the network up?" }
+  $localJournal = Join-Path $dest "state\journal\journal.jsonl"
+  $salvage = ""
+  if (Test-Path $localJournal) { $salvage = Get-Content $localJournal -Raw }
+  git -C $dest checkout -f -B main origin/main
+  if ($LASTEXITCODE -ne 0) { throw "git could not reset to origin/main" }
+  if ($salvage) {
+    $upstream = ""
+    if (Test-Path $localJournal) { $upstream = Get-Content $localJournal -Raw }
+    $pcJournal = Join-Path $dest "state\journal\journal-pc.jsonl"
+    $existing = ""
+    if (Test-Path $pcJournal) { $existing = Get-Content $pcJournal -Raw }
+    $known = ($upstream + "`n" + $existing) -split "`r?`n"
+    $new = ($salvage -split "`r?`n") | Where-Object { $_.Trim() -and ($known -notcontains $_) }
+    if ($new) {
+      Add-Content -Path $pcJournal -Value ($new -join "`n") -Encoding utf8
+      git -C $dest add state/journal
+      git -C $dest commit -m "pc: salvage locally journaled entries" | Out-Null
+      Write-Host "  Salvaged $($new.Count) local journal line(s)." -ForegroundColor Yellow
+    }
+  }
 } else {
   Write-Host "  Cloning into $dest ..."
   git clone $repo $dest
+  if ($LASTEXITCODE -ne 0) { throw "git clone failed - is the network up?" }
 }
 Set-Location $dest
 

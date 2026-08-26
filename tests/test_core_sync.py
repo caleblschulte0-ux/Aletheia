@@ -30,7 +30,9 @@ def command_payload(cid, kind, **args):
     }
 
 
-class CoreSyncCase(unittest.TestCase):
+class CoreSyncFixture(unittest.TestCase):
+    """Bare repo + two clones; subclasses add their tests."""
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -67,6 +69,8 @@ class CoreSyncCase(unittest.TestCase):
         run(["git", "commit", "-m", f"chatgpt: {cid}"], self.relay)
         run(["git", "push", "origin", "main"], self.relay)
 
+
+class CoreSyncCase(CoreSyncFixture):
     def test_voice_command_round_trip(self):
         self.relay_files_command("20260826-read", "browse_read", url="https://example.com")
         page = {"url": "https://example.com/", "title": "Example Domain",
@@ -122,7 +126,7 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class SelfUpdateCase(CoreSyncCase):
+class SelfUpdateCase(CoreSyncFixture):
     """A pulled commit touching code triggers restart; state-only commits don't."""
 
     def relay_pushes_file(self, rel, content, msg):
@@ -155,3 +159,44 @@ class SelfUpdateCase(CoreSyncCase):
         self.relay_pushes_file("aletheia/newmod.py", "x = 1\n", "feat")
         status = core.core_tick(self.syncer, self.fleet, self.status)
         self.assertTrue(status["pull"]["ok"])
+
+
+class JournalConflictRegressionCase(CoreSyncFixture):
+    """The 2026-08-26 bootstrap abort: the PC and the cloud both appended
+    to journal.jsonl, so every pull collided. Per-writer files + the
+    checkpoint-before-pull make that collision structurally impossible."""
+
+    def setUp(self):
+        super().setUp()
+        # the Core on the PC writes its OWN file, as core.main() arranges
+        p = mock.patch.object(journal, "JOURNAL_PATH",
+                              self.pc / "state" / "journal" / "journal-pc.jsonl")
+        p.start(); self.addCleanup(p.stop)
+
+    def cloud_appends_journal(self):
+        d = self.relay / "state" / "journal"
+        d.mkdir(parents=True, exist_ok=True)
+        with (d / "journal.jsonl").open("a", encoding="utf-8") as f:
+            f.write('{"ts": "2026-08-26T12:00:00Z", "kind": "note", "actor": '
+                    '"aletheia", "subject": "cloud", "text": "cloud entry"}\n')
+        run(["git", "add", "."], self.relay)
+        run(["git", "commit", "-m", "cloud journal append"], self.relay)
+        run(["git", "push", "origin", "main"], self.relay)
+
+    def test_dirty_pc_journal_plus_cloud_append_pulls_clean(self):
+        journal.append("note", "pc", "local entry before pull")  # dirty tree
+        self.cloud_appends_journal()
+        status = core.core_tick(self.syncer, self.fleet, self.status)
+        self.assertTrue(status["pull"]["ok"], status["pull"])
+        # both entries survive, one merged stream
+        texts = [e["text"] for e in journal.entries()]
+        self.assertIn("local entry before pull", texts)
+        self.assertIn("cloud entry", texts)
+
+    def test_checkpoint_commits_reach_the_remote_without_receipts(self):
+        journal.append("note", "pc", "quiet tick entry")
+        status = core.core_tick(self.syncer, self.fleet, self.status)
+        self.assertTrue(status["push"]["ok"], status["push"])
+        run(["git", "pull", "origin", "main"], self.relay)
+        pc_file = self.relay / "state" / "journal" / "journal-pc.jsonl"
+        self.assertIn("quiet tick entry", pc_file.read_text(encoding="utf-8"))

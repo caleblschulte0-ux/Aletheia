@@ -73,3 +73,20 @@ class OutageRegressionCase(SupervisorCase):
     def test_core_alive_false_when_nothing_listens(self):
         # port 1 is never an Aletheia Core
         self.assertFalse(supervisor.core_alive(port=1))
+
+
+class JournalRoutingCase(unittest.TestCase):
+    def test_use_pc_journal_routes_appends_but_entries_merge(self):
+        import tempfile
+        from aletheia import journal as j
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp) / "state" / "journal"
+            with mock.patch.object(j, "JOURNAL_PATH", d / "journal.jsonl"):
+                j.append("note", "cloud", "from the cloud writer")
+                pc = j.use_pc_journal()
+                self.assertEqual(pc.name, "journal-pc.jsonl")
+                with mock.patch.object(j, "JOURNAL_PATH", pc):
+                    j.append("note", "pc", "from the pc writer")
+                    texts = {e["text"] for e in j.entries()}
+            # same-second entries across files: presence matters, order doesn't
+            self.assertEqual(texts, {"from the cloud writer", "from the pc writer"})

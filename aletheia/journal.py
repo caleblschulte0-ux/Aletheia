@@ -22,6 +22,28 @@ from aletheia.fleet import REPO_ROOT
 JOURNAL_PATH = REPO_ROOT / "state" / "journal" / "journal.jsonl"
 KINDS = {"decision", "event", "alert", "recovery", "action", "brief", "plan", "note", "task"}
 
+# One journal, several writer FILES. The cloud (Actions, CLI) appends to
+# journal.jsonl; the PC Core appends to journal-pc.jsonl. Two machines
+# appending to the same file meant every `git pull` on the PC conflicted
+# with every cloud commit — the 2026-08-26 bootstrap abort. Per-writer
+# files make journal conflicts structurally impossible; entries() reads
+# them all as one stream.
+
+
+def use_pc_journal() -> Path:
+    """Route this PROCESS's appends to the PC writer file (Core/supervisor
+    call this at startup; nothing else should)."""
+    global JOURNAL_PATH
+    JOURNAL_PATH = JOURNAL_PATH.with_name("journal-pc.jsonl")
+    return JOURNAL_PATH
+
+
+def _writer_files(path: Path) -> list[Path]:
+    files = {path} if path.exists() else set()
+    if path.parent.is_dir():
+        files |= set(path.parent.glob("journal*.jsonl"))
+    return sorted(files)
+
 
 def append(kind: str, subject: str, text: str, actor: str = "aletheia",
            refs: list[str] | None = None, path: Path | None = None) -> dict:
@@ -44,14 +66,15 @@ def append(kind: str, subject: str, text: str, actor: str = "aletheia",
 
 
 def entries(path: Path | None = None) -> list[dict]:
+    """Every entry from every writer file, one stream ordered by time."""
     path = path or JOURNAL_PATH
-    if not path.exists():
-        return []
     out = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if line:
-            out.append(json.loads(line))
+    for f in _writer_files(path):
+        for line in f.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line:
+                out.append(json.loads(line))
+    out.sort(key=lambda e: e.get("ts", ""))  # stable: same-file order kept
     return out
 
 

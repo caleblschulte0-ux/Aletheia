@@ -140,6 +140,9 @@ def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
     State-only commits (pulse, receipts, journal) never trigger it.
     """
     status["last_tick"] = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # checkpoint local run-truth FIRST so the pull rebases clean commits,
+    # never a dirty journal (the exact conflict that broke a real PC)
+    syncer.commit(["exchange/commands", "state/journal"], "core: state checkpoint")
     prev_pull = status.get("pull")
     before = syncer.head()
     ok, detail = syncer.pull()
@@ -165,14 +168,17 @@ def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
         journal.append("event", "core:sync",
                        f"local command processing error: {type(exc).__name__}: {exc}",
                        actor=ACTOR)
-    if results:
-        status["commands_executed"] += len(results)
-        ok, detail = syncer.commit_push(
-            ["exchange/commands", "state/journal"],
-            f"core: {len(results)} local command receipt(s)")
-        status["push"] = {"ok": ok, "detail": detail}
-        if not ok:
-            journal.append("event", "core:sync", f"push failed: {detail}", actor=ACTOR)
+    status["commands_executed"] += len(results)
+    # push every tick: receipts when there are any, and any checkpoint
+    # commits from quiet ticks (commit_push no-ops when nothing waits)
+    ok, detail = syncer.commit_push(
+        ["exchange/commands", "state/journal"],
+        f"core: {len(results)} local command receipt(s)" if results
+        else "core: state checkpoint")
+    prev_push = status.get("push")
+    status["push"] = {"ok": ok, "detail": detail}
+    if not ok and (prev_push is None or prev_push.get("ok")):
+        journal.append("event", "core:sync", f"push failing: {detail}", actor=ACTOR)
     return status
 
 
@@ -383,6 +389,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--no-sync", action="store_true",
                     help="serve the API only; no git sync, no local command processing")
     args = ap.parse_args(argv)
+    journal.use_pc_journal()  # this process is the PC writer
     server = make_server(args.host, args.port)
     restarting = threading.Event()
 
