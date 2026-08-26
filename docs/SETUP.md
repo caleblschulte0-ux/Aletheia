@@ -42,12 +42,18 @@ PowerShell:
 irm https://raw.githubusercontent.com/caleblschulte0-ux/Aletheia/main/scripts/bootstrap.ps1 | iex
 ```
 
-It checks git/Python, clones to `~\Aletheia`, runs the tests, starts the
-Core, and opens the Command Center. Afterwards just double-click
-`start-aletheia.bat`.
+It checks git/Python, clones to `~\Aletheia`, runs the tests, offers to
+register Aletheia to **start at every logon** (say Y), and starts it
+under the supervisor with the wall open in a tab.
 
-- Wall: http://127.0.0.1:8777/
+After that there is nothing to maintain: it survives reboots, restarts
+itself if it crashes, and **updates itself** — when new code merges to
+`main`, the Core pulls it and restarts onto it within about a minute.
+
+- Wall (leave this tab open / point the projector at it, F11):
+  http://127.0.0.1:8777/
 - Command Center: http://127.0.0.1:8777/command.html
+- If you skipped auto-start: double-click `start-aletheia.bat`
 
 ---
 

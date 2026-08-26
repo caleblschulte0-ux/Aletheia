@@ -68,6 +68,19 @@ class GitSync:
             return False, f"remote {self.remote!r} is not configured"
         return True, f"{self.remote} -> {out}"
 
+    def head(self) -> str | None:
+        code, out = _git(["rev-parse", "HEAD"], self.root)
+        return out if code == 0 else None
+
+    def changed_paths(self, old: str, new: str,
+                      limit_to: list[str] | None = None) -> list[str]:
+        """Files changed between two commits, optionally under given dirs."""
+        args = ["diff", "--name-only", f"{old}..{new}"]
+        if limit_to:
+            args += ["--", *limit_to]
+        code, out = _git(args, self.root)
+        return [l for l in out.splitlines() if l.strip()] if code == 0 else []
+
     def dirty(self) -> bool:
         code, out = _git(["status", "--porcelain"], self.root)
         return code == 0 and bool(out)

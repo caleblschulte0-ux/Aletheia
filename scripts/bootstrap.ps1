@@ -75,9 +75,17 @@ if ($LASTEXITCODE -ne 0) {
   throw "Aletheia checks failed. The Core was not started."
 }
 
-Write-Host "`n  Aletheia Core is starting — leave this window open." -ForegroundColor Green
+# Always-on: register the supervisor to start hidden at every logon, so
+# Aletheia survives reboots and restarts itself when new code merges.
+$auto = Read-Host "  Start Aletheia automatically at every logon? [Y/n]"
+if ($auto -eq "" -or $auto -match "^[Yy]") {
+  & $py -m aletheia.supervisor install
+}
+
+Write-Host "`n  Aletheia is starting under its supervisor — leave this window open," -ForegroundColor Green
+Write-Host "  or close it and Aletheia returns at next logon (if you said Y above)."
 Write-Host "  Wall:           http://127.0.0.1:8777/"
 Write-Host "  Command Center: http://127.0.0.1:8777/command.html"
 Write-Host "  Stop with Ctrl+C`n"
-Start-Process "http://127.0.0.1:8777/command.html"
-& $py -m aletheia.core
+Start-Process "http://127.0.0.1:8777/"
+& $py -m aletheia.supervisor
