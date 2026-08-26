@@ -55,3 +55,21 @@ class SupervisorCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OutageRegressionCase(SupervisorCase):
+    """Guards from the 2026-08-26 outage: a dead Core with nothing to
+    relaunch it, and a second supervisor fighting the first for the port."""
+
+    def test_supervised_child_carries_the_marker(self):
+        env = supervisor._child_env()
+        self.assertEqual(env.get("ALETHEIA_SUPERVISED"), "1")
+
+    def test_second_supervisor_yields_when_core_already_serving(self):
+        with mock.patch.object(supervisor, "core_alive", return_value=True):
+            code = supervisor.run_forever()  # no launch stub: real preflight path
+        self.assertEqual(code, 0)
+
+    def test_core_alive_false_when_nothing_listens(self):
+        # port 1 is never an Aletheia Core
+        self.assertFalse(supervisor.core_alive(port=1))

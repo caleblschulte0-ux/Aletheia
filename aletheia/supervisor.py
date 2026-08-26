@@ -24,10 +24,11 @@ import shutil
 import subprocess
 import sys
 import time
+import urllib.request
 from pathlib import Path
 
 from aletheia import journal
-from aletheia.core import RESTART_EXIT_CODE
+from aletheia.core import DEFAULT_PORT, RESTART_EXIT_CODE
 from aletheia.fleet import REPO_ROOT
 
 ACTOR = "aletheia-supervisor"
@@ -37,12 +38,37 @@ BACKOFF_MAX_S = 60.0
 STABLE_AFTER_S = 600.0  # this long alive resets the crash backoff
 
 
+def core_alive(port: int = DEFAULT_PORT) -> bool:
+    """Is an Aletheia Core already answering on this machine?"""
+    try:
+        with urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/api/status", timeout=2):
+            return True
+    except Exception:
+        return False
+
+
+def _child_env() -> dict:
+    """The marker telling the Core a supervisor is waiting to relaunch it,
+    so on a code update it may exit RESTART_EXIT_CODE instead of having to
+    hand itself off (see core.main). Never set this by hand."""
+    return {**os.environ, "ALETHEIA_SUPERVISED": "1"}
+
+
 def run_forever(core_args: list[str] | None = None, launch=None,
                 sleep=time.sleep, max_runs: int | None = None) -> int:
     """Relaunch the Core until a clean exit. `launch`/`sleep`/`max_runs`
     exist for tests; real life passes none of them."""
+    if launch is None and core_alive():
+        # a second supervisor must not fight the first for the port
+        journal.append("event", "supervisor",
+                       "another Aletheia is already serving — this one exits",
+                       actor=ACTOR)
+        print("Aletheia is already running at http://127.0.0.1:8777/ — nothing to do.")
+        return 0
     cmd = [sys.executable, "-m", "aletheia.core", *(core_args or [])]
-    launch = launch or (lambda: subprocess.run(cmd, cwd=str(REPO_ROOT)).returncode)
+    launch = launch or (lambda: subprocess.run(
+        cmd, cwd=str(REPO_ROOT), env=_child_env()).returncode)
     backoff = BACKOFF_START_S
     runs = 0
     journal.append("event", "supervisor", "supervisor up — the Core is now persistent",
@@ -95,8 +121,13 @@ def install() -> int:
         return 1
     journal.append("event", "supervisor",
                    f"installed at-logon task {TASK_NAME!r}", actor=ACTOR)
-    print(f"Aletheia now starts at every logon (task {TASK_NAME!r}).\n"
-          "Start it right now with:  schtasks /Run /TN " + TASK_NAME)
+    print(f"Aletheia now starts at every logon (task {TASK_NAME!r}).")
+    if not core_alive():
+        # start it NOW too — "returns at next logon" once meant a closed
+        # setup window left the wall dead until a reboot
+        code, out = _schtasks(["/Run", "/TN", TASK_NAME])
+        print("Started in the background." if code == 0
+              else f"Could not start it now ({out}) — it will start at next logon.")
     return 0
 
 

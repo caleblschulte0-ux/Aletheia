@@ -8,6 +8,27 @@ from unittest import mock
 
 from aletheia import browse, journal, policy
 
+# Browser control is OPTIONAL (requirements-optional.txt). On a machine
+# without playwright these tests SKIP — they must never fail the suite,
+# because the bootstrap gates starting the Core on the suite passing and
+# an optional capability's absence must not take down the required path.
+# This exact chain killed a real setup on 2026-08-26: Python 3.9 + old
+# pip failed the playwright install, and the throw meant no Core at all.
+BROWSER_OK, BROWSER_WHY = browse.available()
+needs_browser = unittest.skipUnless(BROWSER_OK, f"browser control absent: {BROWSER_WHY}")
+
+
+class TestHonestyWithoutBrowser(unittest.TestCase):
+    """The one test that always runs: absence is reported, never crashed."""
+
+    def test_available_returns_verdict_and_actionable_reason(self):
+        ok, reason = browse.available()
+        self.assertIsInstance(ok, bool)
+        self.assertTrue(reason.strip())
+        if not ok:
+            self.assertTrue("playwright" in reason.lower() or "install" in reason.lower(),
+                            f"reason must name the fix: {reason!r}")
+
 FIXTURE = """<!doctype html><title>Aletheia test page</title>
 <body>
   <h1>Hello from the fixture</h1>
@@ -64,6 +85,7 @@ class BrowseCase(unittest.TestCase):
         return aid
 
 
+@needs_browser
 class TestAvailability(BrowseCase):
     def test_reports_ready(self):
         ok, reason = browse.available()
@@ -84,6 +106,7 @@ class TestAvailability(BrowseCase):
         self.assertIn("playwright", reason)
 
 
+@needs_browser
 class TestRead(BrowseCase):
     def test_reads_title_text_and_links(self):
         page = browse.read_page(self.url, profile=self.profile)
@@ -107,6 +130,7 @@ class TestRead(BrowseCase):
         self.assertEqual(out.read_bytes()[:4], b"\x89PNG")
 
 
+@needs_browser
 class TestInteract(BrowseCase):
     def test_unapproved_interaction_refused_before_opening_a_browser(self):
         with self.assertRaises(policy.Halted):
