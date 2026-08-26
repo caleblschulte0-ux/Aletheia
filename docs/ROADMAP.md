@@ -30,7 +30,7 @@ above its truth. Statuses: **BUILT** · **PARTIAL** · **IN PROGRESS** ·
 | 18 | Room devices (Home Assistant) | **BLOCKED** by local Core | `room.scene` NOT_BUILT |
 | 19 | Proactive Aletheia (SURFACE/NOTIFY/ACT tiers) | **PARTIAL** — NOTIFY tier BUILT locally | `aletheia/proactive.py` (bounded rules, cooldown, dedupe receipts — PR #29) + `aletheia/notifications.py` (private notification center — PR #30) evaluated against every new bus event each Core beat; Command Center panel + `/api/notifications` + ACK. `enqueue` proposals persist ordinary QUEUED tasks. The ACT tier stays proposal-only |
 | 20 | Self-expanding capabilities | **BUILT** v0 (gap loop) | `aletheia/gaps.py` + `runtime.reconcile_task_gaps` each Core beat: a task requiring a non-AVAILABLE capability is paused with the gap named, build/configure/verify work is materialized idempotently, and the original resumes when the registry closes the gap. `aletheia/handler.py` persists handle-it requests across the gap. Tests prove pause→materialize→resume |
-| 21 | Mobile (iPhone surface) | **TICKET** | approvals/notifications/voice/camera; furthest out with Phase 22 |
+| 21 | Mobile (iPhone surface) | **PARTIAL** — surface built, transport TICKET | `interface/mobile.html` + `mobile.js` (ChatGPT, Claude-reviewed): phone-first Core view — current state, notifications+ACK, approvals with approve/deny, tasks, quick commands. Honest limit: the Core is loopback-only, so a real phone cannot reach it until an authenticated remote transport exists — that transport is the ticket, and port 8777 must never be exposed as a shortcut |
 | 22 | Broad expansion (travel, shopping, finance visibility, …) | **PARTIAL** — visibility/planning BUILT, world-touching actions NOT_BUILT | ChatGPT PR #30 (reviewed line-by-line): places, documents, shopping, subscriptions, finance (read-only), vehicles, travel, reservations — all private-state models driven by `python -m aletheia.assistant`. Every real-world half (purchase.execute, reservation.book, subscription.cancel, finance.transact) stays NOT_BUILT high-risk operator_always |
 
 ## Systems layer (2026-08-26, ChatGPT PRs #28–30 reviewed + integrated)
@@ -76,11 +76,12 @@ the journal), built the missing wiring, and integrated it:
    now-real Approval Center.
 4. **Phase 10/11 — Voice wake + audio router** on the PC: "Thea" →
    local wake → Core; the prerequisite for Phone V0 (Phase 12).
-5. **Phase 17 — event producers**: the bus, watchers, and consumers
-   are BUILT; what remains is richer producers (mail check emitting
-   mail.reply events, pulse transitions mirrored as events on the PC)
-   so "tell me when they reply" fires from real mail, not just
-   manually recorded messages.
+5. **Phase 17 — event producers**: DONE 2026-08-26 — `mail.poll_events`
+   (new unread -> mail.received; exact reply correlation -> mail.reply;
+   ambiguity refused) and `runtime.mirror_pulse_events`
+   (fleet.health_changed), both idempotent and consumed by the same
+   watcher/proactive path. "Tell me when they reply" now fires from
+   real mail.
 
 ## Non-goals, on the record
 

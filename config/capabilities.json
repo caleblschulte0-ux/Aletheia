@@ -1,5 +1,5 @@
 {
-  "revision": 14,
+  "revision": 15,
   "providers": [
     {
       "id": "aletheia.local",
@@ -235,7 +235,7 @@
       "status": "AVAILABLE",
       "risk_class": "read",
       "approval_policy": "none",
-      "caller": "aletheia.mail.check_unread via intercom kind email_check (LOCAL â€” runs on the PC) and voice",
+      "caller": "aletheia.mail.check_unread via intercom kind email_check (LOCAL â€” runs on the PC) and voice; runtime poll each Core beat (>=300s apart) turns new unread into private bus events and exact-match reply correlation — ambiguity refused, never guessed",
       "verification": "live on the operator's PC 2026-08-26: IMAP login as openrangeinteractive@gmail.com succeeded, 185 unread listed via mail.check_unread; credentials in ~/.aletheia/mail.json (never the repo)",
       "notes": "Configured 2026-08-26 with an operator-supplied Gmail app password (revocable at myaccount.google.com/apppasswords).",
       "module": "aletheia.mail"
@@ -398,7 +398,7 @@
       "risk_class": "low",
       "approval_policy": "none",
       "status": "AVAILABLE",
-      "caller": "aletheia.core.core_tick emits core.sync_failed/core.sync_recovered on pull transitions; python -m aletheia.events emit; consumed by aletheia.runtime.process_new_events",
+      "caller": "aletheia.core.core_tick emits core.sync_failed/core.sync_recovered on pull transitions; python -m aletheia.events emit; consumed by aletheia.runtime.process_new_events; producers: aletheia.mail.poll_events (mail.received/mail.reply, throttled, fingerprints only) and runtime.mirror_pulse_events (fleet.health_changed)",
       "notes": "Private by default (state/private/): event subjects/summaries carry personal facts and the repo is public. Sensitive attribute keys refused; 32KiB cap; occurred_at must be a real aware timestamp.",
       "verification": "tests/test_events.py (13) + tests/test_runtime_expansion.py::TestEventConsumption"
     },
@@ -433,7 +433,7 @@
       "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "none",
-      "caller": "python -m aletheia.assistant outcome start/attempt/evidence/verify (workers record evidence-gated action records)",
+      "caller": "python -m aletheia.assistant outcome start/attempt/evidence/verify (workers record evidence-gated action records); aletheia.verification profiles + runtime receipt reconciliation each Core beat (mail receipts, computer/browser journal, delegated tasks -> private ActionRecords)",
       "module": "aletheia.outcomes"
     },
     {
@@ -578,7 +578,8 @@
       "risk_class": "low",
       "approval_policy": "none",
       "caller": "python -m aletheia.assistant handle new/refresh/done/cancel",
-      "module": "aletheia.handler"
+      "module": "aletheia.handler",
+      "notes": "v2 (2026-08-26): bounded state machine — candidate paths with capability-based selection, WAITING_EXTERNAL, recovery-scheduled retries, AWAITING_VERIFICATION, evidence-gated completion; runtime reconciles/resumes each Core beat. A fallback can change HOW a goal is attempted, never what is permitted."
     },
     {
       "id": "proactive.evaluate",
@@ -747,6 +748,18 @@
       "risk_class": "high",
       "approval_policy": "operator_always",
       "caller": "ticket — Phase 22 live provider booking adapter plus confirmation verification"
+    },
+    {
+      "id": "calendar.write",
+      "description": "Change a live external calendar (create/update/cancel) through a provider adapter",
+      "module": "aletheia.calendar_provider",
+      "provider": "aletheia.local",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "status": "NOT_BUILT",
+      "caller": "ticket: no live Google/Outlook adapter exists. The full seam is BUILT and tested hermetically: normalized events, bounded window sync with conflict handling, write plans sha256-bound to an operator approval, halt-checked, provider state verified against the approved plan before VERIFIED, ActionRecord persisted",
+      "notes": "The seam means a live adapter only implements list/create/update/cancel; every gate already exists and is tested (tests/test_calendar_provider.py).",
+      "verification": "tests/test_calendar_provider.py: approval binding, hash mismatch refusal, provider-verification failure raises, conflict on locally-dirty events"
     }
   ]
 }

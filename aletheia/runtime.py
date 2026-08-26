@@ -194,9 +194,23 @@ def tick(fleet: dict, *, now: dt.datetime | None = None, registry: dict | None =
         if result["outcome"] in {"refused", "error", "invalid"}:
             notifications.publish(f"Schedule {result['schedule']} {result['outcome']}", result["detail"], priority="IMPORTANT", source="scheduler",
                                   dedupe_key=f"schedule:{result['schedule']}:{result.get('occurrence', 'invalid')}:{result['outcome']}", related={"schedule": result["schedule"]})
-    mail_events = poll_mail_events(); pulse_events = mirror_pulse_events(); receipt_records = verification.reconcile_durable_receipts()
-    reply_transitions = evaluate_replies(now=now); event_actions = process_new_events(now=now)
-    return {"schedules": schedules, "mail_events": mail_events, "pulse_events": pulse_events,
-            "action_records": receipt_records, "reply_transitions": reply_transitions,
-            "events_processed": event_actions, "capability_gaps": reconcile_task_gaps(registry=registry),
-            "handle_requests": handler.reconcile_all(registry=registry, now=now)}
+    # Observers of the outside world are best-effort, each isolated: a
+    # corrupt pulse file or a mail hiccup must not stop schedules, reply
+    # tracking, or gap reconciliation (and vice versa).
+    def guarded(name, fn):
+        try:
+            return fn()
+        except Exception as exc:
+            return [{"action": "error", "producer": name,
+                     "detail": f"{type(exc).__name__}: {exc}"}]
+
+    return {
+        "schedules": schedules,
+        "mail_events": guarded("mail", poll_mail_events),
+        "pulse_events": guarded("pulse", mirror_pulse_events),
+        "action_records": guarded("receipts", verification.reconcile_durable_receipts),
+        "reply_transitions": evaluate_replies(now=now),
+        "events_processed": process_new_events(now=now),
+        "capability_gaps": reconcile_task_gaps(registry=registry),
+        "handle_requests": guarded("handler", lambda: handler.reconcile_all(registry=registry, now=now)),
+    }

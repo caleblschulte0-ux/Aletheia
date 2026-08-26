@@ -18,7 +18,7 @@ class RuntimeProducerCase(unittest.TestCase):
             mock.patch.object(runtime,"EVENT_CURSOR",root/"event-cursor.json"),
             mock.patch.object(runtime,"PULSE_CURSOR",root/"pulse-cursor.json"),
             mock.patch.object(mail,"MAIL_DIR",root/"mail"),
-            mock.patch.object(notifications,"NOTIFICATIONS_DIR",root/"notifications"),
+            mock.patch.object(notifications,"NOTICES_DIR",root/"notifications"),
             mock.patch.object(proactive,"RULES_DIR",root/"rules"),
             mock.patch.object(proactive,"RECEIPTS_DIR",root/"rule-receipts"),
         ]

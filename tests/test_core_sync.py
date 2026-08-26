@@ -80,6 +80,17 @@ class CoreSyncFixture(unittest.TestCase):
                 (journal, "JOURNAL_PATH", self.pc / "state" / "journal" / "journal.jsonl")):
             p = mock.patch.object(target, attr, value)
             p.start(); self.addCleanup(p.stop)
+        # the runtime's outside-world observers must never leave the test:
+        # mail polling reached the operator's REAL Gmail from this suite
+        # (and a throttled login hung it); receipts/pulse likewise read
+        # real stores. Each producer has its own dedicated tests.
+        from aletheia import runtime, verification
+        for target, attr in ((runtime, "poll_mail_events"),
+                             (runtime, "mirror_pulse_events")):
+            p = mock.patch.object(target, attr, return_value=[])
+            p.start(); self.addCleanup(p.stop)
+        p = mock.patch.object(verification, "reconcile_durable_receipts", return_value=[])
+        p.start(); self.addCleanup(p.stop)
 
     def relay_files_command(self, cid, kind, **args):
         path = self.relay / "exchange" / "commands" / f"{cid}.json"

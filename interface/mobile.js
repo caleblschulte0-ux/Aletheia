@@ -15,7 +15,8 @@
   }
   function pill(text, cls='') { return `<span class="pill ${cls}">${esc(text)}</span>`; }
   async function command(payload) {
-    return api('/api/command', {method:'POST', body:JSON.stringify({...payload, operator_quote:'mobile surface'})});
+    // no synthetic operator_quote: quotes are the operator's own words or absent
+    return api('/api/command', {method:'POST', body:JSON.stringify(payload)});
   }
   async function ack(id) {
     await api('/api/notifications/ack', {method:'POST', body:JSON.stringify({id})});

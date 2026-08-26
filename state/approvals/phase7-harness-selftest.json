@@ -1,0 +1,11 @@
+{
+  "id": "phase7-harness-selftest",
+  "requested_action": "computer.control:fa389afc13e4ce63f2004547e4f11d15c31b90392f4953267237ac1932797c3d",
+  "reason": "Verify the Windows UI Automation adapter",
+  "consequence": "An unsaved window remains open; nothing is saved or submitted",
+  "reversible": true,
+  "state": "DENIED",
+  "requested_at": "2026-08-26T18:44:37Z",
+  "decided_at": "2026-08-26T18:44:37Z",
+  "decided_via": "operator-cli"
+}

@@ -57,6 +57,9 @@ ACTOR = "aletheia-mail"
 MAX_BODY_CHARS = 20_000
 CHECK_LIMIT = 5
 POLL_SEEN_LIMIT = 2_000
+POLL_MIN_INTERVAL_S = 300  # one IMAP login per 5 min is plenty; a login per
+                           # Core beat got throttled by Gmail live 2026-08-26
+NETWORK_TIMEOUT_S = 15     # a hung socket must never hang the runtime
 
 
 def _config() -> dict:
@@ -101,7 +104,7 @@ class SmtpImapTransport:
         from email import message_from_bytes
         from email.header import decode_header, make_header
         out: list[dict] = []
-        with imaplib.IMAP4_SSL(self.cfg["imap_host"]) as imap:
+        with imaplib.IMAP4_SSL(self.cfg["imap_host"], timeout=NETWORK_TIMEOUT_S) as imap:
             imap.login(self.cfg["address"], self.cfg["password"])
             imap.select("INBOX", readonly=True)  # readonly: checking never marks read
             _, data = imap.search(None, "UNSEEN")
@@ -119,7 +122,7 @@ class SmtpImapTransport:
 
     def send(self, msg: EmailMessage) -> None:
         import smtplib
-        with smtplib.SMTP(self.cfg["smtp_host"], 587) as smtp:
+        with smtplib.SMTP(self.cfg["smtp_host"], 587, timeout=NETWORK_TIMEOUT_S) as smtp:
             smtp.starttls()
             smtp.login(self.cfg["address"], self.cfg["password"])
             smtp.send_message(msg)
@@ -291,8 +294,6 @@ def poll_events(limit: int = 50, transport: MailTransport | None = None) -> list
     """
     if limit < 1 or limit > 500:
         raise ValueError("mail poll limit must be between 1 and 500")
-    driver = transport or SmtpImapTransport()
-    unread = driver.fetch_unread(limit)
     MAIL_DIR.mkdir(parents=True, exist_ok=True)
     state_path = MAIL_DIR / "poll-state.json"
     state_exists = state_path.is_file()
@@ -300,6 +301,17 @@ def poll_events(limit: int = 50, transport: MailTransport | None = None) -> list
         state = json.loads(state_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         state = {"version": 1, "seen": []}
+    if transport is None and state_exists and state.get("updated_at"):
+        # rate-limit REAL polls only; an injected transport is a test/tool
+        try:
+            last = dt.datetime.fromisoformat(str(state["updated_at"]).replace("Z", "+00:00"))
+            age = (dt.datetime.now(dt.timezone.utc) - last).total_seconds()
+            if 0 <= age < POLL_MIN_INTERVAL_S:
+                return []
+        except ValueError:
+            pass
+    driver = transport or SmtpImapTransport()
+    unread = driver.fetch_unread(limit)
     seen_order = [str(x) for x in state.get("seen", []) if isinstance(x, str)]
     if not state_exists:
         baseline = [_fingerprint(message) for message in unread]
@@ -357,6 +369,6 @@ def poll_events(limit: int = 50, transport: MailTransport | None = None) -> list
                 actions.append({"action": "ambiguous", "event": ambiguous["event"]["id"],
                                 "matches": len(candidates)})
         seen.add(fp); seen_order.append(fp)
-    if actions:
-        write_json_atomic(state_path, {"version": 1, "seen": seen_order[-POLL_SEEN_LIMIT:], "updated_at": utcnow()})
+    write_json_atomic(state_path, {"version": 1, "seen": seen_order[-POLL_SEEN_LIMIT:],
+                                   "updated_at": utcnow()})
     return actions

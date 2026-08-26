@@ -1,0 +1,11 @@
+{
+  "id": "phase7-notepad-live",
+  "requested_action": "computer.control:fa389afc13e4ce63f2004547e4f11d15c31b90392f4953267237ac1932797c3d",
+  "reason": "Go live: prove Aletheia can operate this PC (opens Notepad, types one harmless sentence)",
+  "consequence": "An unsaved Notepad window appears on screen; nothing is saved, submitted, or closed",
+  "reversible": true,
+  "state": "APPROVED",
+  "requested_at": "2026-08-26T18:48:39Z",
+  "decided_at": "2026-08-26T18:49:37Z",
+  "decided_via": "operator-via-intercom"
+}

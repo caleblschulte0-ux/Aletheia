@@ -132,10 +132,12 @@ def emit(
     attributes: dict | None = None,
     event_id: str | None = None,
     occurred_at: str | None = None,
-    events_dir: Path = EVENTS_DIR,
-    watchers_dir: Path = WATCHERS_DIR,
+    events_dir: Path | None = None,
+    watchers_dir: Path | None = None,
 ) -> dict:
     """Persist one event, then evaluate every durable watcher against it."""
+    events_dir = Path(events_dir) if events_dir else EVENTS_DIR
+    watchers_dir = Path(watchers_dir) if watchers_dir else WATCHERS_DIR
     event = validate_event(
         {
             "id": event_id or _new_id("evt"),
@@ -208,8 +210,9 @@ def create_watcher(
     created_by: str,
     once: bool = True,
     watcher_id: str | None = None,
-    watchers_dir: Path = WATCHERS_DIR,
+    watchers_dir: Path | None = None,
 ) -> dict:
+    watchers_dir = Path(watchers_dir) if watchers_dir else WATCHERS_DIR
     watcher = validate_watcher(
         {
             "id": watcher_id or _new_id("watch"),
@@ -229,8 +232,9 @@ def cancel_watcher(
     *,
     cancelled_by: str,
     reason: str,
-    watchers_dir: Path = WATCHERS_DIR,
+    watchers_dir: Path | None = None,
 ) -> dict:
+    watchers_dir = Path(watchers_dir) if watchers_dir else WATCHERS_DIR
     watcher_id = _require_text("watcher id", watcher_id, max_len=128)
     if not _ID.fullmatch(watcher_id):
         raise ValueError("invalid watcher id")
@@ -271,7 +275,8 @@ def _trigger_files(watcher_id: str, watchers_dir: Path) -> list[Path]:
     return sorted(p for p in directory.iterdir() if p.is_file() and p.suffix == ".json")
 
 
-def watcher_state(watcher: dict, *, watchers_dir: Path = WATCHERS_DIR) -> str:
+def watcher_state(watcher: dict, *, watchers_dir: Path | None = None) -> str:
+    watchers_dir = Path(watchers_dir) if watchers_dir else WATCHERS_DIR
     wid = watcher["id"]
     if (Path(watchers_dir) / "cancelled" / f"{wid}.json").is_file():
         return "CANCELLED"
@@ -283,9 +288,10 @@ def watcher_state(watcher: dict, *, watchers_dir: Path = WATCHERS_DIR) -> str:
 def evaluate_watchers(
     event: dict,
     *,
-    watchers_dir: Path = WATCHERS_DIR,
+    watchers_dir: Path | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """Evaluate one event. Bad definitions are isolated, never fatal to the bus."""
+    watchers_dir = Path(watchers_dir) if watchers_dir else WATCHERS_DIR
     event = validate_event(event)
     root = Path(watchers_dir)
     definitions = root / "definitions"
@@ -321,7 +327,8 @@ def evaluate_watchers(
     return triggers, errors
 
 
-def list_events(*, events_dir: Path = EVENTS_DIR, limit: int = 50) -> list[dict]:
+def list_events(*, events_dir: Path | None = None, limit: int = 50) -> list[dict]:
+    events_dir = Path(events_dir) if events_dir else EVENTS_DIR
     if limit < 1 or limit > 500:
         raise ValueError("limit must be between 1 and 500")
     root = Path(events_dir)
@@ -336,7 +343,8 @@ def list_events(*, events_dir: Path = EVENTS_DIR, limit: int = 50) -> list[dict]
     return out
 
 
-def list_watchers(*, watchers_dir: Path = WATCHERS_DIR) -> list[dict]:
+def list_watchers(*, watchers_dir: Path | None = None) -> list[dict]:
+    watchers_dir = Path(watchers_dir) if watchers_dir else WATCHERS_DIR
     root = Path(watchers_dir)
     definitions = root / "definitions"
     if not definitions.is_dir():
