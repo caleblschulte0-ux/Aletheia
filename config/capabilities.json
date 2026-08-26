@@ -1,5 +1,5 @@
 {
-  "revision": 17,
+  "revision": 18,
   "providers": [
     {
       "id": "aletheia.local",
@@ -224,10 +224,13 @@
       "id": "voice.wake",
       "description": "Room voice: local wake word ('Thea'), spoken requests into the same Core",
       "provider": "aletheia.local",
-      "status": "NOT_BUILT",
+      "status": "AVAILABLE",
       "risk_class": "medium",
       "approval_policy": "operator_once",
-      "caller": "ticket â€” Phase 10 (Playbook Â§124)"
+      "caller": "Windows task 'AletheiaVoice' runs python -m aletheia.voice_room at logon: vosk offline recognizer (no API keys) + grammar-constrained wake spotter -> POST /api/voice -> the same intercom gates as every channel -> SAPI voice reply",
+      "module": "aletheia.voice_room",
+      "notes": "Live-proven 2026-08-26 by machine self-test: TTS spoke 'Thea, what's going on?' through the speakers, the wake spotter fired, the Core answered through the gates, and she replied out loud ('2 fleet alerts. 7 live tasks.'). Found and fixed on the way: the mic endpoint was hardware-MUTED (the wall mic's silent failure too), the array runs ~500/32768 peak (software AGC added), and the small model cannot spell 'Thea' in open dictation (grammar-constrained spotter added). Audio never leaves the machine; unaddressed speech is dropped unjournaled.",
+      "verification": "self-test round trip on the operator's PC + the task's own listener heard the room independently (journal voice:room 2026-08-26T22:37Z) + 9 hermetic loop tests"
     },
     {
       "id": "email.read",
@@ -364,7 +367,7 @@
       "approval_policy": "none",
       "caller": "interface/voice.js (Web Speech API in the operator's browser) -> POST /api/voice -> voice.interpret -> the same run_command gates as every channel",
       "verification": "tests/test_voice.py: 15 tests â€” wake word, halt/resume, spoken URLs ('example dot com'), approve refuses to guess between two pending, unrecognized speech becomes a journaled note (never a guessed action), endpoint round trip on a live Core",
-      "notes": "NEEDS_CONFIGURATION until the Core runs on the PC and the operator clicks the mic indicator once (browser permission). Ears/mouth are the browser's own (Chrome/Edge); the interpreter is deterministic on purpose - unmatched speech is journaled and said so, never guessed (Â§104). ChatGPT Voice remains the away-from-home channel.",
+      "notes": "NEEDS_CONFIGURATION until the Core runs on the PC and the operator clicks the mic indicator once (browser permission). Ears/mouth are the browser's own (Chrome/Edge); the interpreter is deterministic on purpose - unmatched speech is journaled and said so, never guessed (Â§104). ChatGPT Voice remains the away-from-home channel. 2026-08-26: the PC's mic endpoint was found MUTED in Windows — the likely cause of the wall mic's silent failure; unmuted, and voice_room --check now reports mute honestly.",
       "module": "aletheia.voice"
     },
     {

@@ -10,3 +10,10 @@ playwright>=1.40
 # the tz database for zoneinfo — schedules and calendar availability need it.
 # Linux/macOS have a system database; the wheel is harmless there.
 tzdata
+
+# voice.wake — room voice (Phase 10): offline recognizer + mic + endpoint checks
+#   python -m aletheia.voice_room --setup   (downloads the ~40MB model once)
+vosk
+sounddevice
+pycaw
+comtypes
