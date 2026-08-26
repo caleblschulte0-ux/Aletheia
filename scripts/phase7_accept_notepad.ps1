@@ -4,7 +4,9 @@
 # document, or close Notepad. A result is written under gitignored cache/.
 
 $ErrorActionPreference = "Stop"
-$expectedBranch = "codex/phase7-windows-control-v0"
+# Originally locked to the isolated Codex review branch; the module has
+# since been reviewed and merged, so main (or a claude/* branch) is fine.
+$allowedBranches = @("main", "codex/phase7-windows-control-v0")
 $plan = "examples/computer/notepad-acceptance.json"
 
 if ($env:OS -ne "Windows_NT") {
@@ -16,8 +18,8 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
 }
 
 $branch = (git branch --show-current).Trim()
-if ($branch -ne $expectedBranch) {
-  throw "Refusing to run from '$branch'. Check out '$expectedBranch' so main remains untouched."
+if (($allowedBranches -notcontains $branch) -and ($branch -notlike "claude/*")) {
+  throw "Refusing to run from '$branch'. Check out main (or a claude/* review branch)."
 }
 
 $py = if (Get-Command py -ErrorAction SilentlyContinue) { "py" }
