@@ -6,3 +6,5 @@
 {"ts": "2026-08-26T17:33:01Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
 {"ts": "2026-08-26T17:33:29Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 5s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
 {"ts": "2026-08-26T17:33:29Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-26T17:33:32Z", "kind": "note", "actor": "operator-via-intercom", "subject": "operator", "text": "live evidence: a private schedule executed through the Core runtime on the operator's PC"}
+{"ts": "2026-08-26T17:33:32Z", "kind": "event", "actor": "operator-local-core", "subject": "core:runtime", "text": "schedules: 1"}
