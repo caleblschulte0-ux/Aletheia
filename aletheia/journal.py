@@ -70,7 +70,8 @@ def entries(path: Path | None = None) -> list[dict]:
     path = path or JOURNAL_PATH
     out = []
     for f in _writer_files(path):
-        for line in f.read_text(encoding="utf-8").splitlines():
+        # utf-8-sig: tolerate a BOM from a Windows-side writer
+        for line in f.read_text(encoding="utf-8-sig").splitlines():
             line = line.strip()
             if line:
                 out.append(json.loads(line))
