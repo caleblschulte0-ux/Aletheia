@@ -46,6 +46,9 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
+import subprocess
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -400,8 +403,26 @@ def main(argv: list[str] | None = None) -> int:
         journal.append("event", "core", "local Core stopped")
         return 0
     if restarting.is_set():
-        # under the supervisor this relaunches us on the just-pulled code
-        return RESTART_EXIT_CODE
+        if os.environ.get("ALETHEIA_SUPERVISED") == "1":
+            # the supervisor is waiting on this exit code to relaunch us
+            return RESTART_EXIT_CODE
+        # started bare (old launcher, manual `python -m aletheia.core`):
+        # exiting would leave NOTHING listening and a dead wall — the
+        # 2026-08-26 outage. Hand off to a detached supervisor instead,
+        # which starts the new code and stays to keep it alive.
+        server.server_close()  # release the port before the successor binds
+        journal.append("event", "core",
+                       "code update while unsupervised — handing off to a "
+                       "detached supervisor", actor=ACTOR)
+        kwargs: dict = {}
+        if os.name == "nt":
+            DETACHED_PROCESS, CREATE_NEW_PROCESS_GROUP = 0x00000008, 0x00000200
+            kwargs["creationflags"] = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+        else:
+            kwargs["start_new_session"] = True
+        subprocess.Popen([sys.executable, "-m", "aletheia.supervisor"],
+                         cwd=str(REPO_ROOT), **kwargs)
+        return 0
     return 0
 
 
