@@ -86,6 +86,10 @@
       <div id="approvals" class="empty">loading…</div>
     </section>
     <section>
+      <h2>Notifications</h2>
+      <div id="notifications" class="empty">loading…</div>
+    </section>
+    <section>
       <h2>Tasks</h2>
       <div id="tasks" class="empty">loading…</div>
     </section>
@@ -158,6 +162,13 @@ function sendCommand(ev) {
 }
 
 let haltedNow = false;
+async function ack(id) {
+  await api("/api/notifications/ack", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({id})});
+  refresh();
+}
+
 async function toggleHalt() {
   await post(haltedNow ? {kind: "resume"} : {kind: "halt", reason: "operator pressed HALT"});
 }
@@ -181,6 +192,13 @@ async function refresh() {
          <button class="good" onclick='post({kind:"approve",id:"${esc(a.id)}"})'>APPROVE</button>
          <button class="danger" onclick='post({kind:"deny",id:"${esc(a.id)}",because:"denied from command center"})'>DENY</button>
        </div></div>`).join("") : `<div class="empty">nothing waiting on you</div>`;
+
+    const ns = await api("/api/notifications?state=UNREAD");
+    document.getElementById("notifications").innerHTML = ns.length ? ns.map(n =>
+      `<div class="row"><div><div>${esc(n.title)}</div>
+         <div class="id">${esc(n.body)}</div></div>
+       <button class="good" onclick='ack("${esc(n.id)}")'>ACK</button></div>`).join("")
+      : `<div class="empty">nothing to surface</div>`;
 
     const ts = await api("/api/tasks");
     const live = ts.filter(t => !["COMPLETED","CANCELLED","FAILED_TERMINAL"].includes(t.status));
