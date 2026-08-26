@@ -130,6 +130,16 @@ def install() -> int:
     action = f'"{windowless_interpreter()}" -m aletheia.supervisor'
     code, out = _schtasks(["/Create", "/F", "/SC", "ONLOGON", "/TN", TASK_NAME,
                            "/TR", f'cmd /c cd /d "{REPO_ROOT}" && {action}'])
+    if code != 0 and "denied" in out.lower():
+        # schtasks /SC ONLOGON needs elevation; Register-ScheduledTask can
+        # create a current-user logon task without it (found live 2026-08-26)
+        ps = (f"$a = New-ScheduledTaskAction -Execute '{windowless_interpreter()}' "
+              f"-Argument '-m aletheia.supervisor' -WorkingDirectory '{REPO_ROOT}'; "
+              f"$t = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME; "
+              f"Register-ScheduledTask -TaskName '{TASK_NAME}' -Action $a -Trigger $t -Force")
+        proc = subprocess.run(["powershell", "-NoProfile", "-Command", ps],
+                              capture_output=True, text=True)
+        code, out = proc.returncode, (proc.stdout + proc.stderr).strip()
     if code != 0:
         print(f"could not register the task: {out}")
         return 1

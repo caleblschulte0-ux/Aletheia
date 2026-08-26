@@ -48,8 +48,12 @@ class SupervisorCase(unittest.TestCase):
             supervisor.run_forever(launch=boom, sleep=self.sleeps.append, max_runs=5), 0)
 
     def test_install_is_honest_off_windows(self):
-        # container is linux: install must refuse and say what it would do
-        code = supervisor.install()
+        # off Windows: install must refuse and say what it would do.
+        # (Mocked, not environment-sniffed: on the operator's real PC this
+        # test used to pass only because unelevated schtasks was denied —
+        # and actually re-registered the task once install worked.)
+        with mock.patch.object(supervisor.os, "name", "posix"):
+            code = supervisor.install()
         self.assertEqual(code, 1)
 
 
