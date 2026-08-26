@@ -1,9 +1,7 @@
-"""Provider-neutral contacts and exact, ambiguity-safe person resolution.
+"""Provider-neutral contacts and ambiguity-safe person resolution.
 
-This is Phase 14's local data model, not a Google/Outlook connection. It gives
-Aletheia one stable way to refer to people before provider adapters exist.
-Resolution is deliberately conservative: aliases may help, but two matches are
-an error and an unknown person is never guessed.
+This is Phase 14's stable local contact model, not a claim that Google or
+Outlook is connected. Unknown or ambiguous people are refused, never guessed.
 """
 from __future__ import annotations
 
@@ -12,10 +10,9 @@ import json
 import re
 from pathlib import Path
 
-from aletheia.fleet import REPO_ROOT
-from aletheia.stateio import read_json, safe_id, utcnow, write_json_atomic
+from aletheia.stateio import private_dir, read_json, safe_id, utcnow, write_json_atomic
 
-CONTACTS_DIR = REPO_ROOT / "state" / "contacts"
+CONTACTS_DIR = private_dir("contacts")
 _EMAIL_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 
 
@@ -38,14 +35,16 @@ def validate(contact: dict) -> None:
     if not isinstance(contact["display_name"], str) or not contact["display_name"].strip():
         raise ValueError("display_name is required")
     emails = contact.get("emails", [])
-    if not isinstance(emails, list) or any(not _EMAIL_RE.fullmatch(x) for x in emails):
+    if not isinstance(emails, list) or any(not isinstance(x, str) or not _EMAIL_RE.fullmatch(x) for x in emails):
         raise ValueError("emails must be a list of email addresses")
+    if len({_norm(x) for x in emails}) != len(emails):
+        raise ValueError("duplicate email")
     for key in ("aliases", "phones", "organizations", "tags"):
         value = contact.get(key, [])
         if not isinstance(value, list) or any(not isinstance(x, str) or not x.strip() for x in value):
             raise ValueError(f"{key} must be a list of non-empty strings")
-    if len({_norm(x) for x in emails}) != len(emails):
-        raise ValueError("duplicate email")
+        if len({_norm(x) for x in value}) != len(value):
+            raise ValueError(f"{key} contains duplicates")
 
 
 def save(contact: dict) -> dict:
@@ -56,22 +55,17 @@ def save(contact: dict) -> dict:
 
 def create(contact_id: str, display_name: str, *, emails: list[str] | None = None,
            phones: list[str] | None = None, aliases: list[str] | None = None,
-           organizations: list[str] | None = None, tags: list[str] | None = None) -> dict:
+           organizations: list[str] | None = None, tags: list[str] | None = None,
+           provenance: str = "operator") -> dict:
     path = _path(contact_id)
     if path.exists():
         raise FileExistsError(f"contact {contact_id!r} already exists")
     now = utcnow()
     contact = {
-        "version": 1,
-        "id": contact_id,
-        "display_name": display_name.strip(),
-        "emails": emails or [],
-        "phones": phones or [],
-        "aliases": aliases or [],
-        "organizations": organizations or [],
-        "tags": tags or [],
-        "created_at": now,
-        "updated_at": now,
+        "version": 1, "id": safe_id(contact_id, name="contact id"),
+        "display_name": display_name.strip(), "emails": emails or [], "phones": phones or [],
+        "aliases": aliases or [], "organizations": organizations or [], "tags": tags or [],
+        "provenance": provenance, "created_at": now, "updated_at": now,
     }
     return save(contact)
 
@@ -82,15 +76,25 @@ def load(contact_id: str) -> dict:
     return value
 
 
+def update(contact_id: str, **changes: object) -> dict:
+    allowed = {"display_name", "emails", "phones", "aliases", "organizations", "tags", "provenance"}
+    unknown = set(changes) - allowed
+    if unknown:
+        raise ValueError(f"unsupported contact fields: {sorted(unknown)}")
+    value = load(contact_id)
+    for key, item in changes.items():
+        value[key] = item
+    value["updated_at"] = utcnow()
+    return save(value)
+
+
 def all_contacts() -> list[dict]:
     if not CONTACTS_DIR.is_dir():
         return []
     out = []
     for path in sorted(CONTACTS_DIR.glob("*.json")):
         try:
-            value = read_json(path)
-            validate(value)
-            out.append(value)
+            out.append(load(path.stem))
         except ValueError:
             continue
     return out
@@ -101,21 +105,22 @@ def resolve(query: str, contacts: list[dict] | None = None) -> dict:
     if not q:
         raise ValueError("contact query is empty")
     contacts = all_contacts() if contacts is None else contacts
-    exact: list[dict] = []
-    for c in contacts:
-        candidates = [c["id"], c["display_name"], *c.get("aliases", []), *c.get("emails", [])]
+    exact: dict[str, dict] = {}
+    for contact in contacts:
+        validate(contact)
+        candidates = [contact["id"], contact["display_name"], *contact.get("aliases", []), *contact.get("emails", [])]
         if q in {_norm(x) for x in candidates}:
-            exact.append(c)
+            exact[contact["id"]] = contact
     if not exact:
         raise KeyError(f"no contact matches {query!r}")
-    unique = {c["id"]: c for c in exact}
-    if len(unique) != 1:
-        names = ", ".join(sorted(c["display_name"] for c in unique.values()))
+    if len(exact) != 1:
+        names = ", ".join(sorted(c["display_name"] for c in exact.values()))
         raise LookupError(f"contact {query!r} is ambiguous: {names}")
-    return next(iter(unique.values()))
+    return next(iter(exact.values()))
 
 
 def primary_email(contact: dict) -> str:
+    validate(contact)
     emails = contact.get("emails", [])
     if len(emails) != 1:
         if not emails:
@@ -127,7 +132,8 @@ def primary_email(contact: dict) -> str:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Aletheia contacts")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    p_new = sub.add_parser("new"); p_new.add_argument("id"); p_new.add_argument("name")
+    p_new = sub.add_parser("new")
+    p_new.add_argument("id"); p_new.add_argument("name")
     p_new.add_argument("--email", action="append", default=[]); p_new.add_argument("--alias", action="append", default=[])
     p_show = sub.add_parser("show"); p_show.add_argument("query")
     sub.add_parser("list")
@@ -137,8 +143,8 @@ def main(argv: list[str] | None = None) -> int:
     elif args.cmd == "show":
         print(json.dumps(resolve(args.query), indent=2))
     else:
-        for c in all_contacts():
-            print(f"{c['id']:24} {c['display_name']}")
+        for contact in all_contacts():
+            print(f"{contact['id']:24} {contact['display_name']}")
     return 0
 
 
