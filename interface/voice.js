@@ -23,8 +23,9 @@
   el.append(dot, label);
   document.body.appendChild(el);
 
-  if (!SR) {
-    label.textContent = "voice needs Chrome or Edge";
+  if (!SR || navigator.brave) {
+    // Brave ships the API surface but blocks the speech service behind it
+    label.textContent = "voice needs Chrome or Edge (not Brave/Firefox)";
     return;
   }
 
@@ -79,7 +80,19 @@
     };
     rec.onend = () => { if (armed) { try { rec.start(); } catch (e) {} } };
     rec.onerror = (ev) => {
-      if (ev.error === "not-allowed") { armed = false; setUI("error", "mic blocked"); }
+      // every failure must be visible — a green dot over a dead mic is theater
+      if (ev.error === "no-speech" || ev.error === "aborted") return; // benign
+      if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
+        armed = false;
+        setUI("error", "mic blocked — allow the microphone in site settings");
+      } else if (ev.error === "network") {
+        setUI("error", "speech service unreachable (Chrome needs internet; Brave blocks it)");
+      } else if (ev.error === "audio-capture") {
+        armed = false;
+        setUI("error", "no microphone found");
+      } else {
+        setUI("error", "speech error: " + ev.error);
+      }
     };
     try { rec.start(); setUI("listening", 'say "Thea, …"'); }
     catch (e) { setUI("error", "mic failed"); }
