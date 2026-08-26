@@ -18,10 +18,14 @@ import re
 import uuid
 from pathlib import Path
 
-from aletheia.fleet import REPO_ROOT
+from aletheia.stateio import private_dir
 
-EVENTS_DIR = REPO_ROOT / "state" / "events"
-WATCHERS_DIR = REPO_ROOT / "state" / "watchers"
+# Private by default: event subjects/summaries and watcher notes carry
+# personal facts ("tell me when Alice replies") and this repo is public.
+# The bus is therefore per-machine runtime state, evaluated by the local
+# Core; a future cloud/PC shared bus needs its own privacy contract first.
+EVENTS_DIR = private_dir("events")
+WATCHERS_DIR = private_dir("watchers")
 
 _EVENT_KIND = re.compile(r"^[a-z][a-z0-9_.-]{0,95}$")
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
@@ -100,6 +104,12 @@ def validate_event(event: dict) -> dict:
     subject = _require_text("subject", event.get("subject"), max_len=256)
     summary = _require_text("summary", event.get("summary"), max_len=1024)
     occurred_at = _require_text("occurred_at", event.get("occurred_at"), max_len=40)
+    try:
+        parsed = dt.datetime.fromisoformat(occurred_at.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"occurred_at is not an ISO-8601 timestamp: {occurred_at!r}") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError("occurred_at must be timezone-aware")
     attrs = _validate_attributes(event.get("attributes", {}))
     return {
         "version": 1,
@@ -351,7 +361,10 @@ def _parse_attr(values: list[str]) -> dict:
         if "=" not in value:
             raise ValueError(f"attribute must be key=value: {value}")
         key, raw = value.split("=", 1)
-        attrs[key] = raw
+        try:  # `n=5` matches an int attribute, `to=red` stays a string
+            attrs[key] = json.loads(raw)
+        except json.JSONDecodeError:
+            attrs[key] = raw
     return attrs
 
 

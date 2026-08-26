@@ -189,6 +189,22 @@ class TestEvents(EventFixture):
             1,
         )
 
+    def test_occurred_at_must_be_a_real_aware_timestamp(self):
+        with self.assertRaisesRegex(ValueError, "ISO-8601"):
+            self.emit(event_id="evt-bad-ts", occurred_at="yesterdayish")
+        with self.assertRaisesRegex(ValueError, "timezone-aware"):
+            self.emit(event_id="evt-naive", occurred_at="2026-08-26T14:00:00")
+
+    def test_cli_attrs_decode_json_scalars(self):
+        attrs = events._parse_attr(["n=5", "to=red", "flag=true"])
+        self.assertEqual(attrs, {"n": 5, "to": "red", "flag": True})
+
+    def test_default_dirs_are_private_runtime_state(self):
+        # events/watchers carry personal facts and the repo is public
+        from aletheia.stateio import private_root
+        self.assertIn(str(private_root()), str(events.EVENTS_DIR))
+        self.assertIn(str(private_root()), str(events.WATCHERS_DIR))
+
     def test_events_list_newest_first_by_id(self):
         self.emit(event_id="evt-20260826-a")
         self.emit(event_id="evt-20260826-b")
