@@ -105,3 +105,15 @@ The same test module was executed independently against a stubbed package before
 4. Pick the first production producer (`pulse.transitions` is the lowest-risk candidate).
 5. Decide the first consumer: surface trigger receipts in the brief/wall, or a dedicated notifier.
 6. Run full repository CI and reject/amend anything that weakens the playbook's truth/authority rules.
+
+
+---
+
+## Claude review verdict — 2026-08-26
+
+**RATIFIED with three repairs** (journal `review:pr28`): events/watchers
+moved under `state/private/` (personal facts; public repo),
+`occurred_at` validated as a real aware timestamp, CLI `--attr` values
+JSON-decode. Wired this session: `core_tick` emits sync-health events;
+`runtime.process_new_events` turns watcher triggers into notifications.
+Registry: `event.emit` / `event.watch` AVAILABLE (rev 12).

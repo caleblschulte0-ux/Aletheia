@@ -92,3 +92,13 @@ That is deliberate. The operator asked for a non-invasive review box. Registerin
 - no claim that Phase 14/18/19/20 are complete
 
 Those remain configuration/integration or PC-dependent work and must be represented honestly in the capability registry.
+
+
+---
+
+## Claude review verdict — 2026-08-26
+
+**RATIFIED as written** (journal `review:pr29`). One environment truth
+it exposed: Windows Python ships no tz database — `tzdata` is now on
+the bootstrap's required path. All modules gained real callers this
+session (`python -m aletheia.assistant`, the Core runtime tick).
