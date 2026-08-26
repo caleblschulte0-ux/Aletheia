@@ -78,6 +78,23 @@ class GitSyncCase(unittest.TestCase):
         self.assertTrue(ok)
         self.assertEqual(detail, "nothing to commit")
 
+    def test_absent_path_does_not_strand_the_other_paths(self):
+        # exchange/commands does not exist until the first command lands
+        # (git stores no empty dirs). One unmatched pathspec used to fail
+        # the whole `git add`, and a failed commit() short-circuits
+        # commit_push() -- so the Core pushed NOTHING on a fresh clone.
+        (self.pc / "receipt.json").write_text("{}")
+        ok, detail = self.sync.commit_push(
+            ["exchange/commands", "receipt.json"], "core: receipt")
+        self.assertTrue(ok, detail)
+        run(["git", "pull", "origin", "main"], self.relay)
+        self.assertTrue((self.relay / "receipt.json").exists())
+
+    def test_all_paths_absent_is_nothing_to_commit(self):
+        ok, detail = self.sync.commit_push(["exchange/commands"], "core: none")
+        self.assertTrue(ok, detail)
+        self.assertEqual(detail, "nothing to commit")
+
     def test_rejected_push_rebases_and_retries(self):
         # both sides commit; the PC's push is rejected, must rebase and win
         self.relay_pushes("relay-first.json")

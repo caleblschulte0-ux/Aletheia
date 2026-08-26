@@ -105,7 +105,15 @@ class GitSync:
         """Stage exactly `paths` and commit if anything changed — no push.
         The Core runs this BEFORE pulling so a rebase never has to touch a
         dirty working tree (its journal is nearly always mid-append)."""
-        rels = [str(p) for p in paths]
+        # Only paths that exist: `git add` fails the WHOLE invocation on one
+        # unmatched pathspec, and exchange/commands legitimately does not
+        # exist until the first command lands (git stores no empty dirs). A
+        # fresh clone would fail every checkpoint, and because commit()
+        # failing short-circuits commit_push(), the Core would never push at
+        # all — receipts, journal and pulse all stranded on the PC.
+        rels = [str(p) for p in paths if (self.root / p).exists()]
+        if not rels:
+            return True, "nothing to commit"
         code, out = _git(["add", "--", *rels], self.root)
         if code != 0:
             return False, f"add failed: {out[-200:]}"
