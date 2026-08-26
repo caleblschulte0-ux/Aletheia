@@ -1,5 +1,5 @@
 {
-  "revision": 13,
+  "revision": 14,
   "providers": [
     {
       "id": "aletheia.local",
@@ -232,24 +232,24 @@
       "id": "email.read",
       "description": "Check the inbox: unread senders + subjects, spoken back ('Thea, check my email')",
       "provider": "aletheia.local",
-      "status": "NEEDS_CONFIGURATION",
+      "status": "AVAILABLE",
       "risk_class": "read",
       "approval_policy": "none",
       "caller": "aletheia.mail.check_unread via intercom kind email_check (LOCAL â€” runs on the PC) and voice",
-      "verification": "tests/test_mail.py TestCheckAndVoice â€” speakable summary, empty inbox honest, IMAP opened readonly so checking never marks messages read",
-      "notes": "Same configuration as email.send; headers only, bodies are never fetched in v0.",
+      "verification": "live on the operator's PC 2026-08-26: IMAP login as openrangeinteractive@gmail.com succeeded, 185 unread listed via mail.check_unread; credentials in ~/.aletheia/mail.json (never the repo)",
+      "notes": "Configured 2026-08-26 with an operator-supplied Gmail app password (revocable at myaccount.google.com/apppasswords).",
       "module": "aletheia.mail"
     },
     {
       "id": "email.send",
       "description": "Draft and send email with approval gate",
       "provider": "aletheia.local",
-      "status": "NEEDS_CONFIGURATION",
+      "status": "EXPERIMENTAL",
       "risk_class": "high",
       "approval_policy": "operator_always",
       "caller": "aletheia.mail.send_approved â€” the Core delivers every APPROVED draft each sync tick; drafts come from voice ('Thea, email X that ...'), the intercom kind email_draft, or the Command Center",
       "verification": "tests/test_mail.py: approval bound to a sha256 of the exact draft (edited-after-approval refused), operator_always per send, sent exactly once, DENIED retires, transport failure retries, unknown recipient refused rather than guessed, state/mail gitignored (privacy â€” public repo)",
-      "notes": "NEEDS_CONFIGURATION: set ALETHEIA_MAIL_ADDRESS + ALETHEIA_MAIL_PASSWORD (an app password) on the PC, or ~/.aletheia/mail.json. Gmail-shaped defaults; hosts overridable.",
+      "notes": "Credentials configured 2026-08-26; SMTP send path built+tested hermetically but no live delivery yet. Draft mail-a1e1957d0f awaits its operator_always approval — flips to AVAILABLE on verified real delivery, not before.",
       "module": "aletheia.mail"
     },
     {
