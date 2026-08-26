@@ -95,15 +95,16 @@ class GitSync:
         if code != 0:
             _git(["rebase", "--abort"], self.root)
             return False, f"rebase conflict, aborted cleanly: {out[-200:]}"
+        if "resulted in conflicts" in out:
+            # autostash pop conflicted: dirty file vs upstream — callers
+            # avoid this by committing local state BEFORE pulling
+            return False, f"autostash conflict: {out[-200:]}"
         return True, "up to date with remote"
 
-    def commit_push(self, paths: list[Path | str], message: str) -> tuple[bool, str]:
-        """Stage exactly `paths`, commit if anything changed, push with retry.
-
-        A rejected push (someone else pushed first) pulls and retries up
-        to PUSH_ATTEMPTS times; commits survive the rebase, so nothing is
-        lost by retrying.
-        """
+    def commit(self, paths: list[Path | str], message: str) -> tuple[bool, str]:
+        """Stage exactly `paths` and commit if anything changed — no push.
+        The Core runs this BEFORE pulling so a rebase never has to touch a
+        dirty working tree (its journal is nearly always mid-append)."""
         rels = [str(p) for p in paths]
         code, out = _git(["add", "--", *rels], self.root)
         if code != 0:
@@ -114,6 +115,19 @@ class GitSync:
         code, out = _git(["commit", "-m", message], self.root)
         if code != 0:
             return False, f"commit failed: {out[-200:]}"
+        return True, "committed"
+
+    def commit_push(self, paths: list[Path | str], message: str) -> tuple[bool, str]:
+        """commit(), then push with rebase-and-retry when the remote moved
+        first; commits survive the rebase, so nothing is lost by retrying."""
+        ok, detail = self.commit(paths, message)
+        if not ok or detail == "nothing to commit":
+            # still try the push: earlier ticks may have local commits
+            # (e.g. pre-pull checkpoints) waiting to publish
+            code, out = _git(["rev-list", "--count",
+                              f"{self.remote}/{self.branch}..HEAD"], self.root)
+            if not ok or code != 0 or out.strip() == "0":
+                return ok, detail
         for attempt in range(PUSH_ATTEMPTS):
             code, out = _git(["push", self.remote, f"HEAD:{self.branch}"], self.root)
             if code == 0:
