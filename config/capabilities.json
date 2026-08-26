@@ -1,5 +1,5 @@
 {
-  "revision": 7,
+  "revision": 8,
   "providers": [
     {
       "id": "aletheia.local",
@@ -293,6 +293,18 @@
       "verification": "tests/test_sync.py + tests/test_core_sync.py drive the full round trip against a real local bare repo, including push races, rebase-conflict abort, receipt idempotency, and a dead remote",
       "notes": "NEEDS_CONFIGURATION until the Core runs on the PC — same single blocker as core.serve. Uses the operator's own git credentials; a push that cannot authenticate is journaled, never worked around.",
       "module": "aletheia.sync"
+    },
+    {
+      "id": "core.supervise",
+      "description": "Aletheia stays on: relaunch the Core on crash, restart it onto newly merged code, start at Windows logon",
+      "provider": "aletheia.local",
+      "status": "NEEDS_CONFIGURATION",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "start-aletheia.bat and bootstrap.ps1 run `python -m aletheia.supervisor`; `supervisor install` registers the hidden at-logon Scheduled Task",
+      "verification": "tests/test_supervisor.py (backoff doubles and caps, self-update restarts immediately and resets backoff, Ctrl+C stops, install refuses honestly off Windows) + tests/test_core_sync.py SelfUpdateCase (code commit fires restart against a real repo, state-only commit does not)",
+      "notes": "NEEDS_CONFIGURATION until it runs on the PC. Self-update chain: merge to main -> Core's sync pull sees CODE_PATHS changed -> exits RESTART_EXIT_CODE -> supervisor relaunches on the new code, within about one sync beat.",
+      "module": "aletheia.supervisor"
     },
     {
       "id": "browser.read",

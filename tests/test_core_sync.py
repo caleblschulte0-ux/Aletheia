@@ -120,3 +120,38 @@ class CoreSyncCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SelfUpdateCase(CoreSyncCase):
+    """A pulled commit touching code triggers restart; state-only commits don't."""
+
+    def relay_pushes_file(self, rel, content, msg):
+        path = self.relay / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+        run(["git", "add", "."], self.relay)
+        run(["git", "commit", "-m", msg], self.relay)
+        run(["git", "push", "origin", "main"], self.relay)
+
+    def test_code_commit_fires_on_code_update_and_skips_processing(self):
+        self.relay_pushes_file("aletheia/newmod.py", "x = 1\n", "feat: new code")
+        self.relay_files_command("20260826-read", "browse_read", url="https://example.com")
+        fired = []
+        with mock.patch("aletheia.browse.read_page") as rp:
+            core.core_tick(self.syncer, self.fleet, self.status,
+                           on_code_update=fired.append)
+        self.assertEqual(len(fired), 1)
+        self.assertIn("aletheia/newmod.py", fired[0])
+        rp.assert_not_called()  # restarting takes precedence; next run processes
+
+    def test_state_only_commit_does_not_restart(self):
+        self.relay_pushes_file("state/pulse/latest.json", "{}\n", "pulse")
+        fired = []
+        core.core_tick(self.syncer, self.fleet, self.status,
+                       on_code_update=fired.append)
+        self.assertEqual(fired, [])
+
+    def test_no_callback_means_no_crash_on_code_update(self):
+        self.relay_pushes_file("aletheia/newmod.py", "x = 1\n", "feat")
+        status = core.core_tick(self.syncer, self.fleet, self.status)
+        self.assertTrue(status["pull"]["ok"])

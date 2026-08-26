@@ -116,7 +116,13 @@ def run_command(payload: dict, fleet: dict) -> dict:
     return result
 
 
-def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS) -> dict:
+# a pulled commit touching these means the RUNNING process is now stale
+CODE_PATHS = ["aletheia", "interface", "config", "requirements-optional.txt"]
+RESTART_EXIT_CODE = 42  # tells the supervisor: relaunch me, this is not a crash
+
+
+def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
+              on_code_update=None) -> dict:
     """One beat of the Core's sync loop — synchronous and fully testable.
 
     pull (new commands arrive) -> execute pending LOCAL kinds through the
@@ -124,14 +130,31 @@ def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS) -> dict:
     failure lands in `status` (served at /api/sync) and is retried next
     tick. Journal only state CHANGES, so an offline weekend is two lines,
     not two thousand.
+
+    Self-update: when a pull brings commits touching CODE_PATHS, the
+    running process is stale — `on_code_update(changed_files)` is called
+    (the Core uses it to exit RESTART_EXIT_CODE for the supervisor).
+    State-only commits (pulse, receipts, journal) never trigger it.
     """
     status["last_tick"] = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     prev_pull = status.get("pull")
+    before = syncer.head()
     ok, detail = syncer.pull()
     status["pull"] = {"ok": ok, "detail": detail}
     if prev_pull is not None and prev_pull.get("ok") != ok:
         journal.append("event", "core:sync",
                        f"pull {'recovered' if ok else 'failing'}: {detail}", actor=ACTOR)
+    if ok and before:
+        after = syncer.head()
+        if after and after != before:
+            changed = syncer.changed_paths(before, after, CODE_PATHS)
+            status["head"] = after
+            if changed and on_code_update is not None:
+                journal.append("event", "core:sync",
+                               f"code updated ({len(changed)} file(s), now at "
+                               f"{after[:10]}) — restarting to run it", actor=ACTOR)
+                on_code_update(changed)
+                return status  # restarting; skip command processing this tick
     results = []
     try:
         results = intercom.run_pending(fleet, commands_dir=None, side="local")
@@ -298,7 +321,8 @@ def make_server(host: str = "127.0.0.1", port: int = DEFAULT_PORT,
 
 
 def start_sync_loop(fleet: dict, interval_s: float = SYNC_INTERVAL_S,
-                    stop: threading.Event | None = None) -> threading.Event:
+                    stop: threading.Event | None = None,
+                    on_code_update=None) -> threading.Event:
     """Run core_tick forever in a daemon thread; returns the stop event.
 
     Enabled only when the working copy honestly has a usable remote —
@@ -318,7 +342,7 @@ def start_sync_loop(fleet: dict, interval_s: float = SYNC_INTERVAL_S,
 
     def loop():
         while not stop.is_set():
-            core_tick(syncer, fleet)
+            core_tick(syncer, fleet, on_code_update=on_code_update)
             stop.wait(interval_s)
 
     threading.Thread(target=loop, name="core-sync", daemon=True).start()
@@ -337,8 +361,16 @@ def main(argv: list[str] | None = None) -> int:
                     help="serve the API only; no git sync, no local command processing")
     args = ap.parse_args(argv)
     server = make_server(args.host, args.port)
+    restarting = threading.Event()
+
+    def on_code_update(changed):
+        # runs on the sync thread; shutdown() unblocks serve_forever below
+        restarting.set()
+        threading.Thread(target=server.shutdown, daemon=True).start()
+
     if not args.no_sync:
-        start_sync_loop(load_fleet(), interval_s=args.sync_interval)
+        start_sync_loop(load_fleet(), interval_s=args.sync_interval,
+                        on_code_update=on_code_update)
     journal.append("event", "core", f"local Core up on {args.host}:{args.port}")
     print(f"Aletheia Core: http://{args.host}:{args.port}  "
           f"(wall at /, command center at /command.html) — Ctrl+C stops")
@@ -346,6 +378,10 @@ def main(argv: list[str] | None = None) -> int:
         server.serve_forever()
     except KeyboardInterrupt:
         journal.append("event", "core", "local Core stopped")
+        return 0
+    if restarting.is_set():
+        # under the supervisor this relaunches us on the just-pulled code
+        return RESTART_EXIT_CODE
     return 0
 
 
