@@ -5,3 +5,8 @@
 # browser.read / browser.interact (Playbook §14, Phase 8)
 #   pip install -r requirements-optional.txt && python -m playwright install chromium
 playwright>=1.40
+
+# REQUIRED on Windows (installed by the bootstrap outside this file too):
+# the tz database for zoneinfo — schedules and calendar availability need it.
+# Linux/macOS have a system database; the wheel is harmless there.
+tzdata

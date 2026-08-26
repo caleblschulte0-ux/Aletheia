@@ -120,6 +120,13 @@ if (Test-Path $dest) {
 }
 Set-Location $dest
 
+# ---- REQUIRED: timezone database ------------------------------------------
+# Windows Python ships no tz database; without the tzdata wheel every
+# timezone-aware capability (schedules, calendar availability) fails with
+# ZoneInfoNotFoundError. Tiny, pure-python, wheels-only.
+& $pyExe @pyFlags -m pip install --quiet --only-binary=":all:" tzdata
+if ($LASTEXITCODE -ne 0) { throw "pip could not install tzdata (required for schedules/calendar)" }
+
 # ---- OPTIONAL: browser control — a failure here NEVER stops the setup ------
 if (-not (Test-Path (Join-Path $dest ".browser-installed"))) {
   $answer = Read-Host "  Enable browser control? Downloads Chromium (~150MB) [Y/n]"

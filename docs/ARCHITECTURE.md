@@ -44,17 +44,36 @@ through the loop are the same, which is why the contracts come first.
 | **Intercom** (voice v0 transport, §6/§66) | `exchange/INTERCOM.md` + `aletheia/intercom.py` + `intercom.yml`: ChatGPT relays operator commands, gated execution, receipts | BUILT — needs operator's ChatGPT Project setup |
 | **Front-door actions** | `aletheia/act.py` (dispatch/issue through registry grants) | BUILT |
 | **Ambient wall** (§88–89) | `interface/index.html` — pure view of the pulse (now incl. plans/tasks/alerts) | BUILT; re-aim at "current focus" model as Core grows |
-| **Command Center** (§90) | — | Phase 6 (the intercom is the interim command channel) |
-| **Core runtime on Windows** (§108–110) | — | Phase 6+; contracts/task store designed to be adopted by it |
-| **Computer control** (§12–13) | — | Phase 7, `computer.control` NOT_BUILT in registry |
-| **Browser control** (§14) | — | Phase 8, `browser.control` NOT_BUILT |
+| **Command Center** (§90) | `interface/command.html` served by the Core: approvals, live tasks, UNREAD notifications with ACK, command composer over `/api/kinds`, HALT/RESUME | BUILT v1 |
+| **Core runtime on Windows** (§108–110) | `aletheia/core.py` + `sync.py` + `supervisor.py`: loopback API, wall + Command Center, sync loop executing PC-only kinds, self-updating under the supervisor. Each beat also runs `runtime.tick` (below) | BUILT v1 |
+| **Computer control** (§12–13) | `aletheia/computer.py` + Core `POST /api/computer` (Codex PRs #11–16, Claude-reviewed) | EXPERIMENTAL — awaits the Windows acceptance run |
+| **Browser control** (§14) | `aletheia/browse.py`: read open, interact approval-gated; real-Chromium tests | BUILT v1 |
 | **Agent Director** (§64–67) | Interim: workers run as each app's own sessions/scheduled tasks (proven daily in Shorts-pipeline); `agent.delegate` EXPERIMENTAL | Phase 9 makes delegation programmatic |
 | **Voice / wake / audio router** (§22–26) | — | Phases 10–11 |
 | **Phone V0** (§17–21) | — | Phase 12; needs the local PC (audio routing cannot run in CI) |
-| **Event bus / watchers** (§51–52) | Embryo: pulse `transitions` are the first event type; PR-event wakes exist per-repo | Phase 17 |
-| **Memory domains / people / orgs** | — | Phase 16 |
-| **Room / devices** (§83–85) | — | Phase 18 |
-| **Self-expanding capabilities** (§69–70) | The loop exists socially: gap → suggestion/plan/task → Claude session builds → registry entry. Not yet automatic | Phase 20 |
+| **Event bus / watchers** (§51–52) | `aletheia/events.py` (private one-file-per-event bus, durable watchers) consumed by `runtime.process_new_events` → notifications; core_tick emits sync-health events | BUILT v0 |
+| **Memory domains / people / orgs** | `aletheia/memory.py` → `memory/` (provenance, correction-learning) + `aletheia/contacts.py` (private, ambiguity-safe) | BUILT v1 |
+| **Room / devices** (§83–85) | `aletheia/devices.py` + `aletheia/room.py`: registry + scene PLANS (`READY_FOR_PROVIDER`); no live provider yet | PARTIAL — adapter NOT_BUILT |
+| **Self-expanding capabilities** (§69–70) | `aletheia/gaps.py` + `runtime.reconcile_task_gaps` every Core beat: gap-blocked tasks pause with the gap named, build/configure work materializes idempotently, originals resume when the registry closes the gap | BUILT v0 |
+
+### The systems layer (2026-08-26)
+
+One runtime beat (`aletheia/runtime.py`, run inside every `core_tick`)
+drives the durable systems added by ChatGPT PRs #28–30 after Claude's
+line-by-line review:
+
+| System | Module | Notes |
+|---|---|---|
+| Schedules | `aletheia/scheduler.py` | once/interval/daily/weekly, tz-aware, idempotent occurrence claims; due commands revalidate through the intercom grammar + gates |
+| Reply expectations | `aletheia/communications.py` | REPLIED/OVERDUE transitions → notifications |
+| Notifications | `aletheia/notifications.py` | private center; Core API + Command Center panel + `assistant ack` |
+| Action records | `aletheia/outcomes.py` | hash-bound plans, evidence-gated VERIFIED (§30) |
+| Current state | `aletheia/current_state.py` | `GET /api/state`; aggregates, never invents |
+| Proactive rules | `aletheia/proactive.py` | bounded proposals with cooldown; never executes |
+| Capability gaps | `aletheia/gaps.py` + `handler.py` | assess → materialize → resume |
+| Delegated authority | `aletheia/authority.py` | EXPERIMENTAL: records only — nothing consumes grants; consuming would widen authority and awaits an operator ruling |
+| Personal-OS stores | places, documents, shopping, subscriptions, finance, vehicles, travel, reservations | private visibility/planning; world-touching halves NOT_BUILT operator_always |
+| Operator front door | `aletheia/assistant.py` | the CLI giving every verb a real caller (rule zero) |
 
 ## The worker model (§4–7)
 
@@ -88,6 +107,10 @@ is the deepest reason the Windows runtime is on the critical path.
 - `config/` — declared truth: fleet registry, capability registry
 - `plans/` — Goal store (authored intent, validated in CI)
 - `state/` — run truth, CI-writable: pulse, briefs, journal, tasks
+- `state/private/` — GITIGNORED per-machine runtime state (events,
+  watchers, schedules, notifications, contacts, calendar, projects,
+  and every other personal store): personal facts never enter the
+  public repo; move it with `ALETHEIA_PRIVATE_STATE`
 - `exchange/` — the ChatGPT worker's two UNGATED lanes: suggestions
   (advice) and commands (relayed operator asks) + receipts. Neither
   carries code; a worker the operator has explicitly authorized to edit

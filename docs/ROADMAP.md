@@ -23,15 +23,38 @@ above its truth. Statuses: **BUILT** · **PARTIAL** · **IN PROGRESS** ·
 | 11 | Audio Router | **BLOCKED** by local Core | Windows-only subsystem |
 | 12 | Phone V0 (call app ↔ virtual audio ↔ ChatGPT Voice) | **BLOCKED** by local Core + Phase 11 | EXPERIMENTAL until measured per §126; conduct rules §19 already doctrine |
 | 13 | Email vertical slice | **BUILT** v0 code — NEEDS_CONFIGURATION | `aletheia/mail.py`: check unread by voice; 'Thea, email <name> that ...' -> local draft (gitignored — repo is public) + approval bound to a sha256 of the exact content -> 'Thea, approve' -> the Core sends it next tick and writes a receipt. Edited-after-approval refused; unknown recipient refused, never guessed; DENIED retires the draft. 15 tests. Needs ALETHEIA_MAIL_ADDRESS + app password on the PC |
-| 14 | Calendar + contacts | **TICKET** | `calendar.read` NOT_BUILT |
+| 14 | Calendar + contacts | **PARTIAL** — local models BUILT, providers TICKET | `aletheia/contacts.py` (ambiguity-safe resolution, never guesses) + `aletheia/calendar.py` (aware datetimes, conflicts, buffers, multi-day free-slot search) + `aletheia/meetings.py` (`assistant meet`); authored by ChatGPT (PR #29), reviewed line-by-line by Claude. Live Google/Outlook adapter (`calendar.read`) stays NOT_BUILT |
 | 15 | Multi-capability scheduling | **BLOCKED** by 13+14 | the first big orchestration acceptance test |
 | 16 | Memory V1 (identity/preferences/people/orgs with provenance) | **BUILT** v1 | `aletheia/memory.py` → `memory/`: four domains, provenance on every entry, correction-learning (§46) records what it replaced, "why do you think that" answerable; writable by voice (`remember`); 6 tests. Richer person/org schemas later |
-| 17 | Event bus + watchers | **PARTIAL** embryo | pulse `transitions` are the first events; sentinel is the first watcher; general bus/watcher store not built |
+| 17 | Event bus + watchers | **BUILT** v0 | `aletheia/events.py` (ChatGPT PR #28, reviewed + repaired by Claude): immutable one-file-per-event bus + durable watchers with exactly-once triggers, PRIVATE by default (subjects carry personal facts; repo is public). Wired: core_tick emits sync-health events; `runtime.process_new_events` turns watcher triggers into notifications. 13+ tests |
 | 18 | Room devices (Home Assistant) | **BLOCKED** by local Core | `room.scene` NOT_BUILT |
-| 19 | Proactive Aletheia (SURFACE/NOTIFY/ACT tiers) | **PARTIAL** | sentinel + brief cover LOG/NOTIFY; ACT tier waits on Phase 4 policy |
-| 20 | Self-expanding capabilities | **PARTIAL** (social loop) | gap → suggestion/plan/task → Claude builds → registry entry works with humans in the loop; automatic gap-to-task not built |
+| 19 | Proactive Aletheia (SURFACE/NOTIFY/ACT tiers) | **PARTIAL** — NOTIFY tier BUILT locally | `aletheia/proactive.py` (bounded rules, cooldown, dedupe receipts — PR #29) + `aletheia/notifications.py` (private notification center — PR #30) evaluated against every new bus event each Core beat; Command Center panel + `/api/notifications` + ACK. `enqueue` proposals persist ordinary QUEUED tasks. The ACT tier stays proposal-only |
+| 20 | Self-expanding capabilities | **BUILT** v0 (gap loop) | `aletheia/gaps.py` + `runtime.reconcile_task_gaps` each Core beat: a task requiring a non-AVAILABLE capability is paused with the gap named, build/configure/verify work is materialized idempotently, and the original resumes when the registry closes the gap. `aletheia/handler.py` persists handle-it requests across the gap. Tests prove pause→materialize→resume |
 | 21 | Mobile (iPhone surface) | **TICKET** | approvals/notifications/voice/camera; furthest out with Phase 22 |
-| 22 | Broad expansion (travel, shopping, finance visibility, …) | **TICKET** | only after primitives hold |
+| 22 | Broad expansion (travel, shopping, finance visibility, …) | **PARTIAL** — visibility/planning BUILT, world-touching actions NOT_BUILT | ChatGPT PR #30 (reviewed line-by-line): places, documents, shopping, subscriptions, finance (read-only), vehicles, travel, reservations — all private-state models driven by `python -m aletheia.assistant`. Every real-world half (purchase.execute, reservation.book, subscription.cancel, finance.transact) stays NOT_BUILT high-risk operator_always |
+
+## Systems layer (2026-08-26, ChatGPT PRs #28–30 reviewed + integrated)
+
+Under explicit operator authorization, ChatGPT drafted a repo-only
+systems layer; Claude reviewed every line, repaired the defects (see
+the journal), built the missing wiring, and integrated it:
+
+- **Scheduler** (`aletheia/scheduler.py`): durable once/interval/daily/
+  weekly schedules, timezone-aware, idempotent occurrence claims — due
+  commands revalidate through the intercom grammar and the same gates
+  as voice, inside every Core sync beat (`runtime.run_due_schedules`).
+- **Communications** (`aletheia/communications.py`): channel-neutral
+  threads/messages + reply expectations; `runtime.evaluate_replies`
+  turns REPLIED/OVERDUE transitions into notifications.
+- **Action records** (`aletheia/outcomes.py`): hash-bound plans,
+  attempts separate from verification, evidence-gated VERIFIED (§30).
+- **Current state** (`aletheia/current_state.py`): the canonical NOW —
+  Core `GET /api/state`, `assistant state`.
+- **Delegated authority** (`aletheia/authority.py`): EXPERIMENTAL —
+  grant records work, but no acting path consumes them; wiring
+  consumption would widen authority and waits on an operator ruling.
+- **Assistant CLI** (`aletheia/assistant.py`): the operator front door
+  giving every personal-OS verb a real caller (rule zero).
 
 ## Next five engineering milestones (priority order, per §137)
 
@@ -53,9 +76,11 @@ above its truth. Statuses: **BUILT** · **PARTIAL** · **IN PROGRESS** ·
    now-real Approval Center.
 4. **Phase 10/11 — Voice wake + audio router** on the PC: "Thea" →
    local wake → Core; the prerequisite for Phone V0 (Phase 12).
-5. **Phase 17 — Event bus + watchers**: generalize pulse transitions
-   into a shared event vocabulary with durable watchers ("tell me when
-   they reply").
+5. **Phase 17 — event producers**: the bus, watchers, and consumers
+   are BUILT; what remains is richer producers (mail check emitting
+   mail.reply events, pulse transitions mirrored as events on the PC)
+   so "tell me when they reply" fires from real mail, not just
+   manually recorded messages.
 
 ## Non-goals, on the record
 
