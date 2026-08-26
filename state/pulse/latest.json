@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-26T02:01:08Z",
+  "generated_at": "2026-08-26T07:12:01Z",
   "fleet_revision": 3,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,55 +11,55 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
-          "sha": "060e12bbd857",
-          "date": "2026-08-25T22:38:51Z",
-          "message": "Merge pull request #19 from caleblschulte0-ux/claude/project-alathea-interface-ah59fv"
+          "sha": "09f8b2c88e4c",
+          "date": "2026-08-26T03:54:47Z",
+          "message": "Merge pull request #22 from caleblschulte0-ux/claude/project-alathea-interface-ah59fv"
         },
         {
-          "sha": "18ab706afcd1",
-          "date": "2026-08-25T22:38:35Z",
-          "message": "Who may edit: the gate is the operator's permission, not worker identity"
+          "sha": "334688451940",
+          "date": "2026-08-26T03:54:32Z",
+          "message": "Voice on the page itself: talk to the wall, Thea answers \u2014 no side app"
         },
         {
-          "sha": "3da992cfacb0",
-          "date": "2026-08-25T22:23:54Z",
-          "message": "Merge pull request #18 from caleblschulte0-ux/claude/project-alathea-interface-ah59fv"
+          "sha": "63f22a545eb9",
+          "date": "2026-08-26T03:42:50Z",
+          "message": "Merge pull request #21 from caleblschulte0-ux/claude/project-alathea-interface-ah59fv"
         },
         {
-          "sha": "f9a2fdee759b",
-          "date": "2026-08-25T22:23:40Z",
-          "message": "Record the operator's Codex authorization as a closed exception"
+          "sha": "d1bc31a3009c",
+          "date": "2026-08-26T03:42:34Z",
+          "message": "Always-on: supervisor + self-update make the Core a permanent resident"
         },
         {
-          "sha": "6fd67dc19f3e",
-          "date": "2026-08-25T22:20:29Z",
-          "message": "Merge pull request #17 from caleblschulte0-ux/claude/project-alathea-interface-ah59fv"
+          "sha": "4626c9c4de22",
+          "date": "2026-08-26T03:16:29Z",
+          "message": "Merge pull request #20 from caleblschulte0-ux/claude/project-alathea-interface-ah59fv"
         }
       ],
       "commit": {
-        "sha": "060e12bbd857",
-        "date": "2026-08-25T22:38:51Z",
-        "message": "Merge pull request #19 from caleblschulte0-ux/claude/project-alathea-interface-ah59fv"
+        "sha": "09f8b2c88e4c",
+        "date": "2026-08-26T03:54:47Z",
+        "message": "Merge pull request #22 from caleblschulte0-ux/claude/project-alathea-interface-ah59fv"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-08-26T02:01:07Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/32921137468"
+          "updated_at": "2026-08-26T07:11:57Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/32941593161"
         },
         "ci.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-08-25T22:39:46Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/32907141167"
+          "updated_at": "2026-08-26T03:55:43Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/32928225512"
         }
       },
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 14199
+          "bytes": 14107
         }
       },
       "health": "green"
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "97917f0918c9",
-          "date": "2026-08-25T23:35:38Z",
-          "message": "retro: brief + triage for 20260825 [skip ci]"
+          "sha": "89c722a2549f",
+          "date": "2026-08-26T05:47:31Z",
+          "message": "doctor: evidence pack + backlog 2026-08-26 [skip ci]"
         },
         {
-          "sha": "48424eebe5db",
-          "date": "2026-08-25T21:42:43Z",
-          "message": "explainer: update posted log + analytics [skip ci]"
+          "sha": "2cc9fe49ac9f",
+          "date": "2026-08-26T05:17:59Z",
+          "message": "doctor: mark 7414ad03de3e done [skip ci]"
         },
         {
-          "sha": "127931b2620b",
-          "date": "2026-08-25T18:32:57Z",
-          "message": "doctor: consolidate ChatGPT scheduled task router"
+          "sha": "532ab5994258",
+          "date": "2026-08-26T05:17:01Z",
+          "message": "exchange: phase A bundle for 20260826 [skip ci]"
         },
         {
-          "sha": "4dbf640660b1",
-          "date": "2026-08-25T18:05:03Z",
-          "message": "explainer: update posted log + analytics [skip ci]"
+          "sha": "4fb5f082e2b2",
+          "date": "2026-08-26T05:16:45Z",
+          "message": "exchange: attest Phase B media cache hits against today's claim (#317)"
         },
         {
-          "sha": "d73dc9b1860e",
-          "date": "2026-08-25T15:58:27Z",
-          "message": "watchdog: chatgpt task verdicts 20260825 [skip ci]"
+          "sha": "ed89843f2290",
+          "date": "2026-08-26T04:06:18Z",
+          "message": "doctor: evidence pack + backlog 2026-08-26 [skip ci]"
         }
       ],
       "commit": {
-        "sha": "97917f0918c9",
-        "date": "2026-08-25T23:35:38Z",
-        "message": "retro: brief + triage for 20260825 [skip ci]"
+        "sha": "89c722a2549f",
+        "date": "2026-08-26T05:47:31Z",
+        "message": "doctor: evidence pack + backlog 2026-08-26 [skip ci]"
       },
       "vitals": [
         {
@@ -129,8 +129,8 @@
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-08-25T10:05:12Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/32835313306"
+          "updated_at": "2026-08-26T05:17:06Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/32933436109"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
@@ -141,8 +141,8 @@
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-08-25T17:50:10Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/32880046998"
+          "updated_at": "2026-08-26T05:54:54Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/32935805027"
         },
         "third.yml": {
           "status": "completed",
@@ -165,8 +165,8 @@
         "doctor.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-08-25T05:45:10Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/32814060635"
+          "updated_at": "2026-08-26T05:47:36Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/32935421245"
         }
       },
       "state_files": {
@@ -358,14 +358,7 @@
       "health": "dormant"
     }
   },
-  "transitions": [
-    {
-      "repo": "aletheia",
-      "github": "Aletheia",
-      "from": "red",
-      "to": "green"
-    }
-  ],
+  "transitions": [],
   "alerts": [
     {
       "repo": "shorts_pipeline",
@@ -398,10 +391,10 @@
     ]
   },
   "tasks": {
-    "live": 10,
+    "live": 9,
     "by_status": {
-      "COMPLETED": 5,
-      "QUEUED": 8,
+      "COMPLETED": 6,
+      "QUEUED": 7,
       "WAITING_OPERATOR": 2
     },
     "items": [
@@ -432,12 +425,6 @@
         "description": "Point a ChatGPT scheduled task at state/pulse/briefing.md with the exchange/README.md contract"
       },
       {
-        "id": "core-processes-commands",
-        "status": "QUEUED",
-        "description": "Let the local Core process exchange/commands itself, so voice-relayed commands can use PC-only capabilities (browser, later computer control) instead of failing in Actions",
-        "worker": "claude"
-      },
-      {
         "id": "computer-browser-v0",
         "status": "QUEUED",
         "description": "Phases 7-8: accessibility-first Windows control + dedicated browser profile on the local Core",
@@ -447,6 +434,12 @@
         "id": "local-core-bootstrap",
         "status": "WAITING_OPERATOR",
         "description": "Phase 6+: persistent local service on the Windows PC adopting the same contracts and stores",
+        "worker": "claude"
+      },
+      {
+        "id": "computer-v0",
+        "status": "QUEUED",
+        "description": "Phase 7: accessibility-first Windows computer control, written and verified against the running local Core",
         "worker": "claude"
       }
     ]
