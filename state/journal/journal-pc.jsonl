@@ -1,0 +1,5 @@
+{"ts": "2026-08-25T19:20:15Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-25T19:29:34Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core stopped"}
+{"ts": "2026-08-26T14:31:19Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
+{"ts": "2026-08-26T14:31:19Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-26T14:31:20Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "push failing: add failed: fatal: pathspec 'exchange/commands' did not match any files"}
