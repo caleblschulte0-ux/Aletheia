@@ -152,3 +152,4 @@
 {"ts": "2026-08-26T22:06:58Z", "kind": "decision", "actor": "test", "subject": "approval:ap-exp", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-26T22:07:00Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
 {"ts": "2026-08-26T22:07:00Z", "kind": "decision", "actor": "test", "subject": "approval:ap-buy", "text": "APPROVED — operator approved in test"}
+{"ts": "2026-08-26T22:14:00Z", "kind": "decision", "actor": "operator-cli", "subject": "approval:mail-a1e1957d0f", "text": "APPROVED — operator replied 'Approved' in the Claude session, 2026-08-26"}
