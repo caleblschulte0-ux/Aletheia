@@ -1,5 +1,5 @@
 {
-  "revision": 12,
+  "revision": 13,
   "providers": [
     {
       "id": "aletheia.local",
@@ -202,13 +202,13 @@
       "id": "computer.control",
       "description": "Operate the Windows PC: observe, open apps, click, type (accessibility-first)",
       "provider": "aletheia.local",
-      "status": "EXPERIMENTAL",
+      "status": "AVAILABLE",
       "risk_class": "high",
       "approval_policy": "operator_always",
       "caller": "aletheia.computer.execute â€” reachable through the local Core's POST /api/computer and the CLI; every run needs an approval bound to that exact plan",
       "module": "aletheia.computer",
-      "verification": "policy layer verified hermetically (41 tests, injected backend): exact-plan approval binding by sha256, single-use claim, halt checked before setup and every step, screen coordinates refused, plan validated before any desktop access",
-      "notes": "EXPERIMENTAL, not AVAILABLE: the Windows UI Automation backend has never executed on Windows â€” no reviewer here has that platform. scripts/phase7_accept_notepad.ps1 is the acceptance run that decides whether this becomes AVAILABLE or gets repaired."
+      "verification": "run computer-6c7d4dd6357b, 2026-08-26T18:57Z: approval phase7-notepad-live-2 APPROVED by the operator in the Command Center; open_app/wait/focus/set_text all verified, typed text read back through UIA and matched exactly; 33 hermetic tests + tests/test_core_computer.py",
+      "notes": "Live-verified on the operator's Windows 11 PC 2026-08-26. Two rounds of real acceptance found and fixed: PowerShell mangling the harness's embedded Python; set_edit_text absent on Win11's Document control (UIA Value pattern fallback with read-back verification); a window match that could reach operator documents (plans now scope to their own scratch file). Approvals remain operator_always, sha256-bound to the exact plan, consumed once even on failure."
     },
     {
       "id": "phone.call",

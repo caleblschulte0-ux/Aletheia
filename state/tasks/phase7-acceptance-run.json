@@ -1,13 +1,14 @@
 {
   "id": "phase7-acceptance-run",
   "description": "Run scripts/phase7_accept_notepad.ps1 on the Windows PC; promote computer.control EXPERIMENTAL -> AVAILABLE or file the repairs",
-  "status": "QUEUED",
+  "status": "COMPLETED",
   "created_at": "2026-08-25T22:19:34Z",
-  "updated_at": "2026-08-25T22:19:34Z",
+  "updated_at": "2026-08-26T18:56:25Z",
   "attempts": 0,
   "priority": 1,
   "dependencies": [
     "local-core-bootstrap"
   ],
-  "assigned_worker": "claude"
+  "assigned_worker": "claude",
+  "result": "PASSED: run computer-6c7d4dd6357b on the operator's PC — all steps verified, text read back exactly; registry rev 13 computer.control AVAILABLE; receipt cache/phase7-acceptance/"
 }
