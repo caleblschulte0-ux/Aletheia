@@ -48,6 +48,50 @@ def _spoken_url(tail: str) -> str | None:
     return "https://" + t
 
 
+def _spoken_time(text: str) -> str | None:
+    """'8 am' / '8:30 pm' / '20:15' -> 'HH:MM', else None."""
+    t = text.strip().lower().replace(".", "")
+    m = re.fullmatch(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)?", t)
+    if not m:
+        return None
+    hour, minute = int(m.group(1)), int(m.group(2) or 0)
+    if m.group(3) == "pm" and hour != 12:
+        hour += 12
+    if m.group(3) == "am" and hour == 12:
+        hour = 0
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        return None
+    return f"{hour:02d}:{minute:02d}"
+
+
+def _spoken_day(text: str) -> str | None:
+    """'today' / 'tomorrow' / '2026-08-27' -> ISO date, else None."""
+    import datetime as dt
+    t = text.strip().lower().rstrip(".?!")
+    today = dt.date.today()
+    if t in ("today", ""):
+        return today.isoformat()
+    if t == "tomorrow":
+        return (today + dt.timedelta(days=1)).isoformat()
+    try:
+        return dt.date.fromisoformat(t).isoformat()
+    except ValueError:
+        return None
+
+
+def _next_occurrence_iso(hhmm: str) -> str:
+    """The next future moment today/tomorrow at HH:MM, operator-local."""
+    import datetime as dt
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo("America/Chicago")
+    now = dt.datetime.now(tz)
+    hour, minute = map(int, hhmm.split(":"))
+    candidate = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if candidate <= now:
+        candidate += dt.timedelta(days=1)
+    return candidate.isoformat()
+
+
 def _status_say() -> str:
     from aletheia.core import status_payload  # late import; core imports us too
     s = status_payload()
@@ -85,6 +129,63 @@ def interpret(transcript: str) -> dict:
     if re.fullmatch(r"(status|what's going on|what is going on|what's up|"
                     r"how are things|anything happening|report)", low):
         return {"command": None, "say": _status_say()}
+
+    # reminders — before email so "remind me to email bob" stays a reminder
+    m = re.match(r"remind me (?:every day|daily) at ([\w: ]+?) (?:to|that) (.+)", low)
+    if m:
+        hhmm = _spoken_time(m.group(1))
+        if hhmm:
+            return {"command": {"kind": "remind_daily", "time": hhmm,
+                                "text": m.group(2).strip()}, "say": None}
+        return {"command": None,
+                "say": f"I couldn't parse the time {m.group(1)!r} — say it like '8 am' or '14:30'."}
+    m = re.match(r"remind me (?:at ([\w: ]+?)|in (\d+) (minutes?|hours?)) (?:to|that) (.+)", low)
+    if m:
+        if m.group(1):
+            hhmm = _spoken_time(m.group(1))
+            if not hhmm:
+                return {"command": None,
+                        "say": f"I couldn't parse the time {m.group(1)!r} — say it like '8 am' or '14:30'."}
+            at = _next_occurrence_iso(hhmm)
+        else:
+            import datetime as dt
+            amount = int(m.group(2))
+            delta = dt.timedelta(minutes=amount) if m.group(3).startswith("minute") \
+                else dt.timedelta(hours=amount)
+            at = (dt.datetime.now(dt.timezone.utc) + delta).isoformat()
+        return {"command": {"kind": "remind_at", "at": at, "text": m.group(4).strip()},
+                "say": None}
+
+    # "tell me when I get an email from bob"
+    m = re.match(r"(?:tell me|let me know|watch for)\s+when\s+(?:i get|there's)?\s*"
+                 r"(?:an?\s+)?e?mail (?:arrives )?from\s+(.+)", low) or \
+        re.match(r"watch for e?mail from\s+(.+)", low)
+    if m:
+        return {"command": {"kind": "watch_email_from",
+                            "who": m.group(1).strip()}, "say": None}
+
+    # notifications
+    if re.fullmatch(r"(?:check (?:my )?notifications?|any notifications?|"
+                    r"what's new|anything new|notifications?)", low):
+        return {"command": {"kind": "notify_check"}, "say": None}
+    if re.fullmatch(r"(?:clear|dismiss|acknowledge) (?:my |the )?notifications?", low):
+        return {"command": {"kind": "notify_clear"}, "say": None}
+
+    # free time
+    m = re.fullmatch(r"(?:when am i free|what's my availability|any free time)"
+                     r"(?:\s+(?:on\s+)?(.+))?", low)
+    if m:
+        day = _spoken_day(m.group(1) or "today")
+        if day:
+            return {"command": {"kind": "free_time", "day": day}, "say": None}
+        return {"command": None,
+                "say": f"I couldn't parse the day {m.group(1)!r} — say today, tomorrow, or a date."}
+
+    # private contact: "remember person bob smith bob at gmail dot com"
+    m = re.match(r"remember (?:person|contact)\s+(.+?)\s+((?:\S+\s+at\s+\S.*|\S+@\S+))$", low)
+    if m:
+        return {"command": {"kind": "contact_add", "name": m.group(1).strip(),
+                            "email": m.group(2).strip()}, "say": None}
 
     # email patterns run BEFORE the browse verbs: "check my email" must
     # never be parsed as "check <website>"
@@ -148,7 +249,7 @@ def interpret(transcript: str) -> dict:
     # unrecognized: journal it honestly, never guess an action (§104)
     return {"command": {"kind": "note", "text": f"(voice, unmatched) {text}"},
             "say": "I don't have a command for that yet, so I journaled it. "
-                   "I can: status, halt, resume, read a site, screenshot, "
+                   "I can: status, notifications, remind me, tell me when email arrives, when am I free, read a site, "
                    "approve or deny, add a task, or take a note."}
 
 

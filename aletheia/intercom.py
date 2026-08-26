@@ -70,6 +70,15 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "browse_shot":   ({"url"}, set()),
     "email_check":   (set(), set()),
     "email_draft":   ({"to", "body"}, {"subject"}),
+    # personal-OS verbs (2026-08-26): PC-private state, so all LOCAL_KINDS
+    "remind_at":       ({"at", "text"}, set()),
+    "remind_daily":    ({"time", "text"}, {"tz"}),
+    "watch_email_from": ({"who"}, set()),
+    "notify_operator": ({"text"}, {"priority"}),
+    "notify_check":    (set(), set()),
+    "notify_clear":    (set(), set()),
+    "free_time":       ({"day"}, {"tz", "minutes"}),
+    "contact_add":     ({"name", "email"}, {"alias"}),
 }
 
 # Kinds that need the operator's PC (a real browser, later the desktop).
@@ -80,7 +89,9 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # command can ever be executed by both sides in a race. A local kind with
 # no receipt is honestly PENDING: the PC hasn't picked it up (Core off or
 # offline), and ChatGPT should say exactly that, not invent an outcome.
-LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_draft"}
+LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_draft",
+               "remind_at", "remind_daily", "watch_email_from", "notify_check",
+               "notify_clear", "free_time", "contact_add", "notify_operator"}
 
 
 def validate_kind_args(cmd, fleet: dict) -> list[str]:
@@ -212,6 +223,76 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         browse.screenshot(cmd["url"], target)
         # media never enters git — the capture stays on the PC, named here
         return f"screenshot of {cmd['url']} saved on the PC at {target}"
+    if kind == "remind_at":
+        from aletheia import scheduler
+        import re as _re, uuid as _uuid
+        sid = "remind-" + _uuid.uuid4().hex[:8]
+        scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
+                         kind="once", at=cmd["at"])
+        return f"reminder {sid} set for {cmd['at']} — {cmd['text'][:80]!r}"
+    if kind == "remind_daily":
+        from aletheia import scheduler
+        import uuid as _uuid
+        sid = "remind-daily-" + _uuid.uuid4().hex[:8]
+        scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
+                         kind="daily", timezone=cmd.get("tz", "America/Chicago"),
+                         time=cmd["time"])
+        return f"daily reminder {sid} set for {cmd['time']} — {cmd['text'][:80]!r}"
+    if kind == "notify_operator":
+        from aletheia import notifications
+        notice = notifications.publish("Reminder", cmd["text"], priority="IMPORTANT",
+                                       source="reminder")
+        return f"reminder surfaced: {notice['id']}"
+    if kind == "watch_email_from":
+        from aletheia import events as bus, mail as mail_mod
+        addr, name = mail_mod.resolve_address(cmd["who"])
+        if addr is None:
+            return (f"I don't know an address for {name!r} — say "
+                    f"'remember person {name} <their address>' first")
+        watcher = bus.create_watcher(
+            {"kind": "mail.received", "attributes": {"sender": addr.casefold()}},
+            note=f"operator asked: tell me when email arrives from {name}",
+            created_by="operator-voice", once=True)
+        return f"watching for email from {name} — I'll tell you once ({watcher['id']})"
+    if kind == "notify_check":
+        from aletheia import notifications
+        unread = notifications.all_notifications(state="UNREAD")
+        if not unread:
+            return "Nothing new."
+        parts = [f"{n['title']}: {n['body'][:80]}" for n in unread[:5]]
+        head = f"{len(unread)} notification{'s' if len(unread) != 1 else ''}. "
+        return head + " — ".join(parts)
+    if kind == "notify_clear":
+        from aletheia import notifications
+        unread = notifications.all_notifications(state="UNREAD")
+        for n in unread:
+            notifications.set_state(n["id"], "ACKNOWLEDGED")
+        return f"cleared {len(unread)} notification{'s' if len(unread) != 1 else ''}"
+    if kind == "free_time":
+        import datetime as _dt
+        from aletheia import calendar as cal
+        tz = cmd.get("tz", "America/Chicago")
+        minutes = int(cmd.get("minutes", 30))
+        day = _dt.date.fromisoformat(cmd["day"])
+        slots = cal.free_slots(day, duration_minutes=minutes, timezone=tz)
+        if not slots:
+            return f"no free {minutes}-minute slot on {cmd['day']} inside work hours"
+        spoken = ", ".join(s0[0][11:16] for s0 in slots[:4])
+        return f"free on {cmd['day']} at {spoken}" + (" and more" if len(slots) > 4 else "")
+    if kind == "contact_add":
+        from aletheia import contacts, mail as mail_mod
+        import re as _re
+        addr, _ = mail_mod.resolve_address(cmd["email"])
+        if addr is None or "@" not in addr:
+            return f"that didn't sound like an email address: {cmd['email']!r}"
+        cid = _re.sub(r"[^a-z0-9]+", "-", cmd["name"].lower()).strip("-") or "person"
+        aliases = [cmd["alias"]] if cmd.get("alias") else []
+        try:
+            contacts.create(cid, cmd["name"].strip(), emails=[addr], aliases=aliases,
+                            provenance=f"operator via voice/intercom: {quote[:100]}")
+        except FileExistsError:
+            contacts.update(cid, emails=[addr])
+        return f"remembered {cmd['name']} as {addr} — private contacts only, never the public repo"
     raise ValueError(f"unhandled kind {kind!r}")  # unreachable after validation
 
 

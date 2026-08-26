@@ -68,11 +68,19 @@ Command kinds and their arguments (anything else is refused):
 | `browse_shot` | `url` (http/https) | **PC-only**: screenshot a page; the image stays on the PC (media never enters git), the receipt names its local path |
 | `email_check` | — | **PC-only**: unread senders + subjects (read-only, marks nothing) |
 | `email_draft` | `to`, `body`, `subject?` | **PC-only**: draft an email + file its approval — NOTHING SENDS until the operator approves; `to` is a remembered person's name or a spoken address |
+| `remind_at` | `at` (ISO datetime), `text` | **PC-only**: a one-shot reminder — surfaces as a notification at that moment |
+| `remind_daily` | `time` (HH:MM), `text`, `tz?` | **PC-only**: a daily reminder (default tz America/Chicago) |
+| `watch_email_from` | `who` | **PC-only**: "tell me when email arrives from X" — X must be a known private contact or spoken address; unknown is refused, never guessed |
+| `notify_operator` | `text`, `priority?` | **PC-only**: surface a notification to the operator's notification center |
+| `notify_check` | — | **PC-only**: speak the unread notifications |
+| `notify_clear` | — | **PC-only**: acknowledge all unread notifications |
+| `free_time` | `day` (YYYY-MM-DD), `tz?`, `minutes?` | **PC-only**: free slots from the local calendar inside work hours |
+| `contact_add` | `name`, `email`, `alias?` | **PC-only**: add a PRIVATE contact (never the public repo); spoken "at/dot" addresses are normalized |
 
 While Aletheia is halted, every command except `resume` comes back with a
 `halted` receipt — relay that honestly.
 
-**PC-only kinds wait for the PC.** `browse_read` and `browse_shot` are
+**PC-only kinds wait for the PC.** Every kind marked PC-only is
 executed by the Core running on the operator's computer, not by the cloud
 workflow. No receipt means the PC hasn't picked it up yet — the Core is
 off or offline. Say exactly that ("your computer hasn't answered yet");
