@@ -165,3 +165,68 @@ class TestExecution(IntercomCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLocalKindPartition(IntercomCase):
+    """The static cloud/local split: one command, exactly one executor."""
+
+    def test_cloud_run_leaves_local_kind_pending_without_receipt(self):
+        self._write(_cmd(cid="20260826-read", kind="browse_read",
+                         url="https://example.com"))
+        results = intercom.run_pending(self.fleet, request=RecordingAPI(),
+                                       commands_dir=self.dir, side="cloud")
+        self.assertEqual(results, [])
+        self.assertFalse((self.dir / "20260826-read.result.json").exists())
+        # and it is visibly waiting on the local side
+        local = intercom.pending(self.dir, side="local")
+        self.assertEqual([p.stem for p in local], ["20260826-read"])
+
+    def test_local_run_ignores_cloud_kinds(self):
+        self._write(_cmd(cid="20260826-note", kind="note", text="hi"))
+        results = intercom.run_pending(self.fleet, request=RecordingAPI(),
+                                       commands_dir=self.dir, side="local")
+        self.assertEqual(results, [])
+        self.assertFalse((self.dir / "20260826-note.result.json").exists())
+
+    def test_local_run_executes_browse_read_via_browse(self):
+        self._write(_cmd(cid="20260826-read", kind="browse_read",
+                         url="https://example.com"))
+        page = {"url": "https://example.com/", "title": "Example Domain",
+                "text": "This domain is for use in examples.", "links": []}
+        with mock.patch("aletheia.browse.read_page", return_value=page) as rp:
+            results = intercom.run_pending(self.fleet, request=RecordingAPI(),
+                                           commands_dir=self.dir, side="local")
+        rp.assert_called_once_with("https://example.com")
+        self.assertEqual(results[0]["outcome"], "done")
+        self.assertIn("Example Domain", results[0]["detail"])
+        self.assertTrue((self.dir / "20260826-read.result.json").exists())
+
+    def test_local_browse_unavailable_is_honest_error_receipt(self):
+        self._write(_cmd(cid="20260826-read", kind="browse_read",
+                         url="https://example.com"))
+        with mock.patch("aletheia.browse.read_page",
+                        side_effect=RuntimeError("cannot read a page: playwright is not installed")):
+            results = intercom.run_pending(self.fleet, request=RecordingAPI(),
+                                           commands_dir=self.dir, side="local")
+        self.assertEqual(results[0]["outcome"], "error")
+        self.assertIn("playwright", results[0]["detail"])
+
+    def test_halt_holds_local_kinds_too(self):
+        policy.halt("test", via="test")
+        self._write(_cmd(cid="20260826-read", kind="browse_read",
+                         url="https://example.com"))
+        results = intercom.run_pending(self.fleet, request=RecordingAPI(),
+                                       commands_dir=self.dir, side="local")
+        self.assertEqual(results[0]["outcome"], "halted")
+
+    def test_non_http_url_refused(self):
+        cmd = _cmd(cid="20260826-read", kind="browse_read",
+                   url="file:///etc/passwd")
+        problems = intercom.validate_kind_args(cmd["command"], self.fleet)
+        self.assertTrue(any("http" in p for p in problems))
+
+    def test_unreadable_command_is_cloud_side(self):
+        (self.dir / "20260826-garbage.json").write_text("{not json", encoding="utf-8")
+        self.assertEqual(intercom.pending(self.dir, side="local"), [])
+        cloud = intercom.pending(self.dir, side="cloud")
+        self.assertEqual([p.stem for p in cloud], ["20260826-garbage"])

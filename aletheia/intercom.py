@@ -20,9 +20,17 @@ What keeps this sane (the constitution holds):
 - **Every command must quote the operator** (`operator_quote`), every
   execution is journaled, and every receipt is committed. A hallucinated
   command is bounded by the allowlist (worst case today: a pulse re-run,
-  an issue, a note, a plan edit, a re-rulable ruling) and leaves a paper
-  trail the operator sees in the next brief.
+  an issue, a note, a plan edit, a re-rulable ruling, or a read-only page
+  visit / screenshot on the PC) and leaves a paper trail the operator
+  sees in the next brief.
 - **Results are idempotent**: a command with a receipt is never run twice.
+- **Two runners, one directory, zero races**: LOCAL_KINDS (below) need
+  the operator's PC and are executed only by the local Core's sync loop;
+  everything else is executed only by the Actions runner. The partition
+  is static, so no command ever has two possible executors. Browser
+  INTERACTION is not a kind at all — it needs an approval bound to exact
+  steps (`aletheia.browse.interact`), which a relayed voice command
+  cannot carry.
 """
 from __future__ import annotations
 
@@ -58,7 +66,19 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "approve":       ({"id"}, set()),
     "deny":          ({"id"}, {"because"}),
     "remember":      ({"domain", "key", "value"}, {"memory_kind"}),
+    "browse_read":   ({"url"}, set()),
+    "browse_shot":   ({"url"}, set()),
 }
+
+# Kinds that need the operator's PC (a real browser, later the desktop).
+# The partition is STATIC and disjoint on purpose: the Actions runner
+# executes every kind NOT in this set; the local Core executes ONLY the
+# kinds in it. Two runners share the commands directory, and receipts are
+# the idempotency mechanism — a static partition is what guarantees no
+# command can ever be executed by both sides in a race. A local kind with
+# no receipt is honestly PENDING: the PC hasn't picked it up (Core off or
+# offline), and ChatGPT should say exactly that, not invent an outcome.
+LOCAL_KINDS = {"browse_read", "browse_shot"}
 
 
 def validate_kind_args(cmd, fleet: dict) -> list[str]:
@@ -80,6 +100,10 @@ def validate_kind_args(cmd, fleet: dict) -> list[str]:
     repo = cmd.get("repo")
     if repo is not None and repo != "fleet" and repo not in fleet["repos"]:
         problems.append(f"repo {repo!r} is not 'fleet' or a fleet registry key")
+    url = cmd.get("url")
+    if url is not None and not (isinstance(url, str)
+                                and url.startswith(("http://", "https://"))):
+        problems.append(f"{kind}: url must be an http(s) URL")
     return problems
 
 
@@ -163,6 +187,20 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                         source=f"operator via intercom: {quote[:120]}",
                         kind=cmd.get("memory_kind", "explicit"))
         return f"remembered {cmd['domain']}.{cmd['key']}"
+    if kind == "browse_read":
+        from aletheia import browse
+        page = browse.read_page(cmd["url"])
+        excerpt = " ".join(page["text"].split())[:1200]
+        return f"read {page['url']} — {page['title'][:100]} :: {excerpt}"
+    if kind == "browse_shot":
+        from aletheia import browse
+        out = REPO_ROOT / "cache" / "browser-captures"
+        out.mkdir(parents=True, exist_ok=True)
+        stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        target = out / f"shot-{stamp}.png"
+        browse.screenshot(cmd["url"], target)
+        # media never enters git — the capture stays on the PC, named here
+        return f"screenshot of {cmd['url']} saved on the PC at {target}"
     raise ValueError(f"unhandled kind {kind!r}")  # unreachable after validation
 
 
@@ -170,18 +208,47 @@ def _result_path(path: Path) -> Path:
     return path.with_name(path.stem + ".result.json")
 
 
-def pending(commands_dir: Path | None = None) -> list[Path]:
+def _peek_kind(path: Path) -> str | None:
+    """The command's kind, or None when unreadable (side: cloud receipts those)."""
+    try:
+        c = json.loads(path.read_text(encoding="utf-8"))
+        kind = c.get("command", {}).get("kind")
+        return kind if isinstance(kind, str) else None
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError, AttributeError):
+        return None
+
+
+def _on_side(path: Path, side: str) -> bool:
+    kind = _peek_kind(path)
+    if side == "local":
+        return kind in LOCAL_KINDS
+    # cloud takes everything else, including unreadable files (it owns the
+    # invalid-receipt path so garbage never sits pending forever)
+    return kind not in LOCAL_KINDS
+
+
+def pending(commands_dir: Path | None = None, side: str | None = None) -> list[Path]:
     d = commands_dir or COMMANDS_DIR
     if not d.is_dir():
         return []
-    return [p for p in sorted(d.glob("*.json"))
-            if not p.name.endswith(".result.json") and not _result_path(p).exists()]
+    paths = [p for p in sorted(d.glob("*.json"))
+             if not p.name.endswith(".result.json") and not _result_path(p).exists()]
+    if side is not None:
+        paths = [p for p in paths if _on_side(p, side)]
+    return paths
 
 
-def run_pending(fleet: dict, request=gh.request, commands_dir: Path | None = None) -> list[dict]:
-    """Validate + execute every command without a receipt; write receipts."""
+def run_pending(fleet: dict, request=gh.request, commands_dir: Path | None = None,
+                side: str = "cloud") -> list[dict]:
+    """Validate + execute every receipt-less command on this side; write receipts.
+
+    side="cloud" (the Actions runner) executes every kind except
+    LOCAL_KINDS, which it leaves untouched — no receipt, honestly pending
+    for the PC. side="local" (the Core) executes only LOCAL_KINDS. The
+    static partition means a command has exactly one possible executor.
+    """
     results = []
-    for path in pending(commands_dir):
+    for path in pending(commands_dir, side=side):
         result: dict = {
             "id": path.stem,
             "executed_at": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -225,7 +292,9 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Execute relayed operator commands.")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("validate")
-    sub.add_parser("run")
+    runp = sub.add_parser("run")
+    runp.add_argument("--side", choices=["cloud", "local"], default="cloud",
+                      help="cloud (Actions, default) or local (the PC Core)")
     sub.add_parser("list")
     args = ap.parse_args(argv)
 
@@ -254,10 +323,11 @@ def main(argv: list[str] | None = None) -> int:
                 r = json.loads(rp.read_text(encoding="utf-8"))
                 print(f"[{r['outcome']:7}] {path.stem}  {r['detail']}")
             else:
-                print(f"[pending] {path.stem}")
+                side = "local" if _on_side(path, "local") else "cloud"
+                print(f"[pending] {path.stem}  (waiting on {side})")
         return 0
 
-    results = run_pending(fleet)
+    results = run_pending(fleet, side=args.side)
     for r in results:
         print(f"{r['id']}: {r['outcome']} — {r['detail']}")
     if not results:

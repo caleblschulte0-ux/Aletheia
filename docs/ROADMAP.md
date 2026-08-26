@@ -36,12 +36,15 @@ above its truth. Statuses: **BUILT** · **PARTIAL** · **IN PROGRESS** ·
 ## Next five engineering milestones (priority order, per §137)
 
 1. **Run the Core on the PC + first live round-trips** (task
-   `local-core-bootstrap`, WAITING_OPERATOR) — also what makes browser
-   control usable by voice, since the intercom executes in Actions where
-   no browser exists (task `core-processes-commands`): `git clone` +
+   `local-core-bootstrap`, WAITING_OPERATOR): `git clone` +
    `python -m aletheia.core` on the Windows PC; then one real intercom
    command and one approved work order completed with evidence — flips
-   `intercom.relay` and `agent.delegate` to AVAILABLE.
+   `intercom.relay` and `agent.delegate` to AVAILABLE. The PC side of
+   the intercom is BUILT (task `core-processes-commands`, 2026-08-26):
+   the Core's sync loop pulls the repo, executes PC-only kinds
+   (`browse_read`/`browse_shot` — the real browser), and pushes
+   receipts, verified end to end against a real bare repo. Voice →
+   PC-browser needs only the Core running.
 2. **Phase 7 — Windows computer control V0** on the running Core (task
    `computer-v0`): accessibility-first, the other half of §138. Written
    against a live Core so it can be verified rather than guessed.

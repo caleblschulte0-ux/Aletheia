@@ -89,3 +89,23 @@ class CoreCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CommandGrammarSingleSource(CoreCase):
+    """/api/kinds serves the intercom validator's grammar, and the
+    Command Center holds NO copy of it — the page once hardcoded a KINDS
+    map that drifted the day browse kinds landed."""
+
+    def test_api_kinds_is_the_validator_grammar(self):
+        from aletheia import intercom
+        kinds = self._get("/api/kinds")
+        self.assertEqual(set(kinds), set(intercom.KIND_ARGS))
+        for kind, (req, opt) in intercom.KIND_ARGS.items():
+            self.assertEqual(kinds[kind], [sorted(req), sorted(opt)])
+
+    def test_command_center_has_no_hardcoded_grammar(self):
+        from aletheia.fleet import REPO_ROOT
+        html = (REPO_ROOT / "interface" / "command.html").read_text(encoding="utf-8")
+        self.assertIn("/api/kinds", html)
+        self.assertNotIn("plan_add_step", html,
+                         "command.html restates the kind grammar — it must render /api/kinds")
