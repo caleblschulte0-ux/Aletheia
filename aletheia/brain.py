@@ -74,6 +74,10 @@ class AdapterInfo:
     priority: int = 100
 
     def __post_init__(self) -> None:
+        if not isinstance(self.provider_id, str) or not self.provider_id:
+            raise ValueError("adapter provider_id is required")
+        if not isinstance(self.model_id, str) or not self.model_id:
+            raise ValueError("adapter model_id is required")
         if self.locality not in LOCALITIES:
             raise ValueError("adapter locality must be local or remote")
         if not self.tasks or not self.tasks.issubset(TASKS):
@@ -88,11 +92,25 @@ def info(adapter: BrainAdapter, *, priority: int = 100) -> AdapterInfo:
                        priority=priority)
 
 
+def _metadata_matches_adapter(metadata: AdapterInfo, adapter: BrainAdapter) -> bool:
+    try:
+        return (metadata.provider_id == adapter.provider_id and
+                metadata.model_id == adapter.model_id and
+                metadata.locality == adapter.locality and
+                metadata.tasks == frozenset(adapter.tasks) and
+                adapter.locality in LOCALITIES and
+                frozenset(adapter.tasks).issubset(TASKS))
+    except (AttributeError, TypeError):
+        return False
+
+
 def select(request: dict, adapters: list[tuple[AdapterInfo, BrainAdapter]]) -> BrainAdapter:
     validate_request(request)
     eligible = []
     privacy = request.get("privacy", "provider_ok")
     for position, (metadata, adapter) in enumerate(adapters):
+        if not _metadata_matches_adapter(metadata, adapter):
+            raise ValueError("brain adapter metadata does not match adapter identity/locality/tasks")
         if request["task"] not in metadata.tasks:
             continue
         if privacy == "local_only" and metadata.locality != "local":
