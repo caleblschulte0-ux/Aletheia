@@ -68,6 +68,8 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "remember":      ({"domain", "key", "value"}, {"memory_kind"}),
     "browse_read":   ({"url"}, set()),
     "browse_shot":   ({"url"}, set()),
+    "email_check":   (set(), set()),
+    "email_draft":   ({"to", "body"}, {"subject"}),
 }
 
 # Kinds that need the operator's PC (a real browser, later the desktop).
@@ -78,7 +80,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # command can ever be executed by both sides in a race. A local kind with
 # no receipt is honestly PENDING: the PC hasn't picked it up (Core off or
 # offline), and ChatGPT should say exactly that, not invent an outcome.
-LOCAL_KINDS = {"browse_read", "browse_shot"}
+LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_draft"}
 
 
 def validate_kind_args(cmd, fleet: dict) -> list[str]:
@@ -192,6 +194,15 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         page = browse.read_page(cmd["url"])
         excerpt = " ".join(page["text"].split())[:1200]
         return f"read {page['url']} — {page['title'][:100]} :: {excerpt}"
+    if kind == "email_check":
+        from aletheia import mail
+        return mail.check_unread()
+    if kind == "email_draft":
+        from aletheia import mail
+        d = mail.draft(cmd["to"], cmd.get("subject", ""), cmd["body"],
+                       requested_via=f"intercom: {quote[:80]}")
+        return (f"draft to {d['to_name']} ready — {d['subject']!r}. "
+                f"Approval {d['id']} is pending; approving it sends the email.")
     if kind == "browse_shot":
         from aletheia import browse
         out = REPO_ROOT / "cache" / "browser-captures"

@@ -1,5 +1,5 @@
 {
-  "revision": 9,
+  "revision": 10,
   "providers": [
     {
       "id": "aletheia.local",
@@ -198,13 +198,28 @@
       "caller": "ticket — Phase 10 (Playbook §124)"
     },
     {
+      "id": "email.read",
+      "description": "Check the inbox: unread senders + subjects, spoken back ('Thea, check my email')",
+      "provider": "aletheia.local",
+      "status": "NEEDS_CONFIGURATION",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.mail.check_unread via intercom kind email_check (LOCAL — runs on the PC) and voice",
+      "verification": "tests/test_mail.py TestCheckAndVoice — speakable summary, empty inbox honest, IMAP opened readonly so checking never marks messages read",
+      "notes": "Same configuration as email.send; headers only, bodies are never fetched in v0.",
+      "module": "aletheia.mail"
+    },
+    {
       "id": "email.send",
       "description": "Draft and send email with approval gate",
       "provider": "aletheia.local",
-      "status": "NOT_BUILT",
+      "status": "NEEDS_CONFIGURATION",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "ticket — Phase 13 (Playbook §127)"
+      "caller": "aletheia.mail.send_approved — the Core delivers every APPROVED draft each sync tick; drafts come from voice ('Thea, email X that ...'), the intercom kind email_draft, or the Command Center",
+      "verification": "tests/test_mail.py: approval bound to a sha256 of the exact draft (edited-after-approval refused), operator_always per send, sent exactly once, DENIED retires, transport failure retries, unknown recipient refused rather than guessed, state/mail gitignored (privacy — public repo)",
+      "notes": "NEEDS_CONFIGURATION: set ALETHEIA_MAIL_ADDRESS + ALETHEIA_MAIL_PASSWORD (an app password) on the PC, or ~/.aletheia/mail.json. Gmail-shaped defaults; hosts overridable.",
+      "module": "aletheia.mail"
     },
     {
       "id": "calendar.read",

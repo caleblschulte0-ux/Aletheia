@@ -86,6 +86,17 @@ def interpret(transcript: str) -> dict:
                     r"how are things|anything happening|report)", low):
         return {"command": None, "say": _status_say()}
 
+    # email patterns run BEFORE the browse verbs: "check my email" must
+    # never be parsed as "check <website>"
+    if re.fullmatch(r"(?:check (?:my )?e?mail|any (?:new )?e?mail|"
+                    r"do i have (?:any )?e?mail|what's in my inbox)", low):
+        return {"command": {"kind": "email_check"}, "say": None}
+
+    m = re.match(r"e?mail\s+(.+?)\s+(?:that|saying|and say|:)\s+(.+)", low)
+    if m:
+        return {"command": {"kind": "email_draft", "to": m.group(1).strip(),
+                            "body": m.group(2).strip()}, "say": None}
+
     m = re.match(r"(?:read|open|check|look at|go to|browse)\s+(.+)", low)
     if m:
         url = _spoken_url(m.group(1))
