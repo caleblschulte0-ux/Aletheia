@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
 import subprocess
 import sys
 import time
@@ -100,6 +99,22 @@ def run_forever(core_args: list[str] | None = None, launch=None,
     return 1  # only reachable in tests via max_runs
 
 
+def windowless_interpreter() -> str:
+    r"""The pythonw.exe belonging to THIS interpreter, else this interpreter.
+
+    Never `shutil.which("pythonw")`: PATH order is not version order. On
+    the operator's PC an old C:\Python39\pythonw.EXE sits ahead of the
+    3.12 that Aletheia actually needs, so the task registered a python
+    that `aletheia/__init__` refuses — and because pythonw has no
+    console, the refusal was invisible: reboot, dead wall, empty log.
+    The running interpreter is 3.10+ by construction (that same import
+    check), so its own sibling is the one safe answer.
+    """
+    exe = Path(sys.executable)
+    sibling = exe.with_name("pythonw.exe")
+    return str(sibling) if sibling.exists() else str(exe)
+
+
 def _schtasks(argv: list[str]) -> tuple[int, str]:
     proc = subprocess.run(["schtasks", *argv], capture_output=True, text=True)
     return proc.returncode, (proc.stdout + proc.stderr).strip()
@@ -112,8 +127,7 @@ def install() -> int:
               f'  pythonw -m aletheia.supervisor  (cwd {REPO_ROOT})\n'
               "at every logon. On this OS, run the supervisor directly instead.")
         return 1
-    pyw = shutil.which("pythonw") or sys.executable
-    action = f'"{pyw}" -m aletheia.supervisor'
+    action = f'"{windowless_interpreter()}" -m aletheia.supervisor'
     code, out = _schtasks(["/Create", "/F", "/SC", "ONLOGON", "/TN", TASK_NAME,
                            "/TR", f'cmd /c cd /d "{REPO_ROOT}" && {action}'])
     if code != 0:

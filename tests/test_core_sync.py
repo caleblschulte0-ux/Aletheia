@@ -7,7 +7,11 @@ receipt; the relay side pulls and reads the receipt back to the
 operator. One synchronous core_tick per beat — no threads in tests.
 """
 import json
+import os
+import shutil
+import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -20,6 +24,21 @@ from aletheia.sync import GitSync
 
 def run(args, cwd):
     subprocess.run(args, cwd=str(cwd), check=True, capture_output=True, text=True)
+
+
+def rmtree(path):
+    """Delete a git directory on Windows too.
+
+    Git marks objects read-only; plain rmtree then dies with WinError 5
+    mid-walk. Clear the read-only bit on the offending entry and retry.
+    """
+    def clear_readonly(func, target, _exc):
+        os.chmod(target, stat.S_IWRITE)
+        func(target)
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=clear_readonly)
+    else:  # 3.10/3.11 spell the same hook onerror
+        shutil.rmtree(path, onerror=clear_readonly)
 
 
 def command_payload(cid, kind, **args):
@@ -109,8 +128,7 @@ class CoreSyncCase(CoreSyncFixture):
 
     def test_tick_survives_a_dead_remote(self):
         # remote vanishes mid-life; the tick reports and returns, never raises
-        import shutil
-        shutil.rmtree(self.origin)
+        rmtree(self.origin)
         status = core.core_tick(self.syncer, self.fleet, self.status)
         self.assertFalse(status["pull"]["ok"])
 

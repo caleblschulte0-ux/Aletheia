@@ -75,6 +75,42 @@ class OutageRegressionCase(SupervisorCase):
         self.assertFalse(supervisor.core_alive(port=1))
 
 
+class WindowlessInterpreterCase(unittest.TestCase):
+    """The at-logon task must name THIS interpreter, never PATH's."""
+
+    def test_prefers_the_sibling_of_the_running_interpreter(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp) / "python.exe"
+            exe.write_text("")
+            pyw = Path(tmp) / "pythonw.exe"
+            pyw.write_text("")
+            with mock.patch.object(supervisor.sys, "executable", str(exe)):
+                self.assertEqual(supervisor.windowless_interpreter(), str(pyw))
+
+    def test_falls_back_to_the_running_interpreter_when_no_pythonw(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp) / "python.exe"
+            exe.write_text("")
+            with mock.patch.object(supervisor.sys, "executable", str(exe)):
+                self.assertEqual(supervisor.windowless_interpreter(), str(exe))
+
+    def test_never_takes_a_pythonw_from_PATH(self):
+        # the 2026-08-26 trap: an old 3.9 pythonw ahead on PATH got
+        # registered, and pythonw has no console to show the refusal
+        with tempfile.TemporaryDirectory() as tmp:
+            here, stale = Path(tmp) / "here", Path(tmp) / "stale"
+            here.mkdir(); stale.mkdir()
+            (here / "python.exe").write_text("")
+            (here / "pythonw.exe").write_text("")
+            (stale / "pythonw.exe").write_text("")
+            with mock.patch.object(supervisor.sys, "executable",
+                                   str(here / "python.exe")):
+                with mock.patch.dict("os.environ", {"PATH": str(stale)}):
+                    chosen = supervisor.windowless_interpreter()
+            self.assertEqual(chosen, str(here / "pythonw.exe"))
+            self.assertNotIn("stale", chosen)
+
+
 class JournalRoutingCase(unittest.TestCase):
     def test_use_pc_journal_routes_appends_but_entries_merge(self):
         import tempfile
