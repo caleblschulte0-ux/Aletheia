@@ -6,7 +6,7 @@ import urllib.request
 from pathlib import Path
 from unittest import mock
 
-from aletheia import core, journal, memory, plans, policy, tasks
+from aletheia import core, journal, memory, notifications, plans, policy, tasks
 
 
 class CoreCase(unittest.TestCase):
@@ -21,6 +21,7 @@ class CoreCase(unittest.TestCase):
             mock.patch.object(memory, "MEMORY_DIR", base / "memory"),
             mock.patch.object(policy, "APPROVALS_DIR", base / "approvals"),
             mock.patch.object(policy, "HALT_PATH", base / "halt.json"),
+            mock.patch.object(notifications, "NOTICES_DIR", base / "notices"),
         ]
         for p in cls.patches:
             p.start()
@@ -81,6 +82,27 @@ class CoreCase(unittest.TestCase):
             urllib.request.urlopen(
                 f"http://127.0.0.1:{self.port}/interface/../CLAUDE.md")
         self.assertEqual(ctx.exception.code, 404)
+
+    def test_operating_system_endpoints_answer(self):
+        state = self._get("/api/state")
+        self.assertIn("needs_attention", state)
+        self.assertIn("halted", state)
+        self.assertEqual(self._get("/api/events"), [])
+        self.assertEqual(self._get("/api/watchers"), [])
+        self.assertEqual(self._get("/api/schedules"), [])
+        self.assertIn("at", self._get("/api/runtime"))
+
+    def test_notification_publish_and_ack_roundtrip(self):
+        notice = notifications.publish("Test", "core ack roundtrip", dedupe_key="core-test")
+        listed = self._get("/api/notifications?state=UNREAD")
+        self.assertIn(notice["id"], [n["id"] for n in listed])
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{self.port}/api/notifications/ack",
+            data=json.dumps({"id": notice["id"]}).encode("utf-8"),
+            headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req) as r:
+            self.assertEqual(json.loads(r.read())["state"], "ACKNOWLEDGED")
+        self.assertEqual(notifications.load(notice["id"])["state"], "ACKNOWLEDGED")
 
     def test_refuses_non_loopback_bind(self):
         with self.assertRaises(ValueError):

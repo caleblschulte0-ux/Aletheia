@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from aletheia import handler, runtime
+from aletheia import events, notifications, proactive, runtime, handler
 
 UTC = dt.timezone.utc
 
@@ -76,6 +76,72 @@ class TestRuntime(unittest.TestCase):
             out = runtime.reconcile_task_gaps(registry={})
         self.assertEqual(out[0]["action"], "resumed")
         status.assert_called_once_with("t", "QUEUED", "capability gap: closed; original work resumed")
+
+
+class TestEventConsumption(unittest.TestCase):
+    """The bus actually reaches the operator: watcher triggers and
+    proactive proposals become notifications, exactly once."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
+        root = Path(self.tmp.name)
+        self.events_dir = root / "events"
+        self.watchers_dir = root / "watchers"
+        self.cursor = root / "cursor.json"
+        for module, attr, path in (
+            (notifications, "NOTICES_DIR", root / "notices"),
+            (proactive, "RULES_DIR", root / "rules"),
+            (proactive, "RECEIPTS_DIR", root / "receipts"),
+        ):
+            patcher = mock.patch.object(module, attr, path)
+            patcher.start(); self.addCleanup(patcher.stop)
+
+    def process(self, now=None):
+        return runtime.process_new_events(
+            now=now or dt.datetime(2026, 8, 26, 12, tzinfo=UTC),
+            cursor_path=self.cursor, events_dir=self.events_dir,
+            watchers_dir=self.watchers_dir)
+
+    def emit(self, event_id, kind="mail.reply", subject="person:alice"):
+        return events.emit(kind, subject, f"summary of {event_id}", source="test",
+                           event_id=event_id, events_dir=self.events_dir,
+                           watchers_dir=self.watchers_dir)
+
+    def test_watcher_trigger_becomes_notification_once(self):
+        events.create_watcher({"kind": "mail.reply"}, note="tell me",
+                              created_by="operator", watcher_id="w1",
+                              watchers_dir=self.watchers_dir)
+        self.emit("evt-a")
+        first = self.process()
+        self.assertEqual([a["action"] for a in first], ["watcher_notified"])
+        self.assertEqual(notifications.unread_count(), 1)
+        # second tick: cursor advanced, nothing new, no duplicate notice
+        self.assertEqual(self.process(), [])
+        self.assertEqual(notifications.unread_count(), 1)
+
+    def test_proactive_rule_notifies_and_enqueue_creates_task(self):
+        proactive.create_rule("r1", event_kind="mail.reply", action="enqueue")
+        self.emit("evt-b")
+        with mock.patch.object(runtime.tasks, "create") as create:
+            actions = self.process()
+        self.assertIn("rule_enqueue", [a["action"] for a in actions])
+        create.assert_called_once()
+        self.assertEqual(notifications.unread_count(), 1)
+
+    def test_unmatched_event_advances_cursor_quietly(self):
+        self.emit("evt-c", kind="calendar.changed")
+        self.assertEqual(self.process(), [])
+        self.assertEqual(notifications.unread_count(), 0)
+
+
+class TestScheduleFailureSurfaces(unittest.TestCase):
+    def test_failing_schedule_publishes_notification(self):
+        spec = {"id": "s", "command": {"kind": "note", "text": "x"}}
+        receipt = {"occurrence": "2026-08-26T12:00:00+00:00"}
+        with mock.patch.object(runtime.scheduler, "all_schedules", return_value=[spec]),              mock.patch.object(runtime.scheduler, "occurrence_at_or_before", return_value=dt.datetime(2026, 8, 26, 12, tzinfo=UTC)),              mock.patch.object(runtime.intercom, "validate_kind_args", return_value=[]),              mock.patch.object(runtime.policy, "halted", return_value=None),              mock.patch.object(runtime.scheduler, "claim_due", return_value=receipt),              mock.patch.object(runtime.intercom, "execute_command", side_effect=RuntimeError("boom")),              mock.patch.object(runtime, "evaluate_replies", return_value=[]),              mock.patch.object(runtime, "process_new_events", return_value=[]),              mock.patch.object(runtime, "reconcile_task_gaps", return_value=[]),              mock.patch.object(runtime.notifications, "publish") as publish:
+            out = runtime.tick({"repos": {}}, now=dt.datetime(2026, 8, 26, 12, tzinfo=UTC))
+        self.assertEqual(out["schedules"][0]["outcome"], "error")
+        publish.assert_called_once()
 
 
 class TestHandler(unittest.TestCase):

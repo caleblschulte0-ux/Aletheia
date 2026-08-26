@@ -35,9 +35,16 @@ API:
     GET  /api/approvals     every approval
     GET  /api/capabilities  the capability registry
     GET  /api/journal?last=N
+    GET  /api/state         canonical current-state snapshot (focus/attention)
+    GET  /api/notifications[?state=UNREAD]
+    GET  /api/events?last=N  the local event bus, newest first
+    GET  /api/watchers      durable watcher definitions + states
+    GET  /api/schedules     durable schedule definitions
+    GET  /api/runtime       last runtime tick summary
     GET  /api/computer/status
     POST /api/command       {"kind": …, …args} (+optional "operator_quote")
                             → {outcome, detail}, executed inline, journaled
+    POST /api/notifications/ack  {"id": …}
     POST /api/computer      {steps, approval_id}
                             → executes only through computer.execute gates
 """
@@ -55,6 +62,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from aletheia import act, capabilities, computer, intercom, journal, policy, tasks
+from aletheia import current_state, events, notifications, runtime, scheduler
 from aletheia.fleet import REPO_ROOT, load_fleet
 from aletheia.pulse import PULSE_DIR
 from aletheia.sync import GitSync
@@ -150,6 +158,12 @@ def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
     if prev_pull is not None and prev_pull.get("ok") != ok:
         journal.append("event", "core:sync",
                        f"pull {'recovered' if ok else 'failing'}: {detail}", actor=ACTOR)
+        try:  # also a bus event, so watchers/rules can react to sync health
+            events.emit("core.sync_recovered" if ok else "core.sync_failed",
+                        "repo:aletheia", f"pull {'recovered' if ok else 'failing'}: {detail[:200]}",
+                        source="core")
+        except Exception:
+            pass  # the journal line above is the record; the bus is best-effort
     if ok and before:
         after = syncer.head()
         if after and after != before:
@@ -177,6 +191,22 @@ def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
         journal.append("event", "core:sync",
                        f"mail delivery error: {type(exc).__name__}: {exc}", actor=ACTOR)
     status["commands_executed"] += len(results)
+    try:
+        # the local runtime: due schedules (through the same intercom gates),
+        # reply expectations, bus events -> watcher/proactive notifications,
+        # capability-gap reconciliation. Summarized at /api/runtime.
+        summary = runtime.tick(fleet)
+        interesting = {k: v for k, v in summary.items() if v}
+        status["runtime"] = {"at": status["last_tick"],
+                             **{k: len(v) for k, v in summary.items()}}
+        if interesting.get("schedules") or interesting.get("reply_transitions"):
+            journal.append("event", "core:runtime",
+                           "; ".join(f"{k}: {len(v)}" for k, v in interesting.items()),
+                           actor=ACTOR)
+    except Exception as exc:  # runtime trouble must not stop sync
+        status["runtime"] = {"at": status["last_tick"], "error": f"{type(exc).__name__}: {exc}"}
+        journal.append("event", "core:runtime",
+                       f"runtime tick error: {type(exc).__name__}: {exc}", actor=ACTOR)
     # push every tick: receipts when there are any, and any checkpoint
     # commits from quiet ticks (commit_push no-ops when nothing waits)
     ok, detail = syncer.commit_push(
@@ -261,6 +291,20 @@ class Handler(BaseHTTPRequestHandler):
             # Command Center renders THIS, never its own copy
             return self._json({k: [sorted(req), sorted(opt)]
                                for k, (req, opt) in intercom.KIND_ARGS.items()})
+        if url.path == "/api/state":
+            return self._json(current_state.snapshot())
+        if url.path == "/api/notifications":
+            state = parse_qs(url.query).get("state", [None])[0]
+            return self._json(notifications.all_notifications(state=state))
+        if url.path == "/api/events":
+            last = int(parse_qs(url.query).get("last", ["50"])[0])
+            return self._json(events.list_events(limit=max(1, min(last, 500))))
+        if url.path == "/api/watchers":
+            return self._json(events.list_watchers())
+        if url.path == "/api/schedules":
+            return self._json(scheduler.all_schedules())
+        if url.path == "/api/runtime":
+            return self._json(SYNC_STATUS.get("runtime") or {"at": None})
         if url.path == "/api/journal":
             last = int(parse_qs(url.query).get("last", ["50"])[0])
             return self._json(journal.entries()[-last:])
@@ -282,7 +326,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
-        if path not in ("/api/command", "/api/computer", "/api/voice"):
+        if path not in ("/api/command", "/api/computer", "/api/voice",
+                        "/api/notifications/ack"):
             return self.send_error(404)
         try:
             payload = self._payload()
@@ -290,6 +335,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"outcome": "invalid", "detail": str(exc)}, code=400)
         if path == "/api/command":
             return self._json(run_command(payload, self.fleet))
+        if path == "/api/notifications/ack":
+            nid = payload.get("id")
+            if not isinstance(nid, str) or not nid:
+                return self._json({"outcome": "invalid", "detail": "id required"}, code=400)
+            try:
+                return self._json(notifications.set_state(nid, "ACKNOWLEDGED"))
+            except (ValueError, FileNotFoundError) as exc:
+                return self._json({"outcome": "invalid", "detail": str(exc)}, code=400)
         if path == "/api/voice":
             from aletheia import voice
             transcript = payload.get("transcript")

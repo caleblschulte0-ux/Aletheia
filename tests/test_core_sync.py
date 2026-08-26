@@ -17,7 +17,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from aletheia import core, intercom, journal
+from aletheia import core, intercom, journal, notifications, scheduler
 from aletheia.fleet import load_fleet
 from aletheia.sync import GitSync
 
@@ -125,6 +125,27 @@ class CoreSyncCase(CoreSyncFixture):
         self.assertEqual(self.status["commands_executed"], 0)
         self.assertFalse(
             (self.pc / "exchange" / "commands" / "20260826-note.result.json").exists())
+
+    def test_runtime_rides_the_sync_beat(self):
+        # a due private schedule executes through the SAME intercom gates
+        # inside the ordinary core_tick — no second execution path
+        base = Path(self.tmp.name)
+        patches = [
+            mock.patch.object(scheduler, "SCHEDULE_DIR", base / "sched" / "defs"),
+            mock.patch.object(scheduler, "RECEIPT_DIR", base / "sched" / "receipts"),
+            mock.patch.object(notifications, "NOTICES_DIR", base / "notices"),
+        ]
+        for p in patches:
+            p.start(); self.addCleanup(p.stop)
+        scheduler.create("beat-note", {"kind": "note", "text": "from a schedule"},
+                         kind="once", at="2026-08-26T00:00:00+00:00")
+        status = core.core_tick(self.syncer, self.fleet, self.status)
+        self.assertEqual(status["runtime"].get("schedules"), 1, status.get("runtime"))
+        texts = [e["text"] for e in journal.entries()]
+        self.assertTrue(any("from a schedule" in t for t in texts), texts[-5:])
+        # second tick: the occurrence receipt makes it exactly-once
+        status = core.core_tick(self.syncer, self.fleet, self.status)
+        self.assertEqual(status["runtime"].get("schedules"), 0, status.get("runtime"))
 
     def test_tick_survives_a_dead_remote(self):
         # remote vanishes mid-life; the tick reports and returns, never raises
