@@ -1,32 +1,32 @@
 # Fleet briefing
 
-Generated 2026-08-26T13:25:59Z from fleet registry rev 3 via GitHubSource.
+Generated 2026-08-26T20:07:43Z from fleet registry rev 3 via GitHubSource.
 
 ## 🟢 `Aletheia` — hub (active)
 
 The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.
 
-Last commit `829c5ee1107d` at 2026-08-26T12:45:34Z: Merge pull request #26 from caleblschulte0-ux/claude/project-alathea-interface-ah59fv
+Last commit `dfe8024384a2` at 2026-08-26T19:08:13Z: Mail recipients resolve from PRIVATE contacts first; address scrubbed from public memory
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-08-26T13:25:57Z
-- `ci.yml`: success at 2026-08-26T12:46:22Z
+- `pulse.yml`: in_progress at 2026-08-26T20:07:40Z
+- `ci.yml`: success at 2026-08-26T19:09:08Z
 
 ## 🔴 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `b980858a72ad` at 2026-08-26T13:15:15Z: watchdog: chatgpt task verdicts 20260826 [skip ci]
+Last commit `98680390feb5` at 2026-08-26T19:24:00Z: explainer: update posted log + analytics [skip ci]
 
-Vitals — trending posted: 282 · explainer posted: 202 · third posted: 387 · curiosity posted: 1
+Vitals — trending posted: 287 · explainer posted: 203 · third posted: 387 · curiosity posted: 1
 
 Watched workflows:
-- `daily.yml`: failure at 2026-08-25T14:41:34Z
-- `exchange_phase_a.yml`: success at 2026-08-26T10:17:31Z
-- `exchange_phase_b.yml`: success at 2026-08-25T15:12:08Z
-- `story_forge.yml`: success at 2026-08-26T05:54:54Z
+- `daily.yml`: failure at 2026-08-26T14:31:04Z
+- `exchange_phase_a.yml`: success at 2026-08-26T14:05:55Z
+- `exchange_phase_b.yml`: success at 2026-08-26T15:57:38Z
+- `story_forge.yml`: success at 2026-08-26T19:24:06Z
 - `third.yml`: success at 2026-08-26T12:57:42Z
-- `explainer.yml`: in_progress at 2026-08-26T09:22:27Z
+- `explainer.yml`: in_progress at 2026-08-26T19:24:10Z
 - `retro.yml`: success at 2026-08-26T01:59:54Z
 - `doctor.yml`: success at 2026-08-26T11:05:21Z
 
@@ -34,15 +34,15 @@ Watched workflows:
 
 Guardrailed paper-trading day-trading bot for Charles Schwab: separate Claude BUY and SELL brains, executor on GitHub Actions, significance-gated sell approvals.
 
-Last commit `6852237794a0` at 2026-08-26T12:36:50Z: sell-brain: update exit decisions [skip ci]
+Last commit `ab83b23473f5` at 2026-08-26T18:37:18Z: sell-brain: update exit decisions [skip ci]
 
 Vitals — realized P&L: $-40.82 · win rate: 14.3% · closed trades: 14 · open positions: 13 · cash: $2.50
 
 Watched workflows:
 - `brain.yml`: failure at 2026-08-06T15:57:15Z
-- `sell-brain.yml`: success at 2026-08-26T12:36:55Z
+- `sell-brain.yml`: success at 2026-08-26T18:37:23Z
 - `trader.yml`: failure at 2026-08-06T15:57:15Z
-- `watchdog.yml`: success at 2026-08-25T21:58:45Z
+- `watchdog.yml`: success at 2026-08-26T18:56:48Z
 
 ## 💤 `Money_Machine` — unbuilt (stub)
 
