@@ -4,6 +4,8 @@
   "reason": "send email 'Aletheia email is live' to caleb",
   "consequence": "the message is sent in Caleb's name and cannot be recalled",
   "reversible": false,
-  "state": "PENDING",
-  "requested_at": "2026-08-26T19:05:24Z"
+  "state": "APPROVED",
+  "requested_at": "2026-08-26T19:05:24Z",
+  "decided_at": "2026-08-26T22:14:00Z",
+  "decided_via": "operator-cli"
 }
