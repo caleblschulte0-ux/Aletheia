@@ -24,12 +24,15 @@ exact draft; a draft edited after approval no longer matches and is
 refused. One approval, one send — a .sent receipt makes redelivery
 impossible.
 
-Inbox polling is also read-only. New unread headers are fingerprinted locally
-and emitted once as `mail.received`. If exactly one WAITING communication
-expectation resolves to the sender (and, when necessary, the thread subject),
-that header is recorded as an inbound communication and emits `mail.reply`.
-Ambiguity is surfaced as `mail.reply_ambiguous`; Aletheia never guesses which
-conversation a message belongs to.
+Inbox polling is also read-only. On the first poll, the current unread set is
+baselined without emitting events; this prevents old unread mail from becoming
+fake "new" notifications when the feature is first enabled. Later unseen
+headers are fingerprinted locally and emitted once as `mail.received`. If
+exactly one WAITING communication expectation resolves to the sender (and, when
+necessary, the thread subject), that header is recorded as an inbound
+communication and emits `mail.reply`. Ambiguity is surfaced as
+`mail.reply_ambiguous`; Aletheia never guesses which conversation a message
+belongs to.
 """
 from __future__ import annotations
 
@@ -280,9 +283,11 @@ def _reply_candidates(sender: str, subject: str) -> list[dict]:
 
 
 def poll_events(limit: int = 50, transport: MailTransport | None = None) -> list[dict]:
-    """Emit each newly observed unread header once and correlate exact replies.
+    """Emit newly observed unread headers once and correlate exact replies.
 
-    This does not mark mail read. The seen set stores sha256 fingerprints only.
+    The first poll baselines the current unread set rather than claiming old
+    messages are newly received. This does not mark mail read. The seen set
+    stores sha256 fingerprints only.
     """
     if limit < 1 or limit > 500:
         raise ValueError("mail poll limit must be between 1 and 500")
@@ -290,11 +295,17 @@ def poll_events(limit: int = 50, transport: MailTransport | None = None) -> list
     unread = driver.fetch_unread(limit)
     MAIL_DIR.mkdir(parents=True, exist_ok=True)
     state_path = MAIL_DIR / "poll-state.json"
+    state_exists = state_path.is_file()
     try:
         state = json.loads(state_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         state = {"version": 1, "seen": []}
     seen_order = [str(x) for x in state.get("seen", []) if isinstance(x, str)]
+    if not state_exists:
+        baseline = [_fingerprint(message) for message in unread]
+        write_json_atomic(state_path, {"version": 1, "seen": baseline[-POLL_SEEN_LIMIT:],
+                                       "updated_at": utcnow()})
+        return [{"action": "baseline", "count": len(unread)}]
     seen = set(seen_order)
     actions = []
     # fetch_unread is newest-first; process oldest unseen first for sane chronology.
