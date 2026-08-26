@@ -27,12 +27,24 @@ Pages creation for workflow tokens.)
 Wall, once live — fullscreen with F11 on the projector:
 `https://caleblschulte0-ux.github.io/Aletheia/`
 
-## 2. Give Thea her voice — 2 minutes
+## 2. Give Thea her voice — 0 minutes (it's on the page)
 
-Open **`exchange/CHATGPT_PROJECT.md`** and follow it: new ChatGPT
-Project named Aletheia, turn on the GitHub connector, paste the block.
+The wall and the Command Center listen themselves. Click the small
+indicator in the bottom-right corner once (the browser asks for the
+microphone once), then just talk:
 
-Then talk to it — voice mode works: *"Thea, what's going on?"*
+- *"Thea, what's going on?"* — she says the live status out loud
+- *"Thea, read the verge dot com"* — she reads the page back
+- *"Thea, stop everything"* / *"Thea, resume"* — the kill switch
+- *"Thea, approve"* — grants the pending approval (refuses to guess
+  if there's more than one)
+- *"Thea, add a task to ..."* / *"Thea, note ..."*
+
+Needs Chrome or Edge. Anything she doesn't have a command for gets
+journaled, and she says so — she never guesses.
+
+**Optional, for away from home:** `exchange/CHATGPT_PROJECT.md` sets up
+ChatGPT Voice as the remote channel — same commands, from your phone.
 
 ## 3. Run the Core on your PC — 1 command
 
