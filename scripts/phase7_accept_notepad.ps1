@@ -45,20 +45,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $approvalId = "phase7-notepad-" + (Get-Date).ToUniversalTime().ToString("yyyyMMdd-HHmmss")
-$requestCode = @'
-from aletheia import computer, policy
-import json
-import sys
-steps = json.load(open(sys.argv[2], encoding="utf-8"))
-policy.request(
-    sys.argv[1],
-    computer.approval_action(steps),
-    "Verify the isolated Phase 7 Windows UI Automation adapter",
-    "Notepad opens with unsaved test text; no file is saved and no external system is touched",
-    reversible=True,
-)
-'@
-& $py -c $requestCode $approvalId $plan
+& $py -m aletheia.computer request $plan --approval-id $approvalId
 if ($LASTEXITCODE -ne 0) {
   throw "Could not create the durable approval request."
 }

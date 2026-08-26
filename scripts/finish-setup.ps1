@@ -26,13 +26,21 @@ if (Test-Path $cfgFile) {
   Write-Host "  Create one at https://myaccount.google.com/apppasswords (16 letters)."
   $addr = Read-Host "  Gmail address (Enter to skip)"
   if ($addr) {
-    $pw = Read-Host "  App password" -AsSecureString
-    $plain = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
-             [Runtime.InteropServices.Marshal]::SecureStringToBSTR($pw))
-    New-Item -ItemType Directory -Force $cfgDir | Out-Null
-    @{ address = $addr; password = $plain } | ConvertTo-Json |
-      Out-File -FilePath $cfgFile -Encoding ascii
-    & $py -c "from aletheia import mail; ok, why = mail.available(); print('  ' + why)"
+    while ($true) {
+      $plain = (Read-Host "  App password (16 letters)") -replace "\s", ""
+      if ($plain.Length -ne 16) {
+        Write-Host "  That's $($plain.Length) characters - an app password is exactly 16. Try again." -ForegroundColor Yellow
+        continue
+      }
+      New-Item -ItemType Directory -Force $cfgDir | Out-Null
+      @{ address = $addr; password = $plain } | ConvertTo-Json |
+        Out-File -FilePath $cfgFile -Encoding ascii
+      # prove it against Gmail right now - stored-but-wrong helps nobody
+      & $py -c "from aletheia import mail; mail.check_unread(); print('  IMAP login OK - email is live.')"
+      if ($LASTEXITCODE -eq 0) { break }
+      Write-Host "  Gmail refused that password - re-copy it from myaccount.google.com/apppasswords" -ForegroundColor Yellow
+      Remove-Item $cfgFile -Force
+    }
   } else {
     Write-Host "  Skipped - email stays NEEDS_CONFIGURATION until you re-run this." -ForegroundColor Yellow
   }
@@ -45,7 +53,11 @@ if ($LASTEXITCODE -ne 0) {
   Write-Host "pywinauto install failed - skipping; computer control stays EXPERIMENTAL." -ForegroundColor Yellow
 } else {
   & powershell -ExecutionPolicy Bypass -File (Join-Path $repo "scripts\phase7_accept_notepad.ps1")
-  Write-Host "Receipt written under cache\phase7-acceptance - Claude reads it and updates the registry." -ForegroundColor Cyan
+  if (Test-Path (Join-Path $repo "cache\phase7-acceptance")) {
+    Write-Host "Receipt written under cache\phase7-acceptance - Claude reads it and updates the registry." -ForegroundColor Cyan
+  } else {
+    Write-Host "No receipt was written - the acceptance did not complete. Tell Claude what you saw." -ForegroundColor Yellow
+  }
 }
 
 # ---- 3. Talk to her --------------------------------------------------------

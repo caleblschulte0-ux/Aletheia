@@ -441,6 +441,12 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("status")
     plan = sub.add_parser("plan"); plan.add_argument("file")
+    req = sub.add_parser("request",
+                         help="file the durable approval for a validated plan")
+    req.add_argument("file"); req.add_argument("--approval-id", required=True)
+    req.add_argument("--why", default="Verify the Windows UI Automation adapter")
+    req.add_argument("--consequence",
+                     default="An unsaved window remains open; nothing is saved or submitted")
     run = sub.add_parser("run"); run.add_argument("file")
     run.add_argument("--approval", required=True)
     args = parser.parse_args(argv)
@@ -448,7 +454,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "status":
         ok, reason = available()
         print(f"computer: {'experimental' if ok else 'unavailable'} — {reason}")
-        print("not wired into Core; no coordinate or visual-click fallback")
+        print("Core route: POST /api/computer; no coordinate or visual-click fallback")
         return 0 if ok else 1
     steps = _load_steps(args.file)
     problems = validate_steps(steps)
@@ -457,6 +463,15 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if args.command == "plan":
         print(json.dumps(steps, indent=2, ensure_ascii=False))
+        return 0
+    if args.command == "request":
+        # was a PowerShell here-string piped to python -c; PowerShell 5.1
+        # mangles multiline -c args (first live run: SyntaxError, truncated)
+        from aletheia import policy
+        approval = policy.request(
+            args.approval_id, approval_action(steps), args.why,
+            args.consequence, reversible=True)
+        print(json.dumps(approval, indent=2, ensure_ascii=False))
         return 0
     print(json.dumps(execute(steps, args.approval), indent=2, ensure_ascii=False))
     return 0
