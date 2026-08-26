@@ -134,6 +134,14 @@ def resolve_address(who: str) -> tuple[str | None, str]:
         addr = parseaddr(spoken)[1] or spoken
         return addr, addr.split("@")[0]
     key = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    # PRIVATE contacts first (state/private/, gitignored): this repo is
+    # public, and an email address in memory/people.json is committed
+    # world-readable — the 2026-08-26 slip that forced this ordering.
+    try:
+        from aletheia import contacts
+        return contacts.primary_email(contacts.resolve(text)), text
+    except Exception:
+        pass  # unknown/ambiguous/no-email in private contacts -> legacy memory
     value = memory.recall("people", key)
     if isinstance(value, str) and "@" in value:
         return value, text
@@ -153,8 +161,8 @@ def draft(to: str, subject: str, body: str, requested_via: str = "voice") -> dic
     addr, name = resolve_address(to)
     if addr is None:
         raise ValueError(
-            f"no address known for {name!r} — say: "
-            f'"Thea, remember person {name} <their address>" first')
+            f"no address known for {name!r} — add them privately first: "
+            f"python -m aletheia.contacts new <id> {name!r} --email <address>")
     if not body.strip():
         raise ValueError("the message body is empty")
     if len(body) > MAX_BODY_CHARS:

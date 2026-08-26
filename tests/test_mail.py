@@ -54,7 +54,7 @@ class TestAddresses(MailCase):
     def test_unknown_name_is_an_honest_refusal_not_a_guess(self):
         with self.assertRaises(ValueError) as ctx:
             mail.draft("someone i never mentioned", "s", "body")
-        self.assertIn("remember person", str(ctx.exception))
+        self.assertIn("add them privately", str(ctx.exception))
         self.assertEqual(policy.all_approvals(), [])  # nothing filed
 
 
