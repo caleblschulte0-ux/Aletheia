@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -33,20 +34,30 @@ class MailEventsCase(unittest.TestCase):
         ]
         for p in patches: p.start(); self.addCleanup(p.stop)
 
+    def enable_events(self):
+        mail.MAIL_DIR.mkdir(parents=True,exist_ok=True)
+        (mail.MAIL_DIR/"poll-state.json").write_text(json.dumps({"version":1,"seen":[]}),encoding="utf-8")
+
     def make_expectation(self, thread="t1", expectation="e1", subject="Hello"):
         communications.create_thread(thread,participants=["me","bob@example.com"],subject=subject)
         communications.record_message("out-"+thread,thread_id=thread,direction="OUTBOUND",channel="email",participant="bob@example.com",summary="question",occurred_at="2026-08-26T17:00:00-05:00")
         return communications.expect_reply(expectation,thread_id=thread,after_message_id="out-"+thread,from_participant="bob@example.com")
 
+    def test_first_poll_baselines_existing_unread_without_events(self):
+        actions=mail.poll_events(transport=FakeTransport([message(),message(mid="<m2@example.com>")]))
+        self.assertEqual(actions,[{"action":"baseline","count":2}])
+        self.assertEqual(events.list_events(events_dir=events.EVENTS_DIR),[])
+        self.assertEqual(mail.poll_events(transport=FakeTransport([message(),message(mid="<m2@example.com>")])),[])
+
     def test_new_unread_emits_once_even_if_still_unread(self):
-        t=FakeTransport([message()])
+        self.enable_events(); t=FakeTransport([message()])
         first=mail.poll_events(transport=t); second=mail.poll_events(transport=t)
         self.assertEqual([x["action"] for x in first],["received"])
         self.assertEqual(second,[])
         self.assertEqual([e["kind"] for e in events.list_events(events_dir=events.EVENTS_DIR)],["mail.received"])
 
     def test_exact_waiting_sender_records_reply_and_bus_event(self):
-        self.make_expectation()
+        self.enable_events(); self.make_expectation()
         actions=mail.poll_events(transport=FakeTransport([message()]))
         self.assertEqual([x["action"] for x in actions],["received","reply"])
         self.assertEqual(len(communications.messages("t1")),2)
@@ -56,21 +67,17 @@ class MailEventsCase(unittest.TestCase):
         self.assertEqual(resolved[0]["status"],"REPLIED")
 
     def test_subject_disambiguates_same_sender(self):
-        self.make_expectation("t1","e1","Project Alpha")
-        self.make_expectation("t2","e2","Project Beta")
+        self.enable_events(); self.make_expectation("t1","e1","Project Alpha"); self.make_expectation("t2","e2","Project Beta")
         actions=mail.poll_events(transport=FakeTransport([message(subject="Re: Project Beta")]))
         replies=[x for x in actions if x["action"]=="reply"]
         self.assertEqual(replies[0]["expectation"],"e2")
-        self.assertEqual(len(communications.messages("t1")),1)
-        self.assertEqual(len(communications.messages("t2")),2)
+        self.assertEqual(len(communications.messages("t1")),1); self.assertEqual(len(communications.messages("t2")),2)
 
     def test_ambiguous_sender_never_guesses_thread(self):
-        self.make_expectation("t1","e1","")
-        self.make_expectation("t2","e2","")
+        self.enable_events(); self.make_expectation("t1","e1",""); self.make_expectation("t2","e2","")
         actions=mail.poll_events(transport=FakeTransport([message(subject="Something else")]))
         self.assertIn("ambiguous",[x["action"] for x in actions])
-        self.assertEqual(len(communications.messages("t1")),1)
-        self.assertEqual(len(communications.messages("t2")),1)
+        self.assertEqual(len(communications.messages("t1")),1); self.assertEqual(len(communications.messages("t2")),1)
         self.assertIn("mail.reply_ambiguous",{e["kind"] for e in events.list_events(events_dir=events.EVENTS_DIR)})
 
 
