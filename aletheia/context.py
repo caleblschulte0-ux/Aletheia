@@ -3,19 +3,23 @@
 This is intentionally not an LLM. It stores explicit referents with type and
 recency, and resolves only when a unique eligible referent exists. Ambiguity is
 returned as an error instead of silently choosing the wrong person/project.
+Recent conversational referents are private runtime data and are gitignored.
 """
 from __future__ import annotations
 
-from aletheia.fleet import REPO_ROOT
-from aletheia.stateio import create_json_exclusive, read_json, safe_id, utcnow
+from aletheia.stateio import create_json_exclusive, private_dir, read_json, safe_id, utcnow
 
-REFS_DIR = REPO_ROOT / "state" / "context" / "refs"
+REFS_DIR = private_dir("context") / "refs"
 
 
 def remember(ref_id: str, *, kind: str, value: str, label: str = "") -> dict:
     safe_id(ref_id, name="reference id")
     if kind not in {"person", "project", "task", "message", "file", "place", "thing"}:
         raise ValueError("invalid reference kind")
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("reference value is required")
+    if not isinstance(label, str):
+        raise ValueError("reference label must be a string")
     record = {"version": 1, "id": ref_id, "kind": kind, "value": value,
               "label": label, "at": utcnow()}
     create_json_exclusive(REFS_DIR / f"{ref_id}.json", record)
@@ -23,15 +27,20 @@ def remember(ref_id: str, *, kind: str, value: str, label: str = "") -> dict:
 
 
 def recent(*, kind: str | None = None, limit: int = 20) -> list[dict]:
+    if limit < 1 or limit > 200:
+        raise ValueError("limit must be between 1 and 200")
     if not REFS_DIR.is_dir():
         return []
     values = []
-    for p in REFS_DIR.glob("*.json"):
+    for path in REFS_DIR.glob("*.json"):
         try:
-            values.append(read_json(p))
+            value = read_json(path)
         except ValueError:
             continue
-    values.sort(key=lambda x: x.get("at", ""), reverse=True)
+        if value.get("kind") not in {"person", "project", "task", "message", "file", "place", "thing"}:
+            continue
+        values.append(value)
+    values.sort(key=lambda x: (x.get("at", ""), x.get("id", "")), reverse=True)
     if kind:
         values = [v for v in values if v.get("kind") == kind]
     return values[:limit]
