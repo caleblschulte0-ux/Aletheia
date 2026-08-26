@@ -112,6 +112,19 @@ def poll_mail_events() -> list[dict]:
         return [{"action":"error", "detail":f"{type(exc).__name__}: {exc}"}]
 
 
+def _event_id_for_pulse(generated: str, material: dict) -> str:
+    """Deterministic event ID that preserves the bus's chronological sort."""
+    try:
+        when = dt.datetime.fromisoformat(generated.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("pulse generated_at must be an ISO timestamp") from exc
+    if when.tzinfo is None or when.utcoffset() is None:
+        raise ValueError("pulse generated_at must be timezone-aware")
+    stamp = when.astimezone(dt.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    digest = hashlib.sha256(json.dumps(material, sort_keys=True).encode()).hexdigest()[:10]
+    return f"evt-{stamp}-{digest}"
+
+
 def mirror_pulse_events(*, pulse_path: Path | None = None,
                         cursor_path: Path | None = None) -> list[dict]:
     """Mirror each newly pulled fleet-health transition into the private bus."""
@@ -138,7 +151,7 @@ def mirror_pulse_events(*, pulse_path: Path | None = None,
         if not isinstance(transition, dict) or required - transition.keys():
             continue
         material = {"generated_at": generated, **{k: transition.get(k) for k in ("repo","github","from","to")}}
-        event_id = "pulse-" + hashlib.sha256(json.dumps(material, sort_keys=True).encode()).hexdigest()[:28]
+        event_id = _event_id_for_pulse(generated, material)
         try:
             emitted = events.emit(
                 "fleet.health_changed", f"repo:{transition['repo']}",
