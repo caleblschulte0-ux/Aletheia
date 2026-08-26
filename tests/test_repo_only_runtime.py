@@ -39,11 +39,21 @@ class TestProactive(Rooted):
         self.assertIsNone(proactive.evaluate(rule, {"id": "e2", "kind": "x"}, now=t0 + dt.timedelta(minutes=30)))
         self.assertIsNotNone(proactive.evaluate(rule, {"id": "e3", "kind": "x"}, now=t0 + dt.timedelta(minutes=61)))
 
+    def test_one_shot_rule_only_triggers_once(self):
+        rule = proactive.create_rule("r1", event_kind="x", action="surface", persistent=False)
+        t0 = dt.datetime(2026, 8, 26, 12, tzinfo=dt.timezone.utc)
+        self.assertIsNotNone(proactive.evaluate(rule, {"id": "e1", "kind": "x"}, now=t0))
+        self.assertIsNone(proactive.evaluate(rule, {"id": "e2", "kind": "x"}, now=t0 + dt.timedelta(days=1)))
+
     def test_rule_does_not_execute_action(self):
         rule = proactive.create_rule("r1", event_kind="x", action="enqueue")
         receipt = proactive.evaluate(rule, {"id": "e1", "kind": "x"},
                                      now=dt.datetime(2026, 8, 26, 12, tzinfo=dt.timezone.utc))
         self.assertEqual(receipt["proposal"]["kind"], "enqueue")
+
+    def test_invalid_boolean_not_coerced(self):
+        with self.assertRaises(ValueError):
+            proactive.create_rule("r1", event_kind="x", action="surface", persistent="no")
 
 
 class TestRecovery(Rooted):
@@ -91,6 +101,11 @@ class TestDevices(Rooted):
         devices.register("lamp", name="Lamp", kind="light", room="Office", provider="ha", external_id="1", abilities=["on"])
         devices.register("tv", name="TV", kind="media", room="Living", provider="ha", external_id="2", abilities=["play"])
         self.assertEqual([d["id"] for d in devices.in_room("office")], ["lamp"])
+
+    def test_observation_requires_real_boolean(self):
+        devices.register("lamp", name="Lamp", kind="light", room="Office", provider="ha", external_id="1", abilities=["on"])
+        with self.assertRaises(ValueError):
+            devices.mark_observed("lamp", online="yes", observed_state={})
 
 
 if __name__ == "__main__":
