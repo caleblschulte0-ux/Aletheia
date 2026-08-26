@@ -14,6 +14,10 @@
 # optional steps warn and continue.
 
 $ErrorActionPreference = "Stop"
+# `irm | iex` runs in the CALLER'S session: a function defined by an older
+# version of this script (the recursive `Py`) survives there and would
+# shadow py.exe again. Clear any such leftovers before anything runs.
+Remove-Item function:\Py -ErrorAction SilentlyContinue
 $repo = "https://github.com/caleblschulte0-ux/Aletheia.git"
 $dest = Join-Path $HOME "Aletheia"
 
@@ -30,9 +34,12 @@ function Find-Python {
   # enforces the same floor with a clear message instead of syntax errors)
   foreach ($cand in @(@("py","-3.12"), @("py","-3.11"), @("py","-3.10"),
                       @("py"), @("python3"), @("python"))) {
-    if (-not (Have $cand[0])) { continue }
+    # resolve to the real .exe so no session function can shadow the name
+    $exe = (Get-Command $cand[0] -CommandType Application -ErrorAction SilentlyContinue |
+            Select-Object -First 1).Source
+    if (-not $exe) { continue }
     try {
-      $v = & $cand[0] @($cand | Select-Object -Skip 1) -c "import sys; print(sys.version_info[0]*100+sys.version_info[1])" 2>$null
+      $v = & $exe @($cand | Select-Object -Skip 1) -c "import sys; print(sys.version_info[0]*100+sys.version_info[1])" 2>$null
       if ($LASTEXITCODE -eq 0 -and [int]$v -ge 310) { return $cand }
     } catch {}
   }
@@ -59,11 +66,18 @@ if (-not $py) {
   $py = Find-Python
   if (-not $py) { throw "Python 3.12 installed but not found on PATH — open a NEW PowerShell window and re-run this command." }
 }
+# Resolve the interpreter to its real .exe path and call it directly
+# everywhere. The previous version wrapped this in `function Py { & $py[0]
+# ... }` — but PowerShell resolves the bare name "py" to the FUNCTION
+# before the py.exe launcher, so the helper called itself until
+# CallDepthOverflow killed the whole setup on a real machine (2026-08-26,
+# third failed run). No wrapper function, no name that shadows a command.
+$pyExe = (Get-Command $py[0] -CommandType Application -ErrorAction SilentlyContinue |
+          Select-Object -First 1).Source
+if (-not $pyExe) { throw "could not resolve $($py[0]) to an executable" }
 $pyFlags = @($py | Select-Object -Skip 1)
-$pyv = & $py[0] @pyFlags -c "import sys; print(sys.version.split()[0])"
-Write-Host "  Using Python $pyv ($($py -join ' '))" -ForegroundColor Green
-
-function Py { & $py[0] @pyFlags @args; return $LASTEXITCODE }
+$pyv = & $pyExe @pyFlags -c "import sys; print(sys.version.split()[0])"
+Write-Host "  Using Python $pyv ($pyExe $pyFlags)" -ForegroundColor Green
 
 # ---- the repo --------------------------------------------------------------
 # This is a RECOVERY tool: it must end with the repo exactly at current
@@ -90,7 +104,10 @@ if (Test-Path $dest) {
     $known = ($upstream + "`n" + $existing) -split "`r?`n"
     $new = ($salvage -split "`r?`n") | Where-Object { $_.Trim() -and ($known -notcontains $_) }
     if ($new) {
-      Add-Content -Path $pcJournal -Value ($new -join "`n") -Encoding utf8
+      # NOT Add-Content -Encoding utf8: Windows PowerShell writes a BOM,
+      # which corrupts the first JSON line for every reader of the journal
+      [System.IO.File]::AppendAllText($pcJournal, (($new -join "`n") + "`n"),
+                                      [System.Text.UTF8Encoding]::new($false))
       git -C $dest add state/journal
       git -C $dest commit -m "pc: salvage locally journaled entries" | Out-Null
       Write-Host "  Salvaged $($new.Count) local journal line(s)." -ForegroundColor Yellow
@@ -108,11 +125,11 @@ if (-not (Test-Path (Join-Path $dest ".browser-installed"))) {
   $answer = Read-Host "  Enable browser control? Downloads Chromium (~150MB) [Y/n]"
   if ($answer -eq "" -or $answer -match "^[Yy]") {
     try {
-      [void](Py -m pip install --quiet --upgrade pip)
-      if ((Py -m pip install --quiet --only-binary=":all:" -r requirements-optional.txt) -ne 0) {
-        throw "pip could not install playwright from wheels"
-      }
-      if ((Py -m playwright install chromium) -ne 0) { throw "chromium download failed" }
+      & $pyExe @pyFlags -m pip install --quiet --upgrade pip
+      & $pyExe @pyFlags -m pip install --quiet --only-binary=":all:" -r requirements-optional.txt
+      if ($LASTEXITCODE -ne 0) { throw "pip could not install playwright from wheels" }
+      & $pyExe @pyFlags -m playwright install chromium
+      if ($LASTEXITCODE -ne 0) { throw "chromium download failed" }
       New-Item -ItemType File -Path (Join-Path $dest ".browser-installed") -Force | Out-Null
       Write-Host "  Browser control ready." -ForegroundColor Green
     } catch {
@@ -127,19 +144,43 @@ if (-not (Test-Path (Join-Path $dest ".browser-installed"))) {
 
 # ---- REQUIRED: the checks, then Aletheia itself ----------------------------
 Write-Host "  Running checks ..."
-if ((Py -m unittest discover -s tests -q) -ne 0) {
+& $pyExe @pyFlags -m unittest discover -s tests -q
+if ($LASTEXITCODE -ne 0) {
   throw "Aletheia checks failed on this machine. The Core was not started - send Claude the output above."
 }
 
 $auto = Read-Host "  Start Aletheia automatically at every logon? [Y/n]"
 if ($auto -eq "" -or $auto -match "^[Yy]") {
-  [void](Py -m aletheia.supervisor install)
+  & $pyExe @pyFlags -m aletheia.supervisor install
 }
 
-Write-Host "`n  Aletheia is starting — leave this window open, or close it" -ForegroundColor Green
-Write-Host "  and it returns at next logon (if you said Y above)."
-Write-Host "  Wall:           http://127.0.0.1:8777/"
-Write-Host "  Command Center: http://127.0.0.1:8777/command.html"
-Write-Host "  Stop with Ctrl+C`n"
-Start-Process "http://127.0.0.1:8777/"
-[void](Py -m aletheia.supervisor)
+function Wait-ForCore($seconds) {
+  for ($i = 0; $i -lt $seconds; $i++) {
+    try {
+      Invoke-WebRequest -UseBasicParsing -TimeoutSec 1 "http://127.0.0.1:8777/api/status" | Out-Null
+      return $true
+    } catch { Start-Sleep 1 }
+  }
+  return $false
+}
+
+if ($auto -eq "" -or $auto -match "^[Yy]") {
+  # installed AND started as a background task — wait for it, open the
+  # wall, and this window is free to close
+  Write-Host "`n  Waiting for Aletheia to come up ..." -ForegroundColor Green
+  if (Wait-ForCore 30) {
+    Start-Process "http://127.0.0.1:8777/"
+    Write-Host "  Aletheia is UP and runs in the background — at every logon, forever." -ForegroundColor Green
+    Write-Host "  Wall: http://127.0.0.1:8777/   (click the mic dot, say `"Thea, what's going on?`")"
+    Write-Host "  You can close this window.`n"
+  } else {
+    Write-Host "  The background task did not come up in 30s — starting here instead." -ForegroundColor Yellow
+    Start-Process "http://127.0.0.1:8777/"
+    & $pyExe @pyFlags -m aletheia.supervisor
+  }
+} else {
+  Write-Host "`n  Aletheia is starting — leave this window open (Ctrl+C stops it)." -ForegroundColor Green
+  Write-Host "  Wall: http://127.0.0.1:8777/  — refresh it if it loads before the Core.`n"
+  Start-Process "http://127.0.0.1:8777/"
+  & $pyExe @pyFlags -m aletheia.supervisor
+}
