@@ -1,5 +1,5 @@
 {
-  "revision": 8,
+  "revision": 9,
   "providers": [
     {
       "id": "aletheia.local",
@@ -305,6 +305,18 @@
       "verification": "tests/test_supervisor.py (backoff doubles and caps, self-update restarts immediately and resets backoff, Ctrl+C stops, install refuses honestly off Windows) + tests/test_core_sync.py SelfUpdateCase (code commit fires restart against a real repo, state-only commit does not)",
       "notes": "NEEDS_CONFIGURATION until it runs on the PC. Self-update chain: merge to main -> Core's sync pull sees CODE_PATHS changed -> exits RESTART_EXIT_CODE -> supervisor relaunches on the new code, within about one sync beat.",
       "module": "aletheia.supervisor"
+    },
+    {
+      "id": "voice.wall",
+      "description": "Talk to the page itself: the wall/Command Center hear 'Thea, ...' and speak the answer — no side app",
+      "provider": "aletheia.local",
+      "status": "NEEDS_CONFIGURATION",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "interface/voice.js (Web Speech API in the operator's browser) -> POST /api/voice -> voice.interpret -> the same run_command gates as every channel",
+      "verification": "tests/test_voice.py: 15 tests — wake word, halt/resume, spoken URLs ('example dot com'), approve refuses to guess between two pending, unrecognized speech becomes a journaled note (never a guessed action), endpoint round trip on a live Core",
+      "notes": "NEEDS_CONFIGURATION until the Core runs on the PC and the operator clicks the mic indicator once (browser permission). Ears/mouth are the browser's own (Chrome/Edge); the interpreter is deterministic on purpose - unmatched speech is journaled and said so, never guessed (§104). ChatGPT Voice remains the away-from-home channel.",
+      "module": "aletheia.voice"
     },
     {
       "id": "browser.read",

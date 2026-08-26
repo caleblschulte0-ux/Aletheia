@@ -265,7 +265,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
-        if path not in ("/api/command", "/api/computer"):
+        if path not in ("/api/command", "/api/computer", "/api/voice"):
             return self.send_error(404)
         try:
             payload = self._payload()
@@ -273,6 +273,26 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"outcome": "invalid", "detail": str(exc)}, code=400)
         if path == "/api/command":
             return self._json(run_command(payload, self.fleet))
+        if path == "/api/voice":
+            from aletheia import voice
+            transcript = payload.get("transcript")
+            if not isinstance(transcript, str) or not transcript.strip():
+                return self._json({"outcome": "invalid",
+                                   "detail": "transcript must be a non-empty string"},
+                                  code=400)
+            intent = voice.interpret(transcript)
+            if intent["command"] is None:
+                return self._json({"outcome": "answered", "say": intent["say"]})
+            cmd = dict(intent["command"])
+            kind = cmd.get("kind")
+            result = run_command(
+                {**cmd, "operator_quote": f"spoken to the wall: {transcript[:200]}"},
+                self.fleet)
+            # a fallback intent carries its own words (e.g. "no command for
+            # that, journaled") — those beat the generic receipt phrasing
+            say = intent["say"] or voice.spoken_reply(kind, result["outcome"],
+                                                      result["detail"])
+            return self._json({**result, "say": say})
 
         unknown = set(payload) - {"steps", "approval_id"}
         if unknown:
