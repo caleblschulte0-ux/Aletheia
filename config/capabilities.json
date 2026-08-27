@@ -1,5 +1,5 @@
 {
-  "revision": 28,
+  "revision": 29,
   "providers": [
     {
       "id": "aletheia.local",
@@ -955,6 +955,28 @@
       "caller": "python -m aletheia.calendar_auth google|microsoft",
       "module": "aletheia.calendar_auth",
       "notes": "aletheia/calendar_live.py picks ONE source of truth - an official OAuth provider when configured, the secret-ICS fallback otherwise - because mirroring both against the same account would double-count busy time. Consent is a one-time local desktop flow (aletheia/calendar_auth.py): system browser, PKCE-S256, high-entropy state compared in constant time, one loopback callback on an ephemeral port. No code, access token, refresh token or client secret is printed, journaled or committed; the refresh config lives in ~/.aletheia/calendar-live.json and rotated tokens in gitignored state/private/calendar/oauth. The loopback listener accepts exactly one callback, refuses duplicated or mixed code/error parameters, suppresses HTTP request logging because authorization codes ride in the URL, and sets Referrer-Policy: no-referrer so the code cannot leak onward. Existing configuration is never overwritten without --replace."
+    },
+    {
+      "id": "meeting.negotiate",
+      "description": "Arrange a meeting with a person across days: offer times, wait for the reply, book the slot they chose",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "medium",
+      "approval_policy": "operator_always",
+      "caller": "python -m aletheia.scheduling new|reply|list|abandon; aletheia.runtime.tick each Core beat (_reconcile_scheduling, and _scheduling_reply routes correlated mail.reply events)",
+      "module": "aletheia.scheduling",
+      "notes": "Phase 15, the playbook's first big orchestration test. Every part existed and none were joined: contacts resolved a person, calendar found slots, mail drafted and gated, the bus waited for a reply, and meetings.propose did the first two and stopped. This is the state machine that survives Tuesday (§27) - OFFERING, SENT, INTERPRETING, BOOKING, BOOKED, NEEDS_OPERATOR, ABANDONED - reconciled each beat so it keeps its place across restarts and a human who answers when they feel like it. It SEQUENCES approvals and never substitutes for one: sending is email.send (operator_always), booking is calendar.write (operator_always, hash-bound to the exact event). A reply is interpreted by a tool-less provider against the exact slots offered, and anything below 0.75 confidence - or a counter-proposal, a decline, or an unreadable answer - becomes NEEDS_OPERATOR, because booking the wrong hour of someone else's week is not recoverable.",
+      "verification": "tests/test_scheduling.py (25): an APPROVED send approval does not count as sent - only the .sent.json delivery marker does; a write that returns no event id is NOT booked; out-of-range or unaccompanied slot indices from the model are refused"
+    },
+    {
+      "id": "email.read_body",
+      "description": "Read the body text of a received email, not just its headers",
+      "provider": "aletheia.local",
+      "status": "NOT_BUILT",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "caller": "TICKET: no caller. Wanted by aletheia.scheduling.note_reply, which can see that a meeting reply arrived but not what it says.",
+      "notes": "Named rather than worked around (§105). aletheia.mail deliberately fetches BODY.PEEK[HEADER] - headers only - so Aletheia never holds the operator's correspondence, and the private stores keep fingerprints rather than text. That is the right default, and it is exactly why a meeting negotiation cannot read 'Tuesday works' for itself; it asks the operator to relay the answer in one line instead of guessing an acceptance from a subject. Building this widens what Aletheia reads of his mail and is a privacy decision that is his to make, not a missing function: it needs an explicit ruling on which messages may be read, how long any text is retained, and whether a body may ever reach a reasoning provider."
     }
   ]
 }
