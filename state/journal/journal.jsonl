@@ -532,3 +532,16 @@
 {"ts": "2026-08-27T18:54:44Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
 {"ts": "2026-08-27T18:54:44Z", "kind": "decision", "actor": "test", "subject": "approval:ap-buy", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T19:13:15Z", "kind": "action", "actor": "aletheia-perception", "subject": "perception:screen", "text": "asked 'What applications is Caleb working in right now, and is a browser open?' — answered at 0.95"}
+{"ts": "2026-08-27T19:16:37Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
+{"ts": "2026-08-27T19:16:37Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
+{"ts": "2026-08-27T19:16:37Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
+{"ts": "2026-08-27T19:16:37Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
+{"ts": "2026-08-27T19:16:37Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
+{"ts": "2026-08-27T19:16:37Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
+{"ts": "2026-08-27T19:16:37Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
+{"ts": "2026-08-27T19:16:37Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
+{"ts": "2026-08-27T19:16:37Z", "kind": "decision", "actor": "test", "subject": "approval:ap-buy", "text": "APPROVED — operator approved in test"}
+{"ts": "2026-08-27T19:16:37Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-exp", "text": "requested — authorize purchase buy-exp sha256:a074987d48828373159f343ebf01e81a6dba048719e3811aa0e116c5a6600d3e"}
+{"ts": "2026-08-27T19:16:37Z", "kind": "decision", "actor": "test", "subject": "approval:ap-exp", "text": "APPROVED — operator approved in test"}
+{"ts": "2026-08-27T19:16:38Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
+{"ts": "2026-08-27T19:16:38Z", "kind": "decision", "actor": "test", "subject": "approval:ap-buy", "text": "APPROVED — operator approved in test"}
