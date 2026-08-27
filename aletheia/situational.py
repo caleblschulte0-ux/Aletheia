@@ -3,14 +3,15 @@
 Jarvis-shaped behavior requires more than understanding a sentence in isolation:
 "move my next meeting", "handle that", and "what should I do before I leave?"
 only make sense against NOW. This module assembles that NOW from existing durable
-stores without adding any authority or any new world-touching action.
+stores without adding authority or a new world-touching action.
 
 Security/trust boundary:
 - provider/human strings in this snapshot are DATA, never instructions;
 - email/notification bodies are deliberately omitted;
 - room observed_state is allow-listed to simple useful fields;
 - every collection and string is bounded before it reaches a reasoning provider;
-- the snapshot is returned in memory only. Nothing here persists it or commits it.
+- byte pressure drops whole least-recent records and marks the snapshot trimmed;
+- the snapshot is returned in memory only. Nothing here persists or commits it.
 """
 from __future__ import annotations
 
@@ -21,7 +22,7 @@ from typing import Any
 from aletheia import calendar, context, current_state, devices, handler, notifications
 
 DEFAULT_HORIZON_HOURS = 24
-DEFAULT_MAX_ITEMS = 12
+DEFAULT_MAX_ITEMS = 8
 MAX_CONTEXT_BYTES = 7_500
 MAX_TEXT = 180
 _OBSERVED_KEYS = {
@@ -59,28 +60,62 @@ def _room_state(value: dict | None) -> dict:
     return out
 
 
+def _ids(values: Any, limit: int) -> list[str]:
+    if not isinstance(values, list):
+        return []
+    return [_text(v, 96) for v in values[:limit] if isinstance(v, str) and _text(v, 96)]
+
+
 def _compact_now(base: dict, max_items: int) -> dict:
-    focus = base.get("focus", {}) if isinstance(base, dict) else {}
-    attention = base.get("needs_attention", {}) if isinstance(base, dict) else {}
+    base = base if isinstance(base, dict) else {}
+    focus = base.get("focus", {}) if isinstance(base.get("focus"), dict) else {}
+    attention = (base.get("needs_attention", {})
+                 if isinstance(base.get("needs_attention"), dict) else {})
+    projects = []
+    for value in list(focus.get("active_projects", []))[:max_items]:
+        if not isinstance(value, dict):
+            continue
+        projects.append({"id": _text(value.get("id"), 80),
+                         "title": _text(value.get("title"), 140),
+                         "status": _text(value.get("status"), 40)})
+    tasks = []
+    for value in list(focus.get("active_tasks", []))[:max_items]:
+        if not isinstance(value, dict):
+            continue
+        tasks.append({"id": _text(value.get("id"), 80),
+                      "description": _text(value.get("description"), 160),
+                      "status": _text(value.get("status"), 40)})
+    upcoming = []
+    for value in list(base.get("upcoming", []))[:max_items]:
+        if not isinstance(value, dict):
+            continue
+        upcoming.append({"schedule_id": _text(value.get("schedule_id"), 80),
+                         "at": _text(value.get("at"), 50),
+                         "command_kind": _text(value.get("command_kind"), 60)})
+    gaps = []
+    for value in list(base.get("capability_gaps", []))[:max_items]:
+        if not isinstance(value, dict):
+            continue
+        gaps.append({"id": _text(value.get("id"), 96),
+                     "status": _text(value.get("status"), 40)})
+    try:
+        unread_count = int(attention.get("unread_notifications", 0) or 0)
+    except (TypeError, ValueError):
+        unread_count = 0
+    waiting = base.get("waiting", {}) if isinstance(base.get("waiting"), dict) else {}
     return {
-        "halted": bool(base.get("halted")) if isinstance(base, dict) else False,
-        "focus": {
-            "projects": list(focus.get("active_projects", []))[:max_items],
-            "tasks": list(focus.get("active_tasks", []))[:max_items],
-        },
+        "halted": bool(base.get("halted")),
+        "focus": {"projects": projects, "tasks": tasks},
         "needs_attention": {
-            "pending_approvals": list(attention.get("pending_approvals", []))[:max_items],
-            "waiting_operator": list(attention.get("waiting_operator", []))[:max_items],
-            "blocked_tasks": list(attention.get("blocked_tasks", []))[:max_items],
-            "overdue_replies": list(attention.get("overdue_replies", []))[:max_items],
-            "unread_notifications": int(attention.get("unread_notifications", 0) or 0),
+            "pending_approvals": _ids(attention.get("pending_approvals"), max_items),
+            "waiting_operator": _ids(attention.get("waiting_operator"), max_items),
+            "blocked_tasks": _ids(attention.get("blocked_tasks"), max_items),
+            "overdue_replies": _ids(attention.get("overdue_replies"), max_items),
+            "unread_notifications": max(0, unread_count),
         },
-        "waiting_replies": list((base.get("waiting") or {}).get("replies", []))[:max_items]
-        if isinstance(base, dict) else [],
-        "upcoming_automations": list(base.get("upcoming", []))[:max_items]
-        if isinstance(base, dict) else [],
-        "capability_gaps": list(base.get("capability_gaps", []))[:max_items]
-        if isinstance(base, dict) else [],
+        "waiting_replies": _ids(waiting.get("replies"), max_items),
+        "upcoming_automations": upcoming,
+        "capability_gaps": gaps,
     }
 
 
@@ -101,7 +136,7 @@ def _calendar(now: dt.datetime, horizon: dt.datetime, max_items: int) -> list[di
             "title": _text(value.get("title")),
             "start": start.isoformat(),
             "end": end.isoformat(),
-            "status": value.get("status", "CONFIRMED"),
+            "status": _text(value.get("status", "CONFIRMED"), 30),
         }
         if value.get("location"):
             item["location"] = _text(value.get("location"), 140)
@@ -119,7 +154,8 @@ def _devices(max_items: int) -> list[dict]:
             "room": _text(value.get("room"), 80),
             "kind": _text(value.get("kind"), 40),
             "status": _text(value.get("status"), 40),
-            "abilities": [_text(v, 60) for v in value.get("abilities", [])[:12]],
+            "abilities": [_text(v, 60) for v in value.get("abilities", [])[:12]
+                          if isinstance(v, str)],
         }
         observed = _room_state(value.get("observed_state"))
         if observed:
@@ -172,6 +208,57 @@ def _outcomes(max_items: int) -> list[dict]:
     return out
 
 
+def _encoded_size(value: dict) -> int:
+    return len(json.dumps(value, ensure_ascii=False, sort_keys=True,
+                          separators=(",", ":")).encode("utf-8"))
+
+
+def _budget(value: dict) -> dict:
+    """Fit the context by dropping whole tail records, never slicing JSON."""
+    paths = [
+        ("room",), ("unread_notifications",), ("active_outcomes",),
+        ("recent_references",), ("calendar_next",),
+        ("now", "focus", "tasks"), ("now", "focus", "projects"),
+        ("now", "upcoming_automations"), ("now", "capability_gaps"),
+        ("now", "waiting_replies"),
+        ("now", "needs_attention", "blocked_tasks"),
+        ("now", "needs_attention", "waiting_operator"),
+        ("now", "needs_attention", "overdue_replies"),
+        ("now", "needs_attention", "pending_approvals"),
+    ]
+    trimmed = False
+    while _encoded_size(value) > MAX_CONTEXT_BYTES:
+        candidates = []
+        for path in paths:
+            target: Any = value
+            for key in path:
+                target = target.get(key) if isinstance(target, dict) else None
+            if isinstance(target, list) and target:
+                cost = len(json.dumps(target[-1], ensure_ascii=False).encode("utf-8"))
+                candidates.append((cost, path, target))
+        if not candidates:
+            raise ValueError("situational context exceeded its byte budget")
+        _, _, target = max(candidates, key=lambda item: item[0])
+        target.pop()
+        trimmed = True
+    value["budget_trimmed"] = trimmed
+    # The marker itself costs bytes. If it tips the object over, trim once more.
+    while _encoded_size(value) > MAX_CONTEXT_BYTES:
+        candidates = []
+        for path in paths:
+            target: Any = value
+            for key in path:
+                target = target.get(key) if isinstance(target, dict) else None
+            if isinstance(target, list) and target:
+                cost = len(json.dumps(target[-1], ensure_ascii=False).encode("utf-8"))
+                candidates.append((cost, target))
+        if not candidates:
+            raise ValueError("situational context exceeded its byte budget")
+        max(candidates, key=lambda item: item[0])[1].pop()
+        value["budget_trimmed"] = True
+    return value
+
+
 def snapshot(*, now: dt.datetime | None = None,
              horizon_hours: int = DEFAULT_HORIZON_HOURS,
              max_items: int = DEFAULT_MAX_ITEMS) -> dict:
@@ -199,9 +286,4 @@ def snapshot(*, now: dt.datetime | None = None,
         "active_outcomes": _outcomes(max_items),
         "unread_notifications": _notices(max_items),
     }
-    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    if len(encoded.encode("utf-8")) > MAX_CONTEXT_BYTES:
-        # This should be rare because every section is bounded. Fail closed
-        # rather than silently truncating JSON in the middle of a fact.
-        raise ValueError("situational context exceeded its byte budget")
-    return value
+    return _budget(value)
