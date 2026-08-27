@@ -113,7 +113,11 @@ class GoogleCalendarProvider:
             items = payload.get("items", [])
             if not isinstance(items, list):
                 raise ValueError("Google Calendar list returned invalid items")
-            out.extend(self._normalize(item) for item in items)
+            # transparency=transparent means the provider explicitly says this
+            # event does not block time. Omitting it from the busy mirror also
+            # makes an old busy copy get cancelled by authoritative sync.
+            out.extend(self._normalize(item) for item in items
+                       if str(item.get("transparency", "opaque")).lower() != "transparent")
             page_token = payload.get("nextPageToken")
             if not page_token:
                 return out
