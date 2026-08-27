@@ -118,3 +118,6 @@
 {"ts": "2026-08-27T19:30:00Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "supervisor up — the Core is now persistent"}
 {"ts": "2026-08-27T19:30:01Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
 {"ts": "2026-08-27T19:30:01Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-27T19:30:38Z", "kind": "action", "actor": "aletheia-perception", "subject": "perception:screen", "text": "asked 'what is on my screen' — answered at 0.95"}
+{"ts": "2026-08-27T19:30:38Z", "kind": "action", "actor": "operator-local-core", "subject": "core:screen_ask", "text": "done — Your screen shows several open windows: a 'Project Llama Overlay' window, a Chrome browser window with 'Claude Code', a window for 'Aletheia GitHub access', a taskbar pane, and a Program Manager pane."}
+{"ts": "2026-08-27T19:31:06Z", "kind": "event", "actor": "aletheia-voice", "subject": "voice:room", "text": "room voice listening (local wake word)"}
