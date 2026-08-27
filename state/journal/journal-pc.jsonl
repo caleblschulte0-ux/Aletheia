@@ -316,3 +316,5 @@
 {"ts": "2026-08-27T23:42:47Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message isn't clear enough to act on — could you rephrase what you'd like done?"}
 {"ts": "2026-08-27T23:44:31Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Your message ('get your mouth') isn't clear to me - what would you like me to do?"}
 {"ts": "2026-08-27T23:44:31Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message ('get your mouth') isn't clear to me - what would you like me to do?"}
+{"ts": "2026-08-27T23:46:07Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Your message just says \"there\" with no request attached - what would you like me to do?"}
+{"ts": "2026-08-27T23:46:07Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message just says \"there\" with no request attached - what would you like me to do?"}
