@@ -228,6 +228,18 @@ def reconcile_task_gaps(*, registry: dict | None = None) -> list[dict]:
     return actions
 
 
+def _advisor_judgment(event: dict, now: dt.datetime) -> dict | None:
+    """Optional model triage. Failure never blocks deterministic event handling."""
+    try:
+        from aletheia import advisor
+        return advisor.evaluate_event(event, now=now)
+    except Exception as exc:
+        # Never echo provider/config exception text into runtime results: an
+        # external dependency error may contain data we did not intend to surface.
+        return {"event": event.get("id", "?"), "outcome": "error",
+                "error_type": type(exc).__name__}
+
+
 def process_new_events(*, now: dt.datetime | None = None,
                        cursor_path: Path | None = None,
                        events_dir: Path | None = None,
@@ -289,6 +301,12 @@ def process_new_events(*, now: dt.datetime | None = None,
                     pass
             actions.append({"event": event["id"], "action": f"rule_{kind}",
                             "rule": rule["id"], "priority": priority})
+        judged = _advisor_judgment(event, now)
+        if judged is not None:
+            actions.append({"event": event["id"],
+                            "action": "advisor_" + judged.get("outcome", "unknown"),
+                            **({"error_type": judged["error_type"]}
+                               if judged.get("error_type") else {})})
     if fresh:
         write_json_atomic(cursor_path, {
             "version": 1, "last_event_id": fresh[-1]["id"],
@@ -313,6 +331,29 @@ def _observe_room() -> list[dict]:
     if not hass.available()[0]:
         return []
     return hass.observe()
+
+
+def _refresh_calendar(now: dt.datetime) -> list[dict]:
+    """Prefer one official OAuth provider; fall back to ICS, never both.
+
+    Both mechanisms mirror into the same local availability store. Running both
+    against the same upstream account would double-count busy time, so an
+    official provider config is authoritative whenever present.
+    """
+    from aletheia import calendar_live, ics
+    if calendar_live.available()[0]:
+        result = calendar_live.refresh_if_due(now=now)
+        if result is None:
+            return []
+        return [{"action": "refreshed", "provider": result["provider"],
+                 "remote_count": result["remote_count"],
+                 "conflicts": len(result["conflicts"])}]
+    if ics.available()[0]:
+        result = ics.refresh_if_due(now=now)
+        if result is None:
+            return []
+        return [{"action": "refreshed", "provider": "ics", **result}]
+    return []
 
 
 def tick(fleet: dict, *, now: dt.datetime | None = None,
@@ -354,6 +395,7 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # than inside the sentence that asked for it.
     authorized_errands = guarded("errands", _run_authorized_errands)
     room_devices = guarded("room", _observe_room)
+    calendar_updates = guarded("calendar", lambda: _refresh_calendar(now))
     # LAST: everything above may create notifications. Attention never executes
     # them; it only classifies READY vs DEFERRED and escalates eligible priority.
     attention_records = guarded("attention", lambda: attention.reconcile(now=now))
@@ -368,6 +410,7 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
         "approved_intents": approved_intents,
         "authorized_errands": authorized_errands,
         "room_devices": room_devices,
+        "calendar": calendar_updates,
         "handle_requests": handle_requests,
         "attention": attention_records,
     }

@@ -1,27 +1,25 @@
-"""Calendar feeds — Phase 14's live half, the §6-compliant way.
+"""Calendar feeds — Phase 14's live read fallback, no model/API key required.
 
-No Google/Outlook API keys. The operator's calendar apps all publish a
-SECRET ICS URL (Google: Settings -> "Secret address in iCal format";
-Outlook: "Publish calendar"). That URL is the operator's own read-only
-credential: it lives in ~/.aletheia/calendar.json on the PC, never in
-the repo. This module fetches it, parses VEVENTs with the stdlib, and
-mirrors them into the local calendar model (`aletheia.calendar`, under
-state/private/ — gitignored) that free_time and availability already
-consume.
+The operator's calendar apps can publish a SECRET ICS URL (Google: Settings ->
+"Secret address in iCal format"; Outlook: "Publish calendar"). That URL is a
+read-only credential: it lives in ~/.aletheia/calendar.json on the PC, never in
+the repo. This module fetches it, parses VEVENTs with the stdlib, and mirrors
+busy time into the private local calendar model that availability consumes.
 
-Honesty rules (§104), because a WRONG answer to "am I free at 3?" is
-worse than no answer:
-
-- Recurring events are EXPANDED, not stored as masters, within the
-  mirror window (yesterday .. +60 days). Supported: FREQ=DAILY/WEEKLY
-  with INTERVAL, COUNT, UNTIL, BYDAY, plus EXDATE.
-- An RRULE this parser cannot expand is never silently dropped or
-  half-imported: the event is skipped AND counted, the refresh result
-  names it, and a notification tells the operator availability may be
-  incomplete. Guessing a busy block away is the failure mode.
-- Mirrored events are namespaced (`ics-<feed>-...`) and stale ones are
-  cancelled on refresh, so a meeting deleted upstream stops blocking
-  free time here. Local (non-feed) events are never touched.
+Honesty rules (§104), because a WRONG answer to "am I free at 3?" is worse than
+no answer:
+- recurring events are EXPANDED, not stored as masters, within the mirror
+  window (yesterday .. +60 days). Supported: FREQ=DAILY/WEEKLY with
+  INTERVAL, COUNT, UNTIL, BYDAY, plus EXDATE;
+- an RRULE this parser cannot expand is never silently dropped or
+  half-imported: the event is skipped AND counted, the refresh result names
+  it, and a notification tells the operator availability may be incomplete.
+  Guessing a busy block away is the failure mode;
+- TRANSP:TRANSPARENT events do not block time;
+- STATUS:TENTATIVE remains tentative and CANCELLED does not block;
+- mirrored events are namespaced (`ics-<feed>-...`) and stale ones are
+  cancelled on refresh, so a meeting deleted upstream stops blocking free
+  time here. Local (non-feed) events are never touched.
 """
 from __future__ import annotations
 
@@ -34,7 +32,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from aletheia import calendar, journal, notifications
-from aletheia.stateio import private_dir, read_json, utcnow, write_json_atomic
+from aletheia.stateio import private_dir, read_json, safe_id, utcnow, write_json_atomic
 
 CONFIG_FILE = Path.home() / ".aletheia" / "calendar.json"
 STATE_PATH = private_dir("calendar") / "feeds-state.json"
@@ -53,11 +51,16 @@ def _config() -> dict:
     feeds = value.get("feeds", [])
     if not isinstance(feeds, list):
         raise ValueError("calendar.json feeds must be a list")
+    seen: set[str] = set()
     for feed in feeds:
         if not isinstance(feed, dict) or not feed.get("id") or not feed.get("url"):
             raise ValueError("each feed needs id and url")
+        feed_id = safe_id(str(feed["id"]), name="calendar feed id")
+        if feed_id in seen:
+            raise ValueError(f"duplicate calendar feed id {feed_id!r}")
+        seen.add(feed_id)
         if not str(feed["url"]).startswith("https://"):
-            raise ValueError(f"feed {feed['id']}: url must be https")
+            raise ValueError(f"feed {feed_id}: url must be https")
     return {"feeds": feeds}
 
 
@@ -74,7 +77,6 @@ def available() -> tuple[bool, str]:
 
 
 # ---- parsing ----------------------------------------------------------------
-
 def _unfold(text: str) -> list[str]:
     lines: list[str] = []
     for raw in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
@@ -101,8 +103,12 @@ def _split_prop(line: str) -> tuple[str, dict, str]:
 
 
 def _parse_dt(value: str, params: dict) -> tuple[dt.datetime, bool]:
-    """-> (aware datetime UTC, is_all_day). Floating times assume UTC honestly
-    flagged upstream by feeds; Google/Outlook always stamp Z or TZID."""
+    """-> (aware datetime UTC, is_all_day).
+
+    Floating times have no timezone information to recover; the providers this
+    fallback targets normally emit Z or TZID. A floating timestamp is therefore
+    interpreted as UTC rather than guessed into the operator's zone.
+    """
     value = value.strip()
     if params.get("VALUE") == "DATE" or re.fullmatch(r"\d{8}", value):
         d = dt.datetime.strptime(value, "%Y%m%d").replace(tzinfo=dt.timezone.utc)
@@ -141,6 +147,8 @@ def parse_events(text: str) -> tuple[list[dict], int]:
             current["location"] = _unescape(value).strip()
         elif name == "STATUS":
             current["status"] = value.strip().upper()
+        elif name == "TRANSP":
+            current["transparent"] = value.strip().upper() == "TRANSPARENT"
         elif name == "DTSTART":
             current["start"], current["all_day"] = _parse_dt(value, params)
         elif name == "DTEND":
@@ -185,6 +193,7 @@ def _expand(event: dict, window_start: dt.datetime,
     else:  # WEEKLY
         bydays = sorted({_BYDAY[d] for d in rule.get("BYDAY", "").split(",") if d}
                         or {start.weekday()})
+
         def weekly():
             week0 = start - dt.timedelta(days=start.weekday())
             for w in range(0, 200):
@@ -212,7 +221,6 @@ def _expand(event: dict, window_start: dt.datetime,
 
 
 # ---- mirroring --------------------------------------------------------------
-
 def _stamp(value: dt.datetime) -> str:
     return value.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -239,8 +247,9 @@ def refresh(fetch=None, *, now: dt.datetime | None = None) -> dict:
         totals["feeds"] += 1
         totals["unsupported"] += skipped
         for event in events:
-            if event.get("status") == "CANCELLED":
+            if event.get("status") == "CANCELLED" or event.get("transparent"):
                 continue
+            local_status = "TENTATIVE" if event.get("status") == "TENTATIVE" else "CONFIRMED"
             for occ_start, occ_end in _expand(event, window_start, window_end):
                 eid = _event_id(feed["id"], event["uid"], occ_start)
                 seen_ids.add(eid)
@@ -248,22 +257,23 @@ def refresh(fetch=None, *, now: dt.datetime | None = None) -> dict:
                     "version": 1, "id": eid, "title": event.get("title", "(untitled)"),
                     "start": _stamp(occ_start), "end": _stamp(occ_end),
                     "attendees": [], "source": f"ics:{feed['id']}",
-                    "status": "CONFIRMED", "priority": 3,
+                    "status": local_status, "priority": 3,
                     "movable": False, "created_at": utcnow(), "updated_at": utcnow(),
                 }
                 if event.get("location"):
                     record["location"] = event["location"]
                 try:
                     existing = calendar.load(eid)
-                    if (existing["start"], existing["end"], existing["title"]) != (
-                            record["start"], record["end"], record["title"]):
+                    if (existing["start"], existing["end"], existing["title"], existing["status"]) != (
+                            record["start"], record["end"], record["title"], record["status"]):
                         calendar.save({**existing, "title": record["title"],
                                        "start": record["start"], "end": record["end"],
-                                       "status": "CONFIRMED", "updated_at": utcnow()})
+                                       "status": record["status"], "updated_at": utcnow()})
                 except (FileNotFoundError, ValueError):
                     calendar.save(record)
                 totals["mirrored"] += 1
-    # a mirrored event no longer upstream must stop blocking free time
+    # A mirrored event no longer upstream — including one changed to transparent
+    # or cancelled — must stop blocking free time.
     for existing in calendar.all_events():
         if existing["id"].startswith("ics-") and existing["id"] not in seen_ids \
                 and existing["status"] != "CANCELLED":
@@ -285,8 +295,13 @@ def refresh(fetch=None, *, now: dt.datetime | None = None) -> dict:
 
 
 def _fetch_url(url: str) -> str:
-    with urllib.request.urlopen(url, timeout=30) as r:
-        data = r.read(MAX_FEED_BYTES + 1)
+    try:
+        with urllib.request.urlopen(url, timeout=30) as r:
+            data = r.read(MAX_FEED_BYTES + 1)
+    except Exception as exc:
+        # The secret ICS URL is a credential; never include urllib's URL-bearing
+        # exception text in Core results/logs.
+        raise RuntimeError(f"calendar feed fetch failed: {type(exc).__name__}") from None
     if len(data) > MAX_FEED_BYTES:
         raise ValueError("feed exceeds size cap")
     return data.decode("utf-8", errors="replace")
