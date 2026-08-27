@@ -89,3 +89,6 @@
 {"ts": "2026-08-27T14:17:35Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "pull recovered: up to date with remote"}
 {"ts": "2026-08-27T14:31:49Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "pull failing: rebase conflict, aborted cleanly: resolve the conflicts\nand then discard the stash with \"git stash drop\", or, if you\ndo not want to resolve them now, run \"git reset --hard\" and\napply the local changes later by running \"git stash pop\"."}
 {"ts": "2026-08-27T14:32:52Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "pull recovered: up to date with remote"}
+{"ts": "2026-08-27T15:34:41Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "supervisor up — the Core is now persistent"}
+{"ts": "2026-08-27T15:34:42Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
+{"ts": "2026-08-27T15:34:42Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
