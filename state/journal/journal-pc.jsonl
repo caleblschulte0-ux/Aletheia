@@ -258,3 +258,5 @@
 {"ts": "2026-08-27T23:05:08Z", "kind": "event", "actor": "operator-local-core", "subject": "core:runtime:mail", "text": "recovered — working again"}
 {"ts": "2026-08-27T23:05:50Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Your message is unclear - could you rephrase what you'd like Aletheia to be allowed to do on its own?"}
 {"ts": "2026-08-27T23:05:50Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message is unclear - could you rephrase what you'd like Aletheia to be allowed to do on its own?"}
+{"ts": "2026-08-27T23:06:53Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Your message isn't clear to me - could you rephrase what you'd like done?"}
+{"ts": "2026-08-27T23:06:53Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message isn't clear to me - could you rephrase what you'd like done?"}
