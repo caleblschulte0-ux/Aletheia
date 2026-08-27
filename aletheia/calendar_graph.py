@@ -134,7 +134,11 @@ class MicrosoftGraphCalendarProvider:
             values = payload.get("value", [])
             if not isinstance(values, list):
                 raise ValueError("Graph calendarView returned invalid value list")
-            out.extend(self._normalize(item) for item in values)
+            # showAs=free explicitly means this event must not block availability.
+            # Omitting it also lets authoritative sync cancel a formerly-busy
+            # local copy when the upstream event changes to free.
+            out.extend(self._normalize(item) for item in values
+                       if str(item.get("showAs", "busy")).lower() != "free")
             next_url = payload.get("@odata.nextLink")
             if not next_url:
                 return out
