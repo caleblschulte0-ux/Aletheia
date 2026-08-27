@@ -20,7 +20,9 @@ Three properties make a model safe to put here:
     the worst a bad answer can do is fail validation.
   * **No authority.** What comes back is a PROPOSAL. Every step still
     passes `intercom.validate_kind_args` and every policy gate before
-    anything happens (§70: ability is not permission).
+    anything happens (§70: ability is not permission). A model may
+    propose `purchase.execute`; the gate is what decides, exactly as it
+    would for a proposal typed by hand.
   * **No trust in its shape.** Planner outputs go through
     `brain.validate_output`; other callers may use `infer_json` only when
     they validate their own narrower schema before doing anything with it.
@@ -42,6 +44,8 @@ from dataclasses import dataclass
 from aletheia import brain
 from aletheia.proc import hidden_flags
 
+# Fast model for interpretation; a stronger one for multi-step planning.
+# Both are aliases, so this never pins a model id that will age out.
 INTERPRET_MODEL = "haiku"
 PLAN_MODEL = "sonnet"
 TIMEOUT_S = 90.0
@@ -78,7 +82,11 @@ def _strip_fence(text: str) -> str:
 
 
 def _first_json_object(text: str) -> dict:
-    """The first complete JSON object in the text, or ValueError."""
+    """The first complete JSON object in the text, or ValueError.
+
+    Tolerates a model that adds a sentence before or after the object;
+    refuses one that returns no object at all rather than guessing.
+    """
     candidate = _strip_fence(text)
     try:
         value = json.loads(candidate)
@@ -138,13 +146,15 @@ def _run_cli(system_prompt: str, user_prompt: str, model: str,
     argv = [
         path, "-p", user_prompt,
         "--system-prompt", system_prompt,
-        "--tools", "",
+        "--tools", "",                  # no filesystem, no shell, no network
         "--model", model,
         "--output-format", "json",
         "--no-session-persistence",
         "--disable-slash-commands",
         "--strict-mcp-config",
     ]
+    # A neutral cwd: inside the repo the CLI would load this project's own
+    # CLAUDE.md into every single call.
     with tempfile.TemporaryDirectory(prefix="aletheia-brain-") as workdir:
         try:
             proc = subprocess.run(
@@ -195,7 +205,10 @@ def infer_json(system_prompt: str, text: str, *, context: dict | None = None,
 
 @dataclass(frozen=True)
 class CliReasoner:
-    """A brain.Provider backed by the local CLI; brain validation still applies."""
+    """A brain.Provider backed by the local CLI. `run` is inherited
+    behaviour: `brain.validate_output` gates everything this returns —
+    which is exactly what `infer_json` below does NOT do, and why its
+    callers must validate their own schema."""
     model: str = INTERPRET_MODEL
     system_prompt: str = ""
     timeout_s: float = TIMEOUT_S
@@ -210,7 +223,13 @@ class CliReasoner:
 
 def infer_or_fallback(provider: brain.Provider, text: str,
                       context: dict | None = None) -> tuple[dict, str | None]:
-    """(output, degraded_reason). Never raises."""
+    """(output, degraded_reason). Never raises.
+
+    A reasoning provider is an ordinary dependency that can be absent,
+    slow, or wrong. When it is any of those, the caller gets the
+    deterministic fallback's honest "clarify" and the REASON — which is
+    what reaches the operator, instead of silence or invention.
+    """
     try:
         return provider.run(text, context or {}), None
     except (ReasonerUnavailable, ValueError, brain.BrainOutputError) as exc:

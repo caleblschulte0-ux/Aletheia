@@ -386,8 +386,13 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     capability_gaps = reconcile_task_gaps(registry=registry)
     handle_requests = guarded(
         "handler", lambda: handler.reconcile_all(registry=registry, now=now))
+    # Approved arbitrary asks (aletheia.intents): the plan the operator
+    # okayed runs HERE, on a later beat, through the ordinary gates — not
+    # inside the conversation that produced it.
     approved_intents = guarded(
         "intents", lambda: _run_approved_intents(fleet))
+    # Errands he authorized: the last mile into the world, run here rather
+    # than inside the sentence that asked for it.
     authorized_errands = guarded("errands", _run_authorized_errands)
     room_devices = guarded("room", _observe_room)
     calendar_updates = guarded("calendar", lambda: _refresh_calendar(now))

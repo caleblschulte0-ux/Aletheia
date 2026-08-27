@@ -1,5 +1,5 @@
 {
-  "revision": 26,
+  "revision": 27,
   "providers": [
     {
       "id": "aletheia.local",
@@ -279,10 +279,10 @@
       "status": "NEEDS_CONFIGURATION",
       "risk_class": "read",
       "approval_policy": "none",
-      "caller": "aletheia.ics.refresh_if_due — every Core beat, at most every 30 min: fetches the operator's secret ICS url(s), expands recurrence, mirrors into the local calendar that free_time/availability already answer from",
-      "notes": "NEEDS_CONFIGURATION: put the calendar's secret iCal address in ~/.aletheia/calendar.json on the PC (Google: Settings -> 'Secret address in iCal format'). No API keys (§6) — the url is the operator's own read-only credential and never enters the repo.",
-      "verification": "tests/test_ics.py (13 tests): folding/escapes per RFC 5545, TZID->UTC, DAILY/WEEKLY+BYDAY/COUNT/UNTIL/EXDATE expansion, unsupported rules counted and surfaced as a notification (never silently dropped — a guessed-away busy block is the failure mode), upstream deletions cancel the mirror, local events untouched, idempotent, https-only",
-      "module": "aletheia.ics"
+      "caller": "aletheia.runtime.tick each Core beat (_refresh_calendar); python -m aletheia.calendar_live_cli status|sync; python -m aletheia.calendar_auth google|microsoft",
+      "notes": "aletheia/calendar_live.py picks ONE source of truth - an official OAuth provider when configured, the secret-ICS fallback otherwise - because mirroring both against the same account would double-count busy time. Consent is a one-time local desktop flow (aletheia/calendar_auth.py): system browser, PKCE-S256, high-entropy state compared in constant time, one loopback callback on an ephemeral port. No code, access token, refresh token or client secret is printed, journaled or committed; the refresh config lives in ~/.aletheia/calendar-live.json and rotated tokens in gitignored state/private/calendar/oauth. ChatGPT PR (calendar-providers-v1), Claude-reviewed 2026-08-27. Still NEEDS_CONFIGURATION and not AVAILABLE: the code is real and tested, but the operator has authorized no account, so there is nothing to read. Reading it live is what promotes it.",
+      "verification": "tests/test_calendar_live_providers.py + test_calendar_auth.py + test_ics_busy_semantics.py; TRANSP:TRANSPARENT and STATUS:CANCELLED no longer block time, which was a wrong answer to 'am I free at 3?'",
+      "module": "aletheia.calendar_live"
     },
     {
       "id": "room.scene",
@@ -784,13 +784,13 @@
     {
       "id": "calendar.write",
       "description": "Change a live external calendar (create/update/cancel) through a provider adapter",
-      "module": "aletheia.calendar_provider",
+      "module": "aletheia.calendar_live",
       "provider": "aletheia.local",
       "risk_class": "high",
       "approval_policy": "operator_always",
       "status": "EXPERIMENTAL",
-      "caller": "aletheia.calendar_provider.execute_write_plan — fully gated and hermetically tested; no live Google/Outlook adapter exists yet, so nothing real can be written",
-      "notes": "The seam means a live adapter only implements list/create/update/cancel; every gate already exists and is tested (tests/test_calendar_provider.py).",
+      "caller": "aletheia.calendar_provider.execute_write_plan behind a hash-bound operator approval; python -m aletheia.calendar_live_cli execute",
+      "notes": "Google Calendar and Microsoft Graph create/update/delete are now really implemented (previously no provider existed at all). Still EXPERIMENTAL and still operator_always: no write has ever round-tripped against a live account, and a calendar write changes something other people can see. The write scope is requested only when the operator passes --enable-writes at consent time, so a read-only authorization cannot later be used to write.",
       "verification": "tests/test_calendar_provider.py: approval binding, hash mismatch refusal, provider-verification failure raises, conflict on locally-dirty events"
     },
     {
@@ -920,6 +920,41 @@
       "module": "aletheia.authority",
       "notes": "authority.py could record delegated authority since the systems layer and nothing consumed it; every approval still went to him. satisfy() is the consumer, wired into the ONE place approvals are created. allows() re-reads the registry at spend time, so a grant file edited on disk to name a high-risk capability still buys nothing: §56 L4 holds structurally, not by remembering.",
       "verification": "tests/test_authority_consumption.py: a forged grant over email.send is refused; exhausted, revoked, expired and corrupt grants all authorize nothing; a broken grant store fails closed"
+    },
+    {
+      "id": "context.situational",
+      "description": "A bounded, private snapshot of NOW - calendar, tasks, waiting replies, room, referents - assembled for the reasoning layer",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.planner.compile on the production path (never when a caller supplies its own provider or context); aletheia.advisor",
+      "module": "aletheia.situational",
+      "notes": "What makes 'move my next meeting' and 'handle that' resolvable against real state instead of guessed. Minimized on purpose: notification and email BODIES are omitted, room observed_state is allow-listed to simple fields, every string and collection is bounded, and byte pressure drops whole least-recent records rather than slicing JSON mid-object. In memory only - nothing here is persisted or committed. It is context, never authority: the planner and advisor prompts both declare it UNTRUSTED DATA, because a calendar title or task text can contain instruction-like wording.",
+      "verification": "tests/test_situational.py; tests/test_planner_situational_context.py"
+    },
+    {
+      "id": "advisor.triage",
+      "description": "Proactive judgment on one observed event: ignore, notify, or suggest - never act",
+      "provider": "claude.cli",
+      "status": "NEEDS_CONFIGURATION",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "aletheia.runtime.process_new_events each Core beat (_advisor_judgment); python -m aletheia.advisor status|configure",
+      "module": "aletheia.advisor",
+      "notes": "ChatGPT PR (situational-context-v1), Claude-reviewed 2026-08-27. DISABLED by default and NEEDS_CONFIGURATION until the operator opts in at ~/.aletheia/advisor.json - building a proactive brain is not permission to send every event through a model. Bounded when on: an event-kind allowlist, a per-kind cooldown, hourly notification and daily suggestion caps, a confidence floor that demotes weak suggestions to IGNORE, halt-aware, and one exclusive receipt per event so an event is judged once. A SUGGEST publishes a notification and a recent referent - it is NOT an Intent and NOT an approval, so the operator must still ask, and that request is compiled and gated through the ordinary planner (§70).",
+      "verification": "tests/test_advisor.py: unknown output fields refused, IGNORE/NOTIFY may not carry a suggestion, rate limits and the confidence floor demote rather than publish"
+    },
+    {
+      "id": "calendar.authorize",
+      "description": "One-time official OAuth consent for a live calendar account, on this machine, through the system browser",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "python -m aletheia.calendar_auth google|microsoft",
+      "module": "aletheia.calendar_auth",
+      "notes": "aletheia/calendar_live.py picks ONE source of truth - an official OAuth provider when configured, the secret-ICS fallback otherwise - because mirroring both against the same account would double-count busy time. Consent is a one-time local desktop flow (aletheia/calendar_auth.py): system browser, PKCE-S256, high-entropy state compared in constant time, one loopback callback on an ephemeral port. No code, access token, refresh token or client secret is printed, journaled or committed; the refresh config lives in ~/.aletheia/calendar-live.json and rotated tokens in gitignored state/private/calendar/oauth. The loopback listener accepts exactly one callback, refuses duplicated or mixed code/error parameters, suppresses HTTP request logging because authorization codes ride in the URL, and sets Referrer-Policy: no-referrer so the code cannot leak onward. Existing configuration is never overwritten without --replace."
     }
   ]
 }

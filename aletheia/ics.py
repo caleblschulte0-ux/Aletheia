@@ -8,11 +8,18 @@ busy time into the private local calendar model that availability consumes.
 
 Honesty rules (§104), because a WRONG answer to "am I free at 3?" is worse than
 no answer:
-- recurring events are expanded within yesterday .. +60 days;
-- unsupported RRULEs are counted and surfaced, never silently guessed away;
+- recurring events are EXPANDED, not stored as masters, within the mirror
+  window (yesterday .. +60 days). Supported: FREQ=DAILY/WEEKLY with
+  INTERVAL, COUNT, UNTIL, BYDAY, plus EXDATE;
+- an RRULE this parser cannot expand is never silently dropped or
+  half-imported: the event is skipped AND counted, the refresh result names
+  it, and a notification tells the operator availability may be incomplete.
+  Guessing a busy block away is the failure mode;
 - TRANSP:TRANSPARENT events do not block time;
 - STATUS:TENTATIVE remains tentative and CANCELLED does not block;
-- stale mirrored events are cancelled while local non-feed events are untouched.
+- mirrored events are namespaced (`ics-<feed>-...`) and stale ones are
+  cancelled on refresh, so a meeting deleted upstream stops blocking free
+  time here. Local (non-feed) events are never touched.
 """
 from __future__ import annotations
 

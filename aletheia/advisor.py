@@ -25,6 +25,7 @@ import argparse
 import datetime as dt
 import hashlib
 import json
+import time
 from pathlib import Path
 from typing import Callable
 
@@ -217,11 +218,29 @@ def _receipt_path(event_id: str) -> Path:
     return RECEIPTS_DIR / f"advisor-{digest}.json"
 
 
-def _all_receipts() -> list[dict]:
+# Rate limiting only ever asks about the last day. Reading every receipt
+# ever written to answer that is O(everything) on each judgment, and the
+# receipts directory only grows — so bound the read by file mtime first
+# and parse a small recent window (found in review 2026-08-27).
+RECENT_RECEIPTS = 250
+RECEIPT_WINDOW_S = 26 * 60 * 60  # the longest limit (a day) plus slack
+
+
+def _all_receipts(*, now_s: float | None = None) -> list[dict]:
+    """Recent judgments, newest first. Bounded by mtime and by count."""
     if not RECEIPTS_DIR.is_dir():
         return []
-    out = []
+    now_s = now_s if now_s is not None else time.time()
+    paths = []
     for path in RECEIPTS_DIR.glob("advisor-*.json"):
+        try:
+            modified = path.stat().st_mtime
+        except OSError:
+            continue
+        if now_s - modified <= RECEIPT_WINDOW_S:
+            paths.append((modified, path))
+    out = []
+    for _, path in sorted(paths, reverse=True)[:RECENT_RECEIPTS]:
         try:
             out.append(read_json(path))
         except ValueError:
