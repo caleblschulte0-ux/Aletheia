@@ -250,3 +250,39 @@ class JournalConflictRegressionCase(CoreSyncFixture):
         run(["git", "pull", "origin", "main"], self.relay)
         pc_file = self.relay / "state" / "journal" / "journal-pc.jsonl"
         self.assertIn("quiet tick entry", pc_file.read_text(encoding="utf-8"))
+
+
+class HeartbeatBatchingCase(CoreSyncFixture):
+    """Journal-only pushes batch to one per 10 minutes; receipts never wait."""
+
+    def test_quiet_journal_change_within_window_commits_but_does_not_push(self):
+        core.core_tick(self.syncer, self.fleet, self.status)  # sets last_push_s
+        before = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(self.origin),
+                                capture_output=True, text=True).stdout
+        journal.append("note", "pc", "heartbeat entry")
+        core.core_tick(self.syncer, self.fleet, self.status)
+        after = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(self.origin),
+                               capture_output=True, text=True).stdout
+        self.assertEqual(before, after)  # nothing pushed inside the window
+
+    def test_receipts_push_immediately_even_inside_the_window(self):
+        core.core_tick(self.syncer, self.fleet, self.status)
+        self.relay_files_command("20260827-read", "browse_read", url="https://example.com")
+        page = {"url": "https://example.com/", "title": "T", "text": "x", "links": []}
+        with mock.patch("aletheia.browse.read_page", return_value=page):
+            status = core.core_tick(self.syncer, self.fleet, self.status)
+        self.assertTrue(status["push"]["ok"], status.get("push"))
+        run(["git", "pull", "origin", "main"], self.relay)
+        self.assertTrue((self.relay / "exchange" / "commands" /
+                         "20260827-read.result.json").exists())
+
+    def test_batched_heartbeats_ride_out_with_the_next_push(self):
+        core.core_tick(self.syncer, self.fleet, self.status)
+        journal.append("note", "pc", "batched entry")
+        core.core_tick(self.syncer, self.fleet, self.status)   # committed, unpushed
+        self.status["last_push_s"] = 0.0                       # window expires
+        status = core.core_tick(self.syncer, self.fleet, self.status)
+        self.assertTrue(status["push"]["ok"], status.get("push"))
+        run(["git", "pull", "origin", "main"], self.relay)
+        pc_journal = self.relay / "state" / "journal" / "journal.jsonl"
+        self.assertIn("batched entry", pc_journal.read_text(encoding="utf-8"))
