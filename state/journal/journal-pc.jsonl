@@ -46,3 +46,11 @@
 {"ts": "2026-08-26T22:37:21Z", "kind": "note", "actor": "operator-via-intercom", "subject": "operator", "text": "(voice, unmatched) here"}
 {"ts": "2026-08-26T22:37:21Z", "kind": "action", "actor": "operator-local-core", "subject": "core:note", "text": "done — journaled"}
 {"ts": "2026-08-26T22:40:26Z", "kind": "event", "actor": "claude", "subject": "capability:voice.wake", "text": "NOT_BUILT -> AVAILABLE, Phase 10 BUILT and live-proven by machine self-test: the PC spoke 'Thea, what's going on?' through its own speakers, the local vosk wake spotter fired, the command ran through the standard gates, and she answered out loud. Three real faults found on the way and fixed: the mic endpoint was hardware-MUTED in Windows (also the wall mic's silent failure — unmuted via Core Audio), the mic array delivers speech at ~1.5% of full scale (software AGC added), and the small model cannot spell 'Thea' in open dictation ('Aletheia status' -> 'everything is dennis'; grammar-constrained wake spotter added, plus the two-phase 'Thea' -> 'Yes?' -> command flow). Persistent: Windows task 'AletheiaVoice' at logon. Audio never leaves the machine; unaddressed room speech is dropped without being journaled."}
+{"ts": "2026-08-27T02:24:18Z", "kind": "note", "actor": "operator-via-intercom", "subject": "operator", "text": "(voice, unmatched) and sixty one hundred million hundred per year or so"}
+{"ts": "2026-08-27T02:24:18Z", "kind": "action", "actor": "operator-local-core", "subject": "core:note", "text": "done — journaled"}
+{"ts": "2026-08-27T02:24:36Z", "kind": "note", "actor": "operator-via-intercom", "subject": "operator", "text": "aprove"}
+{"ts": "2026-08-27T02:24:36Z", "kind": "action", "actor": "operator-local-core", "subject": "core:note", "text": "done — journaled"}
+{"ts": "2026-08-27T02:24:37Z", "kind": "note", "actor": "operator-via-intercom", "subject": "operator", "text": "aprove"}
+{"ts": "2026-08-27T02:24:37Z", "kind": "action", "actor": "operator-local-core", "subject": "core:note", "text": "done — journaled"}
+{"ts": "2026-08-27T02:24:37Z", "kind": "note", "actor": "operator-via-intercom", "subject": "operator", "text": "aprove"}
+{"ts": "2026-08-27T02:24:37Z", "kind": "action", "actor": "operator-local-core", "subject": "core:note", "text": "done — journaled"}
