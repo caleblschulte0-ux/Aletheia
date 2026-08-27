@@ -1,5 +1,5 @@
 {
-  "revision": 3,
+  "revision": 4,
   "fleet": "aletheia",
   "owner": "caleblschulte0-ux",
   "repos": {
@@ -127,7 +127,7 @@
       "github": "schwab-trader",
       "role": "trading-bot",
       "status": "active",
-      "summary": "Guardrailed paper-trading day-trading bot for Charles Schwab: separate Claude BUY and SELL brains, executor on GitHub Actions, significance-gated sell approvals.",
+      "summary": "Guardrailed paper-trading system. The SELL brain and executor watchdog are active; the subscription-backed BUY brain and trade executor are intentionally paused until the operator resumes them.",
       "default_branch": "main",
       "agents": [
         {
@@ -148,9 +148,7 @@
       ],
       "watch": {
         "workflows": [
-          "brain.yml",
           "sell-brain.yml",
-          "trader.yml",
           "watchdog.yml"
         ],
         "state_files": [

@@ -52,7 +52,7 @@ class TestTransitionsAndAlerts(unittest.TestCase):
 
     def test_transition_detected(self):
         prev = _pulse(self.fleet)
-        cur = _pulse(self.fleet, failed_workflows={"trader.yml"})
+        cur = _pulse(self.fleet, failed_workflows={"watchdog.yml"})
         t = transitions(prev, cur)
         self.assertEqual(t, [{"repo": "schwab_trader", "github": "schwab-trader",
                               "from": "green", "to": "red"}])
@@ -61,11 +61,11 @@ class TestTransitionsAndAlerts(unittest.TestCase):
         self.assertEqual(transitions(None, _pulse(self.fleet)), [])
 
     def test_alerts_name_the_failing_workflow(self):
-        cur = _pulse(self.fleet, failed_workflows={"trader.yml"})
+        cur = _pulse(self.fleet, failed_workflows={"watchdog.yml"})
         alerts = find_alerts(cur)
         self.assertEqual(len(alerts), 1)
         self.assertEqual(alerts[0]["github"], "schwab-trader")
-        self.assertEqual(alerts[0]["failing"], ["trader.yml"])
+        self.assertEqual(alerts[0]["failing"], ["watchdog.yml"])
 
     def test_offline_unknown_is_not_an_alert(self):
         cur = _pulse(self.fleet)
@@ -90,7 +90,7 @@ class TestSentinel(unittest.TestCase):
         patcher.start(); self.addCleanup(patcher.stop)
 
     def test_opens_issue_on_new_fault(self):
-        pulse = enrich(_pulse(self.fleet, failed_workflows={"trader.yml"}), None)
+        pulse = enrich(_pulse(self.fleet, failed_workflows={"watchdog.yml"}), None)
         api = RecordingAPI(open_issues=[])
         self.assertEqual(sentinel.sync(pulse, "o/r", api), "opened")
         posts = [c for c in api.calls if c[0] == "POST"]

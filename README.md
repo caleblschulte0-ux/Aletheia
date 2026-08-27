@@ -59,7 +59,7 @@ sessions working here is `CLAUDE.md`.
 |---|---|---|---|
 | `Aletheia` | hub | active | The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox. |
 | `Shorts-pipeline` | youtube-automation | active | Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange. |
-| `schwab-trader` | trading-bot | active | Guardrailed paper-trading day-trading bot for Charles Schwab: separate Claude BUY and SELL brains, executor on GitHub Actions, significance-gated sell approvals. |
+| `schwab-trader` | trading-bot | active | Guardrailed paper-trading system. The SELL brain and executor watchdog are active; the subscription-backed BUY brain and trade executor are intentionally paused until the operator resumes them. |
 | `Money_Machine` | unbuilt | stub | Empty stub — nothing but a README. No behaviour to observe yet. |
 | `etsy_maker` | unbuilt | stub | Empty stub — nothing but a README. No behaviour to observe yet. |
 | `fosstester` | unbuilt | stub | Empty stub — nothing but a README. No behaviour to observe yet. |

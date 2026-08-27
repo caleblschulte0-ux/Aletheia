@@ -1,15 +1,17 @@
-"""Bounded proactive rules with cooldown and dedupe receipts.
+"""Bounded proactive rules with cooldown, dedupe and explicit priority.
 
 Rules consume plain event dictionaries and produce *proposals* such as surface,
 notify, or enqueue. They never execute the proposed action. Existing policy and
-capability gates remain authoritative. Rule subjects and event receipts are
-private runtime state because they may reveal operator activity.
+capability gates remain authoritative. Notification priority is explicit so the
+separate attention layer can apply quiet hours/escalation without guessing how
+important a proactive rule is.
 """
 from __future__ import annotations
 
 import datetime as dt
 from pathlib import Path
 
+from aletheia import notifications
 from aletheia.stateio import create_json_exclusive, private_dir, read_json, safe_id, utcnow, write_json_atomic
 
 RULES_DIR = private_dir("proactive") / "rules"
@@ -38,6 +40,9 @@ def validate_rule(rule: dict) -> None:
         raise ValueError("cooldown must be a non-negative integer")
     if not isinstance(rule["persistent"], bool) or not isinstance(rule["enabled"], bool):
         raise ValueError("persistent and enabled must be boolean")
+    priority = rule.get("priority", "NORMAL")
+    if priority not in notifications.PRIORITIES:
+        raise ValueError(f"priority must be one of {sorted(notifications.PRIORITIES)}")
     for key in ("source", "subject_prefix"):
         if key in rule and (not isinstance(rule[key], str) or not rule[key]):
             raise ValueError(f"{key} must be a non-empty string")
@@ -45,13 +50,14 @@ def validate_rule(rule: dict) -> None:
 
 def create_rule(rule_id: str, *, event_kind: str, action: str,
                 source: str | None = None, subject_prefix: str | None = None,
-                cooldown_minutes: int = 0, persistent: bool = True) -> dict:
+                cooldown_minutes: int = 0, persistent: bool = True,
+                priority: str = "NORMAL") -> dict:
     if _path(rule_id).exists():
         raise FileExistsError(rule_id)
     value = {"version": 1, "id": safe_id(rule_id, name="rule id"),
              "event_kind": event_kind, "action": action,
              "cooldown_minutes": cooldown_minutes, "persistent": persistent,
-             "enabled": True, "created_at": utcnow()}
+             "priority": priority, "enabled": True, "created_at": utcnow()}
     if source:
         value["source"] = source
     if subject_prefix:
@@ -120,10 +126,12 @@ def evaluate(rule: dict, event: dict, *, now: dt.datetime | None = None) -> dict
         last = dt.datetime.fromisoformat(prior[0]["triggered_at"].replace("Z", "+00:00"))
         if now.astimezone(dt.timezone.utc) - last.astimezone(dt.timezone.utc) < cooldown:
             return None
+    priority = rule.get("priority", "NORMAL")
     receipt = {"version": 1, "rule_id": rule["id"], "event_id": event_id,
-               "action": rule["action"],
+               "action": rule["action"], "priority": priority,
                "triggered_at": now.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-               "proposal": {"kind": rule["action"], "event_id": event_id}}
+               "proposal": {"kind": rule["action"], "event_id": event_id,
+                            "priority": priority}}
     create_json_exclusive(event_receipt, receipt)
     return receipt
 
