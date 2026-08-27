@@ -54,3 +54,7 @@
 {"ts": "2026-08-27T02:24:37Z", "kind": "action", "actor": "operator-local-core", "subject": "core:note", "text": "done — journaled"}
 {"ts": "2026-08-27T02:24:37Z", "kind": "note", "actor": "operator-via-intercom", "subject": "operator", "text": "aprove"}
 {"ts": "2026-08-27T02:24:37Z", "kind": "action", "actor": "operator-local-core", "subject": "core:note", "text": "done — journaled"}
+{"ts": "2026-08-27T02:27:59Z", "kind": "note", "actor": "operator-via-intercom", "subject": "operator", "text": "(voice, unmatched) just trying to get there was only"}
+{"ts": "2026-08-27T02:27:59Z", "kind": "action", "actor": "operator-local-core", "subject": "core:note", "text": "done — journaled"}
+{"ts": "2026-08-27T02:28:39Z", "kind": "note", "actor": "operator-via-intercom", "subject": "operator", "text": "(voice, unmatched) take the gonna take it then"}
+{"ts": "2026-08-27T02:28:39Z", "kind": "action", "actor": "operator-local-core", "subject": "core:note", "text": "done — journaled"}
