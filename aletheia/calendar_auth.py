@@ -16,9 +16,9 @@ import argparse
 import base64
 import hashlib
 import http.server
-import json
 import secrets
 import threading
+import time
 import urllib.parse
 import webbrowser
 from pathlib import Path
@@ -34,7 +34,10 @@ GOOGLE_READ_SCOPE = "https://www.googleapis.com/auth/calendar.events.readonly"
 GOOGLE_WRITE_SCOPE = "https://www.googleapis.com/auth/calendar.events"
 MICROSOFT_READ_SCOPE = "Calendars.Read"
 MICROSOFT_WRITE_SCOPE = "Calendars.ReadWrite"
-CALLBACK_PATH = "/oauth/callback"
+# Native desktop registrations use the localhost origin. Keep the callback at
+# the root so Microsoft's standard http://localhost redirect registration does
+# not require an extra path-specific redirect URI.
+CALLBACK_PATH = "/"
 CALLBACK_TIMEOUT_S = 180
 
 
@@ -56,7 +59,6 @@ def new_state() -> str:
 
 
 def _tenant(value: str) -> str:
-    # Reuse the exact live-config validator for path safety.
     clean = calendar_live.validate_config({
         "provider": "microsoft", "oauth": {
             "client_id": "placeholder", "refresh_token": "placeholder",
@@ -112,9 +114,6 @@ def exchange_code(provider: str, *, client_id: str, code: str, verifier: str,
         tenant = _tenant(tenant)
         token_url = f"https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token"
         form["scope"] = scope
-        # Public desktop clients should not have a secret. Keep optional support
-        # for a deliberately configured confidential registration, but never
-        # require one for the native flow.
         if client_secret:
             form["client_secret"] = client_secret
     else:
@@ -140,16 +139,22 @@ class _CallbackServer(http.server.HTTPServer):
 def _handler(expected_state: str, result: _CallbackResult):
     class Handler(http.server.BaseHTTPRequestHandler):
         def log_message(self, format, *args):  # noqa: A003
-            return  # query strings can contain codes; never log a request line
+            return  # request lines can contain OAuth codes; never log them
 
         def do_GET(self):  # noqa: N802
             parsed = urllib.parse.urlparse(self.path)
             query = urllib.parse.parse_qs(parsed.query, keep_blank_values=True)
-            state = query.get("state", [""])[0]
-            code = query.get("code", [""])[0]
-            error = query.get("error", [""])[0]
-            valid = parsed.path == CALLBACK_PATH and secrets.compare_digest(state, expected_state)
-            if valid and (code or error) and result.params is None:
+            states = query.get("state", [])
+            codes = query.get("code", [])
+            errors = query.get("error", [])
+            one_state = len(states) == 1
+            one_result = (len(codes) == 1 and not errors) or (len(errors) == 1 and not codes)
+            state = states[0] if one_state else ""
+            code = codes[0] if len(codes) == 1 else ""
+            error = errors[0] if len(errors) == 1 else ""
+            valid = (parsed.path == CALLBACK_PATH and one_state and one_result
+                     and secrets.compare_digest(state, expected_state))
+            if valid and result.params is None:
                 result.params = {"state": state, "code": code, "error": error}
                 result.event.set()
                 status = 200
@@ -162,6 +167,9 @@ def _handler(expected_state: str, result: _CallbackResult):
             self.send_response(status)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Cache-Control", "no-store")
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Referrer-Policy", "no-referrer")
+            self.send_header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -172,17 +180,14 @@ def listen_once(expected_state: str, *, provider: str,
                 timeout: int = CALLBACK_TIMEOUT_S,
                 open_browser: Callable[[str], bool] | None = webbrowser.open,
                 authorization_url_builder: Callable[[str], str] | None = None) -> tuple[str, str]:
-    """Run one loopback listener and return (redirect_uri, authorization code).
-
-    `authorization_url_builder` receives the final redirect URI. Injection keeps
-    tests hermetic and ensures the server is already listening before the browser
-    is opened.
-    """
+    """Run one loopback listener and return (redirect_uri, authorization code)."""
     if provider not in {"google", "microsoft"}:
         raise ValueError("OAuth provider must be google or microsoft")
+    if not isinstance(expected_state, str) or len(expected_state) < 32:
+        raise ValueError("OAuth state must be a high-entropy string")
     result = _CallbackResult()
     server = _CallbackServer(("127.0.0.1", 0), _handler(expected_state, result))
-    server.timeout = 0.5
+    server.timeout = 0.25
     port = server.server_address[1]
     host = "127.0.0.1" if provider == "google" else "localhost"
     redirect_uri = f"http://{host}:{port}{CALLBACK_PATH}"
@@ -191,10 +196,6 @@ def listen_once(expected_state: str, *, provider: str,
             auth_url = authorization_url_builder(redirect_uri)
             if open_browser is not None and not open_browser(auth_url):
                 raise RuntimeError("system browser could not be opened for calendar authorization")
-        deadline = threading.Event()
-        # Use repeated handle_request calls rather than serve_forever so timeout
-        # is bounded and shutdown never races a background server thread.
-        import time
         end = time.monotonic() + max(1, min(int(timeout), 600))
         while time.monotonic() < end and not result.event.is_set():
             server.handle_request()
@@ -235,7 +236,6 @@ def write_config(provider: str, *, client_id: str, refresh_token: str,
         raise ValueError("OAuth provider must be google or microsoft")
     clean = calendar_live.validate_config(value)
     write_json_atomic(path, clean)
-    # Deliberately return a secret-free summary, not the config object.
     return {"provider": clean["provider"], "allow_writes": clean["allow_writes"],
             "calendar_id": clean.get("calendar_id"), "path": str(path)}
 
@@ -246,11 +246,11 @@ def authorize(provider: str, *, client_id: str, enable_writes: bool = False,
               path: Path | None = None, replace: bool = False,
               transport: Transport | None = None,
               open_browser: Callable[[str], bool] | None = webbrowser.open) -> dict:
-    # Refuse an overwrite BEFORE opening a browser or creating any token.
     target = path or calendar_live.CONFIG_FILE
     if target.exists() and not replace:
         raise FileExistsError(f"live calendar config already exists at {target}; pass --replace explicitly")
-    verifier, challenge, state = *new_pkce(), new_state()
+    verifier, challenge = new_pkce()
+    state = new_state()
     selected_scope = ""
 
     def url_for(redirect_uri: str) -> str:
