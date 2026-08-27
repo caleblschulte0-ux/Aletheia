@@ -10,6 +10,14 @@ NOW = dt.datetime(2026, 8, 27, 16, 0, tzinfo=dt.timezone.utc)
 
 
 class SituationalCase(unittest.TestCase):
+    def setUp(self):
+        self._base = self.base_state()
+        self._calendar = self.calendar_values()
+        self._devices = self.devices()
+        self._notices = self.notices()
+        self._refs = self.refs()
+        self._handles = self.handles()
+
     def base_state(self):
         return {
             "halted": False,
@@ -69,12 +77,12 @@ class SituationalCase(unittest.TestCase):
         ]
 
     def snap(self, **kwargs):
-        with mock.patch.object(situational.current_state, "snapshot", return_value=self.base_state()), \
-             mock.patch.object(situational.calendar, "all_events", return_value=self.calendar_values()), \
-             mock.patch.object(situational.devices, "all_devices", return_value=self.devices()), \
-             mock.patch.object(situational.notifications, "all_notifications", return_value=self.notices()), \
-             mock.patch.object(situational.context, "recent", return_value=self.refs()), \
-             mock.patch.object(situational.handler, "all_requests", return_value=self.handles()):
+        with mock.patch.object(situational.current_state, "snapshot", return_value=self._base), \
+             mock.patch.object(situational.calendar, "all_events", return_value=self._calendar), \
+             mock.patch.object(situational.devices, "all_devices", return_value=self._devices), \
+             mock.patch.object(situational.notifications, "all_notifications", return_value=self._notices), \
+             mock.patch.object(situational.context, "recent", return_value=self._refs), \
+             mock.patch.object(situational.handler, "all_requests", return_value=self._handles):
             return situational.snapshot(now=NOW, **kwargs)
 
     def test_snapshot_connects_now_calendar_room_references_and_outcomes(self):
@@ -110,20 +118,30 @@ class SituationalCase(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.snap(max_items=31)
 
-    def test_context_overflow_fails_closed_instead_of_truncating_json(self):
-        huge = self.base_state()
-        huge["focus"]["active_tasks"] = [
-            {"id": f"t{i}", "description": "x" * 1000, "status": "QUEUED"} for i in range(30)]
-        with mock.patch.object(situational.current_state, "snapshot", return_value=huge), \
-             mock.patch.object(situational.calendar, "all_events", return_value=[]), \
-             mock.patch.object(situational.devices, "all_devices", return_value=[]), \
-             mock.patch.object(situational.notifications, "all_notifications", return_value=[]), \
-             mock.patch.object(situational.context, "recent", return_value=[]), \
-             mock.patch.object(situational.handler, "all_requests", return_value=[]):
-            # current_state's task descriptions are already bounded by its own model in production;
-            # this adversarial fixture proves the final byte cap still catches unexpected growth.
-            with self.assertRaises(ValueError):
-                situational.snapshot(now=NOW, max_items=30)
+    def test_context_overflow_trims_whole_records_not_json(self):
+        self._base["focus"]["active_tasks"] = [
+            {"id": f"t{i}", "description": (f"task-{i}-" + "x" * 1000), "status": "QUEUED"}
+            for i in range(30)]
+        self._base["focus"]["active_projects"] = [
+            {"id": f"p{i}", "title": (f"project-{i}-" + "y" * 1000), "status": "ACTIVE"}
+            for i in range(30)]
+        self._calendar = [
+            {"id": f"cal{i}", "title": f"meeting-{i}-" + "z" * 1000,
+             "start": (NOW + dt.timedelta(minutes=30 + i * 20)).isoformat(),
+             "end": (NOW + dt.timedelta(minutes=45 + i * 20)).isoformat(),
+             "status": "CONFIRMED", "location": "room-" + "q" * 1000}
+            for i in range(25)]
+        value = self.snap(max_items=30)
+        encoded = json.dumps(value, sort_keys=True, separators=(",", ":"))
+        # If whole-record trimming ever became a raw byte/string slice this would
+        # either be invalid JSON or contain a partial synthetic record.
+        reparsed = json.loads(encoded)
+        self.assertTrue(reparsed["budget_trimmed"])
+        self.assertLessEqual(len(encoded.encode("utf-8")), situational.MAX_CONTEXT_BYTES)
+        for task in reparsed["now"]["focus"]["tasks"]:
+            self.assertTrue(task["description"].startswith("task-"))
+        for event in reparsed["calendar_next"]:
+            self.assertTrue(event["title"].startswith("meeting-"))
 
 
 if __name__ == "__main__":
