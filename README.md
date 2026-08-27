@@ -21,12 +21,28 @@ sessions working here is `CLAUDE.md`.
 
 ## What works today
 
-- **The local Core + Command Center** — `python -m aletheia.core` on
-  your PC starts Aletheia as a persistent service: the wall at `/`, the
-  interactive Command Center at `/command.html` (live task queue,
-  approvals with approve/deny buttons, HALT/RESUME kill switch, a
-  15-kind command composer), and the internal API every future
-  interface shares. Loopback-only until authentication exists.
+- **She is simply on.** `python -m aletheia.supervisor install` registers
+  the Core and the room voice as always-on Windows tasks: a logon
+  trigger, a watchdog every five minutes, no execution time limit, and
+  power transitions that cannot kill her. Any death is repaired in
+  minutes without a human — proven by killing both processes and timing
+  the return (12 seconds). `python -m aletheia.supervisor status` answers
+  "is she up, and is the registration one she can survive inside?", and
+  an outage she comes back from is journaled with its duration instead of
+  passing in silence.
+- **The local Core + Command Center** — the wall at `/`, the interactive
+  Command Center at `/command.html` (live task queue, approvals with
+  approve/deny buttons, HALT/RESUME kill switch, the command composer),
+  and the internal API every interface shares. Loopback by default;
+  reaching it from a phone needs a minted token AND a TLS certificate
+  (`python -m aletheia.access mint`), and refuses without either.
+- **Say anything.** An ask that fits no command slot is no longer
+  journaled and forgotten: `aletheia.planner` compiles it into steps
+  expressed in the ordinary grammar, and every step still passes the same
+  validator and the same gates. A model proposes; the registries and the
+  gates dispose. She answers in about 50ms from local state, says
+  "working on that" for anything that needs thinking, and speaks the real
+  answer when it exists.
 - **The intercom** — talk to Thea through ChatGPT (voice or text, your
   subscription, zero API keys). It reads Aletheia's truth from this repo
   and relays your asks as validated commands; a workflow executes them
@@ -50,6 +66,13 @@ sessions working here is `CLAUDE.md`.
 - **The wall** — `interface/` — Ambient Aletheia: the cinematic room
   projection rendering the pulse (orbital fleet map, vitals, plans,
   tasks, alerts, activity ticker).
+- **The last mile** — `python -m aletheia.errands`: one approval-bound
+  web errand covering buying, booking and cancelling, executed through
+  the browser gate and bound to a hash of exactly what you authorized. A
+  spending errand checks the page's real total against its ceiling before
+  it clicks anything, and stops dead at the boundaries that are yours
+  alone — a bank step-up, a one-time code, a signature, an ID check —
+  handing you what is left rather than pretending.
 
 ## The fleet (one sensory organ, not the identity)
 
@@ -76,11 +99,21 @@ python -m aletheia.pulse                 # observe the fleet (token) / --local R
 python -m aletheia.brief                 # compose the morning brief
 python -m aletheia.act grants            # what the registries let Aletheia touch
 python -m aletheia.intercom list         # relayed commands + receipts
+python -m aletheia.supervisor status     # is she up, and will she stay up?
+python -m aletheia.planner "<anything>"  # an arbitrary ask -> a gated plan
+python -m aletheia.intents list          # asks in flight, with their approvals
+python -m aletheia.errands list          # errands in the world
+python -m aletheia.access list           # credentials that can reach her
 python -m aletheia.suggestions list      # ChatGPT's advice + rulings
 python -m unittest discover tests        # the whole suite, stdlib only
 ```
 
 ## Setup that needs the operator
+
+What is left is credentials and live round-trips, not architecture — see
+`docs/ROADMAP.md` for the five, each of which flips a registry entry on
+real evidence. Home Assistant needs a token before she can touch the
+room; a TLS certificate and a minted token before a phone can reach her.
 
 Three steps, all in **`docs/SETUP.md`**:
 

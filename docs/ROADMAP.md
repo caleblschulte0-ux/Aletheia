@@ -12,10 +12,10 @@ above its truth. Statuses: **BUILT** · **PARTIAL** · **IN PROGRESS** ·
 | 1 | Core data contracts | **BUILT** v0 | `aletheia/contracts.py` (7 contracts, all enums); `tests/test_contracts.py` |
 | 2 | Capability registry | **BUILT** v0 | `config/capabilities.json` + `aletheia/capabilities.py`; CI-validated; every entry names caller or ticket |
 | 3 | Durable task engine | **BUILT** v0 | `aletheia/tasks.py` → `state/tasks/`; lifecycle/deps/retries; restart-survival tested; creatable by voice via intercom |
-| 4 | Policy engine (risk, authority, approval objects, kill switch) | **BUILT** v1 | `aletheia/policy.py`: durable approvals (issue-published, decided by owner comment via `approvals.yml` or by voice), kill switch enforced in act/intercom/director, fail-closed on corrupt state; 8 tests. Remaining ticket: §56 L3 delegated-authority category rules |
-| 5 | Orchestrator V1 (goal → deterministic plan → tasks → verify) | **BUILT** v1 | `aletheia/orchestrator.py`: compile open goals to dependency-chained tasks, evidence-gated step completion (§30 in code), runs every pulse; 7 tests. AI-generated planning is later, per the playbook |
+| 4 | Policy engine (risk, authority, approval objects, kill switch) | **BUILT** v1 | `aletheia/policy.py`: durable approvals (issue-published, decided by owner comment via `approvals.yml` or by voice), kill switch enforced in act/intercom/director, fail-closed on corrupt state; 8 tests. **2026-08-27:** L3 delegated authority is now CONSUMED, not merely recorded — `policy.request(capability=...)` spends an eligible grant and writes a claim receipt, so an approval he already gave is not asked again. `authority.allows` re-reads the registry at spend time, so a grant edited on disk to name a high-risk capability still buys nothing: §56 L4 holds structurally, and a test asserts every capability that spends, sends, binds or destroys is declared ungrantable |
+| 5 | Orchestrator V1 (goal → deterministic plan → tasks → verify) | **BUILT** v1 | `aletheia/orchestrator.py`: compile open goals to dependency-chained tasks, evidence-gated step completion (§30 in code), runs every pulse; 7 tests. **2026-08-27 — AI-authored planning arrived** and did not replace this: `aletheia/planner.py` lets a reasoning provider PROPOSE, and every proposed step still passes `intercom.validate_kind_args` and the registry before it can run. `aletheia/reasoner.py` is the provider `brain.py` had been specified for since August and never had — the Claude CLI on the operator's own subscription, no API key (§6), `--tools ""` so it can emit text and nothing else |
 | 6 | Command Center V1 | **BUILT** v1 | `interface/command.html` served by the Core: approvals with approve/deny, live task queue, 15-kind command composer, HALT/RESUME, receipts — every button the same gated grammar as the intercom. The intercom remains the remote/voice channel |
-| 6+ | Local Core runtime on the Windows PC | **BUILT** v1 code — **WAITING_OPERATOR** to run it | `aletheia/core.py` + `aletheia/sync.py` + `aletheia/supervisor.py`: persistent stdlib service, internal API (§110), serves wall + Command Center, executes commands through intercom grammar + policy gates, loopback-only; sync loop pulls commands / executes PC-only kinds / pushes receipts; SELF-UPDATING (a merge to main restarts the Core onto the new code within a sync beat) and SUPERVISED (crash -> bounded-backoff relaunch; `supervisor install` = hidden at-logon task). One command on the PC: the bootstrap in docs/SETUP.md |
+| 6+ | Local Core runtime on the Windows PC | **BUILT** v1 — **RUNNING, and now permanent** | `aletheia/core.py` + `aletheia/sync.py` + `aletheia/supervisor.py`: persistent stdlib service, internal API (§110), serves wall + Command Center, executes commands through intercom grammar + policy gates, loopback-only; sync loop pulls commands / executes PC-only kinds / pushes receipts; SELF-UPDATING (a merge to main restarts the Core onto the new code within a sync beat) and SUPERVISED (crash -> bounded-backoff relaunch; `supervisor install` = hidden at-logon task). One command on the PC: the bootstrap in docs/SETUP.md. **2026-08-27 — always-on:** she had been DEAD for six hours (Core aborted 12:42:05Z mid self-update; a single at-logon trigger; he never logged off; nothing noticed). `aletheia/autostart.py` holds the always-on contract as a pure function over a task's live settings — repeating watchdog, unbounded, power-blind, restarting, IgnoreNew — and `aletheia/liveness.py` makes downtime a measured fact rather than a silence. Proven live: both processes killed at 14:15:47Z, Core answering again at 14:15:59Z, room voice at 14:16:05Z |
 | 7 | Windows computer control V0 | **EXPERIMENTAL** — code merged, unverified on Windows | `aletheia/computer.py` + Core `POST /api/computer`: typed plans, accessibility-only (screen coordinates refused), approvals bound to a sha256 of the exact plan and consumed once, halt re-checked before setup and every step, bounded waits/observation, redacted audit. 41 hermetic tests with an injected backend. **The UIA backend has never run on Windows** — `scripts/phase7_accept_notepad.ps1` is the acceptance run that decides AVAILABLE vs repair. Authored by Codex (PRs #11–16), reviewed and corrected by Claude |
 | 8 | Browser control | **BUILT** v1 | `aletheia/browse.py`: persistent authorized profile, `read_page`/`screenshot` open, `interact` gated behind an APPROVED approval and refused before the browser opens; halt-aware; playwright optional with honest degradation. 12 hermetic tests drive real Chromium against a loopback fixture — including an approved form fill + submit |
 | 9 | Agent Director (programmatic delegation to Claude/Codex) | **BUILT** v1 (dispatch) | `aletheia/director.py`: approval-gated work orders carrying the full §67 contract, filed automatically each pulse for READY assigned tasks; dependency chains on disk; 6 tests. EXPERIMENTAL until the first live round-trip; programmatic worker WAKE-UP still each app's own scheduled tasks |
@@ -27,11 +27,11 @@ above its truth. Statuses: **BUILT** · **PARTIAL** · **IN PROGRESS** ·
 | 15 | Multi-capability scheduling | **BLOCKED** by 13+14 | the first big orchestration acceptance test |
 | 16 | Memory V1 (identity/preferences/people/orgs with provenance) | **BUILT** v1 | `aletheia/memory.py` → `memory/`: four domains, provenance on every entry, correction-learning (§46) records what it replaced, "why do you think that" answerable; writable by voice (`remember`); 6 tests. Richer person/org schemas later |
 | 17 | Event bus + watchers | **BUILT** v0 | `aletheia/events.py` (ChatGPT PR #28, reviewed + repaired by Claude): immutable one-file-per-event bus + durable watchers with exactly-once triggers, PRIVATE by default (subjects carry personal facts; repo is public). Wired: core_tick emits sync-health events; `runtime.process_new_events` turns watcher triggers into notifications. 13+ tests |
-| 18 | Room devices (Home Assistant) | **BLOCKED** by local Core | `room.scene` NOT_BUILT |
+| 18 | Room devices (Home Assistant) | **BUILT** v1 code — **NEEDS_CONFIGURATION** | `aletheia/hass.py`: the provider `room.plan()` had been ending at (`READY_FOR_PROVIDER`) since Phase 18 with nothing behind it. Home Assistant's REST API — one hub the operator already owns, not twelve vendor clouds (§152). Reading entity state is ungated; a scene needs an APPROVED approval, refuses any device not observed ONLINE, and re-reads the kill switch between devices. `runtime.tick` refreshes reachability each beat when configured, honest no-op when not. Needs `ALETHEIA_HASS_URL` + `ALETHEIA_HASS_TOKEN`: the code is real, the token is his to create |
 | 19 | Proactive Aletheia (SURFACE/NOTIFY/ACT tiers) | **PARTIAL** — NOTIFY tier BUILT locally | `aletheia/proactive.py` (bounded rules, cooldown, dedupe receipts — PR #29) + `aletheia/notifications.py` (private notification center — PR #30) evaluated against every new bus event each Core beat; Command Center panel + `/api/notifications` + ACK. `enqueue` proposals persist ordinary QUEUED tasks. The ACT tier stays proposal-only |
 | 20 | Self-expanding capabilities | **BUILT** v0 (gap loop) | `aletheia/gaps.py` + `runtime.reconcile_task_gaps` each Core beat: a task requiring a non-AVAILABLE capability is paused with the gap named, build/configure/verify work is materialized idempotently, and the original resumes when the registry closes the gap. `aletheia/handler.py` persists handle-it requests across the gap. Tests prove pause→materialize→resume |
-| 21 | Mobile (iPhone surface) | **PARTIAL** — surface built, transport TICKET | `interface/mobile.html` + `mobile.js` (ChatGPT, Claude-reviewed): phone-first Core view — current state, notifications+ACK, approvals with approve/deny, tasks, quick commands. Honest limit: the Core is loopback-only, so a real phone cannot reach it until an authenticated remote transport exists — that transport is the ticket, and port 8777 must never be exposed as a shortcut |
-| 22 | Broad expansion (travel, shopping, finance visibility, …) | **PARTIAL** — visibility/planning BUILT, world-touching actions NOT_BUILT | ChatGPT PR #30 (reviewed line-by-line): places, documents, shopping, subscriptions, finance (read-only), vehicles, travel, reservations — all private-state models driven by `python -m aletheia.assistant`. Every real-world half (purchase.execute, reservation.book, subscription.cancel, finance.transact) stays NOT_BUILT high-risk operator_always |
+| 21 | Mobile (iPhone surface) | **BUILT** v1 code — **NEEDS_CONFIGURATION** | `interface/mobile.html` + `mobile.js`, and as of 2026-08-27 a transport that can actually carry them: `aletheia/access.py`. Off-loopback listening requires BOTH a minted token (sha256-stored, scoped, expiring, rate-limited) AND a TLS certificate, and refuses without either — port 8777 is never simply exposed. A `read` token answers GET and nothing else. Loopback stays unauthenticated: same trust boundary as V0. NEEDS_CONFIGURATION until he mints a token and supplies a cert (`tailscale cert` also solves reaching home without opening a port) |
+| 22 | Broad expansion (travel, shopping, finance visibility, …) | **BUILT** v1 — one primitive, one boundary kept shut | ChatGPT PR #30 (reviewed line-by-line): places, documents, shopping, subscriptions, finance (read-only), vehicles, travel, reservations — all private-state models driven by `python -m aletheia.assistant`. **2026-08-27:** the last mile is `aletheia/errands.py` — ONE approval-bound, evidence-verified web errand rather than five merchant integrations (§152). purchase.execute, reservation.book and subscription.cancel are the same errand with different kinds, EXPERIMENTAL until each round-trips live. Authorization binds to sha256{site, kind, steps, ceiling}; a spending errand checks the LARGEST money figure on the page against its ceiling BEFORE clicking; §143's boundaries (bank step-up, one-time codes, CAPTCHA, signatures, ID, biometrics, consent) stop the errand and hand him the remainder. `finance.transact` stays NOT_BUILT **by decision** — there the boundary IS the mechanism — and `finance.hand_off` is the other half of §143: the whole movement prepared, the authorization left to him |
 
 ## Systems layer (2026-08-26, ChatGPT PRs #28–30 reviewed + integrated)
 
@@ -58,30 +58,35 @@ the journal), built the missing wiring, and integrated it:
 
 ## Next five engineering milestones (priority order, per §137)
 
-1. **Run the Core on the PC + first live round-trips** (task
-   `local-core-bootstrap`, WAITING_OPERATOR): `git clone` +
-   `python -m aletheia.core` on the Windows PC; then one real intercom
-   command and one approved work order completed with evidence — flips
-   `intercom.relay` and `agent.delegate` to AVAILABLE. The PC side of
-   the intercom is BUILT (task `core-processes-commands`, 2026-08-26):
-   the Core's sync loop pulls the repo, executes PC-only kinds
-   (`browse_read`/`browse_shot` — the real browser), and pushes
-   receipts, verified end to end against a real bare repo. Voice →
-   PC-browser needs only the Core running.
-2. **Phase 7 — Windows computer control V0** on the running Core (task
-   `computer-v0`): accessibility-first, the other half of §138. Written
-   against a live Core so it can be verified rather than guessed.
-3. **Phase 13 — Email vertical slice** (task `email-vertical-slice`):
-   read/draft/approve/send/verify behind `operator_always`, using the
-   now-real Approval Center.
-4. **Phase 10/11 — Voice wake + audio router** on the PC: "Thea" →
-   local wake → Core; the prerequisite for Phone V0 (Phase 12).
-5. **Phase 17 — event producers**: DONE 2026-08-26 — `mail.poll_events`
-   (new unread -> mail.received; exact reply correlation -> mail.reply;
-   ambiguity refused) and `runtime.mirror_pulse_events`
-   (fleet.health_changed), both idempotent and consumed by the same
-   watcher/proactive path. "Tell me when they reply" now fires from
-   real mail.
+The five gaps between Aletheia and the thing she is supposed to be were
+closed on 2026-08-27 (see the phase rows above and the journal). What is
+left is not architecture — it is the handful of credentials and live
+round-trips that only the operator can supply. Each one flips a registry
+entry on real evidence, not on more code.
+
+1. **Give her the room** (`room.scene`, NEEDS_CONFIGURATION): create a
+   long-lived token in Home Assistant, set `ALETHEIA_HASS_URL` and
+   `ALETHEIA_HASS_TOKEN` on the PC, then `python -m aletheia.hass observe`
+   and one approved scene. The adapter and its gates are built and tested.
+2. **Give her the phone** (`access.remote`, NEEDS_CONFIGURATION):
+   `tailscale cert <name>` (which also gets you home without opening a
+   port), then `python -m aletheia.access mint "iPhone"` and start the
+   Core with `--host`/`--tls-cert`/`--tls-key`. Mint `read` first and live
+   with it a while before minting `full`.
+3. **The first live errand** (`errand.run`, `purchase.execute`,
+   `reservation.book`, `subscription.cancel` — all EXPERIMENTAL): one real
+   cancellation is the cheapest honest test, since it spends nothing and
+   still proves the whole path. EXPERIMENTAL until one round-trips with a
+   merchant's own confirmation; that evidence is what promotes them.
+4. **Calendar providers** (`calendar.read` NEEDS_CONFIGURATION,
+   `calendar.write` EXPERIMENTAL): the local models and the ICS mirror are
+   built; a live Google/Outlook adapter is the remaining work, and it is
+   the last thing standing between Phase 15's scheduling test and a real
+   dentist appointment.
+5. **Phase 12 — Phone V0** on the now-permanent Core: the audio router is
+   EXPERIMENTAL against a hermetic backend and has never touched a real
+   Windows device. `scripts/phase11_accept_audio.ps1` on the PC decides
+   AVAILABLE or repair.
 
 ## Non-goals, on the record
 
