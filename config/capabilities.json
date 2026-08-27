@@ -1,5 +1,5 @@
 {
-  "revision": 19,
+  "revision": 21,
   "providers": [
     {
       "id": "aletheia.local",
@@ -214,11 +214,13 @@
       "id": "phone.call",
       "description": "Place and hold a phone conversation on the operator's behalf (identifies itself as Aletheia)",
       "provider": "aletheia.local",
-      "status": "NOT_BUILT",
+      "status": "EXPERIMENTAL",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "ticket â€” Phone V0 (Playbook Â§17): desktop call app + virtual audio + ChatGPT Voice, local PC only",
-      "notes": "The authorization layer is BUILT (aletheia.calls, ChatGPT authored, Claude reviewed 2026-08-26): plans name contact/purpose/disclosure-boundaries/time-budget, the AI-identity disclosure is hash-enforced and unalterable, approval binds to the exact plan sha256, the halt outranks approval, outcomes record exactly once. What remains NOT_BUILT is the thing that dials: Phase 11/12 audio + call transport on the PC."
+      "caller": "aletheia.phone_v0: prepare (approved call plan + conversation brief + ACTIVE phone_bridge audio, all sha256-bound) -> dial (revalidates all three, persists a DIALING claim before the provider call, exactly-once) -> observe/keypad/hangup; hangup allowed under halt because it reduces exposure",
+      "notes": "EXPERIMENTAL, and must NOT go AVAILABLE from repo work alone — the module says so itself: only an InMemory transport exists, no real telephony/call-app provider has ever dialed. The authorization layer (aletheia.calls) and this orchestration are real; a live Windows provider plus one acceptance call decide AVAILABLE.",
+      "verification": "tests/test_audio_phone_v0.py + test_phone_conversation.py + test_audio_phone_hardening.py: duplicate dial refused, authorization drift after prepare refused, time budget enforced by observation, mandatory AI self-disclosure checked against the reviewed contract, call-ended never reported as goal-achieved",
+      "module": "aletheia.phone_v0"
     },
     {
       "id": "voice.wake",
@@ -777,6 +779,18 @@
       "verification": "tests/test_attention.py + tests/test_attention_runtime.py (14 tests): quiet hours across midnight, escalation chains strictly increase, mark_delivered revalidates at evidence time so a stale READY can never be recorded as a legitimate delivery, acknowledged notices cancel",
       "notes": "Zero-intrusion defaults (quiet hours off, no bypass, no escalation) until the operator configures it. Reviewed ChatGPT branch proactive-attention-v1; repair applied in review: this registry entry — the branch shipped the capability live in every tick without registering it (§104).",
       "module": "aletheia.attention"
+    },
+    {
+      "id": "audio.route",
+      "description": "Phase 11: logical audio routing plans (mic/speaker/virtual cable) — approval-bound, verified by evidence, no raw audio handled",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "aletheia.audio_cli + phone_v0.prepare (requires an ACTIVE phone_bridge route); approval bound to audio.route:<plan sha256>",
+      "verification": "tests/test_audio_phone_v0.py + hardening tests: plan hash-bound and re-verified on load, direct route cycles rejected, activation demands exact per-route evidence (not counts), tamper -> refused",
+      "notes": "EXPERIMENTAL: hermetic backend only — no real Windows audio device has ever been routed. scripts/phase11_accept_audio.ps1 on the PC decides AVAILABLE vs repair.",
+      "module": "aletheia.audio_router"
     }
   ]
 }
