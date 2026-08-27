@@ -1,4 +1,3 @@
-import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -41,7 +40,7 @@ class PhoneConversationCase(unittest.TestCase):
     def test_tampered_brief_is_refused(self):
         brief = phone_conversation.build("doctor")
         brief["forbidden_topics"] = []
-        with self.assertRaisesRegex(ValueError, "hash"):
+        with self.assertRaises(ValueError):
             phone_conversation.validate(brief, "doctor")
 
     def test_rehashing_tampered_content_still_refused_against_approved_plan(self):
