@@ -1,5 +1,5 @@
 {
-  "revision": 23,
+  "revision": 24,
   "providers": [
     {
       "id": "aletheia.local",
@@ -28,6 +28,13 @@
       "description": "Claude Code sessions (subscription): builds and maintains Aletheia and the fleet",
       "kind": "subscription_client",
       "authentication": "operator's Claude subscription"
+    },
+    {
+      "id": "claude.cli",
+      "description": "Claude CLI installed on the operator's PC, signed in to his own subscription; run with --tools \"\" so it can emit text and nothing else",
+      "kind": "subscription_client",
+      "authentication": "the operator's Claude subscription via the CLI's own login; no API key",
+      "notes": "Reached only through aletheia.reasoner, which bounds it: no tools, one turn, no session persistence, a timeout, a neutral working directory, and brain.validate_output on everything it returns."
     }
   ],
   "agents": [
@@ -793,6 +800,64 @@
       "verification": "tests/test_audio_phone_v0.py + hardening tests: plan hash-bound and re-verified on load, direct route cycles rejected, activation demands exact per-route evidence (not counts), tamper -> refused",
       "notes": "EXPERIMENTAL: hermetic backend only — no real Windows audio device has ever been routed. scripts/phase11_accept_audio.ps1 on the PC decides AVAILABLE vs repair.",
       "module": "aletheia.audio_router"
+    },
+    {
+      "id": "core.autostart",
+      "description": "Register and audit the Windows tasks that make Aletheia permanent: logon trigger plus a repeating watchdog",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "python -m aletheia.autostart doctor|install|show; python -m aletheia.supervisor install|status",
+      "module": "aletheia.autostart",
+      "notes": "Built 2026-08-27 after a live outage: the Core aborted at 07:42 and, because the task had only an at-logon trigger and the operator never logged off, nothing was listening for six hours. audit() holds the always-on contract as a pure function (repeating, unbounded, power-blind, restarting, IgnoreNew) so a broken registration is a finding, not a surprise.",
+      "verification": "Proven live on the PC 2026-08-27: both processes killed at 14:15:47Z, Core answering again at 14:15:59Z (12s) and the room voice at 14:16:05Z, with no human action."
+    },
+    {
+      "id": "core.liveness",
+      "description": "Heartbeat while up, and a measured outage duration on the next start - journaled and emitted on the bus",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.core.core_tick beats every sync beat; core.main calls note_start; GET /api/status carries it; supervisor status prints it",
+      "module": "aletheia.liveness",
+      "notes": "The 2026-08-27 outage was undetected, not merely unrepaired. A gap longer than OUTAGE_AFTER_S becomes a core.outage_ended event, so the same watcher/proactive path that handles mail handles absence."
+    },
+    {
+      "id": "reason.infer",
+      "description": "Bounded, tool-less reasoning on the operator's own subscription: proposals only, never actions",
+      "provider": "claude.cli",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.planner.compile; aletheia.reasoner CLI adapter",
+      "module": "aletheia.reasoner",
+      "notes": "The first provider that actually satisfies brain.contract - before this, brain.deterministic answered every input with 'clarify', which is why the 27-slot grammar was the whole of what could be expressed. Degrades honestly to that same fallback when the CLI is absent, and the reason reaches the operator.",
+      "verification": "tests/test_reasoner.py asserts no tools, no API key flag, a timeout and a neutral cwd on every invocation"
+    },
+    {
+      "id": "intent.plan",
+      "description": "Compile an arbitrary sentence into a plan of validated commands, named capability gaps and manual steps",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "medium",
+      "approval_policy": "operator_always",
+      "caller": "intercom kind 'intent' (voice, Command Center, ChatGPT relay); python -m aletheia.planner; python -m aletheia.intents new",
+      "module": "aletheia.planner",
+      "notes": "A model proposes; the registries and gates dispose. Every proposed step goes through intercom.validate_kind_args, every named capability through the live registry, and a gap claimed on an AVAILABLE capability is refused rather than reported as a limitation."
+    },
+    {
+      "id": "intent.execute",
+      "description": "Run an approved plan later, bound to a sha256 of exactly the plan that was approved",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "caller": "aletheia.runtime.tick each Core beat (_run_approved_intents); python -m aletheia.intents run",
+      "module": "aletheia.intents",
+      "notes": "Same binding ratified for computer control and email. A plan edited between the ask and the approval no longer matches its hash and is refused, never adapted. Halt is re-read before every step.",
+      "verification": "tests/test_intents.py: tampered plans refused, denied plans retired"
     }
   ]
 }

@@ -1,5 +1,6 @@
 """Voice on the wall: deterministic interpretation, gated execution."""
 import json
+import time
 import tempfile
 import unittest
 import urllib.request
@@ -64,11 +65,15 @@ class InterpretCase(unittest.TestCase):
         self.assertEqual(out["command"]["kind"], "task_new")
         self.assertEqual(out["command"]["description"], "water the plants")
 
-    def test_unrecognized_becomes_a_note_and_says_so(self):
+    def test_unrecognized_speech_goes_to_the_planner_not_a_dead_end(self):
+        # Until 2026-08-27 this became a journal note and "I don't have a
+        # command for that yet" — the operator's journal is full of real
+        # asks that died there. It is now an `intent`, which the planner
+        # compiles into gated steps (or degrades honestly if no provider).
         out = voice.interpret("Thea, make me a sandwich")
-        self.assertEqual(out["command"]["kind"], "note")
-        self.assertIn("unmatched", out["command"]["text"])
-        self.assertIn("don't have a command", out["say"])
+        self.assertEqual(out["command"]["kind"], "intent")
+        self.assertEqual(out["command"]["text"], "make me a sandwich")
+        self.assertIsNone(out["say"])  # the receipt speaks, not a canned line
 
     def test_spoken_reply_reads_the_page_back(self):
         say = voice.spoken_reply(
@@ -129,12 +134,28 @@ class VoiceEndpointCase(unittest.TestCase):
         self.assertEqual(res["say"], "Resumed.")
         self.assertFalse(policy.halted())
 
-    def test_note_fallback_journals_the_words(self):
+    def test_an_arbitrary_ask_is_acknowledged_immediately_and_thought_about(self):
+        # The old behaviour was to journal the sentence and say "I don't
+        # have a command for that yet". It now goes to the planner — which
+        # takes ten to thirty seconds, so the ROOM must not be held open
+        # that long: she answers now and delivers the real sentence later.
+        from aletheia import followups
+        started = time.monotonic()
         res = self.post_voice("Thea, make me a sandwich")
-        self.assertEqual(res["outcome"], "done")
-        self.assertIn("don't have a command", res["say"])
-        texts = [e["text"] for e in journal.entries()]
-        self.assertTrue(any("sandwich" in t for t in texts))
+        elapsed = time.monotonic() - started
+        self.assertEqual(res["outcome"], "thinking")
+        self.assertLess(elapsed, 2.0, "the room was held open while she thought")
+        self.assertTrue(res["say"])
+        self.assertTrue(res["followup_id"])
+        # and the real answer is collectable from that slot
+        deadline = time.monotonic() + 120
+        while time.monotonic() < deadline:
+            slot = followups.poll(res["followup_id"])
+            if slot["state"] != followups.PENDING:
+                break
+            time.sleep(0.5)
+        self.assertIn(slot["state"], (followups.READY, followups.FAILED))
+        self.assertTrue(slot["say"])
 
     def test_voice_pages_carry_the_ears(self):
         from aletheia.fleet import REPO_ROOT

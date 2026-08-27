@@ -122,6 +122,50 @@ class GitSyncCase(unittest.TestCase):
         self.assertTrue((self.relay / "receipt.json").exists())
         self.assertTrue((self.relay / "relay-first.json").exists())
 
+    # --- the tree is not always the Core's to rewrite (2026-08-27) ---
+
+    def test_a_foreign_uncommitted_edit_blocks_the_rebase(self):
+        # A session editing this clone had its work swept into an unwatched
+        # stash by `rebase --autostash`, once a minute, for an hour.
+        self.relay_pushes("newer.txt")
+        work = self.pc / "half_written.py"
+        work.write_text("work in progress\n")
+        ok, detail = self.sync.pull()
+        self.assertFalse(ok)
+        self.assertIn("does not own", detail)
+        self.assertIn("half_written.py", detail)
+        # and the person's work is exactly where they left it
+        self.assertEqual(work.read_text(), "work in progress\n")
+
+    def test_the_cores_own_state_never_blocks_it(self):
+        self.relay_pushes("newer.txt")
+        (self.pc / "state").mkdir(exist_ok=True)
+        (self.pc / "state" / "journal.jsonl").write_text('{"ts": "now"}\n')
+        (self.pc / "exchange" / "commands").mkdir(parents=True, exist_ok=True)
+        (self.pc / "exchange" / "commands" / "c1.json").write_text("{}\n")
+        self.assertIsNone(self.sync.blocking_reason())
+        ok, detail = self.sync.pull()
+        self.assertTrue(ok, detail)
+
+    def test_a_different_checked_out_branch_blocks_the_rebase(self):
+        run(["git", "checkout", "-b", "claude/somebodys-work"], self.pc)
+        ok, detail = self.sync.pull()
+        self.assertFalse(ok)
+        self.assertIn("claude/somebodys-work", detail)
+        self.assertIn("refusing to rebase someone else's branch", detail)
+        # the branch is still checked out, and still not rebased
+        proc = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                              cwd=str(self.pc), capture_output=True, text=True)
+        self.assertEqual(proc.stdout.strip(), "claude/somebodys-work")
+
+    def test_a_clean_tree_on_the_sync_branch_is_not_blocked(self):
+        self.assertIsNone(self.sync.blocking_reason())
+
+    def test_a_renamed_foreign_file_is_still_foreign(self):
+        (self.pc / "seed.txt").rename(self.pc / "renamed.txt")
+        run(["git", "add", "-A"], self.pc)
+        self.assertIn("renamed.txt", self.sync.foreign_changes())
+
     def test_rebase_conflict_aborts_cleanly(self):
         # same file, different content on both sides -> conflict, clean abort
         self.relay_pushes("clash.txt", "relay version\n")

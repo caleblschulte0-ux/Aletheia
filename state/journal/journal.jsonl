@@ -86,7 +86,6 @@
 {"ts": "2026-08-26T22:05:08Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-26T22:05:08Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
 {"ts": "2026-08-26T22:05:08Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-exp", "text": "requested — authorize purchase buy-exp sha256:ad2998553d9338d53ce0ebfdd298540e1051bf0aa449dc277d57e5d30a737b09"}
-{"ts": "2026-08-26T22:05:08Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
 {"ts": "2026-08-26T22:05:20Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-26T22:05:20Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-26T22:05:20Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
@@ -100,8 +99,6 @@
 {"ts": "2026-08-26T22:05:46Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-26T22:05:46Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-26T22:05:46Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-26T22:05:46Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-26T22:05:46Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-26T22:05:46Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-26T22:05:46Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-26T22:05:46Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -129,8 +126,6 @@
 {"ts": "2026-08-26T22:06:19Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-26T22:06:19Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-26T22:06:19Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-26T22:06:19Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-26T22:06:19Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-26T22:06:19Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-26T22:06:19Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-26T22:06:19Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -142,8 +137,6 @@
 {"ts": "2026-08-26T22:06:58Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-26T22:06:58Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-26T22:06:58Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-26T22:06:58Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-26T22:06:58Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-26T22:06:58Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-26T22:06:58Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-26T22:06:58Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -157,8 +150,6 @@
 {"ts": "2026-08-26T22:22:41Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-26T22:22:41Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-26T22:22:41Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-26T22:22:41Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-26T22:22:41Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-26T22:22:41Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-26T22:22:41Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-26T22:22:41Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -183,8 +174,6 @@
 {"ts": "2026-08-27T02:54:28Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-27T02:54:28Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T02:54:28Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-27T02:54:28Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-27T02:54:28Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T02:54:28Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-27T02:54:28Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T02:54:28Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -196,8 +185,6 @@
 {"ts": "2026-08-27T02:55:07Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-27T02:55:07Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T02:55:07Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-27T02:55:07Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-27T02:55:07Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T02:55:07Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-27T02:55:07Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T02:55:07Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -209,8 +196,6 @@
 {"ts": "2026-08-27T02:56:13Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-27T02:56:13Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T02:56:13Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-27T02:56:13Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-27T02:56:13Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T02:56:13Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-27T02:56:13Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T02:56:13Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -222,8 +207,6 @@
 {"ts": "2026-08-27T02:57:01Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-27T02:57:01Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T02:57:01Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-27T02:57:01Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-27T02:57:01Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T02:57:01Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-27T02:57:01Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T02:57:01Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -235,8 +218,6 @@
 {"ts": "2026-08-27T02:58:11Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-27T02:58:11Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T02:58:11Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-27T02:58:11Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-27T02:58:11Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T02:58:11Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-27T02:58:11Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T02:58:11Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -248,8 +229,6 @@
 {"ts": "2026-08-27T02:58:58Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-27T02:58:58Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T02:58:58Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-27T02:58:58Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-27T02:58:58Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T02:58:58Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-27T02:58:58Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T02:58:58Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -261,8 +240,6 @@
 {"ts": "2026-08-27T02:59:48Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-27T02:59:48Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T02:59:48Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-27T02:59:48Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-27T02:59:48Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T02:59:48Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-27T02:59:48Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T02:59:48Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -275,8 +252,6 @@
 {"ts": "2026-08-27T03:05:25Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-27T03:05:25Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T03:05:25Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-27T03:05:25Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-27T03:05:25Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T03:05:25Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-27T03:05:25Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T03:05:25Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -288,8 +263,6 @@
 {"ts": "2026-08-27T03:08:31Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-27T03:08:31Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T03:08:31Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-27T03:08:31Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-27T03:08:31Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T03:08:31Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-27T03:08:31Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T03:08:31Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -303,8 +276,6 @@
 {"ts": "2026-08-27T12:01:19Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-27T12:01:19Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T12:01:19Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-27T12:01:19Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-27T12:01:19Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T12:01:19Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-27T12:01:19Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T12:01:19Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -317,8 +288,6 @@
 {"ts": "2026-08-27T12:40:55Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-27T12:40:55Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T12:40:55Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-27T12:40:55Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-27T12:40:55Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T12:40:55Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-27T12:40:55Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T12:40:55Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -331,8 +300,6 @@
 {"ts": "2026-08-27T14:01:15Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-27T14:01:15Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T14:01:15Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-27T14:01:15Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-27T14:01:15Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T14:01:15Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-27T14:01:15Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T14:01:15Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -344,8 +311,6 @@
 {"ts": "2026-08-27T14:04:02Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-27T14:04:02Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T14:04:02Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-27T14:04:02Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-27T14:04:02Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T14:04:02Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-27T14:04:02Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T14:04:02Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -359,8 +324,6 @@
 {"ts": "2026-08-27T14:28:23Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-27T14:28:23Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T14:28:23Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-27T14:28:23Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-27T14:28:23Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T14:28:23Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-27T14:28:23Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T14:28:23Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -375,3 +338,36 @@
 {"ts": "2026-08-27T14:31:49Z", "kind": "decision", "actor": "test", "subject": "approval:ap-exp", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T14:31:50Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
 {"ts": "2026-08-27T14:31:50Z", "kind": "decision", "actor": "test", "subject": "approval:ap-buy", "text": "APPROVED — operator approved in test"}
+{"ts": "2026-08-27T14:31:49Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
+{"ts": "2026-08-27T14:31:49Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
+{"ts": "2026-08-27T14:31:49Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
+{"ts": "2026-08-27T14:31:49Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
+{"ts": "2026-08-27T14:40:14Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
+{"ts": "2026-08-27T14:40:14Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
+{"ts": "2026-08-27T14:40:14Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
+{"ts": "2026-08-27T14:40:14Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
+{"ts": "2026-08-27T14:40:14Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
+{"ts": "2026-08-27T14:40:14Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
+{"ts": "2026-08-27T14:40:15Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
+{"ts": "2026-08-27T14:40:15Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
+{"ts": "2026-08-27T14:40:15Z", "kind": "decision", "actor": "test", "subject": "approval:ap-buy", "text": "APPROVED — operator approved in test"}
+{"ts": "2026-08-27T14:40:15Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-exp", "text": "requested — authorize purchase buy-exp sha256:a32e8c29d21e1bc0d8417e88cda135c01b89eabc5fdf8d14bce63a5db9db3a85"}
+{"ts": "2026-08-27T14:40:15Z", "kind": "decision", "actor": "test", "subject": "approval:ap-exp", "text": "APPROVED — operator approved in test"}
+{"ts": "2026-08-27T14:40:16Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
+{"ts": "2026-08-27T14:40:16Z", "kind": "decision", "actor": "test", "subject": "approval:ap-buy", "text": "APPROVED — operator approved in test"}
+{"ts": "2026-08-27T14:47:01Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
+{"ts": "2026-08-27T14:47:01Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
+{"ts": "2026-08-27T14:47:01Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
+{"ts": "2026-08-27T14:47:01Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
+{"ts": "2026-08-27T14:47:01Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
+{"ts": "2026-08-27T14:47:01Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
+{"ts": "2026-08-27T14:47:01Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
+{"ts": "2026-08-27T14:47:01Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
+{"ts": "2026-08-27T14:47:01Z", "kind": "decision", "actor": "test", "subject": "approval:ap-buy", "text": "APPROVED — operator approved in test"}
+{"ts": "2026-08-27T14:47:01Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-exp", "text": "requested — authorize purchase buy-exp sha256:05b767a89818e560bb66f85553b9afc4ca850884f3d56bd7123f760da211696a"}
+{"ts": "2026-08-27T14:47:01Z", "kind": "decision", "actor": "test", "subject": "approval:ap-exp", "text": "APPROVED — operator approved in test"}
+{"ts": "2026-08-27T14:47:03Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
+{"ts": "2026-08-27T14:47:03Z", "kind": "decision", "actor": "test", "subject": "approval:ap-buy", "text": "APPROVED — operator approved in test"}
+{"ts": "2026-08-27T14:51:55Z", "kind": "action", "actor": "operator-local-core", "subject": "core:notify_check", "text": "done — 2 notifications. Mail polling failed: TimeoutError: The read operation timed out — Mail polling failed: abort: socket error: EOF occurred in violation of protocol (_ssl.c:2427)"}
+{"ts": "2026-08-27T14:52:07Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Do you want me to pull together your open tasks/notifications/email for a priority list, or do you already have specific items in mind you want ranked?"}
+{"ts": "2026-08-27T14:52:07Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Do you want me to pull together your open tasks/notifications/email for a priority list, or do you already have specific items in mind you want ranked?"}

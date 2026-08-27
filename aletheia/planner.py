@@ -204,12 +204,19 @@ def _classify(step: dict, fleet: dict, registry: dict, n: int) -> PlannedStep:
 
 def compile(request: str, fleet: dict | None = None, context: dict | None = None,
             provider: brain.Provider | None = None,
-            registry: dict | None = None, now: str | None = None) -> Plan:
-    """Turn a sentence into a gated plan. Executes NOTHING."""
+            registry: dict | None = None, now: str | None = None,
+            model: str | None = None) -> Plan:
+    """Turn a sentence into a gated plan. Executes NOTHING.
+
+    `model` trades latency for depth. Voice passes the fast one: a person
+    waiting in a room and a person typing at a keyboard do not have the
+    same patience, and both plans face identical gates afterwards, so the
+    choice costs nothing but thinking time.
+    """
     fleet = fleet if fleet is not None else load_fleet()
     registry = registry or capabilities.load_registry()
     provider = provider or reasoner.CliReasoner(
-        model=reasoner.PLAN_MODEL,
+        model=model or reasoner.PLAN_MODEL,
         system_prompt=system_prompt(registry, now)).provider("claude.cli.plan")
     output, degraded = reasoner.infer_or_fallback(provider, request, context)
     if degraded and "BrainOutputError" in degraded:

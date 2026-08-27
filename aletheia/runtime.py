@@ -296,6 +296,11 @@ def process_new_events(*, now: dt.datetime | None = None,
     return actions
 
 
+def _run_approved_intents(fleet: dict) -> list[dict]:
+    from aletheia import intents  # local: planner pulls in the reasoner
+    return intents.run_approved(fleet)
+
+
 def tick(fleet: dict, *, now: dt.datetime | None = None,
          registry: dict | None = None, request=None) -> dict:
     now = now or dt.datetime.now(dt.timezone.utc)
@@ -326,6 +331,11 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     capability_gaps = reconcile_task_gaps(registry=registry)
     handle_requests = guarded(
         "handler", lambda: handler.reconcile_all(registry=registry, now=now))
+    # Approved arbitrary asks (aletheia.intents): the plan the operator
+    # okayed runs HERE, on a later beat, through the ordinary gates — not
+    # inside the conversation that produced it.
+    approved_intents = guarded(
+        "intents", lambda: _run_approved_intents(fleet))
     # LAST: everything above may create notifications. Attention never executes
     # them; it only classifies READY vs DEFERRED and escalates eligible priority.
     attention_records = guarded("attention", lambda: attention.reconcile(now=now))
@@ -337,6 +347,7 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
         "reply_transitions": reply_transitions,
         "events_processed": events_processed,
         "capability_gaps": capability_gaps,
+        "approved_intents": approved_intents,
         "handle_requests": handle_requests,
         "attention": attention_records,
     }

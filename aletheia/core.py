@@ -41,6 +41,7 @@ API:
     GET  /api/watchers      durable watcher definitions + states
     GET  /api/schedules     durable schedule definitions
     GET  /api/runtime       last runtime tick summary
+    GET  /api/voice/followup?id=  a slow spoken answer, once it exists
     GET  /api/computer/status
     POST /api/command       {"kind": …, …args} (+optional "operator_quote")
                             → {outcome, detail}, executed inline, journaled
@@ -61,7 +62,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from aletheia import act, capabilities, computer, intercom, journal, policy, tasks
+from aletheia import act, capabilities, computer, followups, intercom, journal
+from aletheia import liveness, policy, tasks
 from aletheia import current_state, events, notifications, runtime, scheduler
 from aletheia.fleet import REPO_ROOT, load_fleet
 from aletheia.pulse import PULSE_DIR
@@ -92,9 +94,14 @@ def status_payload() -> dict:
         except json.JSONDecodeError:
             pulse_meta = {"error": "pulse unreadable"}
     all_t = tasks.all_tasks()
+    heartbeat_age = liveness.age_seconds()
     return {
         "halted": policy.halted(),
         "pulse": pulse_meta,
+        "liveness": {
+            "heartbeat_age_s": None if heartbeat_age is None else round(heartbeat_age, 1),
+            "alive": liveness.alive(),
+        },
         "tasks": {
             "total": len(all_t),
             "live": sum(1 for t in all_t
@@ -148,6 +155,7 @@ def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
     State-only commits (pulse, receipts, journal) never trigger it.
     """
     status["last_tick"] = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    liveness.beat(actor="core")  # never raises; see aletheia/liveness.py
     # checkpoint local run-truth FIRST so the pull rebases clean commits,
     # never a dirty journal (the exact conflict that broke a real PC)
     syncer.commit(["exchange/commands", "state/journal"], "core: state checkpoint")
@@ -326,6 +334,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(scheduler.all_schedules())
         if url.path == "/api/runtime":
             return self._json(SYNC_STATUS.get("runtime") or {"at": None})
+        if url.path == "/api/voice/followup":
+            fid = parse_qs(url.query).get("id", [""])[0]
+            if not fid:
+                return self._json({"state": "EXPIRED", "say": None,
+                                   "detail": "id required"}, code=400)
+            return self._json(followups.take(fid))
         if url.path == "/api/journal":
             last = int(parse_qs(url.query).get("last", ["50"])[0])
             return self._json(journal.entries()[-last:])
@@ -376,9 +390,18 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"outcome": "answered", "say": intent["say"]})
             cmd = dict(intent["command"])
             kind = cmd.get("kind")
-            result = run_command(
-                {**cmd, "operator_quote": f"spoken to the wall: {transcript[:200]}"},
-                self.fleet)
+            quote = f"spoken to the wall: {transcript[:200]}"
+            if kind == "intent":
+                # Reasoning takes ten to thirty seconds; a person in a room
+                # waits about two. Answer now, think in the background, and
+                # let the listener collect the real sentence when it exists.
+                fleet = self.fleet
+                slot = followups.start(
+                    lambda: run_command({**cmd, "operator_quote": quote}, fleet)["detail"],
+                    acknowledgement="Working on that.")
+                return self._json({"outcome": "thinking", "say": slot["say"],
+                                   "followup_id": slot["id"]})
+            result = run_command({**cmd, "operator_quote": quote}, self.fleet)
             # a fallback intent carries its own words (e.g. "no command for
             # that, journaled") — those beat the generic receipt phrasing
             say = intent["say"] or voice.spoken_reply(kind, result["outcome"],
@@ -472,6 +495,10 @@ def main(argv: list[str] | None = None) -> int:
                     help="serve the API only; no git sync, no local command processing")
     args = ap.parse_args(argv)
     journal.use_pc_journal()  # this process is the PC writer
+    # Before anything else: measure the gap we are coming back from. If the
+    # last heartbeat is old, this start ENDED an outage, and that is a fact
+    # the journal and the bus get to hear about (2026-08-27).
+    liveness.note_start(actor="core", port=args.port)
     server = make_server(args.host, args.port)
     restarting = threading.Event()
 

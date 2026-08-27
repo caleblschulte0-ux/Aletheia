@@ -79,6 +79,12 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "notify_clear":    (set(), set()),
     "free_time":       ({"day"}, {"tz", "minutes"}),
     "contact_add":     ({"name", "email"}, {"alias"}),
+    # The slot for everything that is not a slot (2026-08-27). `text` is
+    # whatever the operator actually said; aletheia.planner compiles it
+    # into steps expressed in the kinds ABOVE, and every one of those is
+    # validated here like any other command. This kind widens what can be
+    # SAID, never what may be DONE.
+    "intent":          ({"text"}, set()),
 }
 
 # Kinds that need the operator's PC (a real browser, later the desktop).
@@ -91,7 +97,8 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # offline), and ChatGPT should say exactly that, not invent an outcome.
 LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_draft",
                "remind_at", "remind_daily", "watch_email_from", "notify_check",
-               "notify_clear", "free_time", "contact_add", "notify_operator"}
+               "notify_clear", "free_time", "contact_add", "notify_operator",
+               "intent"}  # intent: the reasoning provider runs on the PC
 
 
 def validate_kind_args(cmd, fleet: dict) -> list[str]:
@@ -262,6 +269,10 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         parts = [f"{n['title']}: {n['body'][:80]}" for n in unread[:5]]
         head = f"{len(unread)} notification{'s' if len(unread) != 1 else ''}. "
         return head + " — ".join(parts)
+    if kind == "intent":
+        from aletheia import intents
+        record = intents.propose(cmd["text"], quote=quote, fleet=fleet)
+        return intents.spoken(record)
     if kind == "notify_clear":
         from aletheia import notifications
         unread = notifications.all_notifications(state="UNREAD")
