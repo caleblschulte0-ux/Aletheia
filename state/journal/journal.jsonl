@@ -612,3 +612,5 @@
 {"ts": "2026-08-27T21:30:40Z", "kind": "decision", "actor": "test", "subject": "approval:ap-exp", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T21:30:41Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
 {"ts": "2026-08-27T21:30:41Z", "kind": "decision", "actor": "test", "subject": "approval:ap-buy", "text": "APPROVED — operator approved in test"}
+{"ts": "2026-08-27T21:31:52Z", "kind": "event", "actor": "aletheia-announce", "subject": "announce", "text": "said out loud: Mail polling failed. TimeoutError: The read operation timed out."}
+{"ts": "2026-08-27T21:31:52Z", "kind": "event", "actor": "aletheia-announce", "subject": "announce", "text": "said out loud: Mail polling failed. abort: socket error: EOF occurred in violation of protocol (_ssl.c:2427)."}
