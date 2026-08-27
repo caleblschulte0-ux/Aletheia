@@ -24,6 +24,8 @@ import datetime as dt
 import json
 import os
 import subprocess
+
+from aletheia.proc import run as proc_run
 import sys
 import urllib.error
 from pathlib import Path
@@ -112,7 +114,7 @@ class LocalSource:
         return d
 
     def recent_commits(self, gh: str, branch: str, n: int = 5) -> list[dict]:
-        out = subprocess.run(
+        out = proc_run(
             ["git", "log", f"-{n}", "--format=%H%x00%cI%x00%s"],
             cwd=self._dir(gh), capture_output=True, text=True, check=True,
         ).stdout.strip()

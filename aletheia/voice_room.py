@@ -32,6 +32,7 @@ import zipfile
 from pathlib import Path
 
 from aletheia.voice import WAKE_WORDS
+from aletheia.proc import run as proc_run
 
 MODEL_NAME = "vosk-model-small-en-us-0.15"
 MODEL_URL = f"https://alphacephei.com/vosk/models/{MODEL_NAME}.zip"
@@ -46,7 +47,7 @@ def sapi_speak(text: str) -> None:
     script = ("Add-Type -AssemblyName System.Speech; "
               "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
               "$s.Rate = 1; $s.Speak([Console]::In.ReadToEnd())")
-    subprocess.run(["powershell", "-NoProfile", "-Command", script],
+    proc_run(["powershell", "-NoProfile", "-Command", script],
                    input=text, text=True, capture_output=True, timeout=120)
 
 
