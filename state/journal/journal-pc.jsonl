@@ -190,3 +190,5 @@
 {"ts": "2026-08-27T21:47:09Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
 {"ts": "2026-08-27T21:47:09Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
 {"ts": "2026-08-27T21:47:09Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-27T22:10:51Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Do you want me to act on the temperature (e.g. queue a room-scene/climate adjustment) or was that just a comment?"}
+{"ts": "2026-08-27T22:10:51Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Do you want me to act on the temperature (e.g. queue a room-scene/climate adjustment) or was that just a comment?"}
