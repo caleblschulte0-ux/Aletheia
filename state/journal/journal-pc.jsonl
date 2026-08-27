@@ -113,3 +113,4 @@
 {"ts": "2026-08-27T18:58:32Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "pull recovered: up to date with remote"}
 {"ts": "2026-08-27T19:12:47Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "pull failing: uncommitted changes the Core does not own: aletheia/perception.py — refusing to autostash a person's work"}
 {"ts": "2026-08-27T19:19:09Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "pull recovered: up to date with remote"}
+{"ts": "2026-08-27T19:23:40Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "pull failing: checked out on 'claude/self-update-local', not the sync branch 'main' — refusing to rebase someone else's branch"}

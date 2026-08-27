@@ -13,6 +13,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -286,3 +287,24 @@ class HeartbeatBatchingCase(CoreSyncFixture):
         run(["git", "pull", "origin", "main"], self.relay)
         pc_journal = self.relay / "state" / "journal" / "journal.jsonl"
         self.assertIn("batched entry", pc_journal.read_text(encoding="utf-8"))
+
+class StaleCodeCase(unittest.TestCase):
+    """Local commits move HEAD before the Core ever looks, so `after ==
+    before` and the pull-based restart never fires. Found live: a new
+    command kind sat on disk, unknown to the running Core, for half an
+    hour. The files are the authority, not just git."""
+
+    def test_nothing_newer_than_the_process_is_not_stale(self):
+        self.assertEqual(core.stale_code_files(started_at=time.time() + 60), [])
+
+    def test_code_written_after_the_process_started_is_stale(self):
+        stale = core.stale_code_files(started_at=0)
+        self.assertTrue(stale)
+        self.assertTrue(any(name.endswith(".py") for name in stale))
+
+    def test_the_report_is_bounded(self):
+        self.assertLessEqual(len(core.stale_code_files(started_at=0, limit=3)), 3)
+
+    def test_pycache_is_not_code(self):
+        self.assertFalse([n for n in core.stale_code_files(started_at=0, limit=200)
+                          if "__pycache__" in n])
