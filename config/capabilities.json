@@ -1,5 +1,5 @@
 {
-  "revision": 27,
+  "revision": 28,
   "providers": [
     {
       "id": "aletheia.local",
@@ -231,10 +231,10 @@
       "status": "EXPERIMENTAL",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "aletheia.phone_v0: prepare (approved call plan + conversation brief + ACTIVE phone_bridge audio, all sha256-bound) -> dial (revalidates all three, persists a DIALING claim before the provider call, exactly-once) -> observe/keypad/hangup; hangup allowed under halt because it reduces exposure",
-      "notes": "EXPERIMENTAL, and must NOT go AVAILABLE from repo work alone — the module says so itself: only an InMemory transport exists, no real telephony/call-app provider has ever dialed. The authorization layer (aletheia.calls) and this orchestration are real; a live Windows provider plus one acceptance call decide AVAILABLE.",
-      "verification": "tests/test_audio_phone_v0.py + test_phone_conversation.py + test_audio_phone_hardening.py: duplicate dial refused, authorization drift after prepare refused, time budget enforced by observation, mandatory AI self-disclosure checked against the reviewed contract, call-ended never reported as goal-achieved",
-      "module": "aletheia.phone_v0"
+      "caller": "python -m aletheia.phone_cli ready|prepare|dial|observe|end - the front door aletheia.phone_v0 never had",
+      "notes": "Phase 12. aletheia/phone_v0.py had been a complete session controller with NO caller anywhere in the repo, and one declared fake transport; that is most of why the phase stalled. aletheia/phone_windows.py is the real transport: Phone Link against the operator's paired iPhone. Dialling is a tel: URI aimed at Phone Link's own AUMID rather than the protocol default - on this machine the classic tel: handler is Skype for Business and three packaged apps claim it, so a naive dial opens the wrong app and places no call. A call counts as CONNECTED only when the Hands-Free endpoints are ACTIVE in both directions, which is a fact from MMDevice rather than a label read off a button. DTMF and hangup are explicitly NOT implemented and say so, because an IVR plan that 'succeeded' having pressed nothing would be worse than a refusal. §19's identity disclosure is unchanged and still enforced in calls.py before any dial.",
+      "verification": "Machine readiness verified live 2026-08-27 (`phone_cli ready` -> True: Phone Link installed and running, iPhone paired, 30 audio devices, call audio correctly reported NOT live with no call up). 24 hermetic tests. EXPERIMENTAL because NO CALL HAS BEEN PLACED: the first supervised test call to a safe number is what promotes this, and placing it is the operator's to authorize.",
+      "module": "aletheia.phone_windows"
     },
     {
       "id": "voice.wake",
@@ -809,13 +809,13 @@
       "id": "audio.route",
       "description": "Phase 11: logical audio routing plans (mic/speaker/virtual cable) — approval-bound, verified by evidence, no raw audio handled",
       "provider": "aletheia.local",
-      "status": "EXPERIMENTAL",
+      "status": "AVAILABLE",
       "risk_class": "medium",
       "approval_policy": "operator_once",
-      "caller": "aletheia.audio_cli + phone_v0.prepare (requires an ACTIVE phone_bridge route); approval bound to audio.route:<plan sha256>",
-      "verification": "tests/test_audio_phone_v0.py + hardening tests: plan hash-bound and re-verified on load, direct route cycles rejected, activation demands exact per-route evidence (not counts), tamper -> refused",
-      "notes": "EXPERIMENTAL: hermetic backend only — no real Windows audio device has ever been routed. scripts/phase11_accept_audio.ps1 on the PC decides AVAILABLE vs repair.",
-      "module": "aletheia.audio_router"
+      "caller": "python -m aletheia.audio_cli; aletheia.phone_cli selects it for Phase 12; aletheia.audio_router.activate/verify_active/stop",
+      "verification": "LIVE on the operator's PC 2026-08-27: plan built, activation REFUSED while the approval was PENDING, then approved and activated mic -> headphone jack; verified 41,600 frames in / 40,960 out across two observations; stopped cleanly. Plus 22 hermetic tests with an injected sounddevice.",
+      "notes": "The control plane shipped with only InMemoryAudioBackend, a declared fake, which is why this sat EXPERIMENTAL with the note 'no real Windows audio device has ever been routed'. aletheia/audio_windows.py is the real backend: one PortAudio stream pair per approved route, frames pumped through a bounded ring, nothing written to disk and no buffer outliving the session. A route counts as active only when FRAMES HAVE MOVED since the last observation, so a stream that opened and then went silent - a device another app took, a headset that wandered off - reads as dead on the next look instead of as a working bridge. No virtual audio cable is required: the Bluetooth Hands-Free endpoints Windows already publishes are ordinary devices, so there is no kernel driver to install.",
+      "module": "aletheia.audio_windows"
     },
     {
       "id": "core.autostart",

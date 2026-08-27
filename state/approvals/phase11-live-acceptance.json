@@ -1,0 +1,12 @@
+{
+  "id": "phase11-live-acceptance",
+  "requested_action": "audio.route:b000c839bf2e0206a0a33762be7049ec70a136fb7abda7cf88075e646892e277",
+  "reason": "activate audio route phase11-live-acceptance for monitor",
+  "consequence": "Windows audio inputs/outputs may be redirected until the session is stopped",
+  "reversible": true,
+  "state": "APPROVED",
+  "requested_at": "2026-08-27T18:35:13Z",
+  "capability": "audio.route",
+  "decided_at": "2026-08-27T18:35:13Z",
+  "decided_via": "claude-session: phase 11 acceptance run"
+}
