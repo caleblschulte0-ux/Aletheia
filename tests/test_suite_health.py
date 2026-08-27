@@ -16,8 +16,7 @@ from pathlib import Path
 
 import tests as tests_package
 
-# `tests` is a namespace package (no __init__.py), so __file__ is None and
-# __path__ is the only reliable way to its directory.
+# __path__ works whether or not tests is a package; keep using it.
 TESTS_DIR = Path(list(tests_package.__path__)[0])
 REPO_ROOT = TESTS_DIR.parent
 

@@ -425,26 +425,15 @@
     ]
   },
   "now": {
-    "generated_at": "2026-08-27T20:51:22Z",
+    "generated_at": "2026-08-27T21:46:07Z",
     "halted": false,
     "heartbeat_age_s": 0.0,
     "waiting_on_you": [],
     "waiting_count": 0,
-    "notifications": [
-      {
-        "title": "Proactive: r1",
-        "priority": "NORMAL",
-        "at": "2026-08-27T18:13:03Z"
-      },
-      {
-        "title": "Mail polling failed",
-        "priority": "IMPORTANT",
-        "at": "2026-08-27T05:00:41Z"
-      }
-    ],
+    "notifications": [],
     "meetings": [],
     "working": [],
     "next_appointment": null,
-    "headline": "Mail polling failed"
+    "headline": "All quiet"
   }
 }

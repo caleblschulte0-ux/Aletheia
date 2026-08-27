@@ -104,15 +104,14 @@ def poll_mail_events() -> list[dict]:
     ok, _ = mail.available()
     if not ok:
         return []
-    try:
-        return mail.poll_events(limit=50)
-    except Exception as exc:
-        notifications.publish(
-            "Mail polling failed", f"{type(exc).__name__}: {exc}",
-            priority="IMPORTANT", source="mail",
-            dedupe_key=f"mail-poll-error:{type(exc).__name__}",
-            related={"capability": "email.read"})
-        return [{"action": "error", "detail": f"{type(exc).__name__}: {exc}"}]
+    # Deliberately NOT caught here. This used to publish its own
+    # never-clearing notification and return [{"action": "error"}], which
+    # the summary renders with len() — so a transient IMAP blip read as
+    # "one mail event" and left an IMPORTANT alarm on the wall for hours
+    # after the network healed. The beat's own `guarded` handles it now:
+    # counted as a failure rather than as work, notified only once it
+    # persists, and acknowledged when it starts working again.
+    return mail.poll_events(limit=50)
 
 
 def _event_id_for_pulse(generated: str, material: dict) -> str:

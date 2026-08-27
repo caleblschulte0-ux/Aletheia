@@ -42,4 +42,4 @@ jobs:
         run: python -m aletheia.plans validate
 
       - name: Tests
-        run: python -m unittest discover -s tests -v
+        run: python -m unittest discover -s tests -t . -v
