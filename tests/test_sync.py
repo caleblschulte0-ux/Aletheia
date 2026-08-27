@@ -158,6 +158,20 @@ class GitSyncCase(unittest.TestCase):
                               cwd=str(self.pc), capture_output=True, text=True)
         self.assertEqual(proc.stdout.strip(), "claude/somebodys-work")
 
+    def test_a_tree_mid_merge_is_left_alone(self):
+        # Observed live: while a session resolved a conflict here, the Core
+        # tried to checkpoint every 60s and logged "you have unmerged files"
+        # each time. Staging a conflicted path would commit the markers.
+        (self.pc / ".git" / "MERGE_HEAD").write_text("deadbeef\n")
+        self.assertTrue(self.sync.merge_in_progress())
+        ok, detail = self.sync.commit(["seed.txt"], "core: state checkpoint")
+        self.assertTrue(ok)
+        self.assertIn("merge in progress", detail)
+        blocked = self.sync.blocking_reason()
+        self.assertIn("merge or rebase is in progress", blocked)
+        ok, detail = self.sync.pull()
+        self.assertFalse(ok)
+
     def test_a_clean_tree_on_the_sync_branch_is_not_blocked(self):
         self.assertIsNone(self.sync.blocking_reason())
 

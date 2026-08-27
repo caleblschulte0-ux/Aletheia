@@ -133,8 +133,18 @@ class GitSync:
                 paths.append(path)
         return paths
 
+    def merge_in_progress(self) -> bool:
+        """Is a human (or an agent) part-way through a merge or rebase here?"""
+        git_dir = self.root / ".git"
+        return any((git_dir / marker).exists() for marker in (
+            "MERGE_HEAD", "REBASE_HEAD", "rebase-merge", "rebase-apply",
+            "CHERRY_PICK_HEAD", "REVERT_HEAD"))
+
     def blocking_reason(self) -> str | None:
         """Why this tree must not be rebased right now, or None."""
+        if self.merge_in_progress():
+            return ("a merge or rebase is in progress in this working copy — "
+                    "leaving it alone until whoever started it is finished")
         code, out = _git(["rev-parse", "--abbrev-ref", "HEAD"], self.root)
         if code == 0 and out and out != "HEAD" and out != self.branch:
             return (f"checked out on {out!r}, not the sync branch {self.branch!r} — "
@@ -179,6 +189,13 @@ class GitSync:
         # fresh clone would fail every checkpoint, and because commit()
         # failing short-circuits commit_push(), the Core would never push at
         # all — receipts, journal and pulse all stranded on the PC.
+        # Observed live 2026-08-27: while a session resolved a merge here, the
+        # Core kept trying to checkpoint every 60s and logged "you have
+        # unmerged files" each time. Committing mid-merge would be worse than
+        # the noise — `git add` on a conflicted path stages the conflict
+        # markers as if they were resolved.
+        if self.merge_in_progress():
+            return True, "merge in progress — checkpoint skipped"
         rels = [str(p) for p in paths if (self.root / p).exists()]
         if not rels:
             return True, "nothing to commit"
