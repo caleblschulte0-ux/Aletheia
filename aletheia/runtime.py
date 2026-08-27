@@ -228,6 +228,18 @@ def reconcile_task_gaps(*, registry: dict | None = None) -> list[dict]:
     return actions
 
 
+def _advisor_judgment(event: dict, now: dt.datetime) -> dict | None:
+    """Optional model triage. Failure never blocks deterministic event handling."""
+    try:
+        from aletheia import advisor
+        return advisor.evaluate_event(event, now=now)
+    except Exception as exc:
+        # Never echo provider/config exception text into runtime results: an
+        # external dependency error may contain data we did not intend to surface.
+        return {"event": event.get("id", "?"), "outcome": "error",
+                "error_type": type(exc).__name__}
+
+
 def process_new_events(*, now: dt.datetime | None = None,
                        cursor_path: Path | None = None,
                        events_dir: Path | None = None,
@@ -289,6 +301,12 @@ def process_new_events(*, now: dt.datetime | None = None,
                     pass
             actions.append({"event": event["id"], "action": f"rule_{kind}",
                             "rule": rule["id"], "priority": priority})
+        judged = _advisor_judgment(event, now)
+        if judged is not None:
+            actions.append({"event": event["id"],
+                            "action": "advisor_" + judged.get("outcome", "unknown"),
+                            **({"error_type": judged["error_type"]}
+                               if judged.get("error_type") else {})})
     if fresh:
         write_json_atomic(cursor_path, {
             "version": 1, "last_event_id": fresh[-1]["id"],
@@ -368,13 +386,8 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     capability_gaps = reconcile_task_gaps(registry=registry)
     handle_requests = guarded(
         "handler", lambda: handler.reconcile_all(registry=registry, now=now))
-    # Approved arbitrary asks (aletheia.intents): the plan the operator
-    # okayed runs HERE, on a later beat, through the ordinary gates — not
-    # inside the conversation that produced it.
     approved_intents = guarded(
         "intents", lambda: _run_approved_intents(fleet))
-    # Errands he authorized: the last mile into the world, run here rather
-    # than inside the sentence that asked for it.
     authorized_errands = guarded("errands", _run_authorized_errands)
     room_devices = guarded("room", _observe_room)
     calendar_updates = guarded("calendar", lambda: _refresh_calendar(now))
