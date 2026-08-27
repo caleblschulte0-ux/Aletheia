@@ -115,3 +115,6 @@
 {"ts": "2026-08-27T19:19:09Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "pull recovered: up to date with remote"}
 {"ts": "2026-08-27T19:23:40Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "pull failing: checked out on 'claude/self-update-local', not the sync branch 'main' — refusing to rebase someone else's branch"}
 {"ts": "2026-08-27T19:28:04Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "pull recovered: up to date with remote"}
+{"ts": "2026-08-27T19:30:00Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "supervisor up — the Core is now persistent"}
+{"ts": "2026-08-27T19:30:01Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
+{"ts": "2026-08-27T19:30:01Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
