@@ -159,6 +159,14 @@ def _run_cli(system_prompt: str, user_prompt: str, model: str,
         try:
             proc = subprocess.run(
                 argv, cwd=workdir, capture_output=True, text=True,
+                # text=True alone decodes with the LOCALE codec, which on this
+                # machine is cp1252 — so a single em-dash, accented name or £
+                # in the answer raised UnicodeDecodeError and took the whole
+                # reasoning path down. Found 2026-08-27 by asking about a screen
+                # whose window title contained a glyph. The CLI speaks UTF-8;
+                # say so, and never let an unmappable byte be the thing that
+                # stops her thinking.
+                encoding="utf-8", errors="replace",
                 timeout=timeout_s, creationflags=hidden_flags(),
                 env={**os.environ, "CLAUDE_CODE_DISABLE_TERMINAL_TITLE": "1"})
         except subprocess.TimeoutExpired as exc:

@@ -37,6 +37,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -85,6 +86,9 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # validated here like any other command. This kind widens what can be
     # SAID, never what may be DONE.
     "intent":          ({"text"}, set()),
+    # Reading the screen (Phase §86). LOCAL: the accessibility tree only
+    # exists on the PC, and the observation is redacted before it travels.
+    "screen_ask":      ({"question"}, {"window"}),
 }
 
 # Kinds that need the operator's PC (a real browser, later the desktop).
@@ -98,7 +102,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_draft",
                "remind_at", "remind_daily", "watch_email_from", "notify_check",
                "notify_clear", "free_time", "contact_add", "notify_operator",
-               "intent"}  # intent: the reasoning provider runs on the PC
+               "intent", "screen_ask"}  # both need the PC itself
 
 
 def validate_kind_args(cmd, fleet: dict) -> list[str]:
@@ -269,6 +273,12 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         parts = [f"{n['title']}: {n['body'][:80]}" for n in unread[:5]]
         head = f"{len(unread)} notification{'s' if len(unread) != 1 else ''}. "
         return head + " — ".join(parts)
+    if kind == "screen_ask":
+        from aletheia import perception
+        window = ({"title_re": re.escape(cmd["window"])} if cmd.get("window")
+                  else None)
+        answer = perception.describe(cmd["question"], window=window)
+        return answer["answer"]
     if kind == "intent":
         from aletheia import intents
         record = intents.propose(cmd["text"], quote=quote, fleet=fleet)

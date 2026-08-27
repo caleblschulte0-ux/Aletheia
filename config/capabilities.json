@@ -1,5 +1,5 @@
 {
-  "revision": 29,
+  "revision": 30,
   "providers": [
     {
       "id": "aletheia.local",
@@ -977,6 +977,18 @@
       "approval_policy": "operator_always",
       "caller": "TICKET: no caller. Wanted by aletheia.scheduling.note_reply, which can see that a meeting reply arrived but not what it says.",
       "notes": "Named rather than worked around (§105). aletheia.mail deliberately fetches BODY.PEEK[HEADER] - headers only - so Aletheia never holds the operator's correspondence, and the private stores keep fingerprints rather than text. That is the right default, and it is exactly why a meeting negotiation cannot read 'Tuesday works' for itself; it asks the operator to relay the answer in one line instead of guessing an acceptance from a subject. Building this widens what Aletheia reads of his mail and is a privacy decision that is his to make, not a missing function: it needs an explicit ruling on which messages may be read, how long any text is retained, and whether a body may ever reach a reasoning provider."
+    },
+    {
+      "id": "perception.screen",
+      "description": "Read what is on the operator's screen from the accessibility tree and answer a question about it",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "voice: 'what's on my screen', 'what am I looking at', 'what does this say'; intercom kind screen_ask; python -m aletheia.perception look|ask",
+      "module": "aletheia.perception",
+      "notes": "Playbook §86, done §13's way: accessibility tree before screen coordinates before vision-only pixels. That is not a compromise - a UIA tree knows a control is a button called 'Submit', where a screenshot knows it is beige - and it needs no vision model and no API key. Two boundaries make it separate from computer.control rather than a flag on it. LOOKING IS NOT PRESSING: this module can only emit list_windows and inspect_controls, so invoke/set_text/open_app/close_window are absent by construction, not refused by a check (the browse.read_page vs browse.interact precedent, §61). A SCREEN IS NOT SAFE TEXT: password fields are dropped rather than masked, credential-shaped values are replaced wherever they appear, and the observation is bounded before any provider sees it - and the model's own answer is redacted again on the way back. The observation is declared UNTRUSTED DATA, because a window title is attacker-chosen in exactly the way an email subject is.",
+      "verification": "19 tests: acting steps refused with nothing performed, password contents never present in the observation, oversized screens trimmed by whole records. Live on the PC 2026-08-27: asked what was open and answered correctly from real windows."
     }
   ]
 }

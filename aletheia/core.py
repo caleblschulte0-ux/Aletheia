@@ -141,6 +141,11 @@ def run_command(payload: dict, fleet: dict) -> dict:
 CODE_PATHS = ["aletheia", "interface", "config", "requirements-optional.txt"]
 RESTART_EXIT_CODE = 42  # tells the supervisor: relaunch me, this is not a crash
 
+# Kinds that reach a reasoning provider and therefore take tens of seconds.
+# The room gets an acknowledgement now and the real sentence when it lands
+# (aletheia.followups) rather than an open microphone and silence.
+SLOW_KINDS = {"intent", "screen_ask"}
+
 
 def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
               on_code_update=None) -> dict:
@@ -430,7 +435,7 @@ class Handler(BaseHTTPRequestHandler):
             cmd = dict(intent["command"])
             kind = cmd.get("kind")
             quote = f"spoken to the wall: {transcript[:200]}"
-            if kind == "intent":
+            if kind in SLOW_KINDS:
                 # Reasoning takes ten to thirty seconds; a person in a room
                 # waits about two. Answer now, think in the background, and
                 # let the listener collect the real sentence when it exists.

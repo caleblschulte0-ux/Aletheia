@@ -126,7 +126,10 @@ def interpret(transcript: str) -> dict:
     if re.fullmatch(r"(resume|start again|back on|carry on|un-?halt)", low):
         return {"command": {"kind": "resume"}, "say": None}
 
-    if re.fullmatch(r"(status|what's going on|what is going on|what's up|"
+    # Apostrophes optional: speech-to-text drops them far more often than it
+    # keeps them, and "whats going on" was falling past the instant local
+    # answer into the planner — twenty seconds for a question worth 50ms.
+    if re.fullmatch(r"(status|what'?s going on|what is going on|what'?s up|"
                     r"how are things|anything happening|report)", low):
         return {"command": None, "say": _status_say()}
 
@@ -186,6 +189,17 @@ def interpret(transcript: str) -> dict:
     if m:
         return {"command": {"kind": "contact_add", "name": m.group(1).strip(),
                             "email": m.group(2).strip()}, "say": None}
+
+    # Screen questions run BEFORE the browse verbs for the same reason the
+    # email ones do: "read this" is about what is in front of him, not a
+    # website he forgot to name.
+    if re.search(r"\b(?:on|in) (?:my|the) screen\b", low) \
+            or re.fullmatch(r"what am i looking at\??", low) \
+            or re.fullmatch(r"what does (?:this|that)(?: error)?"
+                            r"(?: say| mean)?\??", low) \
+            or re.fullmatch(r"read (?:this|that|the screen)\??", low):
+        return {"command": {"kind": "screen_ask", "question": text.strip()},
+                "say": None}
 
     # email patterns run BEFORE the browse verbs: "check my email" must
     # never be parsed as "check <website>"
