@@ -1,5 +1,5 @@
 {
-  "revision": 18,
+  "revision": 19,
   "providers": [
     {
       "id": "aletheia.local",
@@ -765,6 +765,18 @@
       "caller": "aletheia.calendar_provider.execute_write_plan — fully gated and hermetically tested; no live Google/Outlook adapter exists yet, so nothing real can be written",
       "notes": "The seam means a live adapter only implements list/create/update/cancel; every gate already exists and is tested (tests/test_calendar_provider.py).",
       "verification": "tests/test_calendar_provider.py: approval binding, hash mismatch refusal, provider-verification failure raises, conflict on locally-dirty events"
+    },
+    {
+      "id": "attention.policy",
+      "description": "When may a notice interrupt Caleb: quiet hours, priority escalation with age, bypass list — classification only, never delivery",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "runtime.tick runs attention.reconcile LAST every Core beat; python -m aletheia.proactive_cli and python -m aletheia.attention configure/status/ready",
+      "verification": "tests/test_attention.py + tests/test_attention_runtime.py (14 tests): quiet hours across midnight, escalation chains strictly increase, mark_delivered revalidates at evidence time so a stale READY can never be recorded as a legitimate delivery, acknowledged notices cancel",
+      "notes": "Zero-intrusion defaults (quiet hours off, no bypass, no escalation) until the operator configures it. Reviewed ChatGPT branch proactive-attention-v1; repair applied in review: this registry entry — the branch shipped the capability live in every tick without registering it (§104).",
+      "module": "aletheia.attention"
     }
   ]
 }
