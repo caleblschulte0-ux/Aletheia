@@ -100,3 +100,6 @@
 {"ts": "2026-08-27T15:41:01Z", "kind": "alert", "actor": "aletheia-liveness", "subject": "core:liveness", "text": "Aletheia was down for 5m — back up now (313s since the last heartbeat)."}
 {"ts": "2026-08-27T15:41:01Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
 {"ts": "2026-08-27T15:41:01Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-27T15:41:01Z", "kind": "event", "actor": "aletheia-voice", "subject": "voice:room", "text": "room voice listening (local wake word)"}
+{"ts": "2026-08-27T15:41:17Z", "kind": "decision", "actor": "aletheia-intent", "subject": "intent", "text": "intent-0a06bbb663 denied — retired"}
+{"ts": "2026-08-27T15:41:17Z", "kind": "decision", "actor": "aletheia-intent", "subject": "intent", "text": "intent-fe366821a2 denied — retired"}
