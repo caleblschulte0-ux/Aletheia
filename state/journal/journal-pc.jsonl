@@ -213,3 +213,7 @@
 {"ts": "2026-08-27T22:39:14Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — What are you referring to — which author/document/content, and what about the years is wrong or inappropriate?"}
 {"ts": "2026-08-27T22:41:41Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Your message came through garbled - could you rephrase what you'd like done?"}
 {"ts": "2026-08-27T22:41:41Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message came through garbled - could you rephrase what you'd like done?"}
+{"ts": "2026-08-27T22:42:00Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Your message seems to have been cut off - what would you like me to do?"}
+{"ts": "2026-08-27T22:42:00Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message seems to have been cut off - what would you like me to do?"}
+{"ts": "2026-08-27T22:42:16Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — The request \"it's a huge much more children\" is unclear - could you rephrase what you'd like done?"}
+{"ts": "2026-08-27T22:42:16Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — The request \"it's a huge much more children\" is unclear - could you rephrase what you'd like done?"}
