@@ -1,5 +1,6 @@
 """Voice on the wall: deterministic interpretation, gated execution."""
 import json
+import os
 import time
 import tempfile
 import unittest
@@ -7,7 +8,7 @@ import urllib.request
 from pathlib import Path
 from unittest import mock
 
-from aletheia import journal, plans, policy, tasks, voice
+from aletheia import journal, plans, policy, reasoner, tasks, voice
 from aletheia import memory
 
 
@@ -97,6 +98,18 @@ class VoiceEndpointCase(unittest.TestCase):
             mock.patch.object(tasks, "TASKS_DIR", d / "tasks"),
             mock.patch.object(plans, "PLANS_DIR", d / "plans"),
             mock.patch.object(memory, "MEMORY_DIR", d / "memory"),
+            # An intent reaches the planner, which reaches a real model and
+            # writes a real intent record. Both belong in this fixture, not
+            # in the operator's state directory and not over the network:
+            # a suite that spends 20s and a subscription call per run is a
+            # suite people stop running.
+            mock.patch.dict(os.environ,
+                            {"ALETHEIA_PRIVATE_STATE": str(d / "private")}),
+            mock.patch.object(
+                reasoner, "_run_cli",
+                return_value=json.dumps({
+                    "intent": "plan", "summary": "note it down",
+                    "steps": [{"kind": "note", "text": "make a sandwich"}]})),
         ]
         for p in cls.patches:
             p.start()
@@ -148,7 +161,7 @@ class VoiceEndpointCase(unittest.TestCase):
         self.assertTrue(res["say"])
         self.assertTrue(res["followup_id"])
         # and the real answer is collectable from that slot
-        deadline = time.monotonic() + 120
+        deadline = time.monotonic() + 20
         while time.monotonic() < deadline:
             slot = followups.poll(res["followup_id"])
             if slot["state"] != followups.PENDING:
