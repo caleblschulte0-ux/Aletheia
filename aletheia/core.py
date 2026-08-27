@@ -192,6 +192,17 @@ def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
                        f"mail delivery error: {type(exc).__name__}: {exc}", actor=ACTOR)
     status["commands_executed"] += len(results)
     try:
+        # calendar feeds: mirror the operator's ICS subscriptions at most
+        # every 30 min; honest no-op when unconfigured
+        from aletheia import ics
+        refreshed = ics.refresh_if_due()
+        if refreshed:
+            status["calendar"] = refreshed
+    except Exception as exc:  # a bad feed must not stop the loop
+        journal.append("event", "core:sync",
+                       f"calendar refresh error: {type(exc).__name__}: {exc}",
+                       actor=ACTOR)
+    try:
         # the local runtime: due schedules (through the same intercom gates),
         # reply expectations, bus events -> watcher/proactive notifications,
         # capability-gap reconciliation. Summarized at /api/runtime.
@@ -207,15 +218,25 @@ def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
         status["runtime"] = {"at": status["last_tick"], "error": f"{type(exc).__name__}: {exc}"}
         journal.append("event", "core:runtime",
                        f"runtime tick error: {type(exc).__name__}: {exc}", actor=ACTOR)
-    # push every tick: receipts when there are any, and any checkpoint
-    # commits from quiet ticks (commit_push no-ops when nothing waits)
+    # Receipts push IMMEDIATELY — a relay is waiting on them. Journal-only
+    # heartbeats batch: commit every tick, push at most every 10 minutes.
+    # 193 heartbeat pushes landed on main in one day, each one running the
+    # full CI suite; batching keeps history and Actions sane, and the
+    # pending commits still ride out with the next receipt push.
+    now_s = dt.datetime.now(dt.timezone.utc).timestamp()
+    if not results and now_s - status.get("last_push_s", 0.0) < 600:
+        syncer.commit(["exchange/commands", "state/journal"],
+                      "core: state checkpoint")
+        return status
     ok, detail = syncer.commit_push(
         ["exchange/commands", "state/journal"],
         f"core: {len(results)} local command receipt(s)" if results
         else "core: state checkpoint")
     prev_push = status.get("push")
     status["push"] = {"ok": ok, "detail": detail}
-    if not ok and (prev_push is None or prev_push.get("ok")):
+    if ok:
+        status["last_push_s"] = now_s
+    elif prev_push is None or prev_push.get("ok"):
         journal.append("event", "core:sync", f"push failing: {detail}", actor=ACTOR)
     return status
 

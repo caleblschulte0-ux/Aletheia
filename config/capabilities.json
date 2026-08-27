@@ -1,5 +1,5 @@
 {
-  "revision": 21,
+  "revision": 22,
   "providers": [
     {
       "id": "aletheia.local",
@@ -262,11 +262,13 @@
       "id": "calendar.read",
       "description": "Read availability, reason about work hours and buffers",
       "provider": "aletheia.local",
-      "status": "NOT_BUILT",
+      "status": "NEEDS_CONFIGURATION",
       "risk_class": "read",
       "approval_policy": "none",
-      "caller": "ticket â€” Phase 14 (Playbook Â§128)",
-      "notes": "Live Google/Outlook adapter NOT_BUILT — ticket: task build-calendar-read. The local calendar model (events the operator records) is AVAILABLE separately as calendar.availability."
+      "caller": "aletheia.ics.refresh_if_due — every Core beat, at most every 30 min: fetches the operator's secret ICS url(s), expands recurrence, mirrors into the local calendar that free_time/availability already answer from",
+      "notes": "NEEDS_CONFIGURATION: put the calendar's secret iCal address in ~/.aletheia/calendar.json on the PC (Google: Settings -> 'Secret address in iCal format'). No API keys (§6) — the url is the operator's own read-only credential and never enters the repo.",
+      "verification": "tests/test_ics.py (13 tests): folding/escapes per RFC 5545, TZID->UTC, DAILY/WEEKLY+BYDAY/COUNT/UNTIL/EXDATE expansion, unsupported rules counted and surfaced as a notification (never silently dropped — a guessed-away busy block is the failure mode), upstream deletions cancel the mirror, local events untouched, idempotent, https-only",
+      "module": "aletheia.ics"
     },
     {
       "id": "room.scene",

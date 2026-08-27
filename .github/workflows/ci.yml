@@ -3,6 +3,12 @@ name: ci
 on:
   push:
     branches: [main]
+    # the PC Core pushes state checkpoints ~200x/day; a push touching ONLY
+    # run-state must not re-run the whole suite. A push mixing code + state
+    # still runs (paths-ignore skips only when every changed file matches).
+    paths-ignore:
+      - "state/**"
+      - "exchange/**"
   pull_request:
 
 permissions:
