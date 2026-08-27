@@ -105,7 +105,7 @@ python -m aletheia.intents list          # asks in flight, with their approvals
 python -m aletheia.errands list          # errands in the world
 python -m aletheia.access list           # credentials that can reach her
 python -m aletheia.suggestions list      # ChatGPT's advice + rulings
-python -m unittest discover tests        # the whole suite, stdlib only
+python -m unittest discover -s tests -t .   # the whole suite, stdlib only
 ```
 
 ## Setup that needs the operator

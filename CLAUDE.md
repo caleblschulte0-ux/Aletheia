@@ -34,6 +34,16 @@ everything in this repo has a real caller or says NOT_BUILT.
 5. `state/` — run truth: pulse, briefs, journal, tasks — CI-writable,
    never hand-tuned to look better
 
+**Run the suite as `python -m unittest discover -s tests -t .`** — the
+`-t .` matters. It makes `tests/__init__.py` load before anything imports
+`aletheia`, which points `ALETHEIA_PRIVATE_STATE` at a throwaway
+directory for the run. Without it, modules bind their store paths at
+import time and any test that forgets a `mock.patch.object` writes into
+the operator's real private state. That happened three times in one day
+(a notification titled "Proactive: r1", a thread called "thread:test",
+an intent record about a sandwich) and once made an unrelated test fail
+by handing it four notices it never created.
+
 Never restate what a registry holds anywhere else; tests hold the README
 table and the Goal contract against their stores. A missing or invalid
 registry fails CLOSED.

@@ -26,7 +26,9 @@ class FailuresAreNotWorkCase(unittest.TestCase):
                               Path(self.tmp.name) / "journal.jsonl")
         p.start(); self.addCleanup(p.stop)
         core._FAILURES_SEEN.clear()
+        core._FAILURE_STREAK.clear()
         self.addCleanup(core._FAILURES_SEEN.clear)
+        self.addCleanup(core._FAILURE_STREAK.clear)
 
     def quiet_tick(self, **overrides):
         """runtime.tick with every subsystem stubbed to do nothing."""
@@ -83,22 +85,54 @@ class FailuresAreNotWorkCase(unittest.TestCase):
         summary = self.quiet_tick(poll_mail_events=RuntimeError("down"))
         self.assertIn("capability_gaps", summary)
 
-    def test_a_failure_is_journaled_and_notified_once(self):
+    def test_a_single_blip_is_journaled_but_not_announced(self):
+        # A transient IMAP timeout on one beat is not news. The old code
+        # published an IMPORTANT notification for it that nothing ever
+        # cleared, and the wall was headlined by a healed network blip for
+        # hours.
+        with mock.patch("aletheia.notifications.publish") as publish:
+            core._surface_failures([{"producer": "mail", "error": "timeout"}])
+        publish.assert_not_called()
+        self.assertTrue([e for e in journal.entries(journal.JOURNAL_PATH)
+                         if e["kind"] == "alert"])
+
+    def test_a_persistent_failure_is_announced_once(self):
         failures = [{"producer": "mail", "error": "RuntimeError: down"}]
         with mock.patch("aletheia.notifications.publish") as publish:
-            core._surface_failures(failures)
-            core._surface_failures(failures)   # same failure, next beat
-            core._surface_failures(failures)   # and the next
+            for _ in range(5):
+                core._surface_failures(failures)
         self.assertEqual(publish.call_count, 1, "it nagged every beat")
         rows = [e for e in journal.entries(journal.JOURNAL_PATH)
                 if e["kind"] == "alert"]
-        self.assertEqual(len(rows), 3, "every beat should still be journaled")
+        self.assertEqual(len(rows), 5, "every beat should still be journaled")
 
     def test_a_new_failure_is_always_heard(self):
         with mock.patch("aletheia.notifications.publish") as publish:
-            core._surface_failures([{"producer": "mail", "error": "A"}])
-            core._surface_failures([{"producer": "mail", "error": "B"}])
+            for error in ("A", "A", "B"):
+                core._surface_failures([{"producer": "mail", "error": error}])
         self.assertEqual(publish.call_count, 2)
+
+    def test_recovery_acknowledges_the_alarm_and_journals_it(self):
+        failures = [{"producer": "mail", "error": "down"}]
+        notices = [{"id": "n1", "dedupe_key": "runtime-failure:mail:down"},
+                   {"id": "n2", "dedupe_key": "something-else"}]
+        with mock.patch("aletheia.notifications.publish"):
+            core._surface_failures(failures)
+            core._surface_failures(failures)      # now it is loud
+        with mock.patch("aletheia.notifications.all_notifications",
+                        return_value=notices),              mock.patch("aletheia.notifications.set_state") as set_state:
+            core._clear_recovered([])             # the next beat succeeds
+        set_state.assert_called_once_with("n1", "ACKNOWLEDGED")
+        self.assertTrue([e for e in journal.entries(journal.JOURNAL_PATH)
+                         if "recovered" in e["text"]])
+
+    def test_a_blip_that_never_got_loud_needs_no_quieting(self):
+        with mock.patch("aletheia.notifications.publish"):
+            core._surface_failures([{"producer": "mail", "error": "blip"}])
+        with mock.patch("aletheia.notifications.all_notifications") as listed:
+            core._clear_recovered([])
+        listed.assert_not_called()
+        self.assertEqual(core._FAILURE_STREAK, {})
 
     def test_a_notification_failure_never_breaks_the_beat(self):
         with mock.patch("aletheia.notifications.publish",
@@ -120,17 +154,28 @@ class BudgetCase(FailuresAreNotWorkCase):
     def test_a_slow_subsystem_defers_the_rest_rather_than_running_late(self):
         # The sync loop that pulls commands and stamps the heartbeat is this
         # same thread, so a browser-shaped minute must not hold it hostage.
+        # Driven by a fake clock rather than real sleeps: a budget test that
+        # depends on wall time fails on a busy machine and teaches nothing.
         ran = []
+        clock = iter([0.0,        # deadline is computed here
+                      0.0,        # first guarded call: inside budget
+                      99.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0,
+                      99.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0, 99.0])
 
-        def slow(*a, **k):
-            time.sleep(0.06)
-            ran.append("schedules")
-            return []
+        def tick_clock():
+            try:
+                return next(clock)
+            except StopIteration:
+                return 99.0
 
-        summary = self.quiet_tick_with_budget(0.05, run_due_schedules=slow)
-        self.assertEqual(ran, ["schedules"], "the first subsystem should still run")
+        with mock.patch.object(runtime.time, "monotonic", tick_clock):
+            summary = self.quiet_tick_with_budget(
+                1.0, run_due_schedules=lambda *a, **k: ran.append("schedules") or [])
+        self.assertEqual(ran, ["schedules"],
+                         "the first subsystem should still run")
         self.assertTrue(summary["skipped"], "the rest should have been deferred")
-        self.assertEqual(summary["failures"], [])
+        self.assertEqual(summary["failures"], [],
+                         "running out of time was counted as a failure")
 
 
 class KickCase(unittest.TestCase):

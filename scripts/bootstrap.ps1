@@ -151,7 +151,7 @@ if (-not (Test-Path (Join-Path $dest ".browser-installed"))) {
 
 # ---- REQUIRED: the checks, then Aletheia itself ----------------------------
 Write-Host "  Running checks ..."
-& $pyExe @pyFlags -m unittest discover -s tests -q
+& $pyExe @pyFlags -m unittest discover -s tests -t . -q
 if ($LASTEXITCODE -ne 0) {
   throw "Aletheia checks failed on this machine. The Core was not started - send Claude the output above."
 }

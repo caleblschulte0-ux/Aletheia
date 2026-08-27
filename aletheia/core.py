@@ -182,6 +182,10 @@ def stale_code_files(started_at: float | None = None,
 # A subsystem that fails every beat must be said once, not sixty times an
 # hour. Keyed by producer+error so a NEW failure is always heard.
 _FAILURES_SEEN: dict[str, str] = {}
+# How many consecutive beats a subsystem must fail before he hears about
+# it. One IMAP timeout on a flaky minute is not news; two in a row is.
+_FAILURE_STREAK: dict[str, int] = {}
+NOTIFY_AFTER_BEATS = 2
 
 
 def _surface_failures(failures: list[dict]) -> None:
@@ -197,6 +201,10 @@ def _surface_failures(failures: list[dict]) -> None:
         error = str(failure.get("error", ""))[:300]
         journal.append("alert", f"core:runtime:{producer}",
                        f"subsystem failing: {error}", actor=ACTOR)
+        streak = _FAILURE_STREAK.get(producer, 0) + 1
+        _FAILURE_STREAK[producer] = streak
+        if streak < NOTIFY_AFTER_BEATS:
+            continue  # a single blip heals more often than it matters
         if _FAILURES_SEEN.get(producer) == error:
             continue  # same failure as last beat: already said
         _FAILURES_SEEN[producer] = error
@@ -210,8 +218,35 @@ def _surface_failures(failures: list[dict]) -> None:
             pass  # the journal line above is the record
 
 
-def _clear_failure(producer: str) -> None:
-    _FAILURES_SEEN.pop(producer, None)
+def _clear_recovered(failures: list[dict]) -> None:
+    """A subsystem that has started working again stops complaining.
+
+    Making failures visible was half the job; a transient one that never
+    clears is the other half. The operator's wall spent an afternoon
+    headlined "Mail polling failed" over a network blip that had healed
+    hours earlier — an alarm nobody can dismiss is one everybody learns to
+    ignore, and then the next real one goes unread too.
+
+    Recovery is journaled and the notification is acknowledged, never
+    deleted: what happened stays on the record (§30), it just stops
+    shouting.
+    """
+    from aletheia import notifications
+    failing = {str(f.get("producer", "")) for f in failures}
+    for producer in [p for p in _FAILURE_STREAK if p not in failing]:
+        _FAILURE_STREAK.pop(producer, None)
+        if producer not in _FAILURES_SEEN:
+            continue  # it never got loud enough to need quieting
+        _FAILURES_SEEN.pop(producer, None)
+        journal.append("event", f"core:runtime:{producer}",
+                       "recovered — working again", actor=ACTOR)
+        try:
+            for notice in notifications.all_notifications(state="UNREAD", limit=50):
+                if str(notice.get("dedupe_key", "")).startswith(
+                        f"runtime-failure:{producer}:"):
+                    notifications.set_state(notice["id"], "ACKNOWLEDGED")
+        except Exception:
+            pass  # the journal line above is the record
 
 
 _KICK_LOCK = threading.Lock()
@@ -360,6 +395,7 @@ def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
                              # errors are their own field, never a count that
                              # reads like activity
                              "failures": failures}
+        _clear_recovered(failures)
         if failures:
             _surface_failures(failures)
         if interesting.get("schedules") or interesting.get("reply_transitions"):
