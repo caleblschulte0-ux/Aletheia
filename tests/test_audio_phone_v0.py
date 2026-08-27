@@ -10,7 +10,8 @@ from aletheia import audio_router, calls, journal, phone_v0, policy
 
 class AudioPhoneCase(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
         root = Path(self.tmp.name)
         patches = [
             mock.patch.object(audio_router, "PLANS_DIR", root / "audio-plans"),
@@ -24,7 +25,8 @@ class AudioPhoneCase(unittest.TestCase):
             mock.patch.object(journal, "JOURNAL_PATH", root / "journal.jsonl"),
         ]
         for patch in patches:
-            patch.start(); self.addCleanup(patch.stop)
+            patch.start()
+            self.addCleanup(patch.stop)
         self.root = root
 
     def audio_plan(self, plan_id="bridge", purpose="phone_bridge"):
@@ -117,23 +119,42 @@ class TestAudioRouter(AudioPhoneCase):
         class Partial(audio_router.InMemoryAudioBackend):
             def start(self, plan):
                 value = super().start(plan)
-                value["route_count"] -= 1
+                value["routes"] = value["routes"][:-1]
                 return value
         backend = Partial()
-        with self.assertRaisesRegex(RuntimeError, "every approved route"):
+        with self.assertRaisesRegex(RuntimeError, "exact approved routes"):
             audio_router.activate("bridge", "audio-ok", backend)
         self.assertEqual(backend.starts, 1)
+        self.assertEqual(backend.stops, 1)
+
+    def test_wrong_routes_with_same_count_are_stopped_and_refused(self):
+        self.audio_plan()
+        audio_router.request_activation_approval("bridge", "audio-ok")
+        policy.decide("audio-ok", "APPROVED", via="test")
+        class Wrong(audio_router.InMemoryAudioBackend):
+            def start(self, plan):
+                value = super().start(plan)
+                value["routes"][0] = "route-000000000000000000000000"
+                return value
+        backend = Wrong()
+        with self.assertRaisesRegex(RuntimeError, "exact approved routes"):
+            audio_router.activate("bridge", "audio-ok", backend)
         self.assertEqual(backend.stops, 1)
 
     def test_active_route_is_observed_and_stop_is_idempotent(self):
         _, backend, session = self.active_audio()
         observed = audio_router.verify_active(session["id"], backend)
         self.assertEqual(observed["state"], "ACTIVE")
+        self.assertEqual(observed["route_fingerprints"],
+                         audio_router.route_fingerprints(self.audio_plan_from_session(observed)))
         first = audio_router.stop(session["id"], backend)
         second = audio_router.stop(session["id"], backend)
         self.assertEqual(first["state"], "STOPPED")
         self.assertEqual(second["state"], "STOPPED")
         self.assertEqual(backend.stops, 1)
+
+    def audio_plan_from_session(self, session):
+        return audio_router.load_plan(session["plan_id"])["plan"]
 
 
 class TestPhoneV0(AudioPhoneCase):
@@ -171,7 +192,6 @@ class TestPhoneV0(AudioPhoneCase):
                 self.dial_count += 1
                 raise OSError("dial transport lost")
         boom = Boom()
-        # Session was prepared for fake.phone, same provider id as Boom.
         with self.assertRaises(OSError):
             phone_v0.dial(session["id"], audio_backend=audio_backend, transport=boom)
         self.assertEqual(phone_v0.load_session(session["id"])["state"], "FAILED")
