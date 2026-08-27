@@ -29,6 +29,7 @@ from pathlib import Path
 from aletheia import journal
 from aletheia.core import DEFAULT_PORT, RESTART_EXIT_CODE
 from aletheia.fleet import REPO_ROOT
+from aletheia.proc import run as proc_run
 
 ACTOR = "aletheia-supervisor"
 TASK_NAME = "Aletheia"
@@ -66,6 +67,11 @@ def run_forever(core_args: list[str] | None = None, launch=None,
         print("Aletheia is already running at http://127.0.0.1:8777/ — nothing to do.")
         return 0
     cmd = [sys.executable, "-m", "aletheia.core", *(core_args or [])]
+    # proc: visible-by-design — the Core INHERITS this console on purpose.
+    # Under the hidden logon task the parent is pythonw, so there is no
+    # window either way; started from start-aletheia.bat the operator
+    # deliberately opened a window to watch the Core, and hiding its output
+    # there would be worse than the flashing boxes this rule exists to stop.
     launch = launch or (lambda: subprocess.run(
         cmd, cwd=str(REPO_ROOT), env=_child_env()).returncode)
     backoff = BACKOFF_START_S
@@ -116,7 +122,7 @@ def windowless_interpreter() -> str:
 
 
 def _schtasks(argv: list[str]) -> tuple[int, str]:
-    proc = subprocess.run(["schtasks", *argv], capture_output=True, text=True)
+    proc = proc_run(["schtasks", *argv], capture_output=True, text=True)
     return proc.returncode, (proc.stdout + proc.stderr).strip()
 
 
@@ -137,7 +143,7 @@ def install() -> int:
               f"-Argument '-m aletheia.supervisor' -WorkingDirectory '{REPO_ROOT}'; "
               f"$t = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME; "
               f"Register-ScheduledTask -TaskName '{TASK_NAME}' -Action $a -Trigger $t -Force")
-        proc = subprocess.run(["powershell", "-NoProfile", "-Command", ps],
+        proc = proc_run(["powershell", "-NoProfile", "-Command", ps],
                               capture_output=True, text=True)
         code, out = proc.returncode, (proc.stdout + proc.stderr).strip()
     if code != 0:

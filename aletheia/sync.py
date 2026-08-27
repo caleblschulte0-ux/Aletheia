@@ -30,6 +30,7 @@ import subprocess
 from pathlib import Path
 
 from aletheia.fleet import REPO_ROOT
+from aletheia.proc import run as proc_run
 
 GIT_TIMEOUT_S = 60
 PUSH_ATTEMPTS = 3
@@ -45,7 +46,7 @@ def _git(args: list[str], cwd: Path) -> tuple[int, str]:
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0",
            "GCM_INTERACTIVE": "never", "GIT_ASKPASS": "echo"}
     try:
-        proc = subprocess.run(
+        proc = proc_run(
             ["git", *args], cwd=str(cwd), capture_output=True, text=True,
             timeout=GIT_TIMEOUT_S, env=env)
     except (OSError, subprocess.TimeoutExpired) as exc:
