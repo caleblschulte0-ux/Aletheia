@@ -26,26 +26,30 @@ class FakeTransport:
         return status, {}, payload
 
 
-def token(value="tok", expires=3600):
-    return 200, {"access_token": value, "expires_in": expires}
+def token(value="tok", expires=3600, refresh_token=None):
+    payload = {"access_token": value, "expires_in": expires}
+    if refresh_token:
+        payload["refresh_token"] = refresh_token
+    return 200, payload
 
 
-def google_event(event_id="g1", *, attendees=None):
+def google_event(event_id="g1", *, attendees=None, transparency="opaque"):
     return {
         "id": event_id, "summary": "Appointment",
         "start": {"dateTime": "2026-08-28T17:30:00-05:00"},
         "end": {"dateTime": "2026-08-28T18:00:00-05:00"},
         "status": "confirmed", "attendees": attendees or [],
+        "transparency": transparency,
         "etag": '"abc"', "updated": "2026-08-27T10:00:00Z",
     }
 
 
-def graph_event(event_id="m1"):
+def graph_event(event_id="m1", *, show_as="busy"):
     return {
         "id": event_id, "subject": "Dentist",
         "start": {"dateTime": "2026-08-28T22:30:00.0000000", "timeZone": "UTC"},
         "end": {"dateTime": "2026-08-28T23:00:00.0000000", "timeZone": "UTC"},
-        "showAs": "busy", "isCancelled": False,
+        "showAs": show_as, "isCancelled": False,
         "@odata.etag": 'W/"abc"', "lastModifiedDateTime": "2026-08-27T15:00:00Z",
     }
 
@@ -91,6 +95,18 @@ class TestOAuth(ProviderCase):
         self.assertNotIn("refresh-secret", text)
         self.assertNotIn("client", text)
 
+    def test_rotated_refresh_token_is_used_on_next_refresh(self):
+        fake = FakeTransport([token("one", refresh_token="rotated"), token("two")])
+        session = self.session("test.calendar", fake)
+        session.refresh(); session.refresh()
+        self.assertEqual(fake.calls[0]["form"]["refresh_token"], "refresh-secret")
+        self.assertEqual(fake.calls[1]["form"]["refresh_token"], "rotated")
+
+    def test_redirect_handler_refuses_redirects(self):
+        handler = calendar_oauth._NoRedirect()
+        self.assertIsNone(handler.redirect_request(None, None, 302, "Found", {},
+                                                    "https://evil.example/steal"))
+
 
 class TestGoogle(ProviderCase):
     def test_list_expands_and_pages(self):
@@ -116,6 +132,12 @@ class TestGoogle(ProviderCase):
         self.assertIn("-05:00", value["start"])
         self.assertEqual(calendar.parse_time(value["end"]) - calendar.parse_time(value["start"]),
                          dt.timedelta(days=1))
+
+    def test_transparent_event_does_not_block_busy_mirror(self):
+        fake = FakeTransport([token(), (200, {"items": [google_event(transparency="transparent")]})])
+        provider = calendar_google.GoogleCalendarProvider(
+            self.session("google.calendar", fake), timezone="America/Chicago")
+        self.assertEqual(provider.list_events("2026-08-28T00:00:00Z", "2026-08-30T00:00:00Z"), [])
 
     def test_attendee_write_refused_before_network(self):
         fake = FakeTransport([])
@@ -159,6 +181,12 @@ class TestGraph(ProviderCase):
         self.assertEqual([v["external_id"] for v in values], ["m1", "m2"])
         self.assertEqual(calendar.parse_time(values[0]["start"]).utcoffset(), dt.timedelta(0))
         self.assertEqual(fake.calls[1]["headers"]["Prefer"], 'outlook.timezone="UTC"')
+
+    def test_free_event_does_not_block_busy_mirror(self):
+        fake = FakeTransport([token(), (200, {"value": [graph_event(show_as="free")]})])
+        provider = calendar_graph.MicrosoftGraphCalendarProvider(
+            self.session("microsoft.graph.calendar", fake))
+        self.assertEqual(provider.list_events("2026-08-28T00:00:00Z", "2026-08-30T00:00:00Z"), [])
 
     def test_next_link_may_not_exfiltrate_bearer(self):
         fake = FakeTransport([
@@ -219,6 +247,16 @@ class TestLiveConfigAndSync(ProviderCase):
             now=now + dt.timedelta(minutes=10), transport=fake, path=path)
         self.assertIsNone(again)
         self.assertEqual(len(fake.calls), 2)
+
+    def test_busy_event_becoming_transparent_cancels_old_busy_copy(self):
+        path = self.google_config()
+        now = dt.datetime(2026, 8, 27, 16, 0, tzinfo=dt.timezone.utc)
+        first = FakeTransport([token(), (200, {"items": [google_event()]})])
+        calendar_live.refresh(now=now, transport=first, path=path)
+        self.assertEqual(calendar.all_events()[0]["status"], "CONFIRMED")
+        second = FakeTransport([(200, {"items": [google_event(transparency="transparent")]})])
+        calendar_live.refresh(now=now + dt.timedelta(minutes=31), transport=second, path=path)
+        self.assertEqual(calendar.all_events()[0]["status"], "CANCELLED")
 
     def test_microsoft_tenant_is_path_safe(self):
         path = self.root / "calendar-live.json"
