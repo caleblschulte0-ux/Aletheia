@@ -197,3 +197,6 @@
 {"ts": "2026-08-27T22:16:22Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message seems cut off ('there no') — what would you like me to do?"}
 {"ts": "2026-08-27T22:16:50Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Your message came through as just 'i' — what would you like me to do?"}
 {"ts": "2026-08-27T22:16:50Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message came through as just 'i' — what would you like me to do?"}
+{"ts": "2026-08-27T22:20:12Z", "kind": "event", "actor": "aletheia", "subject": "approval:intent-e138bc9a1f", "text": "requested — run 1 step(s): note"}
+{"ts": "2026-08-27T22:20:12Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-e138bc9a1f: 1 executable, 0 blocked — State review: no pending approvals or unread notifications; two setup tasks await you (local-core-bootstrap, operator-setup), five automation/build phases queued"}
+{"ts": "2026-08-27T22:20:12Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — 1 step ready — note. Say approve to run it (intent-e138bc9a1f)."}
