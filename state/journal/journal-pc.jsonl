@@ -109,3 +109,4 @@
 {"ts": "2026-08-27T18:30:00Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "pull recovered: up to date with remote"}
 {"ts": "2026-08-27T18:33:05Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "pull failing: checked out on 'claude/phase12-phone', not the sync branch 'main' — refusing to rebase someone else's branch"}
 {"ts": "2026-08-27T18:46:53Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "pull recovered: up to date with remote"}
+{"ts": "2026-08-27T18:49:59Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "pull failing: checked out on 'claude/phase15-scheduling', not the sync branch 'main' — refusing to rebase someone else's branch"}
