@@ -104,3 +104,4 @@
 {"ts": "2026-08-27T15:41:17Z", "kind": "decision", "actor": "aletheia-intent", "subject": "intent", "text": "intent-0a06bbb663 denied — retired"}
 {"ts": "2026-08-27T15:41:17Z", "kind": "decision", "actor": "aletheia-intent", "subject": "intent", "text": "intent-fe366821a2 denied — retired"}
 {"ts": "2026-08-27T18:12:39Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "push failing: commit failed: u have unmerged files.\nhint: Fix them up in the work tree, and then use 'git add/rm <file>'\nhint: as appropriate to mark resolution and make a commit.\nfatal: Exiting because of an unresolved conflict."}
+{"ts": "2026-08-27T18:24:34Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "pull recovered: up to date with remote"}
