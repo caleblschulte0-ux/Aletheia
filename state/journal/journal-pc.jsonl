@@ -296,3 +296,5 @@
 {"ts": "2026-08-27T23:28:49Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Message appears garbled/unclear (possible transcription error) - what would you like me to do?"}
 {"ts": "2026-08-27T23:29:02Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — What do you want done regarding John — look up a contact, schedule a meeting, or something else?"}
 {"ts": "2026-08-27T23:29:02Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — What do you want done regarding John — look up a contact, schedule a meeting, or something else?"}
+{"ts": "2026-08-27T23:29:56Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — What does 'it me it' refer to — what would you like me to do?"}
+{"ts": "2026-08-27T23:29:56Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — What does 'it me it' refer to — what would you like me to do?"}
