@@ -195,3 +195,5 @@
 {"ts": "2026-08-27T22:12:00Z", "kind": "alert", "actor": "operator-local-core", "subject": "core:runtime:mail", "text": "subsystem failing: TimeoutError: The read operation timed out"}
 {"ts": "2026-08-27T22:16:22Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Your message seems cut off ('there no') — what would you like me to do?"}
 {"ts": "2026-08-27T22:16:22Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message seems cut off ('there no') — what would you like me to do?"}
+{"ts": "2026-08-27T22:16:50Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Your message came through as just 'i' — what would you like me to do?"}
+{"ts": "2026-08-27T22:16:50Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message came through as just 'i' — what would you like me to do?"}
