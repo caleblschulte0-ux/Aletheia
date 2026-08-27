@@ -251,3 +251,6 @@
 {"ts": "2026-08-27T22:57:31Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Message is unclear/incoherent — please rephrase what you want done"}
 {"ts": "2026-08-27T22:57:31Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Message is unclear/incoherent — please rephrase what you want done"}
 {"ts": "2026-08-27T23:01:03Z", "kind": "alert", "actor": "operator-local-core", "subject": "core:runtime:mail", "text": "subsystem failing: TimeoutError: The read operation timed out"}
+{"ts": "2026-08-27T23:02:12Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — What specific action do you want taken — the message is unclear/fragmented and no target or task is identifiable."}
+{"ts": "2026-08-27T23:02:12Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — What specific action do you want taken — the message is unclear/fragmented and no target or task is identifiable."}
+{"ts": "2026-08-27T23:02:21Z", "kind": "alert", "actor": "operator-local-core", "subject": "core:runtime:mail", "text": "subsystem failing: TimeoutError: The read operation timed out"}
