@@ -1,5 +1,5 @@
 {
-  "revision": 22,
+  "revision": 23,
   "providers": [
     {
       "id": "aletheia.local",
@@ -330,36 +330,36 @@
       "id": "core.serve",
       "description": "The local Core V0: persistent service on the operator's PC â€” internal API (/api/*), the wall at /, Command Center at /command.html; loopback-only until authentication exists",
       "provider": "aletheia.local",
-      "status": "NEEDS_CONFIGURATION",
+      "status": "AVAILABLE",
       "risk_class": "medium",
       "approval_policy": "none",
       "caller": "operator runs `python -m aletheia.core` on the Windows PC; Command Center + wall are its clients",
       "verification": "GET /api/status; 7 tests in test_core.py incl. live HTTP round-trips",
-      "notes": "code built and tested in CI; NEEDS_CONFIGURATION = the operator starting it on the PC",
+      "notes": "Live on the operator's Windows PC since 2026-08-26 and self-evidencing: the Core's own checkpoint commits land in this repo (193 in one day), and on 2026-08-27T04:38:46Z it pulled merge 095bbfde, journaled 'code updated (12 files) — restarting to run it', and the supervisor relaunched it onto the new code — back serving 6 seconds later. (Registry said NEEDS_CONFIGURATION until 2026-08-27; that was stale — the blocker it named, the operator starting it, was cleared the day before.)",
       "module": "aletheia.core"
     },
     {
       "id": "core.sync",
       "description": "The Core keeps the repo fresh: pull commands, execute PC-only kinds, push receipts + journal",
       "provider": "aletheia.local",
-      "status": "NEEDS_CONFIGURATION",
+      "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "none",
       "caller": "aletheia.core.start_sync_loop â€” on by default when `python -m aletheia.core` runs inside a cloned repo; degrades honestly (loop OFF, /api/sync says why) outside one",
       "verification": "tests/test_sync.py + tests/test_core_sync.py drive the full round trip against a real local bare repo, including push races, rebase-conflict abort, receipt idempotency, and a dead remote",
-      "notes": "NEEDS_CONFIGURATION until the Core runs on the PC â€” same single blocker as core.serve. Uses the operator's own git credentials; a push that cannot authenticate is journaled, never worked around. The sync beat now also runs the local runtime tick: due schedules, reply expectations, bus-event consumption, capability-gap reconciliation (see automation.execute).",
+      "notes": "Live on the operator's Windows PC since 2026-08-26 and self-evidencing: the Core's own checkpoint commits land in this repo (193 in one day), and on 2026-08-27T04:38:46Z it pulled merge 095bbfde, journaled 'code updated (12 files) — restarting to run it', and the supervisor relaunched it onto the new code — back serving 6 seconds later. (Registry said NEEDS_CONFIGURATION until 2026-08-27; that was stale — the blocker it named, the operator starting it, was cleared the day before.)",
       "module": "aletheia.sync"
     },
     {
       "id": "core.supervise",
       "description": "Aletheia stays on: relaunch the Core on crash, restart it onto newly merged code, start at Windows logon",
       "provider": "aletheia.local",
-      "status": "NEEDS_CONFIGURATION",
+      "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "none",
       "caller": "start-aletheia.bat and bootstrap.ps1 run `python -m aletheia.supervisor`; `supervisor install` registers the hidden at-logon Scheduled Task",
       "verification": "tests/test_supervisor.py (backoff doubles and caps, self-update restarts immediately and resets backoff, Ctrl+C stops, install refuses honestly off Windows) + tests/test_core_sync.py SelfUpdateCase (code commit fires restart against a real repo, state-only commit does not)",
-      "notes": "NEEDS_CONFIGURATION until it runs on the PC. Self-update chain: merge to main -> Core's sync pull sees CODE_PATHS changed -> exits RESTART_EXIT_CODE -> supervisor relaunches on the new code, within about one sync beat.",
+      "notes": "Live on the operator's Windows PC since 2026-08-26 and self-evidencing: the Core's own checkpoint commits land in this repo (193 in one day), and on 2026-08-27T04:38:46Z it pulled merge 095bbfde, journaled 'code updated (12 files) — restarting to run it', and the supervisor relaunched it onto the new code — back serving 6 seconds later. (Registry said NEEDS_CONFIGURATION until 2026-08-27; that was stale — the blocker it named, the operator starting it, was cleared the day before.)",
       "module": "aletheia.supervisor"
     },
     {
