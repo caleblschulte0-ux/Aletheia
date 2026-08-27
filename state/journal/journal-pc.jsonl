@@ -306,3 +306,7 @@
 {"ts": "2026-08-27T23:35:26Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message came through garbled ('this drug with facts the sorry dry') — could you rephrase what you'd like me to do?"}
 {"ts": "2026-08-27T23:36:25Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Message appears garbled/unclear (possibly a bad transcription) — what would you like done?"}
 {"ts": "2026-08-27T23:36:25Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Message appears garbled/unclear (possibly a bad transcription) — what would you like done?"}
+{"ts": "2026-08-27T23:39:45Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — What did you want to follow up on — could you say more?"}
+{"ts": "2026-08-27T23:39:45Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — What did you want to follow up on — could you say more?"}
+{"ts": "2026-08-27T23:39:56Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — What does 'have been there' refer to — a place, task, or prior conversation you want me to act on?"}
+{"ts": "2026-08-27T23:39:56Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — What does 'have been there' refer to — a place, task, or prior conversation you want me to act on?"}
