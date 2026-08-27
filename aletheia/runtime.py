@@ -228,6 +228,22 @@ def reconcile_task_gaps(*, registry: dict | None = None) -> list[dict]:
     return actions
 
 
+def _scheduling_reply(event: dict) -> dict | None:
+    """Route a correlated mail reply to the meeting negotiation waiting on it."""
+    if event.get("kind") != "mail.reply":
+        return None
+    try:
+        from aletheia import scheduling
+        thread = (event.get("attributes") or {}).get("thread_id", "")
+        negotiation_id = scheduling.negotiation_for_thread(thread)
+        if not negotiation_id:
+            return None
+        noted = scheduling.note_reply(negotiation_id)
+        return {"negotiation": negotiation_id} if noted else None
+    except Exception as exc:
+        return {"outcome": "error", "error_type": type(exc).__name__}
+
+
 def _advisor_judgment(event: dict, now: dt.datetime) -> dict | None:
     """Optional model triage. Failure never blocks deterministic event handling."""
     try:
@@ -301,6 +317,9 @@ def process_new_events(*, now: dt.datetime | None = None,
                     pass
             actions.append({"event": event["id"], "action": f"rule_{kind}",
                             "rule": rule["id"], "priority": priority})
+        routed = _scheduling_reply(event)
+        if routed is not None:
+            actions.append({"event": event["id"], "action": "meeting_reply", **routed})
         judged = _advisor_judgment(event, now)
         if judged is not None:
             actions.append({"event": event["id"],
@@ -322,6 +341,11 @@ def _run_approved_intents(fleet: dict) -> list[dict]:
 def _run_authorized_errands() -> list[dict]:
     from aletheia import errands  # local: pulls in the browser stack
     return errands.run_authorized()
+
+
+def _reconcile_scheduling(now: dt.datetime) -> list[dict]:
+    from aletheia import scheduling
+    return scheduling.reconcile(now=now)
 
 
 def _observe_room() -> list[dict]:
@@ -395,6 +419,11 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # than inside the sentence that asked for it.
     authorized_errands = guarded("errands", _run_authorized_errands)
     room_devices = guarded("room", _observe_room)
+    # Meetings arranging themselves across days (Phase 15): offers that have
+    # really been delivered start waiting for a reply, accepted slots ask for
+    # their calendar-write approval, stale offers are abandoned.
+    meetings_progress = guarded(
+        "scheduling", lambda: _reconcile_scheduling(now))
     calendar_updates = guarded("calendar", lambda: _refresh_calendar(now))
     # LAST: everything above may create notifications. Attention never executes
     # them; it only classifies READY vs DEFERRED and escalates eligible priority.
@@ -410,6 +439,7 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
         "approved_intents": approved_intents,
         "authorized_errands": authorized_errands,
         "room_devices": room_devices,
+        "meetings": meetings_progress,
         "calendar": calendar_updates,
         "handle_requests": handle_requests,
         "attention": attention_records,
