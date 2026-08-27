@@ -5,7 +5,8 @@ Every executable scheduled command is revalidated through the intercom grammar
 and existing policy gates at execution time. External observations (mail and the
 Git-backed fleet pulse) become private bus events before watcher/proactive
 consumption. Durable receipts from existing acting capabilities are folded into
-private ActionRecords. The runtime never expands authority.
+private ActionRecords. Attention reconciliation runs after notification-producing
+work so quiet hours/escalation apply without changing action authority.
 """
 from __future__ import annotations
 
@@ -14,7 +15,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from aletheia import (act, communications, events, gaps, handler, intercom, mail,
+from aletheia import (act, attention, communications, events, gaps, handler, intercom, mail,
                       notifications, policy, proactive, scheduler, tasks, verification)
 from aletheia.pulse import PULSE_DIR
 from aletheia.stateio import private_dir, read_json, write_json_atomic
@@ -37,166 +38,279 @@ def _schedule_verification(spec: dict, receipt: dict) -> tuple[str | None, str |
 
 def _finish_schedule_verification(action_id: str | None, *, succeeded: bool,
                                   result_summary: str, receipt: dict) -> str | None:
-    if not action_id: return None
+    if not action_id:
+        return None
     try:
-        value = verification.record_execution(action_id, succeeded=succeeded, result_summary=result_summary,
-            evidence=([{"id":"occurrence-receipt","kind":"truthy","observed":bool(receipt.get("occurrence")),"source":"scheduler"}] if succeeded else []), auto_verify=False)
+        value = verification.record_execution(
+            action_id, succeeded=succeeded, result_summary=result_summary,
+            evidence=([{"id": "occurrence-receipt", "kind": "truthy",
+                        "observed": bool(receipt.get("occurrence")), "source": "scheduler"}]
+                      if succeeded else []), auto_verify=False)
         return value["status"]
-    except Exception as exc: return f"verification-error:{type(exc).__name__}:{exc}"
+    except Exception as exc:
+        return f"verification-error:{type(exc).__name__}:{exc}"
 
 
 def run_due_schedules(fleet: dict, *, now: dt.datetime | None = None, request=None) -> list[dict]:
     now = now or dt.datetime.now(dt.timezone.utc)
-    if now.tzinfo is None or now.utcoffset() is None: raise ValueError("now must be timezone-aware")
+    if now.tzinfo is None or now.utcoffset() is None:
+        raise ValueError("now must be timezone-aware")
     results = []
     for spec in scheduler.all_schedules():
         occurrence = scheduler.occurrence_at_or_before(spec, now)
-        if occurrence is None: continue
+        if occurrence is None:
+            continue
         problems = intercom.validate_kind_args(spec["command"], fleet)
         if problems:
-            results.append({"schedule": spec["id"], "outcome": "invalid", "detail": "; ".join(problems)}); continue
+            results.append({"schedule": spec["id"], "outcome": "invalid",
+                            "detail": "; ".join(problems)})
+            continue
         if policy.halted() and spec["command"]["kind"] != "resume":
-            results.append({"schedule": spec["id"], "outcome": "halted", "detail": "kill switch is on"}); continue
+            results.append({"schedule": spec["id"], "outcome": "halted",
+                            "detail": "kill switch is on"})
+            continue
         receipt = scheduler.claim_due(spec, now=now)
-        if receipt is None: continue
+        if receipt is None:
+            continue
         action_id, verification_error = _schedule_verification(spec, receipt)
         try:
             kwargs = {"quote": f"private schedule {spec['id']}"}
-            if request is not None: kwargs["request"] = request
+            if request is not None:
+                kwargs["request"] = request
             detail = intercom.execute_command(spec["command"], fleet, **kwargs)
-            result = {"schedule": spec["id"], "occurrence": receipt["occurrence"], "outcome": "done", "detail": detail, "action_record": action_id}
-            result["verification_status"] = _finish_schedule_verification(action_id, succeeded=True, result_summary=detail, receipt=receipt)
+            result = {"schedule": spec["id"], "occurrence": receipt["occurrence"],
+                      "outcome": "done", "detail": detail, "action_record": action_id}
+            result["verification_status"] = _finish_schedule_verification(
+                action_id, succeeded=True, result_summary=detail, receipt=receipt)
         except act.Refused as exc:
-            result = {"schedule": spec["id"], "occurrence": receipt["occurrence"], "outcome": "refused", "detail": str(exc), "action_record": action_id}
-            result["verification_status"] = _finish_schedule_verification(action_id, succeeded=False, result_summary=str(exc), receipt=receipt)
+            result = {"schedule": spec["id"], "occurrence": receipt["occurrence"],
+                      "outcome": "refused", "detail": str(exc), "action_record": action_id}
+            result["verification_status"] = _finish_schedule_verification(
+                action_id, succeeded=False, result_summary=str(exc), receipt=receipt)
         except Exception as exc:
-            detail = f"{type(exc).__name__}: {exc}"; result = {"schedule": spec["id"], "occurrence": receipt["occurrence"], "outcome": "error", "detail": detail, "action_record": action_id}
-            result["verification_status"] = _finish_schedule_verification(action_id, succeeded=False, result_summary=detail, receipt=receipt)
-        if verification_error: result["verification_error"] = verification_error
+            detail = f"{type(exc).__name__}: {exc}"
+            result = {"schedule": spec["id"], "occurrence": receipt["occurrence"],
+                      "outcome": "error", "detail": detail, "action_record": action_id}
+            result["verification_status"] = _finish_schedule_verification(
+                action_id, succeeded=False, result_summary=detail, receipt=receipt)
+        if verification_error:
+            result["verification_error"] = verification_error
         results.append(result)
     return results
 
 
 def poll_mail_events() -> list[dict]:
     ok, _ = mail.available()
-    if not ok: return []
-    try: return mail.poll_events(limit=50)
+    if not ok:
+        return []
+    try:
+        return mail.poll_events(limit=50)
     except Exception as exc:
-        notifications.publish("Mail polling failed", f"{type(exc).__name__}: {exc}", priority="IMPORTANT", source="mail",
-                              dedupe_key=f"mail-poll-error:{type(exc).__name__}", related={"capability":"email.read"})
-        return [{"action":"error", "detail":f"{type(exc).__name__}: {exc}"}]
+        notifications.publish(
+            "Mail polling failed", f"{type(exc).__name__}: {exc}",
+            priority="IMPORTANT", source="mail",
+            dedupe_key=f"mail-poll-error:{type(exc).__name__}",
+            related={"capability": "email.read"})
+        return [{"action": "error", "detail": f"{type(exc).__name__}: {exc}"}]
 
 
 def _event_id_for_pulse(generated: str, material: dict) -> str:
-    try: when = dt.datetime.fromisoformat(generated.replace("Z", "+00:00"))
-    except ValueError as exc: raise ValueError("pulse generated_at must be an ISO timestamp") from exc
-    if when.tzinfo is None or when.utcoffset() is None: raise ValueError("pulse generated_at must be timezone-aware")
+    try:
+        when = dt.datetime.fromisoformat(generated.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("pulse generated_at must be an ISO timestamp") from exc
+    if when.tzinfo is None or when.utcoffset() is None:
+        raise ValueError("pulse generated_at must be timezone-aware")
     stamp = when.astimezone(dt.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     digest = hashlib.sha256(json.dumps(material, sort_keys=True).encode()).hexdigest()[:10]
     return f"evt-{stamp}-{digest}"
 
 
-def mirror_pulse_events(*, pulse_path: Path | None = None, cursor_path: Path | None = None) -> list[dict]:
-    pulse_path = pulse_path or (PULSE_DIR / "latest.json"); cursor_path = cursor_path or PULSE_CURSOR
-    if not pulse_path.is_file(): return []
-    try: pulse = json.loads(pulse_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc: raise ValueError(f"pulse is unreadable: {exc}") from exc
+def mirror_pulse_events(*, pulse_path: Path | None = None,
+                        cursor_path: Path | None = None) -> list[dict]:
+    pulse_path = pulse_path or (PULSE_DIR / "latest.json")
+    cursor_path = cursor_path or PULSE_CURSOR
+    if not pulse_path.is_file():
+        return []
+    try:
+        pulse = json.loads(pulse_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"pulse is unreadable: {exc}") from exc
     generated = str(pulse.get("generated_at", ""))
-    if not generated: raise ValueError("pulse missing generated_at")
-    try: cursor = read_json(cursor_path).get("generated_at", "")
-    except ValueError: cursor = ""
-    if generated == cursor: return []
+    if not generated:
+        raise ValueError("pulse missing generated_at")
+    try:
+        cursor = read_json(cursor_path).get("generated_at", "")
+    except ValueError:
+        cursor = ""
+    if generated == cursor:
+        return []
     actions = []
     for transition in pulse.get("transitions", []):
         required = {"repo", "from", "to"}
-        if not isinstance(transition, dict) or required - transition.keys(): continue
-        material = {"generated_at": generated, **{k: transition.get(k) for k in ("repo","github","from","to")}}
+        if not isinstance(transition, dict) or required - transition.keys():
+            continue
+        material = {"generated_at": generated,
+                    **{k: transition.get(k) for k in ("repo", "github", "from", "to")}}
         event_id = _event_id_for_pulse(generated, material)
         try:
-            emitted = events.emit("fleet.health_changed", f"repo:{transition['repo']}",
-                f"{transition.get('github', transition['repo'])} health {transition['from']} -> {transition['to']}", source="pulse",
-                attributes={"repo": transition["repo"], "from": transition["from"], "to": transition["to"], "github": transition.get("github", "")},
+            emitted = events.emit(
+                "fleet.health_changed", f"repo:{transition['repo']}",
+                f"{transition.get('github', transition['repo'])} health {transition['from']} -> {transition['to']}",
+                source="pulse",
+                attributes={"repo": transition["repo"], "from": transition["from"],
+                            "to": transition["to"], "github": transition.get("github", "")},
                 event_id=event_id, occurred_at=generated)
-            actions.append({"action":"emitted","event":emitted["event"]["id"],"repo":transition["repo"]})
-        except FileExistsError: actions.append({"action":"already_emitted","event":event_id,"repo":transition["repo"]})
-    write_json_atomic(cursor_path, {"version":1,"generated_at":generated,"updated_at":dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")})
+            actions.append({"action": "emitted", "event": emitted["event"]["id"],
+                            "repo": transition["repo"]})
+        except FileExistsError:
+            actions.append({"action": "already_emitted", "event": event_id,
+                            "repo": transition["repo"]})
+    write_json_atomic(cursor_path, {
+        "version": 1, "generated_at": generated,
+        "updated_at": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")})
     return actions
 
 
 def evaluate_replies(*, now: dt.datetime | None = None) -> list[dict]:
-    before = {e["id"]: e.get("status") for e in communications.all_expectations()}; after = communications.evaluate_all(now=now); transitions = []
+    before = {e["id"]: e.get("status") for e in communications.all_expectations()}
+    after = communications.evaluate_all(now=now)
+    transitions = []
     for value in after:
         old, new = before.get(value["id"]), value.get("status")
-        if old == new: continue
+        if old == new:
+            continue
         transitions.append({"expectation": value["id"], "from": old, "to": new})
         if new == "REPLIED":
-            notifications.publish("Reply received", f"Tracked conversation {value['thread_id']} has a reply.", priority="IMPORTANT", source="communications", dedupe_key=f"reply:{value['id']}", related={"expectation": value["id"]})
+            notifications.publish(
+                "Reply received", f"Tracked conversation {value['thread_id']} has a reply.",
+                priority="IMPORTANT", source="communications",
+                dedupe_key=f"reply:{value['id']}",
+                related={"expectation": value["id"]})
         elif new == "OVERDUE":
-            notifications.publish("Reply overdue", f"No tracked reply arrived before the deadline for {value['thread_id']}.", priority="IMPORTANT", source="communications", dedupe_key=f"overdue:{value['id']}", related={"expectation": value["id"]})
+            notifications.publish(
+                "Reply overdue",
+                f"No tracked reply arrived before the deadline for {value['thread_id']}.",
+                priority="IMPORTANT", source="communications",
+                dedupe_key=f"overdue:{value['id']}",
+                related={"expectation": value["id"]})
     return transitions
 
 
 def reconcile_task_gaps(*, registry: dict | None = None) -> list[dict]:
     actions = []
     for task in tasks.all_tasks():
-        if task.get("status") in TERMINAL_TASKS: continue
+        if task.get("status") in TERMINAL_TASKS:
+            continue
         required = task.get("required_capabilities") or []
-        if not required: continue
+        if not required:
+            continue
         report = gaps.assess(required, registry=registry)
         if report["satisfied"]:
-            if task["status"] in {"WAITING_DEPENDENCY", "WAITING_OPERATOR", "BLOCKED"} and str(task.get("result", "")).startswith("capability gap:"):
-                resumed = tasks.set_status(task["id"], "QUEUED", "capability gap: closed; original work resumed")
-                actions.append({"task": task["id"], "action": "resumed", "status": resumed["status"]})
+            if (task["status"] in {"WAITING_DEPENDENCY", "WAITING_OPERATOR", "BLOCKED"}
+                    and str(task.get("result", "")).startswith("capability gap:")):
+                resumed = tasks.set_status(
+                    task["id"], "QUEUED", "capability gap: closed; original work resumed")
+                actions.append({"task": task["id"], "action": "resumed",
+                                "status": resumed["status"]})
             continue
-        gap_tasks = gaps.materialize(required, registry=registry); statuses = {item["status"] for item in report["blocked"]}
-        wait_state = "WAITING_OPERATOR" if statuses and statuses <= {"NEEDS_CONFIGURATION"} else "WAITING_DEPENDENCY"
-        note = "capability gap: " + ", ".join([f"{item['id']}={item['status']}" for item in report["blocked"]] + [f"{cid}=UNKNOWN" for cid in report["unknown"]])
-        if task["status"] not in {wait_state, "RUNNING"}: tasks.set_status(task["id"], wait_state, note)
-        actions.append({"task": task["id"], "action": "gap_materialized", "gap_tasks": [g["id"] for g in gap_tasks], "waiting": wait_state})
+        gap_tasks = gaps.materialize(required, registry=registry)
+        statuses = {item["status"] for item in report["blocked"]}
+        wait_state = ("WAITING_OPERATOR" if statuses and statuses <= {"NEEDS_CONFIGURATION"}
+                      else "WAITING_DEPENDENCY")
+        note = "capability gap: " + ", ".join(
+            [f"{item['id']}={item['status']}" for item in report["blocked"]]
+            + [f"{cid}=UNKNOWN" for cid in report["unknown"]])
+        if task["status"] not in {wait_state, "RUNNING"}:
+            tasks.set_status(task["id"], wait_state, note)
+        actions.append({"task": task["id"], "action": "gap_materialized",
+                        "gap_tasks": [g["id"] for g in gap_tasks], "waiting": wait_state})
     return actions
 
 
-def process_new_events(*, now: dt.datetime | None = None, cursor_path: Path | None = None,
-                       events_dir: Path | None = None, watchers_dir: Path | None = None) -> list[dict]:
+def process_new_events(*, now: dt.datetime | None = None,
+                       cursor_path: Path | None = None,
+                       events_dir: Path | None = None,
+                       watchers_dir: Path | None = None) -> list[dict]:
     now = now or dt.datetime.now(dt.timezone.utc)
-    if now.tzinfo is None or now.utcoffset() is None: raise ValueError("now must be timezone-aware")
-    cursor_path = cursor_path or EVENT_CURSOR; events_dir = Path(events_dir) if events_dir else events.EVENTS_DIR; watchers_dir = Path(watchers_dir) if watchers_dir else events.WATCHERS_DIR
-    try: cursor = read_json(cursor_path).get("last_event_id", "")
-    except ValueError: cursor = ""
-    fresh = sorted((e for e in events.list_events(events_dir=events_dir, limit=500) if e["id"] > cursor), key=lambda e: e["id"])
-    actions: list[dict] = []; rules = proactive.all_rules()
+    if now.tzinfo is None or now.utcoffset() is None:
+        raise ValueError("now must be timezone-aware")
+    cursor_path = cursor_path or EVENT_CURSOR
+    events_dir = Path(events_dir) if events_dir else events.EVENTS_DIR
+    watchers_dir = Path(watchers_dir) if watchers_dir else events.WATCHERS_DIR
+    try:
+        cursor = read_json(cursor_path).get("last_event_id", "")
+    except ValueError:
+        cursor = ""
+    fresh = sorted(
+        (e for e in events.list_events(events_dir=events_dir, limit=500)
+         if e["id"] > cursor), key=lambda e: e["id"])
+    actions: list[dict] = []
+    rules = proactive.all_rules()
     for event in fresh:
-        events.evaluate_watchers(event, watchers_dir=watchers_dir); triggers = []; triggers_root = watchers_dir / "triggers"
+        events.evaluate_watchers(event, watchers_dir=watchers_dir)
+        triggers = []
+        triggers_root = watchers_dir / "triggers"
         if triggers_root.is_dir():
             for receipt_path in sorted(triggers_root.glob(f"*/{event['id']}.json")):
-                try: triggers.append(read_json(receipt_path))
-                except ValueError: continue
+                try:
+                    triggers.append(read_json(receipt_path))
+                except ValueError:
+                    continue
         for trigger in triggers:
-            notifications.publish("Watched event", f"{trigger['summary']} ({event['kind']}, {event['subject']})", priority="IMPORTANT", source="watchers", dedupe_key=f"trigger:{trigger['watcher_id']}:{event['id']}", related={"watcher": trigger["watcher_id"], "event": event["id"]})
-            actions.append({"event": event["id"], "action": "watcher_notified", "watcher": trigger["watcher_id"]})
+            notifications.publish(
+                "Watched event",
+                f"{trigger['summary']} ({event['kind']}, {event['subject']})",
+                priority="IMPORTANT", source="watchers",
+                dedupe_key=f"trigger:{trigger['watcher_id']}:{event['id']}",
+                related={"watcher": trigger["watcher_id"], "event": event["id"]})
+            actions.append({"event": event["id"], "action": "watcher_notified",
+                            "watcher": trigger["watcher_id"]})
         for rule in rules:
             receipt = proactive.evaluate(rule, event, now=now)
-            if receipt is None: continue
+            if receipt is None:
+                continue
             kind = receipt["proposal"]["kind"]
-            notifications.publish("Proactive: " + rule["id"], f"{event['summary']} ({event['kind']}, {event['subject']})", priority="NORMAL", source="proactive", dedupe_key=f"proactive:{rule['id']}:{event['id']}", related={"rule": rule["id"], "event": event["id"]})
+            priority = receipt["proposal"].get("priority", "NORMAL")
+            notifications.publish(
+                "Proactive: " + rule["id"],
+                f"{event['summary']} ({event['kind']}, {event['subject']})",
+                priority=priority, source="proactive",
+                dedupe_key=f"proactive:{rule['id']}:{event['id']}",
+                related={"rule": rule["id"], "event": event["id"]})
             if kind == "enqueue":
                 task_id = f"proact-{rule['id']}-{event['id']}"[:60].rstrip("-").lower()
-                try: tasks.create(task_id, f"Proactive rule {rule['id']}: follow up on {event['kind']}", goal=event["summary"])
-                except (FileExistsError, ValueError): pass
-            actions.append({"event": event["id"], "action": f"rule_{kind}", "rule": rule["id"]})
-    if fresh: write_json_atomic(cursor_path, {"version": 1, "last_event_id": fresh[-1]["id"], "updated_at": now.strftime("%Y-%m-%dT%H:%M:%SZ")})
+                try:
+                    tasks.create(
+                        task_id,
+                        f"Proactive rule {rule['id']}: follow up on {event['kind']}",
+                        goal=event["summary"])
+                except (FileExistsError, ValueError):
+                    pass
+            actions.append({"event": event["id"], "action": f"rule_{kind}",
+                            "rule": rule["id"], "priority": priority})
+    if fresh:
+        write_json_atomic(cursor_path, {
+            "version": 1, "last_event_id": fresh[-1]["id"],
+            "updated_at": now.strftime("%Y-%m-%dT%H:%M:%SZ")})
     return actions
 
 
-def tick(fleet: dict, *, now: dt.datetime | None = None, registry: dict | None = None, request=None) -> dict:
+def tick(fleet: dict, *, now: dt.datetime | None = None,
+         registry: dict | None = None, request=None) -> dict:
+    now = now or dt.datetime.now(dt.timezone.utc)
+    if now.tzinfo is None or now.utcoffset() is None:
+        raise ValueError("now must be timezone-aware")
     schedules = run_due_schedules(fleet, now=now, request=request)
     for result in schedules:
         if result["outcome"] in {"refused", "error", "invalid"}:
-            notifications.publish(f"Schedule {result['schedule']} {result['outcome']}", result["detail"], priority="IMPORTANT", source="scheduler",
-                                  dedupe_key=f"schedule:{result['schedule']}:{result.get('occurrence', 'invalid')}:{result['outcome']}", related={"schedule": result["schedule"]})
-    # Observers of the outside world are best-effort, each isolated: a
-    # corrupt pulse file or a mail hiccup must not stop schedules, reply
-    # tracking, or gap reconciliation (and vice versa).
+            notifications.publish(
+                f"Schedule {result['schedule']} {result['outcome']}", result["detail"],
+                priority="IMPORTANT", source="scheduler",
+                dedupe_key=(f"schedule:{result['schedule']}:"
+                            f"{result.get('occurrence', 'invalid')}:{result['outcome']}"),
+                related={"schedule": result["schedule"]})
+
     def guarded(name, fn):
         try:
             return fn()
@@ -204,13 +318,25 @@ def tick(fleet: dict, *, now: dt.datetime | None = None, registry: dict | None =
             return [{"action": "error", "producer": name,
                      "detail": f"{type(exc).__name__}: {exc}"}]
 
+    mail_events = guarded("mail", poll_mail_events)
+    pulse_events = guarded("pulse", mirror_pulse_events)
+    action_records = guarded("receipts", verification.reconcile_durable_receipts)
+    reply_transitions = evaluate_replies(now=now)
+    events_processed = process_new_events(now=now)
+    capability_gaps = reconcile_task_gaps(registry=registry)
+    handle_requests = guarded(
+        "handler", lambda: handler.reconcile_all(registry=registry, now=now))
+    # LAST: everything above may create notifications. Attention never executes
+    # them; it only classifies READY vs DEFERRED and escalates eligible priority.
+    attention_records = guarded("attention", lambda: attention.reconcile(now=now))
     return {
         "schedules": schedules,
-        "mail_events": guarded("mail", poll_mail_events),
-        "pulse_events": guarded("pulse", mirror_pulse_events),
-        "action_records": guarded("receipts", verification.reconcile_durable_receipts),
-        "reply_transitions": evaluate_replies(now=now),
-        "events_processed": process_new_events(now=now),
-        "capability_gaps": reconcile_task_gaps(registry=registry),
-        "handle_requests": guarded("handler", lambda: handler.reconcile_all(registry=registry, now=now)),
+        "mail_events": mail_events,
+        "pulse_events": pulse_events,
+        "action_records": action_records,
+        "reply_transitions": reply_transitions,
+        "events_processed": events_processed,
+        "capability_gaps": capability_gaps,
+        "handle_requests": handle_requests,
+        "attention": attention_records,
     }
