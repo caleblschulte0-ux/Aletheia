@@ -193,3 +193,5 @@
 {"ts": "2026-08-27T22:10:51Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Do you want me to act on the temperature (e.g. queue a room-scene/climate adjustment) or was that just a comment?"}
 {"ts": "2026-08-27T22:10:51Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Do you want me to act on the temperature (e.g. queue a room-scene/climate adjustment) or was that just a comment?"}
 {"ts": "2026-08-27T22:12:00Z", "kind": "alert", "actor": "operator-local-core", "subject": "core:runtime:mail", "text": "subsystem failing: TimeoutError: The read operation timed out"}
+{"ts": "2026-08-27T22:16:22Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Your message seems cut off ('there no') — what would you like me to do?"}
+{"ts": "2026-08-27T22:16:22Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message seems cut off ('there no') — what would you like me to do?"}
