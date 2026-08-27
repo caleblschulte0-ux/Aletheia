@@ -92,3 +92,6 @@
 {"ts": "2026-08-27T15:34:41Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "supervisor up — the Core is now persistent"}
 {"ts": "2026-08-27T15:34:42Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
 {"ts": "2026-08-27T15:34:42Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-27T15:35:48Z", "kind": "event", "actor": "aletheia", "subject": "approval:intent-0a06bbb663", "text": "requested — run 3 step(s): email_draft, watch_email_from, notify_operator"}
+{"ts": "2026-08-27T15:35:48Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-0a06bbb663: 3 executable, 0 blocked — Draft a chase email to landlord about the boiler and watch for his reply"}
+{"ts": "2026-08-27T15:35:48Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — 3 steps ready — email_draft, watch_email_from, notify_operator. Say approve to run it (intent-0a06bbb663)."}
