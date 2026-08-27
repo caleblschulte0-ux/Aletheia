@@ -159,6 +159,11 @@ def validate_approval(ap: dict) -> list[str]:
         "requested_at": str,
     }, optional={
         "expires": str, "task": str, "decided_at": str, "decided_via": str,
+        # Which registry capability this approval is for. Two jobs: it is
+        # what `policy.request` matches a standing grant against
+        # (`aletheia.authority`), and it is what an audit of "why was this
+        # allowed" actually wants to read months later.
+        "capability": str,
     })
 
 

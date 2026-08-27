@@ -122,7 +122,7 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
                              + ", ".join(s.command["kind"] for s in plan.executable),
             reason=f'operator said: "{(quote or request)[:200]}"',
             consequence=plan.summary or "see the plan",
-            reversible=False)
+            reversible=False, capability="intent.execute")
     journal.append("plan", "intent",
                    f"{intent_id}: {len(plan.executable)} executable, "
                    f"{len(plan.blocked)} blocked — {plan.summary or request[:120]}",

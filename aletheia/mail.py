@@ -178,7 +178,7 @@ def draft(to: str, subject: str, body: str, requested_via: str = "voice") -> dic
     policy.request(d["id"], f"email.send:{_draft_sha(d)}",
                    reason=f"send email {subject!r} to {name}",
                    consequence="the message is sent in Caleb's name and cannot be recalled",
-                   reversible=False)
+                   reversible=False, capability="email.send")
     journal.append("action", "mail:draft",
                    f"draft {d['id']} to {name} — {subject!r}; approval pending", actor=ACTOR)
     return d

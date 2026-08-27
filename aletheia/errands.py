@@ -200,7 +200,7 @@ def propose(errand_id: str, *, site: str, kind: str, steps: list[dict],
         reason=why or f"errand {errand_id}",
         consequence=("money leaves your account" if kind in SPENDING_KINDS
                      else "this changes something on someone else's system"),
-        reversible=False)
+        reversible=False, capability="errand.run")
     journal.append("action", f"errand:{errand_id}",
                    f"{kind} proposed on {site} sha256:{digest[:16]} — "
                    f"awaiting {approval_id}", actor=ACTOR)

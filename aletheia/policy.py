@@ -108,7 +108,25 @@ def all_approvals() -> list[dict]:
 
 
 def request(aid: str, requested_action: str, reason: str, consequence: str,
-            reversible: bool, task: str | None = None) -> dict:
+            reversible: bool, task: str | None = None,
+            capability: str | None = None) -> dict:
+    """Ask the operator — unless he has already said yes to this class of thing.
+
+    `capability` is what turns a standing grant from a record into a
+    permission. `aletheia.authority` has been able to hold delegated
+    authority since the systems layer landed, and nothing consumed it: a
+    grant was written and every approval still went to him anyway. This is
+    the single place that consumes one, so every caller in the repo gets
+    the behaviour and every use leaves a claim receipt.
+
+    A grant can never reach a capability the registry marks high-risk or
+    operator_always — `authority.allows` refuses those outright — so
+    spending, binding agreements, disclosures and destructive actions keep
+    asking him forever, by construction rather than by remembering to
+    (§56 L4). Passing `capability` on those calls is still worth doing: it
+    puts the capability id in the approval record, which is what an audit
+    later actually wants to read.
+    """
     if _path(aid).exists():
         return load(aid)  # idempotent — an open request is not re-asked
     approval = {
@@ -118,8 +136,26 @@ def request(aid: str, requested_action: str, reason: str, consequence: str,
     }
     if task:
         approval["task"] = task
+    if capability:
+        approval["capability"] = capability
+    granted = None
+    if capability:
+        from aletheia import authority  # local: authority reads policy
+        try:
+            granted = authority.satisfy(capability, aid)
+        except Exception:
+            granted = None  # a broken grant store authorizes nothing
+    if granted:
+        approval["state"] = "APPROVED"
+        approval["decided_at"] = _now()
+        approval["decided_via"] = f"grant:{granted}"
     save(approval)
-    journal.append("event", f"approval:{aid}", f"requested — {requested_action}")
+    if granted:
+        journal.append("decision", f"approval:{aid}",
+                       f"APPROVED by standing grant {granted} — {requested_action}",
+                       actor=f"grant:{granted}")
+    else:
+        journal.append("event", f"approval:{aid}", f"requested — {requested_action}")
     return approval
 
 

@@ -1,5 +1,5 @@
 {
-  "revision": 25,
+  "revision": 26,
   "providers": [
     {
       "id": "aletheia.local",
@@ -442,13 +442,13 @@
       "id": "policy.delegate",
       "description": "Bounded standing authority grants with zero defaults",
       "provider": "aletheia.local",
-      "status": "EXPERIMENTAL",
+      "status": "AVAILABLE",
       "risk_class": "medium",
       "approval_policy": "operator_once",
-      "caller": "aletheia.authority API; grants require an already-approved operator approval",
+      "caller": "python -m aletheia.assistant grant new|list|revoke; consumed by aletheia.authority.satisfy from aletheia.policy.request",
       "verification": "tests/test_integration_primitives.py::TestAuthority + tests/test_assistant.py grant verbs",
       "module": "aletheia.authority",
-      "notes": "Grant/claim RECORDS work and are tested (zero defaults, approval-gated, high-risk/operator_always never delegable, bounded uses via exclusive claims). But NO acting path consumes grants: delegation currently has no effect. Wiring consumption into act/policy would widen authority and waits on an explicit operator ruling — not a code change to make quietly."
+      "notes": "Grants are now consumed: aletheia.policy.request(capability=...) spends an eligible grant and records a claim receipt. Was EXPERIMENTAL because no acting path consumed one - that was the gap, and it is closed. What a grant can cover is unchanged and still refuses high-risk and operator_always."
     },
     {
       "id": "action.verify",
@@ -896,6 +896,30 @@
       "caller": "python -m aletheia.assistant; aletheia.finance.hand_off / handoffs / settle",
       "module": "aletheia.finance",
       "notes": "No credential is accepted or stored and nothing is sent. Preparing a payment he will authorize himself is low-risk precisely because it cannot move money; the risk lives in finance.transact, which stays NOT_BUILT on purpose."
+    },
+    {
+      "id": "access.remote",
+      "description": "Authenticated, TLS-only access to the Core from off this machine: scoped bearer tokens, rate limited, journaled",
+      "provider": "aletheia.local",
+      "status": "NEEDS_CONFIGURATION",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "caller": "python -m aletheia.access mint|list|revoke; aletheia.core.Handler.authorized() gates every remote request; aletheia.core.make_server refuses the bind without both conditions",
+      "module": "aletheia.access",
+      "notes": "The transport §92 called a ticket. Off-loopback listening needs BOTH a minted token and a TLS certificate, and refuses without either - port 8777 is never simply exposed. Tokens are stored as sha256 only, expire, carry a scope (read answers GET and nothing else), and lock an address out after 5 wrong guesses. Loopback is deliberately unchanged and unauthenticated: same trust boundary the Core has always had. NEEDS_CONFIGURATION because the operator has minted no token and supplied no certificate - `tailscale cert` is the recommended route, since it also solves reaching home without opening a port.",
+      "verification": "tests/test_access.py: 29 tests, most asserting something does NOT happen - no token means no bind, no TLS means no bind, a read token cannot POST, a revoked token dies without a restart"
+    },
+    {
+      "id": "policy.delegate.consume",
+      "description": "Spend a standing grant so an approval he already gave is not asked again - never for high-risk or operator_always",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "aletheia.policy.request(..., capability=...) - every approval site in the repo: director, errands, intents, mail, calendar_provider, audio_router",
+      "module": "aletheia.authority",
+      "notes": "authority.py could record delegated authority since the systems layer and nothing consumed it; every approval still went to him. satisfy() is the consumer, wired into the ONE place approvals are created. allows() re-reads the registry at spend time, so a grant file edited on disk to name a high-risk capability still buys nothing: §56 L4 holds structurally, not by remembering.",
+      "verification": "tests/test_authority_consumption.py: a forged grant over email.send is refused; exhausted, revoked, expired and corrupt grants all authorize nothing; a broken grant store fails closed"
     }
   ]
 }

@@ -16,10 +16,13 @@ the same `state/`, `plans/`, `memory/` stores. Sync with GitHub stays
 git's job (the operator pulls/pushes, or a scheduled `git pull` keeps
 the mirror fresh); the Core never invents a second source of truth.
 
-Security V0: binds 127.0.0.1 ONLY by default — the API is the
-operator's own machine talking to itself. Exposing it further needs
-authentication that does not exist yet; `--host` therefore refuses
-non-loopback values rather than pretending (§59 fail closed).
+Security: binds 127.0.0.1 ONLY by default — the API is the operator's own
+machine talking to itself, and loopback stays unauthenticated because that
+is the same trust boundary the Core has always had. Serving any other
+address requires BOTH a minted access token and a TLS certificate
+(`aletheia.access`, §92); without them `--host` still refuses rather than
+pretending (§59 fail closed). Remote requests carry a bearer token, are
+scope-checked per method, rate limited, and journaled with the token id.
 
 The Core is also the PC-side half of the intercom: a background sync
 loop (aletheia.sync) pulls the repo, executes commands whose kind is in
@@ -62,7 +65,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from aletheia import act, capabilities, computer, followups, intercom, journal
+from aletheia import access, act, capabilities, computer, followups, intercom, journal
 from aletheia import liveness, policy, tasks
 from aletheia import current_state, events, notifications, runtime, scheduler
 from aletheia.fleet import REPO_ROOT, load_fleet
@@ -256,6 +259,38 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):  # quiet by default; journal is the record
         pass
 
+    def authorized(self) -> bool:
+        """Gate every remote request; leave loopback exactly as it was.
+
+        Loopback is the operator's own machine talking to itself — the
+        Core's trust boundary since V0, unchanged here. A request from
+        anywhere else must carry a bearer token that is live, unexpired
+        and scoped to the method: a `read` token answers GET and cannot
+        become a command channel because a phone was left unlocked.
+        Refusals are quiet about WHY (a 401 that explains itself is an
+        oracle) and loud in the journal.
+        """
+        address = self.client_address[0] if self.client_address else "?"
+        if access.is_loopback(address):
+            return True
+        record = access.verify(access.bearer(self.headers), address)
+        if record is None:
+            self._json({"error": "unauthorized"}, code=401)
+            return False
+        if not access.scope_allows(record["scope"], self.command):
+            journal.append("alert", "access",
+                           f"{record['id']} ({record['scope']}) tried "
+                           f"{self.command} {self.path.split('?')[0]} from {address}",
+                           actor="aletheia-access")
+            self._json({"error": "this token is read-only"}, code=403)
+            return False
+        access.note_use(record["id"])
+        journal.append("event", "access",
+                       f"{record['id']} {self.command} "
+                       f"{self.path.split('?')[0]} from {address}",
+                       actor="aletheia-access")
+        return True
+
     def _json(self, obj, code: int = 200) -> None:
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
@@ -294,6 +329,8 @@ class Handler(BaseHTTPRequestHandler):
         return payload
 
     def do_GET(self):
+        if not self.authorized():
+            return
         url = urlparse(self.path)
         if url.path == "/api/status":
             return self._json(status_payload())
@@ -360,6 +397,8 @@ class Handler(BaseHTTPRequestHandler):
         return self._static(rel)
 
     def do_POST(self):
+        if not self.authorized():
+            return
         path = urlparse(self.path).path
         if path not in ("/api/command", "/api/computer", "/api/voice",
                         "/api/notifications/ack"):
@@ -441,17 +480,35 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def make_server(host: str = "127.0.0.1", port: int = DEFAULT_PORT,
-                computer_backend_factory=None) -> ThreadingHTTPServer:
-    if host not in ("127.0.0.1", "localhost"):
-        raise ValueError(
-            "the Core V0 has no authentication — it binds loopback only (§59 fail closed)")
+                computer_backend_factory=None, tls_cert: str | None = None,
+                tls_key: str | None = None) -> ThreadingHTTPServer:
+    """Bind the Core. Loopback always; anywhere else only under §92's terms.
+
+    Off-loopback used to be refused outright, because there was nothing to
+    authenticate with — which is why the phone surface has never had a
+    phone. `access.bind_refusal` holds the conditions now (a live token AND
+    a real certificate), and it still refuses by default: nothing about
+    this makes the Core reachable unless the operator has deliberately
+    minted a credential and supplied TLS.
+    """
+    refusal = access.bind_refusal(host, tls_cert, tls_key)
+    if refusal:
+        raise ValueError(f"refusing to serve {host}: {refusal}")
+
     class BoundHandler(Handler):
         pass
 
     BoundHandler.fleet = load_fleet()
     BoundHandler.computer_backend_factory = (
         staticmethod(computer_backend_factory) if computer_backend_factory else None)
-    return ThreadingHTTPServer((host, port), BoundHandler)
+    server = ThreadingHTTPServer((host, port), BoundHandler)
+    if tls_cert and tls_key and not access.is_loopback(host):
+        import ssl
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        context.load_cert_chain(tls_cert, tls_key)
+        server.socket = context.wrap_socket(server.socket, server_side=True)
+    return server
 
 
 def start_sync_loop(fleet: dict, interval_s: float = SYNC_INTERVAL_S,
@@ -488,7 +545,11 @@ def start_sync_loop(fleet: dict, interval_s: float = SYNC_INTERVAL_S,
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Aletheia local Core V0.")
     ap.add_argument("--port", type=int, default=DEFAULT_PORT)
-    ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument("--host", default="127.0.0.1",
+                    help="loopback by default; another address needs a minted "
+                         "access token AND --tls-cert/--tls-key (§92)")
+    ap.add_argument("--tls-cert", help="certificate for off-loopback serving")
+    ap.add_argument("--tls-key", help="private key for off-loopback serving")
     ap.add_argument("--sync-interval", type=float, default=SYNC_INTERVAL_S,
                     help="seconds between pull/process/push beats (default 60)")
     ap.add_argument("--no-sync", action="store_true",
@@ -499,7 +560,8 @@ def main(argv: list[str] | None = None) -> int:
     # last heartbeat is old, this start ENDED an outage, and that is a fact
     # the journal and the bus get to hear about (2026-08-27).
     liveness.note_start(actor="core", port=args.port)
-    server = make_server(args.host, args.port)
+    server = make_server(args.host, args.port, tls_cert=args.tls_cert,
+                         tls_key=args.tls_key)
     restarting = threading.Event()
 
     def on_code_update(changed):
