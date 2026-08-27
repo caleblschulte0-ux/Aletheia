@@ -200,3 +200,4 @@
 {"ts": "2026-08-27T22:20:12Z", "kind": "event", "actor": "aletheia", "subject": "approval:intent-e138bc9a1f", "text": "requested — run 1 step(s): note"}
 {"ts": "2026-08-27T22:20:12Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-e138bc9a1f: 1 executable, 0 blocked — State review: no pending approvals or unread notifications; two setup tasks await you (local-core-bootstrap, operator-setup), five automation/build phases queued"}
 {"ts": "2026-08-27T22:20:12Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — 1 step ready — note. Say approve to run it (intent-e138bc9a1f)."}
+{"ts": "2026-08-27T22:22:55Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "push failing: push rejected and uncommitted changes the Core does not own: tate/pulse/latest.json — refusing to autostash a person's work"}
