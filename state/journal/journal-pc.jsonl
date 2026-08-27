@@ -233,3 +233,10 @@
 {"ts": "2026-08-27T22:50:14Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message came through garbled — could you rephrase what you'd like me to do?"}
 {"ts": "2026-08-27T22:51:16Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Your message seems incomplete — could you clarify what you meant (something about files or bankruptcy)?"}
 {"ts": "2026-08-27T22:51:16Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message seems incomplete — could you clarify what you meant (something about files or bankruptcy)?"}
+{"ts": "2026-08-27T22:53:24Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — What would you like me to do — please specify the task or action."}
+{"ts": "2026-08-27T22:53:24Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — What would you like me to do — please specify the task or action."}
+{"ts": "2026-08-27T22:53:37Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Your message isn't clear to me - could you say what you'd like done regarding 'george carlin fluctuations'?"}
+{"ts": "2026-08-27T22:53:37Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message isn't clear to me - could you say what you'd like done regarding 'george carlin fluctuations'?"}
+{"ts": "2026-08-27T22:54:12Z", "kind": "event", "actor": "aletheia", "subject": "approval:intent-2f295f270f", "text": "requested — run 1 step(s): approve"}
+{"ts": "2026-08-27T22:54:12Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-2f295f270f: 1 executable, 0 blocked — Approve the pending intent awaiting operator confirmation"}
+{"ts": "2026-08-27T22:54:12Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — 1 step ready — approve. Say approve to run it (intent-2f295f270f)."}
