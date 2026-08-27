@@ -315,6 +315,29 @@ def _observe_room() -> list[dict]:
     return hass.observe()
 
 
+def _refresh_calendar(now: dt.datetime) -> list[dict]:
+    """Prefer one official OAuth provider; fall back to ICS, never both.
+
+    Both mechanisms mirror into the same local availability store. Running both
+    against the same upstream account would double-count busy time, so an
+    official provider config is authoritative whenever present.
+    """
+    from aletheia import calendar_live, ics
+    if calendar_live.available()[0]:
+        result = calendar_live.refresh_if_due(now=now)
+        if result is None:
+            return []
+        return [{"action": "refreshed", "provider": result["provider"],
+                 "remote_count": result["remote_count"],
+                 "conflicts": len(result["conflicts"])}]
+    if ics.available()[0]:
+        result = ics.refresh_if_due(now=now)
+        if result is None:
+            return []
+        return [{"action": "refreshed", "provider": "ics", **result}]
+    return []
+
+
 def tick(fleet: dict, *, now: dt.datetime | None = None,
          registry: dict | None = None, request=None) -> dict:
     now = now or dt.datetime.now(dt.timezone.utc)
@@ -354,6 +377,7 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # than inside the sentence that asked for it.
     authorized_errands = guarded("errands", _run_authorized_errands)
     room_devices = guarded("room", _observe_room)
+    calendar_updates = guarded("calendar", lambda: _refresh_calendar(now))
     # LAST: everything above may create notifications. Attention never executes
     # them; it only classifies READY vs DEFERRED and escalates eligible priority.
     attention_records = guarded("attention", lambda: attention.reconcile(now=now))
@@ -368,6 +392,7 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
         "approved_intents": approved_intents,
         "authorized_errands": authorized_errands,
         "room_devices": room_devices,
+        "calendar": calendar_updates,
         "handle_requests": handle_requests,
         "attention": attention_records,
     }
