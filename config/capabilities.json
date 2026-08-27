@@ -1,5 +1,5 @@
 {
-  "revision": 24,
+  "revision": 25,
   "providers": [
     {
       "id": "aletheia.local",
@@ -35,6 +35,13 @@
       "kind": "subscription_client",
       "authentication": "the operator's Claude subscription via the CLI's own login; no API key",
       "notes": "Reached only through aletheia.reasoner, which bounds it: no tools, one turn, no session persistence, a timeout, a neutral working directory, and brain.validate_output on everything it returns."
+    },
+    {
+      "id": "home_assistant",
+      "description": "The operator's own Home Assistant server on his own network, reached over its documented REST API",
+      "kind": "api",
+      "authentication": "ALETHEIA_HASS_URL + ALETHEIA_HASS_TOKEN in the environment; never committed",
+      "notes": "One hub instead of twelve vendor clouds (§152). Reading entity state is ungated; moving a device needs an APPROVED approval and re-reads the kill switch before each one."
     }
   ],
   "agents": [
@@ -281,11 +288,13 @@
       "id": "room.scene",
       "description": "Unified device layer (Home Assistant or equivalent): lights, scenes, media",
       "provider": "aletheia.local",
-      "status": "NOT_BUILT",
+      "status": "NEEDS_CONFIGURATION",
       "risk_class": "medium",
       "approval_policy": "operator_once",
-      "caller": "ticket â€” Phase 18 (Playbook Â§132)",
-      "notes": "Home Assistant (or equivalent) adapter NOT_BUILT — ticket: task build-room-scene. Local device registry and scene PLANNING are AVAILABLE separately as device.registry and room.scene.plan."
+      "caller": "python -m aletheia.hass observe|scene; aletheia.runtime.tick refreshes device reachability each beat when a hub is configured",
+      "notes": "The provider room.plan() has always ended by waiting for (READY_FOR_PROVIDER) now exists: Home Assistant's REST API. Needs ALETHEIA_HASS_URL and a long-lived ALETHEIA_HASS_TOKEN in the environment - the code is real, the token is the operator's to create. A scene needs an APPROVED approval, refuses any device not observed ONLINE, and re-reads the kill switch between devices.",
+      "module": "aletheia.hass",
+      "verification": "tests/test_reach.py: no approval means no HTTP call at all; an offline device is refused rather than silently skipped"
     },
     {
       "id": "policy.halt",
@@ -682,11 +691,13 @@
       "id": "purchase.execute",
       "description": "Execute an actual purchase with money",
       "provider": "aletheia.local",
-      "status": "NOT_BUILT",
+      "status": "EXPERIMENTAL",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "ticket — Phase 22 purchase provider must verify item, total and receipt before this can exist",
-      "notes": "The authorization layer is BUILT (aletheia.purchases, ChatGPT authored, Claude reviewed 2026-08-26): Decimal-exact line items, total computed and sha256-bound, approval binds to exact content, expiry enforced, observed-vs-approved total recorded honestly, no card data ever stored. What remains NOT_BUILT is any checkout transport — spending stays operator_always L4."
+      "caller": "python -m aletheia.errands new --kind purchase; aletheia.runtime.tick runs authorized errands each Core beat",
+      "notes": "aletheia.errands: one approval-bound, evidence-verified web errand executed through the existing browser gate (browse.interact refuses before the browser opens unless the approval is APPROVED). Authorization binds to a sha256 of {site, kind, steps, ceiling}; a step or a ceiling edited afterwards is refused, not adapted. §143 boundaries - bank step-up, one-time codes, CAPTCHA, signatures, ID checks, biometrics, consent - stop the errand and hand the operator the remainder. A purchase additionally declares a spending ceiling, and the LARGEST money figure observed on the page is checked against it before anything is clicked. EXPERIMENTAL until the first real merchant checkout completes with a receipt: 22 hermetic tests drive it, no live purchase has been made.",
+      "module": "aletheia.errands",
+      "verification": "tests/test_errands.py: over-ceiling pages abandoned before the click, tampered plans refused, every §143 boundary class recognised"
     },
     {
       "id": "subscription.track",
@@ -702,10 +713,12 @@
       "id": "subscription.cancel",
       "description": "Cancel a live external subscription",
       "provider": "aletheia.local",
-      "status": "NOT_BUILT",
+      "status": "EXPERIMENTAL",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "ticket — Phase 22 provider-specific cancellation and verification adapter"
+      "caller": "python -m aletheia.errands new --kind cancellation; aletheia.runtime.tick runs authorized errands each Core beat",
+      "module": "aletheia.errands",
+      "notes": "aletheia.errands: one approval-bound, evidence-verified web errand executed through the existing browser gate (browse.interact refuses before the browser opens unless the approval is APPROVED). Authorization binds to a sha256 of {site, kind, steps, ceiling}; a step or a ceiling edited afterwards is refused, not adapted. §143 boundaries - bank step-up, one-time codes, CAPTCHA, signatures, ID checks, biometrics, consent - stop the errand and hand the operator the remainder. A cancellation spends nothing and is refused if it declares a ceiling. EXPERIMENTAL until a live cancellation round-trips with the merchant's confirmation."
     },
     {
       "id": "finance.visibility",
@@ -724,7 +737,8 @@
       "status": "NOT_BUILT",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "ticket — Phase 22 financial action adapters require live provider, approval and verification design"
+      "caller": "ticket — Phase 22 financial action adapters require live provider, approval and verification design",
+      "notes": "Deliberately NOT_BUILT, and this is a decision rather than a backlog item. Bank transfers, bill payments and trades are identity-checked, step-up authenticated and closed to automation by their own terms - §143's list almost word for word. There the boundary IS the mechanism, so driving it would defeat a control that exists for the operator's benefit. What IS built is the other half of §143: finance.hand_off prepares the whole movement - account, payee, amount, due date, why he asked - and stops, so his remaining work is approving something he can see in full. finance.settle records the reference he gets back (§30)."
     },
     {
       "id": "vehicle.manage",
@@ -760,10 +774,12 @@
       "id": "reservation.book",
       "description": "Book or cancel a live external reservation",
       "provider": "aletheia.local",
-      "status": "NOT_BUILT",
+      "status": "EXPERIMENTAL",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "ticket — Phase 22 live provider booking adapter plus confirmation verification"
+      "caller": "python -m aletheia.errands new --kind reservation; aletheia.runtime.tick runs authorized errands each Core beat",
+      "module": "aletheia.errands",
+      "notes": "aletheia.errands: one approval-bound, evidence-verified web errand executed through the existing browser gate (browse.interact refuses before the browser opens unless the approval is APPROVED). Authorization binds to a sha256 of {site, kind, steps, ceiling}; a step or a ceiling edited afterwards is refused, not adapted. §143 boundaries - bank step-up, one-time codes, CAPTCHA, signatures, ID checks, biometrics, consent - stop the errand and hand the operator the remainder. reservations.confirm() still requires a real confirmation identifier from the provider before a booking is CONFIRMED - completing the errand is not the same as being booked (§30). EXPERIMENTAL until a live booking round-trips."
     },
     {
       "id": "calendar.write",
@@ -858,6 +874,28 @@
       "module": "aletheia.intents",
       "notes": "Same binding ratified for computer control and email. A plan edited between the ask and the approval no longer matches its hash and is refused, never adapted. Halt is re-read before every step.",
       "verification": "tests/test_intents.py: tampered plans refused, denied plans retired"
+    },
+    {
+      "id": "errand.run",
+      "description": "One approval-bound web errand - buy, book, cancel, submit - executed through the browser gate and stopped at §143 boundaries",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "caller": "python -m aletheia.errands; aletheia.runtime.tick each Core beat (_run_authorized_errands)",
+      "module": "aletheia.errands",
+      "notes": "aletheia.errands: one approval-bound, evidence-verified web errand executed through the existing browser gate (browse.interact refuses before the browser opens unless the approval is APPROVED). Authorization binds to a sha256 of {site, kind, steps, ceiling}; a step or a ceiling edited afterwards is refused, not adapted. §143 boundaries - bank step-up, one-time codes, CAPTCHA, signatures, ID checks, biometrics, consent - stop the errand and hand the operator the remainder. This is the primitive §152 asks for: purchase.execute, reservation.book and subscription.cancel are the same errand with different kinds, and the next class of task is too."
+    },
+    {
+      "id": "finance.hand_off",
+      "description": "Carry a money movement to the §143 boundary and stop: everything prepared, the authorization left to the operator",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.assistant; aletheia.finance.hand_off / handoffs / settle",
+      "module": "aletheia.finance",
+      "notes": "No credential is accepted or stored and nothing is sent. Preparing a payment he will authorize himself is low-risk precisely because it cannot move money; the risk lives in finance.transact, which stays NOT_BUILT on purpose."
     }
   ]
 }
