@@ -79,6 +79,25 @@ def mark_observed(device_id: str, *, online: bool, observed_state: dict) -> dict
     return value
 
 
+def all_devices() -> list[dict]:
+    """Every registered device, valid ones only.
+
+    A provider adapter needs the whole registry, not one room: `hass.observe`
+    refreshes reachability for everything the hub knows about.
+    """
+    if not DEVICES_DIR.is_dir():
+        return []
+    out = []
+    for path in DEVICES_DIR.glob("*.json"):
+        try:
+            value = read_json(path)
+            validate(value)
+        except ValueError:
+            continue  # a malformed record is not a device
+        out.append(value)
+    return sorted(out, key=lambda d: d["id"])
+
+
 def in_room(room: str) -> list[dict]:
     if not isinstance(room, str) or not room.strip():
         raise ValueError("room is required")

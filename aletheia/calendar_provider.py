@@ -144,7 +144,8 @@ def request_write_approval(approval_id: str, plan: dict, *, reason: str = "calen
     if plan.get("sha256") != expected: raise ValueError("calendar write plan hash mismatch")
     return policy.request(approval_id, f"calendar.write:{expected}", reason=reason,
                           consequence="a live external calendar is changed",
-                          reversible=plan["action"] != "CREATE")
+                          reversible=plan["action"] != "CREATE",
+                          capability="calendar.write")
 
 
 def execute_write_plan(plan: dict, approval_id: str, provider: CalendarProvider) -> dict:

@@ -145,14 +145,48 @@ def is_addressed(text: str) -> bool:
     return first in WAKE_WORDS
 
 
-def ask_core(transcript: str, core_url: str = CORE_URL) -> str:
+FOLLOWUP_WAIT_S = 60.0
+FOLLOWUP_POLL_S = 1.0
+
+
+def collect_followup(followup_id: str, core_url: str = CORE_URL,
+                     wait_s: float = FOLLOWUP_WAIT_S,
+                     poll_s: float = FOLLOWUP_POLL_S, sleep=None) -> str | None:
+    """Wait for a slow answer she promised, and return it to be spoken.
+
+    Bounded: a listener that waited a minute has waited long enough, and
+    the durable half of the answer (the intent record, its approval, a
+    notification) is on disk either way. None means nothing to say.
+    """
+    import time as _time
+    sleep = sleep or _time.sleep
+    deadline = _time.monotonic() + wait_s
+    while _time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(
+                    f"{core_url}/api/voice/followup?id={followup_id}", timeout=5) as r:
+                payload = json.loads(r.read().decode("utf-8"))
+        except Exception:
+            return None  # the Core went away mid-thought; nothing to say
+        if payload.get("state") in ("READY", "FAILED"):
+            return payload.get("say")
+        if payload.get("state") == "EXPIRED":
+            return None
+        sleep(poll_s)
+    return None
+
+
+def ask_core(transcript: str, core_url: str = CORE_URL) -> dict:
     req = urllib.request.Request(
         f"{core_url}/api/voice",
         data=json.dumps({"transcript": transcript}).encode("utf-8"),
         headers={"Content-Type": "application/json"}, method="POST")
     with urllib.request.urlopen(req, timeout=30) as response:
         payload = json.loads(response.read().decode("utf-8"))
-    return payload.get("say") or payload.get("detail") or "done"
+    # A dict, not a tuple: `say, fid = ask_core(...)` would silently
+    # unpack a two-character string into two variables.
+    return {"say": payload.get("say") or payload.get("detail") or "done",
+            "followup_id": payload.get("followup_id")}
 
 
 def _strip_leading_garbage(text: str) -> str:
@@ -193,11 +227,18 @@ def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
                 continue
         else:
             continue  # overheard speech: not for her, never journaled
+        followup_id = None
         try:
-            reply = ask_core(f"thea {command}", core_url)
+            answer = ask_core(f"thea {command}", core_url)
+            reply, followup_id = answer["say"], answer.get("followup_id")
         except Exception as exc:
             reply = f"I couldn't reach my Core: {type(exc).__name__}"
         speaker(reply)
+        if followup_id:
+            # she said "working on that" — say the real answer when it lands
+            later = collect_followup(followup_id, core_url)
+            if later:
+                speaker(later)
         handled += 1
         if max_utterances is not None and handled >= max_utterances:
             return handled

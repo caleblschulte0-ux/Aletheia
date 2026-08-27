@@ -22,6 +22,17 @@ Design rules:
 - **Push only named paths.** ``commit_push`` stages exactly what the
   caller says (receipts, journal); a stray local edit on the PC never
   rides along in an automated commit.
+
+- **Never rebase a tree someone else is holding.** Added 2026-08-27 after
+  it happened: a session was editing this very clone on a `claude/*`
+  branch while the Core was running. Every sixty seconds the Core ran
+  ``git rebase --autostash origin/main`` on whatever branch was checked
+  out — so it rewrote that branch onto main and swept the uncommitted
+  edits into a stash nobody was watching. Work was recovered from the
+  stash, but the loop had been quietly reverting a colleague's files for
+  an hour. The Core owns its OWN branch and its OWN state paths; anything
+  else in the tree belongs to whoever put it there, and a sync that would
+  touch it refuses and says so instead.
 """
 from __future__ import annotations
 
@@ -34,6 +45,10 @@ from aletheia.proc import run as proc_run
 
 GIT_TIMEOUT_S = 60
 PUSH_ATTEMPTS = 3
+
+# What the Core writes itself, and may therefore safely stash across a
+# rebase. Everything else in the tree belongs to a person.
+OWNED_PATHS = ("state/", "exchange/commands/", "exchange/receipts/", "cache/")
 
 
 def _git(args: list[str], cwd: Path) -> tuple[int, str]:
@@ -95,8 +110,51 @@ class GitSync:
         code, out = _git(["status", "--porcelain"], self.root)
         return code == 0 and bool(out)
 
+    def foreign_changes(self, owned: list[str] | None = None) -> list[str]:
+        """Uncommitted paths that are NOT the Core's own run-truth.
+
+        The Core writes journal, receipts, pulse and private state; those
+        it may stash and replay safely. A modified module, a new test, a
+        half-finished edit — those belong to a person, and `--autostash`
+        would make them vanish from the working tree mid-keystroke.
+        """
+        owned = owned if owned is not None else OWNED_PATHS
+        # -uall: without it git collapses untracked trees to "exchange/",
+        # and a directory the Core owns would read as a foreign path.
+        code, out = _git(["status", "--porcelain", "-uall"], self.root)
+        if code != 0:
+            return []
+        paths = []
+        for line in out.splitlines():
+            path = line[3:].strip().strip('"')
+            if " -> " in path:            # a rename: the destination is what exists now
+                path = path.split(" -> ", 1)[1]
+            if path and not any(path.startswith(prefix) for prefix in owned):
+                paths.append(path)
+        return paths
+
+    def blocking_reason(self) -> str | None:
+        """Why this tree must not be rebased right now, or None."""
+        code, out = _git(["rev-parse", "--abbrev-ref", "HEAD"], self.root)
+        if code == 0 and out and out != "HEAD" and out != self.branch:
+            return (f"checked out on {out!r}, not the sync branch {self.branch!r} — "
+                    "refusing to rebase someone else's branch")
+        foreign = self.foreign_changes()
+        if foreign:
+            shown = ", ".join(sorted(foreign)[:4])
+            more = f" (+{len(foreign) - 4} more)" if len(foreign) > 4 else ""
+            return (f"uncommitted changes the Core does not own: {shown}{more} — "
+                    "refusing to autostash a person's work")
+        return None
+
     def pull(self) -> tuple[bool, str]:
-        """Fetch and rebase onto the remote branch; abort cleanly on conflict."""
+        """Fetch and rebase onto the remote branch; abort cleanly on conflict.
+
+        Refuses outright when the tree is not the Core's to rewrite.
+        """
+        blocked = self.blocking_reason()
+        if blocked:
+            return False, blocked
         code, out = _git(["fetch", self.remote, self.branch], self.root)
         if code != 0:
             return False, f"fetch failed: {out[-200:]}"

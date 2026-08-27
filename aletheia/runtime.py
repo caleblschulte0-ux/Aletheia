@@ -296,6 +296,25 @@ def process_new_events(*, now: dt.datetime | None = None,
     return actions
 
 
+def _run_approved_intents(fleet: dict) -> list[dict]:
+    from aletheia import intents  # local: planner pulls in the reasoner
+    return intents.run_approved(fleet)
+
+
+def _run_authorized_errands() -> list[dict]:
+    from aletheia import errands  # local: pulls in the browser stack
+    return errands.run_authorized()
+
+
+def _observe_room() -> list[dict]:
+    """Refresh device reachability when a hub is configured; honest no-op
+    when it is not, so an unconfigured room costs nothing per beat."""
+    from aletheia import hass
+    if not hass.available()[0]:
+        return []
+    return hass.observe()
+
+
 def tick(fleet: dict, *, now: dt.datetime | None = None,
          registry: dict | None = None, request=None) -> dict:
     now = now or dt.datetime.now(dt.timezone.utc)
@@ -326,6 +345,15 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     capability_gaps = reconcile_task_gaps(registry=registry)
     handle_requests = guarded(
         "handler", lambda: handler.reconcile_all(registry=registry, now=now))
+    # Approved arbitrary asks (aletheia.intents): the plan the operator
+    # okayed runs HERE, on a later beat, through the ordinary gates — not
+    # inside the conversation that produced it.
+    approved_intents = guarded(
+        "intents", lambda: _run_approved_intents(fleet))
+    # Errands he authorized: the last mile into the world, run here rather
+    # than inside the sentence that asked for it.
+    authorized_errands = guarded("errands", _run_authorized_errands)
+    room_devices = guarded("room", _observe_room)
     # LAST: everything above may create notifications. Attention never executes
     # them; it only classifies READY vs DEFERRED and escalates eligible priority.
     attention_records = guarded("attention", lambda: attention.reconcile(now=now))
@@ -337,6 +365,9 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
         "reply_transitions": reply_transitions,
         "events_processed": events_processed,
         "capability_gaps": capability_gaps,
+        "approved_intents": approved_intents,
+        "authorized_errands": authorized_errands,
+        "room_devices": room_devices,
         "handle_requests": handle_requests,
         "attention": attention_records,
     }

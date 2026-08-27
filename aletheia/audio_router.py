@@ -159,7 +159,7 @@ def request_activation_approval(plan_id: str, approval_id: str | None = None) ->
         approval_id, approval_action(plan),
         reason=f"activate audio route {plan_id} for {plan['plan']['purpose']}",
         consequence="Windows audio inputs/outputs may be redirected until the session is stopped",
-        reversible=True)
+        reversible=True, capability="audio.route")
 
 
 class AudioBackend(Protocol):

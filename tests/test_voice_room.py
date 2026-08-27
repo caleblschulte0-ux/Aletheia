@@ -28,7 +28,7 @@ class TestLoop(unittest.TestCase):
     def test_only_addressed_speech_reaches_the_core(self):
         spoken, asked = [], []
         with mock.patch.object(voice_room, "ask_core",
-                               side_effect=lambda t, *a, **k: asked.append(t) or "two alerts"):
+                               side_effect=lambda t, *a, **k: asked.append(t) or {"say": "two alerts"}):
             handled = voice_room.listen_forever(
                 recognizer=iter([(False, "the weather is nice"),
                                  (True, "thea what's going on"),
@@ -42,7 +42,7 @@ class TestLoop(unittest.TestCase):
         # the open model heard 'yeah ...' but the wake spotter fired
         asked = []
         with mock.patch.object(voice_room, "ask_core",
-                               side_effect=lambda t, *a, **k: asked.append(t) or "ok"):
+                               side_effect=lambda t, *a, **k: asked.append(t) or {"say": "ok"}):
             voice_room.listen_forever(
                 recognizer=iter([(True, "yeah that's going on")]),
                 speaker=lambda t: None)
@@ -51,7 +51,7 @@ class TestLoop(unittest.TestCase):
     def test_bare_wake_prompts_and_takes_next_utterance(self):
         spoken, asked = [], []
         with mock.patch.object(voice_room, "ask_core",
-                               side_effect=lambda t, *a, **k: asked.append(t) or "answered"):
+                               side_effect=lambda t, *a, **k: asked.append(t) or {"say": "answered"}):
             handled = voice_room.listen_forever(
                 recognizer=iter([(True, ""),               # "Thea"
                                  (False, "what's going on")]),  # command, no wake needed
@@ -69,7 +69,7 @@ class TestLoop(unittest.TestCase):
         self.assertIn("couldn't reach my Core", spoken[0])
 
     def test_max_utterances_bounds_the_loop(self):
-        with mock.patch.object(voice_room, "ask_core", return_value="ok"):
+        with mock.patch.object(voice_room, "ask_core", return_value={"say": "ok"}):
             handled = voice_room.listen_forever(
                 recognizer=iter([(True, "thea one"), (True, "thea two"),
                                  (True, "thea three")]),

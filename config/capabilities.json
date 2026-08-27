@@ -1,5 +1,5 @@
 {
-  "revision": 23,
+  "revision": 26,
   "providers": [
     {
       "id": "aletheia.local",
@@ -28,6 +28,20 @@
       "description": "Claude Code sessions (subscription): builds and maintains Aletheia and the fleet",
       "kind": "subscription_client",
       "authentication": "operator's Claude subscription"
+    },
+    {
+      "id": "claude.cli",
+      "description": "Claude CLI installed on the operator's PC, signed in to his own subscription; run with --tools \"\" so it can emit text and nothing else",
+      "kind": "subscription_client",
+      "authentication": "the operator's Claude subscription via the CLI's own login; no API key",
+      "notes": "Reached only through aletheia.reasoner, which bounds it: no tools, one turn, no session persistence, a timeout, a neutral working directory, and brain.validate_output on everything it returns."
+    },
+    {
+      "id": "home_assistant",
+      "description": "The operator's own Home Assistant server on his own network, reached over its documented REST API",
+      "kind": "api",
+      "authentication": "ALETHEIA_HASS_URL + ALETHEIA_HASS_TOKEN in the environment; never committed",
+      "notes": "One hub instead of twelve vendor clouds (§152). Reading entity state is ungated; moving a device needs an APPROVED approval and re-reads the kill switch before each one."
     }
   ],
   "agents": [
@@ -274,11 +288,13 @@
       "id": "room.scene",
       "description": "Unified device layer (Home Assistant or equivalent): lights, scenes, media",
       "provider": "aletheia.local",
-      "status": "NOT_BUILT",
+      "status": "NEEDS_CONFIGURATION",
       "risk_class": "medium",
       "approval_policy": "operator_once",
-      "caller": "ticket â€” Phase 18 (Playbook Â§132)",
-      "notes": "Home Assistant (or equivalent) adapter NOT_BUILT — ticket: task build-room-scene. Local device registry and scene PLANNING are AVAILABLE separately as device.registry and room.scene.plan."
+      "caller": "python -m aletheia.hass observe|scene; aletheia.runtime.tick refreshes device reachability each beat when a hub is configured",
+      "notes": "The provider room.plan() has always ended by waiting for (READY_FOR_PROVIDER) now exists: Home Assistant's REST API. Needs ALETHEIA_HASS_URL and a long-lived ALETHEIA_HASS_TOKEN in the environment - the code is real, the token is the operator's to create. A scene needs an APPROVED approval, refuses any device not observed ONLINE, and re-reads the kill switch between devices.",
+      "module": "aletheia.hass",
+      "verification": "tests/test_reach.py: no approval means no HTTP call at all; an offline device is refused rather than silently skipped"
     },
     {
       "id": "policy.halt",
@@ -426,13 +442,13 @@
       "id": "policy.delegate",
       "description": "Bounded standing authority grants with zero defaults",
       "provider": "aletheia.local",
-      "status": "EXPERIMENTAL",
+      "status": "AVAILABLE",
       "risk_class": "medium",
       "approval_policy": "operator_once",
-      "caller": "aletheia.authority API; grants require an already-approved operator approval",
+      "caller": "python -m aletheia.assistant grant new|list|revoke; consumed by aletheia.authority.satisfy from aletheia.policy.request",
       "verification": "tests/test_integration_primitives.py::TestAuthority + tests/test_assistant.py grant verbs",
       "module": "aletheia.authority",
-      "notes": "Grant/claim RECORDS work and are tested (zero defaults, approval-gated, high-risk/operator_always never delegable, bounded uses via exclusive claims). But NO acting path consumes grants: delegation currently has no effect. Wiring consumption into act/policy would widen authority and waits on an explicit operator ruling — not a code change to make quietly."
+      "notes": "Grants are now consumed: aletheia.policy.request(capability=...) spends an eligible grant and records a claim receipt. Was EXPERIMENTAL because no acting path consumed one - that was the gap, and it is closed. What a grant can cover is unchanged and still refuses high-risk and operator_always."
     },
     {
       "id": "action.verify",
@@ -675,11 +691,13 @@
       "id": "purchase.execute",
       "description": "Execute an actual purchase with money",
       "provider": "aletheia.local",
-      "status": "NOT_BUILT",
+      "status": "EXPERIMENTAL",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "ticket — Phase 22 purchase provider must verify item, total and receipt before this can exist",
-      "notes": "The authorization layer is BUILT (aletheia.purchases, ChatGPT authored, Claude reviewed 2026-08-26): Decimal-exact line items, total computed and sha256-bound, approval binds to exact content, expiry enforced, observed-vs-approved total recorded honestly, no card data ever stored. What remains NOT_BUILT is any checkout transport — spending stays operator_always L4."
+      "caller": "python -m aletheia.errands new --kind purchase; aletheia.runtime.tick runs authorized errands each Core beat",
+      "notes": "aletheia.errands: one approval-bound, evidence-verified web errand executed through the existing browser gate (browse.interact refuses before the browser opens unless the approval is APPROVED). Authorization binds to a sha256 of {site, kind, steps, ceiling}; a step or a ceiling edited afterwards is refused, not adapted. §143 boundaries - bank step-up, one-time codes, CAPTCHA, signatures, ID checks, biometrics, consent - stop the errand and hand the operator the remainder. A purchase additionally declares a spending ceiling, and the LARGEST money figure observed on the page is checked against it before anything is clicked. EXPERIMENTAL until the first real merchant checkout completes with a receipt: 22 hermetic tests drive it, no live purchase has been made.",
+      "module": "aletheia.errands",
+      "verification": "tests/test_errands.py: over-ceiling pages abandoned before the click, tampered plans refused, every §143 boundary class recognised"
     },
     {
       "id": "subscription.track",
@@ -695,10 +713,12 @@
       "id": "subscription.cancel",
       "description": "Cancel a live external subscription",
       "provider": "aletheia.local",
-      "status": "NOT_BUILT",
+      "status": "EXPERIMENTAL",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "ticket — Phase 22 provider-specific cancellation and verification adapter"
+      "caller": "python -m aletheia.errands new --kind cancellation; aletheia.runtime.tick runs authorized errands each Core beat",
+      "module": "aletheia.errands",
+      "notes": "aletheia.errands: one approval-bound, evidence-verified web errand executed through the existing browser gate (browse.interact refuses before the browser opens unless the approval is APPROVED). Authorization binds to a sha256 of {site, kind, steps, ceiling}; a step or a ceiling edited afterwards is refused, not adapted. §143 boundaries - bank step-up, one-time codes, CAPTCHA, signatures, ID checks, biometrics, consent - stop the errand and hand the operator the remainder. A cancellation spends nothing and is refused if it declares a ceiling. EXPERIMENTAL until a live cancellation round-trips with the merchant's confirmation."
     },
     {
       "id": "finance.visibility",
@@ -717,7 +737,8 @@
       "status": "NOT_BUILT",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "ticket — Phase 22 financial action adapters require live provider, approval and verification design"
+      "caller": "ticket — Phase 22 financial action adapters require live provider, approval and verification design",
+      "notes": "Deliberately NOT_BUILT, and this is a decision rather than a backlog item. Bank transfers, bill payments and trades are identity-checked, step-up authenticated and closed to automation by their own terms - §143's list almost word for word. There the boundary IS the mechanism, so driving it would defeat a control that exists for the operator's benefit. What IS built is the other half of §143: finance.hand_off prepares the whole movement - account, payee, amount, due date, why he asked - and stops, so his remaining work is approving something he can see in full. finance.settle records the reference he gets back (§30)."
     },
     {
       "id": "vehicle.manage",
@@ -753,10 +774,12 @@
       "id": "reservation.book",
       "description": "Book or cancel a live external reservation",
       "provider": "aletheia.local",
-      "status": "NOT_BUILT",
+      "status": "EXPERIMENTAL",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "ticket — Phase 22 live provider booking adapter plus confirmation verification"
+      "caller": "python -m aletheia.errands new --kind reservation; aletheia.runtime.tick runs authorized errands each Core beat",
+      "module": "aletheia.errands",
+      "notes": "aletheia.errands: one approval-bound, evidence-verified web errand executed through the existing browser gate (browse.interact refuses before the browser opens unless the approval is APPROVED). Authorization binds to a sha256 of {site, kind, steps, ceiling}; a step or a ceiling edited afterwards is refused, not adapted. §143 boundaries - bank step-up, one-time codes, CAPTCHA, signatures, ID checks, biometrics, consent - stop the errand and hand the operator the remainder. reservations.confirm() still requires a real confirmation identifier from the provider before a booking is CONFIRMED - completing the errand is not the same as being booked (§30). EXPERIMENTAL until a live booking round-trips."
     },
     {
       "id": "calendar.write",
@@ -793,6 +816,110 @@
       "verification": "tests/test_audio_phone_v0.py + hardening tests: plan hash-bound and re-verified on load, direct route cycles rejected, activation demands exact per-route evidence (not counts), tamper -> refused",
       "notes": "EXPERIMENTAL: hermetic backend only — no real Windows audio device has ever been routed. scripts/phase11_accept_audio.ps1 on the PC decides AVAILABLE vs repair.",
       "module": "aletheia.audio_router"
+    },
+    {
+      "id": "core.autostart",
+      "description": "Register and audit the Windows tasks that make Aletheia permanent: logon trigger plus a repeating watchdog",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "python -m aletheia.autostart doctor|install|show; python -m aletheia.supervisor install|status",
+      "module": "aletheia.autostart",
+      "notes": "Built 2026-08-27 after a live outage: the Core aborted at 07:42 and, because the task had only an at-logon trigger and the operator never logged off, nothing was listening for six hours. audit() holds the always-on contract as a pure function (repeating, unbounded, power-blind, restarting, IgnoreNew) so a broken registration is a finding, not a surprise.",
+      "verification": "Proven live on the PC 2026-08-27: both processes killed at 14:15:47Z, Core answering again at 14:15:59Z (12s) and the room voice at 14:16:05Z, with no human action."
+    },
+    {
+      "id": "core.liveness",
+      "description": "Heartbeat while up, and a measured outage duration on the next start - journaled and emitted on the bus",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.core.core_tick beats every sync beat; core.main calls note_start; GET /api/status carries it; supervisor status prints it",
+      "module": "aletheia.liveness",
+      "notes": "The 2026-08-27 outage was undetected, not merely unrepaired. A gap longer than OUTAGE_AFTER_S becomes a core.outage_ended event, so the same watcher/proactive path that handles mail handles absence."
+    },
+    {
+      "id": "reason.infer",
+      "description": "Bounded, tool-less reasoning on the operator's own subscription: proposals only, never actions",
+      "provider": "claude.cli",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.planner.compile; aletheia.reasoner CLI adapter",
+      "module": "aletheia.reasoner",
+      "notes": "The first provider that actually satisfies brain.contract - before this, brain.deterministic answered every input with 'clarify', which is why the 27-slot grammar was the whole of what could be expressed. Degrades honestly to that same fallback when the CLI is absent, and the reason reaches the operator.",
+      "verification": "tests/test_reasoner.py asserts no tools, no API key flag, a timeout and a neutral cwd on every invocation"
+    },
+    {
+      "id": "intent.plan",
+      "description": "Compile an arbitrary sentence into a plan of validated commands, named capability gaps and manual steps",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "medium",
+      "approval_policy": "operator_always",
+      "caller": "intercom kind 'intent' (voice, Command Center, ChatGPT relay); python -m aletheia.planner; python -m aletheia.intents new",
+      "module": "aletheia.planner",
+      "notes": "A model proposes; the registries and gates dispose. Every proposed step goes through intercom.validate_kind_args, every named capability through the live registry, and a gap claimed on an AVAILABLE capability is refused rather than reported as a limitation."
+    },
+    {
+      "id": "intent.execute",
+      "description": "Run an approved plan later, bound to a sha256 of exactly the plan that was approved",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "caller": "aletheia.runtime.tick each Core beat (_run_approved_intents); python -m aletheia.intents run",
+      "module": "aletheia.intents",
+      "notes": "Same binding ratified for computer control and email. A plan edited between the ask and the approval no longer matches its hash and is refused, never adapted. Halt is re-read before every step.",
+      "verification": "tests/test_intents.py: tampered plans refused, denied plans retired"
+    },
+    {
+      "id": "errand.run",
+      "description": "One approval-bound web errand - buy, book, cancel, submit - executed through the browser gate and stopped at §143 boundaries",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "caller": "python -m aletheia.errands; aletheia.runtime.tick each Core beat (_run_authorized_errands)",
+      "module": "aletheia.errands",
+      "notes": "aletheia.errands: one approval-bound, evidence-verified web errand executed through the existing browser gate (browse.interact refuses before the browser opens unless the approval is APPROVED). Authorization binds to a sha256 of {site, kind, steps, ceiling}; a step or a ceiling edited afterwards is refused, not adapted. §143 boundaries - bank step-up, one-time codes, CAPTCHA, signatures, ID checks, biometrics, consent - stop the errand and hand the operator the remainder. This is the primitive §152 asks for: purchase.execute, reservation.book and subscription.cancel are the same errand with different kinds, and the next class of task is too."
+    },
+    {
+      "id": "finance.hand_off",
+      "description": "Carry a money movement to the §143 boundary and stop: everything prepared, the authorization left to the operator",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.assistant; aletheia.finance.hand_off / handoffs / settle",
+      "module": "aletheia.finance",
+      "notes": "No credential is accepted or stored and nothing is sent. Preparing a payment he will authorize himself is low-risk precisely because it cannot move money; the risk lives in finance.transact, which stays NOT_BUILT on purpose."
+    },
+    {
+      "id": "access.remote",
+      "description": "Authenticated, TLS-only access to the Core from off this machine: scoped bearer tokens, rate limited, journaled",
+      "provider": "aletheia.local",
+      "status": "NEEDS_CONFIGURATION",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "caller": "python -m aletheia.access mint|list|revoke; aletheia.core.Handler.authorized() gates every remote request; aletheia.core.make_server refuses the bind without both conditions",
+      "module": "aletheia.access",
+      "notes": "The transport §92 called a ticket. Off-loopback listening needs BOTH a minted token and a TLS certificate, and refuses without either - port 8777 is never simply exposed. Tokens are stored as sha256 only, expire, carry a scope (read answers GET and nothing else), and lock an address out after 5 wrong guesses. Loopback is deliberately unchanged and unauthenticated: same trust boundary the Core has always had. NEEDS_CONFIGURATION because the operator has minted no token and supplied no certificate - `tailscale cert` is the recommended route, since it also solves reaching home without opening a port.",
+      "verification": "tests/test_access.py: 29 tests, most asserting something does NOT happen - no token means no bind, no TLS means no bind, a read token cannot POST, a revoked token dies without a restart"
+    },
+    {
+      "id": "policy.delegate.consume",
+      "description": "Spend a standing grant so an approval he already gave is not asked again - never for high-risk or operator_always",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "aletheia.policy.request(..., capability=...) - every approval site in the repo: director, errands, intents, mail, calendar_provider, audio_router",
+      "module": "aletheia.authority",
+      "notes": "authority.py could record delegated authority since the systems layer and nothing consumed it; every approval still went to him. satisfy() is the consumer, wired into the ONE place approvals are created. allows() re-reads the registry at spend time, so a grant file edited on disk to name a high-risk capability still buys nothing: §56 L4 holds structurally, not by remembering.",
+      "verification": "tests/test_authority_consumption.py: a forged grant over email.send is refused; exhausted, revoked, expired and corrupt grants all authorize nothing; a broken grant store fails closed"
     }
   ]
 }

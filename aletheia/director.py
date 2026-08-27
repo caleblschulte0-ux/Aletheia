@@ -103,7 +103,7 @@ def dispatch_ready(repo_full: str, request=gh.request) -> list[dict]:
                 reason=task["description"],
                 consequence="a work-order issue is filed; the worker acts within "
                             "registry-granted authority",
-                reversible=True, task=tid)
+                reversible=True, task=tid, capability="agent.delegate")
             policy.publish(aid, repo_full, request_fn=request)
             actions.append({"task": tid, "action": "approval_requested", "approval": aid})
             continue

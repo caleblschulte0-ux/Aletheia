@@ -246,11 +246,16 @@ def interpret(transcript: str) -> dict:
     if m:
         return {"command": {"kind": "note", "text": m.group(1).strip()}, "say": None}
 
-    # unrecognized: journal it honestly, never guess an action (§104)
-    return {"command": {"kind": "note", "text": f"(voice, unmatched) {text}"},
-            "say": "I don't have a command for that yet, so I journaled it. "
-                   "I can: status, notifications, remind me, tell me when email arrives, when am I free, read a site, "
-                   "approve or deny, add a task, or take a note."}
+    # Unrecognized by the patterns above — which is not the same as
+    # unrecognizable. Until 2026-08-27 this branch journaled the sentence
+    # and said "I don't have a command for that yet", and the operator's own
+    # journal is full of the result: every real ask he made that did not
+    # match a regex died here. It now goes to the reasoning provider as an
+    # `intent`, which compiles it into steps expressed in these same kinds
+    # and gates every one of them (§104 is satisfied by the gates, not by
+    # refusing to think). If no provider is available, `intent` degrades to
+    # exactly the honest answer this branch used to give.
+    return {"command": {"kind": "intent", "text": text}, "say": None}
 
 
 def spoken_reply(kind: str, outcome: str, detail: str) -> str:

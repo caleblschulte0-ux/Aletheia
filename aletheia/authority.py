@@ -99,6 +99,55 @@ def claim(grant_id: str, capability_id: str, action_id: str, *, now: dt.datetime
     return receipt
 
 
+def active_grants(*, now: dt.datetime | None = None) -> list[dict]:
+    """Every grant that is currently capable of authorizing anything."""
+    if not GRANTS_DIR.is_dir():
+        return []
+    out = []
+    for path in sorted(GRANTS_DIR.glob("*.json")):
+        try:
+            grant = read_json(path)
+        except ValueError:
+            continue  # a corrupt grant is not authority
+        if not grant.get("enabled"):
+            continue
+        try:
+            if _parse(grant["expires"]).astimezone(dt.timezone.utc) <= (
+                    now or dt.datetime.now(dt.timezone.utc)).astimezone(dt.timezone.utc):
+                continue
+        except (KeyError, ValueError):
+            continue
+        out.append(grant)
+    return out
+
+
+def satisfy(capability_id: str, action_id: str,
+            *, now: dt.datetime | None = None) -> str | None:
+    """Spend a standing grant on this action, or return None.
+
+    THE CONSUMER. Until 2026-08-27 this module could record delegated
+    authority and nothing anywhere would ever act on it: grants were
+    written, `allows()` was tested, and every approval still went to the
+    operator. A grant nobody consumes is a promise, not a permission.
+
+    What it does NOT do is as important. `allows()` refuses any capability
+    the registry marks high-risk or operator_always, so no grant can ever
+    reach spending, a binding agreement, a disclosure or a destructive
+    action (§56 L4) — those keep asking him, forever, by construction.
+    The claim receipt is written exclusively, so a bounded grant cannot be
+    double-spent by two workers racing on the same beat.
+    """
+    for grant in active_grants(now=now):
+        if not allows(grant, capability_id, now=now):
+            continue
+        try:
+            claim(grant["id"], capability_id, action_id, now=now)
+        except (PermissionError, FileExistsError, OSError, ValueError):
+            continue  # exhausted or already claimed: try the next grant
+        return grant["id"]
+    return None
+
+
 def revoke(grant_id: str) -> dict:
     grant = load(grant_id)
     grant["enabled"] = False
