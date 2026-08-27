@@ -54,12 +54,23 @@ class InterpretCase(unittest.TestCase):
         out = voice.interpret("Thea, approve")
         self.assertEqual(out["command"], {"kind": "approve", "id": "ap-1"})
 
-    def test_approve_with_two_pending_refuses_to_guess(self):
+    def test_approve_with_two_pending_reads_them_out_instead_of_refusing(self):
+        # It used to say "I won't guess which one — use the Command Center",
+        # which is a dead end the moment two things are pending, and two
+        # things pending is now the ordinary state.
         policy.request("ap-1", "a", "r", "c", True)
         policy.request("ap-2", "b", "r", "c", True)
         out = voice.interpret("Thea, approve")
         self.assertIsNone(out["command"])
-        self.assertIn("won't guess", out["say"])
+        self.assertIn("2 things waiting", out["say"])
+        self.assertIn("Which one", out["say"])
+        self.assertNotIn("Command Center", out["say"])
+
+    def test_approve_the_first_needs_no_identifier(self):
+        policy.request("ap-1", "a", "r", "c", True)
+        policy.request("ap-2", "b", "r", "c", True)
+        self.assertEqual(voice.interpret("Thea, approve the first")["command"],
+                         {"kind": "approve", "id": "ap-1"})
 
     def test_new_task_by_voice(self):
         out = voice.interpret("Thea, add a task to water the plants")

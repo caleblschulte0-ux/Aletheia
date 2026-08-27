@@ -121,3 +121,56 @@
 {"ts": "2026-08-27T19:30:38Z", "kind": "action", "actor": "aletheia-perception", "subject": "perception:screen", "text": "asked 'what is on my screen' — answered at 0.95"}
 {"ts": "2026-08-27T19:30:38Z", "kind": "action", "actor": "operator-local-core", "subject": "core:screen_ask", "text": "done — Your screen shows several open windows: a 'Project Llama Overlay' window, a Chrome browser window with 'Claude Code', a window for 'Aletheia GitHub access', a taskbar pane, and a Program Manager pane."}
 {"ts": "2026-08-27T19:31:06Z", "kind": "event", "actor": "aletheia-voice", "subject": "voice:room", "text": "room voice listening (local wake word)"}
+{"ts": "2026-08-27T20:27:18Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "pull failing: checked out on 'claude/nine-fixes', not the sync branch 'main' — refusing to rebase someone else's branch"}
+{"ts": "2026-08-27T20:27:18Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "code on disk is newer than this process (2 file(s), e.g. aletheia\\core.py) — restarting to run it"}
+{"ts": "2026-08-27T20:27:19Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
+{"ts": "2026-08-27T20:27:19Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
+{"ts": "2026-08-27T20:27:19Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-27T20:28:22Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "code on disk is newer than this process (1 file(s), e.g. aletheia\\core.py) — restarting to run it"}
+{"ts": "2026-08-27T20:28:22Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
+{"ts": "2026-08-27T20:28:23Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
+{"ts": "2026-08-27T20:28:23Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-27T20:30:25Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "code on disk is newer than this process (1 file(s), e.g. aletheia\\runtime.py) — restarting to run it"}
+{"ts": "2026-08-27T20:30:26Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
+{"ts": "2026-08-27T20:30:26Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
+{"ts": "2026-08-27T20:30:26Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-27T20:31:44Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "code on disk is newer than this process (1 file(s), e.g. aletheia\\speech.py) — restarting to run it"}
+{"ts": "2026-08-27T20:31:44Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
+{"ts": "2026-08-27T20:31:45Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
+{"ts": "2026-08-27T20:31:45Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-27T20:31:45Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "code on disk is newer than this process (1 file(s), e.g. aletheia\\speech.py) — restarting to run it"}
+{"ts": "2026-08-27T20:31:46Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
+{"ts": "2026-08-27T20:31:46Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
+{"ts": "2026-08-27T20:31:46Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-27T20:32:48Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "code on disk is newer than this process (1 file(s), e.g. aletheia\\voice.py) — restarting to run it"}
+{"ts": "2026-08-27T20:32:48Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
+{"ts": "2026-08-27T20:32:49Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
+{"ts": "2026-08-27T20:32:49Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-27T20:33:50Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "code on disk is newer than this process (2 file(s), e.g. aletheia\\announce.py) — restarting to run it"}
+{"ts": "2026-08-27T20:33:51Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
+{"ts": "2026-08-27T20:33:51Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
+{"ts": "2026-08-27T20:33:51Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-27T20:35:54Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "code on disk is newer than this process (1 file(s), e.g. aletheia\\presence.py) — restarting to run it"}
+{"ts": "2026-08-27T20:35:54Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
+{"ts": "2026-08-27T20:35:54Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
+{"ts": "2026-08-27T20:35:54Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-27T20:37:16Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "code on disk is newer than this process (3 file(s), e.g. aletheia\\core.py) — restarting to run it"}
+{"ts": "2026-08-27T20:37:17Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
+{"ts": "2026-08-27T20:37:17Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
+{"ts": "2026-08-27T20:37:17Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-27T20:38:19Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "code on disk is newer than this process (1 file(s), e.g. interface\\index.html) — restarting to run it"}
+{"ts": "2026-08-27T20:38:19Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
+{"ts": "2026-08-27T20:38:20Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
+{"ts": "2026-08-27T20:38:20Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-27T20:39:21Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "code on disk is newer than this process (2 file(s), e.g. aletheia\\presence.py) — restarting to run it"}
+{"ts": "2026-08-27T20:39:22Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
+{"ts": "2026-08-27T20:39:22Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
+{"ts": "2026-08-27T20:39:22Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-27T20:41:25Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "code on disk is newer than this process (1 file(s), e.g. interface\\index.html) — restarting to run it"}
+{"ts": "2026-08-27T20:41:25Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
+{"ts": "2026-08-27T20:41:26Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
+{"ts": "2026-08-27T20:41:26Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-27T20:49:56Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "code on disk is newer than this process (1 file(s), e.g. config\\capabilities.json) — restarting to run it"}
+{"ts": "2026-08-27T20:49:56Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
+{"ts": "2026-08-27T20:49:57Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
+{"ts": "2026-08-27T20:49:57Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}

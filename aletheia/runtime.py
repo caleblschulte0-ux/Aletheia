@@ -11,6 +11,7 @@ work so quiet hours/escalation apply without changing action authority.
 from __future__ import annotations
 
 import datetime as dt
+import time
 import hashlib
 import json
 from pathlib import Path
@@ -380,11 +381,23 @@ def _refresh_calendar(now: dt.datetime) -> list[dict]:
     return []
 
 
+# How long one beat may spend on subsystems before deferring the rest.
+# The Core's sync interval is 60s and this thread also pulls commands and
+# stamps the liveness heartbeat, so the work has to fit inside the gap.
+TICK_BUDGET_S = 25.0
+
+
 def tick(fleet: dict, *, now: dt.datetime | None = None,
-         registry: dict | None = None, request=None) -> dict:
+         registry: dict | None = None, request=None,
+         budget_s: float = TICK_BUDGET_S) -> dict:
     now = now or dt.datetime.now(dt.timezone.utc)
     if now.tzinfo is None or now.utcoffset() is None:
         raise ValueError("now must be timezone-aware")
+    # The budget covers the WHOLE beat, so it has to start before the first
+    # subsystem rather than after it.
+    failures: list[dict] = []
+    skipped: list[str] = []
+    deadline = time.monotonic() + budget_s
     schedules = run_due_schedules(fleet, now=now, request=request)
     for result in schedules:
         if result["outcome"] in {"refused", "error", "invalid"}:
@@ -396,11 +409,31 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
                 related={"schedule": result["schedule"]})
 
     def guarded(name, fn):
+        """Run one subsystem; a failure must not stop the beat — but it must
+        also not read as work.
+
+        This used to return the exception as a one-element list, and the
+        summary is rendered with len(), so a permanently broken mail poller
+        showed up as "1 mail event" every minute: indistinguishable from
+        success, and nothing ever told the operator. A failure now returns
+        NOTHING for the count and is collected separately, where the caller
+        surfaces it.
+        """
+        # A beat is also allowed to run out of time. The sync loop that
+        # pulls commands and stamps the heartbeat is this same thread, so a
+        # subsystem that takes a browser-shaped minute must not be able to
+        # hold the rest of the beat hostage: once the budget is spent, the
+        # remaining subsystems are SKIPPED to the next beat rather than run
+        # late. Skipping is not a failure and is not counted as one.
+        if time.monotonic() >= deadline:
+            skipped.append(name)
+            return []
         try:
             return fn()
         except Exception as exc:
-            return [{"action": "error", "producer": name,
-                     "detail": f"{type(exc).__name__}: {exc}"}]
+            failures.append({"producer": name,
+                             "error": f"{type(exc).__name__}: {exc}"[:300]})
+            return []
 
     mail_events = guarded("mail", poll_mail_events)
     pulse_events = guarded("pulse", mirror_pulse_events)
@@ -429,6 +462,8 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # them; it only classifies READY vs DEFERRED and escalates eligible priority.
     attention_records = guarded("attention", lambda: attention.reconcile(now=now))
     return {
+        "failures": failures,
+        "skipped": skipped,
         "schedules": schedules,
         "mail_events": mail_events,
         "pulse_events": pulse_events,

@@ -230,6 +230,34 @@ def collect(fleet: dict, source) -> dict:
     return pulse
 
 
+def write_local_block(block: dict, path=None) -> dict:
+    """Merge the live "about her" block into latest.json, in place.
+
+    Deliberately does NOT touch `generated_at`. That stamp belongs to the
+    fleet data, which is collected in Actions on a six-hourly cron, and
+    refreshing it here would make six-hour-old repository health render as
+    current — §107 exactly. The local block carries its own timestamp and
+    the wall shows both, because there really are two ages.
+    """
+    path = path or (PULSE_DIR / "latest.json")
+    try:
+        current = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(current, dict):
+            raise ValueError("pulse is not an object")
+    except (OSError, ValueError, json.JSONDecodeError):
+        # No fleet pulse yet (a fresh clone, or Actions has never run). The
+        # wall should still show her; it just has nothing to say about repos.
+        current = {"generated_at": None, "repos": {}, "alerts": [],
+                   "source": "local-only"}
+    current["now"] = block
+    PULSE_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(current, indent=2, ensure_ascii=False) + "\n",
+                   encoding="utf-8")
+    tmp.replace(path)
+    return current
+
+
 def transitions(prev: dict | None, cur: dict) -> list[dict]:
     """Health changes since the previous pulse — what the sentinel acts on."""
     out = []

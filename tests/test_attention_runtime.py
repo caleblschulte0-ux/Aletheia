@@ -78,8 +78,13 @@ class AttentionRuntimeCase(unittest.TestCase):
         for patch in patches:
             patch.start(); self.addCleanup(patch.stop)
         result = runtime.tick({}, now=now)
-        self.assertEqual(result["attention"][0]["producer"], "attention")
-        self.assertIn("bad policy", result["attention"][0]["detail"])
+        # A failure used to be returned INSIDE the subsystem's own list, and
+        # the summary renders those with len() — so a broken attention pass
+        # showed up as "attention: 1", identical to one real record. The
+        # subsystem now reports nothing and the failure is its own field.
+        self.assertEqual(result["attention"], [])
+        self.assertEqual(result["failures"][0]["producer"], "attention")
+        self.assertIn("bad policy", result["failures"][0]["error"])
 
 
 if __name__ == "__main__":

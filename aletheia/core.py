@@ -179,6 +179,80 @@ def stale_code_files(started_at: float | None = None,
     return found
 
 
+# A subsystem that fails every beat must be said once, not sixty times an
+# hour. Keyed by producer+error so a NEW failure is always heard.
+_FAILURES_SEEN: dict[str, str] = {}
+
+
+def _surface_failures(failures: list[dict]) -> None:
+    """Journal every failure; notify the operator about each new one.
+
+    Before this, a broken subsystem was swallowed by `guarded` and counted
+    as activity — it could be dead for days while the dashboard showed
+    steady numbers. Silence about a failure is the failure.
+    """
+    from aletheia import notifications
+    for failure in failures:
+        producer = str(failure.get("producer", "?"))[:60]
+        error = str(failure.get("error", ""))[:300]
+        journal.append("alert", f"core:runtime:{producer}",
+                       f"subsystem failing: {error}", actor=ACTOR)
+        if _FAILURES_SEEN.get(producer) == error:
+            continue  # same failure as last beat: already said
+        _FAILURES_SEEN[producer] = error
+        try:
+            notifications.publish(
+                f"{producer} is failing",
+                f"Every beat since it started: {error}. Nothing else has stopped.",
+                priority="IMPORTANT", source="runtime",
+                dedupe_key=f"runtime-failure:{producer}:{error[:60]}")
+        except Exception:
+            pass  # the journal line above is the record
+
+
+def _clear_failure(producer: str) -> None:
+    _FAILURES_SEEN.pop(producer, None)
+
+
+_KICK_LOCK = threading.Lock()
+_KICKING = False
+
+
+def kick_approved_work(fleet: dict) -> bool:
+    """Run the things an approval just unblocked, immediately.
+
+    Off the sync thread on purpose: this is the same work the beat does, and
+    the point is that it happens the moment he says yes rather than up to a
+    minute later. One at a time — a second `approve` while the first is
+    still running joins it rather than racing it, and every step is
+    idempotent by state transition anyway.
+    """
+    global _KICKING
+    with _KICK_LOCK:
+        if _KICKING:
+            return False
+        _KICKING = True
+
+    def run():
+        global _KICKING
+        try:
+            for name, work in (("intents", lambda: runtime._run_approved_intents(fleet)),
+                               ("errands", runtime._run_authorized_errands),
+                               ("scheduling", lambda: runtime._reconcile_scheduling(
+                                   dt.datetime.now(dt.timezone.utc)))):
+                try:
+                    work()
+                except Exception as exc:
+                    journal.append("event", f"core:kick:{name}",
+                                   f"{type(exc).__name__}: {exc}", actor=ACTOR)
+        finally:
+            with _KICK_LOCK:
+                _KICKING = False
+
+    threading.Thread(target=run, name="aletheia-kick", daemon=True).start()
+    return True
+
+
 def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
               on_code_update=None) -> dict:
     """One beat of the Core's sync loop — synchronous and fully testable.
@@ -196,6 +270,16 @@ def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
     """
     status["last_tick"] = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     liveness.beat(actor="core")  # never raises; see aletheia/liveness.py
+    try:
+        # The wall's only data source used to be a six-hourly cloud cron, so
+        # a locally-running Aletheia never refreshed her own display — it was
+        # measured 10.5 hours stale. This is cheap and local, every beat.
+        from aletheia import presence, pulse as pulse_mod
+        pulse_mod.write_local_block(presence.snapshot())
+    except Exception as exc:
+        journal.append("event", "core:presence",
+                       f"could not refresh the wall: {type(exc).__name__}: {exc}",
+                       actor=ACTOR)
     # checkpoint local run-truth FIRST so the pull rebases clean commits,
     # never a dirty journal (the exact conflict that broke a real PC)
     syncer.commit(["exchange/commands", "state/journal"], "core: state checkpoint")
@@ -269,9 +353,15 @@ def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
         # reply expectations, bus events -> watcher/proactive notifications,
         # capability-gap reconciliation. Summarized at /api/runtime.
         summary = runtime.tick(fleet)
+        failures = summary.pop("failures", [])
         interesting = {k: v for k, v in summary.items() if v}
         status["runtime"] = {"at": status["last_tick"],
-                             **{k: len(v) for k, v in summary.items()}}
+                             **{k: len(v) for k, v in summary.items()},
+                             # errors are their own field, never a count that
+                             # reads like activity
+                             "failures": failures}
+        if failures:
+            _surface_failures(failures)
         if interesting.get("schedules") or interesting.get("reply_transitions"):
             journal.append("event", "core:runtime",
                            "; ".join(f"{k}: {len(v)}" for k, v in interesting.items()),
@@ -459,7 +549,14 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, json.JSONDecodeError) as exc:
             return self._json({"outcome": "invalid", "detail": str(exc)}, code=400)
         if path == "/api/command":
-            return self._json(run_command(payload, self.fleet))
+            result = run_command(payload, self.fleet)
+            if payload.get("kind") in ("approve", "resume"):
+                # He just said yes. Waiting up to a full sync beat to act on
+                # it is the difference between an assistant and a cron job,
+                # so the work he unblocked is kicked NOW — off the sync
+                # thread, so a slow errand still cannot stall the beat.
+                kick_approved_work(self.fleet)
+            return self._json(result)
         if path == "/api/notifications/ack":
             nid = payload.get("id")
             if not isinstance(nid, str) or not nid:
@@ -492,6 +589,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"outcome": "thinking", "say": slot["say"],
                                    "followup_id": slot["id"]})
             result = run_command({**cmd, "operator_quote": quote}, self.fleet)
+            if kind in ("approve", "resume"):
+                kick_approved_work(self.fleet)  # saying yes out loud acts now too
             # a fallback intent carries its own words (e.g. "no command for
             # that, journaled") — those beat the generic receipt phrasing
             say = intent["say"] or voice.spoken_reply(kind, result["outcome"],

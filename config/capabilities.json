@@ -1,5 +1,5 @@
 {
-  "revision": 30,
+  "revision": 31,
   "providers": [
     {
       "id": "aletheia.local",
@@ -989,6 +989,40 @@
       "module": "aletheia.perception",
       "notes": "Playbook §86, done §13's way: accessibility tree before screen coordinates before vision-only pixels. That is not a compromise - a UIA tree knows a control is a button called 'Submit', where a screenshot knows it is beige - and it needs no vision model and no API key. Two boundaries make it separate from computer.control rather than a flag on it. LOOKING IS NOT PRESSING: this module can only emit list_windows and inspect_controls, so invoke/set_text/open_app/close_window are absent by construction, not refused by a check (the browse.read_page vs browse.interact precedent, §61). A SCREEN IS NOT SAFE TEXT: password fields are dropped rather than masked, credential-shaped values are replaced wherever they appear, and the observation is bounded before any provider sees it - and the model's own answer is redacted again on the way back. The observation is declared UNTRUSTED DATA, because a window title is attacker-chosen in exactly the way an email subject is.",
       "verification": "19 tests: acting steps refused with nothing performed, password contents never present in the observation, oversized screens trimmed by whole records. Live on the PC 2026-08-27: asked what was open and answered correctly from real windows."
+    },
+    {
+      "id": "presence.wall",
+      "description": "The live block the wall shows about HER: what needs him, what she is doing, what is next",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.core.core_tick writes it into state/pulse/latest.json every beat; interface/index.html renders it above the fleet map",
+      "module": "aletheia.presence",
+      "notes": "§88 asks the wall for current focus, next appointment, agents working and alerts; it rendered six repositories instead, three of them empty stubs at equal weight (§89). Approvals waiting on him appeared nowhere. It also had one data source - a six-hourly cloud cron - and was measured 10.5 hours stale. This block is local, written every beat, and carries its OWN timestamp: the wall shows two ages because there really are two, and letting a fresh local read refresh the fleet stamp would be §107 exactly.",
+      "verification": "tests/test_presence.py: the fleet stamp is never touched by a local write; one broken source cannot blank the wall; duplicate notification titles are shown once"
+    },
+    {
+      "id": "speech.compose",
+      "description": "Turn a subsystem receipt into the sentence a person would have said - deterministically, with no model",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.voice.spoken_reply; aletheia.announce; aletheia.presence",
+      "module": "aletheia.speech",
+      "notes": "The room used to hear 'reminder remind-3f9ab2c1 set for 2026-09-04T09:00:00+00:00', which is accurate and is not speech (§145). Ids are dropped, slugs become words, timestamps become 'tomorrow at nine'. Deterministic on purpose: no latency and no chance of inventing an outcome. An unrecognised receipt is tidied, never reworded into something it did not say."
+    },
+    {
+      "id": "announce.speak",
+      "description": "Say something out loud unprompted - bounded, quiet-hours aware, never twice",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "operator_once",
+      "caller": "aletheia.voice_room.listen_forever speaks pending lines before handling an utterance; python -m aletheia.announce pending",
+      "module": "aletheia.announce",
+      "notes": "Every speaker() call used to sit inside answer-a-question, so a booked meeting or an errand stopped at a bank's verification step waited silently until he thought to ask. Only URGENT and IMPORTANT notices are ever spoken, at most a few an hour, never the same one twice, never while halted, and never in quiet hours - a machine that wakes someone at 3am to report a red CI job has done more harm than the red job. It can only re-say what is already in the notification store, so anything spoken is findable afterwards (§30)."
     }
   ]
 }

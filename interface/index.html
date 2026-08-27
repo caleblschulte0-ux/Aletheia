@@ -120,7 +120,11 @@
   main {
     flex: 1; display: flex; align-items: center; justify-content: center;
     gap: 1.2rem; padding: 0 1.6rem; min-height: 0;
+    /* Centred columns taller than the stage used to overflow it in BOTH
+       directions and paint over the band above and the ticker below. */
+    overflow: hidden;
   }
+  .col { overflow: hidden; }
   .col { display: flex; flex-direction: column; gap: 1rem; flex: 1 1 0; max-width: 27rem; min-width: 0; }
   .orbit-wrap { flex: 0 0 auto; width: min(44vw, 78vh); position: relative; }
   .orbit-wrap svg { width: 100%; height: auto; display: block; }
@@ -182,6 +186,38 @@
   .tick .repo { color: var(--accent); letter-spacing: 0.1em; }
   .tick .ago { color: var(--faint); }
 
+  /* ---- her, above the fleet (§88) ---- */
+  /* Fixed, modest height: the fleet panels below must not be pushed into
+     it, and a busy day must not let this band eat the stage. */
+  .presence { display: none; padding: 0.35rem 2rem 0.3rem; flex: none;
+              max-height: 19vh; overflow: hidden;
+              position: relative; z-index: 2; }
+  .presence.show { display: block; }
+  .presence .headline {
+    font-family: var(--sans); font-weight: 500; font-size: clamp(1rem, 1.7vw, 1.5rem);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    letter-spacing: 0.01em; color: var(--ink); line-height: 1.25;
+  }
+  .presence .headline.needs { color: var(--accent); }
+  .presence .prow {
+    display: flex; align-items: baseline; flex-wrap: nowrap; gap: 0.4rem;
+    margin-top: 0.3rem; font-family: var(--mono); font-size: 0.68rem;
+    overflow: hidden; white-space: nowrap;
+  }
+  .presence .chip { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+  .presence .prow b {
+    color: var(--faint); text-transform: uppercase; letter-spacing: 0.18em;
+    font-weight: 400; min-width: 7.5rem;
+  }
+  .presence .chip {
+    border: 1px solid var(--line); border-radius: 2px; padding: 0.12rem 0.5rem;
+    color: var(--muted); background: rgba(13,18,28,0.6);
+  }
+  .presence .chip.needs { border-color: var(--accent); color: var(--accent); }
+  /* Stubs are repos with nothing in them; they do not get equal billing
+     with the systems that run (§89). */
+  .stub { opacity: 0.45; }
+
   /* ---- orbital svg ---- */
   .ring-spin   { animation: spin 90s linear infinite; transform-origin: 50% 50%; }
   .ring-spin-r { animation: spin 140s linear infinite reverse; transform-origin: 50% 50%; }
@@ -222,6 +258,7 @@
 </header>
 
 <div class="alertbar" id="alertbar"></div>
+<div class="presence" id="presence"></div>
 
 <main>
   <div class="col" id="col-left"></div>
@@ -413,13 +450,76 @@ function render(pulse) {
     return `⚠ ${esc(a.github.toUpperCase())} — ${esc(why)}`;
   }).join('<span class="sep">│</span>');
 
-  const ageMs = Date.now() - new Date(pulse.generated_at).getTime();
-  const stale = !isFinite(ageMs) || ageMs > 12 * 3600 * 1000;
+  /* ---- HER, not the fleet (§88) ----------------------------------------
+     The wall used to render only the repository map, so approvals waiting
+     on him, a meeting mid-negotiation and an errand stopped at a bank's
+     verification step were nowhere on it. `pulse.now` is written locally
+     every Core beat and carries its OWN timestamp: the fleet block is a
+     six-hourly cron and the two ages are shown separately, because
+     pretending one is the other is exactly §107. */
+  const now = pulse.now || null;
+  presenceHTML(now);
+
+  /* Liveness is the wall's real "LIVE" light. The fleet pulse being six
+     hours old says nothing about whether Aletheia is running right now. */
+  const fleetAge = Date.now() - new Date(pulse.generated_at).getTime();
+  const fleetStale = !isFinite(fleetAge) || fleetAge > 12 * 3600 * 1000;
+  const beat = now && typeof now.heartbeat_age_s === "number"
+    ? now.heartbeat_age_s : null;
+  const alive = beat !== null && beat < 300;
   const live = document.getElementById("live");
-  live.classList.toggle("stale", stale);
-  document.getElementById("live-word").textContent = stale ? "PULSE STALE" : "LIVE";
+  live.classList.toggle("stale", !alive);
+  document.getElementById("live-word").textContent =
+    now === null ? "NO LOCAL CORE" : (alive ? "LIVE" : "CORE SILENT");
   document.getElementById("meta-line").textContent =
-    `pulse ${ago(pulse.generated_at) || pulse.generated_at} · registry rev ${pulse.fleet_revision} · ${pulse.source}`;
+    (now ? `her ${ago(now.generated_at) || "just now"} · ` : "") +
+    `fleet ${ago(pulse.generated_at) || "never"}${fleetStale ? " (stale)" : ""}` +
+    ` · registry rev ${pulse.fleet_revision ?? "?"}`;
+}
+
+/* One hero line and the short lists that matter, above the fleet map. */
+function presenceHTML(now) {
+  const host = document.getElementById("presence");
+  if (!now) { host.innerHTML = ""; host.classList.remove("show"); return; }
+  host.classList.add("show");
+  const waiting = now.waiting_on_you || [];
+  const chip = (label, cls) => `<span class="chip ${cls}">${esc(label)}</span>`;
+  const parts = [];
+  parts.push(`<div class="headline ${waiting.length ? "needs" : ""}">${
+    esc(now.headline || "All quiet")}</div>`);
+  const rows = [];
+  if (waiting.length) {
+    rows.push(`<div class="prow"><b>waiting on you</b>${
+      waiting.map(a => chip(a.label, "needs")).join("")}</div>`);
+  }
+  if (now.next_appointment) {
+    rows.push(`<div class="prow"><b>next</b>${
+      chip(`${now.next_appointment.title} — ${now.next_appointment.when}`, "")}</div>`);
+  }
+  if ((now.meetings || []).length) {
+    rows.push(`<div class="prow"><b>arranging</b>${
+      now.meetings.map(m => chip(`${m.person}: ${m.state.toLowerCase()}`, "")).join("")}</div>`);
+  }
+  if ((now.working || []).length) {
+    rows.push(`<div class="prow"><b>working</b>${
+      now.working.map(w => chip(w.what, "")).join("")}</div>`);
+  }
+  const notices = (now.notifications || []).filter(
+    n => n.priority === "URGENT" || n.priority === "IMPORTANT");
+  if (notices.length) {
+    rows.push(`<div class="prow"><b>unread</b>${
+      notices.map(n => chip(n.title, n.priority === "URGENT" ? "needs" : "")).join("")}</div>`);
+  }
+  /* At most three rows. The band is ordered most-urgent-first, so a busy
+     day shows what needs him and stops — rather than growing until it
+     clips the stage below. The rest is in the Command Center. */
+  const shown = rows.slice(0, 3);
+  if (rows.length > shown.length) {
+    shown.push(`<div class="prow"><b></b><span class="chip">` +
+               `+${rows.length - shown.length} more in the command center</span></div>`);
+  }
+  parts.push(shown.join(""));
+  host.innerHTML = parts.join("");
 }
 
 async function load() {
