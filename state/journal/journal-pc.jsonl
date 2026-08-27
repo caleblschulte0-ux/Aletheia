@@ -76,3 +76,4 @@
 {"ts": "2026-08-27T04:38:46Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
 {"ts": "2026-08-27T04:38:52Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
 {"ts": "2026-08-27T04:38:52Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-27T12:34:57Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "pull failing: fetch failed: "}
