@@ -2,24 +2,24 @@
 
 Aletheia already has a private notification center. This module answers a
 different question: *when is a notice eligible to interrupt the operator?*
-It does not send push notifications, execute tasks, or widen authority.
+It never sends a notification, executes a task, or widens authority.
 
 Zero-intrusion defaults:
-- quiet hours are disabled until the operator configures them;
-- no priority bypasses quiet hours by default;
-- no escalation rule exists by default.
+- quiet hours disabled;
+- no bypass priorities;
+- no escalation rules.
 
-Every notification gets a separate private attention record. That keeps the
-notification itself an immutable-ish fact while delivery policy can evolve.
-Future push providers should consume only ``ready()`` records and call
-``mark_delivered`` with provider evidence. The local UI may still show every
-notification regardless of attention state.
+Each notification gets a separate private attention record. Future delivery
+providers must consume ``ready()`` and call ``mark_delivered`` with evidence.
+``mark_delivered`` re-evaluates current acknowledgement + quiet-hours policy at
+the moment of delivery evidence, closing stale-READY races.
 """
 from __future__ import annotations
 
 import argparse
 import datetime as dt
 import json
+import re
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -29,9 +29,9 @@ from aletheia.stateio import private_dir, read_json, safe_id, utcnow, write_json
 BASE_DIR = private_dir("attention")
 POLICY_PATH = BASE_DIR / "policy.json"
 DELIVERY_DIR = BASE_DIR / "delivery"
-
 DELIVERY_STATES = {"READY", "DEFERRED", "DELIVERED", "CANCELLED"}
 _PRIORITY_ORDER = {"INFO": 0, "NORMAL": 1, "IMPORTANT": 2, "URGENT": 3}
+_CLOCK = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 
 
 def _parse_iso(value: str) -> dt.datetime:
@@ -45,13 +45,9 @@ def _parse_iso(value: str) -> dt.datetime:
 
 
 def _parse_clock(value: str, name: str) -> dt.time:
-    try:
-        parsed = dt.time.fromisoformat(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"{name} must be HH:MM") from exc
-    if parsed.tzinfo is not None:
-        raise ValueError(f"{name} must not contain a timezone")
-    return parsed.replace(second=0, microsecond=0)
+    if not isinstance(value, str) or not _CLOCK.fullmatch(value):
+        raise ValueError(f"{name} must be HH:MM")
+    return dt.time.fromisoformat(value)
 
 
 def _timezone(value: str) -> ZoneInfo:
@@ -62,18 +58,15 @@ def _timezone(value: str) -> ZoneInfo:
 
 
 def default_policy() -> dict:
-    return {
-        "version": 1,
-        "quiet_hours": {"enabled": False},
-        "bypass_priorities": [],
-        "escalations": [],
-    }
+    return {"version": 1, "quiet_hours": {"enabled": False},
+            "bypass_priorities": [], "escalations": []}
 
 
 def validate_policy(value: dict) -> dict:
     if not isinstance(value, dict) or value.get("version") != 1:
         raise ValueError("attention policy must be version 1")
-    unknown = set(value) - {"version", "quiet_hours", "bypass_priorities", "escalations", "updated_at"}
+    unknown = set(value) - {"version", "quiet_hours", "bypass_priorities",
+                            "escalations", "updated_at"}
     if unknown:
         raise ValueError(f"unsupported attention policy fields: {sorted(unknown)}")
     quiet = value.get("quiet_hours")
@@ -87,7 +80,7 @@ def validate_policy(value: dict) -> dict:
         timezone = quiet.get("timezone")
         if not isinstance(timezone, str) or not timezone.strip():
             raise ValueError("enabled quiet hours require timezone")
-        _timezone(timezone)
+        _timezone(timezone.strip())
         start = _parse_clock(quiet.get("start"), "quiet_hours.start")
         end = _parse_clock(quiet.get("end"), "quiet_hours.end")
         if start == end:
@@ -95,15 +88,17 @@ def validate_policy(value: dict) -> dict:
         clean_quiet.update({"timezone": timezone.strip(),
                             "start": start.strftime("%H:%M"),
                             "end": end.strftime("%H:%M")})
+
     bypass = value.get("bypass_priorities", [])
     if not isinstance(bypass, list) or any(p not in notifications.PRIORITIES for p in bypass):
         raise ValueError("bypass_priorities must contain notification priorities")
     if len(set(bypass)) != len(bypass):
         raise ValueError("bypass_priorities must be unique")
+
     escalations = value.get("escalations", [])
     if not isinstance(escalations, list) or len(escalations) > 4:
         raise ValueError("escalations must contain at most four rules")
-    clean_rules = []
+    clean_rules: list[dict] = []
     seen_from: set[str] = set()
     for rule in escalations:
         if not isinstance(rule, dict) or set(rule) != {"from", "to", "after_minutes"}:
@@ -119,16 +114,19 @@ def validate_policy(value: dict) -> dict:
             raise ValueError(f"duplicate escalation source {source}")
         seen_from.add(source)
         clean_rules.append({"from": source, "to": target, "after_minutes": after})
-    # A chain must become *harder* to reach as severity rises; otherwise a
-    # NORMAL notice could jump multiple levels earlier than intended.
     by_from = {r["from"]: r for r in clean_rules}
     for rule in clean_rules:
         next_rule = by_from.get(rule["to"])
         if next_rule and next_rule["after_minutes"] <= rule["after_minutes"]:
             raise ValueError("escalation thresholds must increase along a chain")
-    clean = {"version": 1, "quiet_hours": clean_quiet,
-             "bypass_priorities": sorted(bypass, key=lambda p: _PRIORITY_ORDER[p]),
-             "escalations": sorted(clean_rules, key=lambda r: (_PRIORITY_ORDER[r["from"]], r["after_minutes"]))}
+
+    clean = {
+        "version": 1,
+        "quiet_hours": clean_quiet,
+        "bypass_priorities": sorted(bypass, key=lambda p: _PRIORITY_ORDER[p]),
+        "escalations": sorted(clean_rules,
+                              key=lambda r: (_PRIORITY_ORDER[r["from"]], r["after_minutes"])),
+    }
     if value.get("updated_at"):
         _parse_iso(value["updated_at"])
         clean["updated_at"] = value["updated_at"]
@@ -136,9 +134,7 @@ def validate_policy(value: dict) -> dict:
 
 
 def load_policy() -> dict:
-    if not POLICY_PATH.exists():
-        return default_policy()
-    return validate_policy(read_json(POLICY_PATH))
+    return default_policy() if not POLICY_PATH.exists() else validate_policy(read_json(POLICY_PATH))
 
 
 def save_policy(value: dict) -> dict:
@@ -170,11 +166,8 @@ def _quiet_window(now: dt.datetime, policy_value: dict) -> tuple[bool, dt.dateti
     end_t = _parse_clock(quiet["end"], "quiet_hours.end")
     today_start = dt.datetime.combine(local.date(), start_t, tzinfo=tz)
     today_end = dt.datetime.combine(local.date(), end_t, tzinfo=tz)
-    if start_t < end_t:  # same-day window, e.g. 13:00 -> 15:00
-        if today_start <= local < today_end:
-            return True, today_end
-        return False, None
-    # Cross-midnight, e.g. 22:00 -> 07:00.
+    if start_t < end_t:
+        return ((True, today_end) if today_start <= local < today_end else (False, None))
     if local >= today_start:
         return True, dt.datetime.combine(local.date() + dt.timedelta(days=1), end_t, tzinfo=tz)
     if local < today_end:
@@ -206,8 +199,9 @@ def classify_notice(notice: dict, *, now: dt.datetime | None = None,
     now = now or dt.datetime.now(dt.timezone.utc)
     if now.tzinfo is None or now.utcoffset() is None:
         raise ValueError("now must be timezone-aware")
-    policy_value = validate_policy(policy_value or load_policy())
-    effective, escalations = effective_priority(notice["priority"], notice["created_at"], now, policy_value)
+    policy_value = validate_policy(policy_value if policy_value is not None else load_policy())
+    effective, escalations = effective_priority(notice["priority"], notice["created_at"],
+                                                now, policy_value)
     quiet, quiet_end = _quiet_window(now, policy_value)
     bypass = effective in set(policy_value["bypass_priorities"])
     state = "DEFERRED" if quiet and not bypass else "READY"
@@ -241,23 +235,21 @@ def reconcile_notice(notice: dict, *, now: dt.datetime | None = None,
     existing = _load_delivery(notice["id"]) if path.exists() else None
     if existing and existing["state"] == "DELIVERED":
         return existing
+    stamp = now.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     if notice["state"] == "ACKNOWLEDGED":
-        value = existing or {"version": 1, "notice_id": notice["id"],
-                             "created_at": now.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
+        value = existing or {"version": 1, "notice_id": notice["id"], "created_at": stamp}
         value.update({"state": "CANCELLED", "cancelled_reason": "notification acknowledged",
-                      "updated_at": now.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")})
+                      "updated_at": stamp})
         write_json_atomic(path, value)
         return value
     classification = classify_notice(notice, now=now, policy_value=policy_value)
-    value = existing or {"version": 1, "notice_id": notice["id"],
-                         "created_at": now.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
+    value = existing or {"version": 1, "notice_id": notice["id"], "created_at": stamp}
     value.update({"state": classification["state"],
                   "original_priority": notice["priority"],
                   "effective_priority": classification["effective_priority"],
                   "quiet_hours_active": classification["quiet_hours_active"],
                   "quiet_bypassed": classification["quiet_bypassed"],
-                  "escalations": classification["escalations"],
-                  "updated_at": now.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")})
+                  "escalations": classification["escalations"], "updated_at": stamp})
     if "deliver_after" in classification:
         value["deliver_after"] = classification["deliver_after"]
     else:
@@ -266,11 +258,12 @@ def reconcile_notice(notice: dict, *, now: dt.datetime | None = None,
     return value
 
 
-def reconcile(*, now: dt.datetime | None = None, policy_value: dict | None = None) -> list[dict]:
+def reconcile(*, now: dt.datetime | None = None,
+              policy_value: dict | None = None) -> list[dict]:
     now = now or dt.datetime.now(dt.timezone.utc)
     if now.tzinfo is None or now.utcoffset() is None:
         raise ValueError("now must be timezone-aware")
-    policy_value = validate_policy(policy_value or load_policy())
+    policy_value = validate_policy(policy_value if policy_value is not None else load_policy())
     return [reconcile_notice(n, now=now, policy_value=policy_value)
             for n in notifications.all_notifications(limit=500)]
 
@@ -288,7 +281,9 @@ def all_delivery_records(*, state: str | None = None) -> list[dict]:
             continue
         if state is None or value["state"] == state:
             out.append(value)
-    return sorted(out, key=lambda v: (v.get("effective_priority", ""), v.get("updated_at", "")), reverse=True)
+    return sorted(out,
+                  key=lambda v: (_PRIORITY_ORDER.get(v.get("effective_priority", "INFO"), -1),
+                                 v.get("updated_at", "")), reverse=True)
 
 
 def ready(*, now: dt.datetime | None = None) -> list[dict]:
@@ -298,7 +293,12 @@ def ready(*, now: dt.datetime | None = None) -> list[dict]:
 
 def mark_delivered(notice_id: str, *, provider: str, evidence: str,
                    now: dt.datetime | None = None) -> dict:
-    """Record observed external/local delivery; never sends it itself."""
+    """Record observed delivery; revalidate attention state first.
+
+    A provider may have fetched a READY record before the operator acknowledged
+    the notice or before quiet hours began. Reconciliation here prevents a stale
+    eligibility decision from being recorded as a legitimate delivery.
+    """
     provider = provider.strip() if isinstance(provider, str) else ""
     evidence = evidence.strip() if isinstance(evidence, str) else ""
     if not provider or len(provider) > 128:
@@ -308,14 +308,17 @@ def mark_delivered(notice_id: str, *, provider: str, evidence: str,
     now = now or dt.datetime.now(dt.timezone.utc)
     if now.tzinfo is None or now.utcoffset() is None:
         raise ValueError("now must be timezone-aware")
-    value = _load_delivery(notice_id)
-    if value["state"] == "DELIVERED":
-        return value
+    prior = _load_delivery(notice_id)
+    if prior["state"] == "DELIVERED":
+        return prior
+    # Critical race closure: use the current notification state and current
+    # policy, not the state the delivery provider saw earlier.
+    value = reconcile_notice(notifications.load(notice_id), now=now)
     if value["state"] != "READY":
-        raise ValueError("only READY attention records may be marked delivered")
+        raise ValueError("notification is not currently READY for delivery")
+    stamp = now.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     value.update({"state": "DELIVERED", "provider": provider, "evidence": evidence,
-                  "delivered_at": now.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                  "updated_at": now.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")})
+                  "delivered_at": stamp, "updated_at": stamp})
     write_json_atomic(_delivery_path(notice_id), value)
     return value
 
@@ -329,8 +332,8 @@ def status(*, now: dt.datetime | None = None) -> dict:
     policy_value = load_policy()
     quiet, quiet_end = _quiet_window(now, policy_value)
     return {"policy": policy_value, "quiet_hours_active": quiet,
-            "quiet_hours_end": quiet_end.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") if quiet_end else None,
-            "counts": counts}
+            "quiet_hours_end": (quiet_end.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                                if quiet_end else None), "counts": counts}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -354,10 +357,11 @@ def main(argv: list[str] | None = None) -> int:
         escalation_rules = json.loads(args.escalations)
     except json.JSONDecodeError as exc:
         raise SystemExit(f"invalid --escalations JSON: {exc}")
-    value = configure(quiet_enabled=args.quiet, timezone=args.tz,
-                      quiet_start=args.start, quiet_end=args.end,
-                      bypass_priorities=[x.strip().upper() for x in args.bypass.split(",") if x.strip()],
-                      escalations=escalation_rules)
+    value = configure(
+        quiet_enabled=args.quiet, timezone=args.tz,
+        quiet_start=args.start, quiet_end=args.end,
+        bypass_priorities=[x.strip().upper() for x in args.bypass.split(",") if x.strip()],
+        escalations=escalation_rules)
     print(json.dumps(value, indent=2))
     return 0
 
