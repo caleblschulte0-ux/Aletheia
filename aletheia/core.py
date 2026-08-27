@@ -71,6 +71,7 @@ from aletheia import current_state, events, notifications, runtime, scheduler
 from aletheia.fleet import REPO_ROOT, load_fleet
 from aletheia.pulse import PULSE_DIR
 from aletheia.sync import GitSync
+import time
 
 INTERFACE_DIR = REPO_ROOT / "interface"
 ACTOR = "operator-local-core"
@@ -139,12 +140,43 @@ def run_command(payload: dict, fleet: dict) -> dict:
 
 # a pulled commit touching these means the RUNNING process is now stale
 CODE_PATHS = ["aletheia", "interface", "config", "requirements-optional.txt"]
+# When this process loaded its code. Anything under CODE_PATHS newer than
+# this is code the running process is not executing.
+PROCESS_STARTED_AT = time.time()
 RESTART_EXIT_CODE = 42  # tells the supervisor: relaunch me, this is not a crash
 
 # Kinds that reach a reasoning provider and therefore take tens of seconds.
 # The room gets an acknowledgement now and the real sentence when it lands
 # (aletheia.followups) rather than an open microphone and silence.
 SLOW_KINDS = {"intent", "screen_ask"}
+
+
+def stale_code_files(started_at: float | None = None,
+                     limit: int = 5) -> list[str]:
+    """Files under CODE_PATHS modified after this process loaded its code.
+
+    Cheap: a handful of directories once a minute. Bounded: it reports the
+    first few names, because the answer only has to be "yes, and here is an
+    example" for the restart to be right.
+    """
+    started_at = PROCESS_STARTED_AT if started_at is None else started_at
+    found: list[str] = []
+    for entry in CODE_PATHS:
+        target = REPO_ROOT / entry
+        try:
+            candidates = ([target] if target.is_file()
+                          else sorted(target.rglob("*.py")) + sorted(target.rglob("*.json"))
+                          + sorted(target.rglob("*.html")) + sorted(target.rglob("*.js")))
+            for path in candidates:
+                if "__pycache__" in path.parts:
+                    continue
+                if path.stat().st_mtime > started_at:
+                    found.append(str(path.relative_to(REPO_ROOT)))
+                    if len(found) >= limit:
+                        return found
+        except OSError:
+            continue  # an unreadable path is not a reason to restart
+    return found
 
 
 def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
@@ -191,6 +223,20 @@ def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
                                f"{after[:10]}) — restarting to run it", actor=ACTOR)
                 on_code_update(changed)
                 return status  # restarting; skip command processing this tick
+    # A pull is not the only way code changes. When the operator (or a
+    # session working in this clone) commits locally, HEAD moved before the
+    # Core ever looked, so `after == before` and the restart never fires —
+    # the process keeps running code that is no longer on disk. Found live
+    # 2026-08-27: a new command kind was on disk and unknown to the Core for
+    # half an hour. Ask the FILES, not just git.
+    stale = stale_code_files()
+    if stale and on_code_update is not None:
+        journal.append("event", "core:sync",
+                       f"code on disk is newer than this process "
+                       f"({len(stale)} file(s), e.g. {stale[0]}) — restarting to run it",
+                       actor=ACTOR)
+        on_code_update(stale)
+        return status
     results = []
     try:
         results = intercom.run_pending(fleet, commands_dir=None, side="local")
