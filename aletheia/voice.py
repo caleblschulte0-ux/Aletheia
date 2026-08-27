@@ -225,16 +225,23 @@ def interpret(transcript: str) -> dict:
         return {"command": {"kind": "browse_shot", "url": _spoken_url(m.group(1))},
                 "say": None}
 
-    m = re.match(r"(?:approve|approved|yes to)(?:\s+(?:that|it|the pending one))?$", low)
+    m = re.match(r"(?:approve|approved|yes to)\s*"
+                 r"(?:that|it|the pending one|the (?P<ord>first|second|third|last)"
+                 r"(?: one)?|(?P<what>.+?))?$", low)
     if m:
         pending = [a for a in policy.all_approvals() if a["state"] == "PENDING"]
-        if len(pending) == 1:
-            return {"command": {"kind": "approve", "id": pending[0]["id"]}, "say": None}
         if not pending:
             return {"command": None, "say": "Nothing is waiting for approval."}
-        return {"command": None,
-                "say": f"{len(pending)} approvals are pending — I won't guess "
-                       "which one. Use the Command Center to pick."}
+        if len(pending) == 1:
+            return {"command": {"kind": "approve", "id": pending[0]["id"]}, "say": None}
+        chosen = _pick_approval(pending, m.group("ord"), m.group("what"))
+        if chosen is not None:
+            return {"command": {"kind": "approve", "id": chosen["id"]}, "say": None}
+        # More than one is now the ORDINARY case — an intent, a mail draft
+        # and a meeting can all be waiting at once. Refusing to guess is
+        # right; sending him to a browser is not. Read them out so he can
+        # say which, in the same breath.
+        return {"command": None, "say": _offer_choice(pending)}
     m = re.match(r"(?:deny|denied|no to)(?:\s+(?:that|it|the pending one))?$", low)
     if m:
         pending = [a for a in policy.all_approvals() if a["state"] == "PENDING"]
@@ -272,8 +279,69 @@ def interpret(transcript: str) -> dict:
     return {"command": {"kind": "intent", "text": text}, "say": None}
 
 
+ORDINALS = {"first": 0, "second": 1, "third": 2, "last": -1}
+
+
+def approval_label(approval: dict) -> str:
+    """What this approval is, in words he would recognise."""
+    from aletheia import speech
+    action = str(approval.get("requested_action", ""))
+    capability = str(approval.get("capability", ""))
+    if capability == "email.send" or action.startswith("email.send"):
+        reason = str(approval.get("reason", ""))
+        who = re.search(r"\bto ([A-Za-z][^.]*?)\s*(?:$|\.)", reason)
+        return f"the email{' to ' + who.group(1) if who else ''}"
+    if capability == "calendar.write" or action.startswith("calendar.write"):
+        return "the calendar booking"
+    if capability == "intent.execute":
+        return "the plan"
+    if capability == "errand.run":
+        return speech.tidy(speech.strip_ids(action)) or "the errand"
+    if capability == "agent.delegate" or action.startswith("delegate"):
+        return "the work order"
+    return speech.tidy(speech.strip_ids(action))[:60] or "the pending one"
+
+
+def _pick_approval(pending: list[dict], ordinal: str | None,
+                   phrase: str | None) -> dict | None:
+    """Resolve 'the first' / 'the email one' to exactly one approval, or None.
+
+    Ambiguity returns None so the caller asks again. Never a best guess:
+    approving the wrong thing is the one mistake an approval exists to stop.
+    """
+    if ordinal:
+        try:
+            return pending[ORDINALS[ordinal]]
+        except (KeyError, IndexError):
+            return None
+    words = (phrase or "").strip()
+    if not words:
+        return None
+    words = re.sub(r"^(the|that)\s+", "", words)
+    words = re.sub(r"\s+one$", "", words).strip()
+    if not words:
+        return None
+    matches = [a for a in pending if words in approval_label(a).lower()]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _offer_choice(pending: list[dict]) -> str:
+    from aletheia import speech
+    labels = [approval_label(a) for a in pending[:4]]
+    more = "" if len(pending) <= 4 else f", and {len(pending) - 4} more"
+    return (f"{speech.count_phrase(len(pending), 'thing')} waiting: "
+            + speech.and_list(labels) + more
+            + ". Which one — say approve the first, or name it.")
+
+
 def spoken_reply(kind: str, outcome: str, detail: str) -> str:
-    """Turn a run_command result into one speakable sentence."""
+    """Turn a run_command result into one speakable sentence.
+
+    The receipts these come from are written for a log, not a room. See
+    aletheia/speech.py for why a hex id read aloud is the worst version of
+    §145 — he cannot hold it in his head, and the sentence after it asks
+    him to say it back.
+    """
     if outcome == "halted":
         return "I'm halted — only resume works."
     if outcome in ("refused", "invalid"):
@@ -287,4 +355,5 @@ def spoken_reply(kind: str, outcome: str, detail: str) -> str:
     if kind == "browse_read":
         # detail is "read <url> — <title> :: <excerpt>" — speak title + excerpt
         return detail.split("read ", 1)[-1].replace(" :: ", ". ", 1)
-    return detail
+    from aletheia import speech
+    return speech.spoken_receipt(kind, detail)

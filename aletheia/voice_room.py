@@ -31,6 +31,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
+from aletheia import announce
 from aletheia.voice import WAKE_WORDS
 from aletheia.proc import run as proc_run
 
@@ -212,6 +213,16 @@ def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
     handled = 0
     awaiting_command = False
     for wake_heard, text in recognizer:
+        # Before deciding whether this utterance was for her, say anything
+        # SHE has been waiting to say. Bounded hard in aletheia/announce.py:
+        # only urgent/important, a few an hour, never twice, never in quiet
+        # hours. Until now every speaker() call was inside answer-a-question,
+        # so a booked meeting or an errand stopped at a bank's verification
+        # step sat silent until he thought to ask.
+        try:
+            announce.speak_pending(speaker)
+        except Exception:
+            pass  # a mouth that fails must not end the ears
         if on_heard:
             on_heard((wake_heard, text))
         if awaiting_command:
@@ -306,7 +317,7 @@ def main(argv: list[str] | None = None) -> int:
         return check()
     if check() != 0:
         return 1
-    from aletheia import journal
+    from aletheia import announce, journal
     journal.use_pc_journal()
     journal.append("event", "voice:room", "room voice listening (local wake word)",
                    actor="aletheia-voice")
