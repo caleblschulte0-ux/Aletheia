@@ -174,3 +174,7 @@
 {"ts": "2026-08-27T20:49:56Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
 {"ts": "2026-08-27T20:49:57Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
 {"ts": "2026-08-27T20:49:57Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-27T20:52:23Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "code on disk is newer than this process (5 file(s), e.g. aletheia\\announce.py) — restarting to run it"}
+{"ts": "2026-08-27T20:52:23Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
+{"ts": "2026-08-27T20:52:24Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
+{"ts": "2026-08-27T20:52:24Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
