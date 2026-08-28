@@ -406,3 +406,7 @@
 {"ts": "2026-08-28T00:54:49Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — There are 4 pending approvals (intent-2f295f270f, intent-6b009a3ad5, intent-7a91ee5aec, intent-e138bc9a1f) — which one(s) are you saying yes to?"}
 {"ts": "2026-08-28T00:57:01Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Your message is unclear — could you rephrase what you'd like done?"}
 {"ts": "2026-08-28T00:57:01Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message is unclear — could you rephrase what you'd like done?"}
+{"ts": "2026-08-28T00:58:48Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Your message came through garbled - could you rephrase what you'd like me to do?"}
+{"ts": "2026-08-28T00:58:48Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message came through garbled - could you rephrase what you'd like me to do?"}
+{"ts": "2026-08-28T00:59:22Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Your message isn't clear to me — can you rephrase what you'd like done?"}
+{"ts": "2026-08-28T00:59:22Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message isn't clear to me — can you rephrase what you'd like done?"}
