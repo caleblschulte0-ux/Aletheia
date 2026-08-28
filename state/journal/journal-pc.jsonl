@@ -482,3 +482,5 @@
 {"ts": "2026-08-28T08:27:33Z", "kind": "event", "actor": "aletheia", "subject": "approval:intent-c09f25b200", "text": "requested — run 1 step(s): note"}
 {"ts": "2026-08-28T08:27:33Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-c09f25b200: 1 executable, 0 blocked — Report current operational status"}
 {"ts": "2026-08-28T08:27:33Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — 1 step ready — note. Say approve to run it (intent-c09f25b200)."}
+{"ts": "2026-08-28T10:19:09Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — What would you like me to do — did you mean to ask about the 7 pending approvals or the 2 items waiting on you?"}
+{"ts": "2026-08-28T10:19:09Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — What would you like me to do — did you mean to ask about the 7 pending approvals or the 2 items waiting on you?"}
