@@ -509,3 +509,7 @@
 {"ts": "2026-08-28T15:25:57Z", "kind": "action", "actor": "operator-local-core", "subject": "core:projects", "text": "done — No active projects."}
 {"ts": "2026-08-28T15:25:57Z", "kind": "action", "actor": "operator-local-core", "subject": "core:car", "text": "done — No vehicle is being tracked yet."}
 {"ts": "2026-08-28T15:25:57Z", "kind": "action", "actor": "operator-local-core", "subject": "core:recall", "text": "done — I don't have anything remembered about 'caleb'."}
+{"ts": "2026-08-28T15:46:45Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "code on disk is newer than this process (3 file(s), e.g. aletheia\\intents.py) — restarting to run it"}
+{"ts": "2026-08-28T15:46:46Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
+{"ts": "2026-08-28T15:46:46Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
+{"ts": "2026-08-28T15:46:46Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
