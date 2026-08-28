@@ -28,7 +28,7 @@ import hashlib
 import json
 import sys
 
-from aletheia import journal, planner, policy, stateio
+from aletheia import intercom, journal, planner, policy, stateio
 from aletheia.fleet import load_fleet
 
 ACTOR = "aletheia-intent"
@@ -75,6 +75,24 @@ def all_intents(state: str | None = None) -> list[dict]:
     return out
 
 
+def read_only(plan: planner.Plan) -> bool:
+    """Does this plan only look at things?
+
+    Found in real use: the room mic hears a half-sentence, the planner
+    turns it into "report current operational status", and that files a
+    durable intent AND an operator_always approval. Eight of them
+    accumulated in a day — "acknowledge operator's remark; no action
+    required" sitting in his queue waiting to be authorised.
+
+    A plan that only reads is answered on the spot. Approvals are for
+    things that change the world; spending his attention on anything else
+    is what teaches him to stop reading the queue.
+    """
+    steps = plan.executable
+    return bool(steps) and all(
+        s.command["kind"] in intercom.READ_ONLY_KINDS for s in steps)
+
+
 def propose(request: str, quote: str = "", fleet: dict | None = None,
             materialize: bool = True, **compile_kw) -> dict:
     """Compile a sentence into a plan, persist it, and ask for it.
@@ -113,9 +131,26 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
         "gap_tasks": gap_tasks,
         "proposed_at": stateio.utcnow(),
     }
+    if read_only(plan):
+        # Answer it rather than file it. Nothing here changes anything, so
+        # there is no receipt worth keeping and nothing to approve.
+        receipts = planner.execute(plan, fleet=fleet, quote=quote or request)
+        record["state"] = EXECUTED
+        record["receipts"] = receipts
+        record["read_only"] = True
+        journal.append("action", "intent",
+                       f"answered on the spot (read-only): {plan.summary[:120]}",
+                       actor=ACTOR)
+        return record
+    if not plan.executable and plan.intent in ("answer", "clarify"):
+        # Chatter, or a question she simply answered. Filing a durable
+        # record for "acknowledge operator's remark" is clutter, not memory.
+        record["state"] = RETIRED
+        record["read_only"] = True
+        return record
     stateio.write_json_atomic(_record_path(intent_id), record)
 
-    if plan.executable:
+    if plan.executable and not read_only(plan):
         policy.request(
             approval_id,
             requested_action=f"run {len(plan.executable)} step(s): "

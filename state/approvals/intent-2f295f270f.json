@@ -1,0 +1,12 @@
+{
+  "id": "intent-2f295f270f",
+  "requested_action": "run 1 step(s): approve",
+  "reason": "operator said: \"spoken to the wall: thea yeah\"",
+  "consequence": "Approve the pending intent awaiting operator confirmation",
+  "reversible": false,
+  "state": "DENIED",
+  "requested_at": "2026-08-27T22:54:12Z",
+  "capability": "intent.execute",
+  "decided_at": "2026-08-28T15:17:42Z",
+  "decided_via": "claude-session"
+}

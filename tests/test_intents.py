@@ -49,8 +49,13 @@ class IntentCase(unittest.TestCase):
                                registry=REGISTRY)
 
     def one_step_plan(self):
-        return {"intent": "plan", "summary": "note it",
-                "steps": [{"kind": "note", "text": "hello"}]}
+        # A WORLD-TOUCHING step on purpose. These tests are about the
+        # approve/execute machinery, and a read-only plan is now answered on
+        # the spot without an approval — which is correct, and would make
+        # every assertion below vacuous.
+        return {"intent": "plan", "summary": "queue it",
+                "steps": [{"kind": "task_new", "id": "water-plants",
+                           "description": "water the plants"}]}
 
     # ---- proposing -------------------------------------------------
 
@@ -58,14 +63,14 @@ class IntentCase(unittest.TestCase):
         seen = []
         record = self.propose(self.one_step_plan())
         self.assertEqual(record["state"], intents.PROPOSED)
-        self.assertEqual(intents.load(record["id"])["summary"], "note it")
+        self.assertEqual(intents.load(record["id"])["summary"], "queue it")
         self.assertEqual(policy.load(record["approval"])["state"], "PENDING")
         self.assertEqual(seen, [])
 
     def test_the_approval_names_what_would_actually_run(self):
         record = self.propose(self.one_step_plan())
         approval = policy.load(record["approval"])
-        self.assertIn("note", approval["requested_action"])
+        self.assertIn("task_new", approval["requested_action"])
         self.assertIn("do the thing", approval["reason"])
 
     def test_a_plan_with_nothing_executable_asks_for_no_approval(self):
@@ -74,6 +79,39 @@ class IntentCase(unittest.TestCase):
         with self.assertRaises(Exception):
             policy.load(record["approval"])
         self.assertIn("purchase.execute", intents.spoken(record))
+
+    # ---- chatter must not become a queue ----------------------------
+
+    def test_a_read_only_plan_is_answered_not_filed(self):
+        # Found in real use: the room mic hears a half-sentence, the planner
+        # turns it into "report current operational status", and that filed a
+        # durable intent AND an operator_always approval. Eight accumulated
+        # in a day.
+        seen = []
+        record = intents.propose(
+            "what is going on", quote="what is going on", fleet=FLEET,
+            materialize=False, registry=REGISTRY,
+            provider=provider({"intent": "plan", "summary": "report status",
+                               "steps": [{"kind": "notify_check"}]}))
+        self.assertEqual(record["state"], intents.EXECUTED)
+        self.assertTrue(record["read_only"])
+        with self.assertRaises(Exception):
+            policy.load(record["approval"])
+        self.assertEqual(intents.all_intents(), [],
+                         "a read-only answer was filed as durable work")
+
+    def test_chatter_with_nothing_to_do_is_not_filed_at_all(self):
+        record = self.propose({"intent": "answer", "summary": "Acknowledged."})
+        self.assertEqual(record["state"], intents.RETIRED)
+        self.assertEqual(intents.all_intents(), [])
+
+    def test_a_world_touching_plan_still_files_and_still_asks(self):
+        record = self.propose({
+            "intent": "plan", "summary": "email dana",
+            "steps": [{"kind": "notify_check"},
+                      {"kind": "email_draft", "to": "dana", "body": "hi"}]})
+        self.assertEqual(record["state"], intents.PROPOSED)
+        self.assertEqual(policy.load(record["approval"])["state"], "PENDING")
 
     def test_the_same_plan_twice_is_one_intent_not_two(self):
         first = self.propose(self.one_step_plan())
@@ -90,7 +128,7 @@ class IntentCase(unittest.TestCase):
         policy.decide(record["approval"], "APPROVED", via="test")
         results = intents.run_approved(
             FLEET, executor=lambda cmd, fleet, quote="": seen.append(cmd["kind"]) or "done")
-        self.assertEqual(seen, ["note"])
+        self.assertEqual(seen, ["task_new"])
         self.assertEqual(results[0]["outcome"], intents.EXECUTED)
 
     def test_an_executed_intent_does_not_run_again(self):
@@ -100,7 +138,7 @@ class IntentCase(unittest.TestCase):
         run = lambda cmd, fleet, quote="": seen.append(cmd["kind"]) or "done"
         intents.run_approved(FLEET, executor=run)
         intents.run_approved(FLEET, executor=run)
-        self.assertEqual(seen, ["note"])  # once, not twice
+        self.assertEqual(seen, ["task_new"])  # once, not twice
 
     def test_a_denied_intent_is_retired_and_never_runs(self):
         seen = []
@@ -118,7 +156,7 @@ class IntentCase(unittest.TestCase):
         policy.decide(record["approval"], "APPROVED", via="test")
         # something rewrites the stored plan between approval and execution
         tampered = intents.load(record["id"])
-        tampered["steps"][0]["command"]["text"] = "something else entirely"
+        tampered["steps"][0]["command"]["description"] = "something else entirely"
         from aletheia import stateio
         stateio.write_json_atomic(intents._record_path(record["id"]), tampered)
         results = intents.run_approved(

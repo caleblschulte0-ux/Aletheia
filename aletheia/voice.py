@@ -190,6 +190,57 @@ def interpret(transcript: str) -> dict:
         return {"command": {"kind": "contact_add", "name": m.group(1).strip(),
                             "email": m.group(2).strip()}, "say": None}
 
+    # ---- verbs she already had, now sayable ----------------------------
+    # These front capabilities that were AVAILABLE, tested and registered
+    # and simply unreachable from the room. Placed before the browse verbs
+    # so "what am I paying for" is not parsed as a website.
+    m = re.match(r"(?:set up|arrange|schedule|book) (?:a )?(?:meeting|time|call) "
+                 r"with ([a-z' -]+?)(?: (?:next week|this week|about .+))?$", low)
+    if m:
+        return {"command": {"kind": "meet", "person": m.group(1).strip()},
+                "say": None}
+
+    m = re.match(r"(?:what do you know about|what have you got on|"
+                 r"remind me about|tell me about) (.+)", low)
+    if m:
+        return {"command": {"kind": "recall", "about": m.group(1).strip()},
+                "say": None}
+
+    if re.fullmatch(r"(?:the |my )?(?:morning )?brief(?:ing)?|"
+                    r"catch me up|what did i miss", low):
+        return {"command": {"kind": "brief"}, "say": None}
+
+    m = re.match(r"handle (?:it|this|that)[,: ]*(.*)$", low)
+    if m and m.group(1).strip():
+        return {"command": {"kind": "handle", "text": m.group(1).strip()},
+                "say": None}
+
+    m = re.match(r"how long (?:does it take |to get )?(?:to )?(?:get to )?(.+)", low)
+    if m:
+        return {"command": {"kind": "travel_time", "place": m.group(1).strip()},
+                "say": None}
+
+    m = re.match(r"(?:add )?(.+?) to (?:the |my )?(?:shopping |grocery )?list$", low)
+    if m:
+        return {"command": {"kind": "shopping_add", "item": m.group(1).strip()},
+                "say": None}
+
+    if re.fullmatch(r"(?:what am i paying for|my subscriptions?|"
+                    r"what subscriptions do i have)", low):
+        return {"command": {"kind": "subscriptions"}, "say": None}
+
+    if re.fullmatch(r"(?:how much money do i have|what'?s my balance|"
+                    r"my net worth|how am i doing financially)", low):
+        return {"command": {"kind": "money"}, "say": None}
+
+    if re.fullmatch(r"(?:when is the car due|car service|"
+                    r"does the car need anything|check the car)", low):
+        return {"command": {"kind": "car"}, "say": None}
+
+    if re.fullmatch(r"(?:my projects?|what projects are (?:open|active)|"
+                    r"what am i working on)", low):
+        return {"command": {"kind": "projects"}, "say": None}
+
     # Screen questions run BEFORE the browse verbs for the same reason the
     # email ones do: "read this" is about what is in front of him, not a
     # website he forgot to name.
