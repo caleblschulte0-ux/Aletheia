@@ -390,3 +390,5 @@
 {"ts": "2026-08-28T00:47:30Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message seems garbled (possibly a voice-to-text error) - could you rephrase what you'd like me to do regarding your dad?"}
 {"ts": "2026-08-28T00:48:09Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Your message is unclear (looks like a transcription error) - could you rephrase what you'd like me to do?"}
 {"ts": "2026-08-28T00:48:09Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message is unclear (looks like a transcription error) - could you rephrase what you'd like me to do?"}
+{"ts": "2026-08-28T00:48:59Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — No actionable request detected"}
+{"ts": "2026-08-28T00:48:59Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Nothing to do."}
