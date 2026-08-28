@@ -297,7 +297,7 @@
       "github": "Money_Machine",
       "role": "unbuilt",
       "status": "stub",
-      "summary": "Empty stub \u2014 nothing but a README. No behaviour to observe yet.",
+      "summary": "Empty stub — nothing but a README. No behaviour to observe yet.",
       "commits": [
         {
           "sha": "53c6507f6afe",
@@ -319,7 +319,7 @@
       "github": "etsy_maker",
       "role": "unbuilt",
       "status": "stub",
-      "summary": "Empty stub \u2014 nothing but a README. No behaviour to observe yet.",
+      "summary": "Empty stub — nothing but a README. No behaviour to observe yet.",
       "error": "HTTPError: HTTP Error 404: Not Found",
       "health": "dormant"
     },
@@ -327,7 +327,7 @@
       "github": "fosstester",
       "role": "unbuilt",
       "status": "stub",
-      "summary": "Empty stub \u2014 nothing but a README. No behaviour to observe yet.",
+      "summary": "Empty stub — nothing but a README. No behaviour to observe yet.",
       "commits": [
         {
           "sha": "41ea84afb060",
@@ -393,7 +393,7 @@
       {
         "id": "light-up-the-wall-s2",
         "status": "QUEUED",
-        "description": "Add FLEET_TOKEN secret (fine-grained PAT: contents+actions read on all six repos) \u2014 turns NO TELEMETRY into live green/red"
+        "description": "Add FLEET_TOKEN secret (fine-grained PAT: contents+actions read on all six repos) — turns NO TELEMETRY into live green/red"
       },
       {
         "id": "light-up-the-wall-s3",
@@ -424,5 +424,17 @@
         "worker": "claude"
       }
     ]
+  },
+  "now": {
+    "generated_at": "2026-08-28T15:51:14Z",
+    "halted": false,
+    "heartbeat_age_s": 0.0,
+    "waiting_on_you": [],
+    "waiting_count": 0,
+    "notifications": [],
+    "meetings": [],
+    "working": [],
+    "next_appointment": null,
+    "headline": "All quiet"
   }
 }

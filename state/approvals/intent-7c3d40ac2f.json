@@ -1,0 +1,12 @@
+{
+  "id": "intent-7c3d40ac2f",
+  "requested_action": "run 2 step(s): remind_at, task_new",
+  "reason": "operator said: \"routine after grant\"",
+  "consequence": "routine after grant",
+  "reversible": true,
+  "state": "APPROVED",
+  "requested_at": "2026-08-28T15:51:48Z",
+  "capability": "intent.execute.routine",
+  "decided_at": "2026-08-28T15:51:48Z",
+  "decided_via": "grant:standing-routine-2026-08-28"
+}

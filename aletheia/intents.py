@@ -151,13 +151,22 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
     stateio.write_json_atomic(_record_path(intent_id), record)
 
     if plan.executable and not read_only(plan):
-        policy.request(
+        kinds = [s.command["kind"] for s in plan.executable]
+        tier = intercom.plan_tier(kinds)
+        record["tier"] = tier
+        # Routine plans ask against a capability a standing grant MAY cover,
+        # so "remind me at five and add a task" can stop needing a decision
+        # once he has said yes to that class of thing. Anything world-
+        # touching keeps intent.execute — operator_always, ungrantable.
+        capability = ("intent.execute.routine" if tier == intercom.TIER_ROUTINE
+                      else "intent.execute")
+        approval = policy.request(
             approval_id,
-            requested_action=f"run {len(plan.executable)} step(s): "
-                             + ", ".join(s.command["kind"] for s in plan.executable),
+            requested_action=f"run {len(plan.executable)} step(s): " + ", ".join(kinds),
             reason=f'operator said: "{(quote or request)[:200]}"',
             consequence=plan.summary or "see the plan",
-            reversible=False, capability="intent.execute")
+            reversible=tier == intercom.TIER_ROUTINE, capability=capability)
+        record["approval_state"] = approval.get("state")
     journal.append("plan", "intent",
                    f"{intent_id}: {len(plan.executable)} executable, "
                    f"{len(plan.blocked)} blocked — {plan.summary or request[:120]}",

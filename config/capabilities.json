@@ -1,5 +1,5 @@
 {
-  "revision": 32,
+  "revision": 33,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1031,6 +1031,18 @@
       "caller": "aletheia.voice_room.listen_forever speaks pending lines before handling an utterance; python -m aletheia.announce pending",
       "module": "aletheia.announce",
       "notes": "Every speaker() call used to sit inside answer-a-question, so a booked meeting or an errand stopped at a bank's verification step waited silently until he thought to ask. Only URGENT and IMPORTANT notices are ever spoken, at most a few an hour, never the same one twice, never while halted, and never in quiet hours - a machine that wakes someone at 3am to report a red CI job has done more harm than the red job. It can only re-say what is already in the notification store, so anything spoken is findable afterwards (§30)."
+    },
+    {
+      "id": "intent.execute.routine",
+      "description": "Run an approved plan whose every step is local, reversible and reaches nobody - the tier a standing grant may cover",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "aletheia.intents.propose routes here when intercom.plan_tier() says the plan is routine; aletheia.runtime.tick executes it",
+      "module": "aletheia.intents",
+      "notes": "Risk used to be a property of the MACHINERY: intent.execute is high-risk and operator_always, so a plan that only set a reminder was gated exactly like one that emails his landlord. Being asked twelve times a day is its own kind of not-Jarvis, and an approval queue full of trivia is one he stops reading. Risk is now a property of the PLAN. A plan is classified by its most demanding step and one world-touching step makes the whole plan world-touching, so this tier can never carry a send, a purchase, a publish or a booking - those keep intent.execute, which is operator_always and which authority.allows refuses to grant by construction (§56 L4). The classification fails closed: an unclassified kind is world-touching.",
+      "verification": "tests/test_standing_authority.py: a single email_draft step drags a whole routine plan back to operator_always even with a live grant; a forged grant naming intent.execute is refused"
     }
   ]
 }

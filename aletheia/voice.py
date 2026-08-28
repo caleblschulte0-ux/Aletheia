@@ -190,6 +190,23 @@ def interpret(transcript: str) -> dict:
         return {"command": {"kind": "contact_add", "name": m.group(1).strip(),
                             "email": m.group(2).strip()}, "say": None}
 
+    # "what can you do without asking me?" — a read, so it answers.
+    if re.fullmatch(r"(?:what can you do without asking(?: me)?|"
+                    r"what are you allowed to do|"
+                    r"do you need my permission for (?:everything|anything))", low):
+        return {"command": {"kind": "authority_status"}, "say": None}
+
+    # Granting authority is NOT taken by voice. The room microphone is
+    # unauthenticated — a television, a guest, or a passing sentence could
+    # widen what she may do without asking. §70: ability is not permission,
+    # and permission is not something to pick up off the air.
+    if (re.search(r"(?:grant|give you|revoke|take away|remove)[a-z ]*authority", low)
+            or re.fullmatch(r"stop asking (?:me )?(?:about )?"
+                            r"(?:the small stuff|everything|so much)", low)):
+        return {"command": None,
+                "say": ("I won't take that one by voice — anything in the room "
+                        "could say it. Run: python -m aletheia.standing on")}
+
     # ---- verbs she already had, now sayable ----------------------------
     # These front capabilities that were AVAILABLE, tested and registered
     # and simply unreachable from the room. Placed before the browse verbs
