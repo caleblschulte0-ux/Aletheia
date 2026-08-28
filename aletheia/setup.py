@@ -170,28 +170,37 @@ def steps() -> list[Step]:
         Step("email.read", "Email", 0,
              "She can already read headers and send with your approval.",
              ["Nothing to do — this is already configured."], _mail),
-        Step("calendar.read", "Calendar", 10,
+        Step("calendar.read", "Calendar", 2,
              "Without it she cannot answer 'am I free', propose meeting times, "
              "or finish a meeting negotiation.",
-             ["python -m aletheia.calendar_auth google      (or: microsoft)",
-              "A browser opens; consent with the account whose calendar you want.",
-              "Add --enable-writes only if you want her to BOOK, not just read."],
+             ["In Google Calendar: Settings -> your calendar -> "
+              "'Secret address in iCal format' -> copy.",
+              "python -m aletheia.apply calendar \"<paste the URL>\"",
+              "",
+              "That is read-only and takes two minutes. Only if you want her to "
+              "BOOK as well:",
+              "python -m aletheia.calendar_auth google --enable-writes",
+              "  (needs a Google Cloud OAuth client — twenty minutes of "
+              "unrelated setup, so do it later or never)"],
              _calendar),
-        Step("room.scene", "The room", 10,
-             "Lights, scenes and media. The adapter is built and tested; it has "
-             "no token.",
-             ["In Home Assistant: Profile -> Long-lived access tokens -> Create.",
-              "setx ALETHEIA_HASS_URL http://homeassistant.local:8123",
-              "setx ALETHEIA_HASS_TOKEN <the token>",
-              "Restart the Core, then: python -m aletheia.hass observe"],
-             _room),
-        Step("access.remote", "Your phone reaching her", 15,
+        Step("room.scene", "The room", 5,
+             "Lights, scenes and media — IF you run Home Assistant. Nothing on "
+             "this network answers on port 8123, so this may not apply to you "
+             "at all.",
+             ["Only if you already run Home Assistant:",
+              "  Profile -> Long-lived access tokens -> Create.",
+              "  python -m aletheia.apply room http://<hub>:8123 <token>",
+              "",
+              "If you do not run one, this is not a five-minute task — it is "
+              "installing a home automation platform. Skip it until you want one."],
+             _room, optional=True),
+        Step("access.remote", "Your phone reaching her", 10,
              "The phone surface has existed since Phase 21 and no phone could "
              "load it.",
-             ["tailscale cert <your-machine>.<tailnet>.ts.net",
-              "   (also solves getting home without opening a router port)",
-              "python -m aletheia.access mint \"iPhone\"        (start with read)",
-              "Start the Core with --host / --tls-cert / --tls-key"],
+             ["winget install Tailscale.Tailscale     (not installed yet)",
+              "Sign in, then: tailscale cert <this-machine>.<tailnet>.ts.net",
+              "python -m aletheia.apply phone-access   (mints the token and "
+              "prints the rest with your values filled in)"],
              _remote),
         Step("phone.call", "The first phone call", 5,
              "Every mechanism is verified; no call has been placed, and placing "
