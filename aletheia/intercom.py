@@ -110,6 +110,9 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # aletheia/standing.py — GRANTING authority is not something she takes
     # from an unauthenticated room microphone.
     "authority_status": (set(), set()),
+    # "what do you still need from me?" — read-only; it checks, it configures
+    # nothing. Every credential remains the operator's to create.
+    "setup_status":     (set(), set()),
 }
 
 # Kinds that need the operator's PC (a real browser, later the desktop).
@@ -126,7 +129,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_draft",
                "intent", "screen_ask",
                # every private-state verb below lives on the PC
                "meet", "recall", "handle", "travel_time", "shopping_add",
-               "subscriptions", "money", "car", "projects", "authority_status"}
+               "subscriptions", "money", "car", "projects", "authority_status", "setup_status"}
 
 
 # Kinds that only LOOK. Nothing here changes the world, sends anything, or
@@ -136,7 +139,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_draft",
 READ_ONLY_KINDS = frozenset({
     "note", "notify_check", "free_time", "brief", "subscriptions", "money",
     "projects", "car", "recall", "travel_time", "browse_read", "browse_shot",
-    "email_check", "screen_ask", "authority_status",
+    "email_check", "screen_ask", "authority_status", "setup_status",
 })
 
 
@@ -472,6 +475,9 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return f"{len(rows)} active: " + ", ".join(
             f"{p.get('title', p['id'])} ({str(p.get('status','')).lower()})"
             for p in rows[:5])
+    if kind == "setup_status":
+        from aletheia import setup as _setup
+        return _setup.spoken()
     if kind == "authority_status":
         from aletheia import standing
         return standing.spoken()

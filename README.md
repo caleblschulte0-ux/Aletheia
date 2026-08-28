@@ -110,6 +110,17 @@ python -m unittest discover -s tests -t .   # the whole suite, stdlib only
 
 ## Setup that needs the operator
 
+**One command tells you where you stand:**
+
+```bash
+python -m aletheia.setup      # or just ask her: "Thea, what do you still need from me?"
+```
+
+Every item is checked live — a real IMAP login, a real request to the hub,
+a real token round-trip — so nothing claims to be configured on faith. It
+also names how long each one takes, so "your side" is a known quantity
+rather than an open question.
+
 What is left is credentials and live round-trips, not architecture — see
 `docs/ROADMAP.md` for the five, each of which flips a registry entry on
 real evidence. Home Assistant needs a token before she can touch the
