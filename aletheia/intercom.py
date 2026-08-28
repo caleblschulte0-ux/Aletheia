@@ -106,6 +106,10 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "money":           (set(), set()),
     "car":             (set(), {"vehicle"}),
     "projects":        (set(), set()),
+    # Reading what she may do without asking. Deliberately read-only: see
+    # aletheia/standing.py — GRANTING authority is not something she takes
+    # from an unauthenticated room microphone.
+    "authority_status": (set(), set()),
 }
 
 # Kinds that need the operator's PC (a real browser, later the desktop).
@@ -122,7 +126,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_draft",
                "intent", "screen_ask",
                # every private-state verb below lives on the PC
                "meet", "recall", "handle", "travel_time", "shopping_add",
-               "subscriptions", "money", "car", "projects"}
+               "subscriptions", "money", "car", "projects", "authority_status"}
 
 
 # Kinds that only LOOK. Nothing here changes the world, sends anything, or
@@ -132,8 +136,50 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_draft",
 READ_ONLY_KINDS = frozenset({
     "note", "notify_check", "free_time", "brief", "subscriptions", "money",
     "projects", "car", "recall", "travel_time", "browse_read", "browse_shot",
-    "email_check", "screen_ask",
+    "email_check", "screen_ask", "authority_status",
 })
+
+
+# Local, reversible, private, and reaching nobody but him. A routine step
+# writes to his own machine and can be undone by saying the opposite.
+# Nothing here spends, sends, publishes, or binds him to anything.
+ROUTINE_KINDS = frozenset({
+    "task_new", "task_status", "plan_new", "plan_add_step", "plan_step",
+    "plan_set", "remind_at", "remind_daily", "notify_operator",
+    "notify_clear", "remember", "contact_add", "shopping_add",
+    "watch_email_from", "handle",
+})
+
+# Everything else is WORLD-TOUCHING and is never granted away: dispatch and
+# issue reach other repositories, email_draft and meet reach another person,
+# browse_shot writes a file, halt/resume/approve/deny are the controls
+# themselves. The classification FAILS CLOSED — a kind added tomorrow and
+# forgotten here is treated as world-touching, which is the safe mistake.
+TIER_READ, TIER_ROUTINE, TIER_WORLD = "read", "routine", "world"
+
+
+def tier(kind: str) -> str:
+    """How much authority one command really needs."""
+    if kind in READ_ONLY_KINDS:
+        return TIER_READ
+    if kind in ROUTINE_KINDS:
+        return TIER_ROUTINE
+    return TIER_WORLD
+
+
+def plan_tier(kinds) -> str:
+    """The tier of a whole plan: its most demanding step, always.
+
+    One world-touching step makes the entire plan world-touching. A plan is
+    not a menu he approves parts of; it runs as a sequence, so it is
+    authorised as a whole at the level of its riskiest member.
+    """
+    tiers = {tier(k) for k in kinds}
+    if TIER_WORLD in tiers:
+        return TIER_WORLD
+    if TIER_ROUTINE in tiers:
+        return TIER_ROUTINE
+    return TIER_READ
 
 
 def validate_kind_args(cmd, fleet: dict) -> list[str]:
@@ -426,6 +472,9 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return f"{len(rows)} active: " + ", ".join(
             f"{p.get('title', p['id'])} ({str(p.get('status','')).lower()})"
             for p in rows[:5])
+    if kind == "authority_status":
+        from aletheia import standing
+        return standing.spoken()
     if kind == "notify_clear":
         from aletheia import notifications
         unread = notifications.all_notifications(state="UNREAD")

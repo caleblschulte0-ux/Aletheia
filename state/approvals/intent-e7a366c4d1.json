@@ -1,0 +1,12 @@
+{
+  "id": "intent-e7a366c4d1",
+  "requested_action": "run 2 step(s): remind_at, task_new",
+  "reason": "operator said: \"demo\"",
+  "consequence": "reminder + task",
+  "reversible": true,
+  "state": "DENIED",
+  "requested_at": "2026-08-28T15:51:37Z",
+  "capability": "intent.execute.routine",
+  "decided_at": "2026-08-28T15:52:13Z",
+  "decided_via": "claude-session"
+}
