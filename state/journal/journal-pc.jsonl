@@ -356,3 +356,5 @@
 {"ts": "2026-08-28T00:18:34Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Message appears cut off ('so pretty sure it'll car') - what did you want to say?"}
 {"ts": "2026-08-28T00:20:45Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Your message came through garbled - could you restate what you'd like me to do?"}
 {"ts": "2026-08-28T00:20:45Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message came through garbled - could you restate what you'd like me to do?"}
+{"ts": "2026-08-28T00:22:02Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — What Harry Potter fact are you referring to (e.g., which film/book you claim was your first, so I can guess or record it)?"}
+{"ts": "2026-08-28T00:22:02Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — What Harry Potter fact are you referring to (e.g., which film/book you claim was your first, so I can guess or record it)?"}
