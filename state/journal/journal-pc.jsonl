@@ -587,3 +587,6 @@
 {"ts": "2026-08-28T18:57:34Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
 {"ts": "2026-08-28T18:57:35Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
 {"ts": "2026-08-28T18:57:35Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-28T18:59:40Z", "kind": "plan", "actor": "aletheia-planner", "subject": "planner", "text": "executed 1/1 step(s) of 'List monthly subscription costs'"}
+{"ts": "2026-08-28T18:59:40Z", "kind": "action", "actor": "aletheia-intent", "subject": "intent", "text": "answered on the spot (read-only): List monthly subscription costs"}
+{"ts": "2026-08-28T18:59:40Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — No subscriptions are being tracked."}
