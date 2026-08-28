@@ -354,3 +354,5 @@
 {"ts": "2026-08-28T00:18:10Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Could you rephrase what you'd like done? The request 'get up his is mine' isn't clear to me."}
 {"ts": "2026-08-28T00:18:34Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Message appears cut off ('so pretty sure it'll car') - what did you want to say?"}
 {"ts": "2026-08-28T00:18:34Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Message appears cut off ('so pretty sure it'll car') - what did you want to say?"}
+{"ts": "2026-08-28T00:20:45Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Your message came through garbled - could you restate what you'd like me to do?"}
+{"ts": "2026-08-28T00:20:45Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message came through garbled - could you restate what you'd like me to do?"}
