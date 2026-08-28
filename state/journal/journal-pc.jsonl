@@ -546,3 +546,4 @@
 {"ts": "2026-08-28T16:17:26Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
 {"ts": "2026-08-28T16:17:26Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
 {"ts": "2026-08-28T16:17:26Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-28T16:19:29Z", "kind": "action", "actor": "operator-local-core", "subject": "core:setup_status", "text": "done — 2 of 9 done. I still need calendar, the room, your phone reaching her and the first phone call — about 40 minutes of your time."}
