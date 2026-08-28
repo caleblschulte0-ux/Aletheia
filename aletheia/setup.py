@@ -227,8 +227,25 @@ def steps() -> list[Step]:
     ]
 
 
-def audit() -> dict:
+# Verifying is deliberately expensive — real logins, real requests — and the
+# answer changes about as often as he creates a credential. A short cache
+# keeps a second question instant without ever serving a stale "done".
+_CACHE: dict = {"at": 0.0, "report": None}
+CACHE_SECONDS = 60.0
+
+
+def audit(*, fresh: bool = False) -> dict:
     """Every step, checked live. Never claims a thing works without proof."""
+    import time as _time
+    if not fresh and _CACHE["report"] is not None:
+        if _time.monotonic() - _CACHE["at"] < CACHE_SECONDS:
+            return _CACHE["report"]
+    report = _audit_now()
+    _CACHE.update({"at": _time.monotonic(), "report": report})
+    return report
+
+
+def _audit_now() -> dict:
     checked = []
     for step in steps():
         try:

@@ -148,7 +148,10 @@ RESTART_EXIT_CODE = 42  # tells the supervisor: relaunch me, this is not a crash
 # Kinds that reach a reasoning provider and therefore take tens of seconds.
 # The room gets an acknowledgement now and the real sentence when it lands
 # (aletheia.followups) rather than an open microphone and silence.
-SLOW_KINDS = {"intent", "screen_ask"}
+# setup_status makes real network attempts on purpose — an IMAP login, a
+# request to the hub, a PowerShell probe — so it belongs here too. Measured
+# live: 20.9s. The room gets an acknowledgement and the answer when it lands.
+SLOW_KINDS = {"intent", "screen_ask", "setup_status"}
 
 
 def stale_code_files(started_at: float | None = None,
