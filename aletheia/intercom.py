@@ -89,6 +89,23 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # Reading the screen (Phase §86). LOCAL: the accessibility tree only
     # exists on the PC, and the observation is redacted before it travels.
     "screen_ask":      ({"question"}, {"window"}),
+    # ---- verbs she already had and you could not ask for -----------------
+    # 72 capabilities were AVAILABLE and 29 were reachable by voice. Every
+    # kind below fronts a capability that was already built, tested and
+    # registered, with a real CLI caller — and was unreachable from the one
+    # channel he actually uses. Adding a kind here widens the PLANNER too:
+    # its prompt is generated from KIND_ARGS, so an arbitrary sentence can
+    # now be compiled into any of these as well (§152 — composition).
+    "meet":            ({"person"}, {"from_day", "to_day", "minutes", "purpose"}),
+    "recall":          ({"about"}, {"domain"}),
+    "brief":           (set(), set()),
+    "handle":          ({"text"}, set()),
+    "travel_time":     ({"place"}, set()),
+    "shopping_add":    ({"item"}, {"budget"}),
+    "subscriptions":   (set(), set()),
+    "money":           (set(), set()),
+    "car":             (set(), {"vehicle"}),
+    "projects":        (set(), set()),
 }
 
 # Kinds that need the operator's PC (a real browser, later the desktop).
@@ -102,7 +119,21 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_draft",
                "remind_at", "remind_daily", "watch_email_from", "notify_check",
                "notify_clear", "free_time", "contact_add", "notify_operator",
-               "intent", "screen_ask"}  # both need the PC itself
+               "intent", "screen_ask",
+               # every private-state verb below lives on the PC
+               "meet", "recall", "handle", "travel_time", "shopping_add",
+               "subscriptions", "money", "car", "projects"}
+
+
+# Kinds that only LOOK. Nothing here changes the world, sends anything, or
+# commits the operator to something, so a plan made only of these needs no
+# approval — asking him to authorise "tell me the time" is how an approval
+# queue becomes noise he stops reading.
+READ_ONLY_KINDS = frozenset({
+    "note", "notify_check", "free_time", "brief", "subscriptions", "money",
+    "projects", "car", "recall", "travel_time", "browse_read", "browse_shot",
+    "email_check", "screen_ask",
+})
 
 
 def validate_kind_args(cmd, fleet: dict) -> list[str]:
@@ -283,6 +314,118 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         from aletheia import intents
         record = intents.propose(cmd["text"], quote=quote, fleet=fleet)
         return intents.spoken(record)
+    if kind == "meet":
+        from aletheia import scheduling
+        import datetime as _dt, re as _re
+        start = cmd.get("from_day") or _dt.date.today().isoformat()
+        end = cmd.get("to_day") or (_dt.date.today() + _dt.timedelta(days=7)).isoformat()
+        slug = _re.sub(r"[^a-z0-9]+", "-", cmd["person"].lower()).strip("-")[:30]
+        record = scheduling.start(
+            f"meet-{slug}-{_dt.date.today().isoformat()}"[:60], cmd["person"],
+            start_day=start, end_day=end, timezone="America/Chicago",
+            duration_minutes=int(cmd.get("minutes", 30)),
+            purpose=cmd.get("purpose", ""))
+        return scheduling.spoken(record)
+    if kind == "recall":
+        from aletheia import memory
+        about = cmd["about"]
+        found = []
+        domains = [cmd["domain"]] if cmd.get("domain") else sorted(memory.DOMAINS)
+        for domain in domains:
+            try:
+                value = memory.recall(domain, about)
+            except Exception:
+                value = None
+            if value is not None:
+                found.append(f"{domain}: {value}")
+        if not found:
+            return f"I don't have anything remembered about {about!r}."
+        return "; ".join(found[:4])
+    if kind == "brief":
+        from aletheia import brief, journal as _j, pulse as _p
+        import json as _json
+        latest = _p.PULSE_DIR / "latest.json"
+        current = _json.loads(latest.read_text(encoding="utf-8")) if latest.exists() else {}
+        return brief.compose(current, brief.previous_pulse(current),
+                             _j.since(24), 0)
+    if kind == "handle":
+        from aletheia import handler
+        import uuid as _uuid
+        request = handler.create(f"handle-{_uuid.uuid4().hex[:8]}", intent=cmd["text"])
+        return (f"I'm on it: {request['intent'][:80]}. "
+                f"State is {request['state'].lower().replace('_', ' ')}.")
+    if kind == "travel_time":
+        from aletheia import places
+        destination = places.resolve(cmd["place"])
+        try:
+            home = places.resolve("home")
+        except Exception:
+            return (f"I know {destination['name']}, but I have no place called "
+                    "'home' to measure from — add one first.")
+        try:
+            observed = places.travel_time(home["id"], destination["id"])
+        except (ValueError, OSError):
+            # §104: never invent a duration. An unobserved trip is unknown.
+            return (f"I know {destination['name']} but have never observed a "
+                    "journey to it, so any number would be a guess.")
+        return (f"{destination['name']}: {observed.get('minutes', '?')} minutes "
+                f"observed {observed.get('observed_at', 'previously')}.")
+    if kind == "shopping_add":
+        from aletheia import shopping
+        import re as _re, uuid as _uuid
+        slug = _re.sub(r"[^a-z0-9]+", "-", cmd["item"].lower()).strip("-")[:30]
+        budget = float(cmd["budget"]) if cmd.get("budget") else None
+        workflow = shopping.create(f"shop-{slug}-{_uuid.uuid4().hex[:4]}"[:60],
+                                   need=cmd["item"], budget=budget)
+        return f"Added to the shopping list: {workflow['need']}."
+    if kind == "subscriptions":
+        from aletheia import subscriptions
+        rows = subscriptions.all_subscriptions(active_only=True)
+        if not rows:
+            return "No subscriptions are being tracked."
+        monthly = [subscriptions.monthly_equivalent(r) for r in rows]
+        total = sum(m for m in monthly if m)
+        names = ", ".join(str(r.get("merchant", "?")) for r in rows[:5])
+        return (f"{len(rows)} active: {names}."
+                + (f" About {total:.2f} a month." if total else ""))
+    if kind == "money":
+        from aletheia import finance
+        worth = finance.net_worth()
+        pending = finance.handoffs()
+        said = (f"Assets {worth['assets']:.2f}, liabilities {worth['liabilities']:.2f}, "
+                f"net {worth['net']:.2f} across {worth['accounts']} account(s).")
+        if pending:
+            said += f" {len(pending)} payment(s) waiting for you to authorize."
+        return said
+    if kind == "car":
+        from aletheia import vehicles
+        rows = vehicles.all_vehicles()
+        if cmd.get("vehicle"):
+            wanted = cmd["vehicle"].lower()
+            rows = [r for r in rows
+                    if wanted in str(r.get("name", "")).lower() or wanted == r.get("id")]
+        if not rows:
+            return "No vehicle is being tracked yet."
+        parts = []
+        for row in rows[:3]:
+            overdue = vehicles.due(row["id"])
+            name = row.get("name") or row["id"]
+            if overdue:
+                what = ", ".join(str(d.get("description", "service"))[:40]
+                                 for d in overdue[:3])
+                parts.append(f"{name}: {what}")
+            else:
+                parts.append(f"{name}: nothing due")
+        return "; ".join(parts)
+    if kind == "projects":
+        from aletheia import projects
+        rows = [p for p in projects.all_projects()
+                if str(p.get("status", "")).upper() not in ("DONE", "CANCELLED")]
+        if not rows:
+            return "No active projects."
+        return f"{len(rows)} active: " + ", ".join(
+            f"{p.get('title', p['id'])} ({str(p.get('status','')).lower()})"
+            for p in rows[:5])
     if kind == "notify_clear":
         from aletheia import notifications
         unread = notifications.all_notifications(state="UNREAD")

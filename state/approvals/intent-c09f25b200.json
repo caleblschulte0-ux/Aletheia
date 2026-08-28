@@ -1,0 +1,12 @@
+{
+  "id": "intent-c09f25b200",
+  "requested_action": "run 1 step(s): note",
+  "reason": "operator said: \"spoken to the wall: thea how are you\"",
+  "consequence": "Report current operational status",
+  "reversible": false,
+  "state": "DENIED",
+  "requested_at": "2026-08-28T08:27:33Z",
+  "capability": "intent.execute",
+  "decided_at": "2026-08-28T15:17:42Z",
+  "decided_via": "claude-session"
+}

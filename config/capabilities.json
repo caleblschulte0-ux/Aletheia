@@ -1,5 +1,5 @@
 {
-  "revision": 31,
+  "revision": 32,
   "providers": [
     {
       "id": "aletheia.local",
@@ -105,8 +105,9 @@
       "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "none",
-      "caller": "brief.yml (daily) and CLI",
-      "module": "aletheia.brief"
+      "caller": "intercom kind 'brief' (voice, Command Center, planner); brief.yml (daily) and CLI",
+      "module": "aletheia.brief",
+      "notes": "Reachable by voice and by the planner as of 2026-08-28: 72 capabilities were AVAILABLE and only 29 could be asked for out loud. Adding a command kind widens the planner too, because its prompt is generated from KIND_ARGS - so an arbitrary sentence can compile into this as well."
     },
     {
       "id": "sentinel.alert",
@@ -340,7 +341,8 @@
       "status": "AVAILABLE",
       "risk_class": "read",
       "approval_policy": "none",
-      "caller": "CLI; ChatGPT reads memory/ raw for reference resolution"
+      "caller": "intercom kind 'recall' (voice, Command Center, planner); CLI; ChatGPT reads memory/ raw for reference resolution",
+      "notes": "Reachable by voice and by the planner as of 2026-08-28: 72 capabilities were AVAILABLE and only 29 could be asked for out loud. Adding a command kind widens the planner too, because its prompt is generated from KIND_ARGS - so an arbitrary sentence can compile into this as well."
     },
     {
       "id": "core.serve",
@@ -540,8 +542,9 @@
       "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "none",
-      "caller": "python -m aletheia.assistant project new/update/list; current_state.snapshot reads them",
-      "module": "aletheia.projects"
+      "caller": "intercom kind 'projects' (voice, Command Center, planner); python -m aletheia.assistant project new/update/list; current_state.snapshot reads them",
+      "module": "aletheia.projects",
+      "notes": "Reachable by voice and by the planner as of 2026-08-28: 72 capabilities were AVAILABLE and only 29 could be asked for out loud. Adding a command kind widens the planner too, because its prompt is generated from KIND_ARGS - so an arbitrary sentence can compile into this as well."
     },
     {
       "id": "context.resolve",
@@ -601,9 +604,9 @@
       "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "none",
-      "caller": "python -m aletheia.assistant handle new/refresh/done/cancel",
+      "caller": "intercom kind 'handle' (voice, Command Center, planner); python -m aletheia.assistant handle new/refresh/done/cancel",
       "module": "aletheia.handler",
-      "notes": "v2 (2026-08-26): bounded state machine — candidate paths with capability-based selection, WAITING_EXTERNAL, recovery-scheduled retries, AWAITING_VERIFICATION, evidence-gated completion; runtime reconciles/resumes each Core beat. A fallback can change HOW a goal is attempted, never what is permitted."
+      "notes": "v2 (2026-08-26): bounded state machine — candidate paths with capability-based selection, WAITING_EXTERNAL, recovery-scheduled retries, AWAITING_VERIFICATION, evidence-gated completion; runtime reconciles/resumes each Core beat. A fallback can change HOW a goal is attempted, never what is permitted. Reachable by voice and by the planner as of 2026-08-28: 72 capabilities were AVAILABLE and only 29 could be asked for out loud. Adding a command kind widens the planner too, because its prompt is generated from KIND_ARGS - so an arbitrary sentence can compile into this as well."
     },
     {
       "id": "proactive.evaluate",
@@ -664,8 +667,9 @@
       "status": "AVAILABLE",
       "risk_class": "read",
       "approval_policy": "none",
-      "caller": "python -m aletheia.assistant place new/resolve/travel",
-      "module": "aletheia.places"
+      "caller": "intercom kind 'travel_time' (voice, Command Center, planner); python -m aletheia.assistant place new/resolve/travel",
+      "module": "aletheia.places",
+      "notes": "Reachable by voice and by the planner as of 2026-08-28: 72 capabilities were AVAILABLE and only 29 could be asked for out loud. Adding a command kind widens the planner too, because its prompt is generated from KIND_ARGS - so an arbitrary sentence can compile into this as well."
     },
     {
       "id": "document.intelligence",
@@ -684,8 +688,9 @@
       "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "none",
-      "caller": "python -m aletheia.assistant shop new/candidate/select/propose",
-      "module": "aletheia.shopping"
+      "caller": "intercom kind 'shopping_add' (voice, Command Center, planner); python -m aletheia.assistant shop new/candidate/select/propose",
+      "module": "aletheia.shopping",
+      "notes": "Reachable by voice and by the planner as of 2026-08-28: 72 capabilities were AVAILABLE and only 29 could be asked for out loud. Adding a command kind widens the planner too, because its prompt is generated from KIND_ARGS - so an arbitrary sentence can compile into this as well."
     },
     {
       "id": "purchase.execute",
@@ -706,8 +711,9 @@
       "status": "AVAILABLE",
       "risk_class": "read",
       "approval_policy": "none",
-      "caller": "python -m aletheia.assistant subs new/list/cancel-request",
-      "module": "aletheia.subscriptions"
+      "caller": "intercom kind 'subscriptions' (voice, Command Center, planner); python -m aletheia.assistant subs new/list/cancel-request",
+      "module": "aletheia.subscriptions",
+      "notes": "Reachable by voice and by the planner as of 2026-08-28: 72 capabilities were AVAILABLE and only 29 could be asked for out loud. Adding a command kind widens the planner too, because its prompt is generated from KIND_ARGS - so an arbitrary sentence can compile into this as well."
     },
     {
       "id": "subscription.cancel",
@@ -727,8 +733,9 @@
       "status": "AVAILABLE",
       "risk_class": "read",
       "approval_policy": "none",
-      "caller": "python -m aletheia.assistant finance account/accounts/net",
-      "module": "aletheia.finance"
+      "caller": "intercom kind 'money' (voice, Command Center, planner); python -m aletheia.assistant finance account/accounts/net",
+      "module": "aletheia.finance",
+      "notes": "Reachable by voice and by the planner as of 2026-08-28: 72 capabilities were AVAILABLE and only 29 could be asked for out loud. Adding a command kind widens the planner too, because its prompt is generated from KIND_ARGS - so an arbitrary sentence can compile into this as well."
     },
     {
       "id": "finance.transact",
@@ -747,8 +754,9 @@
       "status": "AVAILABLE",
       "risk_class": "read",
       "approval_policy": "none",
-      "caller": "python -m aletheia.assistant vehicle new/odometer/rule/due",
-      "module": "aletheia.vehicles"
+      "caller": "intercom kind 'car' (voice, Command Center, planner); python -m aletheia.assistant vehicle new/odometer/rule/due",
+      "module": "aletheia.vehicles",
+      "notes": "Reachable by voice and by the planner as of 2026-08-28: 72 capabilities were AVAILABLE and only 29 could be asked for out loud. Adding a command kind widens the planner too, because its prompt is generated from KIND_ARGS - so an arbitrary sentence can compile into this as well."
     },
     {
       "id": "travel.plan",
@@ -963,9 +971,9 @@
       "status": "AVAILABLE",
       "risk_class": "medium",
       "approval_policy": "operator_always",
-      "caller": "python -m aletheia.scheduling new|reply|list|abandon; aletheia.runtime.tick each Core beat (_reconcile_scheduling, and _scheduling_reply routes correlated mail.reply events)",
+      "caller": "intercom kind 'meet' (voice, Command Center, planner); python -m aletheia.scheduling new|reply|list|abandon; aletheia.runtime.tick each Core beat (_reconcile_scheduling, and _scheduling_reply routes correlated mail.reply events)",
       "module": "aletheia.scheduling",
-      "notes": "Phase 15, the playbook's first big orchestration test. Every part existed and none were joined: contacts resolved a person, calendar found slots, mail drafted and gated, the bus waited for a reply, and meetings.propose did the first two and stopped. This is the state machine that survives Tuesday (§27) - OFFERING, SENT, INTERPRETING, BOOKING, BOOKED, NEEDS_OPERATOR, ABANDONED - reconciled each beat so it keeps its place across restarts and a human who answers when they feel like it. It SEQUENCES approvals and never substitutes for one: sending is email.send (operator_always), booking is calendar.write (operator_always, hash-bound to the exact event). A reply is interpreted by a tool-less provider against the exact slots offered, and anything below 0.75 confidence - or a counter-proposal, a decline, or an unreadable answer - becomes NEEDS_OPERATOR, because booking the wrong hour of someone else's week is not recoverable.",
+      "notes": "Phase 15, the playbook's first big orchestration test. Every part existed and none were joined: contacts resolved a person, calendar found slots, mail drafted and gated, the bus waited for a reply, and meetings.propose did the first two and stopped. This is the state machine that survives Tuesday (§27) - OFFERING, SENT, INTERPRETING, BOOKING, BOOKED, NEEDS_OPERATOR, ABANDONED - reconciled each beat so it keeps its place across restarts and a human who answers when they feel like it. It SEQUENCES approvals and never substitutes for one: sending is email.send (operator_always), booking is calendar.write (operator_always, hash-bound to the exact event). A reply is interpreted by a tool-less provider against the exact slots offered, and anything below 0.75 confidence - or a counter-proposal, a decline, or an unreadable answer - becomes NEEDS_OPERATOR, because booking the wrong hour of someone else's week is not recoverable. Reachable by voice and by the planner as of 2026-08-28: 72 capabilities were AVAILABLE and only 29 could be asked for out loud. Adding a command kind widens the planner too, because its prompt is generated from KIND_ARGS - so an arbitrary sentence can compile into this as well.",
       "verification": "tests/test_scheduling.py (25): an APPROVED send approval does not count as sent - only the .sent.json delivery marker does; a write that returns no event id is NOT booked; out-of-range or unaccompanied slot indices from the model are refused"
     },
     {

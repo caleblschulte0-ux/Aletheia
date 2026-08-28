@@ -37,6 +37,21 @@ def load(vehicle_id: str) -> dict:
     return read_json(_path(vehicle_id))
 
 
+def all_vehicles() -> list[dict]:
+    """Every vehicle on record. `due()` needs an id and nothing could list
+    them, so "when is the car due?" had no answer even with the data."""
+    root = VEHICLES_DIR if "VEHICLES_DIR" in globals() else private_dir("vehicles")
+    if not root.is_dir():
+        return []
+    out = []
+    for path in sorted(root.glob("*.json")):
+        try:
+            out.append(read_json(path))
+        except ValueError:
+            continue
+    return out
+
+
 def record_odometer(vehicle_id: str, miles: int, *, source: str = "operator") -> dict:
     if type(miles) is not int or miles < 0:
         raise ValueError("odometer must be a non-negative integer")
