@@ -504,3 +504,8 @@
 {"ts": "2026-08-28T15:22:06Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
 {"ts": "2026-08-28T15:22:06Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
 {"ts": "2026-08-28T15:22:06Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-28T15:25:57Z", "kind": "action", "actor": "operator-local-core", "subject": "core:subscriptions", "text": "done — No subscriptions are being tracked."}
+{"ts": "2026-08-28T15:25:57Z", "kind": "action", "actor": "operator-local-core", "subject": "core:money", "text": "done — Assets 0.00, liabilities 0.00, net 0.00 across 0 account(s)."}
+{"ts": "2026-08-28T15:25:57Z", "kind": "action", "actor": "operator-local-core", "subject": "core:projects", "text": "done — No active projects."}
+{"ts": "2026-08-28T15:25:57Z", "kind": "action", "actor": "operator-local-core", "subject": "core:car", "text": "done — No vehicle is being tracked yet."}
+{"ts": "2026-08-28T15:25:57Z", "kind": "action", "actor": "operator-local-core", "subject": "core:recall", "text": "done — I don't have anything remembered about 'caleb'."}
