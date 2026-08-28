@@ -190,6 +190,12 @@ def interpret(transcript: str) -> dict:
         return {"command": {"kind": "contact_add", "name": m.group(1).strip(),
                             "email": m.group(2).strip()}, "say": None}
 
+    # "what do you still need from me?"
+    if re.fullmatch(r"(?:what do you (?:still )?need(?: from me)?|"
+                    r"what'?s left(?: to set up)?|am i done|"
+                    r"what'?s still missing|setup status)", low):
+        return {"command": {"kind": "setup_status"}, "say": None}
+
     # "what can you do without asking me?" — a read, so it answers.
     if re.fullmatch(r"(?:what can you do without asking(?: me)?|"
                     r"what are you allowed to do|"

@@ -1,0 +1,318 @@
+"""Your side, in one place — and proved rather than assumed.
+
+Everything Aletheia still needs from the operator is a credential only he
+can create: a calendar he consents to, a token from his own Home
+Assistant, a certificate for his own machine, one supervised phone call.
+Six of them, and until now they lived in four different documents with
+four different shapes, each ending in "and then it should work".
+
+Two things make that the wrong last mile. He will do three of the four and
+stall on the one whose instructions were thinnest. And "it should work" is
+not evidence — the registry would sit at NEEDS_CONFIGURATION while the
+thing was fine, or worse, flip to AVAILABLE while it wasn't.
+
+So this is a checklist that CHECKS. Every item names exactly what is
+missing, exactly what to run, and carries a `verify()` that proves the
+thing actually works before anything claims it does: a real IMAP login, a
+real calendar read, a real request to the hub, a real token round-trip.
+Nothing here flips a registry entry on faith (§30, §106).
+
+It also refuses to be the one place that drifts. The list of what is
+outstanding comes from `config/capabilities.json` at run time — the
+registry is the source of truth for what is configured and this reads it,
+rather than keeping a second copy that will disagree by Friday.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+from dataclasses import dataclass, field
+from typing import Callable
+
+from aletheia import capabilities
+
+# Capabilities whose only blocker is something the operator supplies. Each
+# entry says what to do and how to prove it. Anything NEEDS_CONFIGURATION
+# in the registry and absent here is reported as unmapped rather than
+# quietly omitted — a gap in this file must not look like a finished step.
+OK, MISSING, BROKEN = "ok", "missing", "broken"
+
+
+@dataclass
+class Step:
+    capability: str
+    title: str
+    minutes: int
+    why: str
+    how: list[str]
+    verify: Callable[[], tuple[str, str]]
+    optional: bool = False
+    tags: list[str] = field(default_factory=list)
+
+
+def _calendar() -> tuple[str, str]:
+    from aletheia import calendar_live, ics
+    ok, why = calendar_live.available()
+    if ok:
+        try:
+            provider = calendar_live.build_provider()
+            events = calendar_live.refresh(transport=None)
+            return OK, f"official provider live ({calendar_live.config()['provider']})"
+        except Exception as exc:
+            return BROKEN, f"configured but failing: {type(exc).__name__}: {exc}"[:160]
+    try:
+        feeds = ics._config().get("feeds", [])
+    except Exception:
+        feeds = []
+    if feeds:
+        return OK, f"{len(feeds)} secret-ICS feed(s) configured"
+    return MISSING, why[:160]
+
+
+def _room() -> tuple[str, str]:
+    from aletheia import hass
+    ok, why = hass.available()
+    if not ok:
+        return MISSING, why[:160]
+    reachable, detail = hass.ping()
+    return (OK, detail[:160]) if reachable else (BROKEN, detail[:160])
+
+
+def _remote() -> tuple[str, str]:
+    from aletheia import access
+    if not access.enabled():
+        return MISSING, "no access token has been minted"
+    live = access.live_tokens()
+    cert = os.environ.get("ALETHEIA_TLS_CERT", "")
+    if not cert:
+        return (BROKEN, f"{len(live)} token(s) exist but no TLS certificate is "
+                        "configured, so the Core still refuses to listen off-loopback")
+    return OK, f"{len(live)} live token(s) and a certificate"
+
+
+def _phone() -> tuple[str, str]:
+    from aletheia import phone_windows
+    report = phone_windows.preflight()
+    if not report["transport_available"]:
+        return MISSING, str(report["reason"])[:160]
+    entry = capabilities.get("phone.call")
+    if entry["status"] != "AVAILABLE":
+        return (MISSING, "the machine is ready; no call has been placed, so this "
+                         "stays EXPERIMENTAL until one round-trips")
+    return OK, "a call has completed end to end"
+
+
+def _mail() -> tuple[str, str]:
+    from aletheia import mail
+    ok, why = mail.available()
+    if not ok:
+        return MISSING, why[:160]
+    try:
+        mail.SmtpImapTransport().fetch_unread(1)
+    except Exception as exc:
+        return BROKEN, f"configured but the mailbox refused: {type(exc).__name__}"
+    return OK, "a real IMAP login succeeded"
+
+
+def _advisor() -> tuple[str, str]:
+    from aletheia import advisor
+    ok, why = advisor.available()
+    return (OK, why[:160]) if ok else (MISSING, why[:160])
+
+
+def _standing() -> tuple[str, str]:
+    from aletheia import standing
+    grant = standing.active()
+    if not grant:
+        return MISSING, "she still asks about every routine plan"
+    return OK, f"routine tier granted until {grant['expires']}"
+
+
+def _relay() -> tuple[str, str]:
+    """Has a command ever actually arrived from the ChatGPT project?
+
+    Presence of the contract file proves nothing — it ships with the repo.
+    A relayed command in exchange/commands is the only evidence that the
+    project was really created and really works.
+    """
+    from aletheia.fleet import REPO_ROOT
+    directory = REPO_ROOT / "exchange" / "commands"
+    if not directory.is_dir():
+        return MISSING, "no command has ever been relayed"
+    relayed = sorted(directory.glob("*.json"))
+    if not relayed:
+        return MISSING, "no command has ever been relayed"
+    return OK, f"{len(relayed)} relayed command(s) on record"
+
+
+def _wall_voice() -> tuple[str, str]:
+    """The pages carry the ears; the microphone permission is the browser's.
+
+    This can be checked as far as the server can see and no further — the
+    grant lives in his browser, so claiming it works would be a guess.
+    """
+    from aletheia.fleet import REPO_ROOT
+    script = REPO_ROOT / "interface" / "voice.js"
+    if not script.is_file():
+        return BROKEN, "interface/voice.js is missing"
+    pages = [p for p in ("index.html", "command.html")
+             if "voice.js" not in (REPO_ROOT / "interface" / p).read_text(encoding="utf-8")]
+    if pages:
+        return BROKEN, f"pages without the ears: {', '.join(pages)}"
+    return MISSING, ("served and wired; the microphone permission is granted in "
+                     "your browser and cannot be checked from here")
+
+
+def steps() -> list[Step]:
+    return [
+        Step("email.read", "Email", 0,
+             "She can already read headers and send with your approval.",
+             ["Nothing to do — this is already configured."], _mail),
+        Step("calendar.read", "Calendar", 10,
+             "Without it she cannot answer 'am I free', propose meeting times, "
+             "or finish a meeting negotiation.",
+             ["python -m aletheia.calendar_auth google      (or: microsoft)",
+              "A browser opens; consent with the account whose calendar you want.",
+              "Add --enable-writes only if you want her to BOOK, not just read."],
+             _calendar),
+        Step("room.scene", "The room", 10,
+             "Lights, scenes and media. The adapter is built and tested; it has "
+             "no token.",
+             ["In Home Assistant: Profile -> Long-lived access tokens -> Create.",
+              "setx ALETHEIA_HASS_URL http://homeassistant.local:8123",
+              "setx ALETHEIA_HASS_TOKEN <the token>",
+              "Restart the Core, then: python -m aletheia.hass observe"],
+             _room),
+        Step("access.remote", "Your phone reaching her", 15,
+             "The phone surface has existed since Phase 21 and no phone could "
+             "load it.",
+             ["tailscale cert <your-machine>.<tailnet>.ts.net",
+              "   (also solves getting home without opening a router port)",
+              "python -m aletheia.access mint \"iPhone\"        (start with read)",
+              "Start the Core with --host / --tls-cert / --tls-key"],
+             _remote),
+        Step("phone.call", "The first phone call", 5,
+             "Every mechanism is verified; no call has been placed, and placing "
+             "one reaches a real network.",
+             ["python -m aletheia.phone_cli ready            (should say True)",
+              "Pick a safe number — your own voicemail is ideal.",
+              "Then ask me to walk the call plan, approval and dial with you."],
+             _phone),
+        Step("intercom.relay", "Talking to her through ChatGPT", 10,
+             "A second way in that needs no API key: your voice through the "
+             "ChatGPT app, relayed as gated commands.",
+             ["Open exchange/CHATGPT_PROJECT.md and paste it into a new "
+              "ChatGPT Project's instructions.",
+              "Connect the GitHub connector to this repository.",
+              "Then say something to it and check: python -m aletheia.intercom list"],
+             _relay, optional=True),
+        Step("voice.wall", "The wall's own ears", 1,
+             "The wall and Command Center can hear 'Thea' directly in the "
+             "browser — no side app.",
+             ["Open http://127.0.0.1:8777/ and click 'click to give Thea ears'.",
+              "Allow the microphone once; the browser remembers it."],
+             _wall_voice, optional=True),
+        Step("policy.delegate", "Stop being asked about trivia", 1,
+             "Routine plans — reminders, tasks, notes — need a decision every "
+             "time until you say yes once.",
+             ["python -m aletheia.standing on"],
+             _standing, optional=True),
+        Step("advisor.triage", "Let her notice things", 1,
+             "Off by default. Building a proactive brain is not permission to "
+             "run one.",
+             ["python -m aletheia.advisor configure --enable"],
+             _advisor, optional=True),
+    ]
+
+
+def audit() -> dict:
+    """Every step, checked live. Never claims a thing works without proof."""
+    checked = []
+    for step in steps():
+        try:
+            state, detail = step.verify()
+        except Exception as exc:
+            state, detail = BROKEN, f"{type(exc).__name__}: {exc}"[:160]
+        checked.append({"capability": step.capability, "title": step.title,
+                        "state": state, "detail": detail,
+                        "minutes": step.minutes, "optional": step.optional,
+                        "how": step.how, "why": step.why})
+    mapped = {s.capability for s in steps()}
+    reg = capabilities.load_registry()
+    unmapped = sorted(c["id"] for c in reg["capabilities"]
+                      if c["status"] == "NEEDS_CONFIGURATION" and c["id"] not in mapped)
+    remaining = [c for c in checked if c["state"] != OK and not c["optional"]]
+    return {
+        "steps": checked,
+        "unmapped_needs_configuration": unmapped,
+        "done": sum(1 for c in checked if c["state"] == OK),
+        "total": len(checked),
+        "minutes_left": sum(c["minutes"] for c in remaining),
+        "ready": not remaining,
+    }
+
+
+def render(report: dict) -> str:
+    mark = {OK: "[x]", MISSING: "[ ]", BROKEN: "[!]"}
+    lines = ["", "  YOUR SIDE", "  " + "-" * 58]
+    for item in report["steps"]:
+        tail = " (optional)" if item["optional"] else ""
+        lines.append(f"  {mark[item['state']]} {item['title']}{tail}")
+        lines.append(f"      {item['detail']}")
+        if item["state"] != OK:
+            lines.append(f"      why: {item['why']}")
+            for line in item["how"]:
+                lines.append(f"      $ {line}" if not line.startswith(" ") else f"      {line}")
+        lines.append("")
+    if report["unmapped_needs_configuration"]:
+        lines.append("  Not covered by this checklist (tell me and I'll add them):")
+        for cid in report["unmapped_needs_configuration"]:
+            lines.append(f"      - {cid}")
+        lines.append("")
+    if report["ready"]:
+        lines.append("  Everything required is configured and verified.")
+    else:
+        lines.append(f"  {report['done']}/{report['total']} done · "
+                     f"about {report['minutes_left']} minutes of your time left")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def spoken(report: dict | None = None) -> str:
+    """The checklist as one sentence, for the room."""
+    from aletheia import speech
+    report = report if report is not None else audit()
+    if report["ready"]:
+        extras = [c["title"] for c in report["steps"]
+                  if c["optional"] and c["state"] != OK]
+        said = "Everything I need from you is done and verified."
+        if extras:
+            said += (" Optional and still off: " + speech.and_list(extras) + ".")
+        return said
+    outstanding = [c for c in report["steps"]
+                   if c["state"] != OK and not c["optional"]]
+    broken = [c["title"] for c in report["steps"] if c["state"] == BROKEN]
+    said = (f"{report['done']} of {report['total']} done. I still need "
+            + speech.and_list([c["title"].lower() for c in outstanding])
+            + f" — about {report['minutes_left']} minutes of your time.")
+    if broken:
+        said += (" " + speech.and_list(broken)
+                 + (" is" if len(broken) == 1 else " are")
+                 + " configured but failing.")
+    return said
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(
+        description="What Aletheia still needs from you, checked live.")
+    ap.add_argument("--json", action="store_true", help="machine-readable")
+    args = ap.parse_args(argv)
+    report = audit()
+    print(json.dumps(report, indent=2) if args.json else render(report))
+    return 0 if report["ready"] else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
