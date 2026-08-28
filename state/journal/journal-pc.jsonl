@@ -336,3 +336,5 @@
 {"ts": "2026-08-27T23:59:46Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message seems incomplete or unclear — could you rephrase what you'd like me to do?"}
 {"ts": "2026-08-28T00:07:10Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Could you rephrase what you'd like done? The message seems incomplete or garbled."}
 {"ts": "2026-08-28T00:07:10Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Could you rephrase what you'd like done? The message seems incomplete or garbled."}
+{"ts": "2026-08-28T00:08:54Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — What did he want to do? The request text is missing/incomplete."}
+{"ts": "2026-08-28T00:08:54Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — What did he want to do? The request text is missing/incomplete."}
