@@ -529,3 +529,4 @@
 {"ts": "2026-08-28T15:52:16Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
 {"ts": "2026-08-28T15:52:16Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
 {"ts": "2026-08-28T15:52:16Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-28T15:54:11Z", "kind": "action", "actor": "operator-local-core", "subject": "core:authority_status", "text": "done — I handle 30 kinds of thing without asking — questions, reminders, tasks, notes. I still ask you about 10 things: anything that sends, spends, publishes or books. 499 uses left, until 27 September at 10:51 am."}
