@@ -392,3 +392,7 @@
 {"ts": "2026-08-28T00:48:09Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message is unclear (looks like a transcription error) - could you rephrase what you'd like me to do?"}
 {"ts": "2026-08-28T00:48:59Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — No actionable request detected"}
 {"ts": "2026-08-28T00:48:59Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Nothing to do."}
+{"ts": "2026-08-28T00:50:29Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — What do you want to know or do regarding June — check your calendar, schedule something, or search past notes/journal?"}
+{"ts": "2026-08-28T00:50:29Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — What do you want to know or do regarding June — check your calendar, schedule something, or search past notes/journal?"}
+{"ts": "2026-08-28T00:50:44Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — Your message \"as key\" is incomplete - what would you like me to do?"}
+{"ts": "2026-08-28T00:50:44Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message \"as key\" is incomplete - what would you like me to do?"}
