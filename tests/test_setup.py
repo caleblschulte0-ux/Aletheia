@@ -168,6 +168,42 @@ class VerifierCase(unittest.TestCase):
         self.assertIn("cannot be checked from here", detail)
 
 
+class ApplyCase(unittest.TestCase):
+    """One pasted secret, and the machine does the rest."""
+
+    def test_a_calendar_url_must_be_a_secret_ical_address(self):
+        from aletheia import apply
+        for bad in ("", "not a url", "http://insecure.example/cal.ics",
+                    "https://example.com/page"):
+            with self.assertRaises(ValueError, msg=repr(bad)):
+                apply.calendar(bad)
+
+    def test_a_short_hub_token_is_refused_before_anything_is_written(self):
+        from aletheia import apply
+        with self.assertRaises(ValueError):
+            apply.room("http://hub:8123", "too-short")
+
+    def test_a_hub_url_needs_a_scheme(self):
+        from aletheia import apply
+        with self.assertRaises(ValueError):
+            apply.room("hub:8123", "x" * 60)
+
+    def test_a_refusing_hub_raises_rather_than_leaving_it_half_configured(self):
+        from aletheia import apply, hass
+        with mock.patch.object(apply, "_setx", return_value=(0, "")),              mock.patch.object(hass, "ping", return_value=(False, "401 refused")):
+            with self.assertRaises(RuntimeError) as caught:
+                apply.room("http://hub:8123", "x" * 60)
+        self.assertIn("refused", str(caught.exception))
+
+    def test_nothing_here_invents_a_credential(self):
+        # every secret comes from him at a prompt he typed
+        import inspect
+        from aletheia import apply
+        source = inspect.getsource(apply)
+        for forbidden in ("webbrowser.open", "requests.post", "input("):
+            self.assertNotIn(forbidden, source)
+
+
 class SpokenCase(unittest.TestCase):
     def report(self, **over):
         base = {"steps": [], "unmapped_needs_configuration": [],
