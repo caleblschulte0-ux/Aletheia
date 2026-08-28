@@ -187,6 +187,16 @@ def spoken(record: dict) -> str:
         return f"I could not plan that: {record['degraded'][:160]}"
     if record.get("intent") == "clarify":
         return record.get("summary") or "I need one thing cleared up before I plan that."
+    if record.get("read_only"):
+        # It already ran. Telling him to approve something that has happened —
+        # and naming an approval id that was never created — is exactly the
+        # kind of confident wrongness that stops him trusting the receipts.
+        answers = [str(r.get("detail", "")).strip()
+                   for r in (record.get("receipts") or [])
+                   if r.get("outcome") == "done" and str(r.get("detail", "")).strip()]
+        if answers:
+            return " ".join(answers)[:600]
+        return record.get("summary") or "Nothing to do."
     parts = []
     if runnable:
         parts.append(f"{len(runnable)} step{'s' if len(runnable) != 1 else ''} ready — "

@@ -1,5 +1,5 @@
 {
-  "revision": 34,
+  "revision": 35,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1051,9 +1051,9 @@
       "status": "AVAILABLE",
       "risk_class": "read",
       "approval_policy": "none",
-      "caller": "python -m aletheia.setup; intercom kind 'setup_status'; voice: 'what do you still need from me'",
+      "caller": "python -m aletheia.setup; python -m aletheia.apply <step>; GET /api/setup (the Command Center's 'still needed from you' panel); intercom kind 'setup_status'; voice: 'what do you still need from me'",
       "module": "aletheia.setup",
-      "notes": "Six credentials lived in four documents, each ending in 'and then it should work'. He would do three and stall on the one with the thinnest instructions, and nothing ever proved the finished ones worked. Every step carries a verifier that makes a REAL attempt - an IMAP login, a request to the hub, a token round-trip - so nothing claims to be configured on faith (§30, §106). The outstanding list is derived from config/capabilities.json at run time, and a NEEDS_CONFIGURATION capability this file does not mention is reported as unmapped rather than silently omitted, because an omission would read as a finished step.",
+      "notes": "Six credentials lived in four documents, each ending in 'and then it should work'. He would do three and stall on the one with the thinnest instructions, and nothing ever proved the finished ones worked. Every step carries a verifier that makes a REAL attempt - an IMAP login, a request to the hub, a token round-trip - so nothing claims to be configured on faith (§30, §106). The outstanding list is derived from config/capabilities.json at run time, and a NEEDS_CONFIGURATION capability this file does not mention is reported as unmapped rather than silently omitted, because an omission would read as a finished step. aletheia/apply.py finishes a step from one pasted secret - it writes the config, sets what must be set, runs the real check and reports what it can now see. It creates no credential and signs into nothing (§143). The cheap path is the default: a secret iCal URL is one copy-paste where OAuth is a cloud project and a consent screen, and reading the calendar is what availability and meeting slots actually need.",
       "verification": "tests/test_setup.py asserts the checklist covers every NEEDS_CONFIGURATION capability, that a failing verifier is reported rather than raised, and that the phone is not 'done' until a call has actually happened"
     }
   ]

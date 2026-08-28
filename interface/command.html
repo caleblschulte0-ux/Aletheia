@@ -96,13 +96,31 @@
   </div>
   <div style="display:grid;gap:1rem">
     <section>
-      <h2>Command</h2>
+      <h2>Say what you want</h2>
+      <!-- The primary input. Everything this system learned to do this week
+           is reachable from one sentence: it compiles to gated steps and
+           anything world-touching still asks. Burying that as one option in
+           a 41-item dropdown made the screen worse than the microphone. -->
+      <form id="ask-form" onsubmit="return sendAsk(event)">
+        <textarea id="ask" rows="3" placeholder="Set up a meeting with Dana next week&#10;What am I paying for?&#10;Remind me at five to call the dentist"
+                  style="width:100%;background:#0b0f16;color:var(--ink);border:1px solid var(--line);border-radius:3px;padding:.6rem;font-family:var(--sans);font-size:.9rem;resize:vertical"></textarea>
+        <button type="submit" style="margin-top:.5rem">ASK</button>
+        <div id="ask-note" class="empty" style="margin-top:.4rem"></div>
+      </form>
+    </section>
+    <section>
+      <h2>Still needed from you</h2>
+      <div id="setup" class="empty">checking…</div>
+    </section>
+    <details>
+      <summary style="cursor:pointer;color:var(--muted);font-family:var(--mono);font-size:.7rem;letter-spacing:.18em;text-transform:uppercase;padding:.4rem 0">Exact command</summary>
       <form id="cmd-form" onsubmit="return sendCommand(event)">
         <div><label>kind</label><select id="kind" onchange="renderArgs()"></select></div>
         <div id="args"></div>
         <button type="submit" class="good">EXECUTE</button>
       </form>
     </section>
+    </details>
     <section>
       <h2>Receipts</h2>
       <div id="receipts"></div>
@@ -148,6 +166,39 @@ async function post(cmd) {
   return res;
 }
 
+async function sendAsk(ev) {
+  ev.preventDefault();
+  const box = document.getElementById("ask");
+  const text = box.value.trim();
+  if (!text) return false;
+  const note = document.getElementById("ask-note");
+  note.textContent = "thinking…";
+  const res = await post({ kind: "intent", text });
+  note.textContent = res && res.detail ? res.detail : "";
+  box.value = "";
+  return false;
+}
+
+// The verifiers make real network attempts (an IMAP login, a request to the
+// hub). The server caches for a minute; the page must not ask on every
+// refresh tick regardless, or it queues work nobody is waiting for.
+let setupCheckedAt = 0;
+async function loadSetup(force) {
+  if (!force && Date.now() - setupCheckedAt < 120000) return;
+  setupCheckedAt = Date.now();
+  const host = document.getElementById("setup");
+  try {
+    const r = await api("/api/setup");
+    if (r.ready) { host.textContent = "Nothing — everything is configured."; return; }
+    host.innerHTML = r.steps.filter(s => s.state !== "ok" && !s.optional).map(s =>
+      `<div class="rc"><span class="o">${esc(s.minutes)}m</span>` +
+      `<span class="d"><b>${esc(s.title)}</b> — ${esc(s.detail)}</span></div>`).join("")
+      || "Nothing required — only optional extras left.";
+  } catch (err) {
+    host.textContent = "could not check: " + err.message;
+  }
+}
+
 function sendCommand(ev) {
   ev.preventDefault();
   const kind = document.getElementById("kind").value;
@@ -183,6 +234,7 @@ async function refresh() {
     document.getElementById("halt-btn").textContent = haltedNow ? "RESUME" : "HALT";
     document.getElementById("halt-btn").className = haltedNow ? "good" : "danger";
 
+    loadSetup(false);
     const aps = await api("/api/approvals");
     const pending = aps.filter(a => a.state === "PENDING");
     document.getElementById("approvals").innerHTML = pending.length ? pending.map(a =>

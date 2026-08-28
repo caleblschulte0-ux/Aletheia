@@ -199,8 +199,10 @@ class IntentCase(unittest.TestCase):
     # ---- what she says back ----------------------------------------
 
     def test_spoken_names_the_approval_and_the_gap(self):
+        # a world-touching step on purpose: a read-only plan is answered on
+        # the spot and never mentions an approval
         record = self.propose({"intent": "plan", "summary": "mixed", "steps": [
-            {"kind": "note", "text": "hi"},
+            {"kind": "task_new", "id": "t", "description": "d"},
             {"gap": "purchase.execute", "why": "cannot buy"},
             {"manual": "sign it"}]})
         said = intents.spoken(record)
@@ -208,6 +210,19 @@ class IntentCase(unittest.TestCase):
         self.assertIn(record["approval"], said)
         self.assertIn("purchase.execute", said)
         self.assertIn("only you can do", said)
+
+    def test_a_read_only_answer_is_reported_not_offered_for_approval(self):
+        # Found by using the Command Center: asked "what am I paying for",
+        # she ran it AND said "say approve to run it (intent-4e65e8d630)" —
+        # naming an approval that was never created, for work already done.
+        record = intents.propose(
+            "what am I paying for", quote="what am I paying for", fleet=FLEET,
+            materialize=False, registry=REGISTRY,
+            provider=provider({"intent": "plan", "summary": "subscriptions",
+                               "steps": [{"kind": "subscriptions"}]}))
+        said = intents.spoken(record)
+        self.assertNotIn("approve", said.lower())
+        self.assertNotIn("intent-", said)
 
     def test_spoken_passes_a_clarifying_question_straight_through(self):
         record = self.propose({"intent": "clarify",

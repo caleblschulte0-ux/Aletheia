@@ -44,6 +44,7 @@ API:
     GET  /api/watchers      durable watcher definitions + states
     GET  /api/schedules     durable schedule definitions
     GET  /api/runtime       last runtime tick summary
+    GET  /api/setup         what the operator still has to supply, checked live
     GET  /api/voice/followup?id=  a slow spoken answer, once it exists
     GET  /api/computer/status
     POST /api/command       {"kind": …, …args} (+optional "operator_quote")
@@ -549,6 +550,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(events.list_watchers())
         if url.path == "/api/schedules":
             return self._json(scheduler.all_schedules())
+        if url.path == "/api/setup":
+            from aletheia import setup as _setup
+            return self._json(_setup.audit())
         if url.path == "/api/runtime":
             return self._json(SYNC_STATUS.get("runtime") or {"at": None})
         if url.path == "/api/voice/followup":
