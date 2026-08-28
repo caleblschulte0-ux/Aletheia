@@ -346,3 +346,5 @@
 {"ts": "2026-08-28T00:11:06Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Your message isn't clear enough to act on — could you clarify what you'd like done?"}
 {"ts": "2026-08-28T00:11:30Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — You said hi — what would you like me to do? (Note: you have 4 pending approvals waiting.)"}
 {"ts": "2026-08-28T00:11:30Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — You said hi — what would you like me to do? (Note: you have 4 pending approvals waiting.)"}
+{"ts": "2026-08-28T00:15:33Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-4f53cda18c: 0 executable, 0 blocked — What action do you want taken regarding this — is there a specific task, note, or message you want handled?"}
+{"ts": "2026-08-28T00:15:33Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — What action do you want taken regarding this — is there a specific task, note, or message you want handled?"}
