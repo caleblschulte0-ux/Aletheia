@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -26,7 +25,9 @@ from aletheia.proc import run as proc_run
 MODEL_ROOT = Path.home() / ".aletheia" / "models"
 PIPER_DIR = MODEL_ROOT / "piper"
 WHISPER_DIR = MODEL_ROOT / "whisper"
-PIPER_VOICE = os.environ.get("ALETHEIA_PIPER_VOICE", "en_US-lessac-medium")
+# A local British male voice is a much better fit for the room/Jarvis surface
+# than Windows' raw SAPI default. The operator may override it privately.
+PIPER_VOICE = os.environ.get("ALETHEIA_PIPER_VOICE", "en_GB-alan-medium")
 WHISPER_MODEL = os.environ.get("ALETHEIA_WHISPER_MODEL", "base.en")
 MAX_UTTERANCE_SECONDS = 20
 SAMPLE_RATE = 16_000
@@ -81,30 +82,29 @@ def install_quality_packages() -> tuple[bool, str]:
     return True, "quality speech packages installed"
 
 
-def ensure_piper_model(voice: str = PIPER_VOICE) -> tuple[bool, str]:
-    exe = _piper_exe()
-    if not exe:
+def ensure_piper_model(voice: str = PIPER_VOICE, runner=proc_run) -> tuple[bool, str]:
+    """Download one Piper voice through Piper's documented downloader.
+
+    Model download and synthesis are intentionally separate commands. Passing
+    downloader flags to the `piper` synthesis CLI is dangerous because Piper's
+    CLI accepts unknown arguments as text input on some releases.
+    """
+    if not _piper_exe():
         return False, "piper executable is not on PATH"
     PIPER_DIR.mkdir(parents=True, exist_ok=True)
-    fd, wav_name = tempfile.mkstemp(prefix="aletheia-piper-setup-", suffix=".wav")
-    os.close(fd)
-    wav_path = Path(wav_name)
-    try:
-        proc = proc_run(
-            [exe, "--model", voice, "--data-dir", str(PIPER_DIR),
-             "--download-dir", str(PIPER_DIR), "--output_file", str(wav_path)],
-            input="Voice ready.", capture_output=True, text=True, timeout=180,
-        )
-        ready, why = piper_ready(voice)
-        if proc.returncode != 0 or not ready:
-            detail = (proc.stderr or proc.stdout or why).strip()[-800:]
-            return False, detail or why
+    ready, why = piper_ready(voice)
+    if ready:
         return True, why
-    finally:
-        try:
-            wav_path.unlink()
-        except OSError:
-            pass
+    proc = runner(
+        [sys.executable, "-m", "piper.download_voices",
+         "--data-dir", str(PIPER_DIR), voice],
+        capture_output=True, text=True, timeout=180,
+    )
+    ready, why = piper_ready(voice)
+    if proc.returncode != 0 or not ready:
+        detail = (proc.stderr or proc.stdout or why).strip()[-800:]
+        return False, detail or why
+    return True, why
 
 
 def _load_whisper(model: str = WHISPER_MODEL):
@@ -124,6 +124,7 @@ def ensure_whisper_model(model: str = WHISPER_MODEL) -> tuple[bool, str]:
     except Exception as exc:
         return False, f"{type(exc).__name__}: {exc}"
     marker = WHISPER_DIR / f"ready-{model.replace('/', '_')}.txt"
+    marker.parent.mkdir(parents=True, exist_ok=True)
     marker.write_text("prepared\n", encoding="utf-8")
     return True, f"faster-whisper {model}"
 
@@ -192,7 +193,7 @@ def piper_speak(text: str, *, voice: str = PIPER_VOICE, runner=proc_run,
     try:
         proc = runner(
             [exe, "--model", voice, "--data-dir", str(PIPER_DIR),
-             "--download-dir", str(PIPER_DIR), "--output_file", str(wav_path)],
+             "--output-file", str(wav_path)],
             input=str(text), capture_output=True, text=True, timeout=60,
         )
         if proc.returncode != 0 or not wav_path.is_file() or wav_path.stat().st_size < 44:
