@@ -15,7 +15,6 @@ explicit setup operation.
 from __future__ import annotations
 
 import os
-import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -35,18 +34,21 @@ SAMPLE_RATE = 16_000
 _whisper_model = None
 
 
-def _piper_exe() -> str | None:
-    return shutil.which("piper")
-
-
 def _piper_paths(voice: str = PIPER_VOICE) -> tuple[Path, Path]:
     return PIPER_DIR / f"{voice}.onnx", PIPER_DIR / f"{voice}.onnx.json"
 
 
+def _piper_installed() -> bool:
+    try:
+        import piper  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 def piper_ready(voice: str = PIPER_VOICE) -> tuple[bool, str]:
-    exe = _piper_exe()
     model, config = _piper_paths(voice)
-    if not exe:
+    if not _piper_installed():
         return False, "piper-tts is not installed"
     if not model.is_file() or not config.is_file():
         return False, f"Piper voice {voice!r} is not downloaded"
@@ -85,12 +87,12 @@ def install_quality_packages() -> tuple[bool, str]:
 def ensure_piper_model(voice: str = PIPER_VOICE, runner=proc_run) -> tuple[bool, str]:
     """Download one Piper voice through Piper's documented downloader.
 
-    Model download and synthesis are intentionally separate commands. Passing
-    downloader flags to the `piper` synthesis CLI is dangerous because Piper's
-    CLI accepts unknown arguments as text input on some releases.
+    Model download and synthesis are intentionally separate commands. Invoking
+    both through `sys.executable -m ...` avoids Windows PATH ambiguity after pip
+    installs a console script into a user Scripts directory.
     """
-    if not _piper_exe():
-        return False, "piper executable is not on PATH"
+    if not _piper_installed():
+        return False, "piper-tts is not installed"
     PIPER_DIR.mkdir(parents=True, exist_ok=True)
     ready, why = piper_ready(voice)
     if ready:
@@ -179,9 +181,6 @@ def piper_speak(text: str, *, voice: str = PIPER_VOICE, runner=proc_run,
     ready, _ = piper_ready(voice)
     if not ready or not str(text).strip():
         return False
-    exe = _piper_exe()
-    if not exe:
-        return False
     if player is None:
         if os.name != "nt":
             return False
@@ -192,9 +191,10 @@ def piper_speak(text: str, *, voice: str = PIPER_VOICE, runner=proc_run,
     wav_path = Path(wav_name)
     try:
         proc = runner(
-            [exe, "--model", voice, "--data-dir", str(PIPER_DIR),
-             "--output-file", str(wav_path)],
-            input=str(text), capture_output=True, text=True, timeout=60,
+            [sys.executable, "-m", "piper", "--model", voice,
+             "--data-dir", str(PIPER_DIR), "--output-file", str(wav_path),
+             "--", str(text)],
+            capture_output=True, text=True, timeout=60,
         )
         if proc.returncode != 0 or not wav_path.is_file() or wav_path.stat().st_size < 44:
             return False
