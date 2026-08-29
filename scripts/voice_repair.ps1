@@ -3,10 +3,10 @@
 # Run from the repo after this voice stack has landed:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\voice_repair.ps1
 #
-# This is deliberately operator-invoked. It may download the improved local
-# Vosk model plus optional Piper/faster-whisper packages/models, then it
-# replaces the AletheiaVoice Scheduled Task so the already-running old Python
-# process cannot keep stale voice code loaded indefinitely.
+# This is deliberately operator-invoked. It downloads the improved local Vosk
+# model plus Piper/faster-whisper packages/models, proves the quality providers
+# are ready, and only THEN replaces the AletheiaVoice Scheduled Task. The old
+# listener therefore stays alive if the upgrade could not actually improve it.
 
 $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -56,6 +56,15 @@ Write-Host "`n  1/4 Preparing improved local ears + neural voice ..." -Foregroun
 & $pyExe @pyFlags -m aletheia.voice_room --setup
 if ($LASTEXITCODE -ne 0) {
   throw "required room recognizer setup failed; the current listener was left untouched."
+}
+
+# voice_room keeps neural speech optional so a generic installation still has a
+# fallback. This *repair* command has a stricter promise: it is being run to fix
+# bad ears and a bad voice. Do not replace the live listener unless both quality
+# providers are genuinely ready.
+& $pyExe @pyFlags -c "from aletheia import voice_quality as q; p=q.piper_ready(); w=q.whisper_ready(); print('Piper:', p[1]); print('Whisper:', w[1]); raise SystemExit(0 if p[0] and w[0] else 2)"
+if ($LASTEXITCODE -ne 0) {
+  throw "neural speech setup is incomplete; refusing to replace the current listener with fallback-quality speech."
 }
 
 Write-Host "`n  2/4 Re-registering the voice watchdog with current Python ..." -ForegroundColor Yellow
