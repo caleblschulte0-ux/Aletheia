@@ -18,6 +18,15 @@ class VoiceRepairScriptCase(unittest.TestCase):
         stop = self.source.index('Stop-ScheduledTask -TaskName "AletheiaVoice"')
         self.assertLess(setup, stop)
 
+    def test_it_requires_neural_quality_before_stopping_the_old_listener(self):
+        piper = self.source.index("p=q.piper_ready()")
+        whisper = self.source.index("w=q.whisper_ready()")
+        refusal = self.source.index("neural speech setup is incomplete")
+        stop = self.source.index('Stop-ScheduledTask -TaskName "AletheiaVoice"')
+        self.assertLess(piper, refusal)
+        self.assertLess(whisper, refusal)
+        self.assertLess(refusal, stop)
+
     def test_it_waits_for_old_listener_to_stop_before_starting_a_new_one(self):
         stop = self.source.index('Stop-ScheduledTask -TaskName "AletheiaVoice"')
         guard = self.source.index("old AletheiaVoice listener did not stop")
