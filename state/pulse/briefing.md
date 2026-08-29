@@ -1,34 +1,34 @@
 # Fleet briefing
 
-Generated 2026-08-29T07:09:15Z from fleet registry rev 4 via GitHubSource.
+Generated 2026-08-29T16:45:48Z from fleet registry rev 4 via GitHubSource.
 
 ## 🔴 `Aletheia` — hub (active)
 
 The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.
 
-Last commit `2d10393eef38` at 2026-08-28T22:26:17Z: pulse: 2026-08-28T22:26Z
+Last commit `a0947357ee1c` at 2026-08-29T15:24:03Z: brief: 2026-08-29
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-08-29T07:09:13Z
+- `pulse.yml`: in_progress at 2026-08-29T16:45:45Z
 - `ci.yml`: failure at 2026-08-28T18:58:28Z
 
 ## 🔴 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `33a7312ef38d` at 2026-08-29T06:18:10Z: explainer: update posted log + analytics [skip ci]
+Last commit `443ab10de28d` at 2026-08-29T16:41:54Z: watchdog: chatgpt task verdicts 20260829 [skip ci]
 
-Vitals — trending posted: 296 · explainer posted: 209 · third posted: 397 · curiosity posted: 1
+Vitals — trending posted: 300 · explainer posted: 209 · third posted: 398 · curiosity posted: 1
 
 Watched workflows:
-- `daily.yml`: failure at 2026-08-28T12:47:45Z
-- `exchange_phase_a.yml`: success at 2026-08-28T20:59:35Z
-- `exchange_phase_b.yml`: success at 2026-08-28T23:35:47Z
-- `story_forge.yml`: success at 2026-08-28T17:30:12Z
-- `third.yml`: success at 2026-08-28T22:25:31Z
+- `daily.yml`: failure at 2026-08-29T12:43:29Z
+- `exchange_phase_a.yml`: success at 2026-08-29T14:41:23Z
+- `exchange_phase_b.yml`: success at 2026-08-29T12:19:50Z
+- `story_forge.yml`: success at 2026-08-29T11:42:43Z
+- `third.yml`: failure at 2026-08-29T15:40:27Z
 - `explainer.yml`: failure at 2026-08-29T06:18:16Z
 - `retro.yml`: success at 2026-08-29T07:07:06Z
-- `doctor.yml`: success at 2026-08-29T04:06:56Z
+- `doctor.yml`: success at 2026-08-29T11:38:33Z
 
 ## 🟢 `schwab-trader` — trading-bot (active)
 
