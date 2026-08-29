@@ -24,14 +24,14 @@ class QualityFallbackCase(unittest.TestCase):
             self.assertFalse(voice_quality.piper_speak("hello", runner=runner, player=lambda p: None))
         runner.assert_not_called()
 
-    def test_piper_download_uses_dedicated_downloader(self):
+    def test_piper_download_uses_dedicated_python_module(self):
         calls = []
 
         def runner(argv, **kwargs):
             calls.append(argv)
             return SimpleNamespace(returncode=0, stdout="", stderr="")
 
-        with mock.patch.object(voice_quality, "_piper_exe", return_value="piper"), \
+        with mock.patch.object(voice_quality, "_piper_installed", return_value=True), \
              mock.patch.object(
                  voice_quality, "piper_ready",
                  side_effect=[(False, "missing"), (True, "Piper ready")],
@@ -44,13 +44,11 @@ class QualityFallbackCase(unittest.TestCase):
         self.assertEqual(argv[:3], [sys.executable, "-m", "piper.download_voices"])
         self.assertIn("--data-dir", argv)
         self.assertEqual(argv[-1], voice_quality.PIPER_VOICE)
-        self.assertNotIn("--download-dir", argv)
 
     def test_piper_requires_a_real_wave_before_playback(self):
         played = []
         proc = SimpleNamespace(returncode=0, stdout="", stderr="")
-        with mock.patch.object(voice_quality, "piper_ready", return_value=(True, "ok")), \
-             mock.patch.object(voice_quality, "_piper_exe", return_value="piper"):
+        with mock.patch.object(voice_quality, "piper_ready", return_value=(True, "ok")):
             ok = voice_quality.piper_speak(
                 "hello", runner=lambda *a, **k: proc, player=lambda p: played.append(p)
             )
@@ -67,8 +65,7 @@ class QualityFallbackCase(unittest.TestCase):
             target.write_bytes(b"RIFF" + b"x" * 100)
             return SimpleNamespace(returncode=0, stdout="", stderr="")
 
-        with mock.patch.object(voice_quality, "piper_ready", return_value=(True, "ok")), \
-             mock.patch.object(voice_quality, "_piper_exe", return_value="piper"):
+        with mock.patch.object(voice_quality, "piper_ready", return_value=(True, "ok")):
             ok = voice_quality.piper_speak(
                 "hello", runner=runner,
                 player=lambda p: played.append((p, p.exists())),
@@ -77,7 +74,10 @@ class QualityFallbackCase(unittest.TestCase):
         self.assertEqual(len(played), 1)
         self.assertTrue(played[0][1])
         self.assertFalse(played[0][0].exists())
+        self.assertEqual(argv_seen[:3], [sys.executable, "-m", "piper"])
+        self.assertIn("--data-dir", argv_seen)
         self.assertIn("--output-file", argv_seen)
+        self.assertIn("--", argv_seen)
         self.assertNotIn("--download-dir", argv_seen)
 
     def test_setup_does_not_pretend_quality_is_ready_when_install_fails(self):
