@@ -1,34 +1,34 @@
 # Fleet briefing
 
-Generated 2026-08-28T22:26:07Z from fleet registry rev 4 via GitHubSource.
+Generated 2026-08-29T07:09:15Z from fleet registry rev 4 via GitHubSource.
 
 ## 🔴 `Aletheia` — hub (active)
 
 The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.
 
-Last commit `141af8f4305c` at 2026-08-28T21:18:44Z: brief: 2026-08-28
+Last commit `2d10393eef38` at 2026-08-28T22:26:17Z: pulse: 2026-08-28T22:26Z
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-08-28T22:26:04Z
+- `pulse.yml`: in_progress at 2026-08-29T07:09:13Z
 - `ci.yml`: failure at 2026-08-28T18:58:28Z
 
 ## 🔴 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `864d69e9f98d` at 2026-08-28T22:25:24Z: third: analytics [skip ci]
+Last commit `33a7312ef38d` at 2026-08-29T06:18:10Z: explainer: update posted log + analytics [skip ci]
 
-Vitals — trending posted: 296 · explainer posted: 207 · third posted: 397 · curiosity posted: 1
+Vitals — trending posted: 296 · explainer posted: 209 · third posted: 397 · curiosity posted: 1
 
 Watched workflows:
 - `daily.yml`: failure at 2026-08-28T12:47:45Z
 - `exchange_phase_a.yml`: success at 2026-08-28T20:59:35Z
-- `exchange_phase_b.yml`: success at 2026-08-28T12:07:52Z
+- `exchange_phase_b.yml`: success at 2026-08-28T23:35:47Z
 - `story_forge.yml`: success at 2026-08-28T17:30:12Z
 - `third.yml`: success at 2026-08-28T22:25:31Z
-- `explainer.yml`: failure at 2026-08-28T13:00:39Z
-- `retro.yml`: success at 2026-08-28T11:26:52Z
-- `doctor.yml`: success at 2026-08-28T17:24:50Z
+- `explainer.yml`: failure at 2026-08-29T06:18:16Z
+- `retro.yml`: success at 2026-08-29T07:07:06Z
+- `doctor.yml`: success at 2026-08-29T04:06:56Z
 
 ## 🟢 `schwab-trader` — trading-bot (active)
 
@@ -40,7 +40,7 @@ Vitals — realized P&L: $-40.82 · win rate: 14.3% · closed trades: 14 · open
 
 Watched workflows:
 - `sell-brain.yml`: success at 2026-08-28T18:37:04Z
-- `watchdog.yml`: success at 2026-08-27T22:42:04Z
+- `watchdog.yml`: success at 2026-08-28T22:49:05Z
 
 ## 💤 `Money_Machine` — unbuilt (stub)
 
