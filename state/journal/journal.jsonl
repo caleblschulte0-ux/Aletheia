@@ -781,3 +781,4 @@
 {"ts": "2026-08-28T18:54:55Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
 {"ts": "2026-08-28T18:54:55Z", "kind": "decision", "actor": "test", "subject": "approval:ap-buy", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T21:18:42Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-08-28"}
+{"ts": "2026-08-29T15:24:01Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-08-29"}
