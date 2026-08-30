@@ -18,7 +18,9 @@ Files with behavior:
 - `camera_question.py` — isolated "What is this?" vertical slice;
 - `desktop_context.py` — read-only Windows foreground/clipboard sensor;
 - `visual_fallback.py` — proposal-only screenshot target locator;
-- `tests/test_staging_gap.py` — hermetic contract tests.
+- `texting.py` — exact recipient/body text-message proposal; no sender;
+- `phonelink_messages_probe.py` — read-only privacy-safe Phone Link messaging feasibility probe;
+- `tests/test_staging_gap.py` + `tests/test_texting.py` — hermetic contract tests.
 
 ## Invariants Claude should try to break
 
@@ -45,6 +47,14 @@ Files with behavior:
    authentication. Future endpoints must sit behind existing `aletheia.access`.
 9. **No fake iOS notification capability.** The audit explicitly leaves generic
    cross-app notification reading unbuilt.
+10. **Texting has no send path.** `texting.py` produces an exact hash-bound
+    proposal only. Diagnostics/repr must never include the body or full number,
+    multiple saved numbers require an explicit choice, and an explicit number
+    must already belong to that contact.
+11. **The Phone Link messaging probe cannot read correspondence or act.** It may
+    only `list_windows` / `inspect_controls`, must omit arbitrary labels/contact
+    names/message previews, and must refuse window ambiguity rather than inspect
+    a random process.
 
 ## Local staging evidence before handoff
 
@@ -55,9 +65,15 @@ python -m unittest discover -s staging/jarvis_gap/tests -t . -v
 python -m compileall -q staging
 ```
 
-ChatGPT's isolated run after the red-team pass: **33 tests passed** plus
-compileall. This is not a substitute for the repository's normal full suite or a
-Windows live test of `WindowsContextBackend`.
+ChatGPT's isolated run after the texting/red-team pass: **41 tests passed** plus
+compileall. This is not a substitute for the repository's normal full suite, a
+Windows live test of `WindowsContextBackend`, or a supervised read-only Phone
+Link messaging probe on the operator's machine.
+
+Note: the repository's normal CI currently discovers `tests/`, not this
+`staging/jarvis_gap/tests/` directory. A green PR CI therefore proves production
+regression safety, not these staging contracts; run the command above explicitly
+when reviewing this package.
 
 ## Decisions still required before integration
 
@@ -71,9 +87,13 @@ Windows live test of `WindowsContextBackend`.
 - Which remote-access scope is allowed to upload sensor data? Existing `read`
   and `full` may be too broad; if a `sensor` scope is proposed, review it as an
   auth-policy change rather than sneaking it in with camera wiring.
+- Does the real Phone Link/iPhone pairing expose a stable enough messaging UIA
+  surface to justify a provider? Do not design a sender until the read-only probe
+  answers that on Windows. Any eventual send remains world-touching and needs an
+  exact recipient/body approval + post-send verification.
 - How should current browser tab / selected file be resolved without fragile
   title parsing? Keep those gaps named until a real provider exists.
 
 Do not merge the staging directory as a feature merely because tests are green.
-First ratify the contracts, then port the approved pieces into production in a
-small vertical slice with registry truth and live evidence.
+First ratify the contracts, then port the approved pieces into production in
+small vertical slices with registry truth and live evidence.
