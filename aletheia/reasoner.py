@@ -173,7 +173,7 @@ def _validate_input(system_prompt: str, text: str, context: dict | None) -> None
 
 def infer_json(system_prompt: str, text: str, *, context: dict | None = None,
                model: str = INTERPRET_MODEL, timeout_s: float = TIMEOUT_S) -> dict:
-    """Run Claude CLI only. `CliReasoner` below adds the ChatGPT fallback."""
+    """Run Claude CLI only. Use `subscription_json` for provider fallback."""
     _validate_input(system_prompt, text, context)
     prompt = text
     if context:
@@ -183,40 +183,52 @@ def infer_json(system_prompt: str, text: str, *, context: dict | None = None,
     return _first_json_object(raw)
 
 
+def subscription_json(system_prompt: str, text: str, *, context: dict | None = None,
+                      model: str = INTERPRET_MODEL,
+                      timeout_s: float = TIMEOUT_S) -> dict:
+    """One generic no-API-key JSON inference seam: Claude, then ChatGPT browser.
+
+    This function adds NO authority and deliberately performs no output-schema
+    validation beyond requiring a JSON object. Callers using custom schemas
+    (portfolio planner, code worker, reviewer) must validate every field before
+    acting. Invalid local input never triggers another provider.
+    """
+    _validate_input(system_prompt, text, context)
+    try:
+        return infer_json(system_prompt, text, context=context,
+                          model=model, timeout_s=timeout_s)
+    except ReasonerUnavailable:
+        pass
+    # A provider can be up but return malformed JSON. That is a provider
+    # failure for this structured contract, so give the alternate subscription
+    # one chance. Local input validation already happened above.
+    except ValueError:
+        pass
+
+    try:
+        from aletheia import browser_reasoner
+        return browser_reasoner.infer_json(
+            system_prompt, text, context=context,
+            timeout_s=max(timeout_s, browser_reasoner.TIMEOUT_S))
+    except (browser_reasoner.BrowserReasonerUnavailable, ValueError):
+        raise ReasonerUnavailable(
+            "both subscription reasoning paths are unavailable: Claude failed and ChatGPT browser could not answer"
+        ) from None
+
+
 @dataclass(frozen=True)
 class CliReasoner:
-    """Compatibility name for the subscription-auto adapter.
-
-    Existing callers keep using this class; its behavior is now Claude-first,
-    ChatGPT-browser-second. Neither backend receives local tools or authority.
-    """
+    """Compatibility name for the subscription-auto planner adapter."""
     model: str = INTERPRET_MODEL
     system_prompt: str = ""
     timeout_s: float = TIMEOUT_S
 
     def infer(self, text: str, context: dict | None = None) -> dict:
-        # Input/contract invalidity is not a provider outage. Preflight it once
-        # so an oversized/private context does not accidentally launch a real
-        # browser and then get mistaken for a fallback opportunity.
-        _validate_input(self.system_prompt, text, context)
-        try:
-            result = infer_json(self.system_prompt, text, context=context,
-                                model=self.model, timeout_s=self.timeout_s)
-            # Validate here once so malformed Claude output can fall through to
-            # ChatGPT rather than consuming the planner's single repair retry.
-            return brain.validate_output(result)
-        except (ReasonerUnavailable, ValueError, brain.BrainOutputError):
-            pass
-
-        try:
-            from aletheia import browser_reasoner
-            return browser_reasoner.infer_json(
-                self.system_prompt, text, context=context,
-                timeout_s=max(self.timeout_s, browser_reasoner.TIMEOUT_S))
-        except (browser_reasoner.BrowserReasonerUnavailable, ValueError):
-            raise ReasonerUnavailable(
-                "both subscription reasoning paths are unavailable: Claude failed and ChatGPT browser could not answer"
-            ) from None
+        result = subscription_json(
+            self.system_prompt, text, context=context,
+            model=self.model, timeout_s=self.timeout_s,
+        )
+        return brain.validate_output(result)
 
     def provider(self, provider_id: str = "subscription.auto") -> brain.Provider:
         if provider_id.startswith("claude.cli"):
