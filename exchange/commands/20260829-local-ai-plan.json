@@ -1,0 +1,13 @@
+{
+  "id": "20260829-local-ai-plan",
+  "filed": "2026-08-30T02:37:30Z",
+  "by": "chatgpt",
+  "relayed_from": "operator",
+  "operator_quote": "Okay, so let's start fucking integrating that then, right? Like am I missing something? Like it sounds like it's just as easy as downloading the AI and telling you to hook it up.",
+  "command": {
+    "kind": "plan_new",
+    "slug": "local-ai-brain",
+    "title": "Local AI brain integration",
+    "goal": "Make Aletheia able to reason locally when cloud AI is unavailable, using a replaceable local provider while preserving existing deterministic gates and approvals."
+  }
+}
