@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import ctypes
 import getpass
+import ipaddress
 import os
 import tempfile
 from pathlib import Path
@@ -139,6 +140,50 @@ def _paths(name: str) -> tuple[Path, Path]:
     return ROOT / f"{safe}.bin", ROOT / f"{safe}.json"
 
 
+def exists(name: str) -> bool:
+    """Fail closed: either half of an alias record means the name is occupied."""
+    cipher_path, meta_path = _paths(name)
+    return cipher_path.exists() or meta_path.exists()
+
+
+def _valid_host(host: str) -> bool:
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).version == 4
+    except ValueError:
+        pass
+    if len(host) > 253:
+        return False
+    labels = host.split(".")
+    return bool(labels) and all(
+        label
+        and len(label) <= 63
+        and label[0].isalnum()
+        and label[-1].isalnum()
+        and all(ch.isalnum() or ch == "-" for ch in label)
+        for label in labels
+    )
+
+
+def normalize_hosts(hosts: list[str] | tuple[str, ...] | None) -> list[str]:
+    """Canonical host-only bindings; URLs, ports and paths are never accepted."""
+    if hosts is None:
+        return []
+    if not isinstance(hosts, (list, tuple)):
+        raise ValueError("allowed_hosts must be a list of hostnames")
+    out = []
+    for value in hosts:
+        if not isinstance(value, str):
+            raise ValueError("allowed_hosts entries must be hostnames")
+        host = value.strip().rstrip(".").casefold()
+        if not host or "/" in host or ":" in host or not _valid_host(host):
+            raise ValueError(f"invalid allowed host {value!r}")
+        if host not in out:
+            out.append(host)
+    return out
+
+
 def _write_bytes_atomic(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
@@ -160,7 +205,8 @@ def _write_bytes_atomic(path: Path, data: bytes) -> None:
             pass
 
 
-def put(name: str, secret: str, *, provider: str = "", kind: str = "secret") -> dict:
+def put(name: str, secret: str, *, provider: str = "", kind: str = "secret",
+        allowed_hosts: list[str] | tuple[str, ...] | None = None) -> dict:
     if not isinstance(secret, str) or not secret:
         raise ValueError("secret must be a non-empty string")
     raw = secret.encode("utf-8")
@@ -178,11 +224,17 @@ def put(name: str, secret: str, *, provider: str = "", kind: str = "secret") -> 
         except ValueError:
             previous = None
     now = stateio.utcnow()
+    hosts = (
+        normalize_hosts(allowed_hosts)
+        if allowed_hosts is not None
+        else normalize_hosts((previous or {}).get("allowed_hosts") or [])
+    )
     metadata = {
         "version": 1,
         "name": stateio.safe_id(name, name="secret name"),
         "provider": str(provider)[:160],
         "kind": str(kind)[:80],
+        "allowed_hosts": hosts,
         "created_at": (previous or {}).get("created_at", now),
         "updated_at": now,
         "ciphertext_file": cipher_path.name,
@@ -206,10 +258,7 @@ def get(name: str) -> str:
 
 def metadata(name: str) -> dict:
     _, meta_path = _paths(name)
-    try:
-        value = stateio.read_json(meta_path)
-    except FileNotFoundError as exc:
-        raise KeyError(name) from exc
+    value = stateio.read_json(meta_path)
     if not isinstance(value, dict):
         raise SecretStoreError("secret metadata is malformed")
     return value
@@ -249,6 +298,10 @@ def main(argv: list[str] | None = None) -> int:
     put_p.add_argument("name")
     put_p.add_argument("--provider", default="")
     put_p.add_argument("--kind", default="secret")
+    put_p.add_argument(
+        "--host", action="append", default=None,
+        help="bind this secret to a hostname for local browser injection (repeatable)",
+    )
     delete_p = sub.add_parser("delete")
     delete_p.add_argument("name")
     args = ap.parse_args(argv)
@@ -259,14 +312,21 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if ok else 1
     if args.cmd == "list":
         for row in list_metadata():
-            print(f"{row.get('name')}  {row.get('kind')}  {row.get('provider')}  updated={row.get('updated_at')}")
+            hosts = ",".join(row.get("allowed_hosts") or []) or "local-only"
+            print(
+                f"{row.get('name')}  {row.get('kind')}  {row.get('provider')}  "
+                f"hosts={hosts}  updated={row.get('updated_at')}"
+            )
         return 0
     if args.cmd == "delete":
         print("deleted" if delete(args.name) else "not found")
         return 0
 
     secret = getpass.getpass("Secret (stored locally; not echoed): ")
-    row = put(args.name, secret, provider=args.provider, kind=args.kind)
+    row = put(
+        args.name, secret, provider=args.provider, kind=args.kind,
+        allowed_hosts=args.host,
+    )
     print(f"stored {row['name']} ({row['kind']}) for {row['provider'] or 'local use'}")
     return 0
 
