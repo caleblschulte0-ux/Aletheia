@@ -155,12 +155,22 @@ def parse(text: str, *, quote: str) -> dict:
     return {"version": 1, "summary": summary.strip(), "actions": clean}
 
 
+def _ready_session() -> dict | None:
+    """Use a live session, or auto-open one only from a standing LOCAL grant."""
+    current = work_session.active()
+    if current:
+        return current
+    # Lazy import keeps work_trust -> work_session and work_direct imports acyclic.
+    from aletheia import work_trust
+    return work_trust.ensure_session()
+
+
 def execute(text: str, *, quote: str) -> dict:
-    """Execute a quote-bound direct plan through an already-active Work Session."""
+    """Execute a quote-bound direct plan through a permitted local Work Session."""
     plan = parse(text, quote=quote)
-    if not work_session.active():
+    if not _ready_session():
         raise work_session.WorkSessionRequired(
-            "direct ChatGPT computer/browser work requires an active local Work Session"
+            "direct ChatGPT computer/browser work requires an active Work Session or a local standing work grant"
         )
     receipts = []
     for n, action in enumerate(plan["actions"], start=1):
