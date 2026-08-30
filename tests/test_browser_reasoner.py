@@ -106,9 +106,32 @@ class BrowserReasonerCase(unittest.TestCase):
         with self.assertRaises(browser_reasoner.BrowserReasonerUnavailable):
             browser_reasoner._compose("contract", "hello", {"bad": object()})
 
+    def test_disabled_by_default_before_browser_is_even_probed(self):
+        with mock.patch.dict(browser_reasoner.os.environ, {}, clear=True), \
+             mock.patch.object(browser_reasoner.browse, "available") as available:
+            ok, why = browser_reasoner.available()
+            self.assertFalse(ok)
+            self.assertIn("disabled by default", why)
+            self.assertFalse(browser_reasoner.enabled())
+            with self.assertRaisesRegex(
+                    browser_reasoner.BrowserReasonerUnavailable,
+                    "disabled by default"):
+                browser_reasoner.infer_json("contract", "private request")
+        available.assert_not_called()
+
+    def test_explicit_opt_in_is_required_and_recognized(self):
+        for value in ("1", "true", "YES", "on"):
+            with self.subTest(value=value), mock.patch.dict(
+                    browser_reasoner.os.environ,
+                    {browser_reasoner.OPT_IN_ENV: value}, clear=True):
+                self.assertTrue(browser_reasoner.enabled())
+
     def test_local_browser_failure_never_echoes_prompt(self):
         secret = "private-operator-context-that-must-not-leak"
-        with mock.patch.object(browser_reasoner.browse, "available", return_value=(True, "ready")), \
+        with mock.patch.dict(
+                browser_reasoner.os.environ,
+                {browser_reasoner.OPT_IN_ENV: "1"}, clear=True), \
+             mock.patch.object(browser_reasoner.browse, "available", return_value=(True, "ready")), \
              mock.patch.object(browser_reasoner.browse, "_Session", side_effect=OSError(secret)):
             with self.assertRaises(browser_reasoner.BrowserReasonerUnavailable) as ctx:
                 browser_reasoner.infer_json("contract", secret)
@@ -128,7 +151,10 @@ class BrowserReasonerCase(unittest.TestCase):
             def new_page(self):
                 return page
 
-        with mock.patch.object(browser_reasoner.browse, "available", return_value=(True, "ready")), \
+        with mock.patch.dict(
+                browser_reasoner.os.environ,
+                {browser_reasoner.OPT_IN_ENV: "1"}, clear=True), \
+             mock.patch.object(browser_reasoner.browse, "available", return_value=(True, "ready")), \
              mock.patch.object(browser_reasoner, "_subscription_session", return_value=Session()), \
              mock.patch.object(browser_reasoner, "_infer_page", return_value={"ok": True}) as infer:
             result = browser_reasoner.infer_json("contract", "request", timeout_s=2.0)
