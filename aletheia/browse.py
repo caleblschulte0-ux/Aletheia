@@ -159,18 +159,22 @@ def validate_steps(steps: list[dict]) -> list[str]:
 
 
 def interact(url: str, steps: list[dict], approval_id: str,
-             profile: Path | None = None) -> dict:
+             profile: Path | None = None, step_guard=None) -> dict:
     """ACT on a page — click, type, submit. Requires an APPROVED approval.
 
     Separate from read_page on purpose (§61): permission to look at a page is
     never permission to press its buttons. The approval is checked before the
     browser opens, and the steps are validated before that.
+
+    `step_guard`, when supplied by a stricter caller such as a bounded work
+    session, receives `(page, step)` immediately before each action. The default
+    remains unchanged: ordinary callers still rely on their exact approval.
     """
     problems = validate_steps(steps)
     if problems:
         raise ValueError("; ".join(problems))
     if not policy.is_approved(approval_id):
-        raise policy.Halted(  # refusal, surfaced the same way a halt is
+        raise policy.Halted(
             f"approval {approval_id!r} is not APPROVED — browser interaction acts on "
             "someone else's system and is never self-authorized")
     _guard("interact with a page")
@@ -180,6 +184,9 @@ def interact(url: str, steps: list[dict], approval_id: str,
         page = ctx.new_page()
         page.goto(url, wait_until="domcontentloaded")
         for s in steps:
+            policy.ensure_not_halted()
+            if step_guard is not None:
+                step_guard(page, s)
             action, sel, val = s["action"], s.get("selector"), s.get("value")
             if action == "click":
                 page.click(sel)
@@ -228,7 +235,7 @@ def main(argv: list[str] | None = None) -> int:
         print("\n" + page["text"][:2000])
     elif args.cmd == "shot":
         print(f"wrote {screenshot(args.url, args.out)}")
-    else:  # login — opens a real window on the operator's machine
+    else:
         print("Opening a browser window. Sign in normally, then close it.")
         with _Session(headed=True) as ctx:
             page = ctx.new_page()
