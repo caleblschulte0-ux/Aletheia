@@ -805,3 +805,4 @@
 {"ts": "2026-08-30T13:14:08Z", "kind": "event", "actor": "aletheia", "subject": "approval:ct-20260830-1314-cbe85f-operator", "text": "requested — code.trust:ct-20260830-1314-cbe85f"}
 {"ts": "2026-08-30T13:14:08Z", "kind": "decision", "actor": "operator-local", "subject": "approval:ct-20260830-1314-cbe85f-operator", "text": "APPROVED — operator explicitly enabled bounded reviewed code-PR work locally"}
 {"ts": "2026-08-30T13:14:08Z", "kind": "decision", "actor": "aletheia-code-trust", "subject": "code:trust", "text": "ENABLED ct-20260830-1314-cbe85f until 2026-09-29T13:14:08Z / 25 PR attempts", "refs": ["approval:ct-20260830-1314-cbe85f-operator"]}
+{"ts": "2026-08-30T13:14:34Z", "kind": "decision", "actor": "aletheia-code-trust", "subject": "code:trust", "text": "CLAIM ct-20260830-1314-cbe85f slot 1 for caleblschulte0-ux/Shorts-pipeline task issue-1", "refs": ["approval:ct-20260830-1314-cbe85f-operator"]}
