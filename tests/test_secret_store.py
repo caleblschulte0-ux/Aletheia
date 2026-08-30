@@ -52,10 +52,13 @@ class SecretStoreCase(unittest.TestCase):
         self.assertEqual(second["created_at"], first["created_at"])
         self.assertEqual(secret_store.get("service"), "new-value")
 
-    def test_missing_secret_is_key_error(self):
+    def test_missing_ciphertext_is_key_error_and_missing_metadata_fails_closed(self):
         with self.assertRaises(KeyError):
             secret_store.get("missing")
-        with self.assertRaises(KeyError):
+        # stateio deliberately normalizes missing/corrupt JSON state to ValueError.
+        # Metadata is state, so keep that fail-closed contract rather than
+        # special-casing a missing file into a different exception family.
+        with self.assertRaises(ValueError):
             secret_store.metadata("missing")
 
     def test_empty_and_oversize_values_refused(self):
