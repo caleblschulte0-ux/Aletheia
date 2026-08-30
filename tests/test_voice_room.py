@@ -51,15 +51,15 @@ class TestLoop(unittest.TestCase):
         self.assertEqual(handled, 0)
         self.assertEqual(asked, [])
 
-    def test_mangled_wake_word_still_carries_the_command(self):
-        # the open model heard 'yeah ...' but the wake spotter fired
+    def test_detector_hit_with_common_nonwake_word_is_ignored(self):
         asked = []
         with mock.patch.object(voice_room, "ask_core",
                                side_effect=lambda t, *a, **k: asked.append(t) or {"say": "ok"}):
-            voice_room.listen_forever(
-                recognizer=iter([(True, "yeah that's going on")]),
+            handled = voice_room.listen_forever(
+                recognizer=iter([(True, "yeah that is probably right")]),
                 speaker=lambda t: None)
-        self.assertEqual(asked, ["thea that's going on"])
+        self.assertEqual(handled, 0)
+        self.assertEqual(asked, [])
 
     def test_bare_wake_prompts_and_takes_next_utterance(self):
         spoken, asked = [], []
