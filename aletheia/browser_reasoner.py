@@ -8,6 +8,7 @@ validate the returned object through the normal brain/planner gates.
 from __future__ import annotations
 
 import json
+import os
 import time
 from urllib.parse import urlparse
 
@@ -46,6 +47,18 @@ def available() -> tuple[bool, str]:
     if not browse.PROFILE_DIR.exists():
         return False, "browser profile has not been initialized/sign-in has not been done"
     return True, "ChatGPT browser runtime ready; login is verified on first use"
+
+
+def _subscription_session():
+    """Open ChatGPT the same way the operator uses it on Windows.
+
+    Hidden/headless Chrome can receive a different site experience from the normal
+    browser even when it uses the same authenticated profile. On Windows the
+    subscription fallback is therefore intentionally visible and uses installed
+    Chrome through the existing persistent profile. This does not change login,
+    cookie, or authority handling; it only changes whether the browser is headed.
+    """
+    return browse._Session(headed=(os.name == "nt"))
 
 
 def _host_ok(url: str) -> bool:
@@ -210,7 +223,7 @@ def infer_json(system_prompt: str, text: str, *, context: dict | None = None,
         raise BrowserReasonerUnavailable(f"browser unavailable ({why})")
     prompt = _compose(system_prompt, text, context)
     try:
-        with browse._Session() as ctx:
+        with _subscription_session() as ctx:
             page = ctx.new_page()
             try:
                 page.goto(CHATGPT_URL, wait_until="domcontentloaded")
