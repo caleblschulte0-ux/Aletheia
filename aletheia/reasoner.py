@@ -1,9 +1,10 @@
-"""Subscription-backed reasoning with no per-token API key.
+"""Subscription-backed reasoning with local student/fallback integration.
 
-Claude remains the preferred subscription provider, with the operator's signed-in
-ChatGPT browser as fallback. Successful subscription answers may also launch a
-non-authoritative LOCAL shadow attempt so Aletheia can collect student/teacher
-pairs for its future model. Shadow work never changes the returned answer.
+Claude remains the preferred subscription provider for deep work, with the
+operator's signed-in ChatGPT browser as fallback. Successful subscription
+answers may also launch a non-authoritative LOCAL shadow attempt so Aletheia can
+collect student/teacher pairs for its future model. Fast interpretation uses the
+hybrid routine policy, while deep planning remains subscription-first.
 """
 from __future__ import annotations
 
@@ -272,26 +273,29 @@ def subscription_json(system_prompt: str, text: str, *, context: dict | None = N
 
 @dataclass(frozen=True)
 class CliReasoner:
-    """Compatibility adapter; production planning now uses the hybrid standard policy."""
+    """Compatibility adapter for Aletheia's hybrid production reasoning."""
     model: str = INTERPRET_MODEL
     system_prompt: str = ""
     timeout_s: float = TIMEOUT_S
 
+    def _policy(self) -> str:
+        # Fast/latency-sensitive interpretation gives the local pool real daily
+        # work. Deep planning preserves the stronger subscription quality bar.
+        return "routine" if self.model == INTERPRET_MODEL else "standard"
+
     def infer(self, text: str, context: dict | None = None) -> dict:
-        # Lazy import avoids reasoner <-> gateway import cycles. Standard means
-        # subscriptions first and local-deep only when both subscription paths
-        # are genuinely unavailable.
         from aletheia import reasoning_gateway
         return reasoning_gateway.reason_json(
-            self.system_prompt, text, context=context, policy="standard",
+            self.system_prompt, text, context=context, policy=self._policy(),
             model=self.model, timeout_s=self.timeout_s,
             validator=brain.validate_output,
         ).output
 
-    def provider(self, provider_id: str = "reasoning.hybrid.standard") -> brain.Provider:
-        if provider_id.startswith("claude.cli") or provider_id.startswith("subscription.auto"):
-            suffix = provider_id.split(".")[-1] if "." in provider_id else ""
-            provider_id = "reasoning.hybrid.standard" + (f".{suffix}" if suffix in {"plan", "interpret"} else "")
+    def provider(self, provider_id: str = "reasoning.hybrid") -> brain.Provider:
+        policy = self._policy()
+        suffix = provider_id.split(".")[-1] if "." in provider_id else ""
+        if provider_id.startswith(("claude.cli", "subscription.auto", "reasoning.hybrid")):
+            provider_id = f"reasoning.hybrid.{policy}" + (f".{suffix}" if suffix in {"plan", "interpret"} else "")
         return brain.Provider(provider_id, self.infer)
 
 
