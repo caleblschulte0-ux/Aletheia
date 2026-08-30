@@ -28,6 +28,14 @@ class OperatorActivationV2Case(unittest.TestCase):
         self.assertLess(tests, work)
         self.assertLess(tests, code)
 
+    def test_recovery_preserves_local_journal_before_hard_reset(self):
+        read_local = self.lower.index('get-content $localjournal -raw')
+        reset = self.lower.index('checkout -f -b main origin/main')
+        append_pc = self.lower.index('appendalltext')
+        self.assertLess(read_local, reset)
+        self.assertGreater(append_pc, reset)
+        self.assertIn('journal-pc.jsonl', self.lower)
+
     def test_auth_stays_off_public_repo_and_environment(self):
         self.assertIn("gh auth login --hostname github.com --web", self.lower)
         self.assertIn('"aletheia.github_auth","import-cli"', self.lower)
