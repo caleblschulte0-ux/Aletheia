@@ -15,6 +15,7 @@ import argparse
 import ctypes
 import getpass
 import os
+import re
 import tempfile
 from pathlib import Path
 
@@ -24,6 +25,10 @@ ROOT = stateio.private_dir("secrets")
 MAX_SECRET_BYTES = 64 * 1024
 ENTROPY = b"Aletheia local secret store v1"
 CRYPTPROTECT_UI_FORBIDDEN = 0x1
+HOST_RE = re.compile(
+    r"^(?:localhost|[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?)$",
+    re.IGNORECASE,
+)
 
 
 class SecretStoreUnavailable(RuntimeError):
@@ -139,6 +144,24 @@ def _paths(name: str) -> tuple[Path, Path]:
     return ROOT / f"{safe}.bin", ROOT / f"{safe}.json"
 
 
+def normalize_hosts(hosts: list[str] | tuple[str, ...] | None) -> list[str]:
+    """Canonical host-only bindings; URLs, ports and paths are never accepted."""
+    if hosts is None:
+        return []
+    if not isinstance(hosts, (list, tuple)):
+        raise ValueError("allowed_hosts must be a list of hostnames")
+    out = []
+    for value in hosts:
+        if not isinstance(value, str):
+            raise ValueError("allowed_hosts entries must be hostnames")
+        host = value.strip().rstrip(".").casefold()
+        if not host or not HOST_RE.fullmatch(host) or "/" in host or ":" in host:
+            raise ValueError(f"invalid allowed host {value!r}")
+        if host not in out:
+            out.append(host)
+    return out
+
+
 def _write_bytes_atomic(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
@@ -160,7 +183,8 @@ def _write_bytes_atomic(path: Path, data: bytes) -> None:
             pass
 
 
-def put(name: str, secret: str, *, provider: str = "", kind: str = "secret") -> dict:
+def put(name: str, secret: str, *, provider: str = "", kind: str = "secret",
+        allowed_hosts: list[str] | tuple[str, ...] | None = None) -> dict:
     if not isinstance(secret, str) or not secret:
         raise ValueError("secret must be a non-empty string")
     raw = secret.encode("utf-8")
@@ -178,11 +202,17 @@ def put(name: str, secret: str, *, provider: str = "", kind: str = "secret") -> 
         except ValueError:
             previous = None
     now = stateio.utcnow()
+    hosts = (
+        normalize_hosts(allowed_hosts)
+        if allowed_hosts is not None
+        else normalize_hosts((previous or {}).get("allowed_hosts") or [])
+    )
     metadata = {
         "version": 1,
         "name": stateio.safe_id(name, name="secret name"),
         "provider": str(provider)[:160],
         "kind": str(kind)[:80],
+        "allowed_hosts": hosts,
         "created_at": (previous or {}).get("created_at", now),
         "updated_at": now,
         "ciphertext_file": cipher_path.name,
@@ -249,6 +279,10 @@ def main(argv: list[str] | None = None) -> int:
     put_p.add_argument("name")
     put_p.add_argument("--provider", default="")
     put_p.add_argument("--kind", default="secret")
+    put_p.add_argument(
+        "--host", action="append", default=None,
+        help="bind this secret to a hostname for local browser injection (repeatable)",
+    )
     delete_p = sub.add_parser("delete")
     delete_p.add_argument("name")
     args = ap.parse_args(argv)
@@ -259,14 +293,21 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if ok else 1
     if args.cmd == "list":
         for row in list_metadata():
-            print(f"{row.get('name')}  {row.get('kind')}  {row.get('provider')}  updated={row.get('updated_at')}")
+            hosts = ",".join(row.get("allowed_hosts") or []) or "local-only"
+            print(
+                f"{row.get('name')}  {row.get('kind')}  {row.get('provider')}  "
+                f"hosts={hosts}  updated={row.get('updated_at')}"
+            )
         return 0
     if args.cmd == "delete":
         print("deleted" if delete(args.name) else "not found")
         return 0
 
     secret = getpass.getpass("Secret (stored locally; not echoed): ")
-    row = put(args.name, secret, provider=args.provider, kind=args.kind)
+    row = put(
+        args.name, secret, provider=args.provider, kind=args.kind,
+        allowed_hosts=args.host,
+    )
     print(f"stored {row['name']} ({row['kind']}) for {row['provider'] or 'local use'}")
     return 0
 
