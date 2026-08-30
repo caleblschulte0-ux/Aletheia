@@ -1,0 +1,10 @@
+{
+  "id": "20260829-local-brain-provider",
+  "filed": "2026-08-30T02:37:00Z",
+  "by": "chatgpt",
+  "repo": "aletheia",
+  "kind": "plan",
+  "title": "Add an always-available local reasoning provider",
+  "detail": "The operator wants local AI integrated now so Aletheia can continue reasoning when Claude or another cloud provider is unavailable. The existing aletheia/brain.py contract already makes reasoning providers replaceable; preserve that boundary. Add a local provider adapter that talks to a localhost model runtime rather than embedding model-specific behavior into orchestration. Start with Ollama as the local runtime and make model name/endpoint configuration external so Qwen or another model can be swapped without changing Aletheia policy. The provider should convert Aletheia context plus operator text into the existing validated brain output contract, fail closed on malformed output, enforce timeouts, and fall back to the deterministic provider rather than bypassing planners, capability checks, approvals, or gates. Wire the assistant interpret path through a provider selector so local can be the default when available while cloud providers can later be added as optional escalation workers. Include a health/status check that reports local model availability separately from internet/cloud availability. Do not give the model direct filesystem, shell, browser, email, GitHub, or device authority; it proposes through the existing contracts and deterministic gates. Add tests for valid structured output, invalid/malformed output, unreachable local runtime, timeout, model swap by config, and deterministic fallback. The first milestone is local text reasoning only; tool use and cloud escalation should remain behind Aletheia's existing capability system.",
+  "evidence": "aletheia/brain.py already defines Provider, validate_output, and FALLBACK specifically for ChatGPT, Claude, local, or trained-model adapters. aletheia/assistant.py currently routes interpret directly to brain.FALLBACK.run, so the provider-selection socket is the missing piece."
+}
