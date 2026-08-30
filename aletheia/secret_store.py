@@ -12,12 +12,9 @@ credential directly into an authenticated local operation.
 from __future__ import annotations
 
 import argparse
-import base64
 import ctypes
 import getpass
-import json
 import os
-import sys
 import tempfile
 from pathlib import Path
 
@@ -78,18 +75,22 @@ def _protect(data: bytes) -> bytes:
 
     source, source_buf = blob(data)
     entropy, entropy_buf = blob(ENTROPY)
-    del source_buf, entropy_buf  # structures keep their pointer values for this call
     out = DATA_BLOB()
+    # source_buf / entropy_buf MUST stay referenced until the native call
+    # returns. DATA_BLOB only stores their pointers; dropping the Python buffer
+    # early would make those pointers dangling.
     if not crypt32.CryptProtectData(
         ctypes.byref(source), "Aletheia", ctypes.byref(entropy), None, None,
         CRYPTPROTECT_UI_FORBIDDEN, ctypes.byref(out),
     ):
         raise SecretStoreError(f"CryptProtectData failed ({ctypes.get_last_error()})")
+    _keepalive = (source_buf, entropy_buf)
     try:
         return ctypes.string_at(out.pbData, out.cbData)
     finally:
+        del _keepalive
         if out.pbData:
-            kernel32.LocalFree(out.pbData)
+            kernel32.LocalFree(ctypes.cast(out.pbData, ctypes.c_void_p))
 
 
 def _unprotect(data: bytes) -> bytes:
@@ -106,8 +107,10 @@ def _unprotect(data: bytes) -> bytes:
 
     crypt32 = ctypes.WinDLL("Crypt32.dll", use_last_error=True)
     kernel32 = ctypes.WinDLL("Kernel32.dll", use_last_error=True)
+    # The optional plaintext description pointer is deliberately NULL: we do
+    # not need it, which avoids allocating/freeing another native string.
     crypt32.CryptUnprotectData.argtypes = [
-        ctypes.POINTER(DATA_BLOB), ctypes.POINTER(ctypes.c_wchar_p), ctypes.POINTER(DATA_BLOB),
+        ctypes.POINTER(DATA_BLOB), ctypes.c_void_p, ctypes.POINTER(DATA_BLOB),
         ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint32, ctypes.POINTER(DATA_BLOB),
     ]
     crypt32.CryptUnprotectData.restype = ctypes.c_bool
@@ -116,21 +119,19 @@ def _unprotect(data: bytes) -> bytes:
 
     source, source_buf = blob(data)
     entropy, entropy_buf = blob(ENTROPY)
-    del source_buf, entropy_buf
     out = DATA_BLOB()
-    description = ctypes.c_wchar_p()
     if not crypt32.CryptUnprotectData(
-        ctypes.byref(source), ctypes.byref(description), ctypes.byref(entropy), None, None,
+        ctypes.byref(source), None, ctypes.byref(entropy), None, None,
         CRYPTPROTECT_UI_FORBIDDEN, ctypes.byref(out),
     ):
         raise SecretStoreError(f"CryptUnprotectData failed ({ctypes.get_last_error()})")
+    _keepalive = (source_buf, entropy_buf)
     try:
         return ctypes.string_at(out.pbData, out.cbData)
     finally:
+        del _keepalive
         if out.pbData:
-            kernel32.LocalFree(out.pbData)
-        if description:
-            kernel32.LocalFree(description)
+            kernel32.LocalFree(ctypes.cast(out.pbData, ctypes.c_void_p))
 
 
 def _paths(name: str) -> tuple[Path, Path]:
@@ -167,7 +168,7 @@ def put(name: str, secret: str, *, provider: str = "", kind: str = "secret") -> 
         raise ValueError(f"secret exceeds {MAX_SECRET_BYTES} bytes")
     cipher_path, meta_path = _paths(name)
     encrypted = _protect(raw)
-    if not encrypted or raw in encrypted:
+    if not encrypted or encrypted == raw:
         raise SecretStoreError("DPAPI did not produce opaque ciphertext")
     _write_bytes_atomic(cipher_path, encrypted)
     previous = None
