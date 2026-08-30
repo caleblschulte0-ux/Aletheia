@@ -3,21 +3,29 @@ from __future__ import annotations
 import datetime as dt
 import unittest
 
+from staging.jarvis_gap.camera_question import CameraQuestionPipeline
+from staging.jarvis_gap.desktop_context import capture
 from staging.jarvis_gap.mobile_sensors import (
     EphemeralSensorBuffer,
     ImageObservation,
     validate_location,
 )
+from staging.jarvis_gap.sensor_requests import SensorTicketStore
 from staging.jarvis_gap.vision import VisionReasoner
 from staging.jarvis_gap.visual_fallback import VisualTargetPlanner
 
 UTC = dt.timezone.utc
+PNG = b"\x89PNG\r\n\x1a\n" + b"pixels"
+JPEG = b"\xff\xd8\xff" + b"pixels"
+WEBP = b"RIFF\x04\x00\x00\x00WEBP" + b"pixels"
 
 
 class FakeVision:
     def __init__(self, output):
         self.output = output
+        self.context = None
     def analyze(self, image, question, *, context):
+        self.context = context
         return dict(self.output)
 
 
@@ -28,16 +36,31 @@ class FakeTarget:
         return dict(self.output)
 
 
+class FakeDesktop:
+    def __init__(self, *, clipboard="secret-ish text"):
+        self.clipboard = clipboard
+    def foreground(self):
+        return {"title": "Budget.xlsx - Excel", "process_id": 44,
+                "process_path": r"C:\\Program Files\\Microsoft Office\\EXCEL.EXE"}
+    def clipboard_text(self):
+        return self.clipboard
+
+
 class SensorTests(unittest.TestCase):
     def setUp(self):
         self.now = dt.datetime(2026, 8, 30, 20, 0, tzinfo=UTC)
 
     def test_camera_metadata_never_contains_bytes(self):
-        image = ImageObservation(b"jpeg-bytes", "image/jpeg", self.now)
+        image = ImageObservation(JPEG, "image/jpeg", self.now)
         meta = image.metadata()
         self.assertNotIn("data", meta)
-        self.assertEqual(meta["size_bytes"], 10)
+        self.assertEqual(meta["size_bytes"], len(JPEG))
         self.assertEqual(len(meta["sha256"]), 64)
+        self.assertNotIn("pixels", repr(image))
+
+    def test_media_type_must_match_bytes(self):
+        with self.assertRaisesRegex(ValueError, "declared media"):
+            ImageObservation(b"not an image", "image/jpeg", self.now)
 
     def test_location_requires_consent(self):
         packet = {"version": 1, "source": "iphone.geolocation",
@@ -56,23 +79,140 @@ class SensorTests(unittest.TestCase):
 
     def test_camera_is_consume_once(self):
         buffer = EphemeralSensorBuffer(clock=lambda: self.now)
-        image = ImageObservation(b"x", "image/png", self.now)
+        image = ImageObservation(PNG, "image/png", self.now)
         buffer.put_camera(image)
         self.assertIs(buffer.consume_camera(), image)
         self.assertIsNone(buffer.consume_camera())
 
+    def test_fresh_camera_is_not_silently_overwritten(self):
+        buffer = EphemeralSensorBuffer(clock=lambda: self.now)
+        buffer.put_camera(ImageObservation(PNG, "image/png", self.now))
+        with self.assertRaisesRegex(RuntimeError, "unconsumed"):
+            buffer.put_camera(ImageObservation(PNG + b"2", "image/png", self.now))
+
     def test_snapshot_exposes_metadata_not_pixels(self):
         buffer = EphemeralSensorBuffer(clock=lambda: self.now)
-        buffer.put_camera(ImageObservation(b"secret-pixels", "image/webp", self.now))
+        buffer.put_camera(ImageObservation(WEBP, "image/webp", self.now))
         snap = buffer.snapshot()
         self.assertNotIn("data", snap["camera"])
-        self.assertNotIn(b"secret-pixels", repr(snap).encode())
+        self.assertNotIn(b"pixels", repr(snap).encode())
+
+    def test_snapshot_hides_precise_location(self):
+        buffer = EphemeralSensorBuffer(clock=lambda: self.now)
+        buffer.put_location({"version": 1, "source": "iphone.geolocation",
+                             "observed_at": self.now.isoformat(), "lat": 43.5,
+                             "lon": -96.7, "accuracy_m": 8, "consent": True})
+        meta = buffer.snapshot()["location"]
+        self.assertTrue(meta["present"])
+        self.assertNotIn("lat", meta)
+        self.assertNotIn("lon", meta)
+
+
+class TicketTests(unittest.TestCase):
+    def setUp(self):
+        self.now = dt.datetime(2026, 8, 30, 20, 0, tzinfo=UTC)
+        self.store = SensorTicketStore(clock=lambda: self.now)
+
+    def test_camera_is_bound_to_one_request_and_token_is_one_shot(self):
+        token, issued = self.store.issue("What is this?", kinds=("camera",))
+        image = ImageObservation(JPEG, "image/jpeg", self.now)
+        self.store.accept_camera(token, image)
+        capture_obj = self.store.consume(token)
+        self.assertEqual(capture_obj.camera.digest, image.digest)
+        self.assertEqual(capture_obj.question_sha256, issued["question_sha256"])
+        with self.assertRaises(PermissionError):
+            self.store.status(token)
+
+    def test_capture_metadata_hides_coordinates_until_explicitly_requested(self):
+        token, _ = self.store.issue("Where am I?", kinds=("location",))
+        packet = {"version": 1, "source": "iphone.geolocation",
+                  "observed_at": self.now.isoformat(), "lat": 43.5,
+                  "lon": -96.7, "accuracy_m": 8, "consent": True}
+        self.store.accept_location(token, packet)
+        capture_obj = self.store.consume(token)
+        self.assertNotIn("lat", capture_obj.metadata()["location"])
+        self.assertEqual(43.5, capture_obj.reasoning_context(include_location=True)["location"]["lat"])
+
+    def test_wrong_sensor_kind_is_refused(self):
+        token, _ = self.store.issue("Where am I?", kinds=("location",))
+        with self.assertRaises(PermissionError):
+            self.store.accept_camera(token, ImageObservation(JPEG, "image/jpeg", self.now))
+
+    def test_capture_must_be_complete_before_consume(self):
+        token, _ = self.store.issue("What is this place?", kinds=("camera", "location"))
+        self.store.accept_camera(token, ImageObservation(JPEG, "image/jpeg", self.now))
+        with self.assertRaisesRegex(RuntimeError, "missing"):
+            self.store.consume(token)
+
+    def test_old_frame_cannot_be_replayed_into_new_request(self):
+        token, _ = self.store.issue("What is this?", kinds=("camera",))
+        old = self.now - dt.timedelta(minutes=2)
+        with self.assertRaisesRegex(ValueError, "predates"):
+            self.store.accept_camera(token, ImageObservation(JPEG, "image/jpeg", old))
+
+
+class CameraQuestionPipelineTests(unittest.TestCase):
+    def setUp(self):
+        self.now = dt.datetime(2026, 8, 30, 20, 0, tzinfo=UTC)
+        self.backend = FakeVision({"answer": "A coffee mug.", "confidence": 0.95, "basis": "visible handle"})
+        tickets = SensorTicketStore(clock=lambda: self.now)
+        self.pipeline = CameraQuestionPipeline(VisionReasoner(self.backend), tickets=tickets)
+
+    def test_what_is_this_vertical_slice_is_request_and_image_bound(self):
+        token, issued = self.pipeline.start("What is this?")
+        image = ImageObservation(JPEG, "image/jpeg", self.now)
+        self.pipeline.submit_camera(token, image)
+        answer = self.pipeline.answer(token, "What is this?")
+        self.assertEqual(answer.answer, "A coffee mug.")
+        self.assertEqual(answer.image_sha256, image.digest)
+        self.assertEqual(self.backend.context["sensor_request"]["question_sha256"], issued["question_sha256"])
+
+    def test_wrong_question_cannot_steal_captured_frame(self):
+        token, _ = self.pipeline.start("What is this?")
+        self.pipeline.submit_camera(token, ImageObservation(JPEG, "image/jpeg", self.now))
+        with self.assertRaisesRegex(PermissionError, "does not match"):
+            self.pipeline.answer(token, "Where am I?")
+        # The failed mismatched question did not consume the legitimate capture.
+        answer = self.pipeline.answer(token, "What is this?")
+        self.assertEqual(answer.answer, "A coffee mug.")
+
+    def test_location_only_reaches_vision_when_request_asked_for_it(self):
+        token, _ = self.pipeline.start("What is this place?", include_location=True)
+        self.pipeline.submit_camera(token, ImageObservation(JPEG, "image/jpeg", self.now))
+        self.pipeline.submit_location(token, {"version": 1, "source": "iphone.geolocation",
+                                              "observed_at": self.now.isoformat(), "lat": 43.5,
+                                              "lon": -96.7, "accuracy_m": 8, "consent": True})
+        self.pipeline.answer(token, "What is this place?")
+        self.assertEqual(self.backend.context["location"]["lat"], 43.5)
+
+
+class DesktopContextTests(unittest.TestCase):
+    def setUp(self):
+        self.now = dt.datetime(2026, 8, 30, 20, 0, tzinfo=UTC)
+
+    def test_diagnostics_omit_clipboard_text_and_full_process_path(self):
+        observation = capture(FakeDesktop(), now=self.now)
+        meta = observation.metadata()
+        self.assertEqual(meta["process_name"], "EXCEL.EXE")
+        self.assertNotIn("process_path", meta)
+        self.assertNotIn("active_window_title", meta)
+        self.assertNotIn("Budget.xlsx", repr(observation))
+        self.assertNotIn("text", meta["clipboard"])
+        self.assertNotIn("secret-ish", repr(observation))
+
+    def test_clipboard_disclosure_is_explicit(self):
+        observation = capture(FakeDesktop(), now=self.now)
+        self.assertNotIn("text", observation.reasoning_context()["clipboard"])
+        self.assertEqual(
+            observation.reasoning_context(include_clipboard=True)["clipboard"]["text"],
+            "secret-ish text",
+        )
 
 
 class VisionTests(unittest.TestCase):
     def setUp(self):
         self.image = ImageObservation(
-            b"pixels", "image/jpeg", dt.datetime(2026, 8, 30, tzinfo=UTC)
+            JPEG, "image/jpeg", dt.datetime(2026, 8, 30, tzinfo=UTC)
         )
 
     def test_read_only_answer(self):
@@ -90,11 +230,17 @@ class VisionTests(unittest.TestCase):
         with self.assertRaises(PermissionError):
             reasoner.ask(self.image, "What is there?")
 
+    def test_vision_context_is_bounded_before_backend(self):
+        backend = FakeVision({"answer": "x", "confidence": 1.0, "basis": "x"})
+        with self.assertRaisesRegex(ValueError, "context exceeds"):
+            VisionReasoner(backend).ask(self.image, "What?", context={"x": "y" * 9000})
+        self.assertIsNone(backend.context)
+
 
 class VisualFallbackTests(unittest.TestCase):
     def setUp(self):
         self.screen = ImageObservation(
-            b"screen", "image/png", dt.datetime(2026, 8, 30, tzinfo=UTC),
+            PNG, "image/png", dt.datetime(2026, 8, 30, tzinfo=UTC),
             source="windows.screenshot",
         )
 
