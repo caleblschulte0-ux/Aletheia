@@ -16,8 +16,9 @@ So the whole suite gets its own private root, set here — before the first
 `from aletheia import ...` anywhere — and thrown away at exit. A test that
 forgets to patch now pollutes a temp directory nobody will ever read.
 
-This is the package's only job. Anything a test needs it still sets up
-itself; this only decides WHERE "private state" means.
+The durable repo journal is a separate store, so it is explicitly routed
+into that same temporary root too. This prevents a real-PC test run from
+syncing fake test approvals/actions into fleet history.
 """
 from __future__ import annotations
 
@@ -25,14 +26,21 @@ import atexit
 import os
 import shutil
 import tempfile
+from pathlib import Path
 
-# Only if the caller has not chosen one. Someone deliberately pointing the
-# suite at a specific directory (to reproduce a bug against a copy of real
-# state, say) should keep it.
-if not os.environ.get("ALETHEIA_PRIVATE_STATE"):
-    _SUITE_STATE = tempfile.mkdtemp(prefix="aletheia-tests-private-")
-    os.environ["ALETHEIA_PRIVATE_STATE"] = _SUITE_STATE
+_created_suite_state = False
+_suite_state = os.environ.get("ALETHEIA_PRIVATE_STATE")
+if not _suite_state:
+    _suite_state = tempfile.mkdtemp(prefix="aletheia-tests-private-")
+    os.environ["ALETHEIA_PRIVATE_STATE"] = _suite_state
+    _created_suite_state = True
 
+# journal.py binds JOURNAL_PATH at import time, just like private-state modules.
+# Set this before any aletheia import so unpatched journal calls remain isolated.
+if not os.environ.get("ALETHEIA_JOURNAL_PATH"):
+    os.environ["ALETHEIA_JOURNAL_PATH"] = str(Path(_suite_state) / "journal.jsonl")
+
+if _created_suite_state:
     @atexit.register
     def _cleanup() -> None:
-        shutil.rmtree(_SUITE_STATE, ignore_errors=True)
+        shutil.rmtree(_suite_state, ignore_errors=True)

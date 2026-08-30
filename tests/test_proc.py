@@ -7,6 +7,7 @@ is a product defect in ambient software, so it gets a test.
 import ast
 import pathlib
 import subprocess
+import sys
 import unittest
 from unittest import mock
 
@@ -31,9 +32,11 @@ class TestFlags(unittest.TestCase):
             self.skipTest("Windows-only flag combination")
         self.assertEqual(proc.hidden_flags(detached), detached)
 
-    def test_passthrough_on_posix_is_harmless(self):
-        # NO_WINDOW is 0 off Windows, so the flag is a no-op, never an error
-        result = proc.run(["true"], capture_output=True)
+    def test_helper_executes_a_real_command_cross_platform(self):
+        # `true` is a POSIX utility and does not exist on Windows. Use the
+        # current Python executable so this test exercises proc.run on the
+        # operator's real Windows machine as well as Linux CI.
+        result = proc.run([sys.executable, "-c", "raise SystemExit(0)"], capture_output=True)
         self.assertEqual(result.returncode, 0)
 
 
