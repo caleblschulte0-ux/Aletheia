@@ -8,6 +8,77 @@ from unittest import mock
 from aletheia import journal, policy, work_session
 
 
+class FakePage:
+    def __init__(self, meta):
+        self.meta = meta
+        self.waited = []
+
+    def wait_for_selector(self, selector):
+        self.waited.append(selector)
+
+    def eval_on_selector(self, selector, script):
+        del selector, script
+        return dict(self.meta)
+
+
+class FakeElementInfo:
+    def __init__(self, automation_id=""):
+        self.automation_id = automation_id
+
+
+class FakeWrapper:
+    def __init__(self, name, automation_id=""):
+        self.name = name
+        self.element_info = FakeElementInfo(automation_id)
+
+
+class FakeControl:
+    def __init__(self, wrapper):
+        self.wrapper = wrapper
+
+    def wait(self, *args, **kwargs):
+        del args, kwargs
+
+    def wrapper_object(self):
+        return self.wrapper
+
+
+class FakeWindow:
+    def __init__(self, control):
+        self.control = control
+
+    def child_window(self, **selector):
+        del selector
+        return self.control
+
+
+class FakeComputerInner:
+    def __init__(self, *, window_name="Project", control_name="Refresh", automation_id="refresh"):
+        self.control_wrapper = FakeWrapper(control_name, automation_id)
+        self.window = FakeWindow(FakeControl(self.control_wrapper))
+        self.window_name = window_name
+        self.performed = []
+
+    def _window(self, step):
+        del step
+        return self.window
+
+    def _describe(self, target):
+        if target is self.window:
+            return {"name": self.window_name, "class_name": "Window", "control_type": "Window"}
+        return {"name": target.name, "class_name": "Button", "control_type": "Button"}
+
+    def _wait_interruptibly(self, wait_fn, condition, timeout):
+        wait_fn(condition, timeout=timeout)
+
+    def _timeout(self, step):
+        return float(step.get("timeout_s", 5))
+
+    def perform(self, step):
+        self.performed.append(step)
+        return {"action": step["action"], "verified": True}
+
+
 class WorkSessionCase(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -77,6 +148,22 @@ class WorkSessionCase(unittest.TestCase):
         problems = work_session.computer_problems(steps)
         self.assertTrue(any("sensitive" in p for p in problems), problems)
 
+    def test_live_desktop_guard_catches_generic_selector_matching_delete(self):
+        guard = object.__new__(work_session._GuardedComputerBackend)
+        guard.inner = FakeComputerInner(control_name="Delete account", automation_id="go")
+        with self.assertRaises(work_session.WorkSessionRefused):
+            guard.perform({"action": "invoke", "window": {"title": "Project"},
+                           "control": {"auto_id": "go"}, "timeout_s": 5})
+        self.assertEqual(guard.inner.performed, [])
+
+    def test_live_desktop_guard_allows_benign_refresh_control(self):
+        guard = object.__new__(work_session._GuardedComputerBackend)
+        guard.inner = FakeComputerInner(control_name="Refresh", automation_id="refresh")
+        result = guard.perform({"action": "invoke", "window": {"title": "Project"},
+                                "control": {"auto_id": "refresh"}, "timeout_s": 5})
+        self.assertTrue(result["verified"])
+        self.assertEqual(len(guard.inner.performed), 1)
+
     def test_safe_browser_navigation_gets_bounded_approval(self):
         self.open(max_actions=2)
         steps = [
@@ -99,6 +186,36 @@ class WorkSessionCase(unittest.TestCase):
             with self.subTest(url=url):
                 with self.assertRaises(work_session.WorkSessionRefused):
                     work_session.authorize_browser(url, steps)
+
+    def test_live_browser_guard_catches_generic_selector_matching_delete(self):
+        page = FakePage({
+            "text": "Delete account", "aria": "", "title": "", "name": "",
+            "id": "go", "role": "button", "inputType": "submit", "autocomplete": "",
+            "href": "", "formAction": "https://example.com/account/remove",
+        })
+        with self.assertRaises(work_session.WorkSessionRefused):
+            work_session._browser_live_guard(page, {"action": "click", "selector": "#go"})
+        self.assertEqual(page.waited, ["#go"])
+
+    def test_live_browser_guard_allows_search_button(self):
+        page = FakePage({
+            "text": "Search", "aria": "Search", "title": "", "name": "q",
+            "id": "go", "role": "button", "inputType": "submit", "autocomplete": "",
+            "href": "", "formAction": "https://example.com/search",
+        })
+        work_session._browser_live_guard(page, {"action": "click", "selector": "#go"})
+        self.assertEqual(page.waited, ["#go"])
+
+    def test_live_browser_guard_refuses_password_field_even_with_generic_selector(self):
+        page = FakePage({
+            "text": "", "aria": "", "title": "", "name": "value", "id": "x",
+            "role": "textbox", "inputType": "password", "autocomplete": "current-password",
+            "href": "", "formAction": "",
+        })
+        with self.assertRaises(work_session.WorkSessionRefused):
+            work_session._browser_live_guard(
+                page, {"action": "type", "selector": "#x", "value": "not-a-secret-pattern"}
+            )
 
     def test_api_key_like_text_is_never_auto_typed(self):
         self.open()
