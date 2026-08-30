@@ -21,14 +21,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\activate_local_ai.ps
 ```
 
 The script refuses non-`main` branches. `activate` checks that Ollama is online,
-both configured model tags exist, and both models return the exact bounded JSON
-smoke-test schema. The one-time activation allows up to two minutes for the fast
-model and three minutes for the deep model to cold-load; normal requests keep
-their much shorter route limits. A failed test leaves routing disabled and
-reports whether Ollama timed out, disconnected, or rejected the request.
-The exact activation probe temporarily disables model thinking so it measures
-model/JSON transport readiness rather than the length of a hidden reasoning
-trace. The configured deep role still uses thinking for real production work.
+both configured model tags exist, and the required fast model returns the exact
+bounded JSON smoke-test schema. The one-time activation allows up to two minutes
+for the fast model to cold-load; normal requests keep their much shorter route
+limits. It does not cold-load the deep fallback just to activate routine local
+reasoning. A failed required check leaves routing disabled and reports whether
+Ollama timed out, disconnected, or rejected the request.
+The exact fast activation probe temporarily disables model thinking so it
+measures model/JSON transport readiness rather than the length of a hidden
+reasoning trace. The configured deep role still uses thinking for real
+production work and safely degrades through the standard subscription-first
+route if it is unavailable at runtime.
 
 Inspect or roll back without changing Git:
 

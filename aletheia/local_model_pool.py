@@ -10,7 +10,7 @@ from aletheia import local_brain, model_pool_config, training_data
 
 FAST_TIMEOUT_S = 12.0
 DEEP_TIMEOUT_S = 45.0
-SMOKE_TIMEOUT_S = {"fast": 120.0, "deep": 180.0}
+FAST_SMOKE_TIMEOUT_S = 120.0
 DEEP_HINTS = (
     "architecture", "root cause", "debug", "code review", "review the code",
     "tradeoff", "trade-off", "investigate", "complex plan", "reason through",
@@ -136,39 +136,49 @@ def auto_json(system_prompt: str, text: str, *, context: dict | None = None,
 
 
 def smoke() -> dict[str, Any]:
-    """Prove both configured models exist and satisfy the JSON transport contract."""
+    """Prove the required fast route responds and both configured tags exist."""
     results = {}
     for role in ("fast", "deep"):
-        config = _config(role)
+        # Tag discovery is a service diagnostic, not inference. In particular,
+        # do not cold-load the optional deep fallback merely to activate the
+        # required routine route.
+        config = _config(role, timeout_s=2.0)
         observed = local_brain.status(config)
         if not observed.get("online") or not observed.get("model_available"):
             raise LocalPoolUnavailable(
                 f"local {role} model is not ready: {observed.get('detail', 'unavailable')}"
             )
-
-        def validate(value: dict, expected=role) -> dict:
-            if value != {"ok": True, "role": expected}:
-                raise ValueError(f"local {expected} smoke response did not match contract")
-            return value
-
-        run = run_json(
-            "Return exactly the requested JSON object. You have no tools or authority.",
-            f'Return exactly {{"ok":true,"role":"{role}"}}.',
-            role=role, validator=validate, require_enabled=False,
-            # Activation is allowed to cold-load the model once. Normal
-            # production requests retain the 12s/45s route limits above.
-            timeout_s=SMOKE_TIMEOUT_S[role],
-            # This proves the tag, transport, JSON mode, and model response.
-            # Full deep thinking is a production behavior, not an activation
-            # prerequisite for an exact six-token transport probe.
-            think_override=False,
-        )
         results[role] = {
-            "model": run.model,
-            "duration_ms": run.duration_ms,
-            "ok": True,
+            "model": config.model,
+            "model_available": True,
+            "response_tested": False,
         }
-    return {"ok": True, "roles": results}
+
+    def validate(value: dict) -> dict:
+        if value != {"ok": True, "role": "fast"}:
+            raise ValueError("local fast smoke response did not match contract")
+        return value
+
+    run = run_json(
+        "Return exactly the requested JSON object. You have no tools or authority.",
+        'Return exactly {"ok":true,"role":"fast"}.',
+        role="fast", validator=validate, require_enabled=False,
+        # Activation may cold-load the required routine model once. Normal
+        # production requests retain the 12s route limit above.
+        timeout_s=FAST_SMOKE_TIMEOUT_S,
+        # The activation probe measures JSON transport readiness, not the
+        # length of a hidden reasoning trace.
+        think_override=False,
+    )
+    results["fast"].update({
+        "duration_ms": run.duration_ms,
+        "response_tested": True,
+    })
+    return {
+        "ok": True,
+        "required_response_role": "fast",
+        "roles": results,
+    }
 
 
 def status() -> dict[str, Any]:

@@ -41,7 +41,7 @@ $pyExe = $python.Exe
 $pyFlags = @($python.Flags)
 
 Write-Host "`n  ALETHEIA LOCAL AI ACTIVATION" -ForegroundColor Cyan
-Write-Host "  Testing both configured Ollama models before changing routing ..." -ForegroundColor Yellow
+Write-Host "  Testing the fast route and checking both configured Ollama model tags ..." -ForegroundColor Yellow
 & $pyExe @pyFlags -m aletheia.local_ai activate
 if ($LASTEXITCODE -ne 0) {
   $activationCode = $LASTEXITCODE
