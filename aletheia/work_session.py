@@ -8,6 +8,10 @@ module creates one exact approval per accepted plan.
 Authentication/credentials, API keys/secrets, payments, destructive actions,
 account-security changes, external messages/publication, and shell/admin
 execution are refused. They remain explicit operator handoffs.
+
+Static plans are checked before approval, then the real UI element/control is
+checked again immediately before acting. That second check matters: a selector
+like ``#go`` says nothing about whether the live button is Search or Delete.
 """
 from __future__ import annotations
 
@@ -281,6 +285,92 @@ def browser_problems(url: str, steps: object) -> list[str]:
     return list(dict.fromkeys(problems))
 
 
+def _browser_live_guard(page, step: dict) -> None:
+    """Inspect the actual matched DOM node immediately before acting."""
+    action = step.get("action")
+    selector = step.get("selector")
+    if action == "press" or not selector:
+        return
+    page.wait_for_selector(selector)
+    meta = page.eval_on_selector(
+        selector,
+        """el => ({
+          text: (el.innerText || el.value || '').slice(0, 300),
+          aria: (el.getAttribute('aria-label') || '').slice(0, 200),
+          title: (el.getAttribute('title') || '').slice(0, 200),
+          name: (el.getAttribute('name') || '').slice(0, 160),
+          id: (el.id || '').slice(0, 160),
+          role: (el.getAttribute('role') || '').slice(0, 80),
+          inputType: (el.getAttribute('type') || '').slice(0, 80),
+          autocomplete: (el.getAttribute('autocomplete') || '').slice(0, 100),
+          href: (el.href || '').slice(0, 500),
+          formAction: (el.form && el.form.action ? el.form.action : '').slice(0, 500)
+        })""",
+    ) or {}
+    if not isinstance(meta, dict):
+        raise WorkSessionRefused("live browser target could not be described safely")
+    semantic = {k: meta.get(k, "") for k in (
+        "text", "aria", "title", "name", "id", "role", "href", "formAction"
+    )}
+    risky = _sensitive(semantic)
+    if risky:
+        raise WorkSessionRefused(f"live browser target is sensitive ({risky})")
+    if action == "click":
+        risky = _consequential(semantic)
+        if risky:
+            raise WorkSessionRefused(f"live browser click is consequential ({risky})")
+    if action in {"type", "select"}:
+        input_type = str(meta.get("inputType", "")).casefold()
+        autocomplete = str(meta.get("autocomplete", "")).casefold()
+        if input_type == "password" or autocomplete in {
+            "current-password", "new-password", "one-time-code", "cc-number",
+            "cc-csc", "cc-exp", "cc-exp-month", "cc-exp-year",
+        }:
+            raise WorkSessionRefused(
+                f"live browser field is authentication/payment data ({input_type or autocomplete})"
+            )
+
+
+class _GuardedComputerBackend:
+    """Live UIA target check layered over the already-approved Windows backend."""
+
+    def __init__(self) -> None:
+        self.inner = computer.WindowsUIABackend()
+
+    def _live_target(self, step: dict) -> None:
+        action = step["action"]
+        if action in {"open_app", "list_windows"}:
+            return
+        window = self.inner._window(step)
+        window_meta = self.inner._describe(window)
+        risky = _sensitive(window_meta)
+        if risky:
+            raise WorkSessionRefused(f"live desktop window is sensitive ({risky})")
+        if action not in {"invoke", "set_text"}:
+            return
+        control = window.child_window(**step["control"])
+        self.inner._wait_interruptibly(
+            control.wait, "exists visible enabled ready", self.inner._timeout(step)
+        )
+        wrapper = control.wrapper_object()
+        meta = self.inner._describe(wrapper)
+        try:
+            meta["automation_id"] = str(wrapper.element_info.automation_id or "")[:256]
+        except Exception:
+            meta["automation_id"] = ""
+        risky = _sensitive(meta)
+        if risky:
+            raise WorkSessionRefused(f"live desktop control is sensitive ({risky})")
+        if action == "invoke":
+            risky = _consequential(meta)
+            if risky:
+                raise WorkSessionRefused(f"live desktop invoke is consequential ({risky})")
+
+    def perform(self, step: dict) -> dict:
+        self._live_target(step)
+        return self.inner.perform(step)
+
+
 def _require_active() -> dict:
     session = active()
     if not session:
@@ -357,6 +447,8 @@ def authorize_browser(url: str, steps: list[dict]) -> str:
 def run_computer(steps: list[dict], *, backend=None, backend_factory=None,
                  requested_by: str = "work-session") -> dict:
     approval_id = authorize_computer(steps)
+    if backend is None and backend_factory is None:
+        backend_factory = _GuardedComputerBackend
     return computer.execute(
         steps, approval_id, backend=backend, backend_factory=backend_factory,
         requested_by=requested_by,
@@ -365,7 +457,10 @@ def run_computer(steps: list[dict], *, backend=None, backend_factory=None,
 
 def run_browser(url: str, steps: list[dict], *, profile: Path | None = None) -> dict:
     approval_id = authorize_browser(url, steps)
-    return browse.interact(url, steps, approval_id=approval_id, profile=profile)
+    return browse.interact(
+        url, steps, approval_id=approval_id, profile=profile,
+        step_guard=_browser_live_guard,
+    )
 
 
 def _read_steps(path: str) -> list[dict]:
