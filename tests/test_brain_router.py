@@ -28,13 +28,23 @@ class TestBrainRouter(unittest.TestCase):
         self.assertEqual(result["summary"], "local")
         run.assert_called_once()
 
-    def test_fallback_never_calls_local(self):
+    def test_fallback_never_calls_or_configures_local(self):
         with mock.patch.object(local_brain, "run_auto") as auto, \
-             mock.patch.object(local_brain, "run_local") as local:
+             mock.patch.object(local_brain, "run_local") as local, \
+             mock.patch.object(local_brain.OllamaConfig, "from_env", side_effect=ValueError("bad env")) as env:
             result = self.run_cli("interpret", "do magic", "--provider", "fallback")
         self.assertEqual(result["intent"], "clarify")
         auto.assert_not_called()
         local.assert_not_called()
+        env.assert_not_called()
+
+    def test_auto_bad_local_config_fails_closed(self):
+        with mock.patch.object(local_brain.OllamaConfig, "from_env", side_effect=ValueError("bad env")), \
+             mock.patch.object(local_brain, "run_auto") as auto:
+            result = self.run_cli("interpret", "hello")
+        self.assertEqual(result["intent"], "clarify")
+        self.assertEqual(result["confidence"], 0.0)
+        auto.assert_not_called()
 
     def test_status_is_read_only_adapter_status(self):
         expected = {
