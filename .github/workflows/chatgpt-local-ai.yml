@@ -11,6 +11,7 @@ on:
       - 'aletheia/model_config.py'
       - 'aletheia/model_pool_config.py'
       - 'aletheia/local_model_pool.py'
+      - 'aletheia/reasoning_gateway.py'
       - 'aletheia/local_ai_bridge.py'
       - 'aletheia/training_data.py'
       - 'aletheia/training_cli.py'
@@ -19,6 +20,7 @@ on:
       - 'tests/test_model_config.py'
       - 'tests/test_model_pool_config.py'
       - 'tests/test_local_model_pool.py'
+      - 'tests/test_reasoning_gateway.py'
       - 'tests/test_local_ai_bridge.py'
       - 'tests/test_training_data.py'
       - 'scripts/setup-local-ai.ps1'
@@ -26,6 +28,7 @@ on:
       - 'docs/LOCAL_AI.md'
       - 'CHATGPT_LOCAL_AI_HANDOFF.md'
       - 'CHATGPT_TWO_TIER_LOCAL_AI_INTEGRATION.md'
+      - 'CHATGPT_REASONING_GATEWAY_INTEGRATION.md'
 
 permissions:
   contents: read
@@ -46,6 +49,7 @@ jobs:
           aletheia/model_config.py
           aletheia/model_pool_config.py
           aletheia/local_model_pool.py
+          aletheia/reasoning_gateway.py
           aletheia/local_ai_bridge.py
           aletheia/training_data.py
           aletheia/training_cli.py
@@ -57,5 +61,6 @@ jobs:
           tests.test_model_config
           tests.test_model_pool_config
           tests.test_local_model_pool
+          tests.test_reasoning_gateway
           tests.test_local_ai_bridge
           tests.test_training_data
