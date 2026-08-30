@@ -1,0 +1,154 @@
+# Aletheia full operator-mode activation for Windows (v2 hotfix).
+# Safe entrypoint:
+#   irm https://raw.githubusercontent.com/caleblschulte0-ux/Aletheia/main/scripts/activate_operator_v2.ps1 | iex
+#
+# This version deliberately never binds a parameter named $Args. PowerShell
+# reserves $args as an automatic variable; the original activation helper used
+# that name and could silently launch bare Python instead of `python -m ...`.
+
+$ErrorActionPreference = "Stop"
+$repoUrl = "https://github.com/caleblschulte0-ux/Aletheia.git"
+$dest = Join-Path $HOME "Aletheia"
+
+function Have($name) {
+  [bool](Get-Command $name -CommandType Application -ErrorAction SilentlyContinue)
+}
+
+function Refresh-Path {
+  $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
+              [Environment]::GetEnvironmentVariable("Path", "User")
+}
+
+function Find-AletheiaPython {
+  foreach ($cand in @(@("py","-3.12"), @("py","-3.11"), @("py","-3.10"),
+                      @("py"), @("python3"), @("python"))) {
+    $exe = (Get-Command $cand[0] -CommandType Application -ErrorAction SilentlyContinue |
+            Select-Object -First 1).Source
+    if (-not $exe) { continue }
+    try {
+      $flags = @($cand | Select-Object -Skip 1)
+      $v = & $exe @flags -c "import sys; print(sys.version_info[0]*100+sys.version_info[1])" 2>$null
+      if ($LASTEXITCODE -eq 0 -and [int]$v -ge 310) {
+        return @{ Exe = $exe; Flags = $flags }
+      }
+    } catch {}
+  }
+  return $null
+}
+
+function Invoke-AletheiaPython {
+  param([Parameter(Mandatory=$true)][string[]]$PyArgs)
+  if (-not $PyArgs -or $PyArgs.Count -eq 0) {
+    throw "Internal activation error: refusing to launch Python with an empty argument list."
+  }
+  & $script:pyExe @script:pyFlags @PyArgs
+  if ($LASTEXITCODE -ne 0) {
+    throw "Python command failed: $($PyArgs -join ' ')"
+  }
+}
+
+if ($env:OS -ne "Windows_NT") {
+  throw "Aletheia operator activation is Windows-only."
+}
+
+Write-Host "`n  ALETHEIA OPERATOR MODE" -ForegroundColor Cyan
+Write-Host "  PC control + subscription reasoning + reviewed project loop." -ForegroundColor DarkGray
+
+if (-not (Have winget)) {
+  throw "Windows Package Manager (winget) is required for one-command setup."
+}
+if (-not (Have git)) {
+  Write-Host "  Installing Git ..." -ForegroundColor Yellow
+  winget install --id Git.Git -e --accept-source-agreements --accept-package-agreements
+  if ($LASTEXITCODE -ne 0) { throw "Git installation failed." }
+  Refresh-Path
+}
+
+$python = Find-AletheiaPython
+if (-not $python) {
+  Write-Host "  Installing Python 3.12 ..." -ForegroundColor Yellow
+  winget install --id Python.Python.3.12 -e --accept-source-agreements --accept-package-agreements
+  if ($LASTEXITCODE -ne 0) { throw "Python installation failed." }
+  Refresh-Path
+  $python = Find-AletheiaPython
+  if (-not $python) {
+    throw "Python installed but is not visible yet; open a new PowerShell and rerun this command."
+  }
+}
+$script:pyExe = $python.Exe
+$script:pyFlags = @($python.Flags)
+
+# Recovery/update path. Keep current repo exactly on reviewed origin/main.
+if (-not (Test-Path $dest)) {
+  Write-Host "  Cloning Aletheia ..." -ForegroundColor Yellow
+  git clone $repoUrl $dest
+  if ($LASTEXITCODE -ne 0) { throw "Aletheia clone failed." }
+} else {
+  Write-Host "  Updating Aletheia main ..." -ForegroundColor Yellow
+  git -C $dest fetch origin main
+  if ($LASTEXITCODE -ne 0) { throw "Aletheia fetch failed." }
+  git -C $dest checkout -f -B main origin/main
+  if ($LASTEXITCODE -ne 0) { throw "Could not reset local checkout to current main." }
+}
+Set-Location $dest
+
+Write-Host "  Installing operator-mode runtime dependencies ..." -ForegroundColor Yellow
+Invoke-AletheiaPython -PyArgs @("-m","pip","install","--quiet","--upgrade","pip")
+Invoke-AletheiaPython -PyArgs @("-m","pip","install","--quiet","--only-binary=:all:","-r","requirements-optional.txt")
+Invoke-AletheiaPython -PyArgs @("-m","playwright","install","chromium")
+
+Write-Host "  Running the full Aletheia test suite before activation ..." -ForegroundColor Yellow
+Invoke-AletheiaPython -PyArgs @("-m","unittest","discover","-s","tests","-t",".","-q")
+
+# GitHub authentication: official gh web flow -> local DPAPI vault.
+if (-not (Have gh)) {
+  Write-Host "  Installing GitHub CLI ..." -ForegroundColor Yellow
+  winget install --id GitHub.cli -e --accept-source-agreements --accept-package-agreements
+  if ($LASTEXITCODE -ne 0) { throw "GitHub CLI installation failed." }
+  Refresh-Path
+}
+& gh auth status --hostname github.com *> $null
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "`n  GitHub needs its one-time web sign-in." -ForegroundColor Cyan
+  & gh auth login --hostname github.com --web --git-protocol https
+  if ($LASTEXITCODE -ne 0) { throw "GitHub sign-in did not complete." }
+}
+Invoke-AletheiaPython -PyArgs @("-m","aletheia.github_auth","import-cli")
+
+# ChatGPT subscription: normal dedicated browser-profile sign-in; no API key.
+& $script:pyExe @script:pyFlags -m aletheia.chatgpt_session *> $null
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "`n  ChatGPT needs its one-time normal browser sign-in." -ForegroundColor Cyan
+  & $script:pyExe @script:pyFlags -m aletheia.browse login https://chatgpt.com/
+  if ($LASTEXITCODE -ne 0) { throw "ChatGPT browser sign-in did not complete." }
+}
+Invoke-AletheiaPython -PyArgs @("-m","aletheia.chatgpt_session")
+
+Write-Host "  Repairing/upgrading room voice ..." -ForegroundColor Yellow
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $dest "scripts\voice_repair.ps1")
+if ($LASTEXITCODE -ne 0) {
+  throw "Voice repair failed; operator mode was not declared ready."
+}
+
+Invoke-AletheiaPython -PyArgs @("-m","aletheia.work_trust","on","--days","30","--hours","8","--actions","250")
+Invoke-AletheiaPython -PyArgs @("-m","aletheia.code_trust","on","--days","30","--prs","25")
+Invoke-AletheiaPython -PyArgs @("-m","aletheia.autostart","install","--only","core")
+Invoke-AletheiaPython -PyArgs @("-m","aletheia.project_autostart","install")
+
+Start-ScheduledTask -TaskName "Aletheia" -ErrorAction SilentlyContinue
+Invoke-AletheiaPython -PyArgs @("-m","aletheia.project_autostart","start")
+
+Write-Host "`n  Verifying operator mode ..." -ForegroundColor Yellow
+Invoke-AletheiaPython -PyArgs @("-m","aletheia.github_auth","status")
+Invoke-AletheiaPython -PyArgs @("-m","aletheia.chatgpt_session")
+Invoke-AletheiaPython -PyArgs @("-m","aletheia.work_trust","status")
+Invoke-AletheiaPython -PyArgs @("-m","aletheia.code_trust","status")
+Invoke-AletheiaPython -PyArgs @("-m","aletheia.autostart","doctor","--only","core")
+Invoke-AletheiaPython -PyArgs @("-m","aletheia.autostart","doctor","--only","voice")
+Invoke-AletheiaPython -PyArgs @("-m","aletheia.project_autostart","status")
+
+Write-Host "`n  OPERATOR MODE IS CONFIGURED." -ForegroundColor Green
+Write-Host "  Core + voice are persistent; project repair runs every 30 minutes." -ForegroundColor Green
+Write-Host "  Claude subscription is preferred; signed-in ChatGPT.com is the fallback." -ForegroundColor Green
+Write-Host "  Code work remains reviewed branch/PR only; no autonomous merge to main." -ForegroundColor Green
+Write-Host "`n  Next acceptance test: tell ChatGPT 'Open Notepad on my computer.'`n" -ForegroundColor Cyan
