@@ -169,6 +169,9 @@ class SensorTicketStore:
             if ticket.camera is not None:
                 raise RuntimeError("camera frame already supplied for this request")
             self._check_observed(ticket, image.observed_at)
+            image_age = (now - _utc(image.observed_at)).total_seconds()
+            if image_age < -MAX_FUTURE_SKEW:
+                raise ValueError("camera observation is implausibly in the future")
             ticket.camera = image
             return ticket.public()
 
