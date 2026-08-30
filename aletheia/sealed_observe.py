@@ -236,6 +236,15 @@ def _browser_control_rows(page) -> list[dict]:
     return safe
 
 
+def _same_observation_host(requested, reached) -> bool:
+    """Redirects may upgrade HTTP->HTTPS, but may not cross host boundaries."""
+    return bool(
+        requested.hostname
+        and reached.hostname
+        and requested.hostname.casefold() == reached.hostname.casefold()
+    )
+
+
 def observe_browser(url: str) -> dict:
     parsed = urlparse(str(url or ""))
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
@@ -249,6 +258,15 @@ def observe_browser(url: str) -> dict:
         try:
             page.goto(url, wait_until="domcontentloaded")
             current_url = page.url
+            current = urlparse(current_url)
+            # An approved observation of site A must never become a private
+            # read of site B because A redirected. Check BEFORE title/body/
+            # controls are touched. Same-host HTTP->HTTPS is allowed.
+            if not _same_observation_host(parsed, current):
+                raise PermissionError(
+                    "browser observation crossed to a different host; refusing "
+                    "to read the redirected page"
+                )
             result = {
                 "kind": "browser",
                 "url": _safe_url(current_url),
@@ -258,7 +276,6 @@ def observe_browser(url: str) -> dict:
             }
         finally:
             page.close()
-    current = urlparse(current_url)
     # Never journal private title/text/path/query. Host is enough for audit.
     journal.append(
         "action", "sealed:browser",
