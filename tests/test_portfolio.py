@@ -78,7 +78,7 @@ class PortfolioCase(unittest.TestCase):
         self.assertTrue(portfolio.LATEST.exists())
 
     def test_private_repo_name_never_appears_in_public_summary(self):
-        snap = {"counts": {"total": 2, "red": 1, "yellow": 0, "green": 1}, "repos": [
+        snap = {"counts": {"total": 2, "red": 1, "yellow": 0, "green": 1, "unknown": 0}, "repos": [
             {"name": "Public", "private": False, "health": "GREEN", "health_score": 100, "problems": []},
             {"name": "SecretProject", "private": True, "health": "RED", "health_score": 10,
              "problems": [{"detail": "private failure"}]},
@@ -88,16 +88,18 @@ class PortfolioCase(unittest.TestCase):
         self.assertNotIn("private failure", text)
         self.assertIn("1 private project", text)
 
-    def test_github_failures_degrade_to_partial_snapshot_instead_of_inventing(self):
+    def test_github_failures_are_unknown_not_green(self):
         def broken(method, path):
             raise OSError("offline")
         with mock.patch.object(portfolio.gh, "token", return_value=None):
             snap = portfolio.scan_all(fleet=self.fleet, request=broken, now=NOW)
         self.assertEqual(snap["counts"]["total"], 1)
+        self.assertEqual(snap["counts"]["unknown"], 1)
         row = snap["repos"][0]
         self.assertEqual(row["name"], "Known")
-        self.assertEqual(row["open_prs"], 0)
-        self.assertEqual(row["recent_failed_runs"], 0)
+        self.assertEqual(row["health"], "UNKNOWN")
+        self.assertFalse(row["observation_complete"])
+        self.assertEqual(row["problems"][0]["kind"], "observation_unavailable")
 
 
 if __name__ == "__main__":
