@@ -77,6 +77,7 @@ class GatewayRoutingCase(unittest.TestCase):
         self.assertEqual(result.output["summary"], "local")
         self.assertTrue(result.provider.startswith("ollama:"))
         local.assert_called_once()
+        self.assertNotIn("preferred_role", local.call_args.kwargs)
 
     def test_standard_is_subscription_first(self):
         with mock.patch.object(reasoner, "subscription_json", return_value={"summary": "teacher"}) as sub, \
@@ -102,13 +103,25 @@ class GatewayRoutingCase(unittest.TestCase):
                 reasoning_gateway.reason_json("sys", "production code", policy="critical")
         local.assert_not_called()
 
-    def test_planner_compat_adapter_uses_standard_hybrid_policy(self):
+    def test_fast_compat_adapter_uses_routine_local_first_policy(self):
         fake = reasoning_gateway.GatewayResult(
             output={"intent": "answer", "summary": "ok"},
-            provider="subscription.auto", policy="standard",
+            provider="ollama:fast", policy="routine",
         )
         with mock.patch.object(reasoning_gateway, "reason_json", return_value=fake) as route:
             result = reasoner.CliReasoner(system_prompt="sys").infer("hello")
+        self.assertEqual(result["summary"], "ok")
+        self.assertEqual(route.call_args.kwargs["policy"], "routine")
+
+    def test_deep_planner_adapter_remains_subscription_first_standard(self):
+        fake = reasoning_gateway.GatewayResult(
+            output={"intent": "plan", "summary": "ok"},
+            provider="subscription.auto", policy="standard",
+        )
+        with mock.patch.object(reasoning_gateway, "reason_json", return_value=fake) as route:
+            result = reasoner.CliReasoner(
+                model=reasoner.PLAN_MODEL, system_prompt="sys"
+            ).infer("plan this")
         self.assertEqual(result["summary"], "ok")
         self.assertEqual(route.call_args.kwargs["policy"], "standard")
 
