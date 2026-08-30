@@ -1,0 +1,31 @@
+name: ChatGPT Local AI Branch Validation
+
+on:
+  push:
+    branches:
+      - chatgpt/local-ai-brain-v1
+  pull_request:
+    paths:
+      - 'aletheia/local_brain.py'
+      - 'aletheia/brain_router.py'
+      - 'tests/test_local_brain.py'
+      - 'tests/test_brain_router.py'
+      - 'scripts/setup-local-ai.ps1'
+      - 'docs/LOCAL_AI.md'
+      - 'CHATGPT_LOCAL_AI_HANDOFF.md'
+
+permissions:
+  contents: read
+
+jobs:
+  local-ai-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile prototype modules
+        run: python -m py_compile aletheia/local_brain.py aletheia/brain_router.py
+      - name: Run isolated local AI tests
+        run: python -m unittest tests.test_local_brain tests.test_brain_router
