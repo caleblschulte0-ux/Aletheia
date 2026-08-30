@@ -4,6 +4,14 @@ Uses Aletheia's dedicated persistent Chromium profile. The operator signs into
 ChatGPT normally once; this module can then ask for bounded JSON planning output.
 It has no local tools and never treats browser output as authority: callers still
 validate the returned object through the normal brain/planner gates.
+
+This adapter is deliberately OPT-IN. A normal signed-in ChatGPT browser is a
+user-facing conversation surface: unattended prompts create visible chats that
+sync to the operator's other devices. Merely having a valid browser profile is
+therefore not permission to use ChatGPT as a background reasoning transport.
+Set ``ALETHEIA_CHATGPT_BROWSER_REASONER=1`` only for an explicitly requested
+foreground session. Production fallback otherwise fails closed and lets the
+reasoning gateway use its local-model policy instead.
 """
 from __future__ import annotations
 
@@ -17,6 +25,7 @@ from aletheia import brain, browse
 
 CHATGPT_URL = "https://chatgpt.com/"
 ALLOWED_HOSTS = {"chatgpt.com", "www.chatgpt.com"}
+OPT_IN_ENV = "ALETHEIA_CHATGPT_BROWSER_REASONER"
 MAX_PROMPT_CHARS = 30_000
 MAX_RESPONSE_CHARS = 256_000
 TIMEOUT_S = 120.0
@@ -48,13 +57,25 @@ class BrowserReasonerUnavailable(RuntimeError):
     pass
 
 
+def enabled() -> bool:
+    """True only after an explicit local opt-in for this user-visible surface."""
+    return os.environ.get(OPT_IN_ENV, "").strip().casefold() in {
+        "1", "true", "yes", "on",
+    }
+
+
 def available() -> tuple[bool, str]:
+    if not enabled():
+        return False, (
+            "ChatGPT browser reasoning is disabled by default; "
+            f"set {OPT_IN_ENV}=1 only for explicit foreground use"
+        )
     ok, why = browse.available()
     if not ok:
         return False, f"browser unavailable ({why})"
     if not browse.PROFILE_DIR.exists():
         return False, "browser profile has not been initialized/sign-in has not been done"
-    return True, "ChatGPT browser runtime ready; login is verified on first use"
+    return True, "ChatGPT browser runtime ready (explicit opt-in); login is verified on first use"
 
 
 def _subscription_session():
@@ -276,6 +297,10 @@ def infer_json(system_prompt: str, text: str, *, context: dict | None = None,
     if not math.isfinite(budget) or budget < 0.5:
         raise ValueError(
             "browser reasoning timeout must be finite and at least 0.5 seconds"
+        )
+    if not enabled():
+        raise BrowserReasonerUnavailable(
+            "ChatGPT browser reasoning is disabled by default; explicit opt-in required"
         )
     started = time.monotonic()
 
