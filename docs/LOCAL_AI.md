@@ -26,6 +26,9 @@ smoke-test schema. The one-time activation allows up to two minutes for the fast
 model and three minutes for the deep model to cold-load; normal requests keep
 their much shorter route limits. A failed test leaves routing disabled and
 reports whether Ollama timed out, disconnected, or rejected the request.
+The exact activation probe temporarily disables model thinking so it measures
+model/JSON transport readiness rather than the length of a hidden reasoning
+trace. The configured deep role still uses thinking for real production work.
 
 Inspect or roll back without changing Git:
 

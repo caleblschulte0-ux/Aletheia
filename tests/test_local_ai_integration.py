@@ -282,6 +282,7 @@ class GatewayRoutingCase(unittest.TestCase):
 class LocalSmokeCase(unittest.TestCase):
     def test_smoke_proves_both_real_roles_without_pre_enabling(self):
         observed_timeouts = {}
+        observed_thinking = {}
 
         def status(config):
             return {"online": True, "model_available": True, "model": config.model}
@@ -290,6 +291,7 @@ class LocalSmokeCase(unittest.TestCase):
             del system, text, context
             role = "fast" if config.model == "qwen3:8b" else "deep"
             observed_timeouts[role] = config.timeout_s
+            observed_thinking[role] = config.think
             return {"ok": True, "role": role}
 
         with mock.patch.object(local_brain, "status", side_effect=status), \
@@ -299,6 +301,8 @@ class LocalSmokeCase(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(set(result["roles"]), {"fast", "deep"})
         self.assertEqual(observed_timeouts, local_model_pool.SMOKE_TIMEOUT_S)
+        self.assertEqual(observed_thinking, {"fast": False, "deep": False})
+        self.assertTrue(local_model_pool._config("deep").think)
 
     def test_safe_transport_detail_survives_pool_wrapping(self):
         with mock.patch.object(
