@@ -14,6 +14,7 @@ Files with behavior:
 - `mobile_sensors.py` — ephemeral camera/location contracts;
 - `sensor_requests.py` — opaque expiring one-shot request binding;
 - `vision.py` — provider-neutral read-only image reasoning contract;
+- `ollama_vision.py` — concrete loopback-only local VISION backend with no default model;
 - `camera_question.py` — isolated "What is this?" vertical slice;
 - `desktop_context.py` — read-only Windows foreground/clipboard sensor;
 - `visual_fallback.py` — proposal-only screenshot target locator;
@@ -51,14 +52,16 @@ python -m unittest discover -s staging/jarvis_gap/tests -t . -v
 python -m compileall -q staging
 ```
 
-ChatGPT's isolated run after the second build pass: **24 tests passed** plus
+ChatGPT's isolated run after the third build pass: **30 tests passed** plus
 compileall. This is not a substitute for the repository's normal full suite or a
 Windows live test of `WindowsContextBackend`.
 
 ## Decisions still required before integration
 
-- Which provider(s) advertise `VISION`? Prefer local/subscription-backed options
-  consistent with Playbook §6; do not make one vendor architectural.
+- Which provider(s) advertise `VISION`? A concrete Ollama backend is staged, but
+  no model is selected by default and no current fast/deep text model is presumed
+  multimodal. Prefer local/subscription-backed options consistent with Playbook
+  §6; do not make one vendor architectural.
 - Is camera a one-question/one-frame interaction only, or may an explicitly
   started session stream several frames? This staging code intentionally chooses
   the smaller one-shot authority surface.
