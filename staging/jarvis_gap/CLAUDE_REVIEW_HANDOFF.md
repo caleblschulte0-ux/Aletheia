@@ -28,14 +28,17 @@ Files with behavior:
 2. **No image persistence.** Camera/screenshot bytes are not written, journaled,
    serialized in metadata, or exposed by repr.
 3. **No sensor cross-talk.** One request cannot consume another request's camera
-   frame/location; token replay fails after consumption/expiry.
+   frame/location; token replay fails after consumption/expiry, and captures
+   outside the request's time window are refused.
 4. **No ambient precise location.** Diagnostic metadata omits lat/lon. Exact
    coordinates only enter the one reasoning call for a request that asked for
    location.
 5. **No ambient clipboard disclosure.** Diagnostics hash it. Text reaches a
    reasoning context only through `include_clipboard=True`.
 6. **VISION cannot act.** Its accepted output is only answer/confidence/basis.
-   Visual target output is a proposal with `execution_authority: false`.
+   The concrete Ollama provider independently re-validates that shape so direct
+   use fails closed too. Visual target output is a proposal with
+   `execution_authority: false`.
 7. **Visual fallback cannot bypass UIA.** There is no connection to
    `computer.execute`; any future connection must be separately policy-reviewed.
 8. **No new auth surface.** Sensor tickets are request correlation, not remote
@@ -52,7 +55,7 @@ python -m unittest discover -s staging/jarvis_gap/tests -t . -v
 python -m compileall -q staging
 ```
 
-ChatGPT's isolated run after the third build pass: **30 tests passed** plus
+ChatGPT's isolated run after the red-team pass: **33 tests passed** plus
 compileall. This is not a substitute for the repository's normal full suite or a
 Windows live test of `WindowsContextBackend`.
 
