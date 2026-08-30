@@ -13,16 +13,17 @@ from __future__ import annotations
 import json
 import os
 import socket
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
-from aletheia import brain
+from aletheia import brain, model_config, training_data
 
 DEFAULT_BASE_URL = "http://127.0.0.1:11434"
-DEFAULT_MODEL = "qwen3:8b"
+DEFAULT_MODEL = model_config.DEFAULT_MODEL
 DEFAULT_TIMEOUT_SECONDS = 90.0
 MAX_CONTEXT_CHARS = 24_000
 MAX_RESPONSE_BYTES = 1_000_000
@@ -121,7 +122,7 @@ class OllamaConfig:
             raise ValueError("ALETHEIA_LOCAL_AI_TIMEOUT must be > 0 and <= 600 seconds")
         return cls(
             base_url=os.environ.get("ALETHEIA_LOCAL_AI_URL", DEFAULT_BASE_URL),
-            model=os.environ.get("ALETHEIA_LOCAL_AI_MODEL", DEFAULT_MODEL),
+            model=model_config.resolve_model(),
             timeout_seconds=timeout,
         )
 
@@ -182,11 +183,9 @@ def _request_json(config: OllamaConfig, path: str, payload: dict[str, Any] | Non
         raise LocalBrainUnavailable(f"local Ollama unavailable: {exc}") from exc
 
 
-def infer(text: str, context: dict[str, Any] | None = None, *, config: OllamaConfig | None = None) -> dict:
-    """Return one untrusted reasoning proposal from the configured local model."""
-    cfg = (config or OllamaConfig.from_env()).validated()
-    payload = {
-        "model": cfg.model,
+def _build_payload(text: str, context: dict[str, Any], config: OllamaConfig) -> dict[str, Any]:
+    return {
+        "model": config.model,
         "stream": False,
         "think": False,
         "format": OUTPUT_SCHEMA,
@@ -197,14 +196,16 @@ def infer(text: str, context: dict[str, Any] | None = None, *, config: OllamaCon
                 "role": "user",
                 "content": (
                     "Operator text:\n" + text +
-                    "\n\nUntrusted Aletheia context JSON:\n" + _context_text(context or {}) +
+                    "\n\nUntrusted Aletheia context JSON:\n" + _context_text(context) +
                     "\n\nReturn exactly one object matching this JSON schema:\n" +
                     json.dumps(OUTPUT_SCHEMA, separators=(",", ":"))
                 ),
             },
         ],
     }
-    response = _request_json(cfg, "/api/chat", payload)
+
+
+def _proposal_from_response(response: dict[str, Any]) -> dict:
     message = response.get("message")
     if not isinstance(message, dict) or not isinstance(message.get("content"), str):
         error = response.get("error")
@@ -222,6 +223,13 @@ def infer(text: str, context: dict[str, Any] | None = None, *, config: OllamaCon
     return proposal
 
 
+def infer(text: str, context: dict[str, Any] | None = None, *, config: OllamaConfig | None = None) -> dict:
+    """Return one untrusted reasoning proposal from the configured local model."""
+    cfg = (config or OllamaConfig.from_env()).validated()
+    payload = _build_payload(text, context or {}, cfg)
+    return _proposal_from_response(_request_json(cfg, "/api/chat", payload))
+
+
 def provider(config: OllamaConfig | None = None) -> brain.Provider:
     cfg = (config or OllamaConfig.from_env()).validated()
 
@@ -232,8 +240,28 @@ def provider(config: OllamaConfig | None = None) -> brain.Provider:
 
 
 def run_local(text: str, context: dict[str, Any] | None = None, *, config: OllamaConfig | None = None) -> dict:
-    """Run local reasoning and enforce Aletheia's existing output validator."""
-    return provider(config).run(text, context or {})
+    """Run local reasoning, validate it, and retain the turn for future training."""
+    cfg = (config or OllamaConfig.from_env()).validated()
+    ctx = context or {}
+    # Build this once so the dataset retains the exact historical request shape.
+    payload = _build_payload(text, ctx, cfg)
+    started = time.perf_counter()
+    try:
+        result = provider(cfg).run(text, ctx)
+    except Exception as exc:
+        training_data.record_turn(
+            provider="ollama", model=cfg.model, text=text, context=ctx,
+            request_payload=payload, result=None, status="error",
+            error_type=type(exc).__name__, error=str(exc)[:4000],
+            duration_ms=round((time.perf_counter() - started) * 1000),
+        )
+        raise
+    training_data.record_turn(
+        provider="ollama", model=cfg.model, text=text, context=ctx,
+        request_payload=payload, result=result, status="validated",
+        duration_ms=round((time.perf_counter() - started) * 1000),
+    )
+    return result
 
 
 def run_auto(text: str, context: dict[str, Any] | None = None, *, config: OllamaConfig | None = None) -> dict:
@@ -256,9 +284,11 @@ def status(*, config: OllamaConfig | None = None) -> dict[str, Any]:
         "provider": "ollama",
         "url": cfg.base_url,
         "model": cfg.model,
+        "model_source": model_config.show()["source"],
         "online": False,
         "model_available": False,
         "models": [],
+        "training_capture": training_data.stats(),
     }
     try:
         response = _request_json(cfg, "/api/tags")
