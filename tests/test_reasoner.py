@@ -8,7 +8,7 @@ import subprocess
 import unittest
 from unittest import mock
 
-from aletheia import brain, reasoner
+from aletheia import brain, browser_reasoner, reasoner
 
 
 class ParseCase(unittest.TestCase):
@@ -107,14 +107,26 @@ class InvocationCase(unittest.TestCase):
             with self.assertRaises(reasoner.ReasonerUnavailable):
                 reasoner._run_cli("s", "u", "haiku")
 
-    def test_a_missing_binary_says_so_and_does_not_pretend(self):
-        with mock.patch.object(reasoner, "cli_path", return_value=None):
+    def test_all_subscription_paths_missing_says_so_and_does_not_pretend(self):
+        with mock.patch.object(reasoner, "cli_path", return_value=None), \
+                mock.patch.object(browser_reasoner, "available",
+                                  return_value=(False, "browser profile unavailable")):
             ok, why = reasoner.available()
             self.assertFalse(ok)
             self.assertIn("not on PATH", why)
             self.assertIn("no API key", why)
+            self.assertIn("browser profile unavailable", why)
             with self.assertRaises(reasoner.ReasonerUnavailable):
                 reasoner._run_cli("s", "u", "haiku")
+
+    def test_missing_claude_is_still_available_when_chatgpt_fallback_is_ready(self):
+        with mock.patch.object(reasoner, "cli_path", return_value=None), \
+                mock.patch.object(browser_reasoner, "available",
+                                  return_value=(True, "ChatGPT browser runtime ready")):
+            ok, why = reasoner.available()
+        self.assertTrue(ok)
+        self.assertIn("Claude CLI absent", why)
+        self.assertIn("ChatGPT browser runtime ready", why)
 
 
 class FallbackCase(unittest.TestCase):
