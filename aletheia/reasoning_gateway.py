@@ -1,13 +1,13 @@
 """Aletheia's replaceable reasoning gateway.
 
-Aletheia is the boss; models are workers.  This module decides which worker gets
+Aletheia is the boss; models are workers. This module decides which worker gets
 a reasoning request without granting any model execution authority.
 
 Policies:
 - routine: local fast/deep first, subscriptions if local cannot answer.
 - standard: subscriptions first, local deep fallback when the cloud/subscription
   path is unavailable.
-- critical: subscriptions are required for the returned answer.  Local models
+- critical: subscriptions are required for the returned answer. Local models
   may still run as non-authoritative students via reasoner's shadow capture.
 """
 from __future__ import annotations
@@ -61,7 +61,6 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
         try:
             local = local_model_pool.auto_json(
                 system_prompt, text, context=ctx, validator=checked,
-                preferred_role="fast",
             )
             return GatewayResult(
                 local.output, f"ollama:{local.model}", policy,
