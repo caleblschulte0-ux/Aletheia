@@ -2,9 +2,9 @@
 
 Claude remains the preferred subscription provider for deep work, with the
 operator's signed-in ChatGPT browser as fallback. Successful subscription
-answers may also launch a non-authoritative LOCAL shadow attempt so Aletheia can
-collect student/teacher pairs for its future model. Fast interpretation uses the
-hybrid routine policy, while deep planning remains subscription-first.
+answers are retained locally as sanitized teacher examples and may also launch a
+non-authoritative LOCAL shadow attempt. Fast interpretation uses the hybrid
+routine policy, while deep planning remains subscription-first.
 """
 from __future__ import annotations
 
@@ -212,7 +212,7 @@ def _shadow_enabled() -> bool:
 def _schedule_local_shadow(system_prompt: str, text: str, context: dict | None,
                            validator: Callable[[dict], dict] | None,
                            teacher_result: dict, teacher_provider: str,
-                           model: str) -> None:
+                           teacher_turn_id: str | None, model: str) -> None:
     """Run at most one background student at a time; never delay the teacher."""
     if not _shadow_enabled() or not _SHADOW_LOCK.acquire(blocking=False):
         return
@@ -235,6 +235,7 @@ def _schedule_local_shadow(system_prompt: str, text: str, context: dict | None,
                 student_result = None
             training_data.record_teacher_pair(
                 student_turn_id=turn_id,
+                teacher_turn_id=teacher_turn_id,
                 teacher_provider=teacher_provider,
                 teacher_result=teacher_result,
                 student_result=student_result,
@@ -255,18 +256,35 @@ def subscription_json(system_prompt: str, text: str, *, context: dict | None = N
                       shadow: bool = True) -> dict:
     """Authoritative subscription seam: Claude -> ChatGPT browser.
 
-    The accepted strong-provider answer may spawn a background local student
-    attempt for future-model training. That attempt cannot alter, delay,
-    approve, or execute the returned answer.
+    The accepted strong-provider answer is retained as a sanitized teacher turn
+    and may spawn a background local student attempt. Neither training write nor
+    shadow output can alter, approve, execute, or replace the accepted answer.
     """
     _validate_input(system_prompt, text, context)
     value, provider_id = _subscription_json_with_provider(
         system_prompt, text, context=context, model=model,
         timeout_s=timeout_s, validator=validator,
     )
+    teacher_turn_id = None
+    try:
+        from aletheia import training_data
+        teacher_model = model if provider_id.startswith("claude.cli:") else "chatgpt.browser"
+        teacher_turn_id = training_data.record_turn(
+            provider=provider_id,
+            model=teacher_model,
+            role="teacher",
+            text=text,
+            context=context or {},
+            request_payload={"system_prompt": system_prompt},
+            result=value,
+            status="teacher_validated",
+        )
+    except Exception:
+        pass
     if shadow:
         _schedule_local_shadow(
-            system_prompt, text, context, validator, value, provider_id, model,
+            system_prompt, text, context, validator, value, provider_id,
+            teacher_turn_id, model,
         )
     return value
 
