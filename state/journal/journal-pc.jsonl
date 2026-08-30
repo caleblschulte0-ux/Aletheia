@@ -666,3 +666,8 @@
 {"ts": "2026-08-30T15:59:56Z", "kind": "event", "actor": "aletheia-voice", "subject": "voice:room", "text": "room voice listening (single local wake listener)"}
 {"ts": "2026-08-30T16:01:45Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "another Aletheia is already serving — this one exits"}
 {"ts": "2026-08-30T16:01:48Z", "kind": "event", "actor": "aletheia-voice", "subject": "voice:room", "text": "room voice listening (single local wake listener)"}
+{"ts": "2026-08-30T16:02:00Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "code on disk is newer than this process (5 file(s), e.g. aletheia\\advisor.py) — restarting to run it"}
+{"ts": "2026-08-30T16:05:14Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "supervisor up — the Core is now persistent"}
+{"ts": "2026-08-30T16:05:15Z", "kind": "alert", "actor": "aletheia-liveness", "subject": "core:liveness", "text": "Aletheia was down for 3m — back up now (196s since the last heartbeat)."}
+{"ts": "2026-08-30T16:05:16Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
+{"ts": "2026-08-30T16:05:16Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
