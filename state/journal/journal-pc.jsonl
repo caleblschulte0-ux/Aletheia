@@ -603,3 +603,4 @@
 {"ts": "2026-08-30T06:44:12Z", "kind": "alert", "actor": "operator-local-core", "subject": "core:runtime:mail", "text": "subsystem failing: TimeoutError: The read operation timed out"}
 {"ts": "2026-08-30T06:47:52Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "push failing: push rejected and uncommitted changes the Core does not own: tate/pulse/latest.json — refusing to autostash a person's work"}
 {"ts": "2026-08-30T08:17:46Z", "kind": "alert", "actor": "operator-local-core", "subject": "core:runtime:mail", "text": "subsystem failing: SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)"}
+{"ts": "2026-08-30T08:25:21Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "push failing: commit failed: git commit: TimeoutExpired: Command '['git', 'commit', '-m', 'core: state checkpoint']' timed out after 60 seconds"}
