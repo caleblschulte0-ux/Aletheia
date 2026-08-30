@@ -106,9 +106,10 @@ def record_turn(*, provider: str, model: str, text: str, context: dict,
     return _write("turns", event)
 
 
-def record_teacher_pair(*, student_turn_id: str | None, teacher_provider: str,
-                        teacher_result: dict | None, student_result: dict | None,
-                        route: str, student_error: str | None = None) -> str | None:
+def record_teacher_pair(*, student_turn_id: str | None, teacher_turn_id: str | None = None,
+                        teacher_provider: str, teacher_result: dict | None,
+                        student_result: dict | None, route: str,
+                        student_error: str | None = None) -> str | None:
     """Link a local student attempt to the stronger answer used by Aletheia."""
     pair_id = uuid.uuid4().hex
     event = {
@@ -117,6 +118,7 @@ def record_teacher_pair(*, student_turn_id: str | None, teacher_provider: str,
         "kind": "teacher_pair",
         "recorded_at": stateio.utcnow(),
         "student_turn_id": student_turn_id,
+        "teacher_turn_id": teacher_turn_id,
         "teacher_provider": str(teacher_provider)[:200],
         "route": str(route)[:80],
         "teacher_result": teacher_result,
