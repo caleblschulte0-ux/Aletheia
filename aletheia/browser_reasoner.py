@@ -19,11 +19,15 @@ MAX_PROMPT_CHARS = 30_000
 MAX_RESPONSE_CHARS = 256_000
 TIMEOUT_S = 120.0
 POLL_MS = 500
+EDITOR_WAIT_S = 20.0
 EDITOR_SELECTORS = (
     "#prompt-textarea",
     "textarea[placeholder*='Message']",
     "textarea",
     "[contenteditable='true'][data-lexical-editor='true']",
+    "[contenteditable='true'][role='textbox']",
+    "div.ProseMirror[contenteditable='true']",
+    "[contenteditable='true'][data-placeholder*='Message']",
 )
 ASSISTANT_SELECTORS = (
     "[data-message-author-role='assistant']",
@@ -99,16 +103,32 @@ def _first_json_object(text: str) -> dict:
     return value
 
 
-def _editor(page):
-    for selector in EDITOR_SELECTORS:
+def _editor(page, timeout_s: float = EDITOR_WAIT_S):
+    """Return the visible ChatGPT composer, allowing the client app time to mount.
+
+    `domcontentloaded` is not a readiness signal for ChatGPT: the composer is
+    rendered later by client-side JavaScript. A one-shot lookup therefore creates
+    false "sign-in required" failures on perfectly valid persisted sessions.
+    """
+    deadline = time.monotonic() + max(0.0, float(timeout_s))
+    while True:
+        for selector in EDITOR_SELECTORS:
+            try:
+                loc = page.locator(selector)
+                if loc.count() > 0 and loc.first.is_visible():
+                    return loc.first
+            except Exception:
+                continue
+        now = time.monotonic()
+        if now >= deadline:
+            break
+        remaining_ms = max(1, min(POLL_MS, int((deadline - now) * 1000)))
         try:
-            loc = page.locator(selector)
-            if loc.count() > 0 and loc.first.is_visible():
-                return loc.first
+            page.wait_for_timeout(remaining_ms)
         except Exception:
-            continue
+            break
     raise BrowserReasonerUnavailable(
-        "ChatGPT prompt box is unavailable; sign in once with `python -m aletheia.browse login https://chatgpt.com/`"
+        "ChatGPT prompt box did not become ready; the saved session may need sign-in"
     )
 
 
