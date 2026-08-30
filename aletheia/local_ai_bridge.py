@@ -1,7 +1,7 @@
-"""Review-only CLI bridge from Aletheia-shaped input to the local model pool.
+"""Review-only CLI proving Aletheia's stable local reasoning integration gateway.
 
-This proves that Aletheia can access the installed Ollama models without
-modifying ``aletheia.assistant`` or any canonical action path.
+This CLI intentionally sits on TOP of ``aletheia.reasoning_gateway``. It is a
+human-test surface for the same API canonical Aletheia could later call.
 
 Examples:
     python -m aletheia.local_ai_bridge status
@@ -15,7 +15,7 @@ import argparse
 import json
 from pathlib import Path
 
-from aletheia import brain, local_model_pool, model_pool_config
+from aletheia import local_model_pool, model_pool_config, reasoning_gateway
 
 
 def _read_context(path: str | None) -> dict:
@@ -35,50 +35,43 @@ def _emit(value: dict) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m aletheia.local_ai_bridge",
-        description="Branch-only bridge to Aletheia's local fast/deep model pool.",
+        description="Branch-only test surface for Aletheia's reasoning integration gateway.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("status", help="show both local model roles and Ollama availability")
+    sub.add_parser("status", help="show gateway + local model health")
     sub.add_parser("profiles", help="show machine-local fast/deep model configuration")
 
-    ask = sub.add_parser("ask", help="run one Aletheia brain proposal through the local pool")
+    ask = sub.add_parser("ask", help="run one Aletheia brain proposal through the gateway")
     ask.add_argument("text")
-    ask.add_argument("--mode", choices=("auto", "fast", "deep", "fallback"), default="auto")
+    ask.add_argument("--mode", choices=sorted(reasoning_gateway.MODES), default="auto")
     ask.add_argument("--context", help="optional JSON object file supplied as untrusted context")
 
     route = sub.add_parser("route", help="show which role auto-routing would choose without inference")
     route.add_argument("text")
     route.add_argument("--context")
 
+    feedback = sub.add_parser("feedback", help="label one retained model turn")
+    feedback.add_argument("turn_id")
+    feedback.add_argument("--verdict", required=True, choices=("good", "bad", "mixed", "corrected"))
+    feedback.add_argument("--note", default="")
+
     args = parser.parse_args(argv)
 
     if args.command == "status":
-        return _emit(local_model_pool.status())
+        return _emit(reasoning_gateway.status())
     if args.command == "profiles":
         return _emit(model_pool_config.show())
+    if args.command == "feedback":
+        return _emit(reasoning_gateway.feedback(
+            args.turn_id, verdict=args.verdict, note=args.note))
 
     context = _read_context(args.context)
     if args.command == "route":
         decision = local_model_pool.choose_role(args.text, context)
         return _emit({"role": decision.role, "reason": decision.reason})
 
-    if args.mode == "fallback":
-        return _emit({
-            "route": {"role": "fallback", "reason": "explicit"},
-            "output": brain.FALLBACK.run(args.text, context),
-        })
-    if args.mode == "fast":
-        output = local_model_pool.run_fast(args.text, context)
-        return _emit({"route": {"role": "fast", "reason": "explicit"}, "output": output})
-    if args.mode == "deep":
-        output = local_model_pool.run_deep(args.text, context)
-        return _emit({"route": {"role": "deep", "reason": "explicit"}, "output": output})
-
-    decision, output = local_model_pool.run_auto(args.text, context)
-    return _emit({
-        "route": {"role": decision.role, "reason": decision.reason},
-        "output": output,
-    })
+    result = reasoning_gateway.interpret_with_meta(args.text, context, mode=args.mode)
+    return _emit(result.as_dict())
 
 
 if __name__ == "__main__":
