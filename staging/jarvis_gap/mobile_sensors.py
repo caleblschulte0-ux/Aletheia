@@ -18,13 +18,14 @@ import datetime as dt
 import hashlib
 import math
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 ALLOWED_MEDIA_TYPES = {"image/jpeg", "image/png", "image/webp"}
 DEFAULT_TTL_S = 120.0
 MAX_LOCATION_AGE_S = 300.0
 MAX_ACCURACY_M = 50_000.0
+MAX_FUTURE_SKEW = 10.0
 
 
 def _utc(value: dt.datetime) -> dt.datetime:
@@ -33,9 +34,19 @@ def _utc(value: dt.datetime) -> dt.datetime:
     return value.astimezone(dt.timezone.utc)
 
 
+def _valid_image_signature(data: bytes, media_type: str) -> bool:
+    if media_type == "image/jpeg":
+        return len(data) >= 3 and data[:3] == b"\xff\xd8\xff"
+    if media_type == "image/png":
+        return len(data) >= 8 and data[:8] == b"\x89PNG\r\n\x1a\n"
+    if media_type == "image/webp":
+        return len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP"
+    return False
+
+
 @dataclass(frozen=True)
 class ImageObservation:
-    data: bytes
+    data: bytes = field(repr=False)
     media_type: str
     observed_at: dt.datetime
     source: str = "iphone.camera"
@@ -47,6 +58,8 @@ class ImageObservation:
             raise ValueError(f"image exceeds {MAX_IMAGE_BYTES} bytes")
         if self.media_type not in ALLOWED_MEDIA_TYPES:
             raise ValueError(f"unsupported image media type {self.media_type!r}")
+        if not _valid_image_signature(self.data, self.media_type):
+            raise ValueError("image bytes do not match the declared media type")
         if self.source not in {"iphone.camera", "windows.screenshot"}:
             raise ValueError("unsupported image source")
         _utc(self.observed_at)
@@ -102,7 +115,7 @@ def validate_location(packet: dict, *, now: dt.datetime | None = None,
     observed = _utc(observed)
     now = _utc(now or dt.datetime.now(dt.timezone.utc))
     age = (now - observed).total_seconds()
-    if age < -10:
+    if age < -MAX_FUTURE_SKEW:
         raise ValueError("location observation is implausibly in the future")
     if age > max_age_s:
         raise ValueError(f"location observation is stale ({age:.0f}s old)")
@@ -117,12 +130,27 @@ def validate_location(packet: dict, *, now: dt.datetime | None = None,
     }
 
 
+def location_metadata(value: dict | None) -> dict | None:
+    """Privacy-safe presence metadata; precise coordinates are intentionally omitted."""
+    if value is None:
+        return None
+    return {
+        "version": value.get("version"),
+        "source": value.get("source"),
+        "observed_at": value.get("observed_at"),
+        "accuracy_m": value.get("accuracy_m"),
+        "consent": value.get("consent") is True,
+        "present": True,
+    }
+
+
 class EphemeralSensorBuffer:
     """Small in-memory handoff point for future mobile sensor endpoints.
 
     Camera data is never returned by `snapshot()`. A reasoning caller must use
-    `consume_camera()`, which removes the bytes immediately. That makes accidental
-    long-lived retention harder when this prototype is integrated later.
+    `consume_camera()`, which removes the bytes immediately. A fresh unconsumed
+    frame is not silently overwritten: cross-request camera mixups are worse than
+    making the next capture retry.
     """
 
     def __init__(self, ttl_s: float = DEFAULT_TTL_S, *, clock=None) -> None:
@@ -134,10 +162,24 @@ class EphemeralSensorBuffer:
         self._camera: ImageObservation | None = None
         self._location: dict | None = None
 
-    def put_camera(self, image: ImageObservation) -> dict:
+    def _age(self, observed_at: dt.datetime) -> float:
+        return (_utc(self._clock()) - _utc(observed_at)).total_seconds()
+
+    def _fresh(self, observed_at: dt.datetime) -> bool:
+        age = self._age(observed_at)
+        return -MAX_FUTURE_SKEW <= age <= self.ttl_s
+
+    def put_camera(self, image: ImageObservation, *, replace: bool = False) -> dict:
         if not isinstance(image, ImageObservation):
             raise TypeError("image must be ImageObservation")
+        age = self._age(image.observed_at)
+        if age < -MAX_FUTURE_SKEW:
+            raise ValueError("camera observation is implausibly in the future")
+        if age > self.ttl_s:
+            raise ValueError(f"camera observation is stale ({age:.0f}s old)")
         with self._lock:
+            if self._camera is not None and self._fresh(self._camera.observed_at) and not replace:
+                raise RuntimeError("a fresh unconsumed camera frame already exists")
             self._camera = image
         return image.metadata()
 
@@ -146,9 +188,6 @@ class EphemeralSensorBuffer:
         with self._lock:
             self._location = value
         return dict(value)
-
-    def _fresh(self, observed_at: dt.datetime) -> bool:
-        return (_utc(self._clock()) - _utc(observed_at)).total_seconds() <= self.ttl_s
 
     def consume_camera(self) -> ImageObservation | None:
         with self._lock:
@@ -172,4 +211,4 @@ class EphemeralSensorBuffer:
         with self._lock:
             image = self._camera
         camera = image.metadata() if image is not None and self._fresh(image.observed_at) else None
-        return {"camera": camera, "location": self.latest_location()}
+        return {"camera": camera, "location": location_metadata(self.latest_location())}
