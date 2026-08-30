@@ -1,9 +1,9 @@
 """Subscription-backed reasoning with no per-token API key.
 
 Claude remains the preferred subscription provider, with the operator's signed-in
-ChatGPT browser as fallback.  Successful subscription answers may also launch a
+ChatGPT browser as fallback. Successful subscription answers may also launch a
 non-authoritative LOCAL shadow attempt so Aletheia can collect student/teacher
-pairs for its future model.  Shadow work never changes the returned answer.
+pairs for its future model. Shadow work never changes the returned answer.
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ _SHADOW_LOCK = threading.Lock()
 
 
 class ReasonerUnavailable(RuntimeError):
-    """No configured subscription-backed provider was usable."""
+    """No configured reasoning provider was usable."""
 
 
 def cli_path() -> str | None:
@@ -196,8 +196,7 @@ def _subscription_json_with_provider(system_prompt: str, text: str, *, context: 
             system_prompt, text, context=context,
             timeout_s=max(timeout_s, browser_reasoner.TIMEOUT_S))
         return checked(value), "chatgpt.browser"
-    except (browser_reasoner.BrowserReasonerUnavailable, ValueError,
-            brain.BrainOutputError):
+    except Exception:
         raise ReasonerUnavailable(
             "both subscription reasoning paths are unavailable: Claude failed and ChatGPT browser could not answer"
         ) from None
@@ -221,7 +220,6 @@ def _schedule_local_shadow(system_prompt: str, text: str, context: dict | None,
         try:
             from aletheia import local_model_pool, training_data
             preferred = "deep" if model == PLAN_MODEL else None
-            student = None
             student_error = None
             turn_id = None
             try:
@@ -256,9 +254,9 @@ def subscription_json(system_prompt: str, text: str, *, context: dict | None = N
                       shadow: bool = True) -> dict:
     """Authoritative subscription seam: Claude -> ChatGPT browser.
 
-    When ``shadow`` is true, the accepted strong-provider answer may spawn a
-    background local student attempt for future-model training.  That attempt
-    cannot alter, delay, approve, or execute the returned answer.
+    The accepted strong-provider answer may spawn a background local student
+    attempt for future-model training. That attempt cannot alter, delay,
+    approve, or execute the returned answer.
     """
     _validate_input(system_prompt, text, context)
     value, provider_id = _subscription_json_with_provider(
@@ -274,21 +272,26 @@ def subscription_json(system_prompt: str, text: str, *, context: dict | None = N
 
 @dataclass(frozen=True)
 class CliReasoner:
-    """Compatibility name for the subscription-authoritative planner adapter."""
+    """Compatibility adapter; production planning now uses the hybrid standard policy."""
     model: str = INTERPRET_MODEL
     system_prompt: str = ""
     timeout_s: float = TIMEOUT_S
 
     def infer(self, text: str, context: dict | None = None) -> dict:
-        return subscription_json(
-            self.system_prompt, text, context=context,
+        # Lazy import avoids reasoner <-> gateway import cycles. Standard means
+        # subscriptions first and local-deep only when both subscription paths
+        # are genuinely unavailable.
+        from aletheia import reasoning_gateway
+        return reasoning_gateway.reason_json(
+            self.system_prompt, text, context=context, policy="standard",
             model=self.model, timeout_s=self.timeout_s,
             validator=brain.validate_output,
-        )
+        ).output
 
-    def provider(self, provider_id: str = "subscription.auto") -> brain.Provider:
-        if provider_id.startswith("claude.cli"):
-            provider_id = "subscription.auto" + provider_id[len("claude.cli"):]
+    def provider(self, provider_id: str = "reasoning.hybrid.standard") -> brain.Provider:
+        if provider_id.startswith("claude.cli") or provider_id.startswith("subscription.auto"):
+            suffix = provider_id.split(".")[-1] if "." in provider_id else ""
+            provider_id = "reasoning.hybrid.standard" + (f".{suffix}" if suffix in {"plan", "interpret"} else "")
         return brain.Provider(provider_id, self.infer)
 
 
