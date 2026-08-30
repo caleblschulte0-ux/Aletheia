@@ -24,6 +24,10 @@ from staging.jarvis_v0.memory import EphemeralMemory
 from staging.jarvis_v0.perception import PerceptionHub, SensorSpec
 from staging.jarvis_v0.supervisor import SupervisorModel
 from staging.jarvis_v0.voice_contract import VoiceSession, VoiceState
+from staging.jarvis_v0.capabilities import CapabilityCatalog, CapabilitySpec
+from staging.jarvis_v0.event_loop import EventRule, ProactiveEngine, ProactiveProposal, SystemEvent
+from staging.jarvis_v0.room import RoomController
+from staging.jarvis_v0.verification import ReceiptFieldEquals, RuleVerifier
 
 
 class JarvisLoopTests(unittest.TestCase):
@@ -141,6 +145,102 @@ class SupervisorTests(unittest.TestCase):
         core.beat(now=100)
         self.assertFalse(supervisor.snapshot(now=105)["core"]["restart_recommended"])
         self.assertTrue(supervisor.snapshot(now=111)["core"]["restart_recommended"])
+
+
+class CapabilityCatalogTests(unittest.TestCase):
+    def test_unknown_capability_is_refused_by_catalog(self):
+        catalog = CapabilityCatalog((
+            CapabilitySpec("browser.read", RiskLevel.READ_ONLY),
+        ))
+        plan = Plan(
+            goal="bad",
+            steps=(ActionStep(
+                capability="shell.raw",
+                risk=RiskLevel.DESTRUCTIVE,
+                expected_observation="done",
+            ),),
+        )
+        self.assertIn("unknown capability", catalog.validate_plan(plan)[0])
+
+    def test_catalog_requires_declared_verification_evidence(self):
+        catalog = CapabilityCatalog((
+            CapabilitySpec("browser.read", RiskLevel.READ_ONLY),
+        ))
+        plan = Plan(
+            goal="read",
+            steps=(ActionStep(capability="browser.read", risk=RiskLevel.READ_ONLY),),
+        )
+        self.assertTrue(any("verification evidence" in item for item in catalog.validate_plan(plan)))
+
+
+class DeterministicVerificationTests(unittest.TestCase):
+    def test_missing_rule_fails_closed(self):
+        step = ActionStep(
+            capability="browser.read",
+            risk=RiskLevel.READ_ONLY,
+            expected_observation="page readable",
+        )
+        verifier = RuleVerifier({})
+        receipt = RecordingActions().execute(step, plan_id="p")
+        ok, reason, _ = verifier.verify(step, receipt, before=())
+        self.assertFalse(ok)
+        self.assertIn("no deterministic verification rule", reason)
+
+    def test_receipt_rule_can_verify_structured_evidence(self):
+        step = ActionStep(
+            capability="browser.read",
+            risk=RiskLevel.READ_ONLY,
+            expected_observation="simulated adapter receipt",
+        )
+        verifier = RuleVerifier({
+            "browser.read": ReceiptFieldEquals("simulated", True),
+        })
+        receipt = RecordingActions().execute(step, plan_id="p")
+        ok, _, _ = verifier.verify(step, receipt, before=())
+        self.assertTrue(ok)
+
+
+class ProactiveEngineTests(unittest.TestCase):
+    def test_event_engine_only_emits_proposal_and_respects_cooldown(self):
+        rule = EventRule(
+            rule_id="build-red",
+            topic="github.workflow",
+            when=lambda event: event.payload.get("conclusion") == "failure",
+            build=lambda event: ProactiveProposal(
+                rule_id="build-red",
+                summary="A build failed",
+                suggested_capability="github.inspect_run",
+                risk=RiskLevel.READ_ONLY,
+            ),
+            cooldown_s=60,
+        )
+        engine = ProactiveEngine((rule,))
+        event = SystemEvent(
+            topic="github.workflow",
+            source="github",
+            payload={"conclusion": "failure"},
+            at=100,
+        )
+        first = engine.evaluate(event, now=100)
+        second = engine.evaluate(event, now=120)
+        self.assertEqual(len(first), 1)
+        self.assertEqual(second, ())
+
+
+class RoomControllerTests(unittest.TestCase):
+    def test_room_ignores_speech_without_wake_word(self):
+        loop, *_ = JarvisLoopTests().make_loop()
+        room = RoomController(session=VoiceSession(), loop=loop)
+        turn = room.transcript("open Barkly", now=100)
+        self.assertFalse(turn.accepted)
+        self.assertIsNone(turn.result)
+
+    def test_room_runs_woken_command(self):
+        loop, *_ = JarvisLoopTests().make_loop()
+        room = RoomController(session=VoiceSession(), loop=loop)
+        turn = room.transcript("Thea open Barkly", now=100)
+        self.assertTrue(turn.accepted)
+        self.assertEqual(turn.result.outcome, LoopOutcome.COMPLETE)
 
 
 if __name__ == "__main__":
