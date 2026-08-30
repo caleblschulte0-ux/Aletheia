@@ -1,0 +1,11 @@
+{
+  "id": "20260830-halt-chatgpt-leak",
+  "filed": "2026-08-30T22:19:00Z",
+  "by": "chatgpt",
+  "relayed_from": "operator",
+  "operator_quote": "Fix this.",
+  "command": {
+    "kind": "halt",
+    "reason": "Emergency containment: unattended Aletheia reasoning is creating visible ChatGPT browser conversations while the operator is away. Halt until the browser-fallback and false-wake fixes are reviewed and deployed."
+  }
+}
