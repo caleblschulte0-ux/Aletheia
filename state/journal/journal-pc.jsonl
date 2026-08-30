@@ -659,3 +659,4 @@
 {"ts": "2026-08-30T15:30:13Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
 {"ts": "2026-08-30T15:30:26Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "push failing: push rejected and uncommitted changes the Core does not own: tate/pulse/latest.json — refusing to autostash a person's work"}
 {"ts": "2026-08-30T15:34:56Z", "kind": "event", "actor": "aletheia-voice", "subject": "voice:room", "text": "room voice listening (single local wake listener)"}
+{"ts": "2026-08-30T15:39:56Z", "kind": "event", "actor": "aletheia-voice", "subject": "voice:room", "text": "room voice listening (single local wake listener)"}
