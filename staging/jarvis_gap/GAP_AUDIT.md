@@ -33,8 +33,10 @@ camera endpoint, and the mobile surface has no capture path. Production
 `perception.py` reads Windows UI Automation text; it is not physical camera
 vision.
 
-**Staging prototype:** `mobile_sensors.py` defines ephemeral camera observations
-and consume-once in-memory retention. It does not add an endpoint.
+**Staging build:** `mobile_sensors.py` defines ephemeral image observations.
+Image bytes are memory-only, MIME/signature checked, hidden from repr/metadata,
+and consume-once. `sensor_requests.py` adds one-shot request tokens so two
+simultaneous camera questions cannot consume each other's frame.
 
 ### 2. Location source — missing
 
@@ -42,9 +44,10 @@ The Playbook names iPhone location as context (§49/§92), but the capability
 registry has no `location.read` and the mobile surface never calls browser
 geolocation.
 
-**Staging prototype:** `mobile_sensors.py` defines a fresh, consent-bearing,
-accuracy-bearing location packet. It does not request location permission or
-persist coordinates.
+**Staging build:** `mobile_sensors.py` validates fresh, consent-bearing,
+accuracy-bearing location packets. Exact coordinates are omitted from diagnostic
+metadata and only enter a reasoning context when that request explicitly asked
+for location.
 
 ### 3. VISION worker seam — missing
 
@@ -53,8 +56,10 @@ reasoning adapter is text/JSON only, and screen perception deliberately uses the
 accessibility tree instead of pixels. There is no provider-neutral image
 reasoning seam.
 
-**Staging prototype:** `vision.py` accepts an injected future VISION backend and
-strictly returns read-only answers. Action-shaped output is refused.
+**Staging build:** `vision.py` accepts an injected future VISION backend and
+strictly returns read-only answers. Action-shaped output is refused, context is
+JSON-serializable and byte-bounded before the provider sees it, and every answer
+is bound to the image sha256.
 
 ### 4. Visual computer fallback — missing by design
 
@@ -63,9 +68,54 @@ The Playbook adapter ladder includes visual computer control as rung 7 (§11,
 `perception.py` correctly stays read-only. No separate visual fallback exists
 for canvas apps, games, remote desktops, or inaccessible controls.
 
-**Staging prototype:** `visual_fallback.py` can only propose a point inside a
+**Staging build:** `visual_fallback.py` can only propose a point inside a
 specific screenshot, hash-bound to that screenshot. It has **zero execution
 authority** and is intentionally not wired to `computer.execute`.
+
+### 5. Ambient Windows computer context — partially missing
+
+Playbook §48 expects active window, foreground app, current tab, selected file,
+clipboard and current project so phrases like "send this to Claude" have a
+concrete referent. Production UIA can list windows and inspect controls, but the
+canonical `current_state.py` does not carry foreground/clipboard context and
+there is no ambient read-only foreground sensor.
+
+**Staging build:** `desktop_context.py` provides a read-only ctypes Windows
+backend for foreground title/process and Unicode clipboard. It has no ability to
+focus, type, click, or mutate the clipboard. Diagnostic metadata hashes the
+window title and clipboard rather than exposing their contents; reasoning must
+explicitly request clipboard text.
+
+This closes only the foreground-app/clipboard slice. Generic **current browser
+tab**, **selected file**, and **current project** resolution remain open because
+those need provider-specific semantics rather than title-string guessing.
+
+## A complete isolated vertical slice now exists
+
+`camera_question.py` joins the staging pieces for Playbook §87 without touching
+the Core:
+
+1. issue an opaque expiring request token for "What is this?";
+2. accept only the sensor kinds that request named;
+3. reject stale/replayed/cross-request frames;
+4. verify the same question digest before consuming the capture;
+5. disclose precise location only when location was requested;
+6. call the read-only VISION seam;
+7. return an answer bound to the exact image sha256.
+
+It still has no HTTP endpoint, provider selection, mobile permission UI, memory
+write, command path, or action authority. That is deliberate: the data and
+trust boundaries can be reviewed before production wiring widens the surface.
+
+## Important platform constraint: iPhone notifications
+
+The Playbook also says selected phone notifications may become events (§49–50).
+Do **not** implement a fake generic `iphone.notifications.read`: iOS does not
+provide ordinary apps a supported API to inspect every other app's notification
+center. The honest paths are provider-specific connectors/webhooks, explicit
+Share Sheet/Shortcut forwarding where Apple permits it, or first-party events
+from Aletheia's own mobile surface. The existing event bus can consume those
+later; the missing piece is a legitimate source, not another event bus.
 
 ## Not code gaps
 
@@ -82,15 +132,20 @@ live evidence, not missing architecture:
 
 ## Integration order if this staging work is accepted later
 
-1. Review/choose the VISION provider strategy; do not hard-code a vendor.
-2. Add registry entries for `perception.camera`, `location.read`, and
-   `vision.reason` only when there are real callers and tests.
-3. Add authenticated mobile sensor endpoints behind existing remote-access
-   scopes; camera bytes remain ephemeral/private.
-4. Add the mobile UI capture/permission controls.
-5. Connect read-only camera questions (`What is this?`) first.
-6. Only after that, separately review a visual desktop fallback. It must remain
-   lower priority than UIA and browser semantics, require exact policy/approval,
-   re-observe after action, and verify before reporting success.
+1. Claude line-by-line review of this branch; keep production untouched until the
+   privacy/request-binding invariants are ratified.
+2. Choose a VISION provider strategy behind the seam; do not hard-code a vendor.
+3. Add registry entries for `perception.camera`, `location.read`,
+   `computer.context.read`, and `vision.reason` only when real callers exist.
+4. Add request-bound authenticated sensor endpoints behind the existing
+   remote-access layer. Do not create a second authentication system.
+5. Add the mobile capture/location permission controls. Camera bytes stay
+   ephemeral/private; precise location is never journal payload.
+6. Wire the **read-only** `What is this?` vertical slice first and live-verify it.
+7. Separately wire foreground Windows context into context resolution; do not
+   make clipboard contents ambient model context by default.
+8. Only after those reads are proven, separately review visual desktop fallback.
+   UIA/browser semantics stay higher priority; any coordinate action must get
+   exact policy/approval, re-observe afterward, and verify before success.
 
 That sequence extends Aletheia rather than building a second Aletheia beside it.
