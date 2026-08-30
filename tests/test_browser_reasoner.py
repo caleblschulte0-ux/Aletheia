@@ -40,6 +40,11 @@ class FakeLocator:
     def fill(self, text):
         self.page.prompt = text
 
+    def press(self, key):
+        if self.kind != "editor" or key != "Enter":
+            raise AssertionError(key)
+        self.page.submitted = True
+
     def inner_text(self):
         return '{"intent":"clarify","summary":"done","required_capabilities":[],"confidence":0.9}'
 
