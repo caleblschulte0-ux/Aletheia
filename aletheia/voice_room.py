@@ -372,16 +372,6 @@ def ask_core(transcript: str, core_url: str = CORE_URL) -> dict:
     }
 
 
-def _strip_leading_garbage(text: str) -> str:
-    """Drop only known wake-word mangles; never eat a legitimate first word."""
-    words = text.split()
-    if words and words[0].casefold() in {
-        "thea", "aletheia", "yeah", "idea", "hey", "via", "tia"
-    }:
-        return " ".join(words[1:])
-    return text
-
-
 def _is_failure_line(text: str) -> bool:
     low = str(text).strip().casefold()
     return low.startswith(("i couldn't", "i could not", "i can't", "that failed", "couldn't"))
@@ -392,13 +382,13 @@ def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
                    monotonic=time.monotonic) -> int:
     """Wake -> command, with no unsolicited speech and no indefinite follow-up.
 
-    A bare wake word opens an eight-second follow-up window. If that expires,
-    ordinary room speech is ignored again. For a non-empty utterance outside that
-    window, the wake spotter alone is not enough: the full recognizer must also
-    preserve a known wake prefix (including the small set of accepted mangles).
-    That prevents a false wake from turning arbitrary room audio into an intent.
-    Identical failure lines are throttled briefly as a final guard against a
-    provider/error feedback loop.
+    A bare high-confidence wake opens an eight-second follow-up window. Outside
+    that already-open window, a detector hit is necessary but never sufficient:
+    a non-empty full transcript must itself start with one of Aletheia's configured
+    wake words. Detector/transcript disagreement is treated as a false wake and
+    discarded, so arbitrary room speech never becomes a generic intent. Identical
+    failure lines are throttled briefly as a final guard against a provider/error
+    feedback loop.
     """
     recognizer = recognizer if recognizer is not None else microphone_recognizer()
     speaker = speaker or speak
@@ -431,9 +421,9 @@ def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
                 continue
             if is_addressed(raw):
                 command = raw.split(" ", 1)[1] if " " in raw else ""
-            elif wake_heard:
-                command = _strip_leading_garbage(raw)
             else:
+                # The operator already opened this short window with a verified
+                # bare wake, so the next utterance is intentionally the command.
                 command = raw
             if not command.strip():
                 say("Yes?")
@@ -446,17 +436,12 @@ def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
             if is_addressed(raw):
                 command = raw.split(" ", 1)[1] if " " in raw else ""
             elif wake_heard and not raw:
-                # A high-confidence bare wake is allowed to open the deliberately
-                # short follow-up window even when the full recognizer has no text.
+                # A high-confidence bare wake may open only the deliberately
+                # short follow-up window; it does not carry an arbitrary command.
                 command = ""
-            elif wake_heard:
-                command = _strip_leading_garbage(raw)
-                if command == raw:
-                    # The constrained wake spotter fired but the full transcript
-                    # contains no wake token/mangle. Treat that disagreement as a
-                    # false wake; never forward arbitrary room speech to planning.
-                    continue
             else:
+                # Includes the dangerous disagreement case: wake spotter says
+                # yes, but the full transcript is ordinary speech. Fail closed.
                 continue
             if not command.strip():
                 say("Yes?")
