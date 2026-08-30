@@ -6,6 +6,7 @@ Playbook §7/§15/§86 and today's text-only local reasoning path.
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -14,6 +15,7 @@ from .mobile_sensors import ImageObservation
 MAX_QUESTION_CHARS = 1200
 MAX_ANSWER_CHARS = 1200
 MAX_BASIS_CHARS = 600
+MAX_CONTEXT_BYTES = 8 * 1024
 FORBIDDEN_OUTPUT_FIELDS = {
     "action", "actions", "click", "coordinates", "x", "y", "steps", "command",
     "tool", "tool_call", "execute", "url",
@@ -44,7 +46,23 @@ class VisionAnswer:
 def _text(value, *, name: str, limit: int) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{name} must be a non-empty string")
-    return " ".join(value.split())[:limit]
+    normalized = " ".join(value.split())
+    if len(normalized) > limit:
+        raise ValueError(f"{name} exceeds {limit} characters")
+    return normalized
+
+
+def _bounded_context(value: dict) -> dict:
+    if not isinstance(value, dict):
+        raise ValueError("context must be an object")
+    try:
+        encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    except (TypeError, ValueError) as exc:
+        raise ValueError("vision context must be JSON-serializable") from exc
+    if len(encoded) > MAX_CONTEXT_BYTES:
+        raise ValueError(f"vision context exceeds {MAX_CONTEXT_BYTES} bytes")
+    # Copy through JSON so an injected backend cannot mutate caller-owned nested state.
+    return json.loads(encoded.decode("utf-8"))
 
 
 def validate_backend_output(value: dict, image: ImageObservation) -> VisionAnswer:
@@ -79,8 +97,6 @@ class VisionReasoner:
         if not isinstance(image, ImageObservation):
             raise TypeError("image must be ImageObservation")
         question = _text(question, name="question", limit=MAX_QUESTION_CHARS)
-        ctx = context or {}
-        if not isinstance(ctx, dict):
-            raise ValueError("context must be an object")
+        ctx = _bounded_context(context or {})
         candidate = self.backend.analyze(image, question, context=ctx)
         return validate_backend_output(candidate, image)
