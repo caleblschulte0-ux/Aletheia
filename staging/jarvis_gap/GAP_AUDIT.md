@@ -93,7 +93,29 @@ This closes only the foreground-app/clipboard slice. Generic **current browser
 tab**, **selected file**, and **current project** resolution remain open because
 those need provider-specific semantics rather than title-string guessing.
 
-## A complete isolated vertical slice now exists
+### 6. Text messaging — missing
+
+The Playbook's north-star examples explicitly include **"Text him back."**
+Production Aletheia can resolve contacts, send approval-gated email, track
+communications, and place experimental Phone Link calls, but there is no SMS /
+text-message capability or provider in the registry. `contacts.py` already stores
+phone numbers; what is missing is the world-touching messaging adapter.
+
+**Staging build:** `texting.py` stops before that boundary. It resolves exactly
+one saved phone number (ambiguity is refused), binds the exact recipient + body
+to a sha256, hides the full number and body from diagnostics/repr, and always
+reports `execution_authority: false`. It deliberately has **no send function**.
+
+`phonelink_messages_probe.py` is the matching feasibility check rather than an
+invented provider. It may only list windows and inspect controls, reports only
+whether a Phone Link Messages surface / Send control appears to exist, and drops
+arbitrary labels so contact names and message previews do not become probe
+output. The operator's actual Windows/iPhone pairing must be observed live before
+any sender is designed. If Phone Link does not expose a stable usable surface,
+that failure should stay visible instead of being papered over with brittle
+coordinates.
+
+## A complete isolated camera vertical slice now exists
 
 `camera_question.py` joins the staging pieces for Playbook §87 without touching
 the Core:
@@ -133,6 +155,9 @@ live evidence, not missing architecture:
 - purchase/reservation/cancellation errands — built, first live round-trips still required;
 - agent delegation — dispatch built, live worker round-trip still required.
 
+Two registry gaps are deliberate policy/privacy boundaries, not engineering work
+to quietly close: `finance.transact` and `email.read_body`.
+
 ## Integration order if this staging work is accepted later
 
 1. Claude line-by-line review of this branch; keep production untouched until the
@@ -149,7 +174,10 @@ live evidence, not missing architecture:
 6. Wire the **read-only** `What is this?` vertical slice first and live-verify it.
 7. Separately wire foreground Windows context into context resolution; do not
    make clipboard contents ambient model context by default.
-8. Only after those reads are proven, separately review visual desktop fallback.
+8. Run the Phone Link messaging probe on the real PC. Only if the result supports
+   it should a `message.text` provider be designed. Any eventual send must bind
+   approval to the exact number + body and verify the outgoing message afterward.
+9. Only after the read paths are proven, separately review visual desktop fallback.
    UIA/browser semantics stay higher priority; any coordinate action must get
    exact policy/approval, re-observe afterward, and verify before success.
 
