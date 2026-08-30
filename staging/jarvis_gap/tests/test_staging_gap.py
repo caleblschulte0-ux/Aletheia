@@ -11,6 +11,9 @@ from staging.jarvis_gap.mobile_sensors import (
     validate_location,
 )
 from staging.jarvis_gap.sensor_requests import SensorTicketStore
+from staging.jarvis_gap.ollama_vision import (
+    OllamaVisionBackend, OllamaVisionConfig, OllamaVisionProtocolError, build_payload,
+)
 from staging.jarvis_gap.vision import VisionReasoner
 from staging.jarvis_gap.visual_fallback import VisualTargetPlanner
 
@@ -235,6 +238,63 @@ class VisionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "context exceeds"):
             VisionReasoner(backend).ask(self.image, "What?", context={"x": "y" * 9000})
         self.assertIsNone(backend.context)
+
+
+class OllamaVisionTests(unittest.TestCase):
+    def setUp(self):
+        self.now = dt.datetime(2026, 8, 30, 20, 0, tzinfo=UTC)
+        self.image = ImageObservation(JPEG, "image/jpeg", self.now)
+
+    def test_config_has_no_default_model_and_refuses_non_loopback(self):
+        with self.assertRaises(ValueError):
+            OllamaVisionConfig("").validated()
+        with self.assertRaisesRegex(ValueError, "loopback"):
+            OllamaVisionConfig("vision-model", base_url="http://example.com:11434").validated()
+
+    def test_payload_contains_one_image_and_no_tools(self):
+        payload = build_payload(
+            OllamaVisionConfig("vision-model"), self.image, "What is this?", {"source": "camera"}
+        )
+        self.assertEqual(payload["model"], "vision-model")
+        self.assertNotIn("tools", payload)
+        self.assertNotIn("tool_choice", payload)
+        self.assertEqual(len(payload["messages"][1]["images"]), 1)
+        import base64
+        self.assertEqual(base64.b64decode(payload["messages"][1]["images"][0]), JPEG)
+
+    def test_backend_is_compatible_with_read_only_vision_reasoner(self):
+        calls = []
+        def transport(config, path, payload):
+            calls.append((path, payload))
+            return {"message": {"content": '{"answer":"A mug.","confidence":0.9,"basis":"handle"}'}}
+        backend = OllamaVisionBackend(OllamaVisionConfig("vision-model"), transport=transport)
+        answer = VisionReasoner(backend).ask(self.image, "What is this?")
+        self.assertEqual(answer.answer, "A mug.")
+        self.assertEqual(calls[0][0], "/api/chat")
+
+    def test_action_shaped_model_output_is_still_refused_by_outer_contract(self):
+        def transport(config, path, payload):
+            return {"message": {"content": '{"answer":"button","confidence":0.9,"basis":"label","x":4}'}}
+        backend = OllamaVisionBackend(OllamaVisionConfig("vision-model"), transport=transport)
+        with self.assertRaises(PermissionError):
+            VisionReasoner(backend).ask(self.image, "What is there?")
+
+    def test_invalid_model_json_fails_closed(self):
+        def transport(config, path, payload):
+            return {"message": {"content": "not-json"}}
+        backend = OllamaVisionBackend(OllamaVisionConfig("vision-model"), transport=transport)
+        with self.assertRaises(OllamaVisionProtocolError):
+            backend.analyze(self.image, "What?", context={})
+
+    def test_status_never_claims_unpulled_model(self):
+        def transport(config, path, payload):
+            self.assertEqual(path, "/api/tags")
+            return {"models": [{"name": "other-model"}]}
+        status = OllamaVisionBackend(
+            OllamaVisionConfig("vision-model"), transport=transport
+        ).status()
+        self.assertTrue(status["online"])
+        self.assertFalse(status["model_available"])
 
 
 class VisualFallbackTests(unittest.TestCase):
