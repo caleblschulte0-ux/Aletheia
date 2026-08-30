@@ -1,8 +1,8 @@
 """Local reasoning provider for Aletheia via Ollama.
 
 This module is intentionally narrow: it turns bounded operator text + bounded
-context into the existing ``aletheia.brain.Provider`` contract. It does not
-execute commands, touch tools, bypass approvals, or mutate Aletheia state.
+context into the existing ``aletheia.brain`` contract. It does not execute
+commands, touch tools, bypass approvals, or mutate Aletheia state.
 
 The default endpoint is loopback-only (http://127.0.0.1:11434). A non-loopback
 endpoint is rejected so a configuration typo cannot silently turn the local
@@ -231,6 +231,7 @@ def infer(text: str, context: dict[str, Any] | None = None, *, config: OllamaCon
 
 
 def provider(config: OllamaConfig | None = None) -> brain.Provider:
+    """Expose the local adapter through Aletheia's replaceable Provider shape."""
     cfg = (config or OllamaConfig.from_env()).validated()
 
     def _infer(text: str, context: dict) -> dict:
@@ -239,19 +240,30 @@ def provider(config: OllamaConfig | None = None) -> brain.Provider:
     return brain.Provider(f"ollama:{cfg.model}", _infer)
 
 
+def _validate_input(text: str) -> None:
+    # Preserve the same input bound enforced by brain.Provider.run while letting
+    # run_local retain the raw proposal even when output validation fails.
+    if not isinstance(text, str) or not text.strip() or len(text) > brain.MAX_TEXT:
+        raise ValueError("input text must be non-empty and bounded")
+
+
 def run_local(text: str, context: dict[str, Any] | None = None, *, config: OllamaConfig | None = None) -> dict:
     """Run local reasoning, validate it, and retain the turn for future training."""
+    _validate_input(text)
     cfg = (config or OllamaConfig.from_env()).validated()
     ctx = context or {}
-    # Build this once so the dataset retains the exact historical request shape.
+    if not isinstance(ctx, dict):
+        raise ValueError("context must be an object")
     payload = _build_payload(text, ctx, cfg)
     started = time.perf_counter()
+    proposal: dict | None = None
     try:
-        result = provider(cfg).run(text, ctx)
+        proposal = infer(text, ctx, config=cfg)
+        result = brain.validate_output(proposal)
     except Exception as exc:
         training_data.record_turn(
             provider="ollama", model=cfg.model, text=text, context=ctx,
-            request_payload=payload, result=None, status="error",
+            request_payload=payload, result=proposal, status="error",
             error_type=type(exc).__name__, error=str(exc)[:4000],
             duration_ms=round((time.perf_counter() - started) * 1000),
         )
@@ -279,12 +291,13 @@ def run_auto(text: str, context: dict[str, Any] | None = None, *, config: Ollama
 
 def status(*, config: OllamaConfig | None = None) -> dict[str, Any]:
     """Read-only health report for the local Ollama socket and configured model."""
+    model_source = "explicit" if config is not None else model_config.show()["source"]
     cfg = (config or OllamaConfig.from_env()).validated()
     result: dict[str, Any] = {
         "provider": "ollama",
         "url": cfg.base_url,
         "model": cfg.model,
-        "model_source": model_config.show()["source"],
+        "model_source": model_source,
         "online": False,
         "model_available": False,
         "models": [],
