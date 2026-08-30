@@ -94,7 +94,9 @@ class WorkSessionCase(unittest.TestCase):
         for patch in patches:
             patch.start()
             self.addCleanup(patch.stop)
-        self.now = dt.datetime(2026, 8, 29, 20, 0, tzinfo=dt.timezone.utc)
+        # Tests exercise relative session expiry. Using a historic fixed instant
+        # made authorize_* start failing once the real clock passed its expiry.
+        self.now = dt.datetime.now(dt.timezone.utc)
 
     def open(self, **kw):
         return work_session.open_session(now=self.now, via="test", **kw)
