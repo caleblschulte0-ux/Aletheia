@@ -140,6 +140,54 @@ class GitSync:
             "MERGE_HEAD", "REBASE_HEAD", "rebase-merge", "rebase-apply",
             "CHERRY_PICK_HEAD", "REVERT_HEAD"))
 
+    def recover_editor_only_upstream_merge(self) -> tuple[bool | None, str]:
+        """Abort only the harmless merge state created by plain ``git pull``.
+
+        Aletheia's PC checkout has local state-checkpoint commits. Running plain
+        ``git pull`` on that branch can perform a clean upstream merge and then
+        open Git's editor merely to approve the generated merge message. If the
+        editor is closed, ``MERGE_HEAD`` remains and the Core correctly refuses
+        to touch the tree forever.
+
+        This recovery is intentionally much narrower than "abort any merge":
+        it requires the sync branch, a MERGE_HEAD with no conflicted paths, no
+        other Git operation, and Git's characteristic upstream-pull merge
+        message. Real/conflicted/manual merges remain somebody's work and are
+        left alone.
+
+        Returns ``(None, '')`` when there is no MERGE_HEAD, ``(True, detail)``
+        when the editor-only merge was safely aborted, and ``(False, detail)``
+        when a merge exists but is not safe to recover automatically.
+        """
+        git_dir = self.root / ".git"
+        if not (git_dir / "MERGE_HEAD").exists():
+            return None, ""
+        if any((git_dir / marker).exists() for marker in (
+                "REBASE_HEAD", "rebase-merge", "rebase-apply",
+                "CHERRY_PICK_HEAD", "REVERT_HEAD")):
+            return False, "another Git operation is active — leaving it alone"
+
+        code, current = _git(["rev-parse", "--abbrev-ref", "HEAD"], self.root)
+        if code != 0 or current.strip() != self.branch:
+            return False, "merge is not on the Core sync branch — leaving it alone"
+
+        code, conflicts = _git(["diff", "--name-only", "--diff-filter=U"], self.root)
+        if code != 0 or conflicts.strip():
+            return False, "merge has conflicted paths — leaving it for the operator"
+
+        try:
+            message = (git_dir / "MERGE_MSG").read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return False, "merge message is unavailable — leaving it alone"
+        expected = f"Merge branch '{self.branch}' of "
+        if not message.startswith(expected):
+            return False, "merge was not created by a plain upstream pull — leaving it alone"
+
+        code, out = _git(["merge", "--abort"], self.root)
+        if code != 0:
+            return False, f"could not abort editor-only upstream merge: {out[-200:]}"
+        return True, "aborted editor-only upstream merge left by plain git pull"
+
     def blocking_reason(self) -> str | None:
         """Why this tree must not be rebased right now, or None."""
         if self.merge_in_progress():
@@ -160,8 +208,13 @@ class GitSync:
     def pull(self) -> tuple[bool, str]:
         """Fetch and rebase onto the remote branch; abort cleanly on conflict.
 
-        Refuses outright when the tree is not the Core's to rewrite.
+        Refuses outright when the tree is not the Core's to rewrite. A very
+        narrow editor-only merge left by a prior plain ``git pull`` is first
+        aborted safely, so the normal bounded rebase can resume unattended.
         """
+        recovered, recovery_detail = self.recover_editor_only_upstream_merge()
+        if recovered is False:
+            return False, recovery_detail
         blocked = self.blocking_reason()
         if blocked:
             return False, blocked
@@ -177,6 +230,8 @@ class GitSync:
             # autostash pop conflicted: dirty file vs upstream — callers
             # avoid this by committing local state BEFORE pulling
             return False, f"autostash conflict: {out[-200:]}"
+        if recovered:
+            return True, f"{recovery_detail}; up to date with remote"
         return True, "up to date with remote"
 
     def commit(self, paths: list[Path | str], message: str) -> tuple[bool, str]:
