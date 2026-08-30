@@ -69,7 +69,7 @@ def all_intents(state: str | None = None) -> list[dict]:
         try:
             record = stateio.read_json(path)
         except ValueError:
-            continue  # a corrupt record is not an authorization
+            continue
         if state is None or record.get("state") == state:
             out.append(record)
     return out
@@ -97,8 +97,19 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
             materialize: bool = True, **compile_kw) -> dict:
     """Compile a sentence into a plan, persist it, and ask for it.
 
-    Returns the record. Nothing has run when this returns — deliberately.
+    A strict ChatGPT direct-work envelope is the one exception: it is already a
+    typed plan produced outside the PC, is bound to the original operator quote,
+    contains no arbitrary typed/private text, and executes only through an
+    explicitly active local Work Session. Routing it here means ChatGPT can use
+    the existing `intent` intercom kind without depending on the Claude CLI
+    planner while that provider is unavailable.
+
+    Ordinary requests follow the durable planner path below unchanged.
     """
+    from aletheia import work_direct
+    if work_direct.is_direct(request):
+        return work_direct.execute(request, quote=quote)
+
     fleet = fleet if fleet is not None else load_fleet()
     plan = planner.compile(request, fleet=fleet, **compile_kw)
     digest = plan_hash(plan)
@@ -109,8 +120,8 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
     if materialize:
         try:
             gap_tasks = planner.materialize_gaps(plan)
-        except Exception as exc:  # a gap that could not be filed is not a
-            journal.append("event", "intent",  # reason to lose the plan
+        except Exception as exc:
+            journal.append("event", "intent",
                            f"could not materialize gaps: {type(exc).__name__}: {exc}",
                            actor=ACTOR)
 
@@ -132,8 +143,6 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
         "proposed_at": stateio.utcnow(),
     }
     if read_only(plan):
-        # Answer it rather than file it. Nothing here changes anything, so
-        # there is no receipt worth keeping and nothing to approve.
         receipts = planner.execute(plan, fleet=fleet, quote=quote or request)
         record["state"] = EXECUTED
         record["receipts"] = receipts
@@ -143,8 +152,6 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
                        actor=ACTOR)
         return record
     if not plan.executable and plan.intent in ("answer", "clarify"):
-        # Chatter, or a question she simply answered. Filing a durable
-        # record for "acknowledge operator's remark" is clutter, not memory.
         record["state"] = RETIRED
         record["read_only"] = True
         return record
@@ -154,10 +161,6 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
         kinds = [s.command["kind"] for s in plan.executable]
         tier = intercom.plan_tier(kinds)
         record["tier"] = tier
-        # Routine plans ask against a capability a standing grant MAY cover,
-        # so "remind me at five and add a task" can stop needing a decision
-        # once he has said yes to that class of thing. Anything world-
-        # touching keeps intent.execute — operator_always, ungrantable.
         capability = ("intent.execute.routine" if tier == intercom.TIER_ROUTINE
                       else "intent.execute")
         approval = policy.request(
@@ -176,21 +179,18 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
 
 def spoken(record: dict) -> str:
     """What Thea says back. Short, honest about what is and is not happening."""
+    if record.get("direct_work"):
+        return str(record.get("spoken") or record.get("summary") or "Work action completed.")[:600]
+
     runnable = [s for s in record["steps"] if s["status"] == planner.EXECUTABLE]
     gaps_named = [s for s in record["steps"] if s["status"] == planner.GAP]
     manual = [s for s in record["steps"] if s["status"] == planner.MANUAL]
     refused = [s for s in record["steps"] if s["status"] == planner.REFUSED]
-    # Degradation is checked FIRST. The deterministic fallback also reports
-    # intent "clarify", and answering a failed provider with a polite
-    # "could you clarify?" would hide an outage behind a conversational tic.
     if record.get("degraded") and not runnable:
         return f"I could not plan that: {record['degraded'][:160]}"
     if record.get("intent") == "clarify":
         return record.get("summary") or "I need one thing cleared up before I plan that."
     if record.get("read_only"):
-        # It already ran. Telling him to approve something that has happened —
-        # and naming an approval id that was never created — is exactly the
-        # kind of confident wrongness that stops him trusting the receipts.
         answers = [str(r.get("detail", "")).strip()
                    for r in (record.get("receipts") or [])
                    if r.get("outcome") == "done" and str(r.get("detail", "")).strip()]
@@ -244,8 +244,6 @@ def run_approved(fleet: dict | None = None, executor=None) -> list[dict]:
         if approval.get("state") != "APPROVED":
             continue
 
-        # Re-derive the fingerprint from what is stored NOW. An approval
-        # authorized one exact plan; anything else is refused, not adapted.
         runnable = [s for s in record["steps"] if s["status"] == planner.EXECUTABLE]
         material = [{"n": s["n"], "command": s["command"]} for s in runnable]
         digest = hashlib.sha256(json.dumps(
