@@ -10,11 +10,13 @@ Two sessions made that same mistake on the same day, which is the
 argument for asserting it rather than remembering it.
 """
 import importlib
+import os
 import pkgutil
 import unittest
 from pathlib import Path
 
 import tests as tests_package
+from aletheia import journal
 
 # __path__ works whether or not tests is a package; keep using it.
 TESTS_DIR = Path(list(tests_package.__path__)[0])
@@ -64,6 +66,19 @@ class SuiteHealthCase(unittest.TestCase):
             if data and not data.endswith(b"\n"):
                 offences.append(path.name)
         self.assertEqual(offences, [], f"missing trailing newline: {offences}")
+
+    def test_suite_journal_is_explicitly_isolated(self):
+        # A Windows activation run once appended fake approval/test entries to
+        # the real fleet journal because private-state isolation did not cover
+        # journal.py. The suite must bind journal writes to its temp root.
+        configured = os.environ.get("ALETHEIA_JOURNAL_PATH")
+        self.assertTrue(configured, "test suite must set ALETHEIA_JOURNAL_PATH")
+        self.assertEqual(journal.JOURNAL_PATH, Path(configured))
+        self.assertNotEqual(
+            journal.JOURNAL_PATH.resolve(),
+            (REPO_ROOT / "state" / "journal" / "journal.jsonl").resolve(),
+            "tests must never write the real fleet journal",
+        )
 
 
 if __name__ == "__main__":
