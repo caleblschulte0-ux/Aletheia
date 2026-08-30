@@ -12,6 +12,7 @@ from .sensor_requests import SensorCapture, SensorTicketStore
 from .texting import TextDraft, prepare as prepare_text
 from .vision import VisionAnswer, VisionReasoner
 from .visual_fallback import VisualTarget, VisualTargetPlanner
+from .working_context import ContextFact, ProjectBinding, WorkingContext, project_for_file
 
 __all__ = [
     "DownloadProposal",
@@ -42,4 +43,8 @@ __all__ = [
     "VisionReasoner",
     "VisualTarget",
     "VisualTargetPlanner",
+    "ContextFact",
+    "ProjectBinding",
+    "WorkingContext",
+    "project_for_file",
 ]
