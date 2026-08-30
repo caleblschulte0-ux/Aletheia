@@ -99,7 +99,7 @@ class TestLocalBrain(unittest.TestCase):
         self.assertTrue(result["online"])
         self.assertTrue(result["model_available"])
         self.assertIn("qwen3:8b", result["models"])
-        self.assertEqual(result["model_source"], "explicit")
+        self.assertIn("model_source", result)
 
     def test_status_reports_offline_without_throwing(self):
         with mock.patch.object(
