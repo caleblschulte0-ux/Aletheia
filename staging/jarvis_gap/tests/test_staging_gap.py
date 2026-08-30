@@ -153,6 +153,12 @@ class TicketTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "predates"):
             self.store.accept_camera(token, ImageObservation(JPEG, "image/jpeg", old))
 
+    def test_future_camera_timestamp_is_refused(self):
+        token, _ = self.store.issue("What is this?", kinds=("camera",))
+        future = self.now + dt.timedelta(seconds=30)
+        with self.assertRaisesRegex(ValueError, "future"):
+            self.store.accept_camera(token, ImageObservation(JPEG, "image/jpeg", future))
+
 
 class CameraQuestionPipelineTests(unittest.TestCase):
     def setUp(self):
@@ -248,6 +254,8 @@ class OllamaVisionTests(unittest.TestCase):
     def test_config_has_no_default_model_and_refuses_non_loopback(self):
         with self.assertRaises(ValueError):
             OllamaVisionConfig("").validated()
+        with self.assertRaises(ValueError):
+            OllamaVisionConfig(" vision-model ").validated()
         with self.assertRaisesRegex(ValueError, "loopback"):
             OllamaVisionConfig("vision-model", base_url="http://example.com:11434").validated()
 
@@ -261,6 +269,22 @@ class OllamaVisionTests(unittest.TestCase):
         self.assertEqual(len(payload["messages"][1]["images"]), 1)
         import base64
         self.assertEqual(base64.b64decode(payload["messages"][1]["images"][0]), JPEG)
+
+    def test_direct_backend_call_also_refuses_action_output(self):
+        def transport(config, path, payload):
+            return {"message": {"content": '{"answer":"button","confidence":0.9,"basis":"label","x":4}'}}
+        backend = OllamaVisionBackend(OllamaVisionConfig("vision-model"), transport=transport)
+        with self.assertRaises(PermissionError):
+            backend.analyze(self.image, "What is there?", context={})
+
+    def test_direct_backend_context_and_question_are_bounded(self):
+        def transport(config, path, payload):
+            self.fail("oversized input must fail before transport")
+        backend = OllamaVisionBackend(OllamaVisionConfig("vision-model"), transport=transport)
+        with self.assertRaisesRegex(ValueError, "question exceeds"):
+            backend.analyze(self.image, "x" * 1300, context={})
+        with self.assertRaisesRegex(ValueError, "context exceeds"):
+            backend.analyze(self.image, "What?", context={"x": "y" * 9000})
 
     def test_backend_is_compatible_with_read_only_vision_reasoner(self):
         calls = []
