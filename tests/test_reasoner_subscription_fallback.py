@@ -42,6 +42,20 @@ class SubscriptionFallbackCase(unittest.TestCase):
         self.assertEqual(result, VALID)
         browser.assert_called_once()
 
+    def test_custom_schema_validator_participates_in_fallback(self):
+        def validate(value):
+            if value.get("approved") is not True:
+                raise ValueError("wrong review schema")
+            return value
+        with mock.patch.object(reasoner, "infer_json", return_value={"approved": False}), \
+             mock.patch.object(browser_reasoner, "infer_json",
+                               return_value={"approved": True, "findings": []}) as browser:
+            result = reasoner.subscription_json(
+                "contract", "review this", validator=validate
+            )
+        self.assertTrue(result["approved"])
+        browser.assert_called_once()
+
     def test_both_unavailable_degrades_honestly(self):
         adapter = reasoner.CliReasoner(system_prompt="contract")
         provider = adapter.provider()
