@@ -9,11 +9,13 @@ routine policy, while deep planning remains subscription-first.
 from __future__ import annotations
 
 import json
+import math
 import os
 import shutil
 import subprocess
 import tempfile
 import threading
+import time
 from dataclasses import dataclass
 from typing import Callable
 
@@ -184,18 +186,31 @@ def _subscription_json_with_provider(system_prompt: str, text: str, *, context: 
     def checked(value: dict) -> dict:
         return validator(value) if validator else value
 
+    budget = float(timeout_s)
+    if not math.isfinite(budget) or budget < 0.5:
+        raise ValueError("subscription timeout must be finite and at least 0.5 seconds")
+    started = time.monotonic()
+
+    def remaining() -> float:
+        return max(0.0, budget - (time.monotonic() - started))
+
     try:
+        claude_budget = remaining()
+        if claude_budget < 0.05:
+            raise ReasonerUnavailable("subscription reasoning time budget expired")
         value = checked(infer_json(system_prompt, text, context=context,
-                                   model=model, timeout_s=timeout_s))
+                                   model=model, timeout_s=claude_budget))
         return value, f"claude.cli:{model}"
     except (ReasonerUnavailable, ValueError, brain.BrainOutputError):
         pass
 
     try:
         from aletheia import browser_reasoner
+        if remaining() <= 0.5:
+            raise ReasonerUnavailable("subscription reasoning time budget expired")
         value = browser_reasoner.infer_json(
             system_prompt, text, context=context,
-            timeout_s=max(timeout_s, browser_reasoner.TIMEOUT_S))
+            timeout_s=remaining())
         return checked(value), "chatgpt.browser"
     except Exception:
         raise ReasonerUnavailable(
@@ -204,9 +219,8 @@ def _subscription_json_with_provider(system_prompt: str, text: str, *, context: 
 
 
 def _shadow_enabled() -> bool:
-    return os.environ.get("ALETHEIA_LOCAL_AI_SHADOW", "1").strip().lower() not in {
-        "0", "false", "no", "off"
-    }
+    from aletheia import model_pool_config
+    return model_pool_config.shadow_enabled()
 
 
 def _schedule_local_shadow(system_prompt: str, text: str, context: dict | None,

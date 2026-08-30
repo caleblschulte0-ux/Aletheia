@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 import uuid
 from pathlib import Path
 from typing import Any
@@ -18,7 +19,14 @@ from aletheia import stateio
 
 SCHEMA_VERSION = 2
 ENV_CAPTURE = "ALETHEIA_TRAINING_CAPTURE"
+ENV_MAX_BYTES = "ALETHEIA_TRAINING_MAX_BYTES"
 MAX_NOTE = 4_000
+DEFAULT_MAX_BYTES = 512 * 1024 * 1024
+MIN_MAX_BYTES = 1024
+MAX_MAX_BYTES = 10 * 1024 * 1024 * 1024
+_QUOTA_LOCK = threading.Lock()
+_USAGE_CACHE: dict[str, int] = {}
+_SATURATED_ROOTS: set[str] = set()
 _SECRET_KEY = re.compile(
     r"(?:pass(?:word|code)?|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|"
     r"auth(?:orization)?|cookie|session[_-]?(?:id|key|token)|credential|private[_-]?key|"
@@ -43,6 +51,37 @@ def capture_enabled() -> bool:
 
 def data_root() -> Path:
     return stateio.private_dir("training")
+
+
+def max_bytes() -> int:
+    raw = os.environ.get(ENV_MAX_BYTES, "").strip()
+    try:
+        value = int(raw) if raw else DEFAULT_MAX_BYTES
+    except ValueError:
+        value = DEFAULT_MAX_BYTES
+    return min(MAX_MAX_BYTES, max(MIN_MAX_BYTES, value))
+
+
+def _usage_locked(root: Path) -> int:
+    key = str(root.resolve())
+    if key not in _USAGE_CACHE:
+        total = 0
+        if root.is_dir():
+            for directory in (root / "turns", root / "pairs", root / "feedback"):
+                if not directory.is_dir():
+                    continue
+                for path in directory.glob("*.json"):
+                    try:
+                        total += path.stat().st_size
+                    except OSError:
+                        continue
+        _USAGE_CACHE[key] = total
+    return _USAGE_CACHE[key]
+
+
+def usage_bytes() -> int:
+    with _QUOTA_LOCK:
+        return _usage_locked(data_root())
 
 
 def _redact_text(value: str) -> str:
@@ -75,8 +114,19 @@ def _write(kind: str, event: dict[str, Any]) -> str | None:
         return None
     try:
         event_id = stateio.safe_id(str(event["id"]), name="training event id")
-        target = data_root() / stateio.safe_id(kind, name="training kind") / f"{event_id}.json"
-        stateio.write_json_atomic(target, sanitize(event))
+        root = data_root()
+        target = root / stateio.safe_id(kind, name="training kind") / f"{event_id}.json"
+        clean = sanitize(event)
+        encoded_size = len((json.dumps(
+            clean, indent=2, ensure_ascii=False, sort_keys=True,
+        ) + "\n").encode("utf-8"))
+        with _QUOTA_LOCK:
+            used = _usage_locked(root)
+            if used + encoded_size > max_bytes():
+                _SATURATED_ROOTS.add(str(root.resolve()))
+                return None
+            stateio.write_json_atomic(target, clean)
+            _USAGE_CACHE[str(root.resolve())] = used + target.stat().st_size
         return event_id
     except (OSError, TypeError, ValueError):
         return None
@@ -177,9 +227,16 @@ def stats() -> dict[str, Any]:
             counts["pairs"] += 1
         elif kind == "feedback":
             counts["feedback"] += 1
+    used = usage_bytes()
+    limit = max_bytes()
     return {
         "capture_enabled": capture_enabled(),
         "data_root": str(data_root()),
+        "storage_bytes": used,
+        "max_storage_bytes": limit,
+        "storage_saturated": (
+            used >= limit or str(data_root().resolve()) in _SATURATED_ROOTS
+        ),
         **counts,
         "by_model": dict(sorted(models.items())),
     }

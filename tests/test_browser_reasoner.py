@@ -55,6 +55,14 @@ class FakePage:
         self.submitted = False
         self.prompt = ""
         self.keyboard = FakeKeyboard(self)
+        self.goto_timeout = None
+
+    def goto(self, url, *, wait_until, timeout):
+        self.url = url
+        self.goto_timeout = timeout
+
+    def close(self):
+        pass
 
     def locator(self, selector):
         if selector == browser_reasoner.EDITOR_SELECTORS[0]:
@@ -106,6 +114,28 @@ class BrowserReasonerCase(unittest.TestCase):
                 browser_reasoner.infer_json("contract", secret)
         self.assertNotIn(secret, str(ctx.exception))
         self.assertEqual(str(ctx.exception), "ChatGPT browser reasoning failed locally")
+
+    def test_navigation_and_response_share_the_caller_timeout(self):
+        page = FakePage()
+
+        class Session:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def new_page(self):
+                return page
+
+        with mock.patch.object(browser_reasoner.browse, "available", return_value=(True, "ready")), \
+             mock.patch.object(browser_reasoner, "_subscription_session", return_value=Session()), \
+             mock.patch.object(browser_reasoner, "_infer_page", return_value={"ok": True}) as infer:
+            result = browser_reasoner.infer_json("contract", "request", timeout_s=2.0)
+        self.assertEqual(result, {"ok": True})
+        self.assertLessEqual(page.goto_timeout, 2000)
+        self.assertGreater(page.goto_timeout, 0)
+        self.assertLessEqual(infer.call_args.kwargs["timeout_s"], 2.0)
 
 
 if __name__ == "__main__":

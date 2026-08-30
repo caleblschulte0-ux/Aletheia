@@ -5,10 +5,13 @@ import json
 import os
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
+from pathlib import Path
 from unittest import mock
 
 from aletheia import (
-    local_brain, local_model_pool, model_pool_config, reasoner,
+    local_ai, local_brain, local_model_pool, model_pool_config, reasoner,
     reasoning_gateway, training_data,
 )
 
@@ -27,11 +30,30 @@ class PrivateStateCase(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_default_roles_match_installed_staging_plan_and_are_swappable(self):
+        self.assertFalse(model_pool_config.enabled())
+        self.assertFalse(model_pool_config.shadow_enabled())
         self.assertEqual(model_pool_config.resolve("fast")["model"], "qwen3:8b")
         self.assertEqual(model_pool_config.resolve("deep")["model"], "qwen3.6:27b")
         model_pool_config.save("fast", model="future-fast:latest", think=False)
         self.assertEqual(model_pool_config.resolve("fast")["model"], "future-fast:latest")
         self.assertTrue(str(model_pool_config.config_path()).startswith(self.tmp.name))
+
+    def test_activation_settings_are_machine_local_and_disable_clears_shadow(self):
+        model_pool_config.save_settings(enabled=True, shadow=True)
+        self.assertTrue(model_pool_config.enabled())
+        self.assertTrue(model_pool_config.shadow_enabled())
+        model_pool_config.save_settings(enabled=False)
+        self.assertFalse(model_pool_config.enabled())
+        self.assertFalse(model_pool_config.shadow_enabled())
+
+    def test_machine_local_deactivate_cannot_be_undone_by_environment(self):
+        model_pool_config.save_settings(enabled=False, shadow=False)
+        with mock.patch.dict(os.environ, {
+            "ALETHEIA_LOCAL_AI_ENABLED": "1",
+            "ALETHEIA_LOCAL_AI_SHADOW": "1",
+        }):
+            self.assertFalse(model_pool_config.enabled())
+            self.assertFalse(model_pool_config.shadow_enabled())
 
     def test_training_store_redacts_secret_keys_and_known_token_shapes(self):
         turn = training_data.record_turn(
@@ -72,6 +94,55 @@ class PrivateStateCase(unittest.TestCase):
         self.assertEqual(pairs[-1]["teacher_turn_id"], teacher)
         self.assertEqual(pairs[-1]["student_turn_id"], student)
 
+    def test_training_capture_stops_at_quota_without_deleting_old_data(self):
+        with mock.patch.dict(os.environ, {"ALETHEIA_TRAINING_MAX_BYTES": "1024"}):
+            old_turn = training_data.record_turn(
+                provider="teacher", model="x", role="teacher",
+                text="small", context={}, result={"summary": "keep me"},
+                status="teacher_validated",
+            )
+            self.assertIsNotNone(old_turn)
+            turn = training_data.record_turn(
+                provider="teacher", model="x", role="teacher",
+                text="x" * 4000, context={}, result={"summary": "large"},
+                status="teacher_validated",
+            )
+            self.assertIsNone(turn)
+            self.assertTrue(training_data.stats()["storage_saturated"])
+            self.assertEqual(
+                [row["id"] for row in training_data.iter_events()], [old_turn],
+            )
+
+    def test_activate_enables_only_after_real_smoke_contract_passes(self):
+        with mock.patch.object(local_model_pool, "smoke", return_value={"ok": True}), \
+             redirect_stdout(StringIO()):
+            self.assertEqual(local_ai.main(["activate"]), 0)
+        self.assertTrue(model_pool_config.enabled())
+        self.assertFalse(model_pool_config.shadow_enabled())
+
+    def test_failed_activation_leaves_local_routing_disabled(self):
+        model_pool_config.save_settings(enabled=True, shadow=True)
+        with mock.patch.object(local_model_pool, "smoke",
+                               side_effect=local_model_pool.LocalPoolUnavailable("missing")), \
+             redirect_stdout(StringIO()):
+            self.assertEqual(local_ai.main(["activate"]), 1)
+        self.assertFalse(model_pool_config.enabled())
+        self.assertFalse(model_pool_config.shadow_enabled())
+
+    def test_activation_reports_environment_forced_disable(self):
+        with mock.patch.dict(os.environ, {"ALETHEIA_LOCAL_AI_ENABLED": "0"}), \
+             mock.patch.object(local_model_pool, "smoke", return_value={"ok": True}), \
+             redirect_stdout(StringIO()):
+            self.assertEqual(local_ai.main(["activate"]), 1)
+        self.assertFalse(model_pool_config.enabled())
+
+    def test_shadow_enable_failure_does_not_leave_a_latent_opt_in(self):
+        model_pool_config.save_settings(enabled=True, shadow=False)
+        with mock.patch.dict(os.environ, {"ALETHEIA_LOCAL_AI_SHADOW": "0"}), \
+             redirect_stdout(StringIO()):
+            self.assertEqual(local_ai.main(["shadow", "on"]), 1)
+        self.assertFalse(model_pool_config.shadow_enabled())
+
 
 class LocalTransportCase(unittest.TestCase):
     def test_remote_ollama_endpoint_is_refused(self):
@@ -84,8 +155,23 @@ class LocalTransportCase(unittest.TestCase):
         cfg = local_brain.OllamaConfig(model="x", base_url="http://127.0.0.1:11434")
         self.assertIs(cfg.validated(), cfg)
 
+    def test_machine_timeout_cannot_expand_a_route_budget(self):
+        with mock.patch.dict(os.environ, {"ALETHEIA_LOCAL_AI_TIMEOUT": "300"}):
+            cfg = local_brain.OllamaConfig.for_model("x", timeout_s=5)
+        self.assertEqual(cfg.timeout_s, 5)
+
 
 class GatewayRoutingCase(unittest.TestCase):
+    def setUp(self):
+        self.env = mock.patch.dict(os.environ, {
+            "ALETHEIA_LOCAL_AI_ENABLED": "1",
+            "ALETHEIA_LOCAL_AI_SHADOW": "0",
+        }, clear=False)
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+
     def local_run(self, summary="local", role="fast"):
         return local_model_pool.LocalRun(
             role=role, model="local-model", think=(role == "deep"),
@@ -100,6 +186,40 @@ class GatewayRoutingCase(unittest.TestCase):
         self.assertTrue(result.provider.startswith("ollama:"))
         local.assert_called_once()
         self.assertNotIn("preferred_role", local.call_args.kwargs)
+        self.assertFalse(local.call_args.kwargs["allow_failover"])
+        self.assertLessEqual(
+            local.call_args.kwargs["timeout_s"],
+            reasoning_gateway.ROUTINE_LOCAL_TIMEOUT_S,
+        )
+
+    def test_invalid_route_timeout_is_rejected_before_any_provider(self):
+        with mock.patch.object(local_model_pool, "auto_json") as local, \
+             mock.patch.object(reasoner, "subscription_json") as subscription:
+            with self.assertRaises(ValueError):
+                reasoning_gateway.reason_json(
+                    "sys", "simple", policy="routine", timeout_s=float("nan"),
+                )
+        local.assert_not_called()
+        subscription.assert_not_called()
+
+    def test_disabled_routine_skips_local_without_false_degradation(self):
+        with mock.patch.dict(os.environ, {"ALETHEIA_LOCAL_AI_ENABLED": "0"}), \
+             mock.patch.object(local_model_pool, "auto_json",
+                               side_effect=AssertionError("disabled local must not run")), \
+             mock.patch.object(reasoner, "subscription_json",
+                               return_value={"summary": "teacher"}):
+            result = reasoning_gateway.reason_json("sys", "simple", policy="routine")
+        self.assertEqual(result.output["summary"], "teacher")
+        self.assertIsNone(result.degraded)
+
+    def test_broken_local_configuration_degrades_to_subscription(self):
+        with mock.patch.dict(os.environ, {"ALETHEIA_LOCAL_AI_TIMEOUT": "broken"}), \
+             mock.patch.object(reasoner, "subscription_json",
+                               return_value={"summary": "teacher"}) as sub:
+            result = reasoning_gateway.reason_json("sys", "simple", policy="routine")
+        self.assertEqual(result.output["summary"], "teacher")
+        self.assertIn("local routine path unavailable", result.degraded)
+        sub.assert_called_once()
 
     def test_standard_is_subscription_first(self):
         with mock.patch.object(reasoner, "subscription_json", return_value={"summary": "teacher"}) as sub, \
@@ -117,6 +237,17 @@ class GatewayRoutingCase(unittest.TestCase):
         self.assertEqual(result.local_role, "deep")
         self.assertIn("subscriptions unavailable", result.degraded)
         self.assertEqual(local.call_args.kwargs["preferred_role"], "deep")
+        self.assertFalse(local.call_args.kwargs["allow_failover"])
+
+    def test_disabled_standard_never_silently_uses_local(self):
+        with mock.patch.dict(os.environ, {"ALETHEIA_LOCAL_AI_ENABLED": "0"}), \
+             mock.patch.object(reasoner, "subscription_json",
+                               side_effect=reasoner.ReasonerUnavailable("down")), \
+             mock.patch.object(local_model_pool, "auto_json") as local:
+            with self.assertRaisesRegex(reasoner.ReasonerUnavailable,
+                                        "local reasoning disabled"):
+                reasoning_gateway.reason_json("sys", "normal", policy="standard")
+        local.assert_not_called()
 
     def test_critical_never_downgrades_to_local_answer(self):
         with mock.patch.object(reasoner, "subscription_json", side_effect=reasoner.ReasonerUnavailable("down")), \
@@ -146,6 +277,45 @@ class GatewayRoutingCase(unittest.TestCase):
             ).infer("plan this")
         self.assertEqual(result["summary"], "ok")
         self.assertEqual(route.call_args.kwargs["policy"], "standard")
+
+
+class LocalSmokeCase(unittest.TestCase):
+    def test_smoke_proves_both_real_roles_without_pre_enabling(self):
+        def status(config):
+            return {"online": True, "model_available": True, "model": config.model}
+
+        def infer(system, text, *, context, config):
+            del system, text, context
+            role = "fast" if config.model == "qwen3:8b" else "deep"
+            return {"ok": True, "role": role}
+
+        with mock.patch.object(local_brain, "status", side_effect=status), \
+             mock.patch.object(local_brain, "infer_json", side_effect=infer), \
+             mock.patch.object(training_data, "record_turn", return_value="turn"):
+            result = local_model_pool.smoke()
+        self.assertTrue(result["ok"])
+        self.assertEqual(set(result["roles"]), {"fast", "deep"})
+
+    def test_status_uses_short_non_inference_probes(self):
+        with mock.patch.object(local_brain, "status",
+                               return_value={"online": False}) as status, \
+             mock.patch.object(training_data, "stats", return_value={}):
+            local_model_pool.status()
+        self.assertEqual(status.call_count, 2)
+        self.assertTrue(all(
+            call.args[0].timeout_s == 2.0 for call in status.call_args_list
+        ))
+
+    def test_windows_activation_is_main_only_and_smoke_gated(self):
+        script = (
+            Path(__file__).resolve().parents[1]
+            / "scripts" / "activate_local_ai.ps1"
+        ).read_text(encoding="utf-8")
+        self.assertIn('$branch -ne "main"', script)
+        self.assertIn("-m aletheia.local_ai activate", script)
+        self.assertIn("local routing remains disabled", script)
+        self.assertNotIn("reset --hard", script.lower())
+        self.assertNotIn("git pull", script.lower())
 
 
 class ShadowCase(unittest.TestCase):

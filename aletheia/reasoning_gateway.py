@@ -12,12 +12,20 @@ Policies:
 """
 from __future__ import annotations
 
+import math
+import time
 from dataclasses import dataclass
 from typing import Callable, Any
 
-from aletheia import brain, local_model_pool, reasoner, training_data
+from aletheia import (
+    brain, local_model_pool, model_pool_config, reasoner, training_data,
+)
 
 POLICIES = {"routine", "standard", "critical"}
+ROUTINE_TOTAL_TIMEOUT_S = 45.0
+ROUTINE_LOCAL_TIMEOUT_S = 15.0
+STANDARD_TOTAL_TIMEOUT_S = 90.0
+STANDARD_SUBSCRIPTION_SLICE_S = 45.0
 
 
 @dataclass(frozen=True)
@@ -60,51 +68,88 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
     # In particular, routine local-first requests must not get a larger input
     # budget than subscription requests or attempt a provider before degrading.
     reasoner.validate_input(system_prompt, text, ctx)
+    requested_budget = float(timeout_s)
+    if not math.isfinite(requested_budget) or requested_budget < 0.5:
+        raise ValueError("reasoning timeout must be finite and at least 0.5 seconds")
+    started = time.monotonic()
+    total_budget = min(
+        requested_budget,
+        ROUTINE_TOTAL_TIMEOUT_S if policy == "routine" else STANDARD_TOTAL_TIMEOUT_S,
+    )
+
+    def remaining() -> float:
+        return max(0.0, total_budget - (time.monotonic() - started))
+
+    local_enabled = model_pool_config.enabled()
 
     if policy == "routine":
-        try:
-            local = local_model_pool.auto_json(
-                system_prompt, text, context=ctx, validator=checked,
-            )
-            return GatewayResult(
-                local.output, f"ollama:{local.model}", policy,
-                local.role, local.model, turn_id=local.turn_id,
-            )
-        except local_model_pool.LocalPoolUnavailable as local_exc:
+        local_exc = None
+        if local_enabled:
             try:
-                output = reasoner.subscription_json(
-                    system_prompt, text, context=ctx, model=model,
-                    timeout_s=timeout_s, validator=checked,
+                local = local_model_pool.auto_json(
+                    system_prompt, text, context=ctx, validator=checked,
+                    allow_failover=False,
+                    timeout_s=min(ROUTINE_LOCAL_TIMEOUT_S, max(0.5, remaining())),
                 )
                 return GatewayResult(
-                    output, "subscription.auto", policy,
-                    degraded=f"local routine path unavailable: {type(local_exc).__name__}",
+                    local.output, f"ollama:{local.model}", policy,
+                    local.role, local.model, turn_id=local.turn_id,
                 )
-            except reasoner.ReasonerUnavailable:
-                raise reasoner.ReasonerUnavailable(
-                    "local routine reasoning and both subscription paths are unavailable"
-                ) from None
+            except local_model_pool.LocalPoolUnavailable as exc:
+                local_exc = exc
+        if remaining() <= 0.5:
+            raise reasoner.ReasonerUnavailable("routine reasoning time budget expired")
+        try:
+            output = reasoner.subscription_json(
+                system_prompt, text, context=ctx, model=model,
+                timeout_s=remaining(), validator=checked,
+            )
+            return GatewayResult(
+                output, "subscription.auto", policy,
+                degraded=(f"local routine path unavailable: {type(local_exc).__name__}"
+                          if local_exc else None),
+            )
+        except reasoner.ReasonerUnavailable:
+            suffix = "local routine path unavailable" if local_enabled else "local reasoning disabled"
+            raise reasoner.ReasonerUnavailable(
+                f"both subscription reasoning paths are unavailable; {suffix}"
+            ) from None
 
     if policy == "critical":
         output = reasoner.subscription_json(
             system_prompt, text, context=ctx, model=model,
-            timeout_s=timeout_s, validator=checked,
+            timeout_s=remaining(), validator=checked,
         )
         return GatewayResult(output, "subscription.auto", policy)
 
     # Standard: subscriptions retain priority/quality; local deep is the offline
     # bridge that keeps Aletheia useful when those subscriptions are unreachable.
     try:
+        subscription_budget = remaining()
+        if local_enabled:
+            subscription_budget = min(
+                subscription_budget, STANDARD_SUBSCRIPTION_SLICE_S,
+            )
         output = reasoner.subscription_json(
             system_prompt, text, context=ctx, model=model,
-            timeout_s=timeout_s, validator=checked,
+            timeout_s=subscription_budget, validator=checked,
         )
         return GatewayResult(output, "subscription.auto", policy)
     except reasoner.ReasonerUnavailable as cloud_exc:
+        if not local_enabled:
+            raise reasoner.ReasonerUnavailable(
+                "both subscription reasoning paths are unavailable; local reasoning disabled"
+            ) from None
+        if remaining() <= 0.5:
+            raise reasoner.ReasonerUnavailable(
+                "subscription reasoning exhausted the standard time budget"
+            ) from None
         try:
             local = local_model_pool.auto_json(
                 system_prompt, text, context=ctx, validator=checked,
                 preferred_role="deep",
+                allow_failover=False,
+                timeout_s=max(0.5, remaining()),
             )
             return GatewayResult(
                 local.output, f"ollama:{local.model}", policy,
@@ -114,7 +159,7 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
             )
         except local_model_pool.LocalPoolUnavailable:
             raise reasoner.ReasonerUnavailable(
-                "subscription reasoning and both local reasoning roles are unavailable"
+                "subscription reasoning and local deep reasoning are unavailable"
             ) from None
 
 

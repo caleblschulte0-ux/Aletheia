@@ -17,7 +17,8 @@ The full vision is the operator's master playbook —
 **`docs/PLAYBOOK.md`** — which supersedes every earlier definition.
 `docs/ARCHITECTURE.md` maps it onto the code that exists;
 `docs/ROADMAP.md` tracks the phases honestly. The constitution for
-sessions working here is `CLAUDE.md`.
+sessions working here is `CLAUDE.md`. Local-model activation and rollback
+are documented in `docs/LOCAL_AI.md`.
 
 ## What works today
 
@@ -105,6 +106,8 @@ python -m aletheia.intents list          # asks in flight, with their approvals
 python -m aletheia.errands list          # errands in the world
 python -m aletheia.access list           # credentials that can reach her
 python -m aletheia.suggestions list      # ChatGPT's advice + rulings
+python -m aletheia.local_ai status       # local models, routing, capture quota
+python -m aletheia.local_ai deactivate   # immediate machine-local rollback
 python -m unittest discover -s tests -t .   # the whole suite, stdlib only
 ```
 

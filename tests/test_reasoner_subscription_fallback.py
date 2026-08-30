@@ -85,8 +85,28 @@ class SubscriptionFallbackCase(unittest.TestCase):
                                side_effect=browser_reasoner.BrowserReasonerUnavailable("login needed")):
             output, degraded = reasoner.infer_or_fallback(provider, "do something", {})
         self.assertEqual(output["intent"], "clarify")
-        self.assertIn("subscription reasoning and both local reasoning roles are unavailable", degraded)
+        self.assertIn("both subscription reasoning paths are unavailable", degraded)
+        self.assertIn("local reasoning disabled", degraded)
         self.assertNotIn("claude private detail", degraded)
+
+    def test_subscription_timeout_is_one_shared_provider_budget(self):
+        with mock.patch.object(reasoner, "infer_json",
+                               side_effect=reasoner.ReasonerUnavailable("down")), \
+             mock.patch.object(browser_reasoner, "infer_json",
+                               return_value=VALID) as browser:
+            reasoner.subscription_json("contract", "answer", timeout_s=5)
+        self.assertGreater(browser.call_args.kwargs["timeout_s"], 0)
+        self.assertLessEqual(browser.call_args.kwargs["timeout_s"], 5)
+
+    def test_exhausted_claude_budget_does_not_start_browser(self):
+        with mock.patch.object(reasoner.time, "monotonic",
+                               side_effect=[0.0, 0.0, 6.0]), \
+             mock.patch.object(reasoner, "infer_json",
+                               side_effect=reasoner.ReasonerUnavailable("down")), \
+             mock.patch.object(browser_reasoner, "infer_json") as browser:
+            with self.assertRaises(reasoner.ReasonerUnavailable):
+                reasoner.subscription_json("contract", "answer", timeout_s=5)
+        browser.assert_not_called()
 
 
 if __name__ == "__main__":

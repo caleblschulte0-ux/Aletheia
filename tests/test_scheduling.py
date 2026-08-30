@@ -140,6 +140,18 @@ class SchedulingCase(unittest.TestCase):
         self.assertEqual(out["state"], scheduling.BOOKING)
         self.assertEqual(out["accepted_slot"]["start"], SLOTS[0]["start"])
 
+    def test_default_reply_reasoning_uses_the_bounded_routine_gateway(self):
+        record = self.sent()
+        routed = scheduling.reasoning_gateway.GatewayResult(
+            output=verdict(), provider="ollama:qwen3:8b", policy="routine",
+        )
+        with mock.patch.object(scheduling.reasoning_gateway, "reason_json",
+                               return_value=routed) as route:
+            out = scheduling.on_reply(record["id"], "Tuesday works for me")
+        self.assertEqual(out["state"], scheduling.BOOKING)
+        self.assertEqual(route.call_args.kwargs["policy"], "routine")
+        self.assertTrue(callable(route.call_args.kwargs["validator"]))
+
     def test_a_low_confidence_acceptance_goes_to_the_operator(self):
         record = self.sent()
         out = scheduling.on_reply(record["id"], "maybe tuesday?",

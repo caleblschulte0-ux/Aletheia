@@ -47,9 +47,15 @@ class OllamaConfig:
         default_timeout = timeout_s if timeout_s is not None else DEFAULT_TIMEOUT_S
         if raw:
             try:
-                default_timeout = float(raw)
+                configured_timeout = float(raw)
             except ValueError as exc:
                 raise ValueError("ALETHEIA_LOCAL_AI_TIMEOUT must be numeric") from exc
+            # A machine-local preference may shorten a route, but it cannot
+            # stretch a caller-owned latency budget.
+            default_timeout = (
+                min(default_timeout, configured_timeout)
+                if timeout_s is not None else configured_timeout
+            )
         return cls(
             model=model,
             think=bool(think),
