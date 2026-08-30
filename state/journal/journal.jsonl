@@ -799,3 +799,9 @@
 {"ts": "2026-08-30T04:56:55Z", "kind": "decision", "actor": "test", "subject": "approval:ap-buy", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-30T05:30:07Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:aletheia", "text": "health red -> green"}
 {"ts": "2026-08-30T15:08:08Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-08-30"}
+{"ts": "2026-08-30T13:14:07Z", "kind": "event", "actor": "aletheia", "subject": "approval:wt-20260830-1314-86b7a8-operator", "text": "requested — work.trust:wt-20260830-1314-86b7a8"}
+{"ts": "2026-08-30T13:14:07Z", "kind": "decision", "actor": "operator-local", "subject": "approval:wt-20260830-1314-86b7a8-operator", "text": "APPROVED — operator explicitly enabled standing routine workstation access locally"}
+{"ts": "2026-08-30T13:14:07Z", "kind": "decision", "actor": "aletheia-work-trust", "subject": "work:trust", "text": "ENABLED wt-20260830-1314-86b7a8 until 2026-09-29T13:14:07Z -> 8h/250 action sessions", "refs": ["approval:wt-20260830-1314-86b7a8-operator"]}
+{"ts": "2026-08-30T13:14:08Z", "kind": "event", "actor": "aletheia", "subject": "approval:ct-20260830-1314-cbe85f-operator", "text": "requested — code.trust:ct-20260830-1314-cbe85f"}
+{"ts": "2026-08-30T13:14:08Z", "kind": "decision", "actor": "operator-local", "subject": "approval:ct-20260830-1314-cbe85f-operator", "text": "APPROVED — operator explicitly enabled bounded reviewed code-PR work locally"}
+{"ts": "2026-08-30T13:14:08Z", "kind": "decision", "actor": "aletheia-code-trust", "subject": "code:trust", "text": "ENABLED ct-20260830-1314-cbe85f until 2026-09-29T13:14:08Z / 25 PR attempts", "refs": ["approval:ct-20260830-1314-cbe85f-operator"]}
