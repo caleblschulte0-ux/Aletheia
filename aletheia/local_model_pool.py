@@ -45,20 +45,24 @@ def choose_role(text: str, context: dict | None = None) -> str:
     return "deep" if size >= 6_000 else "fast"
 
 
-def _config(role: str, timeout_s: float | None = None) -> local_brain.OllamaConfig:
+def _config(role: str, timeout_s: float | None = None,
+            think_override: bool | None = None) -> local_brain.OllamaConfig:
     profile = model_pool_config.resolve(role)
     timeout = timeout_s if timeout_s is not None else (
         FAST_TIMEOUT_S if role == "fast" else DEEP_TIMEOUT_S
     )
     return local_brain.OllamaConfig.for_model(
-        profile["model"], think=profile["think"], timeout_s=timeout,
+        profile["model"],
+        think=profile["think"] if think_override is None else think_override,
+        timeout_s=timeout,
     )
 
 
 def run_json(system_prompt: str, text: str, *, context: dict | None = None,
              role: str = "fast", validator: Callable[[dict], dict] | None = None,
              timeout_s: float | None = None,
-             require_enabled: bool = True) -> LocalRun:
+             require_enabled: bool = True,
+             think_override: bool | None = None) -> LocalRun:
     if role not in {"fast", "deep"}:
         raise ValueError("local role must be fast or deep")
     if require_enabled and not model_pool_config.enabled():
@@ -71,7 +75,7 @@ def run_json(system_prompt: str, text: str, *, context: dict | None = None,
     config = None
     payload = None
     try:
-        config = _config(role, timeout_s)
+        config = _config(role, timeout_s, think_override)
         payload = local_brain.build_payload(system_prompt, text, ctx, config)
         proposal = local_brain.infer_json(system_prompt, text, context=ctx, config=config)
         output = validator(proposal) if validator else proposal
@@ -154,6 +158,10 @@ def smoke() -> dict[str, Any]:
             # Activation is allowed to cold-load the model once. Normal
             # production requests retain the 12s/45s route limits above.
             timeout_s=SMOKE_TIMEOUT_S[role],
+            # This proves the tag, transport, JSON mode, and model response.
+            # Full deep thinking is a production behavior, not an activation
+            # prerequisite for an exact six-token transport probe.
+            think_override=False,
         )
         results[role] = {
             "model": run.model,
