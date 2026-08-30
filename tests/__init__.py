@@ -21,11 +21,10 @@ into that same temporary root too. This prevents a real-PC test run from
 syncing fake test approvals/actions into fleet history.
 
 The kill switch is intentionally repo-backed so a remote operator halt can reach
-the PC. That means a real live halt is present in a checkout and would otherwise
-poison tests that are specifically exercising acting paths. Route only the
-*test process's* imported policy module to the same temporary root; production
-`policy.HALT_PATH` remains unchanged and the real halt file is never removed,
-renamed, or ignored by a running Aletheia process.
+the PC. Tests patch that module constant after import from a tiny helper rather
+than removing or renaming the real halt file. Production `policy.HALT_PATH`
+therefore stays fail-closed and a live operator halt remains in force throughout
+a test run on the real machine.
 """
 from __future__ import annotations
 
@@ -47,11 +46,9 @@ if not _suite_state:
 if not os.environ.get("ALETHEIA_JOURNAL_PATH"):
     os.environ["ALETHEIA_JOURNAL_PATH"] = str(Path(_suite_state) / "journal.jsonl")
 
-# policy.py's HALT_PATH is deliberately repo-backed in production, rather than a
-# private_dir() store. Import it only after the test state/journal environment is
-# established, then redirect this process's module constant. This keeps a real
-# operator emergency halt active on the machine while the suite tests unhalted
-# behavior against an empty temporary halt path.
+# Importing policy here after the two test-state environment variables are set is
+# intentional: every later test gets the same module object, but its kill-switch
+# path points only at this process's temporary test root.
 from aletheia import policy as _test_policy  # noqa: E402
 _test_policy.HALT_PATH = Path(_suite_state) / "policy" / "halt.json"
 
