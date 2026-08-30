@@ -8,8 +8,13 @@ on:
     paths:
       - 'aletheia/local_brain.py'
       - 'aletheia/brain_router.py'
+      - 'aletheia/model_config.py'
+      - 'aletheia/training_data.py'
+      - 'aletheia/training_cli.py'
       - 'tests/test_local_brain.py'
       - 'tests/test_brain_router.py'
+      - 'tests/test_model_config.py'
+      - 'tests/test_training_data.py'
       - 'scripts/setup-local-ai.ps1'
       - 'docs/LOCAL_AI.md'
       - 'CHATGPT_LOCAL_AI_HANDOFF.md'
@@ -26,6 +31,17 @@ jobs:
         with:
           python-version: '3.12'
       - name: Compile prototype modules
-        run: python -m py_compile aletheia/local_brain.py aletheia/brain_router.py
+        run: >-
+          python -m py_compile
+          aletheia/local_brain.py
+          aletheia/brain_router.py
+          aletheia/model_config.py
+          aletheia/training_data.py
+          aletheia/training_cli.py
       - name: Run isolated local AI tests
-        run: python -m unittest tests.test_local_brain tests.test_brain_router
+        run: >-
+          python -m unittest
+          tests.test_local_brain
+          tests.test_brain_router
+          tests.test_model_config
+          tests.test_training_data
