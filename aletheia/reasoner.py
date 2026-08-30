@@ -1,13 +1,9 @@
 """Subscription-backed reasoning with no per-token API key.
 
-Aletheia treats an LLM as a replaceable reasoning provider, never as authority.
-This adapter prefers the operator's Claude CLI subscription because it is fast
-and tool-less, then falls back to the operator's signed-in ChatGPT browser
-session when Claude is unavailable. If neither subscription can answer, callers
-degrade to the deterministic fallback instead of inventing a result.
-
-Every model answer remains a proposal: planner/intercom validation and policy
-gates decide what may actually happen.
+Claude remains the preferred subscription provider, with the operator's signed-in
+ChatGPT browser as fallback.  Successful subscription answers may also launch a
+non-authoritative LOCAL shadow attempt so Aletheia can collect student/teacher
+pairs for its future model.  Shadow work never changes the returned answer.
 """
 from __future__ import annotations
 
@@ -16,6 +12,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import threading
 from dataclasses import dataclass
 from typing import Callable
 
@@ -28,6 +25,7 @@ TIMEOUT_S = 90.0
 MAX_OUTPUT_BYTES = 256 * 1024
 MAX_CONTEXT_BYTES = 8 * 1024
 CLI = "claude"
+_SHADOW_LOCK = threading.Lock()
 
 
 class ReasonerUnavailable(RuntimeError):
@@ -169,7 +167,7 @@ def _validate_input(system_prompt: str, text: str, context: dict | None) -> None
 
 def infer_json(system_prompt: str, text: str, *, context: dict | None = None,
                model: str = INTERPRET_MODEL, timeout_s: float = TIMEOUT_S) -> dict:
-    """Run Claude CLI only. Use `subscription_json` for provider fallback."""
+    """Run Claude CLI only. Use ``subscription_json`` for provider fallback."""
     _validate_input(system_prompt, text, context)
     prompt = text
     if context:
@@ -179,26 +177,16 @@ def infer_json(system_prompt: str, text: str, *, context: dict | None = None,
     return _first_json_object(raw)
 
 
-def subscription_json(system_prompt: str, text: str, *, context: dict | None = None,
-                      model: str = INTERPRET_MODEL, timeout_s: float = TIMEOUT_S,
-                      validator: Callable[[dict], dict] | None = None) -> dict:
-    """One generic no-API-key JSON seam: Claude, then ChatGPT browser.
-
-    `validator`, when supplied, is caller-owned schema validation. A provider
-    that returns valid JSON with the wrong schema is treated as unusable and the
-    alternate subscription gets one chance. Invalid local input is rejected
-    before either provider runs.
-    """
-    _validate_input(system_prompt, text, context)
-
+def _subscription_json_with_provider(system_prompt: str, text: str, *, context: dict | None,
+                                     model: str, timeout_s: float,
+                                     validator: Callable[[dict], dict] | None) -> tuple[dict, str]:
     def checked(value: dict) -> dict:
-        if validator is None:
-            return value
-        return validator(value)
+        return validator(value) if validator else value
 
     try:
-        return checked(infer_json(system_prompt, text, context=context,
-                                  model=model, timeout_s=timeout_s))
+        value = checked(infer_json(system_prompt, text, context=context,
+                                   model=model, timeout_s=timeout_s))
+        return value, f"claude.cli:{model}"
     except (ReasonerUnavailable, ValueError, brain.BrainOutputError):
         pass
 
@@ -207,7 +195,7 @@ def subscription_json(system_prompt: str, text: str, *, context: dict | None = N
         value = browser_reasoner.infer_json(
             system_prompt, text, context=context,
             timeout_s=max(timeout_s, browser_reasoner.TIMEOUT_S))
-        return checked(value)
+        return checked(value), "chatgpt.browser"
     except (browser_reasoner.BrowserReasonerUnavailable, ValueError,
             brain.BrainOutputError):
         raise ReasonerUnavailable(
@@ -215,9 +203,78 @@ def subscription_json(system_prompt: str, text: str, *, context: dict | None = N
         ) from None
 
 
+def _shadow_enabled() -> bool:
+    return os.environ.get("ALETHEIA_LOCAL_AI_SHADOW", "1").strip().lower() not in {
+        "0", "false", "no", "off"
+    }
+
+
+def _schedule_local_shadow(system_prompt: str, text: str, context: dict | None,
+                           validator: Callable[[dict], dict] | None,
+                           teacher_result: dict, teacher_provider: str,
+                           model: str) -> None:
+    """Run at most one background student at a time; never delay the teacher."""
+    if not _shadow_enabled() or not _SHADOW_LOCK.acquire(blocking=False):
+        return
+
+    def work() -> None:
+        try:
+            from aletheia import local_model_pool, training_data
+            preferred = "deep" if model == PLAN_MODEL else None
+            student = None
+            student_error = None
+            turn_id = None
+            try:
+                student = local_model_pool.auto_json(
+                    system_prompt, text, context=context or {}, validator=validator,
+                    preferred_role=preferred,
+                )
+                turn_id = student.turn_id
+                student_result = student.output
+            except Exception as exc:
+                student_error = f"{type(exc).__name__}: {exc}"[:1000]
+                student_result = None
+            training_data.record_teacher_pair(
+                student_turn_id=turn_id,
+                teacher_provider=teacher_provider,
+                teacher_result=teacher_result,
+                student_result=student_result,
+                route="subscription_authoritative_local_shadow",
+                student_error=student_error,
+            )
+        except Exception:
+            pass
+        finally:
+            _SHADOW_LOCK.release()
+
+    threading.Thread(target=work, name="aletheia-local-ai-shadow", daemon=True).start()
+
+
+def subscription_json(system_prompt: str, text: str, *, context: dict | None = None,
+                      model: str = INTERPRET_MODEL, timeout_s: float = TIMEOUT_S,
+                      validator: Callable[[dict], dict] | None = None,
+                      shadow: bool = True) -> dict:
+    """Authoritative subscription seam: Claude -> ChatGPT browser.
+
+    When ``shadow`` is true, the accepted strong-provider answer may spawn a
+    background local student attempt for future-model training.  That attempt
+    cannot alter, delay, approve, or execute the returned answer.
+    """
+    _validate_input(system_prompt, text, context)
+    value, provider_id = _subscription_json_with_provider(
+        system_prompt, text, context=context, model=model,
+        timeout_s=timeout_s, validator=validator,
+    )
+    if shadow:
+        _schedule_local_shadow(
+            system_prompt, text, context, validator, value, provider_id, model,
+        )
+    return value
+
+
 @dataclass(frozen=True)
 class CliReasoner:
-    """Compatibility name for the subscription-auto planner adapter."""
+    """Compatibility name for the subscription-authoritative planner adapter."""
     model: str = INTERPRET_MODEL
     system_prompt: str = ""
     timeout_s: float = TIMEOUT_S
