@@ -47,6 +47,24 @@ class ConversationWindowCase(unittest.TestCase):
         self.assertEqual(asked, [])
         self.assertEqual(spoken, ["Yes?"])
 
+    def test_repeated_wake_in_followup_is_not_sent_twice_to_core(self):
+        spoken, asked = [], []
+        with mock.patch.object(
+            voice_room, "ask_core",
+            side_effect=lambda text, *a, **k: asked.append(text) or {"say": "ok"},
+        ):
+            handled = voice_room.listen_forever(
+                recognizer=iter([
+                    (True, ""),
+                    (True, "thea status"),
+                ]),
+                speaker=spoken.append,
+                monotonic=lambda: 0.0,
+            )
+        self.assertEqual(handled, 1)
+        self.assertEqual(asked, ["thea status"])
+        self.assertEqual(spoken, ["Yes?", "ok"])
+
     def test_unaddressed_room_speech_never_makes_thea_talk(self):
         spoken = []
         handled = voice_room.listen_forever(
