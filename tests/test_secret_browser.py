@@ -13,11 +13,12 @@ SECRET = "sk-test-super-private-1234567890"
 
 class FakePage:
     def __init__(self, *, url="https://api.example.com/keys", create_text="Create API key",
-                 capture_label="API key", capture_type="text"):
+                 capture_label="API key", capture_type="text", autocomplete=""):
         self.url = url
         self.create_text = create_text
         self.capture_label = capture_label
         self.capture_type = capture_type
+        self.autocomplete = autocomplete
         self.clicked = []
         self.filled = []
 
@@ -42,8 +43,8 @@ class FakePage:
         return {
             "text": "", "aria": self.capture_label, "title": "", "name": "api_key",
             "id": "key", "placeholder": self.capture_label, "role": "textbox",
-            "inputType": self.capture_type, "autocomplete": "", "label": self.capture_label,
-            "nearby": self.capture_label,
+            "inputType": self.capture_type, "autocomplete": self.autocomplete,
+            "label": self.capture_label, "nearby": self.capture_label,
         }
 
     def click(self, selector):
@@ -132,8 +133,8 @@ class SecretBrowserCase(unittest.TestCase):
                 )
         self.assertEqual(page.clicked, [])
 
-    def test_password_like_capture_is_refused(self):
-        page = FakePage(capture_label="API key", capture_type="password")
+    def test_real_password_capture_is_refused(self):
+        page = FakePage(capture_label="Password", capture_type="password")
         with self.session(page):
             with self.assertRaises(secret_browser.SecretBrowserRefused):
                 secret_browser.create_capture(
@@ -141,6 +142,27 @@ class SecretBrowserCase(unittest.TestCase):
                     create_selector="#create", capture_selector="#key", alias="main-key",
                 )
         self.assertFalse((secret_store.ROOT / "main-key.bin").exists())
+
+    def test_masked_api_key_capture_is_allowed(self):
+        page = FakePage(capture_label="API key", capture_type="password")
+        with self.session(page):
+            result = secret_browser.create_capture(
+                url="https://api.example.com/keys",
+                create_selector="#create", capture_selector="#key", alias="masked-key",
+            )
+        self.assertEqual(result["alias"], "masked-key")
+        self.assertEqual(secret_store.get("masked-key"), SECRET)
+
+    def test_autocomplete_password_boundary_beats_api_key_label(self):
+        page = FakePage(
+            capture_label="API key", capture_type="password", autocomplete="current-password"
+        )
+        with self.session(page):
+            with self.assertRaises(secret_browser.SecretBrowserRefused):
+                secret_browser.create_capture(
+                    url="https://api.example.com/keys",
+                    create_selector="#create", capture_selector="#key", alias="main-key",
+                )
 
     def test_fill_alias_requires_matching_host_binding(self):
         secret_store.put(
@@ -174,7 +196,7 @@ class SecretBrowserCase(unittest.TestCase):
             "main-key", SECRET, provider="api.example.com", kind="api_key",
             allowed_hosts=["api.example.com"],
         )
-        page = FakePage(capture_label="API key", capture_type="password")
+        page = FakePage(capture_label="Password", capture_type="password")
         with self.session(page):
             with self.assertRaises(secret_browser.SecretBrowserRefused):
                 secret_browser.fill_alias(
