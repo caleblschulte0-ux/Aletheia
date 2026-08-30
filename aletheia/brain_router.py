@@ -33,6 +33,15 @@ def _read_context(path: str | None) -> dict:
     return raw
 
 
+def _config(model: str | None, url: str | None) -> local_brain.OllamaConfig:
+    env_cfg = local_brain.OllamaConfig.from_env()
+    return local_brain.OllamaConfig(
+        base_url=url or env_cfg.base_url,
+        model=model or env_cfg.model,
+        timeout_seconds=env_cfg.timeout_seconds,
+    ).validated()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m aletheia.brain_router",
@@ -52,19 +61,21 @@ def main(argv: list[str] | None = None) -> int:
     interpret.add_argument("--url")
 
     args = parser.parse_args(argv)
-    env_cfg = local_brain.OllamaConfig.from_env()
-    cfg = local_brain.OllamaConfig(
-        base_url=args.url or env_cfg.base_url,
-        model=args.model or env_cfg.model,
-        timeout_seconds=env_cfg.timeout_seconds,
-    ).validated()
 
     if args.command == "status":
-        return _print(local_brain.status(config=cfg))
+        return _print(local_brain.status(config=_config(args.model, args.url)))
 
     context = _read_context(args.context)
     if args.provider == "fallback":
         return _print(brain.FALLBACK.run(args.text, context))
+
+    try:
+        cfg = _config(args.model, args.url)
+    except (ValueError, TypeError):
+        if args.provider == "auto":
+            return _print(brain.FALLBACK.run(args.text, context))
+        raise
+
     if args.provider == "local":
         return _print(local_brain.run_local(args.text, context, config=cfg))
     return _print(local_brain.run_auto(args.text, context, config=cfg))
