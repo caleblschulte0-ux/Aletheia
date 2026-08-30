@@ -38,6 +38,15 @@ class DirectEnvelopeCase(unittest.TestCase):
         with self.assertRaises(work_direct.DirectWorkRefused):
             work_direct.parse(text, quote=self.quote)
 
+    def test_public_bus_refuses_open_app_arguments(self):
+        text = self.envelope([{
+            "type": "computer",
+            "steps": [{"action": "open_app", "app": "notepad.exe",
+                       "arguments": [r"C:\Users\Caleb\Private\notes.txt"]}],
+        }])
+        with self.assertRaises(work_direct.DirectWorkRefused):
+            work_direct.parse(text, quote=self.quote)
+
     def test_public_bus_refuses_browser_typing(self):
         text = self.envelope([{
             "type": "browser", "url": "https://example.com",
