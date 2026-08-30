@@ -676,3 +676,4 @@
 {"ts": "2026-08-30T16:19:56Z", "kind": "event", "actor": "aletheia-voice", "subject": "voice:room", "text": "room voice listening (single local wake listener)"}
 {"ts": "2026-08-30T16:24:57Z", "kind": "event", "actor": "aletheia-voice", "subject": "voice:room", "text": "room voice listening (single local wake listener)"}
 {"ts": "2026-08-30T16:30:00Z", "kind": "event", "actor": "aletheia-voice", "subject": "voice:room", "text": "room voice listening (single local wake listener)"}
+{"ts": "2026-08-30T16:34:56Z", "kind": "event", "actor": "aletheia-voice", "subject": "voice:room", "text": "room voice listening (single local wake listener)"}
