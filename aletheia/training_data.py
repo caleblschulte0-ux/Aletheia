@@ -1,19 +1,18 @@
 """Local-only training/evaluation data capture for Aletheia reasoning turns.
 
 The long-term model should learn from Aletheia's real use, not only synthetic
-examples.  This module therefore preserves the exact bounded input/context sent
-to a reasoning provider, the provider/model identity, its validated result (or
-failure), and optional later operator feedback.
+examples. This module preserves the exact request payload sent to a reasoning
+provider, the provider/model identity, its validated result (or failure), and
+optional later operator feedback/corrections.
 
 Data is deliberately OUTSIDE the Git repository by default:
 
     Windows: %LOCALAPPDATA%\\Aletheia\\training
     other:   ~/.aletheia/training
 
-No capture failure is allowed to break reasoning.  The canonical store is one
+No capture failure is allowed to break reasoning. The canonical store is one
 JSON file per event so concurrent processes cannot corrupt one shared JSONL
-file.  ``export_jsonl`` produces a conventional training/evaluation dataset
-when needed.
+file. ``export_jsonl`` produces a conventional portable dataset when needed.
 """
 from __future__ import annotations
 
@@ -63,7 +62,6 @@ def _write_event(kind: str, event: dict[str, Any]) -> Path | None:
         event_id = str(event["id"])
         target = directory / f"{event_id}.json"
         payload = json.dumps(event, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
-        # Same-directory temp + replace gives an all-or-nothing event file.
         fd, tmp_name = tempfile.mkstemp(prefix=f".{event_id}-", suffix=".tmp", dir=directory)
         try:
             with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
@@ -76,16 +74,22 @@ def _write_event(kind: str, event: dict[str, Any]) -> Path | None:
                 os.unlink(tmp_name)
         return target
     except (OSError, TypeError, ValueError):
-        # Dataset retention is important, but it must never become an authority
-        # or availability dependency for the reasoning path.
+        # Dataset retention matters, but it must never become an availability or
+        # authority dependency for Aletheia's reasoning path.
         return None
 
 
 def record_turn(*, provider: str, model: str, text: str, context: dict[str, Any],
+                request_payload: dict[str, Any] | None = None,
                 result: dict[str, Any] | None = None, status: str,
                 error_type: str | None = None, error: str | None = None,
                 duration_ms: int | None = None) -> str | None:
-    """Persist one reasoning attempt and return its stable turn id."""
+    """Persist one reasoning attempt and return its stable turn id.
+
+    ``request_payload`` is the exact JSON body sent to the model runtime. Keeping
+    it alongside the normalized input means future training can reproduce both
+    the semantic example and the historical prompt/schema used to obtain it.
+    """
     if not capture_enabled():
         return None
     turn_id = uuid.uuid4().hex
@@ -101,6 +105,7 @@ def record_turn(*, provider: str, model: str, text: str, context: dict[str, Any]
             "text": text,
             "context": _safe_json(context),
         },
+        "request_payload": _safe_json(request_payload) if request_payload is not None else None,
         "result": _safe_json(result) if result is not None else None,
         "error_type": error_type,
         "error": error,
@@ -145,6 +150,23 @@ def iter_events() -> list[dict[str, Any]]:
             if isinstance(value, dict):
                 events.append(value)
     return sorted(events, key=lambda x: (str(x.get("recorded_at", "")), str(x.get("id", ""))))
+
+
+def stats() -> dict[str, Any]:
+    rows = iter_events()
+    turns = [row for row in rows if row.get("kind") == "reasoning_turn"]
+    feedback = [row for row in rows if row.get("kind") == "reasoning_feedback"]
+    by_model: dict[str, int] = {}
+    for row in turns:
+        model = str(row.get("model", "unknown"))
+        by_model[model] = by_model.get(model, 0) + 1
+    return {
+        "capture_enabled": capture_enabled(),
+        "data_root": str(data_root()),
+        "turns": len(turns),
+        "feedback": len(feedback),
+        "by_model": dict(sorted(by_model.items())),
+    }
 
 
 def export_jsonl(path: str | Path) -> int:
