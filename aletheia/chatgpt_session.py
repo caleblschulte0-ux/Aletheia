@@ -18,7 +18,7 @@ def status() -> dict:
     if not browse.PROFILE_DIR.exists():
         return {"ready": False, "reason": "browser profile has not been initialized"}
     try:
-        with browse._Session() as ctx:
+        with browser_reasoner._subscription_session() as ctx:
             page = ctx.new_page()
             try:
                 page.goto(browser_reasoner.CHATGPT_URL, wait_until="domcontentloaded")
@@ -29,7 +29,7 @@ def status() -> dict:
             finally:
                 page.close()
     except browser_reasoner.BrowserReasonerUnavailable:
-        return {"ready": False, "reason": "ChatGPT prompt is unavailable; sign-in is required"}
+        return {"ready": False, "reason": "ChatGPT page loaded but the prompt is unavailable"}
     except Exception:
         return {"ready": False, "reason": "ChatGPT session check failed locally"}
 
