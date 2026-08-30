@@ -47,6 +47,34 @@ function Invoke-AletheiaPython {
   }
 }
 
+function Test-GitHubCliAuth {
+  # `gh auth status` intentionally exits non-zero and writes to stderr when the
+  # operator has not signed in yet. Windows PowerShell 5 can promote that stderr
+  # to a terminating NativeCommandError under ErrorActionPreference=Stop, which
+  # used to abort activation before the intended web-login fallback ran.
+  $oldPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = "Continue"
+    & gh auth status --hostname github.com 2>$null | Out-Null
+    return ($LASTEXITCODE -eq 0)
+  } finally {
+    $ErrorActionPreference = $oldPreference
+  }
+}
+
+function Test-ChatGPTSession {
+  # Readiness is a probe, not a failure: exit 1 simply means the one-time headed
+  # sign-in flow needs to run. Keep that expected state out of the fatal path.
+  $oldPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = "Continue"
+    & $script:pyExe @script:pyFlags -m aletheia.chatgpt_session *> $null
+    return ($LASTEXITCODE -eq 0)
+  } finally {
+    $ErrorActionPreference = $oldPreference
+  }
+}
+
 if ($env:OS -ne "Windows_NT") {
   throw "Aletheia operator activation is Windows-only."
 }
@@ -133,8 +161,7 @@ if (-not (Have gh)) {
   if ($LASTEXITCODE -ne 0) { throw "GitHub CLI installation failed." }
   Refresh-Path
 }
-& gh auth status --hostname github.com *> $null
-if ($LASTEXITCODE -ne 0) {
+if (-not (Test-GitHubCliAuth)) {
   Write-Host "`n  GitHub needs its one-time web sign-in." -ForegroundColor Cyan
   & gh auth login --hostname github.com --web --git-protocol https
   if ($LASTEXITCODE -ne 0) { throw "GitHub sign-in did not complete." }
@@ -142,8 +169,7 @@ if ($LASTEXITCODE -ne 0) {
 Invoke-AletheiaPython -PyArgs @("-m","aletheia.github_auth","import-cli")
 
 # ChatGPT subscription: normal dedicated browser-profile sign-in; no API key.
-& $script:pyExe @script:pyFlags -m aletheia.chatgpt_session *> $null
-if ($LASTEXITCODE -ne 0) {
+if (-not (Test-ChatGPTSession)) {
   Write-Host "`n  ChatGPT needs its one-time normal browser sign-in." -ForegroundColor Cyan
   & $script:pyExe @script:pyFlags -m aletheia.browse login https://chatgpt.com/
   if ($LASTEXITCODE -ne 0) { throw "ChatGPT browser sign-in did not complete." }
