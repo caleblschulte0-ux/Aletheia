@@ -22,7 +22,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\activate_local_ai.ps
 
 The script refuses non-`main` branches. `activate` checks that Ollama is online,
 both configured model tags exist, and both models return the exact bounded JSON
-smoke-test schema. A failed test leaves routing disabled.
+smoke-test schema. The one-time activation allows up to two minutes for the fast
+model and three minutes for the deep model to cold-load; normal requests keep
+their much shorter route limits. A failed test leaves routing disabled and
+reports whether Ollama timed out, disconnected, or rejected the request.
 
 Inspect or roll back without changing Git:
 
