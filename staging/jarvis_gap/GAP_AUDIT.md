@@ -56,10 +56,13 @@ reasoning adapter is text/JSON only, and screen perception deliberately uses the
 accessibility tree instead of pixels. There is no provider-neutral image
 reasoning seam.
 
-**Staging build:** `vision.py` accepts an injected future VISION backend and
-strictly returns read-only answers. Action-shaped output is refused, context is
+**Staging build:** `vision.py` accepts an injected VISION backend and strictly
+returns read-only answers. Action-shaped output is refused, context is
 JSON-serializable and byte-bounded before the provider sees it, and every answer
-is bound to the image sha256.
+is bound to the image sha256. `ollama_vision.py` now proves that seam can be made
+concrete locally: it is loopback-only, tool-less, requires an explicit model
+name (no assumption that the configured fast/deep text models are multimodal),
+and honestly reports whether that model is actually pulled.
 
 ### 4. Visual computer fallback — missing by design
 
@@ -134,7 +137,9 @@ live evidence, not missing architecture:
 
 1. Claude line-by-line review of this branch; keep production untouched until the
    privacy/request-binding invariants are ratified.
-2. Choose a VISION provider strategy behind the seam; do not hard-code a vendor.
+2. Claude decides whether the staged local Ollama VISION backend is the first
+   provider. It deliberately has no default model; choose and live-prove a
+   multimodal model before registering it AVAILABLE.
 3. Add registry entries for `perception.camera`, `location.read`,
    `computer.context.read`, and `vision.reason` only when real callers exist.
 4. Add request-bound authenticated sensor endpoints behind the existing
