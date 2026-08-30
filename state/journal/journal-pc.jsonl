@@ -716,3 +716,4 @@
 {"ts": "2026-08-30T20:20:14Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
 {"ts": "2026-08-30T20:20:14Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
 {"ts": "2026-08-30T20:25:12Z", "kind": "event", "actor": "aletheia-voice", "subject": "voice:room", "text": "room voice listening (single local wake listener)"}
+{"ts": "2026-08-30T20:29:57Z", "kind": "event", "actor": "aletheia-voice", "subject": "voice:room", "text": "room voice listening (single local wake listener)"}
