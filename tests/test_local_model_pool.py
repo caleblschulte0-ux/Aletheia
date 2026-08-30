@@ -55,6 +55,17 @@ class TestLocalModelPool(unittest.TestCase):
         self.assertTrue(payload["think"])
         self.assertEqual(self.record_turn.call_args.kwargs["provider"], "ollama:deep")
 
+    def test_traced_role_returns_model_and_training_turn_id(self):
+        response = {"message": {"content": json.dumps(VALID)}}
+        with mock.patch.object(model_pool_config, "resolve_profile", side_effect=self.profiles), \
+             mock.patch.object(local_brain, "_request_json", return_value=response):
+            run = local_model_pool.run_fast_traced("hello")
+        self.assertEqual(run.role, "fast")
+        self.assertEqual(run.model, "qwen3:8b")
+        self.assertFalse(run.think)
+        self.assertEqual(run.turn_id, "turn")
+        self.assertEqual(run.output, VALID)
+
     def test_auto_defaults_to_fast(self):
         with mock.patch.object(local_model_pool, "run_fast", return_value=VALID) as fast, \
              mock.patch.object(local_model_pool, "run_deep") as deep:
@@ -88,6 +99,18 @@ class TestLocalModelPool(unittest.TestCase):
         self.assertEqual(route.role, "fallback")
         self.assertEqual(result["intent"], "clarify")
         self.assertEqual(result["confidence"], 0.0)
+
+    def test_traced_auto_reports_successful_failover_turn(self):
+        fail = local_brain.LocalBrainUnavailable("off")
+        deep_run = local_model_pool.RoleRun(
+            role="deep", model="qwen3.6:27b", think=True, turn_id="turn-deep", output=VALID)
+        with mock.patch.object(local_model_pool, "run_fast_traced", side_effect=fail), \
+             mock.patch.object(local_model_pool, "run_deep_traced", return_value=deep_run):
+            run = local_model_pool.run_auto_traced("simple request")
+        self.assertEqual(run.route.role, "deep")
+        self.assertIn("failover", run.route.reason)
+        self.assertEqual(run.role_run.turn_id, "turn-deep")
+        self.assertEqual(run.output, VALID)
 
 
 if __name__ == "__main__":
