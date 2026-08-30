@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass
+from typing import Callable
 
 from aletheia import brain
 from aletheia.proc import hidden_flags
@@ -38,7 +39,6 @@ def cli_path() -> str | None:
 
 
 def available() -> tuple[bool, str]:
-    """(usable, why) for the subscription reasoning adapter."""
     path = cli_path()
     if path:
         return True, f"Claude CLI at {path}; ChatGPT browser is the runtime fallback"
@@ -142,9 +142,6 @@ def _run_cli(system_prompt: str, user_prompt: str, model: str,
         except OSError as exc:
             raise ReasonerUnavailable(f"could not run Claude CLI: {type(exc).__name__}") from None
     if proc.returncode != 0:
-        # Preserve the established direct-CLI diagnostic contract. The combined
-        # adapter below catches this and emits a fixed generic error if ChatGPT
-        # also fails, so stderr never becomes the public fallback receipt.
         detail = (proc.stderr or "").strip()[:300]
         suffix = f": {detail}" if detail else ""
         raise ReasonerUnavailable(f"Claude CLI exited {proc.returncode}{suffix}")
@@ -162,7 +159,6 @@ def _run_cli(system_prompt: str, user_prompt: str, model: str,
 
 
 def _validate_input(system_prompt: str, text: str, context: dict | None) -> None:
-    """Reject local contract/input problems before any provider fallback."""
     if not isinstance(system_prompt, str) or not system_prompt.strip():
         raise ValueError("reasoner system_prompt is required")
     if not isinstance(text, str) or not text.strip() or len(text) > brain.MAX_TEXT:
@@ -184,33 +180,36 @@ def infer_json(system_prompt: str, text: str, *, context: dict | None = None,
 
 
 def subscription_json(system_prompt: str, text: str, *, context: dict | None = None,
-                      model: str = INTERPRET_MODEL,
-                      timeout_s: float = TIMEOUT_S) -> dict:
-    """One generic no-API-key JSON inference seam: Claude, then ChatGPT browser.
+                      model: str = INTERPRET_MODEL, timeout_s: float = TIMEOUT_S,
+                      validator: Callable[[dict], dict] | None = None) -> dict:
+    """One generic no-API-key JSON seam: Claude, then ChatGPT browser.
 
-    This function adds NO authority and deliberately performs no output-schema
-    validation beyond requiring a JSON object. Callers using custom schemas
-    (portfolio planner, code worker, reviewer) must validate every field before
-    acting. Invalid local input never triggers another provider.
+    `validator`, when supplied, is caller-owned schema validation. A provider
+    that returns valid JSON with the wrong schema is treated as unusable and the
+    alternate subscription gets one chance. Invalid local input is rejected
+    before either provider runs.
     """
     _validate_input(system_prompt, text, context)
+
+    def checked(value: dict) -> dict:
+        if validator is None:
+            return value
+        return validator(value)
+
     try:
-        return infer_json(system_prompt, text, context=context,
-                          model=model, timeout_s=timeout_s)
-    except ReasonerUnavailable:
-        pass
-    # A provider can be up but return malformed JSON. That is a provider
-    # failure for this structured contract, so give the alternate subscription
-    # one chance. Local input validation already happened above.
-    except ValueError:
+        return checked(infer_json(system_prompt, text, context=context,
+                                  model=model, timeout_s=timeout_s))
+    except (ReasonerUnavailable, ValueError, brain.BrainOutputError):
         pass
 
     try:
         from aletheia import browser_reasoner
-        return browser_reasoner.infer_json(
+        value = browser_reasoner.infer_json(
             system_prompt, text, context=context,
             timeout_s=max(timeout_s, browser_reasoner.TIMEOUT_S))
-    except (browser_reasoner.BrowserReasonerUnavailable, ValueError):
+        return checked(value)
+    except (browser_reasoner.BrowserReasonerUnavailable, ValueError,
+            brain.BrainOutputError):
         raise ReasonerUnavailable(
             "both subscription reasoning paths are unavailable: Claude failed and ChatGPT browser could not answer"
         ) from None
@@ -224,11 +223,11 @@ class CliReasoner:
     timeout_s: float = TIMEOUT_S
 
     def infer(self, text: str, context: dict | None = None) -> dict:
-        result = subscription_json(
+        return subscription_json(
             self.system_prompt, text, context=context,
             model=self.model, timeout_s=self.timeout_s,
+            validator=brain.validate_output,
         )
-        return brain.validate_output(result)
 
     def provider(self, provider_id: str = "subscription.auto") -> brain.Provider:
         if provider_id.startswith("claude.cli"):
