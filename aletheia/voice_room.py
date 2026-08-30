@@ -422,8 +422,18 @@ def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
             on_heard((wake_heard, text))
 
         if awaiting_since is not None and now - awaiting_since <= BARE_WAKE_WINDOW_S:
-            command = text.strip()
-            if not command:
+            raw = text.strip()
+            if not raw:
+                continue
+            if is_addressed(raw):
+                command = raw.split(" ", 1)[1] if " " in raw else ""
+            elif wake_heard:
+                command = _strip_leading_garbage(raw)
+            else:
+                command = raw
+            if not command.strip():
+                say("Yes?")
+                awaiting_since = monotonic()
                 continue
             awaiting_since = None
         else:
