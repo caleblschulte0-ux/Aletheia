@@ -1,8 +1,8 @@
 """Private training/evaluation capture for Aletheia's future local model.
 
-The store is deliberately local and gitignored via ``state/private``.  It keeps
+The store is deliberately local and gitignored via ``state/private``. It keeps
 reasoning attempts, later feedback, and student-vs-teacher comparisons without
-making data retention an availability dependency.  Credential-shaped fields and
+making data retention an availability dependency. Credential-shaped fields and
 values are redacted before they touch disk.
 """
 from __future__ import annotations
@@ -29,6 +29,11 @@ _TOKEN_PATTERNS = (
     re.compile(r"\bgh[pousr]_[A-Za-z0-9_]{20,}\b", re.I),
     re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b", re.I),
     re.compile(r"\beyJ[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b"),
+    re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{8,}"),
+)
+_INLINE_SECRET = re.compile(
+    r"(?i)\b(password|passcode|secret|api[ _-]?key|access[ _-]?token|token|otp|mfa|2fa)"
+    r"\b\s*[:=]\s*([^\s,;]{3,})"
 )
 
 
@@ -44,6 +49,7 @@ def _redact_text(value: str) -> str:
     text = str(value)
     for pattern in _TOKEN_PATTERNS:
         text = pattern.sub("[REDACTED_SECRET]", text)
+    text = _INLINE_SECRET.sub(lambda m: f"{m.group(1)}=[REDACTED_SECRET]", text)
     return text
 
 
