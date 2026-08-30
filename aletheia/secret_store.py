@@ -258,12 +258,7 @@ def get(name: str) -> str:
 
 def metadata(name: str) -> dict:
     _, meta_path = _paths(name)
-    if not meta_path.is_file():
-        raise KeyError(name)
-    try:
-        value = stateio.read_json(meta_path)
-    except ValueError as exc:
-        raise SecretStoreError("secret metadata is malformed") from exc
+    value = stateio.read_json(meta_path)
     if not isinstance(value, dict):
         raise SecretStoreError("secret metadata is malformed")
     return value
