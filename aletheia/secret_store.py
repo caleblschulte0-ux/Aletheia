@@ -14,8 +14,8 @@ from __future__ import annotations
 import argparse
 import ctypes
 import getpass
+import ipaddress
 import os
-import re
 import tempfile
 from pathlib import Path
 
@@ -25,10 +25,6 @@ ROOT = stateio.private_dir("secrets")
 MAX_SECRET_BYTES = 64 * 1024
 ENTROPY = b"Aletheia local secret store v1"
 CRYPTPROTECT_UI_FORBIDDEN = 0x1
-HOST_RE = re.compile(
-    r"^(?:localhost|[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?)$",
-    re.IGNORECASE,
-)
 
 
 class SecretStoreUnavailable(RuntimeError):
@@ -144,6 +140,32 @@ def _paths(name: str) -> tuple[Path, Path]:
     return ROOT / f"{safe}.bin", ROOT / f"{safe}.json"
 
 
+def exists(name: str) -> bool:
+    """Fail closed: either half of an alias record means the name is occupied."""
+    cipher_path, meta_path = _paths(name)
+    return cipher_path.exists() or meta_path.exists()
+
+
+def _valid_host(host: str) -> bool:
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).version == 4
+    except ValueError:
+        pass
+    if len(host) > 253:
+        return False
+    labels = host.split(".")
+    return bool(labels) and all(
+        label
+        and len(label) <= 63
+        and label[0].isalnum()
+        and label[-1].isalnum()
+        and all(ch.isalnum() or ch == "-" for ch in label)
+        for label in labels
+    )
+
+
 def normalize_hosts(hosts: list[str] | tuple[str, ...] | None) -> list[str]:
     """Canonical host-only bindings; URLs, ports and paths are never accepted."""
     if hosts is None:
@@ -155,7 +177,7 @@ def normalize_hosts(hosts: list[str] | tuple[str, ...] | None) -> list[str]:
         if not isinstance(value, str):
             raise ValueError("allowed_hosts entries must be hostnames")
         host = value.strip().rstrip(".").casefold()
-        if not host or not HOST_RE.fullmatch(host) or "/" in host or ":" in host:
+        if not host or "/" in host or ":" in host or not _valid_host(host):
             raise ValueError(f"invalid allowed host {value!r}")
         if host not in out:
             out.append(host)
@@ -236,10 +258,12 @@ def get(name: str) -> str:
 
 def metadata(name: str) -> dict:
     _, meta_path = _paths(name)
+    if not meta_path.is_file():
+        raise KeyError(name)
     try:
         value = stateio.read_json(meta_path)
-    except FileNotFoundError as exc:
-        raise KeyError(name) from exc
+    except ValueError as exc:
+        raise SecretStoreError("secret metadata is malformed") from exc
     if not isinstance(value, dict):
         raise SecretStoreError("secret metadata is malformed")
     return value
