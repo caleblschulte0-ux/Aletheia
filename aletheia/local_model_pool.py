@@ -31,6 +31,24 @@ class RouteDecision:
     reason: str
 
 
+@dataclass(frozen=True)
+class RoleRun:
+    """One successful local role execution plus provenance for integration callers."""
+    role: str
+    model: str
+    think: bool
+    turn_id: str | None
+    output: dict
+
+
+@dataclass(frozen=True)
+class PoolRun:
+    """Final routed result, including local provenance when a local tier succeeded."""
+    route: RouteDecision
+    role_run: RoleRun | None
+    output: dict
+
+
 def _context_size(context: dict[str, Any]) -> int:
     try:
         return len(json.dumps(context, ensure_ascii=False, default=str))
@@ -61,8 +79,8 @@ def _config_for(role: str) -> tuple[local_brain.OllamaConfig, bool]:
     return cfg, bool(profile["think"])
 
 
-def _run_role(role: str, text: str, context: dict[str, Any] | None = None) -> dict:
-    """Run one configured role and retain exact request/result for training."""
+def _run_role_traced(role: str, text: str, context: dict[str, Any] | None = None) -> RoleRun:
+    """Run one configured role, retain the turn, and return its training trace id."""
     local_brain._validate_input(text)
     ctx = context or {}
     if not isinstance(ctx, dict):
@@ -84,12 +102,16 @@ def _run_role(role: str, text: str, context: dict[str, Any] | None = None) -> di
             duration_ms=round((time.perf_counter() - started) * 1000),
         )
         raise
-    training_data.record_turn(
+    turn_id = training_data.record_turn(
         provider=f"ollama:{role}", model=cfg.model, text=text, context=ctx,
         request_payload=payload, result=result, status="validated",
         duration_ms=round((time.perf_counter() - started) * 1000),
     )
-    return result
+    return RoleRun(role=role, model=cfg.model, think=think, turn_id=turn_id, output=result)
+
+
+def _run_role(role: str, text: str, context: dict[str, Any] | None = None) -> dict:
+    return _run_role_traced(role, text, context).output
 
 
 def run_fast(text: str, context: dict[str, Any] | None = None) -> dict:
@@ -100,12 +122,16 @@ def run_deep(text: str, context: dict[str, Any] | None = None) -> dict:
     return _run_role("deep", text, context)
 
 
-def run_auto(text: str, context: dict[str, Any] | None = None) -> tuple[RouteDecision, dict]:
-    """Route locally, degrade to the other tier once, then fail closed.
+def run_fast_traced(text: str, context: dict[str, Any] | None = None) -> RoleRun:
+    return _run_role_traced("fast", text, context)
 
-    The fallback order is deterministic and does not broaden authority:
-    selected local role -> other local role -> canonical deterministic clarify.
-    """
+
+def run_deep_traced(text: str, context: dict[str, Any] | None = None) -> RoleRun:
+    return _run_role_traced("deep", text, context)
+
+
+def run_auto(text: str, context: dict[str, Any] | None = None) -> tuple[RouteDecision, dict]:
+    """Backward-compatible simple route API used by the staging CLI/tests."""
     decision = choose_role(text, context)
     first = run_deep if decision.role == "deep" else run_fast
     second = run_fast if decision.role == "deep" else run_deep
@@ -120,6 +146,36 @@ def run_auto(text: str, context: dict[str, Any] | None = None) -> tuple[RouteDec
             return failover, second(text, context)
         except (local_brain.LocalBrainError, brain.BrainOutputError, ValueError, TypeError):
             return RouteDecision("fallback", "both local roles failed"), brain.FALLBACK.run(text, context or {})
+
+
+def run_auto_traced(text: str, context: dict[str, Any] | None = None) -> PoolRun:
+    """Integration-grade route API with model + training provenance.
+
+    Selected local role -> one other local role -> deterministic clarify.
+    Failed local attempts are still retained by ``_run_role_traced`` as negative
+    future-training/evaluation examples.
+    """
+    decision = choose_role(text, context)
+    first = run_deep_traced if decision.role == "deep" else run_fast_traced
+    second = run_fast_traced if decision.role == "deep" else run_deep_traced
+    try:
+        role_run = first(text, context)
+        return PoolRun(route=decision, role_run=role_run, output=role_run.output)
+    except (local_brain.LocalBrainError, brain.BrainOutputError, ValueError, TypeError):
+        try:
+            failover = RouteDecision(
+                "fast" if decision.role == "deep" else "deep",
+                f"{decision.role} failed; one local failover attempt",
+            )
+            role_run = second(text, context)
+            return PoolRun(route=failover, role_run=role_run, output=role_run.output)
+        except (local_brain.LocalBrainError, brain.BrainOutputError, ValueError, TypeError):
+            output = brain.FALLBACK.run(text, context or {})
+            return PoolRun(
+                route=RouteDecision("fallback", "both local roles failed"),
+                role_run=None,
+                output=output,
+            )
 
 
 def status() -> dict[str, Any]:
