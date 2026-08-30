@@ -78,7 +78,8 @@ if (-not $python) {
 $script:pyExe = $python.Exe
 $script:pyFlags = @($python.Flags)
 
-# Recovery/update path. Keep current repo exactly on reviewed origin/main.
+# Recovery/update path. Keep current repo exactly on reviewed origin/main while
+# preserving any local journal lines that the always-on PC wrote before reset.
 if (-not (Test-Path $dest)) {
   Write-Host "  Cloning Aletheia ..." -ForegroundColor Yellow
   git clone $repoUrl $dest
@@ -87,8 +88,33 @@ if (-not (Test-Path $dest)) {
   Write-Host "  Updating Aletheia main ..." -ForegroundColor Yellow
   git -C $dest fetch origin main
   if ($LASTEXITCODE -ne 0) { throw "Aletheia fetch failed." }
+
+  $localJournal = Join-Path $dest "state\journal\journal.jsonl"
+  $salvage = ""
+  if (Test-Path $localJournal) { $salvage = Get-Content $localJournal -Raw }
+
   git -C $dest checkout -f -B main origin/main
   if ($LASTEXITCODE -ne 0) { throw "Could not reset local checkout to current main." }
+
+  if ($salvage) {
+    $upstream = ""
+    if (Test-Path $localJournal) { $upstream = Get-Content $localJournal -Raw }
+    $pcJournal = Join-Path $dest "state\journal\journal-pc.jsonl"
+    $existing = ""
+    if (Test-Path $pcJournal) { $existing = Get-Content $pcJournal -Raw }
+    $known = ($upstream + "`n" + $existing) -split "`r?`n"
+    $new = @($salvage -split "`r?`n" | Where-Object { $_.Trim() -and ($known -notcontains $_) })
+    if ($new.Count -gt 0) {
+      [System.IO.File]::AppendAllText(
+        $pcJournal,
+        (($new -join "`n") + "`n"),
+        [System.Text.UTF8Encoding]::new($false)
+      )
+      git -C $dest add state/journal
+      git -C $dest commit -m "pc: salvage locally journaled entries" | Out-Null
+      Write-Host "  Preserved $($new.Count) local journal line(s)." -ForegroundColor DarkYellow
+    }
+  }
 }
 Set-Location $dest
 
