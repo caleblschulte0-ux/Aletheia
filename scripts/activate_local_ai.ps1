@@ -44,7 +44,10 @@ Write-Host "`n  ALETHEIA LOCAL AI ACTIVATION" -ForegroundColor Cyan
 Write-Host "  Testing both configured Ollama models before changing routing ..." -ForegroundColor Yellow
 & $pyExe @pyFlags -m aletheia.local_ai activate
 if ($LASTEXITCODE -ne 0) {
-  throw "local model smoke test failed; local routing remains disabled. Read the JSON error above."
+  $activationCode = $LASTEXITCODE
+  Write-Host "  Local model smoke test failed; local routing remains disabled." -ForegroundColor Red
+  Write-Host "  Read the JSON diagnostic above; no routing change was made." -ForegroundColor Red
+  exit $activationCode
 }
 
 Write-Host "`n  Local reasoning is active. Background 27B shadowing remains OFF." -ForegroundColor Green

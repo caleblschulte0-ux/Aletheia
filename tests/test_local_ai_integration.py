@@ -281,12 +281,15 @@ class GatewayRoutingCase(unittest.TestCase):
 
 class LocalSmokeCase(unittest.TestCase):
     def test_smoke_proves_both_real_roles_without_pre_enabling(self):
+        observed_timeouts = {}
+
         def status(config):
             return {"online": True, "model_available": True, "model": config.model}
 
         def infer(system, text, *, context, config):
             del system, text, context
             role = "fast" if config.model == "qwen3:8b" else "deep"
+            observed_timeouts[role] = config.timeout_s
             return {"ok": True, "role": role}
 
         with mock.patch.object(local_brain, "status", side_effect=status), \
@@ -295,6 +298,21 @@ class LocalSmokeCase(unittest.TestCase):
             result = local_model_pool.smoke()
         self.assertTrue(result["ok"])
         self.assertEqual(set(result["roles"]), {"fast", "deep"})
+        self.assertEqual(observed_timeouts, local_model_pool.SMOKE_TIMEOUT_S)
+
+    def test_safe_transport_detail_survives_pool_wrapping(self):
+        with mock.patch.object(
+            local_brain, "infer_json",
+            side_effect=local_brain.LocalBrainUnavailable(
+                "local Ollama unavailable (TimeoutError)"
+            ),
+        ), mock.patch.object(training_data, "record_turn", return_value=None):
+            with self.assertRaisesRegex(
+                local_model_pool.LocalPoolUnavailable, "TimeoutError"
+            ):
+                local_model_pool.run_json(
+                    "contract", "request", require_enabled=False,
+                )
 
     def test_status_uses_short_non_inference_probes(self):
         with mock.patch.object(local_brain, "status",
@@ -314,6 +332,8 @@ class LocalSmokeCase(unittest.TestCase):
         self.assertIn('$branch -ne "main"', script)
         self.assertIn("-m aletheia.local_ai activate", script)
         self.assertIn("local routing remains disabled", script)
+        self.assertIn("exit $activationCode", script)
+        self.assertNotIn('throw "local model smoke test failed', script)
         self.assertNotIn("reset --hard", script.lower())
         self.assertNotIn("git pull", script.lower())
 

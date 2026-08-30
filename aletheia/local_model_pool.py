@@ -10,6 +10,7 @@ from aletheia import local_brain, model_pool_config, training_data
 
 FAST_TIMEOUT_S = 12.0
 DEEP_TIMEOUT_S = 45.0
+SMOKE_TIMEOUT_S = {"fast": 120.0, "deep": 180.0}
 DEEP_HINTS = (
     "architecture", "root cause", "debug", "code review", "review the code",
     "tradeoff", "trade-off", "investigate", "complex plan", "reason through",
@@ -82,7 +83,15 @@ def run_json(system_prompt: str, text: str, *, context: dict | None = None,
                 request_payload=payload, result=proposal, status="error",
                 error_type=type(exc).__name__, error=str(exc), duration_ms=elapsed,
             )
-        if isinstance(exc, (local_brain.LocalBrainError, ValueError, TypeError)):
+        if isinstance(exc, local_brain.LocalBrainError):
+            # LocalBrainError messages are deliberately bounded diagnostics
+            # containing no prompt, response body, URL path, or credentials.
+            # Keep the underlying timeout/transport class useful to the
+            # operator instead of collapsing every failure to one vague type.
+            raise LocalPoolUnavailable(
+                f"local {role} role failed: {exc}"
+            ) from None
+        if isinstance(exc, (ValueError, TypeError)):
             raise LocalPoolUnavailable(f"local {role} role failed ({type(exc).__name__})") from None
         raise
     elapsed = round((time.perf_counter() - started) * 1000)
@@ -142,6 +151,9 @@ def smoke() -> dict[str, Any]:
             "Return exactly the requested JSON object. You have no tools or authority.",
             f'Return exactly {{"ok":true,"role":"{role}"}}.',
             role=role, validator=validate, require_enabled=False,
+            # Activation is allowed to cold-load the model once. Normal
+            # production requests retain the 12s/45s route limits above.
+            timeout_s=SMOKE_TIMEOUT_S[role],
         )
         results[role] = {
             "model": run.model,
