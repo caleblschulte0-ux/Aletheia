@@ -36,19 +36,41 @@ class PrivateStateCase(unittest.TestCase):
     def test_training_store_redacts_secret_keys_and_known_token_shapes(self):
         turn = training_data.record_turn(
             provider="teacher", model="x", role="teacher",
-            text="use sk-abcdefghijklmnopqrstuvwxyz123456 safely",
+            text="use sk-abcdefghijklmnopqrstuvwxyz123456 safely password: dont-store-me",
             context={"password": "hunter2", "nested": {"api_key": "abc"}},
-            request_payload={"authorization": "Bearer secret"},
+            request_payload={"authorization": "Bearer verysecrettoken"},
             result={"summary": "github_pat_abcdefghijklmnopqrstuvwxyz123456"},
             status="teacher_validated",
         )
         self.assertIsNotNone(turn)
         rows = training_data.iter_events()
         raw = json.dumps(rows)
-        self.assertNotIn("hunter2", raw)
-        self.assertNotIn("Bearer secret", raw)
-        self.assertNotIn("abcdefghijklmnopqrstuvwxyz123456", raw)
+        for secret in ("hunter2", "dont-store-me", "Bearer verysecrettoken",
+                       "abcdefghijklmnopqrstuvwxyz123456"):
+            self.assertNotIn(secret, raw)
         self.assertIn("REDACTED_SECRET", raw)
+
+    def test_teacher_pair_links_durable_teacher_and_student_turns(self):
+        teacher = training_data.record_turn(
+            provider="chatgpt.browser", model="chatgpt.browser", role="teacher",
+            text="question", context={}, result={"summary": "teacher"},
+            status="teacher_validated",
+        )
+        student = training_data.record_turn(
+            provider="ollama", model="qwen3:8b", role="fast",
+            text="question", context={}, result={"summary": "student"},
+            status="validated",
+        )
+        pair = training_data.record_teacher_pair(
+            teacher_turn_id=teacher, student_turn_id=student,
+            teacher_provider="chatgpt.browser",
+            teacher_result={"summary": "teacher"},
+            student_result={"summary": "student"}, route="test",
+        )
+        self.assertIsNotNone(pair)
+        pairs = [x for x in training_data.iter_events() if x.get("kind") == "teacher_pair"]
+        self.assertEqual(pairs[-1]["teacher_turn_id"], teacher)
+        self.assertEqual(pairs[-1]["student_turn_id"], student)
 
 
 class LocalTransportCase(unittest.TestCase):
@@ -127,15 +149,19 @@ class GatewayRoutingCase(unittest.TestCase):
 
 
 class ShadowCase(unittest.TestCase):
-    def test_subscription_answer_is_returned_unchanged_while_shadow_is_scheduled(self):
+    def test_subscription_answer_is_teacher_recorded_and_returned_unchanged(self):
         teacher = {"summary": "strong answer"}
         with mock.patch.object(reasoner, "_subscription_json_with_provider",
                                return_value=(teacher, "claude.cli:sonnet")), \
+             mock.patch.object(training_data, "record_turn", return_value="teacher123") as record, \
              mock.patch.object(reasoner, "_schedule_local_shadow") as shadow:
             out = reasoner.subscription_json("sys", "task")
         self.assertIs(out, teacher)
+        self.assertEqual(record.call_args.kwargs["role"], "teacher")
+        self.assertIs(record.call_args.kwargs["result"], teacher)
         shadow.assert_called_once()
         self.assertIs(shadow.call_args.args[4], teacher)
+        self.assertEqual(shadow.call_args.args[6], "teacher123")
 
 
 if __name__ == "__main__":
