@@ -22,8 +22,10 @@ on:
       - 'tests/test_local_ai_bridge.py'
       - 'tests/test_training_data.py'
       - 'scripts/setup-local-ai.ps1'
+      - 'scripts/setup-local-ai-pool.ps1'
       - 'docs/LOCAL_AI.md'
       - 'CHATGPT_LOCAL_AI_HANDOFF.md'
+      - 'CHATGPT_TWO_TIER_LOCAL_AI_INTEGRATION.md'
 
 permissions:
   contents: read
