@@ -21,6 +21,7 @@ MAX_RESPONSE_CHARS = 256_000
 TIMEOUT_S = 120.0
 POLL_MS = 500
 EDITOR_WAIT_S = 20.0
+SEND_WAIT_S = 5.0
 EDITOR_SELECTORS = (
     "#prompt-textarea",
     "textarea[placeholder*='Message']",
@@ -29,6 +30,12 @@ EDITOR_SELECTORS = (
     "[contenteditable='true'][role='textbox']",
     "div.ProseMirror[contenteditable='true']",
     "[contenteditable='true'][data-placeholder*='Message']",
+)
+SEND_SELECTORS = (
+    "button[data-testid='send-button']",
+    "button[aria-label='Send prompt']",
+    "button[aria-label='Send message']",
+    "button[aria-label^='Send']",
 )
 ASSISTANT_SELECTORS = (
     "[data-message-author-role='assistant']",
@@ -145,6 +152,47 @@ def _editor(page, timeout_s: float = EDITOR_WAIT_S):
     )
 
 
+def _submit_prompt(page, editor, prompt: str, timeout_s: float = SEND_WAIT_S) -> None:
+    """Fill the composer and submit through the page's real send control.
+
+    ChatGPT's composer is client-rendered and a global keyboard Enter is not a
+    reliable submission signal across UI variants. Prefer the visible enabled
+    Send button; fall back to pressing Enter on the composer itself so focus is
+    explicit. Never echo prompt text in an error.
+    """
+    try:
+        editor.fill(prompt)
+    except Exception:
+        raise BrowserReasonerUnavailable("ChatGPT prompt could not be filled") from None
+
+    deadline = time.monotonic() + max(0.0, float(timeout_s))
+    while True:
+        for selector in SEND_SELECTORS:
+            try:
+                loc = page.locator(selector)
+                if loc.count() <= 0:
+                    continue
+                button = loc.first
+                if button.is_visible() and button.is_enabled():
+                    button.click()
+                    return
+            except Exception:
+                continue
+        now = time.monotonic()
+        if now >= deadline:
+            break
+        remaining_ms = max(1, min(100, int((deadline - now) * 1000)))
+        try:
+            page.wait_for_timeout(remaining_ms)
+        except Exception:
+            break
+
+    try:
+        editor.press("Enter")
+    except Exception:
+        raise BrowserReasonerUnavailable("ChatGPT prompt could not be submitted") from None
+
+
 def _assistant_counts(page) -> dict[str, int]:
     counts = {}
     for selector in ASSISTANT_SELECTORS:
@@ -192,11 +240,7 @@ def _infer_page(page, prompt: str, timeout_s: float = TIMEOUT_S) -> dict:
         raise BrowserReasonerUnavailable("ChatGPT browser redirected away from chatgpt.com; sign-in may be required")
     editor = _editor(page)
     before = _assistant_counts(page)
-    try:
-        editor.fill(prompt)
-        page.keyboard.press("Enter")
-    except Exception:
-        raise BrowserReasonerUnavailable("ChatGPT prompt could not be submitted") from None
+    _submit_prompt(page, editor, prompt)
 
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
