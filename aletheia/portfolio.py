@@ -34,6 +34,15 @@ def _safe_request(request, path: str, default):
     return value if value is not None else default
 
 
+def _observed_request(request, path: str, default):
+    """Return (observed, value); network/API failure is never empty-good-news."""
+    try:
+        value = request("GET", path)
+    except Exception:
+        return False, default
+    return True, value if value is not None else default
+
+
 def _parse_time(value: object) -> dt.datetime | None:
     if not isinstance(value, str) or not value:
         return None
@@ -61,7 +70,7 @@ def discover(*, fleet: dict | None = None, request=gh.request,
              now: dt.datetime | None = None) -> list[dict]:
     """Discover the operator's non-archived repositories.
 
-    Fleet entries are always included.  GitHub discovery uses the public owner
+    Fleet entries are always included. GitHub discovery uses the public owner
     endpoint, so it still works when no PAT is configured; an authenticated
     request may additionally reveal private repos, which remain private state.
     """
@@ -84,9 +93,6 @@ def discover(*, fleet: dict | None = None, request=gh.request,
             "updated_at": None,
         }
 
-    # Public discovery is intentionally bounded.  If a token is available,
-    # /user/repos may add private owner repos; never expose their names in a
-    # public-safe rendering.
     paths = [f"/users/{quote(owner)}/repos?per_page=100&sort=updated"]
     if gh.token():
         paths.insert(0, "/user/repos?per_page=100&sort=updated&affiliation=owner")
@@ -101,9 +107,6 @@ def discover(*, fleet: dict | None = None, request=gh.request,
             if not full or not full.casefold().startswith(owner.casefold() + "/"):
                 continue
             age = _age_days(row.get("updated_at") or row.get("pushed_at"), now)
-            # Keep fleet repos regardless of age; otherwise bound the active
-            # portfolio to recently touched repos so one scan cannot fan out
-            # across years of abandoned experiments.
             if full.casefold() not in by_name and age is not None and age > ACTIVE_DAYS:
                 continue
             prior = by_name.get(full.casefold(), {})
@@ -127,11 +130,12 @@ def scan_repo(repo: dict, *, request=gh.request,
     encoded = "/".join(quote(part) for part in full.split("/", 1))
     branch = quote(str(repo.get("default_branch") or "main"), safe="")
 
-    meta = _safe_request(request, f"/repos/{encoded}", {})
-    commit = _safe_request(request, f"/repos/{encoded}/commits/{branch}", {})
-    prs = _safe_request(request, f"/repos/{encoded}/pulls?state=open&per_page={MAX_ITEMS}", [])
-    issues = _safe_request(request, f"/repos/{encoded}/issues?state=open&per_page={MAX_ITEMS}", [])
-    runs = _safe_request(request, f"/repos/{encoded}/actions/runs?per_page=10", {})
+    meta_ok, meta = _observed_request(request, f"/repos/{encoded}", {})
+    commit_ok, commit = _observed_request(request, f"/repos/{encoded}/commits/{branch}", {})
+    prs_ok, prs = _observed_request(request, f"/repos/{encoded}/pulls?state=open&per_page={MAX_ITEMS}", [])
+    issues_ok, issues = _observed_request(request, f"/repos/{encoded}/issues?state=open&per_page={MAX_ITEMS}", [])
+    runs_ok, runs = _observed_request(request, f"/repos/{encoded}/actions/runs?per_page=10", {})
+    evidence_ok = bool(meta_ok and (commit_ok or prs_ok or issues_ok or runs_ok))
 
     if isinstance(meta, dict) and meta:
         repo = {**repo,
@@ -143,13 +147,16 @@ def scan_repo(repo: dict, *, request=gh.request,
     commit_at = author.get("date") if isinstance(author, dict) else None
     commit_age = _age_days(commit_at, now)
 
-    pr_rows = prs if isinstance(prs, list) else []
-    issue_rows = [i for i in issues if isinstance(i, dict) and "pull_request" not in i] if isinstance(issues, list) else []
-    run_rows = runs.get("workflow_runs", []) if isinstance(runs, dict) else []
+    pr_rows = prs if prs_ok and isinstance(prs, list) else []
+    issue_rows = [i for i in issues if isinstance(i, dict) and "pull_request" not in i] if issues_ok and isinstance(issues, list) else []
+    run_rows = runs.get("workflow_runs", []) if runs_ok and isinstance(runs, dict) else []
     failing = [r for r in run_rows if isinstance(r, dict) and str(r.get("conclusion") or "") in FAIL_CONCLUSIONS]
     pending = [r for r in run_rows if isinstance(r, dict) and str(r.get("status") or "") != "completed"]
 
     problems: list[dict] = []
+    if not evidence_ok:
+        problems.append({"kind": "observation_unavailable", "severity": "high",
+                         "detail": "live GitHub health evidence was unavailable"})
     if failing:
         newest = failing[0]
         problems.append({"kind": "ci_failure", "severity": "high",
@@ -162,23 +169,26 @@ def scan_repo(repo: dict, *, request=gh.request,
     if old_prs:
         problems.append({"kind": "stale_pr", "severity": "medium",
                          "detail": f"{len(old_prs)} open PR(s) at least 7 days old"})
-    if commit_age is not None and commit_age >= 30:
+    if commit_ok and commit_age is not None and commit_age >= 30:
         problems.append({"kind": "stale_repo", "severity": "low",
                          "detail": f"default branch last changed {commit_age} days ago"})
 
-    score = 100
-    score -= 45 if failing else 0
-    score -= min(20, len(old_prs) * 5)
-    score -= 10 if commit_age is not None and commit_age >= 30 else 0
-    score = max(0, score)
-    state = "RED" if score < 60 else "YELLOW" if score < 85 else "GREEN"
+    if not evidence_ok:
+        score, state = None, "UNKNOWN"
+    else:
+        score = 100
+        score -= 45 if failing else 0
+        score -= min(20, len(old_prs) * 5)
+        score -= 10 if commit_age is not None and commit_age >= 30 else 0
+        score = max(0, score)
+        state = "RED" if score < 60 else "YELLOW" if score < 85 else "GREEN"
     return {
         **repo,
         "health": state, "health_score": score,
         "latest_commit_at": commit_at, "latest_commit_age_days": commit_age,
         "open_prs": len(pr_rows), "open_issues": len(issue_rows),
         "active_runs": len(pending), "recent_failed_runs": len(failing),
-        "problems": problems,
+        "observation_complete": evidence_ok, "problems": problems,
     }
 
 
@@ -195,6 +205,7 @@ def scan_all(*, fleet: dict | None = None, request=gh.request,
             "red": sum(r["health"] == "RED" for r in scanned),
             "yellow": sum(r["health"] == "YELLOW" for r in scanned),
             "green": sum(r["health"] == "GREEN" for r in scanned),
+            "unknown": sum(r["health"] == "UNKNOWN" for r in scanned),
             "private": sum(bool(r.get("private")) for r in scanned),
         },
     }
@@ -212,17 +223,22 @@ def load_latest() -> dict | None:
     return value if isinstance(value, dict) else None
 
 
+def _priority(row: dict) -> tuple[int, str]:
+    score = row.get("health_score")
+    return (score if isinstance(score, int) else -1, str(row.get("name", "")))
+
+
 def public_summary(snapshot: dict) -> str:
     """Receipt-safe summary: never names private repositories."""
     rows = list(snapshot.get("repos") or [])
     public = [r for r in rows if not r.get("private")]
     private_count = len(rows) - len(public)
-    priority = sorted(public, key=lambda r: (r.get("health_score", 100), r.get("name", "")))
+    priority = sorted(public, key=_priority)
     trouble = [r for r in priority if r.get("health") != "GREEN"][:5]
     counts = snapshot.get("counts") or {}
     head = (f"Scanned {counts.get('total', len(rows))} projects: "
             f"{counts.get('red', 0)} red, {counts.get('yellow', 0)} yellow, "
-            f"{counts.get('green', 0)} green.")
+            f"{counts.get('green', 0)} green, {counts.get('unknown', 0)} unknown.")
     if trouble:
         details = "; ".join(
             f"{r.get('name','?')} {str(r.get('health','')).lower()}"
