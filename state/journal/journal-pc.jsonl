@@ -657,3 +657,4 @@
 {"ts": "2026-08-30T15:30:13Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "supervisor up — the Core is now persistent"}
 {"ts": "2026-08-30T15:30:13Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
 {"ts": "2026-08-30T15:30:13Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-08-30T15:30:26Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "push failing: push rejected and uncommitted changes the Core does not own: tate/pulse/latest.json — refusing to autostash a person's work"}
