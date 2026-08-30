@@ -1,5 +1,4 @@
 import unittest
-from pathlib import Path
 from unittest import mock
 
 from aletheia import chatgpt_session, project_autostart
@@ -34,8 +33,9 @@ class FakeSession:
 class ChatGPTSessionCase(unittest.TestCase):
     def test_status_is_read_only_and_accepts_prompt_box(self):
         page = FakePage()
+        profile_type = type(chatgpt_session.browse.PROFILE_DIR)
         with mock.patch.object(chatgpt_session.browse, "available", return_value=(True, "ready")), \
-             mock.patch.object(chatgpt_session.browse.PROFILE_DIR, "exists", return_value=True), \
+             mock.patch.object(profile_type, "exists", return_value=True), \
              mock.patch.object(chatgpt_session.browse, "_Session", return_value=FakeSession(page)), \
              mock.patch.object(chatgpt_session.browser_reasoner, "_host_ok", return_value=True), \
              mock.patch.object(chatgpt_session.browser_reasoner, "_editor", return_value=FakeEditor()) as editor:
@@ -46,8 +46,9 @@ class ChatGPTSessionCase(unittest.TestCase):
 
     def test_auth_redirect_is_not_ready(self):
         page = FakePage("https://auth.openai.com/login")
+        profile_type = type(chatgpt_session.browse.PROFILE_DIR)
         with mock.patch.object(chatgpt_session.browse, "available", return_value=(True, "ready")), \
-             mock.patch.object(chatgpt_session.browse.PROFILE_DIR, "exists", return_value=True), \
+             mock.patch.object(profile_type, "exists", return_value=True), \
              mock.patch.object(chatgpt_session.browse, "_Session", return_value=FakeSession(page)), \
              mock.patch.object(chatgpt_session.browser_reasoner, "_host_ok", return_value=False):
             result = chatgpt_session.status()
