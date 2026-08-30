@@ -4,7 +4,7 @@ import unittest
 import urllib.error
 from unittest import mock
 
-from aletheia import brain, local_brain
+from aletheia import brain, local_brain, training_data
 
 
 class FakeResponse:
@@ -28,6 +28,9 @@ class TestLocalBrain(unittest.TestCase):
             model="qwen3:8b",
             timeout_seconds=1,
         )
+        self.capture = mock.patch.object(training_data, "record_turn", return_value="turn-1")
+        self.record_turn = self.capture.start()
+        self.addCleanup(self.capture.stop)
 
     def test_local_provider_uses_existing_brain_contract(self):
         proposal = {
@@ -49,8 +52,13 @@ class TestLocalBrain(unittest.TestCase):
         self.assertFalse(body["think"])
         self.assertEqual(body["options"]["temperature"], 0)
         self.assertEqual(body["format"]["type"], "object")
+        captured = self.record_turn.call_args.kwargs
+        self.assertEqual(captured["status"], "validated")
+        self.assertEqual(captured["request_payload"], body)
+        self.assertEqual(captured["result"], proposal)
+        self.assertEqual(captured["model"], "qwen3:8b")
 
-    def test_invalid_model_output_is_rejected_by_brain_validator(self):
+    def test_invalid_model_output_is_rejected_and_retained_as_failure(self):
         bad = {
             "intent": "execute_everything",
             "summary": "done",
@@ -62,6 +70,9 @@ class TestLocalBrain(unittest.TestCase):
         with mock.patch.object(local_brain.urllib.request, "urlopen", return_value=response):
             with self.assertRaises(brain.BrainOutputError):
                 local_brain.run_local("do it", config=self.cfg)
+        captured = self.record_turn.call_args.kwargs
+        self.assertEqual(captured["status"], "error")
+        self.assertEqual(captured["error_type"], "BrainOutputError")
 
     def test_auto_falls_back_when_ollama_is_offline(self):
         with mock.patch.object(
@@ -72,6 +83,7 @@ class TestLocalBrain(unittest.TestCase):
             result = local_brain.run_auto("do magic", config=self.cfg)
         self.assertEqual(result["intent"], "clarify")
         self.assertEqual(result["confidence"], 0.0)
+        self.assertEqual(self.record_turn.call_args.kwargs["status"], "error")
 
     def test_auto_falls_back_on_protocol_failure(self):
         response = FakeResponse({"unexpected": True})
@@ -81,18 +93,20 @@ class TestLocalBrain(unittest.TestCase):
 
     def test_status_reports_pulled_model(self):
         response = FakeResponse({"models": [{"name": "qwen3:8b"}, {"name": "gemma3:4b"}]})
-        with mock.patch.object(local_brain.urllib.request, "urlopen", return_value=response):
+        with mock.patch.object(local_brain.urllib.request, "urlopen", return_value=response), \
+             mock.patch.object(training_data, "stats", return_value={"turns": 0}):
             result = local_brain.status(config=self.cfg)
         self.assertTrue(result["online"])
         self.assertTrue(result["model_available"])
         self.assertIn("qwen3:8b", result["models"])
+        self.assertEqual(result["model_source"], "explicit")
 
     def test_status_reports_offline_without_throwing(self):
         with mock.patch.object(
             local_brain.urllib.request,
             "urlopen",
             side_effect=urllib.error.URLError("offline"),
-        ):
+        ), mock.patch.object(training_data, "stats", return_value={"turns": 0}):
             result = local_brain.status(config=self.cfg)
         self.assertFalse(result["online"])
         self.assertFalse(result["model_available"])
