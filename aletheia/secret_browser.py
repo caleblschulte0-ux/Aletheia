@@ -21,8 +21,10 @@ from aletheia import browse, journal, policy, secret_store, secret_trust, statei
 
 ACTOR = "aletheia-secret-browser"
 MAX_SELECTOR = 500
-MAX_CAPTURE_CHARS = secret_store.MAX_SECRET_BYTES
+MIN_CAPTURE_CHARS = 8
+MAX_CAPTURE_CHARS = 4096
 SAFE_SELECTOR = re.compile(r"^[\x20-\x7e]{1,500}$")
+API_KINDS = frozenset({"api_key", "access_token", "client_secret", "credential"})
 
 CREATE_VERBS = ("create", "generate", "new", "issue")
 CREDENTIAL_NOUNS = (
@@ -155,6 +157,18 @@ def _require_fill_control(meta: dict) -> None:
         raise SecretBrowserRefused("password/2FA/payment fields cannot receive API aliases")
 
 
+def _api_value(value: object) -> str:
+    """Require a single opaque API credential, not a whole page/container."""
+    if not isinstance(value, str):
+        raise SecretBrowserError("credential output was not text")
+    secret = value.strip()
+    if not MIN_CAPTURE_CHARS <= len(secret) <= MAX_CAPTURE_CHARS:
+        raise SecretBrowserError("credential output length was not plausible for an API credential")
+    if not secret.isascii() or any(ch.isspace() for ch in secret):
+        raise SecretBrowserError("credential output was not one bounded opaque API value")
+    return secret
+
+
 def _capture_value(page, selector: str) -> str:
     value = page.eval_on_selector(
         selector,
@@ -163,11 +177,7 @@ def _capture_value(page, selector: str) -> str:
           return (v || el.textContent || '').trim();
         }""",
     )
-    if not isinstance(value, str) or not value.strip():
-        raise SecretBrowserError("credential output was empty")
-    if len(value.encode("utf-8")) > MAX_CAPTURE_CHARS:
-        raise SecretBrowserError("credential output exceeded the local vault limit")
-    return value.strip()
+    return _api_value(value)
 
 
 def _guard_host(page, host: str) -> None:
@@ -184,6 +194,10 @@ def create_capture(*, url: str, create_selector: str, capture_selector: str,
     create_selector = _selector(create_selector, "create_selector")
     capture_selector = _selector(capture_selector, "capture_selector")
     alias = stateio.safe_id(alias, name="secret alias")
+    if secret_store.exists(alias):
+        raise SecretBrowserRefused(
+            f"alias {alias!r} already exists; refusing to overwrite/rotate a stored credential"
+        )
     policy.ensure_not_halted()
     secret_trust.claim("create_capture", host=host, alias=alias)
     ok, why = browse.available()
@@ -230,13 +244,29 @@ def create_capture(*, url: str, create_selector: str, capture_selector: str,
     }
 
 
+def _alias_metadata(alias: str) -> dict:
+    try:
+        meta = secret_store.metadata(alias)
+    except (KeyError, secret_store.SecretStoreError, ValueError):
+        # Never send private local paths/state-reader details into a public receipt.
+        raise SecretBrowserRefused(f"secret alias {alias!r} is unavailable or corrupt") from None
+    if str(meta.get("kind", "")) not in API_KINDS:
+        raise SecretBrowserRefused(
+            f"alias {alias!r} is not classified as an API credential"
+        )
+    return meta
+
+
 def fill_alias(*, url: str, selector: str, alias: str) -> dict:
     """Fill a host-bound vault alias into an API credential field locally."""
     host = _url_host(url)
     selector = _selector(selector, "selector")
     alias = stateio.safe_id(alias, name="secret alias")
-    meta = secret_store.metadata(alias)
-    allowed = secret_store.normalize_hosts(meta.get("allowed_hosts") or [])
+    meta = _alias_metadata(alias)
+    try:
+        allowed = secret_store.normalize_hosts(meta.get("allowed_hosts") or [])
+    except ValueError:
+        raise SecretBrowserRefused(f"alias {alias!r} has invalid host binding metadata") from None
     if host not in allowed:
         raise SecretBrowserRefused(
             f"alias {alias!r} is not bound to host {host!r}; refusing possible exfiltration"
@@ -254,7 +284,7 @@ def fill_alias(*, url: str, selector: str, alias: str) -> dict:
                 page.goto(url, wait_until="domcontentloaded")
                 _guard_host(page, host)
                 _require_fill_control(_element_meta(page, selector))
-                secret = secret_store.get(alias)
+                secret = _api_value(secret_store.get(alias))
                 page.fill(selector, secret)
                 # Read only length, never value, to prove something was filled
                 # without pulling plaintext back out of the DOM.
