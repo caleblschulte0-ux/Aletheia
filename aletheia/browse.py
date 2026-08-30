@@ -2,10 +2,16 @@
 (Playbook §§11, 14; Phase 8).
 
 The browser is the world's largest unofficial interface. This module drives
-a **dedicated, persistent Chromium profile** so the operator signs into his
+a **dedicated, persistent browser profile** so the operator signs into his
 own accounts once, normally, and Aletheia then works inside that authorized
 session. Per §14 that is the only acceptable path: no copied cookies, no
 bypassed authentication, no pretending to be a browser we are not.
+
+On Windows, Aletheia prefers the operator's installed Google Chrome for both
+manual sign-in and later Playwright automation. The one-time login flow opens
+Chrome directly, not through Playwright; this avoids identity providers such as
+Google rejecting an automation-controlled login browser while still keeping the
+session inside Aletheia's dedicated local profile.
 
 Three capabilities, split by what they DO rather than by convenience:
 
@@ -27,6 +33,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -41,21 +50,8 @@ MAX_TEXT = 20_000
 STEP_ACTIONS = {"click", "type", "press", "wait_for", "select"}
 
 
-def available() -> tuple[bool, str]:
-    """(usable, reason) — the honest answer to 'can you drive a browser'."""
-    try:
-        from playwright.sync_api import sync_playwright  # noqa: F401
-    except ImportError:
-        return False, "playwright is not installed (pip install playwright)"
-    exe = _chromium_path()
-    if exe and not Path(exe).exists():
-        return False, f"chromium not found at {exe}"
-    return True, "ready"
-
-
 def _chromium_path() -> str | None:
-    """Respect a pre-provisioned browser if the environment pins one."""
-    import os
+    """Respect a pre-provisioned Playwright browser if the environment pins one."""
     root = os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
     if root:
         candidate = Path(root) / "chromium"
@@ -64,8 +60,87 @@ def _chromium_path() -> str | None:
     return None
 
 
+def _system_chrome_path() -> str | None:
+    """Return an installed/pinned Google Chrome executable when available.
+
+    `ALETHEIA_CHROME_PATH` is an explicit operator override and is returned even
+    when missing so `available()` can report the bad path instead of silently
+    switching browsers.
+    """
+    pinned = os.environ.get("ALETHEIA_CHROME_PATH")
+    if pinned:
+        return pinned
+    if os.name != "nt":
+        return None
+
+    candidates: list[Path] = []
+    for root_name in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
+        root = os.environ.get(root_name)
+        if root:
+            candidates.append(Path(root) / "Google" / "Chrome" / "Application" / "chrome.exe")
+    which = shutil.which("chrome.exe") or shutil.which("chrome")
+    if which:
+        candidates.append(Path(which))
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
+def _browser_executable() -> str | None:
+    """Use real Chrome on Windows so its manually-created session remains usable."""
+    return _system_chrome_path() or _chromium_path()
+
+
+def available() -> tuple[bool, str]:
+    """(usable, reason) — the honest answer to 'can you drive a browser'."""
+    try:
+        from playwright.sync_api import sync_playwright  # noqa: F401
+    except ImportError:
+        return False, "playwright is not installed (pip install playwright)"
+    exe = _browser_executable()
+    if exe and not Path(exe).exists():
+        return False, f"browser executable not found at {exe}"
+    return True, "ready"
+
+
+def _closed_browser_error(exc: BaseException) -> bool:
+    """True only for the benign cleanup error caused by a user closing Chrome."""
+    text = str(exc).lower()
+    return exc.__class__.__name__ == "TargetClosedError" or (
+        "target page, context or browser has been closed" in text
+    )
+
+
+def native_login(url: str, profile: Path | None = None) -> int:
+    """Open a normal installed Chrome process for one-time interactive login.
+
+    No Playwright connection is made while credentials/Google authentication are
+    entered. Chrome writes its authenticated session directly into the same
+    dedicated profile Aletheia later opens with Playwright.
+    """
+    chrome = _system_chrome_path()
+    if not chrome or not Path(chrome).is_file():
+        raise RuntimeError(
+            "Google Chrome is required for the normal sign-in flow on Windows; "
+            "install Chrome or set ALETHEIA_CHROME_PATH"
+        )
+    profile_path = Path(profile or PROFILE_DIR)
+    profile_path.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        chrome,
+        f"--user-data-dir={profile_path}",
+        "--no-first-run",
+        "--no-default-browser-check",
+        "--disable-background-mode",
+        "--new-window",
+        url,
+    ]
+    return subprocess.run(cmd, check=False).returncode
+
+
 class _Session:
-    """A persistent-profile Chromium context. Context manager."""
+    """A persistent-profile Playwright context. Context manager."""
 
     def __init__(self, headed: bool = False, profile: Path | None = None):
         self.headed = headed
@@ -78,7 +153,7 @@ class _Session:
         self.profile.mkdir(parents=True, exist_ok=True)
         self._pw = sync_playwright().start()
         kwargs = {"headless": not self.headed}
-        exe = _chromium_path()
+        exe = _browser_executable()
         if exe:
             kwargs["executable_path"] = exe
         self.context = self._pw.chromium.launch_persistent_context(
@@ -89,10 +164,18 @@ class _Session:
     def __exit__(self, *exc):
         try:
             if self.context:
-                self.context.close()
+                try:
+                    self.context.close()
+                except Exception as close_exc:
+                    if not _closed_browser_error(close_exc):
+                        raise
         finally:
             if self._pw:
-                self._pw.stop()
+                try:
+                    self._pw.stop()
+                except Exception as stop_exc:
+                    if not _closed_browser_error(stop_exc):
+                        raise
 
 
 def _guard(what: str) -> None:
@@ -218,7 +301,7 @@ def main(argv: list[str] | None = None) -> int:
     p_r = sub.add_parser("read"); p_r.add_argument("url")
     p_s = sub.add_parser("shot"); p_s.add_argument("url"); p_s.add_argument("out")
     p_l = sub.add_parser("login")
-    p_l.add_argument("url", help="open a real window so you can sign in once")
+    p_l.add_argument("url", help="open real Chrome so you can sign in once")
     args = ap.parse_args(argv)
 
     ok, reason = available()
@@ -236,11 +319,19 @@ def main(argv: list[str] | None = None) -> int:
     elif args.cmd == "shot":
         print(f"wrote {screenshot(args.url, args.out)}")
     else:
-        print("Opening a browser window. Sign in normally, then close it.")
-        with _Session(headed=True) as ctx:
-            page = ctx.new_page()
-            page.goto(args.url)
-            input("Press Enter here when you are done signing in ... ")
+        if os.name == "nt":
+            print("Opening normal Google Chrome with Aletheia's dedicated profile.")
+            print("Sign in normally. When ChatGPT is open and signed in, close that Chrome window.")
+            rc = native_login(args.url)
+            if rc != 0:
+                print(f"Chrome sign-in window exited with code {rc}", file=sys.stderr)
+                return 1
+        else:
+            print("Opening a browser window. Sign in normally, then close it.")
+            with _Session(headed=True) as ctx:
+                page = ctx.new_page()
+                page.goto(args.url)
+                input("Press Enter here when you are done signing in ... ")
     return 0
 
 
