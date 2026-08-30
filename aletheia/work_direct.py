@@ -24,8 +24,8 @@ MAX_STEPS_PER_ACTION = 24
 MAX_SUMMARY_CHARS = 240
 
 # Public-bus plans may navigate and invoke already-labelled benign controls, but
-# never carry arbitrary typed text. GitHub is the transport, so typed values
-# would become repository history even if the destination UI were safe.
+# never carry arbitrary typed text. GitHub is the transport, so typed values or
+# process command-line arguments would become repository history.
 DIRECT_COMPUTER_ACTIONS = frozenset({
     "open_app", "list_windows", "wait_window", "focus_window",
     "inspect_controls", "invoke", "screenshot_window",
@@ -75,11 +75,14 @@ def _validate_public_computer(steps: object) -> list[dict]:
             raise DirectWorkRefused(
                 f"computer steps[{i}] action {step.get('action')!r} is not allowed on the public command bus"
             )
-        # Even app arguments are repository-visible. Permit only bounded plain
-        # text that has already survived Work Session's sensitive-term filter.
-        for arg in step.get("arguments", []):
-            if not isinstance(arg, str) or not SAFE_TEXT.fullmatch(arg):
-                raise DirectWorkRefused(f"computer steps[{i}] has a non-public-safe argument")
+        if step.get("action") == "open_app":
+            app = step.get("app")
+            if not isinstance(app, str) or not SAFE_TEXT.fullmatch(app):
+                raise DirectWorkRefused(f"computer steps[{i}].app is not public-safe text")
+            if step.get("arguments"):
+                raise DirectWorkRefused(
+                    f"computer steps[{i}] app arguments are not allowed on the public command bus"
+                )
     problems = work_session.computer_problems(steps)
     if problems:
         raise DirectWorkRefused("; ".join(problems))
@@ -155,8 +158,6 @@ def parse(text: str, *, quote: str) -> dict:
 def execute(text: str, *, quote: str) -> dict:
     """Execute a quote-bound direct plan through an already-active Work Session."""
     plan = parse(text, quote=quote)
-    # `active()` is checked again inside each Work Session action, but failing
-    # before any action makes the receipt clearer and consumes no session slot.
     if not work_session.active():
         raise work_session.WorkSessionRequired(
             "direct ChatGPT computer/browser work requires an active local Work Session"
