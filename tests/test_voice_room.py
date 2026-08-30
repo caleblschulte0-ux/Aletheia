@@ -38,6 +38,19 @@ class TestLoop(unittest.TestCase):
         self.assertEqual(asked, ["thea what's going on"])
         self.assertEqual(spoken, ["two alerts"])
 
+    def test_false_wake_without_wake_prefix_is_ignored(self):
+        asked = []
+        with mock.patch.object(voice_room, "ask_core",
+                               side_effect=lambda t, *a, **k: asked.append(t) or {"say": "ok"}):
+            handled = voice_room.listen_forever(
+                recognizer=iter([
+                    (True, "first author jimmy brown"),
+                    (True, "how many of these are your specific appeal"),
+                ]),
+                speaker=lambda t: None)
+        self.assertEqual(handled, 0)
+        self.assertEqual(asked, [])
+
     def test_mangled_wake_word_still_carries_the_command(self):
         # the open model heard 'yeah ...' but the wake spotter fired
         asked = []
