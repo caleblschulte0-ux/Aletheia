@@ -1,36 +1,13 @@
-"""A reasoning provider that actually reasons — with no API key (§6).
+"""Subscription-backed reasoning with no per-token API key.
 
-`aletheia.brain` has always defined the contract a reasoning provider must
-satisfy. Until now the only provider was `brain.deterministic`, which
-answers every input with "clarify" — honest, and the reason Aletheia could
-execute a 27-slot command grammar and nothing else. Anything the operator
-said that did not fit a slot could not even be REPRESENTED.
+Aletheia treats an LLM as a replaceable reasoning provider, never as authority.
+This adapter prefers the operator's Claude CLI subscription because it is fast
+and tool-less, then falls back to the operator's signed-in ChatGPT browser
+session when Claude is unavailable. If neither subscription can answer, callers
+degrade to the deterministic fallback instead of inventing a result.
 
-This is the missing provider. It shells out to the Claude CLI already
-installed on the operator's machine, running on his own subscription
-through an official client — exactly what §6 asks for, and the same
-arrangement as every other worker in the fleet. No key is read, none is
-stored, and if the binary is missing the module degrades honestly instead
-of pretending (§106).
-
-Three properties make a model safe to put here:
-
-  * **No tools.** `--tools ""` leaves the provider with no filesystem, no
-    shell, no network of its own. It can emit text and nothing else, so
-    the worst a bad answer can do is fail validation.
-  * **No authority.** What comes back is a PROPOSAL. Every step still
-    passes `intercom.validate_kind_args` and every policy gate before
-    anything happens (§70: ability is not permission). A model may
-    propose `purchase.execute`; the gate is what decides, exactly as it
-    would for a proposal typed by hand.
-  * **No trust in its shape.** Planner outputs go through
-    `brain.validate_output`; other callers may use `infer_json` only when
-    they validate their own narrower schema before doing anything with it.
-
-Bounded on every axis a subprocess can run away on: timeout, output size,
-context size, one turn, no session persistence, and a neutral working directory.
-Context is serialized as one complete JSON value or refused; it is never raw-sliced
-mid-object, because partial context is worse than an honest degraded answer.
+Every model answer remains a proposal: planner/intercom validation and policy
+gates decide what may actually happen.
 """
 from __future__ import annotations
 
@@ -44,8 +21,6 @@ from dataclasses import dataclass
 from aletheia import brain
 from aletheia.proc import hidden_flags
 
-# Fast model for interpretation; a stronger one for multi-step planning.
-# Both are aliases, so this never pins a model id that will age out.
 INTERPRET_MODEL = "haiku"
 PLAN_MODEL = "sonnet"
 TIMEOUT_S = 90.0
@@ -55,7 +30,7 @@ CLI = "claude"
 
 
 class ReasonerUnavailable(RuntimeError):
-    """The provider is not installed or not usable. Callers fall back."""
+    """No configured subscription-backed provider was usable."""
 
 
 def cli_path() -> str | None:
@@ -63,16 +38,21 @@ def cli_path() -> str | None:
 
 
 def available() -> tuple[bool, str]:
-    """(usable, why) — the honest answer for the capability registry."""
+    """(usable, why) for the subscription reasoning adapter."""
     path = cli_path()
-    if not path:
-        return False, (f"the {CLI!r} CLI is not on PATH; install it and sign in "
-                       "with the operator's subscription (no API key)")
-    return True, f"{CLI} at {path}"
+    if path:
+        return True, f"Claude CLI at {path}; ChatGPT browser is the runtime fallback"
+    try:
+        from aletheia import browser_reasoner
+        ok, why = browser_reasoner.available()
+    except Exception:
+        ok, why = False, "ChatGPT browser adapter could not be inspected"
+    if ok:
+        return True, f"Claude CLI absent; {why}"
+    return False, f"Claude CLI is not on PATH and ChatGPT browser is unavailable ({why})"
 
 
 def _strip_fence(text: str) -> str:
-    """Models fence JSON even when told not to. Take the fenced body."""
     stripped = text.strip()
     if not stripped.startswith("```"):
         return stripped
@@ -82,11 +62,6 @@ def _strip_fence(text: str) -> str:
 
 
 def _first_json_object(text: str) -> dict:
-    """The first complete JSON object in the text, or ValueError.
-
-    Tolerates a model that adds a sentence before or after the object;
-    refuses one that returns no object at all rather than guessing.
-    """
     candidate = _strip_fence(text)
     try:
         value = json.loads(candidate)
@@ -122,10 +97,9 @@ def _first_json_object(text: str) -> dict:
 
 
 def _context_json(context: dict) -> str:
-    """One complete, bounded context object for a model prompt."""
     try:
-        encoded = json.dumps(
-            context, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        encoded = json.dumps(context, ensure_ascii=False, sort_keys=True,
+                             separators=(",", ":"))
     except (TypeError, ValueError) as exc:
         raise ReasonerUnavailable(
             f"reasoning context is not JSON-serializable: {type(exc).__name__}") from None
@@ -139,66 +113,50 @@ def _context_json(context: dict) -> str:
 
 def _run_cli(system_prompt: str, user_prompt: str, model: str,
              timeout_s: float = TIMEOUT_S) -> str:
-    """One bounded, tool-less inference. Returns the model's raw text."""
     path = cli_path()
     if not path:
-        raise ReasonerUnavailable(available()[1])
+        raise ReasonerUnavailable("Claude CLI is not on PATH")
     argv = [
         path, "-p", user_prompt,
         "--system-prompt", system_prompt,
-        "--tools", "",                  # no filesystem, no shell, no network
+        "--tools", "",
         "--model", model,
         "--output-format", "json",
         "--no-session-persistence",
         "--disable-slash-commands",
         "--strict-mcp-config",
     ]
-    # A neutral cwd: inside the repo the CLI would load this project's own
-    # CLAUDE.md into every single call.
     with tempfile.TemporaryDirectory(prefix="aletheia-brain-") as workdir:
         try:
             proc = subprocess.run(
                 argv, cwd=workdir, capture_output=True, text=True,
-                # text=True alone decodes with the LOCALE codec, which on this
-                # machine is cp1252 — so a single em-dash, accented name or £
-                # in the answer raised UnicodeDecodeError and took the whole
-                # reasoning path down. Found 2026-08-27 by asking about a screen
-                # whose window title contained a glyph. The CLI speaks UTF-8;
-                # say so, and never let an unmappable byte be the thing that
-                # stops her thinking.
-                encoding="utf-8", errors="replace",
-                timeout=timeout_s, creationflags=hidden_flags(),
+                encoding="utf-8", errors="replace", timeout=timeout_s,
+                creationflags=hidden_flags(),
                 env={**os.environ, "CLAUDE_CODE_DISABLE_TERMINAL_TITLE": "1"})
         except subprocess.TimeoutExpired as exc:
             raise ReasonerUnavailable(
-                f"reasoning provider timed out after {timeout_s:g}s") from exc
+                f"Claude reasoning timed out after {timeout_s:g}s") from exc
         except OSError as exc:
-            raise ReasonerUnavailable(f"could not run {CLI}: {exc}") from exc
+            raise ReasonerUnavailable(f"could not run Claude CLI: {type(exc).__name__}") from None
     if proc.returncode != 0:
-        raise ReasonerUnavailable(
-            f"{CLI} exited {proc.returncode}: {(proc.stderr or '')[:300]}")
+        # Do not propagate auth/account stderr into durable/public receipts.
+        raise ReasonerUnavailable(f"Claude CLI exited {proc.returncode}")
     raw = (proc.stdout or "")[:MAX_OUTPUT_BYTES]
     try:
         envelope = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise ReasonerUnavailable(f"unparseable {CLI} envelope: {raw[:200]!r}") from exc
+        raise ReasonerUnavailable("Claude CLI returned an invalid envelope") from exc
     if envelope.get("is_error"):
-        raise ReasonerUnavailable(f"{CLI} reported an error: {str(envelope)[:300]}")
+        raise ReasonerUnavailable("Claude CLI reported an unavailable/error state")
     result = envelope.get("result")
     if not isinstance(result, str) or not result.strip():
-        raise ReasonerUnavailable(f"{CLI} returned no result text")
+        raise ReasonerUnavailable("Claude CLI returned no result text")
     return result
 
 
 def infer_json(system_prompt: str, text: str, *, context: dict | None = None,
                model: str = INTERPRET_MODEL, timeout_s: float = TIMEOUT_S) -> dict:
-    """Run one tool-less inference and return one parsed JSON object.
-
-    This is intentionally *not* a general authority seam. The caller owns and
-    must validate its own output schema before using the object. It exists so
-    read-only reasoning jobs (for example proactive triage) reuse exactly the
-    same no-tools/no-session/bounded process boundary as the planner.
-    """
+    """Run Claude CLI only. `CliReasoner` below adds the ChatGPT fallback."""
     if not isinstance(system_prompt, str) or not system_prompt.strip():
         raise ValueError("reasoner system_prompt is required")
     if not isinstance(text, str) or not text.strip() or len(text) > brain.MAX_TEXT:
@@ -213,31 +171,45 @@ def infer_json(system_prompt: str, text: str, *, context: dict | None = None,
 
 @dataclass(frozen=True)
 class CliReasoner:
-    """A brain.Provider backed by the local CLI. `run` is inherited
-    behaviour: `brain.validate_output` gates everything this returns —
-    which is exactly what `infer_json` below does NOT do, and why its
-    callers must validate their own schema."""
+    """Compatibility name for the subscription-auto adapter.
+
+    Existing callers keep using this class; its behavior is now Claude-first,
+    ChatGPT-browser-second. Neither backend receives local tools or authority.
+    """
     model: str = INTERPRET_MODEL
     system_prompt: str = ""
     timeout_s: float = TIMEOUT_S
 
     def infer(self, text: str, context: dict | None = None) -> dict:
-        return infer_json(self.system_prompt, text, context=context,
-                          model=self.model, timeout_s=self.timeout_s)
+        try:
+            result = infer_json(self.system_prompt, text, context=context,
+                                model=self.model, timeout_s=self.timeout_s)
+            # Validate here once so malformed Claude output can fall through to
+            # ChatGPT rather than consuming the planner's single repair retry.
+            return brain.validate_output(result)
+        except (ReasonerUnavailable, ValueError, brain.BrainOutputError):
+            pass
 
-    def provider(self, provider_id: str = "claude.cli") -> brain.Provider:
+        try:
+            from aletheia import browser_reasoner
+            return browser_reasoner.infer_json(
+                self.system_prompt, text, context=context,
+                timeout_s=max(self.timeout_s, browser_reasoner.TIMEOUT_S))
+        except (browser_reasoner.BrowserReasonerUnavailable, ValueError):
+            raise ReasonerUnavailable(
+                "both subscription reasoning paths are unavailable: Claude failed and ChatGPT browser could not answer"
+            ) from None
+
+    def provider(self, provider_id: str = "subscription.auto") -> brain.Provider:
+        # Existing callers historically pass claude.cli.*. Preserve their call
+        # sites but make durable records truthful about the adapter now in use.
+        if provider_id.startswith("claude.cli"):
+            provider_id = "subscription.auto" + provider_id[len("claude.cli"):]
         return brain.Provider(provider_id, self.infer)
 
 
 def infer_or_fallback(provider: brain.Provider, text: str,
                       context: dict | None = None) -> tuple[dict, str | None]:
-    """(output, degraded_reason). Never raises.
-
-    A reasoning provider is an ordinary dependency that can be absent,
-    slow, or wrong. When it is any of those, the caller gets the
-    deterministic fallback's honest "clarify" and the REASON — which is
-    what reaches the operator, instead of silence or invention.
-    """
     try:
         return provider.run(text, context or {}), None
     except (ReasonerUnavailable, ValueError, brain.BrainOutputError) as exc:
