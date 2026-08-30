@@ -4,6 +4,18 @@
 > `chatgpt/local-ai-brain-v1`. It is not wired into `main` and does not replace
 > the canonical assistant/runtime until reviewed.
 
+## Two non-negotiable design rules
+
+1. **Keep the learning data.** Every local reasoning attempt should create a
+   durable, local training/evaluation example containing the input, exact model
+   request payload, model/provider identity, validated result or failure, timing,
+   and later operator feedback/corrections. This is how future Aletheia models
+   get trained on Aletheia's actual work instead of starting from zero.
+2. **The model is a cartridge, not the machine.** Changing from Qwen to Gemma,
+   another Ollama model, or a future Aletheia-trained model must not require
+   editing orchestration or policy code. The selected model lives in machine-
+   local configuration and can be changed with one command.
+
 ## Goal
 
 Give Aletheia an always-available local reasoning provider so a cloud-model
@@ -19,7 +31,10 @@ operator text
     v
 aletheia.brain_router
     |
-    +--> local Ollama model --> aletheia.brain.validate_output --> proposal
+    +--> selected local Ollama model
+    |       |
+    |       +--> aletheia.brain.validate_output --> proposal
+    |       `--> local training/evaluation event retained
     |
     `--> if local model/socket/protocol/contract fails
          aletheia.brain.FALLBACK --> clarify (no guessed action)
@@ -35,18 +50,45 @@ From the repository root in PowerShell:
 powershell -ExecutionPolicy Bypass -File .\scripts\setup-local-ai.ps1
 ```
 
-The script:
+Choose another model during setup:
 
-1. installs Ollama with its official Windows installer if `ollama` is missing;
-2. pulls the configured model (default `qwen3:8b`);
-3. checks Ollama's loopback API;
-4. prints the two commands below.
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup-local-ai.ps1 -Model "qwen3:14b"
+```
 
-Ollama serves its local API on `http://127.0.0.1:11434` by default.
+The script installs Ollama if needed, pulls the selected model, saves the model
+choice outside Git, checks the loopback API, and reports training-data status.
+
+## Change models later — no code edit
+
+Show the currently selected model:
+
+```powershell
+python -m aletheia.model_config show
+```
+
+Change it:
+
+```powershell
+ollama pull qwen3:14b
+python -m aletheia.model_config set qwen3:14b
+```
+
+That is the intended model-swap boundary. `OllamaConfig.from_env()` resolves the
+model using this precedence:
+
+1. an explicit model passed by the caller;
+2. `ALETHEIA_LOCAL_AI_MODEL` environment override;
+3. the machine-local saved model;
+4. bootstrap default `qwen3:8b`.
+
+The saved choice lives outside the repository, under the user's local Aletheia
+configuration directory. A model swap therefore creates no Git commit and does
+not alter Aletheia policy, memory, plans, tools, or approvals.
 
 ## Use
 
-Check the local socket/model:
+Check the local socket/model and training capture:
 
 ```powershell
 python -m aletheia.brain_router status
@@ -58,7 +100,7 @@ Interpret an operator sentence, local-first with deterministic fallback:
 python -m aletheia.brain_router interpret "What needs my attention?"
 ```
 
-Force the local provider (useful while testing; errors instead of fallback):
+Force the local provider:
 
 ```powershell
 python -m aletheia.brain_router interpret --provider local "Make a plan for this"
@@ -76,17 +118,72 @@ Pass a bounded JSON object as reference context:
 python -m aletheia.brain_router interpret --context .\state\pulse\latest.json "Summarize the important part"
 ```
 
-The context is explicitly labeled untrusted to the model and truncated before
-submission if it exceeds the adapter's bound.
+## Future-model training data
+
+Training capture is **on by default** for local-model reasoning attempts. The
+canonical events are intentionally stored outside Git:
+
+- Windows: `%LOCALAPPDATA%\Aletheia\training`
+- other systems: `~/.aletheia/training`
+
+Each reasoning-turn event retains:
+
+- timestamp and schema version;
+- provider and exact model name;
+- operator text;
+- supplied context;
+- **exact JSON request payload sent to Ollama**, including the historical system
+  prompt and output schema;
+- validated model result, or error type/message if the attempt failed;
+- elapsed time.
+
+Later feedback is stored as a separate append-only event linked by `turn_id`.
+That lets the future dataset distinguish answers that were accepted, bad, mixed,
+or explicitly corrected without rewriting the historical raw example.
+
+Inspect retained data:
+
+```powershell
+python -m aletheia.training_cli status
+```
+
+Export a portable JSONL dataset when it is time to evaluate/fine-tune:
+
+```powershell
+python -m aletheia.training_cli export .\aletheia-training.jsonl
+```
+
+Attach feedback to a retained turn:
+
+```powershell
+python -m aletheia.training_cli feedback <turn-id> --verdict good
+```
+
+or attach a corrected brain-output object:
+
+```powershell
+python -m aletheia.training_cli feedback <turn-id> --verdict corrected --corrected-json .\corrected.json
+```
+
+Capture can be disabled for a session with `ALETHEIA_TRAINING_CAPTURE=0`, and the
+storage location can be overridden with `ALETHEIA_TRAINING_DATA_DIR`. Capture
+failures are fail-soft: a disk/logging problem does not block reasoning.
+
+**Privacy boundary:** this dataset is meant to contain real personal Aletheia
+context because that is what makes a future personal model useful. Therefore it
+stays local by default and is never automatically committed, uploaded, or sent
+to GitHub/cloud training services. Any future synchronization/encryption policy
+must be an explicit separate design decision.
 
 ## Configuration
 
 Optional environment variables:
 
 ```powershell
-$env:ALETHEIA_LOCAL_AI_MODEL = "qwen3:8b"
+$env:ALETHEIA_LOCAL_AI_MODEL = "qwen3:8b"       # temporary model override
 $env:ALETHEIA_LOCAL_AI_URL = "http://127.0.0.1:11434"
 $env:ALETHEIA_LOCAL_AI_TIMEOUT = "90"
+$env:ALETHEIA_TRAINING_CAPTURE = "1"
 ```
 
 The adapter intentionally refuses non-loopback URLs. This prototype is a local
@@ -105,7 +202,8 @@ cloud providers separately with explicit trust/configuration boundaries.
 - local configuration is invalid.
 
 That fallback returns a `clarify` intent with zero confidence. It does not
-manufacture an executable command.
+manufacture an executable command. Failed local attempts are still useful data
+and are retained with an error label when capture is available.
 
 ## Security boundary
 
@@ -130,12 +228,13 @@ provider/tool -> evidence/receipt.
 Run:
 
 ```powershell
-python -m unittest tests.test_local_brain
+python -m unittest tests.test_local_brain tests.test_brain_router tests.test_model_config tests.test_training_data
 ```
 
 The tests mock the Ollama socket; CI does not need a downloaded model. They cover
-valid structured output, contract rejection, offline fallback, protocol fallback,
-health status, loopback-only configuration, and context bounding.
+structured output, contract rejection, offline/protocol fallback, training-event
+retention, exact request capture, feedback/export, one-command model swapping,
+environment overrides, loopback-only configuration, and context bounding.
 
 ## What is intentionally NOT done on this branch
 
@@ -143,10 +242,12 @@ health status, loopback-only configuration, and context bounding.
 - No change to `aletheia/brain.py`.
 - No replacement of Claude, ChatGPT, or any cloud workflow.
 - No model download committed to Git (weights stay on the PC/Ollama store).
+- No personal training dataset committed to Git.
 - No merge to `main`.
 
 Once reviewed, the smallest canonical integration is to make the existing
 `assistant interpret` command select the local provider in `auto` mode while
-retaining an explicit deterministic fallback option. The adapter itself should
-remain replaceable so later Qwen/Gemma/custom Aletheia models can be swapped by
-configuration rather than architecture changes.
+retaining an explicit deterministic fallback option. The adapter, model config,
+and training-data format should stay provider-neutral enough that a future
+Aletheia-trained model can replace today's bootstrap model without rebuilding
+the operating system around it.
