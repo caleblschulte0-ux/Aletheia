@@ -1,8 +1,14 @@
 """Minimal GitHub REST client — the one door every capability talks through.
 
-Token precedence: FLEET_TOKEN (cross-fleet PAT) then GITHUB_TOKEN (Actions
-default, this repo only). Callers that can act without a token don't exist;
-callers must handle the None-token case honestly rather than pretending.
+Token precedence:
+1. FLEET_TOKEN (explicit cross-fleet environment override)
+2. GITHUB_TOKEN (GitHub Actions/default environment)
+3. Windows DPAPI alias ``github.fleet`` from Aletheia's local secret store
+
+The DPAPI fallback lets background Scheduled Tasks authenticate without putting
+a long-lived token in the public repo, command bus, or user environment.
+Missing/unavailable local secret state simply means "no token"; callers still
+handle that state honestly.
 """
 from __future__ import annotations
 
@@ -11,10 +17,22 @@ import os
 import urllib.request
 
 API = "https://api.github.com"
+LOCAL_TOKEN_ALIAS = "github.fleet"
 
 
 def token() -> str | None:
-    return os.environ.get("FLEET_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    explicit = os.environ.get("FLEET_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    if explicit:
+        return explicit
+    if os.name != "nt":
+        return None
+    try:
+        from aletheia import secret_store
+        value = secret_store.get(LOCAL_TOKEN_ALIAS)
+    except Exception:
+        return None
+    value = value.strip() if isinstance(value, str) else ""
+    return value or None
 
 
 def request(method: str, path: str, body: dict | None = None, tok: str | None = None):
