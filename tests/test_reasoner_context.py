@@ -1,4 +1,5 @@
 import json
+import os
 import unittest
 from unittest import mock
 
@@ -6,6 +7,15 @@ from aletheia import reasoner
 
 
 class ReasonerContextCase(unittest.TestCase):
+    def setUp(self):
+        self.shadow = mock.patch.dict(
+            os.environ, {"ALETHEIA_LOCAL_AI_SHADOW": "0"}, clear=False,
+        )
+        self.shadow.start()
+
+    def tearDown(self):
+        self.shadow.stop()
+
     def test_context_json_is_complete_compact_json(self):
         value = {"calendar": [{"id": "meeting-1", "title": "sync"}],
                  "room": {"state": "quiet"}}
@@ -28,7 +38,9 @@ class ReasonerContextCase(unittest.TestCase):
         response = json.dumps({"intent": "clarify", "summary": "need detail"})
         with mock.patch.object(reasoner, "_run_cli",
                                side_effect=lambda system, prompt, model, timeout: captured.append(prompt) or response):
-            output = reasoner.CliReasoner(system_prompt="system").infer(
+            output = reasoner.CliReasoner(
+                model=reasoner.PLAN_MODEL, system_prompt="system",
+            ).infer(
                 "move my next meeting", {"calendar_next": [{"id": "meeting-1"}]})
         self.assertEqual(output["intent"], "clarify")
         prompt = captured[0]
@@ -39,8 +51,10 @@ class ReasonerContextCase(unittest.TestCase):
     def test_oversized_context_degrades_before_cli_is_called(self):
         provider = reasoner.CliReasoner(system_prompt="system").provider("test")
         huge = {"items": [{"text": "x" * 1000} for _ in range(20)]}
-        with mock.patch.object(reasoner, "_run_cli",
-                               side_effect=AssertionError("CLI must not run")):
+        with mock.patch("aletheia.local_model_pool.auto_json",
+                        side_effect=AssertionError("local model must not run")), \
+             mock.patch.object(reasoner, "subscription_json",
+                               side_effect=AssertionError("subscription must not run")):
             output, degraded = reasoner.infer_or_fallback(provider, "do it", huge)
         self.assertEqual(output["intent"], "clarify")
         self.assertIn("bounded whole context", degraded)

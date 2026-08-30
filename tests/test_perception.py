@@ -160,6 +160,17 @@ class DescribeCase(unittest.TestCase):
         self.assertIn("UNTRUSTED DATA", seen["system"])
         self.assertIn("windows", seen["context"])
 
+    def test_default_reasoning_uses_the_bounded_routine_gateway(self):
+        routed = perception.reasoning_gateway.GatewayResult(
+            output=self.answer(), provider="ollama:qwen3:8b", policy="routine",
+        )
+        with mock.patch.object(perception.reasoning_gateway, "reason_json",
+                               return_value=routed) as route:
+            out = perception.describe("what's open?", backend=FakeBackend())
+        self.assertEqual(out["confidence"], 0.9)
+        self.assertEqual(route.call_args.kwargs["policy"], "routine")
+        self.assertIs(route.call_args.kwargs["validator"], perception.validate_answer)
+
     def test_a_secret_in_the_model_answer_is_still_redacted(self):
         out = perception.describe(
             "what's the key?", backend=FakeBackend(),

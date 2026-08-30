@@ -8,6 +8,7 @@ validate the returned object through the normal brain/planner gates.
 from __future__ import annotations
 
 import json
+import math
 import os
 import time
 from urllib.parse import urlparse
@@ -238,11 +239,19 @@ def _compose(system_prompt: str, text: str, context: dict | None) -> str:
 def _infer_page(page, prompt: str, timeout_s: float = TIMEOUT_S) -> dict:
     if not _host_ok(page.url):
         raise BrowserReasonerUnavailable("ChatGPT browser redirected away from chatgpt.com; sign-in may be required")
-    editor = _editor(page)
-    before = _assistant_counts(page)
-    _submit_prompt(page, editor, prompt)
+    started = time.monotonic()
 
-    deadline = time.monotonic() + timeout_s
+    def remaining() -> float:
+        return max(0.0, float(timeout_s) - (time.monotonic() - started))
+
+    # Composer setup must not consume the entire caller-owned deadline. Reserve
+    # most of the budget for the model response, especially on short fallbacks.
+    editor = _editor(page, timeout_s=min(EDITOR_WAIT_S, remaining() * 0.25))
+    before = _assistant_counts(page)
+    _submit_prompt(page, editor, prompt,
+                   timeout_s=min(SEND_WAIT_S, remaining() * 0.10))
+
+    deadline = time.monotonic() + remaining()
     while time.monotonic() < deadline:
         text = _new_assistant_text(page, before)
         if text:
@@ -252,7 +261,8 @@ def _infer_page(page, prompt: str, timeout_s: float = TIMEOUT_S) -> dict:
                 return _first_json_object(text)
             except BrowserReasonerUnavailable:
                 pass
-        page.wait_for_timeout(POLL_MS)
+        wait_ms = max(1, min(POLL_MS, int((deadline - time.monotonic()) * 1000)))
+        page.wait_for_timeout(wait_ms)
     raise BrowserReasonerUnavailable("ChatGPT browser reasoning timed out")
 
 
@@ -262,6 +272,16 @@ def infer_json(system_prompt: str, text: str, *, context: dict | None = None,
         raise ValueError("system_prompt is required")
     if not isinstance(text, str) or not text.strip() or len(text) > brain.MAX_TEXT:
         raise ValueError("reasoner text must be non-empty and bounded")
+    budget = float(timeout_s)
+    if not math.isfinite(budget) or budget < 0.5:
+        raise ValueError(
+            "browser reasoning timeout must be finite and at least 0.5 seconds"
+        )
+    started = time.monotonic()
+
+    def remaining() -> float:
+        return max(0.0, budget - (time.monotonic() - started))
+
     ok, why = browse.available()
     if not ok:
         raise BrowserReasonerUnavailable(f"browser unavailable ({why})")
@@ -270,12 +290,26 @@ def infer_json(system_prompt: str, text: str, *, context: dict | None = None,
         with _subscription_session() as ctx:
             page = ctx.new_page()
             try:
-                page.goto(CHATGPT_URL, wait_until="domcontentloaded")
+                navigation_budget = remaining()
+                if navigation_budget < 0.05:
+                    raise BrowserReasonerUnavailable(
+                        "ChatGPT browser reasoning timed out before navigation"
+                    )
+                page.goto(
+                    CHATGPT_URL,
+                    wait_until="domcontentloaded",
+                    timeout=max(1, int(navigation_budget * 1000)),
+                )
                 if not _host_ok(page.url):
                     raise BrowserReasonerUnavailable(
                         "ChatGPT needs a normal browser sign-in before it can be used as a reasoning provider"
                     )
-                return _infer_page(page, prompt, timeout_s=timeout_s)
+                response_budget = remaining()
+                if response_budget < 0.05:
+                    raise BrowserReasonerUnavailable(
+                        "ChatGPT browser reasoning timed out during navigation"
+                    )
+                return _infer_page(page, prompt, timeout_s=response_budget)
             finally:
                 page.close()
     except BrowserReasonerUnavailable:

@@ -76,6 +76,21 @@ class AdvisorCase(unittest.TestCase):
             infer=lambda *a, **k: self.fail("same event must not reason twice"))
         self.assertEqual(again["outcome"], "already-judged")
 
+    def test_default_judgment_uses_the_bounded_routine_gateway(self):
+        routed = advisor.reasoning_gateway.GatewayResult(
+            output={"decision": "IGNORE", "summary": "", "reason": "routine",
+                    "priority": "INFO", "confidence": 0.9},
+            provider="ollama:qwen3:8b", policy="routine",
+        )
+        with mock.patch.object(advisor.reasoning_gateway, "reason_json",
+                               return_value=routed) as route:
+            result = advisor.evaluate_event(
+                EVENT, now=NOW, config=self.cfg, context_snapshot=CONTEXT,
+            )
+        self.assertEqual(result["outcome"], "ignore")
+        self.assertEqual(route.call_args.kwargs["policy"], "routine")
+        self.assertIs(route.call_args.kwargs["validator"], advisor.validate_decision)
+
     def test_notify_creates_only_an_operator_notification(self):
         seen = []
         result = advisor.evaluate_event(

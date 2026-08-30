@@ -46,7 +46,7 @@ import json
 import sys
 
 from aletheia import (calendar, communications, contacts, journal, mail,
-                      meetings, policy, reasoner, stateio)
+                      meetings, policy, reasoner, reasoning_gateway, stateio)
 
 ACTOR = "aletheia-scheduling"
 
@@ -250,14 +250,22 @@ def interpret_reply(record: dict, reply_text: str, *, infer=None) -> dict:
     """Map a human reply onto the exact slots offered. Never guesses."""
     slots = [{"index": i, "when": s["human"], "start": s["start"]}
              for i, s in enumerate(record["slots"])]
-    infer = infer or reasoner.infer_json
-    output = infer(
-        REPLY_PROMPT,
+    text = (
         "Offered slots and the reply follow.\n"
         + json.dumps({"offered": slots, "reply": reply_text[:4000]},
-                     ensure_ascii=False),
-        model=reasoner.INTERPRET_MODEL)
-    return validate_reply(output, len(record["slots"]))
+                     ensure_ascii=False)
+    )
+    if infer is None:
+        return reasoning_gateway.reason_json(
+            REPLY_PROMPT, text, model=reasoner.INTERPRET_MODEL,
+            policy="routine",
+            timeout_s=reasoning_gateway.ROUTINE_TOTAL_TIMEOUT_S,
+            validator=lambda value: validate_reply(value, len(record["slots"])),
+        ).output
+    return validate_reply(
+        infer(REPLY_PROMPT, text, model=reasoner.INTERPRET_MODEL),
+        len(record["slots"]),
+    )
 
 
 def validate_reply(value: dict, slot_count: int) -> dict:

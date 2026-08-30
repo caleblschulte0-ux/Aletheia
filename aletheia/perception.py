@@ -40,7 +40,7 @@ import json
 import re
 import sys
 
-from aletheia import journal, policy, reasoner
+from aletheia import journal, policy, reasoner, reasoning_gateway
 
 ACTOR = "aletheia-perception"
 
@@ -208,10 +208,18 @@ def describe(question: str, *, window: dict | None = None, backend=None,
         raise ValueError("ask a question about the screen")
     observation = observation if observation is not None else observe(
         window, backend=backend)
-    infer = infer or reasoner.infer_json
-    output = infer(SYSTEM_PROMPT, question.strip()[:1000],
-                   context=observation, model=reasoner.INTERPRET_MODEL)
-    answer = validate_answer(output)
+    if infer is None:
+        answer = reasoning_gateway.reason_json(
+            SYSTEM_PROMPT, question.strip()[:1000], context=observation,
+            model=reasoner.INTERPRET_MODEL, policy="routine",
+            timeout_s=reasoning_gateway.ROUTINE_TOTAL_TIMEOUT_S,
+            validator=validate_answer,
+        ).output
+    else:
+        answer = validate_answer(infer(
+            SYSTEM_PROMPT, question.strip()[:1000],
+            context=observation, model=reasoner.INTERPRET_MODEL,
+        ))
     journal.append("action", "perception:screen",
                    f"asked {question.strip()[:80]!r} — answered at "
                    f"{answer['confidence']:.2f}", actor=ACTOR)

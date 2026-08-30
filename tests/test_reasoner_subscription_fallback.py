@@ -1,7 +1,8 @@
+import os
 import unittest
 from unittest import mock
 
-from aletheia import browser_reasoner, reasoner
+from aletheia import browser_reasoner, local_model_pool, reasoner
 
 
 VALID = {
@@ -13,8 +14,19 @@ VALID = {
 
 
 class SubscriptionFallbackCase(unittest.TestCase):
+    def setUp(self):
+        self.shadow = mock.patch.dict(
+            os.environ, {"ALETHEIA_LOCAL_AI_SHADOW": "0"}, clear=False,
+        )
+        self.shadow.start()
+
+    def tearDown(self):
+        self.shadow.stop()
+
     def test_claude_success_does_not_touch_browser(self):
-        adapter = reasoner.CliReasoner(system_prompt="contract")
+        adapter = reasoner.CliReasoner(
+            model=reasoner.PLAN_MODEL, system_prompt="contract",
+        )
         with mock.patch.object(reasoner, "infer_json", return_value=VALID) as cli, \
              mock.patch.object(browser_reasoner, "infer_json") as browser:
             result = adapter.provider("claude.cli.plan").run("do something", {})
@@ -23,19 +35,23 @@ class SubscriptionFallbackCase(unittest.TestCase):
         browser.assert_not_called()
 
     def test_claude_failure_uses_chatgpt_browser_without_api_key(self):
-        adapter = reasoner.CliReasoner(system_prompt="contract")
+        adapter = reasoner.CliReasoner(
+            model=reasoner.PLAN_MODEL, system_prompt="contract",
+        )
         with mock.patch.object(reasoner, "infer_json",
                                side_effect=reasoner.ReasonerUnavailable("subscription down")), \
              mock.patch.object(browser_reasoner, "infer_json", return_value=VALID) as browser:
             provider = adapter.provider("claude.cli.plan")
             result = provider.run("do something", {"now": "fact"})
-        self.assertEqual(provider.id, "subscription.auto.plan")
+        self.assertEqual(provider.id, "reasoning.hybrid.standard.plan")
         self.assertEqual(result["intent"], "clarify")
         browser.assert_called_once()
 
     def test_malformed_claude_output_also_falls_through(self):
         bad = {"intent": "made-up-intent", "summary": "bad"}
-        adapter = reasoner.CliReasoner(system_prompt="contract")
+        adapter = reasoner.CliReasoner(
+            model=reasoner.PLAN_MODEL, system_prompt="contract",
+        )
         with mock.patch.object(reasoner, "infer_json", return_value=bad), \
              mock.patch.object(browser_reasoner, "infer_json", return_value=VALID) as browser:
             result = adapter.provider().run("do something", {})
@@ -57,16 +73,40 @@ class SubscriptionFallbackCase(unittest.TestCase):
         browser.assert_called_once()
 
     def test_both_unavailable_degrades_honestly(self):
-        adapter = reasoner.CliReasoner(system_prompt="contract")
+        adapter = reasoner.CliReasoner(
+            model=reasoner.PLAN_MODEL, system_prompt="contract",
+        )
         provider = adapter.provider()
-        with mock.patch.object(reasoner, "infer_json",
+        with mock.patch.object(local_model_pool, "auto_json",
+                               side_effect=local_model_pool.LocalPoolUnavailable("offline")), \
+             mock.patch.object(reasoner, "infer_json",
                                side_effect=reasoner.ReasonerUnavailable("claude private detail")), \
              mock.patch.object(browser_reasoner, "infer_json",
                                side_effect=browser_reasoner.BrowserReasonerUnavailable("login needed")):
             output, degraded = reasoner.infer_or_fallback(provider, "do something", {})
         self.assertEqual(output["intent"], "clarify")
         self.assertIn("both subscription reasoning paths are unavailable", degraded)
+        self.assertIn("local reasoning disabled", degraded)
         self.assertNotIn("claude private detail", degraded)
+
+    def test_subscription_timeout_is_one_shared_provider_budget(self):
+        with mock.patch.object(reasoner, "infer_json",
+                               side_effect=reasoner.ReasonerUnavailable("down")), \
+             mock.patch.object(browser_reasoner, "infer_json",
+                               return_value=VALID) as browser:
+            reasoner.subscription_json("contract", "answer", timeout_s=5)
+        self.assertGreater(browser.call_args.kwargs["timeout_s"], 0)
+        self.assertLessEqual(browser.call_args.kwargs["timeout_s"], 5)
+
+    def test_exhausted_claude_budget_does_not_start_browser(self):
+        with mock.patch.object(reasoner.time, "monotonic",
+                               side_effect=[0.0, 0.0, 6.0]), \
+             mock.patch.object(reasoner, "infer_json",
+                               side_effect=reasoner.ReasonerUnavailable("down")), \
+             mock.patch.object(browser_reasoner, "infer_json") as browser:
+            with self.assertRaises(reasoner.ReasonerUnavailable):
+                reasoner.subscription_json("contract", "answer", timeout_s=5)
+        browser.assert_not_called()
 
 
 if __name__ == "__main__":
