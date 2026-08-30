@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-30T05:29:59Z",
+  "generated_at": "2026-08-30T11:59:08Z",
   "fleet_revision": 4,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,43 +11,43 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
-          "sha": "94fe95629ae2",
-          "date": "2026-08-30T05:28:40Z",
-          "message": "[CHATGPT] Fix expected sign-in probes on Windows PowerShell"
-        },
-        {
-          "sha": "49b026a70522",
-          "date": "2026-08-30T05:14:32Z",
+          "sha": "94081326227d",
+          "date": "2026-08-30T09:33:41Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "67a7778e369c",
-          "date": "2026-08-30T05:11:57Z",
-          "message": "[CHATGPT] Mark Windows test journal artifacts"
+          "sha": "0e538bf044f2",
+          "date": "2026-08-30T08:42:49Z",
+          "message": "core: state checkpoint"
         },
         {
-          "sha": "92cfa6870e40",
-          "date": "2026-08-30T05:09:23Z",
-          "message": "[CHATGPT] Fix Windows test execution and isolate journal state"
+          "sha": "9503b4ab4f05",
+          "date": "2026-08-30T08:24:48Z",
+          "message": "core: state checkpoint"
         },
         {
-          "sha": "0c3510c606f2",
-          "date": "2026-08-30T04:57:36Z",
+          "sha": "d6b6fbc51105",
+          "date": "2026-08-30T06:55:48Z",
+          "message": "core: state checkpoint"
+        },
+        {
+          "sha": "900834fd8cc5",
+          "date": "2026-08-30T06:45:06Z",
           "message": "core: state checkpoint"
         }
       ],
       "commit": {
-        "sha": "94fe95629ae2",
-        "date": "2026-08-30T05:28:40Z",
-        "message": "[CHATGPT] Fix expected sign-in probes on Windows PowerShell"
+        "sha": "94081326227d",
+        "date": "2026-08-30T09:33:41Z",
+        "message": "core: state checkpoint"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-08-30T05:29:56Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/33294820088"
+          "updated_at": "2026-08-30T11:59:07Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/33310275993"
         },
         "ci.yml": {
           "status": "completed",
@@ -59,7 +59,7 @@
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 12820
+          "bytes": 12948
         }
       },
       "health": "green"
@@ -71,6 +71,21 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
+          "sha": "ba29df541382",
+          "date": "2026-08-30T11:01:46Z",
+          "message": "exchange: media worker failed bundle 20260830 [skip ci]"
+        },
+        {
+          "sha": "365a0238f5fb",
+          "date": "2026-08-30T11:00:54Z",
+          "message": "exchange: media worker started 20260830 [skip ci]"
+        },
+        {
+          "sha": "a69fe1a1a67c",
+          "date": "2026-08-30T10:27:29Z",
+          "message": "doctor: evidence pack + backlog 2026-08-30 [skip ci]"
+        },
+        {
           "sha": "d7f8c5cb7b88",
           "date": "2026-08-30T04:04:12Z",
           "message": "doctor: evidence pack + backlog 2026-08-30 [skip ci]"
@@ -79,27 +94,12 @@
           "sha": "b349c604982b",
           "date": "2026-08-30T04:04:03Z",
           "message": "doctor: findings for 20260829"
-        },
-        {
-          "sha": "c0d1b636b39c",
-          "date": "2026-08-29T23:43:34Z",
-          "message": "explainer: update posted log + analytics [skip ci]"
-        },
-        {
-          "sha": "7d8d0d23c067",
-          "date": "2026-08-29T20:30:39Z",
-          "message": "explainer: update posted log + analytics [skip ci]"
-        },
-        {
-          "sha": "794d7e4788a6",
-          "date": "2026-08-29T18:26:41Z",
-          "message": "watchdog: chatgpt task verdicts 20260829 [skip ci]"
         }
       ],
       "commit": {
-        "sha": "d7f8c5cb7b88",
-        "date": "2026-08-30T04:04:12Z",
-        "message": "doctor: evidence pack + backlog 2026-08-30 [skip ci]"
+        "sha": "ba29df541382",
+        "date": "2026-08-30T11:01:46Z",
+        "message": "exchange: media worker failed bundle 20260830 [skip ci]"
       },
       "vitals": [
         {
@@ -141,8 +141,8 @@
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-08-29T19:49:05Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33271785804"
+          "updated_at": "2026-08-30T10:33:10Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33306657834"
         },
         "third.yml": {
           "status": "completed",
@@ -165,8 +165,8 @@
         "doctor.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-08-30T04:04:19Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33291658351"
+          "updated_at": "2026-08-30T10:27:33Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33306520142"
         }
       },
       "state_files": {
@@ -346,14 +346,7 @@
       "health": "dormant"
     }
   },
-  "transitions": [
-    {
-      "repo": "aletheia",
-      "github": "Aletheia",
-      "from": "red",
-      "to": "green"
-    }
-  ],
+  "transitions": [],
   "alerts": [
     {
       "repo": "shorts_pipeline",
