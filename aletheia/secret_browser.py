@@ -136,9 +136,11 @@ def _require_capture_control(meta: dict) -> None:
     semantic = _semantic(meta)
     if not any(noun in semantic for noun in CREDENTIAL_NOUNS):
         raise SecretBrowserRefused("capture target does not clearly identify a credential")
-    input_type = str(meta.get("inputType", "")).casefold()
+    # A legitimate API key is often visually masked with type=password. The
+    # semantic label must identify an API credential, and actual password/OTP/
+    # payment autocomplete values are still a hard stop.
     autocomplete = str(meta.get("autocomplete", "")).casefold()
-    if input_type == "password" or autocomplete in SECRET_AUTOCOMPLETE:
+    if autocomplete in SECRET_AUTOCOMPLETE:
         raise SecretBrowserRefused("password/2FA/payment fields are not API credential outputs")
 
 
@@ -151,9 +153,10 @@ def _require_fill_control(meta: dict) -> None:
     semantic = _semantic(meta)
     if not any(noun in semantic for noun in FIELD_NOUNS):
         raise SecretBrowserRefused("live field does not clearly identify an API credential")
-    input_type = str(meta.get("inputType", "")).casefold()
+    # Masked API-key fields may also use type=password. Treat the live semantic
+    # label + autocomplete contract as authoritative instead of the mask type.
     autocomplete = str(meta.get("autocomplete", "")).casefold()
-    if input_type == "password" or autocomplete in SECRET_AUTOCOMPLETE:
+    if autocomplete in SECRET_AUTOCOMPLETE:
         raise SecretBrowserRefused("password/2FA/payment fields cannot receive API aliases")
 
 
