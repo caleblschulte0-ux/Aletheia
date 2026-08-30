@@ -56,6 +56,10 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
     ctx = context or {}
     if not isinstance(ctx, dict):
         raise ValueError("reasoning context must be an object")
+    # Preserve the reasoner's existing whole-context contract for every route.
+    # In particular, routine local-first requests must not get a larger input
+    # budget than subscription requests or attempt a provider before degrading.
+    reasoner.validate_input(system_prompt, text, ctx)
 
     if policy == "routine":
         try:
