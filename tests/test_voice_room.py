@@ -61,6 +61,15 @@ class TestLoop(unittest.TestCase):
         self.assertEqual(handled, 0)
         self.assertEqual(asked, [])
 
+    def test_configured_alias_survives_strict_transcript_gate(self):
+        asked = []
+        with mock.patch.object(voice_room, "ask_core",
+                               side_effect=lambda t, *a, **k: asked.append(t) or {"say": "ok"}):
+            handled = voice_room.listen_forever(
+                recognizer=iter([(True, "tia status")]), speaker=lambda t: None)
+        self.assertEqual(handled, 1)
+        self.assertEqual(asked, ["thea status"])
+
     def test_bare_wake_prompts_and_takes_next_utterance(self):
         spoken, asked = [], []
         with mock.patch.object(voice_room, "ask_core",
