@@ -1,11 +1,12 @@
-// Voice for the wall and the Command Center — the page IS the interface.
-// Ears: Web Speech API (Chrome/Edge, local browser capability, no keys).
-// Mouth: speechSynthesis. Brain+gates: POST /api/voice on the Core.
+// Browser voice is a deliberate fallback, not a second always-on room listener.
 //
-// Always listening once armed. Say "Thea, ..." — the wake word is checked
-// here AND server-side (strip_wake_word), so a stray sentence without it
-// is ignored. Click the indicator to arm/disarm (browsers require one
-// user gesture before the microphone can start).
+// The Windows room process owns hands-free "Thea, ...". Keeping Chrome's Web
+// Speech recognizer armed at the same time makes one utterance hit both stacks:
+// duplicate Core requests, duplicate mouths, and potentially duplicate actions.
+// The wall/Command Center therefore use one-shot push-to-talk: click once, say
+// the command WITHOUT the wake word, receive one answer, and the browser mic is
+// closed again. The server still receives "thea ...", so the same voice gates
+// and command grammar apply.
 (function () {
   const WAKE = /^\s*(thea|theia|tia|althea|aletheia)\b/i;
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -24,12 +25,13 @@
   document.body.appendChild(el);
 
   if (!SR || navigator.brave) {
-    // Brave ships the API surface but blocks the speech service behind it
-    label.textContent = "voice needs Chrome or Edge (not Brave/Firefox)";
+    label.textContent = "browser mic needs Chrome or Edge";
     return;
   }
 
-  let armed = false, rec = null, busy = false;
+  let rec = null;
+  let listening = false;
+  let busy = false;
 
   function setUI(state, text) {
     label.textContent = text;
@@ -39,18 +41,45 @@
       state === "off" ? "#4a5a70" : "#e0556a";
   }
 
-  function speak(text) {
-    try {
-      const u = new SpeechSynthesisUtterance(text);
-      u.rate = 1.05;
-      speechSynthesis.cancel();
-      speechSynthesis.speak(u);
-    } catch (e) { /* silent page still shows the text */ }
+  function bestVoice() {
+    const voices = speechSynthesis.getVoices ? speechSynthesis.getVoices() : [];
+    const preferred = [
+      /ryan.*natural/i,
+      /george.*english.*united kingdom/i,
+      /google uk english male/i,
+      /daniel.*english/i,
+      /en[-_ ]gb/i,
+    ];
+    for (const pattern of preferred) {
+      const hit = voices.find((v) => pattern.test(`${v.name} ${v.lang}`));
+      if (hit) return hit;
+    }
+    return voices.find((v) => /^en[-_]GB/i.test(v.lang)) || null;
   }
 
-  async function send(transcript) {
+  function speak(text) {
+    return new Promise((resolve) => {
+      try {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = "en-GB";
+        u.rate = 1.03;
+        u.pitch = 0.96;
+        const voice = bestVoice();
+        if (voice) u.voice = voice;
+        u.onend = resolve;
+        u.onerror = resolve;
+        speechSynthesis.cancel();
+        speechSynthesis.speak(u);
+      } catch (e) {
+        resolve();
+      }
+    });
+  }
+
+  async function sendCommand(command) {
     busy = true;
-    setUI("heard", "…" + transcript.slice(0, 60));
+    const transcript = `thea ${command}`;
+    setUI("heard", "…" + command.slice(0, 60));
     try {
       const r = await fetch("/api/voice", {
         method: "POST",
@@ -60,48 +89,73 @@
       const res = await r.json();
       const say = res.say || res.detail || "done";
       setUI("heard", say.slice(0, 80));
-      speak(say);
+      await speak(say);
       if (typeof refresh === "function") refresh();
+      setUI("off", "click to talk · no wake word");
     } catch (e) {
       setUI("error", "core unreachable");
+    } finally {
+      busy = false;
     }
-    busy = false;
-    setTimeout(() => { if (armed) setUI("listening", 'say "Thea, …"'); }, 4000);
   }
 
-  function start() {
+  function startOneShot() {
+    if (busy || listening) return;
+    // Do not let the browser transcribe its own prior TTS tail.
+    try { speechSynthesis.cancel(); } catch (e) {}
+
     rec = new SR();
     rec.lang = "en-US";
-    rec.continuous = true;
+    rec.continuous = false;
     rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    listening = true;
+
     rec.onresult = (ev) => {
+      listening = false;
       const t = ev.results[ev.results.length - 1][0].transcript.trim();
-      if (WAKE.test(t) && !busy) send(t);
+      if (!t) {
+        setUI("off", "didn't catch that · click to retry");
+        return;
+      }
+      if (WAKE.test(t)) {
+        // The native room listener owns wake-word speech. Sending this from the
+        // browser too would duplicate the command if both listeners are alive.
+        setUI("off", 'hands-free hears "Thea" · click then speak without it');
+        return;
+      }
+      sendCommand(t);
     };
-    rec.onend = () => { if (armed) { try { rec.start(); } catch (e) {} } };
+
+    rec.onend = () => {
+      listening = false;
+      if (!busy) setUI("off", "click to talk · no wake word");
+    };
+
     rec.onerror = (ev) => {
-      // every failure must be visible — a green dot over a dead mic is theater
-      if (ev.error === "no-speech" || ev.error === "aborted") return; // benign
-      if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
-        armed = false;
-        setUI("error", "mic blocked — allow the microphone in site settings");
+      listening = false;
+      if (ev.error === "no-speech" || ev.error === "aborted") {
+        setUI("off", "click to talk · no wake word");
+      } else if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
+        setUI("error", "mic blocked — allow it in site settings");
       } else if (ev.error === "network") {
-        setUI("error", "speech service unreachable (Chrome needs internet; Brave blocks it)");
+        setUI("error", "browser speech service unreachable");
       } else if (ev.error === "audio-capture") {
-        armed = false;
         setUI("error", "no microphone found");
       } else {
         setUI("error", "speech error: " + ev.error);
       }
     };
-    try { rec.start(); setUI("listening", 'say "Thea, …"'); }
-    catch (e) { setUI("error", "mic failed"); }
+
+    try {
+      rec.start();
+      setUI("listening", "listening once · don't say Thea");
+    } catch (e) {
+      listening = false;
+      setUI("error", "mic failed");
+    }
   }
 
-  el.onclick = () => {
-    armed = !armed;
-    if (armed) start();
-    else { try { rec && rec.stop(); } catch (e) {} setUI("off", "voice off — click to listen"); }
-  };
-  setUI("off", "click to give Thea ears");
+  el.onclick = startOneShot;
+  setUI("off", "click to talk · no wake word");
 })();

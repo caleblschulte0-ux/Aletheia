@@ -153,7 +153,10 @@ class AnnounceCase(unittest.TestCase):
             p.start(); self.addCleanup(p.stop)
         p = mock.patch.object(policy, "halted", return_value=None)
         p.start(); self.addCleanup(p.stop)
-        self.config = dict(announce.DEFAULT_CONFIG)
+        # Production defaults are deliberately silent. These tests exercise the
+        # opt-in announcement behavior, so turn it on explicitly here rather
+        # than making a test fixture silently redefine the product default.
+        self.config = {**announce.DEFAULT_CONFIG, "enabled": True}
 
     def notify(self, title, priority="IMPORTANT", body="details"):
         return notifications.publish(title, body, priority=priority,

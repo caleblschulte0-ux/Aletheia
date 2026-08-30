@@ -1,0 +1,9 @@
+# Optional higher-quality room speech. The Core remains stdlib-only.
+# Explicit setup front door:
+#   python -m aletheia.voice_room --setup
+#
+# Piper 1.7 publishes a Windows x86-64 wheel for CPython 3.9+ and is the
+# preferred local neural mouth. faster-whisper retranscribes only utterances
+# that have already passed the local Vosk wake gate.
+piper-tts>=1.7,<2
+faster-whisper>=1.2,<2

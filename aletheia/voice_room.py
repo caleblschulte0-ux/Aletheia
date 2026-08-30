@@ -1,142 +1,332 @@
-"""Room voice — "Thea" spoken into the air, no browser involved (Phase 10).
+"""Room voice — "Thea" spoken into the air, no browser involved.
 
-    python -m aletheia.voice_room --check    # honest readiness report
-    python -m aletheia.voice_room            # listen until Ctrl+C
+The room listener has one job: hear an explicitly addressed utterance and put
+that utterance through the same Core/gates as every other interface. It is not a
+room-transcription service and it must never become a feedback oscillator.
 
-Ears: vosk, a local offline recognizer (no API keys, §6) reading the
-default microphone through sounddevice. Mouth: Windows' own SAPI voice
-(PowerShell System.Speech — stdlib-adjacent, nothing to install).
-Brain and gates: every recognized sentence goes to the SAME place the
-wall's browser mic goes — `voice.interpret` → `core.run_command` →
-intercom grammar → policy — via POST /api/voice on the local Core. This
-module adds EARS, never authority.
+Three failure modes found from live use are held directly in this module:
 
-The wake word is checked here AND in voice.strip_wake_word server-side;
-a sentence without it is dropped without being journaled (a room mic
-overhears things — only addressed speech leaves this process, and audio
-itself never leaves the machine or touches disk).
+* only one room listener may run on a machine at once;
+* microphone audio is discarded while Thea is speaking and briefly afterwards,
+  so her own speakers cannot wake her back up; and
+* a bare "Thea" opens only a short follow-up window, not an indefinite state in
+  which the next random room sentence becomes a command.
 
-The recognizer model lives in ~/.aletheia/models/ (downloaded once,
-~40MB, never the repo). Seams for tests: any `recognizer` yielding
-transcripts and any `speaker` accepting text can replace the real ones.
+Vosk remains the local wake gate and utterance segmenter. If the optional
+`aletheia.voice_quality` stack has been explicitly prepared, a wake-gated
+utterance is retranscribed with local faster-whisper and spoken with local Piper
+neural TTS. Missing quality packages/models degrade to Vosk + Windows SAPI.
+Audio never leaves the machine or touches the repo.
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import queue
-import subprocess
-import sys
+import threading
+import time
 import urllib.request
 import zipfile
 from pathlib import Path
 
-from aletheia import announce
-from aletheia.voice import WAKE_WORDS
+from aletheia import voice_quality
 from aletheia.proc import run as proc_run
+from aletheia.voice import WAKE_WORDS
 
-MODEL_NAME = "vosk-model-small-en-us-0.15"
-MODEL_URL = f"https://alphacephei.com/vosk/models/{MODEL_NAME}.zip"
+PRIMARY_MODEL_NAME = "vosk-model-en-us-0.22-lgraph"
+PRIMARY_MODEL_URL = f"https://alphacephei.com/vosk/models/{PRIMARY_MODEL_NAME}.zip"
+LEGACY_MODEL_NAME = "vosk-model-small-en-us-0.15"
 MODEL_DIR = Path.home() / ".aletheia" / "models"
 CORE_URL = "http://127.0.0.1:8777"
-SAMPLE_RATE = 16000
+SAMPLE_RATE = 16_000
+VOICE_LOCK = Path.home() / ".aletheia" / "run" / "voice.lock"
+
+AGC_TARGET_PEAK = 9000
+AGC_MAX_GAIN = 40
+AGC_FLOOR = 200
+WAKE_GRAMMAR = '["thea", "aletheia", "hey thea", "[unk]"]'
+WAKE_CONFIDENCE_MIN = 0.70
+FOLLOWUP_WAIT_S = 60.0
+FOLLOWUP_POLL_S = 1.0
+BARE_WAKE_WINDOW_S = 8.0
+OUTPUT_TAIL_S = 0.55
+REPEAT_FAILURE_WINDOW_S = 20.0
+
+_OUTPUT_ACTIVE = threading.Event()
+_OUTPUT_LOCK = threading.Lock()
+_output_generation = 0
+_ignore_audio_until = 0.0
 
 
 # ---------------------------------------------------------------- mouth
 def sapi_speak(text: str) -> None:
-    """One utterance through the default Windows voice; blocks until done."""
-    script = ("Add-Type -AssemblyName System.Speech; "
-              "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
-              "$s.Rate = 1; $s.Speak([Console]::In.ReadToEnd())")
-    proc_run(["powershell", "-NoProfile", "-Command", script],
-                   input=text, text=True, capture_output=True, timeout=120)
+    """Fallback mouth: the local Windows SAPI voice, blocking until done."""
+    script = (
+        "Add-Type -AssemblyName System.Speech; "
+        "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
+        "$s.Rate = 1; $s.Speak([Console]::In.ReadToEnd())"
+    )
+    proc_run(
+        ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+        input=text, text=True, capture_output=True, timeout=120,
+    )
+
+
+def speak(text: str) -> None:
+    """Speak once while hard-muting the ears against our own output.
+
+    Piper is preferred only when it was explicitly prepared. Provider failure is
+    silent and falls back to SAPI; a broken mouth must not create a spoken error
+    about the broken mouth and start a loop.
+    """
+    global _ignore_audio_until, _output_generation
+    if not isinstance(text, str) or not text.strip():
+        return
+    with _OUTPUT_LOCK:
+        _OUTPUT_ACTIVE.set()
+        try:
+            if not voice_quality.piper_speak(text):
+                sapi_speak(text)
+        finally:
+            _OUTPUT_ACTIVE.clear()
+            _ignore_audio_until = time.monotonic() + OUTPUT_TAIL_S
+            _output_generation += 1
+
+
+# ---------------------------------------------------------------- instance lock
+class VoiceInstanceLock:
+    """OS-held singleton lock. A stale file is harmless; the OS lock is truth."""
+
+    def __init__(self, path: Path = VOICE_LOCK):
+        self.path = Path(path)
+        self.handle = None
+        self.locked = False
+
+    def acquire(self) -> bool:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        handle = self.path.open("a+b")
+        if handle.seek(0, os.SEEK_END) == 0:
+            handle.write(b"0")
+            handle.flush()
+        handle.seek(0)
+        try:
+            if os.name == "nt":
+                import msvcrt
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except (OSError, IOError):
+            handle.close()
+            return False
+        self.handle = handle
+        self.locked = True
+        try:
+            handle.seek(0)
+            handle.truncate()
+            handle.write(str(os.getpid()).encode("ascii"))
+            handle.flush()
+        except OSError:
+            pass
+        return True
+
+    def release(self) -> None:
+        if not self.locked or self.handle is None:
+            return
+        try:
+            self.handle.seek(0)
+            if os.name == "nt":
+                import msvcrt
+                msvcrt.locking(self.handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(self.handle.fileno(), fcntl.LOCK_UN)
+        except (OSError, IOError):
+            pass
+        try:
+            self.handle.close()
+        finally:
+            self.handle = None
+            self.locked = False
+
+    def __enter__(self):
+        return self.acquire()
+
+    def __exit__(self, exc_type, exc, tb):
+        self.release()
+        return False
 
 
 # ----------------------------------------------------------------- ears
+def _model_path() -> Path | None:
+    for name in (PRIMARY_MODEL_NAME, LEGACY_MODEL_NAME):
+        target = MODEL_DIR / name
+        if (target / "am").is_dir() or (target / "conf").is_dir():
+            return target
+    return None
+
+
 def model_ready() -> tuple[bool, str]:
-    target = MODEL_DIR / MODEL_NAME
-    if (target / "am").is_dir() or (target / "conf").is_dir():
-        return True, str(target)
-    return False, f"model not downloaded — run --setup (fetches ~40MB to {target})"
+    target = _model_path()
+    if target is None:
+        return False, (
+            "recognizer model not downloaded — run --setup "
+            f"(preferred model is ~128MB under {MODEL_DIR})"
+        )
+    if target.name == LEGACY_MODEL_NAME:
+        return True, f"{target} (legacy 40MB model; --setup upgrades the ears)"
+    return True, str(target)
 
 
 def download_model() -> Path:
+    """Install the better 128MB Vosk model; legacy remains a runtime fallback."""
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
-    target = MODEL_DIR / MODEL_NAME
-    if model_ready()[0]:
+    target = MODEL_DIR / PRIMARY_MODEL_NAME
+    if (target / "am").is_dir() or (target / "conf").is_dir():
         return target
-    archive = MODEL_DIR / f"{MODEL_NAME}.zip"
-    print(f"downloading {MODEL_URL} …")
-    urllib.request.urlretrieve(MODEL_URL, archive)
-    with zipfile.ZipFile(archive) as zf:
-        zf.extractall(MODEL_DIR)
-    archive.unlink()
-    print(f"model ready at {target}")
+    archive = MODEL_DIR / f"{PRIMARY_MODEL_NAME}.zip"
+    print(f"downloading improved recognizer {PRIMARY_MODEL_URL} ...")
+    urllib.request.urlretrieve(PRIMARY_MODEL_URL, archive)
+    try:
+        with zipfile.ZipFile(archive) as zf:
+            zf.extractall(MODEL_DIR)
+    finally:
+        try:
+            archive.unlink()
+        except OSError:
+            pass
+    if not ((target / "am").is_dir() or (target / "conf").is_dir()):
+        raise RuntimeError("recognizer archive extracted but the model is incomplete")
+    print(f"recognizer ready at {target}")
     return target
 
 
-AGC_TARGET_PEAK = 9000   # scale speech toward this int16 level
-AGC_MAX_GAIN = 40        # this laptop's array peaks ~500 raw — 20-40x needed
-AGC_FLOOR = 200          # below this, treat as noise; don't amplify silence
-
-
 def _auto_gain(chunk: bytes, state: dict) -> bytes:
-    """Software AGC: the operator's mic array delivers speech at peak ~500
-    of 32768 (found live 2026-08-26 — vosk heard NOTHING until 20x gain).
-    Track a decaying peak and scale toward AGC_TARGET_PEAK."""
+    """Software AGC for the quiet laptop microphone array."""
     import array
     samples = array.array("h", chunk)
     peak = max((abs(v) for v in samples), default=0)
-    state["peak"] = max(peak, state.get("peak", 0) * 0.95)  # decay 5%/chunk
+    state["peak"] = max(peak, state.get("peak", 0) * 0.95)
     reference = max(state["peak"], AGC_FLOOR)
     gain = min(AGC_MAX_GAIN, AGC_TARGET_PEAK / reference)
     if gain <= 1.5:
         return chunk
-    boosted = array.array("h", (max(-32768, min(32767, int(v * gain)))
-                                for v in samples))
+    boosted = array.array(
+        "h", (max(-32768, min(32767, int(v * gain))) for v in samples)
+    )
     return boosted.tobytes()
 
 
-WAKE_GRAMMAR = '["thea", "aletheia", "hey thea", "[unk]"]'
+def _wake_detected(result: dict, *, minimum: float = WAKE_CONFIDENCE_MIN) -> bool:
+    """Require the constrained spotter to actually hear a wake token.
+
+    When Vosk provides word confidence, low-confidence nearest-word guesses are
+    refused. `[unk]` in the grammar is important: without it unrelated room
+    speech would be forced into the nearest wake phrase.
+    """
+    words = result.get("result")
+    if isinstance(words, list) and words:
+        for item in words:
+            if not isinstance(item, dict):
+                continue
+            word = str(item.get("word", "")).casefold()
+            try:
+                confidence = float(item.get("conf", 0.0))
+            except (TypeError, ValueError):
+                confidence = 0.0
+            if word in {"thea", "aletheia"} and confidence >= minimum:
+                return True
+        return False
+    # Older Vosk builds may omit word detail even after SetWords(True).
+    tokens = str(result.get("text", "")).casefold().split()
+    return "thea" in tokens or "aletheia" in tokens
+
+
+def _drain(q: queue.Queue) -> None:
+    while True:
+        try:
+            q.get_nowait()
+        except queue.Empty:
+            return
 
 
 def microphone_recognizer():
-    """Yield (wake_heard, transcript) per utterance from the microphone.
+    """Yield `(wake_heard, transcript)` for local utterances.
 
-    Two decoders share the stream: the FULL model transcribes the words,
-    and a GRAMMAR-constrained spotter listens only for the wake word —
-    because the small model cannot spell 'Thea' in open dictation (live
-    findings: 'Thea'->'yeah'/'idea', 'Aletheia status'->'everything is
-    dennis'). Constrained decoding makes the name reliable; the open
-    transcript still carries the command words.
+    Vosk does the cheap continuous work: utterance segmentation plus a constrained
+    wake spotter. Whisper, when prepared, only retranscribes an utterance AFTER
+    that wake gate fired. This gives the better recognizer to actual commands
+    without continuously transcribing private room conversation.
     """
     import sounddevice as sd
     import vosk
+
     ok, where = model_ready()
     if not ok:
         raise RuntimeError(where)
+    model_path = _model_path()
+    if model_path is None:
+        raise RuntimeError(where)
     vosk.SetLogLevel(-1)
-    model = vosk.Model(str(MODEL_DIR / MODEL_NAME))
+    model = vosk.Model(str(model_path))
     full = vosk.KaldiRecognizer(model, SAMPLE_RATE)
     wake = vosk.KaldiRecognizer(model, SAMPLE_RATE, WAKE_GRAMMAR)
-    audio: queue.Queue[bytes] = queue.Queue()
+    try:
+        wake.SetWords(True)
+    except AttributeError:
+        pass
+
+    audio: queue.Queue[bytes] = queue.Queue(maxsize=40)
     agc_state: dict = {}
+    utterance = bytearray()
+    seen_generation = _output_generation
 
     def on_audio(indata, frames, time_info, status):
-        audio.put(bytes(indata))
+        del frames, time_info, status
+        if _OUTPUT_ACTIVE.is_set() or time.monotonic() < _ignore_audio_until:
+            return
+        try:
+            audio.put_nowait(bytes(indata))
+        except queue.Full:
+            # Stale audio is worse than dropped audio. Keep the newest chunk.
+            try:
+                audio.get_nowait()
+            except queue.Empty:
+                pass
+            try:
+                audio.put_nowait(bytes(indata))
+            except queue.Full:
+                pass
 
-    with sd.RawInputStream(samplerate=SAMPLE_RATE, blocksize=8000, dtype="int16",
-                           channels=1, callback=on_audio):
+    with sd.RawInputStream(
+        samplerate=SAMPLE_RATE, blocksize=4000, dtype="int16",
+        channels=1, callback=on_audio,
+    ):
         while True:
-            data = _auto_gain(audio.get(), agc_state)
-            wake.AcceptWaveform(data)
-            if full.AcceptWaveform(data):
-                text = json.loads(full.Result()).get("text", "").strip()
-                spotted = json.loads(wake.FinalResult()).get("text", "")
+            if seen_generation != _output_generation:
+                seen_generation = _output_generation
+                _drain(audio)
+                utterance.clear()
+                agc_state.clear()
+                full.Reset()
                 wake.Reset()
-                heard_wake = any(w in spotted.split() for w in ("thea", "aletheia"))
-                if text or heard_wake:
-                    yield heard_wake, text
+            data = _auto_gain(audio.get(), agc_state)
+            utterance.extend(data)
+            wake.AcceptWaveform(data)
+            if not full.AcceptWaveform(data):
+                continue
+            text = json.loads(full.Result()).get("text", "").strip()
+            wake_result = json.loads(wake.FinalResult())
+            wake.Reset()
+            heard_wake = _wake_detected(wake_result)
+            if heard_wake:
+                better = voice_quality.transcribe_pcm(bytes(utterance), sample_rate=SAMPLE_RATE)
+                if better:
+                    text = better
+            utterance.clear()
+            if text or heard_wake:
+                yield heard_wake, text
 
 
 # ----------------------------------------------------------------- loop
@@ -146,29 +336,20 @@ def is_addressed(text: str) -> bool:
     return first in WAKE_WORDS
 
 
-FOLLOWUP_WAIT_S = 60.0
-FOLLOWUP_POLL_S = 1.0
-
-
 def collect_followup(followup_id: str, core_url: str = CORE_URL,
                      wait_s: float = FOLLOWUP_WAIT_S,
                      poll_s: float = FOLLOWUP_POLL_S, sleep=None) -> str | None:
-    """Wait for a slow answer she promised, and return it to be spoken.
-
-    Bounded: a listener that waited a minute has waited long enough, and
-    the durable half of the answer (the intent record, its approval, a
-    notification) is on disk either way. None means nothing to say.
-    """
     import time as _time
     sleep = sleep or _time.sleep
     deadline = _time.monotonic() + wait_s
     while _time.monotonic() < deadline:
         try:
             with urllib.request.urlopen(
-                    f"{core_url}/api/voice/followup?id={followup_id}", timeout=5) as r:
-                payload = json.loads(r.read().decode("utf-8"))
+                f"{core_url}/api/voice/followup?id={followup_id}", timeout=5
+            ) as response:
+                payload = json.loads(response.read().decode("utf-8"))
         except Exception:
-            return None  # the Core went away mid-thought; nothing to say
+            return None
         if payload.get("state") in ("READY", "FAILED"):
             return payload.get("say")
         if payload.get("state") == "EXPIRED":
@@ -181,83 +362,114 @@ def ask_core(transcript: str, core_url: str = CORE_URL) -> dict:
     req = urllib.request.Request(
         f"{core_url}/api/voice",
         data=json.dumps({"transcript": transcript}).encode("utf-8"),
-        headers={"Content-Type": "application/json"}, method="POST")
+        headers={"Content-Type": "application/json"}, method="POST",
+    )
     with urllib.request.urlopen(req, timeout=30) as response:
         payload = json.loads(response.read().decode("utf-8"))
-    # A dict, not a tuple: `say, fid = ask_core(...)` would silently
-    # unpack a two-character string into two variables.
-    return {"say": payload.get("say") or payload.get("detail") or "done",
-            "followup_id": payload.get("followup_id")}
+    return {
+        "say": payload.get("say") or payload.get("detail") or "done",
+        "followup_id": payload.get("followup_id"),
+    }
 
 
 def _strip_leading_garbage(text: str) -> str:
-    """Drop the first token when it is the open model's mangling of the
-    wake word ('yeah that's going on' for 'Thea, what's going on')."""
+    """Drop only known wake-word mangles; never eat a legitimate first word."""
     words = text.split()
-    if words and words[0] in {"thea", "aletheia", "yeah", "idea", "hey", "the", "via", "tia"}:
+    if words and words[0].casefold() in {
+        "thea", "aletheia", "yeah", "idea", "hey", "via", "tia"
+    }:
         return " ".join(words[1:])
     return text
 
 
-def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
-                   max_utterances: int | None = None, on_heard=None) -> int:
-    """The room loop: wake -> command, one breath or two.
+def _is_failure_line(text: str) -> bool:
+    low = str(text).strip().casefold()
+    return low.startswith(("i couldn't", "i could not", "i can't", "that failed", "couldn't"))
 
-    'Thea, what's going on' handles in one utterance. A bare 'Thea'
-    answers 'Yes?' and the NEXT utterance is the command, no wake word
-    needed. Unaddressed speech is dropped without being journaled.
-    recognizer yields (wake_heard, transcript); seams exist for tests.
+
+def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
+                   max_utterances: int | None = None, on_heard=None,
+                   monotonic=time.monotonic) -> int:
+    """Wake -> command, with no unsolicited speech and no indefinite follow-up.
+
+    A bare wake word opens an eight-second follow-up window. If that expires,
+    ordinary room speech is ignored again. Identical failure lines are also
+    throttled briefly as a final guard against a provider/error feedback loop.
     """
     recognizer = recognizer if recognizer is not None else microphone_recognizer()
-    speaker = speaker or sapi_speak
+    speaker = speaker or speak
     handled = 0
-    awaiting_command = False
+    awaiting_since: float | None = None
+    last_failure = ""
+    last_failure_at = -1e9
+
+    def say(line: str | None) -> None:
+        nonlocal last_failure, last_failure_at
+        if not line:
+            return
+        now = monotonic()
+        normalized = " ".join(str(line).split())
+        if (_is_failure_line(normalized) and normalized == last_failure
+                and now - last_failure_at < REPEAT_FAILURE_WINDOW_S):
+            return
+        speaker(normalized)
+        if _is_failure_line(normalized):
+            last_failure, last_failure_at = normalized, now
+
     for wake_heard, text in recognizer:
-        # Before deciding whether this utterance was for her, say anything
-        # SHE has been waiting to say. Bounded hard in aletheia/announce.py:
-        # only urgent/important, a few an hour, never twice, never in quiet
-        # hours. Until now every speaker() call was inside answer-a-question,
-        # so a booked meeting or an errand stopped at a bank's verification
-        # step sat silent until he thought to ask.
-        try:
-            announce.speak_pending(speaker)
-        except Exception:
-            pass  # a mouth that fails must not end the ears
+        now = monotonic()
         if on_heard:
             on_heard((wake_heard, text))
-        if awaiting_command:
-            command = text.strip()
-            awaiting_command = False
-            if not command:
+
+        if awaiting_since is not None and now - awaiting_since <= BARE_WAKE_WINDOW_S:
+            raw = text.strip()
+            if not raw:
                 continue
-        elif wake_heard or is_addressed(text):
-            command = _strip_leading_garbage(text) if not is_addressed(text) else                 text.split(" ", 1)[1] if " " in text else ""
+            if is_addressed(raw):
+                command = raw.split(" ", 1)[1] if " " in raw else ""
+            elif wake_heard:
+                command = _strip_leading_garbage(raw)
+            else:
+                command = raw
             if not command.strip():
-                speaker("Yes?")
-                awaiting_command = True
+                say("Yes?")
+                awaiting_since = monotonic()
                 continue
+            awaiting_since = None
         else:
-            continue  # overheard speech: not for her, never journaled
-        followup_id = None
+            awaiting_since = None
+            if not (wake_heard or is_addressed(text)):
+                continue
+            if is_addressed(text):
+                command = text.split(" ", 1)[1] if " " in text else ""
+            else:
+                command = _strip_leading_garbage(text)
+            if not command.strip():
+                say("Yes?")
+                awaiting_since = monotonic()
+                continue
+
         try:
             answer = ask_core(f"thea {command}", core_url)
-            reply, followup_id = answer["say"], answer.get("followup_id")
+            reply = answer["say"]
+            followup_id = answer.get("followup_id")
         except Exception as exc:
             reply = f"I couldn't reach my Core: {type(exc).__name__}"
-        speaker(reply)
+            followup_id = None
+        say(reply)
         if followup_id:
-            # she said "working on that" — say the real answer when it lands
             later = collect_followup(followup_id, core_url)
             if later:
-                speaker(later)
+                say(later)
         handled += 1
         if max_utterances is not None and handled >= max_utterances:
             return handled
     return handled
 
 
+# ---------------------------------------------------------------- readiness/setup
 def check() -> int:
-    """Say exactly what is and isn't ready — never pretend (§106)."""
+    """Report exactly what the live listener can use; quality providers optional."""
     problems = []
     try:
         import vosk  # noqa: F401
@@ -269,31 +481,45 @@ def check() -> int:
             problems.append(f"no default microphone: {exc}")
     except ImportError as exc:
         problems.append(f"missing package: {exc.name} (pip install vosk sounddevice)")
+
     try:
-        # the endpoint was found hardware-MUTED live 2026-08-26 — the same
-        # silent failure that broke the browser mic. Report it, honestly.
         from comtypes import CLSCTX_ALL, CoCreateInstance
         from pycaw.constants import CLSID_MMDeviceEnumerator
         from pycaw.pycaw import EDataFlow, ERole, IAudioEndpointVolume, IMMDeviceEnumerator
-        enumerator = CoCreateInstance(CLSID_MMDeviceEnumerator, IMMDeviceEnumerator, CLSCTX_ALL)
-        mic_dev = enumerator.GetDefaultAudioEndpoint(EDataFlow.eCapture.value, ERole.eCommunications.value)
-        vol = mic_dev.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None).QueryInterface(IAudioEndpointVolume)
+        enumerator = CoCreateInstance(
+            CLSID_MMDeviceEnumerator, IMMDeviceEnumerator, CLSCTX_ALL
+        )
+        mic_dev = enumerator.GetDefaultAudioEndpoint(
+            EDataFlow.eCapture.value, ERole.eCommunications.value
+        )
+        vol = mic_dev.Activate(
+            IAudioEndpointVolume._iid_, CLSCTX_ALL, None
+        ).QueryInterface(IAudioEndpointVolume)
         if vol.GetMute():
-            problems.append("the microphone endpoint is MUTED in Windows — unmute it "
-                            "(sound settings, or the keyboard's mic-mute key)")
+            problems.append(
+                "the microphone endpoint is MUTED in Windows — unmute it in Sound settings"
+            )
         else:
             print(f"mic endpoint: unmuted, level {vol.GetMasterVolumeLevelScalar():.0%}")
     except Exception:
-        pass  # pycaw optional; absence of the check is not a failure
+        pass
+
     ok, where = model_ready()
-    print(f"model: {where}" if ok else f"model: MISSING — {where}")
+    print(f"wake/segmenter: {where}" if ok else f"wake/segmenter: MISSING — {where}")
     if not ok:
-        problems.append("model not downloaded")
+        problems.append("recognizer model not downloaded")
+
+    q_ok, q_why = voice_quality.whisper_ready()
+    print(f"command recognizer: {q_why if q_ok else 'Vosk fallback — ' + q_why}")
+    t_ok, t_why = voice_quality.piper_ready()
+    print(f"voice: {t_why if t_ok else 'Windows SAPI fallback — ' + t_why}")
+
     try:
         with urllib.request.urlopen(f"{CORE_URL}/api/status", timeout=3):
             print(f"core: answering at {CORE_URL}")
     except Exception:
         problems.append(f"core not answering at {CORE_URL}")
+
     if problems:
         print("NOT READY: " + "; ".join(problems))
         return 1
@@ -301,33 +527,67 @@ def check() -> int:
     return 0
 
 
+def setup() -> int:
+    """Upgrade both the required wake model and optional neural speech stack."""
+    failures = 0
+    try:
+        download_model()
+    except Exception as exc:
+        print(f"recognizer setup failed: {type(exc).__name__}: {exc}")
+        failures += 1
+    quality = voice_quality.setup_quality(install=True)
+    for name in ("packages", "piper", "whisper"):
+        item = quality.get(name)
+        if not item:
+            continue
+        print(f"{name}: {'ready' if item['ok'] else 'not ready'} — {item['detail']}")
+    # Neural quality is optional: do not make the listener unusable because an
+    # enhancement package failed. The required Vosk model decides setup exit.
+    return 1 if failures else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Aletheia room voice (local wake word).")
     ap.add_argument("--check", action="store_true", help="report readiness honestly")
-    ap.add_argument("--setup", action="store_true", help="download the recognizer model")
-    ap.add_argument("--say", help="speak one sentence through the PC voice and exit")
+    ap.add_argument("--setup", action="store_true",
+                    help="upgrade recognizer and prepare local neural speech")
+    ap.add_argument("--say", help="speak one sentence and exit")
     args = ap.parse_args(argv)
+
     if args.say:
-        sapi_speak(args.say)
+        speak(args.say)
         return 0
     if args.setup:
-        download_model()
-        return 0
+        return setup()
     if args.check:
         return check()
-    if check() != 0:
-        return 1
-    from aletheia import announce, journal
-    journal.use_pc_journal()
-    journal.append("event", "voice:room", "room voice listening (local wake word)",
-                   actor="aletheia-voice")
-    print('listening — say "Thea, …" (Ctrl+C stops)')
+
+    lock = VoiceInstanceLock()
+    if not lock.acquire():
+        # A repeating scheduled-task trigger or a manual launch must never make
+        # a second microphone/mouth. Quiet exit is intentional under pythonw.
+        print("room voice is already running — second listener refused")
+        return 0
     try:
-        listen_forever()
-    except KeyboardInterrupt:
-        journal.append("event", "voice:room", "room voice stopped by operator",
-                       actor="aletheia-voice")
-    return 0
+        if check() != 0:
+            return 1
+        from aletheia import journal
+        journal.use_pc_journal()
+        journal.append(
+            "event", "voice:room", "room voice listening (single local wake listener)",
+            actor="aletheia-voice",
+        )
+        print('listening — say "Thea, ..." (Ctrl+C stops)')
+        try:
+            listen_forever()
+        except KeyboardInterrupt:
+            journal.append(
+                "event", "voice:room", "room voice stopped by operator",
+                actor="aletheia-voice",
+            )
+        return 0
+    finally:
+        lock.release()
 
 
 if __name__ == "__main__":

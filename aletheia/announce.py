@@ -1,30 +1,28 @@
 """Speaking first (Playbook §144, §19).
 
-Every `speaker(...)` call in the room loop sits inside answer-a-question:
-she talks only when talked to. So an errand that stopped at a bank's
-verification step, a meeting that got booked, a subsystem that started
-failing — all of it waited silently in a notification store until he
-thought to ask. That is a log file with a microphone, not an assistant.
+Aletheia can surface important facts proactively, but spoken room interruption is
+stronger than a visual notification. After live use showed how quickly an
+always-listening room can become noisy, spoken announcements are **opt-in by
+default**. Notifications remain durable and visible whether or not this mouth is
+enabled.
 
-This is the other half: a small, bounded, deliberately quiet path for
-Aletheia to say something out loud on her own.
+When explicitly enabled, the path stays deliberately quiet:
 
-What makes it safe to have at all is what it refuses to do:
+**It says almost nothing.** Only configured notification priorities are ever
+spoken, at most MAX_PER_HOUR of them, never the same one twice, and never while
+she is halted. Everything else stays where it was — visible, unspoken.
 
-**It says almost nothing.** Only URGENT and IMPORTANT notifications are
-ever spoken, at most MAX_PER_HOUR of them, never the same one twice, and
-never while she is halted. Everything else stays where it was — visible,
-unspoken. A house that talks constantly gets switched off, and then it
-cannot tell you the one thing that mattered.
+**It obeys the hour.** Nothing is spoken during quiet hours. A machine that wakes
+someone at 3am to say a CI job went red has done more harm than the red job.
 
-**It obeys the hour.** Nothing is spoken during quiet hours. A machine
-that wakes someone at 3am to say a CI job went red has done more harm
-than the red job.
+**It only ever re-says what is already recorded.** Every announcement comes from
+a notification that already exists in the store, so anything spoken can be found
+later in the journal and the notification center. She cannot announce something
+that is not on the record (§30, §107).
 
-**It only ever re-says what is already recorded.** Every announcement
-comes from a notification that already exists in the store, so anything
-spoken can be found later in the journal and the notification center. She
-cannot announce something that is not on the record (§30, §107).
+The room microphone loop is intentionally NOT an announcement scheduler. A
+future explicit scheduler/provider may call `speak_pending`; merely hearing room
+noise must never trigger this module.
 """
 from __future__ import annotations
 
@@ -43,7 +41,7 @@ SPOKEN_PRIORITIES = ("URGENT", "IMPORTANT")
 MAX_PER_HOUR = 4
 DEFAULT_CONFIG = {
     "version": 1,
-    "enabled": True,
+    "enabled": False,
     "quiet_from": "22:00",
     "quiet_until": "07:30",
     "priorities": list(SPOKEN_PRIORITIES),
@@ -130,7 +128,7 @@ def _record_spoken(notice_id: str, now: dt.datetime) -> None:
     state = _spoken_state()
     entries = [e for e in state.get("spoken", []) if isinstance(e, dict)]
     entries.append({"id": notice_id, "at": now.strftime("%Y-%m-%dT%H:%M:%SZ")})
-    state["spoken"] = entries[-200:]  # bounded; the journal is the long record
+    state["spoken"] = entries[-200:]
     try:
         stateio.write_json_atomic(state_path(), state)
     except Exception:
@@ -190,12 +188,7 @@ def sentence(notice: dict) -> str:
 
 def speak_pending(speaker=None, *, config: dict | None = None,
                   now: dt.datetime | None = None) -> list[str]:
-    """Say what is worth saying, and remember that it was said.
-
-    Returns the lines spoken, so a caller (the room loop) can use it and a
-    test can assert it. Marking comes first: if the mouth fails halfway,
-    the operator loses a line rather than hearing it every minute forever.
-    """
+    """Say configured proactive lines and remember each before speaking it."""
     now = now or dt.datetime.now()
     said = []
     for notice in pending(config=config, now=now):

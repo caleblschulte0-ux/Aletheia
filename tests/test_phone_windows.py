@@ -6,6 +6,9 @@ design: the first version treated the PRESENCE of Hands-Free endpoints as
 proof of a live call, and paired AirPods publish those permanently. It
 reported call audio live with no call in progress. Endpoint STATE is the
 signal; presence is not evidence of anything.
+
+GitHub CI runs on Linux. Tests exercising the *Windows* happy path must say so
+explicitly; production's Windows-only guard remains real and is tested below.
 """
 import unittest
 from unittest import mock
@@ -77,6 +80,8 @@ class CallSignalCase(unittest.TestCase):
 
 class AvailabilityCase(unittest.TestCase):
     def patch(self, *, installed=True, running=True, paired=(True, "iPhone")):
+        platform = mock.patch.object(phone_windows.os, "name", "nt")
+        platform.start(); self.addCleanup(platform.stop)
         for name, value in (("phone_link_installed", installed),
                             ("phone_link_running", running),
                             ("phone_paired", paired)):
@@ -114,6 +119,8 @@ class AvailabilityCase(unittest.TestCase):
 
 class TransportCase(unittest.TestCase):
     def setUp(self):
+        platform = mock.patch.object(phone_windows.os, "name", "nt")
+        platform.start(); self.addCleanup(platform.stop)
         for name, value in (("phone_link_installed", True),
                             ("phone_link_running", True),
                             ("phone_paired", (True, "iPhone"))):
@@ -202,7 +209,8 @@ class TransportCase(unittest.TestCase):
 
 class PreflightCase(unittest.TestCase):
     def test_preflight_places_no_call(self):
-        with mock.patch.object(phone_windows, "_launch_tel") as launch, \
+        with mock.patch.object(phone_windows.os, "name", "nt"), \
+             mock.patch.object(phone_windows, "_launch_tel") as launch, \
              mock.patch.object(phone_windows, "phone_link_installed", return_value=True), \
              mock.patch.object(phone_windows, "phone_link_running", return_value=True), \
              mock.patch.object(phone_windows, "phone_paired", return_value=(True, "iPhone")), \
