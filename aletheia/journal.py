@@ -14,12 +14,19 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
 import sys
 from pathlib import Path
 
 from aletheia.fleet import REPO_ROOT
 
-JOURNAL_PATH = REPO_ROOT / "state" / "journal" / "journal.jsonl"
+# Tests and other deliberately isolated tooling may redirect the journal before
+# importing Aletheia. Normal runtime behavior is unchanged: without the env
+# override this is the durable fleet journal in the repository.
+JOURNAL_PATH = Path(
+    os.environ.get("ALETHEIA_JOURNAL_PATH")
+    or (REPO_ROOT / "state" / "journal" / "journal.jsonl")
+)
 KINDS = {"decision", "event", "alert", "recovery", "action", "brief", "plan", "note", "task"}
 
 # One journal, several writer FILES. The cloud (Actions, CLI) appends to
