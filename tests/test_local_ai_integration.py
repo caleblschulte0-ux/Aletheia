@@ -280,7 +280,7 @@ class GatewayRoutingCase(unittest.TestCase):
 
 
 class LocalSmokeCase(unittest.TestCase):
-    def test_smoke_proves_both_real_roles_without_pre_enabling(self):
+    def test_smoke_proves_fast_response_and_both_tags_without_pre_enabling(self):
         observed_timeouts = {}
         observed_thinking = {}
 
@@ -299,10 +299,35 @@ class LocalSmokeCase(unittest.TestCase):
              mock.patch.object(training_data, "record_turn", return_value="turn"):
             result = local_model_pool.smoke()
         self.assertTrue(result["ok"])
+        self.assertEqual(result["required_response_role"], "fast")
         self.assertEqual(set(result["roles"]), {"fast", "deep"})
-        self.assertEqual(observed_timeouts, local_model_pool.SMOKE_TIMEOUT_S)
-        self.assertEqual(observed_thinking, {"fast": False, "deep": False})
+        self.assertEqual(
+            observed_timeouts, {"fast": local_model_pool.FAST_SMOKE_TIMEOUT_S}
+        )
+        self.assertEqual(observed_thinking, {"fast": False})
+        self.assertTrue(result["roles"]["fast"]["response_tested"])
+        self.assertFalse(result["roles"]["deep"]["response_tested"])
+        self.assertTrue(result["roles"]["deep"]["model_available"])
         self.assertTrue(local_model_pool._config("deep").think)
+
+    def test_smoke_still_requires_the_configured_deep_tag(self):
+        def status(config):
+            if config.model == "qwen3.6:27b":
+                return {
+                    "online": True,
+                    "model_available": False,
+                    "detail": "configured model is not installed",
+                }
+            return {"online": True, "model_available": True}
+
+        with mock.patch.object(local_brain, "status", side_effect=status), \
+             mock.patch.object(local_brain, "infer_json") as infer:
+            with self.assertRaisesRegex(
+                local_model_pool.LocalPoolUnavailable,
+                "local deep model is not ready",
+            ):
+                local_model_pool.smoke()
+        infer.assert_not_called()
 
     def test_safe_transport_detail_survives_pool_wrapping(self):
         with mock.patch.object(
@@ -336,6 +361,7 @@ class LocalSmokeCase(unittest.TestCase):
         self.assertIn('$branch -ne "main"', script)
         self.assertIn("-m aletheia.local_ai activate", script)
         self.assertIn("local routing remains disabled", script)
+        self.assertIn("Testing the fast route", script)
         self.assertIn("exit $activationCode", script)
         self.assertNotIn('throw "local model smoke test failed', script)
         self.assertNotIn("reset --hard", script.lower())
