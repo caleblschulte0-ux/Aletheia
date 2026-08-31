@@ -1,6 +1,5 @@
 """The operator's Windows entrypoint must stay short, safe and fail-closed."""
 import unittest
-from pathlib import Path
 
 from aletheia.fleet import REPO_ROOT
 
@@ -31,14 +30,19 @@ class WindowsBringupScriptCase(unittest.TestCase):
         self.assertIn("Remove-Item Env:\\ALETHEIA_ALLOW_CHATGPT_BROWSER_REASONING", self.bringup)
         self.assertIn("operator_lease_enabled", self.bringup)
 
-    def test_resume_happens_only_after_core_voice_and_final_health(self):
+    def test_installer_never_lifts_the_kill_switch(self):
+        self.assertNotIn('"aletheia.policy","resume"', self.bringup)
+        self.assertNotIn("policy.resume(", self.bringup)
+        self.assertIn("policy.halted()", self.bringup)
+
+    def test_policy_is_checked_only_after_core_voice_and_final_health(self):
         core = self.bringup.index("Core: UP")
         voice = self.bringup.index("voice_repair.ps1")
         final = self.bringup.index("Final health checks")
-        resume = self.bringup.index('"aletheia.policy","resume"')
+        policy = self.bringup.index("policy.halted()")
         self.assertLess(core, voice)
         self.assertLess(voice, final)
-        self.assertLess(final, resume)
+        self.assertLess(final, policy)
 
 
 if __name__ == "__main__":
