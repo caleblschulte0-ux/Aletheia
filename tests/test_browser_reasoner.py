@@ -1,3 +1,4 @@
+import os
 import unittest
 from unittest import mock
 
@@ -76,6 +77,20 @@ class FakePage:
 
 
 class BrowserReasonerCase(unittest.TestCase):
+    def leased(self):
+        return mock.patch.dict(
+            os.environ, {browser_reasoner.ALLOW_ENV: "1"}, clear=False
+        )
+
+    def test_unattended_runtime_is_blocked_before_browser_creation(self):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop(browser_reasoner.ALLOW_ENV, None)
+            with mock.patch.object(browser_reasoner, "_subscription_session") as session:
+                with self.assertRaises(browser_reasoner.BrowserReasonerUnavailable) as ctx:
+                    browser_reasoner.infer_json("contract", "request")
+        session.assert_not_called()
+        self.assertIn("unattended runtime", str(ctx.exception))
+
     def test_extracts_fenced_or_embedded_json(self):
         self.assertEqual(
             browser_reasoner._first_json_object('```json\n{"intent":"plan"}\n```')["intent"],
@@ -108,7 +123,8 @@ class BrowserReasonerCase(unittest.TestCase):
 
     def test_local_browser_failure_never_echoes_prompt(self):
         secret = "private-operator-context-that-must-not-leak"
-        with mock.patch.object(browser_reasoner.browse, "available", return_value=(True, "ready")), \
+        with self.leased(), \
+             mock.patch.object(browser_reasoner.browse, "available", return_value=(True, "ready")), \
              mock.patch.object(browser_reasoner.browse, "_Session", side_effect=OSError(secret)):
             with self.assertRaises(browser_reasoner.BrowserReasonerUnavailable) as ctx:
                 browser_reasoner.infer_json("contract", secret)
@@ -128,7 +144,8 @@ class BrowserReasonerCase(unittest.TestCase):
             def new_page(self):
                 return page
 
-        with mock.patch.object(browser_reasoner.browse, "available", return_value=(True, "ready")), \
+        with self.leased(), \
+             mock.patch.object(browser_reasoner.browse, "available", return_value=(True, "ready")), \
              mock.patch.object(browser_reasoner, "_subscription_session", return_value=Session()), \
              mock.patch.object(browser_reasoner, "_infer_page", return_value={"ok": True}) as infer:
             result = browser_reasoner.infer_json("contract", "request", timeout_s=2.0)
