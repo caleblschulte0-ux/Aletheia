@@ -813,3 +813,5 @@
 {"ts": "2026-08-31T14:00:17Z", "kind": "alert", "actor": "aletheia", "subject": "repo:schwab_trader", "text": "health green -> red"}
 {"ts": "2026-08-31T14:00:18Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue updated — Shorts-pipeline, schwab-trader"}
 {"ts": "2026-08-31T17:47:14Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-08-31"}
+{"ts": "2026-08-31T23:40:33Z", "kind": "event", "actor": "operator-via-intercom", "subject": "policy:halt", "text": "kill switch lifted — resuming"}
+{"ts": "2026-08-31T23:40:33Z", "kind": "action", "actor": "operator-via-intercom", "subject": "intercom:20260831-resume-safe-windows", "text": "done — resumed"}
