@@ -720,3 +720,6 @@
 {"ts": "2026-08-30T20:35:00Z", "kind": "event", "actor": "aletheia-voice", "subject": "voice:room", "text": "room voice listening (single local wake listener)"}
 {"ts": "2026-08-30T20:39:59Z", "kind": "event", "actor": "aletheia-voice", "subject": "voice:room", "text": "room voice listening (single local wake listener)"}
 {"ts": "2026-08-30T20:48:24Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I could not plan that: ReasonerUnavailable: subscription reasoning and local deep reasoning are unavailable"}
+{"ts": "2026-08-31T13:15:35Z", "kind": "decision", "actor": "aletheia-code-trust", "subject": "code:trust", "text": "CLAIM ct-20260830-1314-cbe85f slot 4 for caleblschulte0-ux/Aletheia task issue-2", "refs": ["approval:ct-20260830-1314-cbe85f-operator"]}
+{"ts": "2026-08-31T14:15:35Z", "kind": "decision", "actor": "aletheia-code-trust", "subject": "code:trust", "text": "CLAIM ct-20260830-1314-cbe85f slot 5 for caleblschulte0-ux/Aletheia task issue-2", "refs": ["approval:ct-20260830-1314-cbe85f-operator"]}
+{"ts": "2026-08-31T14:45:33Z", "kind": "decision", "actor": "aletheia-code-trust", "subject": "code:trust", "text": "CLAIM ct-20260830-1314-cbe85f slot 6 for caleblschulte0-ux/Aletheia task issue-2", "refs": ["approval:ct-20260830-1314-cbe85f-operator"]}
