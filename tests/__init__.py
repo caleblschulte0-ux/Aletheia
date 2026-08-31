@@ -16,9 +16,12 @@ So the whole suite gets its own private root, set here — before the first
 `from aletheia import ...` anywhere — and thrown away at exit. A test that
 forgets to patch now pollutes a temp directory nobody will ever read.
 
-The durable repo journal is a separate store, so it is explicitly routed
-into that same temporary root too. This prevents a real-PC test run from
-syncing fake test approvals/actions into fleet history.
+The durable repo journal, approvals, and kill-switch are separate stores,
+so they are explicitly routed into that same temporary root too. This is
+especially important for the kill switch: an intentional production HALT
+must protect the real system without turning a hermetic unit test into a
+false failure. Tests that exercise HALT still do so against the isolated
+path and therefore keep the production safety contract intact.
 """
 from __future__ import annotations
 
@@ -35,10 +38,21 @@ if not _suite_state:
     os.environ["ALETHEIA_PRIVATE_STATE"] = _suite_state
     _created_suite_state = True
 
+_suite_root = Path(_suite_state)
+
 # journal.py binds JOURNAL_PATH at import time, just like private-state modules.
 # Set this before any aletheia import so unpatched journal calls remain isolated.
 if not os.environ.get("ALETHEIA_JOURNAL_PATH"):
-    os.environ["ALETHEIA_JOURNAL_PATH"] = str(Path(_suite_state) / "journal.jsonl")
+    os.environ["ALETHEIA_JOURNAL_PATH"] = str(_suite_root / "journal.jsonl")
+
+# policy.py intentionally stores approvals + HALT in tracked repo state so the
+# cloud and PC see the same operator decision. That is correct in production,
+# but a test run must never consume the live operator policy. Import only after
+# the private/journal roots above are established, then redirect the two policy
+# stores for this process. Tests that patch these paths continue to work.
+from aletheia import policy  # noqa: E402  (ordering is the safety mechanism)
+policy.APPROVALS_DIR = _suite_root / "approvals"
+policy.HALT_PATH = _suite_root / "halt.json"
 
 if _created_suite_state:
     @atexit.register

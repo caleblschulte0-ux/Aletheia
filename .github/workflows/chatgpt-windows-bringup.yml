@@ -1,0 +1,63 @@
+name: chatgpt-windows-bringup
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "aletheia/**"
+      - "tests/**"
+      - "scripts/**"
+      - "requirements-optional.txt"
+      - ".github/workflows/chatgpt-windows-bringup.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-full-suite:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Parse operator PowerShell entrypoints
+        shell: pwsh
+        run: |
+          $failed = $false
+          foreach ($path in @("scripts/bootstrap.ps1", "scripts/bringup_windows.ps1", "scripts/voice_repair.ps1")) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path), [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) {
+              $failed = $true
+              Write-Error "$path parse errors: $($errors -join '; ')"
+            }
+          }
+          if ($failed) { exit 1 }
+
+      - name: Install required Windows runtime dependencies
+        shell: pwsh
+        run: python -m pip install --disable-pip-version-check tzdata
+
+      - name: Install optional browser dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check -r requirements-optional.txt
+          python -m playwright install chromium
+
+      - name: Registry validation
+        shell: pwsh
+        run: |
+          python -m aletheia.fleet --validate
+          python -m aletheia.capabilities --validate
+          python -m aletheia.suggestions validate
+          python -m aletheia.plans validate
+
+      - name: Full Windows test suite
+        shell: pwsh
+        run: python -m unittest discover -s tests -t . -v

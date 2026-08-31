@@ -23,7 +23,10 @@ class SecretTrustCase(unittest.TestCase):
         for patch in patches:
             patch.start()
             self.addCleanup(patch.stop)
-        self.now = dt.datetime(2026, 8, 30, 2, 0, tzinfo=dt.timezone.utc)
+        # Keep the fixture relative to the actual test run. A hard-coded
+        # 2026-08-30 timestamp made a one-day grant expire simply because
+        # the calendar advanced while the code had not changed.
+        self.now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
 
     def test_enable_is_bounded_and_operator_approved(self):
         grant = secret_trust.enable(days=7, max_actions=3, now=self.now, via="test")
