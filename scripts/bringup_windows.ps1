@@ -4,8 +4,9 @@
 #
 # This is deliberately NOT a development test runner. CI owns the 1,200+ test
 # suite. This script proves only the live things that can differ on the operator's
-# Windows machine, keeps stale background tasks stopped while repairing them, and
-# resumes the kill switch only after Core + local AI + voice are healthy.
+# Windows machine and keeps stale background tasks stopped while repairing them.
+# It NEVER lifts a production kill switch: resume is a separate operator decision
+# recorded through Aletheia's intercom so the repo and PC agree on that authority.
 
 $ErrorActionPreference = "Stop"
 $repo = "https://github.com/caleblschulte0-ux/Aletheia.git"
@@ -107,8 +108,8 @@ Invoke-AletheiaPython -PyArgs @("-c","from aletheia import browser_reasoner as b
 Write-Host "  Activating local reasoning ..." -ForegroundColor Yellow
 Invoke-AletheiaPython -PyArgs @("-m","aletheia.local_ai","activate")
 
-# Bring the Core up while the production kill switch remains untouched. The Core
-# can serve status while halted; nothing autonomous is authorized yet.
+# Bring the Core up without changing production authority. The Core can serve
+# status while halted; nothing autonomous is authorized by this installer.
 Write-Host "  Installing the Core watchdog ..." -ForegroundColor Yellow
 Invoke-AletheiaPython -PyArgs @("-m","aletheia.autostart","install","--only","core")
 Start-ScheduledTask -TaskName "Aletheia"
@@ -117,12 +118,12 @@ if (-not (Wait-ForCore 30)) {
 }
 Write-Host "  Core: UP" -ForegroundColor Green
 
-# Voice repair is deliberately last before RESUME. It proves the local ears and
-# neural speech stack before replacing/re-enabling the persistent voice task.
+# Voice repair proves the local ears and neural speech stack before replacing /
+# re-enabling the persistent voice task. It still grants no execution authority.
 Write-Host "  Repairing and proving room voice ..." -ForegroundColor Yellow
 & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $dest "scripts\voice_repair.ps1")
 if ($LASTEXITCODE -ne 0) {
-  throw "Voice did not pass readiness. Core stays up but Aletheia remains halted."
+  throw "Voice did not pass readiness. Core stays up; production authority is unchanged."
 }
 
 Write-Host "  Final health checks ..." -ForegroundColor Yellow
@@ -130,11 +131,12 @@ Invoke-AletheiaPython -PyArgs @("-m","aletheia.autostart","doctor","--only","cor
 Invoke-AletheiaPython -PyArgs @("-m","aletheia.autostart","doctor","--only","voice")
 Invoke-AletheiaPython -PyArgs @("-m","aletheia.local_ai","status")
 
-# Reaching this line means the reviewed main checkout, local reasoning, Core and
-# room voice all proved themselves on THIS machine. The operator invoked this
-# script specifically to bring Aletheia back, so this is the one deliberate
-# production resume point — never earlier in the script.
-Invoke-AletheiaPython -PyArgs @("-m","aletheia.policy","resume")
+# A halt is repo truth, not an installer setting. The operator's resume must have
+# been relayed separately so every copy of Aletheia sees the same authority.
+& $script:PyExe @script:PyFlags -c "from aletheia import policy; h=policy.halted(); print('policy: HALTED - ' + h.get('reason','') if h else 'policy: running'); raise SystemExit(2 if h else 0)"
+if ($LASTEXITCODE -ne 0) {
+  throw "Aletheia is healthy but the repo kill switch is still ON. The installer will not override it."
+}
 
 Write-Host "`n  ALETHEIA IS UP." -ForegroundColor Green
 Write-Host "  Core:  http://127.0.0.1:8777/" -ForegroundColor Green
