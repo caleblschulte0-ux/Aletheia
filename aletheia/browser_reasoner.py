@@ -4,6 +4,13 @@ Uses Aletheia's dedicated persistent Chromium profile. The operator signs into
 ChatGPT normally once; this module can then ask for bounded JSON planning output.
 It has no local tools and never treats browser output as authority: callers still
 validate the returned object through the normal brain/planner gates.
+
+Safety boundary: browser-backed ChatGPT reasoning is OFF by default. A visible
+browser session may only be used from an explicitly operator-started foreground
+session that sets ``ALETHEIA_ALLOW_CHATGPT_BROWSER_REASONING=1``. Always-on Core,
+voice, watchdog, project loops, schedules, and other unattended processes never
+set that lease, so a failed local/Claude route degrades instead of opening a
+ChatGPT conversation while nobody is present.
 """
 from __future__ import annotations
 
@@ -17,6 +24,7 @@ from aletheia import brain, browse
 
 CHATGPT_URL = "https://chatgpt.com/"
 ALLOWED_HOSTS = {"chatgpt.com", "www.chatgpt.com"}
+ALLOW_ENV = "ALETHEIA_ALLOW_CHATGPT_BROWSER_REASONING"
 MAX_PROMPT_CHARS = 30_000
 MAX_RESPONSE_CHARS = 256_000
 TIMEOUT_S = 120.0
@@ -48,13 +56,29 @@ class BrowserReasonerUnavailable(RuntimeError):
     pass
 
 
+def operator_lease_enabled() -> bool:
+    """Whether THIS process was explicitly allowed to open visible ChatGPT.
+
+    This is intentionally machine-local and process-local. It is never read from
+    model/context data and it is not persisted by Aletheia. A child only inherits
+    it if the operator deliberately launched that child from a leased foreground
+    shell.
+    """
+    return os.environ.get(ALLOW_ENV, "").strip() == "1"
+
+
 def available() -> tuple[bool, str]:
+    if not operator_lease_enabled():
+        return False, (
+            "ChatGPT browser reasoning is disabled for unattended runtime; "
+            f"an explicit foreground operator session must set {ALLOW_ENV}=1"
+        )
     ok, why = browse.available()
     if not ok:
         return False, f"browser unavailable ({why})"
     if not browse.PROFILE_DIR.exists():
         return False, "browser profile has not been initialized/sign-in has not been done"
-    return True, "ChatGPT browser runtime ready; login is verified on first use"
+    return True, "ChatGPT browser runtime ready under explicit operator lease; login is verified on first use"
 
 
 def _subscription_session():
@@ -125,12 +149,7 @@ def _first_json_object(text: str) -> dict:
 
 
 def _editor(page, timeout_s: float = EDITOR_WAIT_S):
-    """Return the visible ChatGPT composer, allowing the client app time to mount.
-
-    `domcontentloaded` is not a readiness signal for ChatGPT: the composer is
-    rendered later by client-side JavaScript. A one-shot lookup therefore creates
-    false "sign-in required" failures on perfectly valid persisted sessions.
-    """
+    """Return the visible ChatGPT composer, allowing the client app time to mount."""
     deadline = time.monotonic() + max(0.0, float(timeout_s))
     while True:
         for selector in EDITOR_SELECTORS:
@@ -154,13 +173,6 @@ def _editor(page, timeout_s: float = EDITOR_WAIT_S):
 
 
 def _submit_prompt(page, editor, prompt: str, timeout_s: float = SEND_WAIT_S) -> None:
-    """Fill the composer and submit through the page's real send control.
-
-    ChatGPT's composer is client-rendered and a global keyboard Enter is not a
-    reliable submission signal across UI variants. Prefer the visible enabled
-    Send button; fall back to pressing Enter on the composer itself so focus is
-    explicit. Never echo prompt text in an error.
-    """
     try:
         editor.fill(prompt)
     except Exception:
@@ -244,8 +256,6 @@ def _infer_page(page, prompt: str, timeout_s: float = TIMEOUT_S) -> dict:
     def remaining() -> float:
         return max(0.0, float(timeout_s) - (time.monotonic() - started))
 
-    # Composer setup must not consume the entire caller-owned deadline. Reserve
-    # most of the budget for the model response, especially on short fallbacks.
     editor = _editor(page, timeout_s=min(EDITOR_WAIT_S, remaining() * 0.25))
     before = _assistant_counts(page)
     _submit_prompt(page, editor, prompt,
@@ -256,8 +266,6 @@ def _infer_page(page, prompt: str, timeout_s: float = TIMEOUT_S) -> dict:
         text = _new_assistant_text(page, before)
         if text:
             try:
-                # A top-level closing brace means the requested JSON object is
-                # complete; no need to wait for the UI's streaming animation.
                 return _first_json_object(text)
             except BrowserReasonerUnavailable:
                 pass
@@ -268,6 +276,10 @@ def _infer_page(page, prompt: str, timeout_s: float = TIMEOUT_S) -> dict:
 
 def infer_json(system_prompt: str, text: str, *, context: dict | None = None,
                timeout_s: float = TIMEOUT_S) -> dict:
+    if not operator_lease_enabled():
+        raise BrowserReasonerUnavailable(
+            "ChatGPT browser reasoning is disabled for unattended runtime"
+        )
     if not isinstance(system_prompt, str) or not system_prompt.strip():
         raise ValueError("system_prompt is required")
     if not isinstance(text, str) or not text.strip() or len(text) > brain.MAX_TEXT:
@@ -315,5 +327,4 @@ def infer_json(system_prompt: str, text: str, *, context: dict | None = None,
     except BrowserReasonerUnavailable:
         raise
     except Exception:
-        # Never propagate page content, profile paths, cookies or prompt text.
         raise BrowserReasonerUnavailable("ChatGPT browser reasoning failed locally") from None
