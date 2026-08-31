@@ -1,11 +1,12 @@
 """Reading the screen: never pressing, never leaking, never guessing."""
 import json
+import datetime as dt
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
-from aletheia import journal, perception, policy
+from aletheia import desktop_context, journal, perception, policy
 
 
 class FakeBackend:
@@ -117,6 +118,33 @@ class ObserveCase(unittest.TestCase):
     def test_it_carries_its_own_trust_boundary(self):
         observation = perception.observe(backend=FakeBackend())
         self.assertIn("never instructions", observation["trust_boundary"])
+
+    def test_foreground_context_selects_and_describes_the_active_process(self):
+        desktop = desktop_context.DesktopContextObservation(
+            dt.datetime(2026, 8, 31, tzinfo=dt.timezone.utc),
+            "Editor - notes", 42, r"C:\\Editor\\editor.exe")
+        backend = FakeBackend()
+        observation = perception.observe(backend=backend, desktop=desktop)
+        self.assertEqual(backend.performed[1]["window"], {"process": 42})
+        self.assertEqual(observation["foreground"]["process"], "editor.exe")
+        self.assertIn("Sign in", json.dumps(observation["focused"]))
+        self.assertNotIn("42", json.dumps(observation["focused"]))
+
+    def test_foreground_title_is_redacted_before_reasoning(self):
+        secret = "sk-abcdefghijklmnopqrstuvwx"
+        desktop = desktop_context.DesktopContextObservation(
+            dt.datetime(2026, 8, 31, tzinfo=dt.timezone.utc),
+            f"Notes {secret}", 42, r"C:\\Editor\\editor.exe")
+        observation = perception.observe(backend=FakeBackend(), desktop=desktop)
+        self.assertNotIn(secret, json.dumps(observation))
+        self.assertIn(perception.REDACTED, observation["foreground"]["title"])
+
+    def test_missing_foreground_context_degrades_to_window_listing(self):
+        backend = FakeBackend()
+        observation = perception.observe(backend=backend)
+        self.assertNotIn("focused", observation)
+        self.assertEqual([step["action"] for step in backend.performed],
+                         ["list_windows"])
 
     def test_a_huge_screen_is_trimmed_by_whole_records(self):
         many = [{"name": f"Control number {i} with a fairly long label attached",

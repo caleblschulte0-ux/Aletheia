@@ -85,6 +85,17 @@ class SnapshotCase(unittest.TestCase):
         with mock.patch.object(notifications, "all_notifications", return_value=rows):
             self.assertEqual(len(presence._notifications()), 1)
 
+    def test_an_interrupted_intent_is_visible_as_needing_verification(self):
+        from aletheia import errands, followups, intents
+        with mock.patch.object(followups, "pending_count", return_value=0), \
+             mock.patch.object(intents, "all_intents", side_effect=lambda state=None: (
+                 [{"summary": "water the garden"}]
+                 if state == intents.INTERRUPTED else [])), \
+             mock.patch.object(errands, "all_errands", return_value=[]):
+            working = presence._working()
+        self.assertEqual(working, [{"what": "plan needs verification",
+                                    "detail": "water the garden"}])
+
 
 class PulseBlockCase(unittest.TestCase):
     def setUp(self):

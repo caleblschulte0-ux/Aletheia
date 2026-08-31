@@ -116,6 +116,13 @@ def _working() -> list[dict]:
                     "detail": str(record.get("summary", ""))[:80]})
         if len(out) >= MAX_ITEMS:
             return out
+    for state, what in ((intents.RUNNING, "plan running"),
+                        (intents.INTERRUPTED, "plan needs verification")):
+        for record in _safe(lambda state=state: intents.all_intents(state=state), []):
+            out.append({"what": what,
+                        "detail": str(record.get("summary", ""))[:80]})
+            if len(out) >= MAX_ITEMS:
+                return out
     for record in _safe(lambda: errands.all_errands(), []):
         if record.get("state") in (errands.PROPOSED, errands.RUNNING):
             out.append({"what": f"errand {record['state'].lower()}",

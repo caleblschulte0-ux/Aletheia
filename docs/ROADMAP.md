@@ -58,6 +58,19 @@ the journal), built the missing wiring, and integrated it:
 
 ## Next five engineering milestones (priority order, per §137)
 
+### Continuity hardening completed in the Jarvis context sprint
+
+- Screen perception now identifies the foreground Windows process through a
+  read-only local adapter and inspects that app automatically. Clipboard access
+  is explicit opt-in and remains unused by the production perception route.
+- Durable intents now checkpoint `RUNNING`, the current step, and each receipt
+  before advancing. A process that disappears mid-action leaves an
+  `INTERRUPTED` intent requiring verification; Aletheia refuses automatic replay
+  when the real-world outcome is unknown.
+- Unattended browser reasoning remains disabled by default and voice wake
+  matching requires a strict leading wake prefix outside the follow-up window.
+  These containment changes do not resume a halted installation by themselves.
+
 The five gaps between Aletheia and the thing she is supposed to be were
 closed on 2026-08-27 (see the phase rows above and the journal). What is
 left is not architecture — it is the handful of credentials and live

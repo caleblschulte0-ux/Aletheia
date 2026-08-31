@@ -392,9 +392,13 @@ def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
                    monotonic=time.monotonic) -> int:
     """Wake -> command, with no unsolicited speech and no indefinite follow-up.
 
-    A bare wake word opens an eight-second follow-up window. If that expires,
-    ordinary room speech is ignored again. Identical failure lines are also
-    throttled briefly as a final guard against a provider/error feedback loop.
+    A bare high-confidence wake opens an eight-second follow-up window. Outside
+    that already-open window, a detector hit is necessary but never sufficient:
+    a non-empty full transcript must itself start with one of Aletheia's configured
+    wake words. Detector/transcript disagreement is treated as a false wake and
+    discarded, so arbitrary room speech never becomes a generic intent. Identical
+    failure lines are throttled briefly as a final guard against a provider/error
+    feedback loop.
     """
     recognizer = recognizer if recognizer is not None else microphone_recognizer()
     speaker = speaker or speak
@@ -427,9 +431,9 @@ def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
                 continue
             if is_addressed(raw):
                 command = raw.split(" ", 1)[1] if " " in raw else ""
-            elif wake_heard:
-                command = _strip_leading_garbage(raw)
             else:
+                # The operator already opened this short window with a verified
+                # bare wake, so the next utterance is intentionally the command.
                 command = raw
             if not command.strip():
                 say("Yes?")
@@ -438,12 +442,17 @@ def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
             awaiting_since = None
         else:
             awaiting_since = None
-            if not (wake_heard or is_addressed(text)):
-                continue
-            if is_addressed(text):
-                command = text.split(" ", 1)[1] if " " in text else ""
+            raw = text.strip()
+            if is_addressed(raw):
+                command = raw.split(" ", 1)[1] if " " in raw else ""
+            elif wake_heard and not raw:
+                # A high-confidence bare wake may open only the deliberately
+                # short follow-up window; it does not carry an arbitrary command.
+                command = ""
             else:
-                command = _strip_leading_garbage(text)
+                # Includes the dangerous disagreement case: wake spotter says
+                # yes, but the full transcript is ordinary speech. Fail closed.
+                continue
             if not command.strip():
                 say("Yes?")
                 awaiting_since = monotonic()

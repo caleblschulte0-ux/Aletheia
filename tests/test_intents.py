@@ -140,6 +140,77 @@ class IntentCase(unittest.TestCase):
         intents.run_approved(FLEET, executor=run)
         self.assertEqual(seen, ["task_new"])  # once, not twice
 
+    def test_a_step_is_durably_claimed_before_the_executor_sees_it(self):
+        record = self.propose(self.one_step_plan())
+        policy.decide(record["approval"], "APPROVED", via="test")
+
+        def inspect_claim(cmd, fleet, quote=""):
+            stored = intents.load(record["id"])
+            self.assertEqual(stored["state"], intents.RUNNING)
+            self.assertEqual(stored["current_step"], 1)
+            self.assertEqual(stored["current_kind"], "task_new")
+            return "done"
+
+        intents.run_approved(FLEET, executor=inspect_claim)
+        stored = intents.load(record["id"])
+        self.assertEqual(stored["state"], intents.EXECUTED)
+        self.assertNotIn("current_step", stored)
+
+    def test_each_receipt_is_persisted_before_the_next_step(self):
+        plan = self.one_step_plan()
+        plan["steps"].append({"kind": "task_new", "id": "fill-birdbath",
+                              "description": "fill the birdbath"})
+        record = self.propose(plan)
+        policy.decide(record["approval"], "APPROVED", via="test")
+        calls = []
+
+        def inspect_checkpoint(cmd, fleet, quote=""):
+            calls.append(cmd["id"])
+            if len(calls) == 2:
+                stored = intents.load(record["id"])
+                self.assertEqual(stored["receipts"][0]["outcome"], "done")
+                self.assertEqual(stored["current_step"], 2)
+            return "done"
+
+        intents.run_approved(FLEET, executor=inspect_checkpoint)
+        self.assertEqual(calls, ["water-plants", "fill-birdbath"])
+
+    def test_an_abandoned_run_is_interrupted_and_never_replayed(self):
+        record = self.propose(self.one_step_plan())
+        policy.decide(record["approval"], "APPROVED", via="test")
+        abandoned = intents.load(record["id"])
+        abandoned["state"] = intents.RUNNING
+        abandoned["current_step"] = 1
+        from aletheia import stateio
+        stateio.write_json_atomic(intents._record_path(record["id"]), abandoned)
+        seen = []
+
+        result = intents.run_approved(
+            FLEET, executor=lambda *a, **k: seen.append(1) or "done")
+        self.assertEqual(seen, [])
+        self.assertEqual(result[0]["outcome"], intents.INTERRUPTED)
+        self.assertEqual(intents.load(record["id"])["state"], intents.INTERRUPTED)
+        self.assertEqual(intents.run_approved(
+            FLEET, executor=lambda *a, **k: seen.append(1) or "done"), [])
+        self.assertEqual(seen, [])
+
+    def test_a_fully_receipted_run_is_finalized_not_called_uncertain(self):
+        record = self.propose(self.one_step_plan())
+        policy.decide(record["approval"], "APPROVED", via="test")
+        abandoned = intents.load(record["id"])
+        abandoned["state"] = intents.RUNNING
+        abandoned["receipts"] = [{"n": 1, "outcome": "done",
+                                   "kind": "task_new", "detail": "done"}]
+        from aletheia import stateio
+        stateio.write_json_atomic(intents._record_path(record["id"]), abandoned)
+        seen = []
+
+        result = intents.run_approved(
+            FLEET, executor=lambda *a, **k: seen.append(1) or "done")
+        self.assertEqual(seen, [])
+        self.assertEqual(result[0]["outcome"], intents.EXECUTED)
+        self.assertEqual(intents.load(record["id"])["state"], intents.EXECUTED)
+
     def test_a_denied_intent_is_retired_and_never_runs(self):
         seen = []
         record = self.propose(self.one_step_plan())
