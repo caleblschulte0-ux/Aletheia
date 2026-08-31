@@ -42,7 +42,7 @@ That URL now delegates to the bounded Windows bring-up path. It:
 - installs and proves the persistent Core;
 - repairs/proves the local room voice;
 - verifies both watchdogs and local reasoning;
-- resumes only after those machine-specific checks succeed.
+- verifies the repo kill switch is already in the operator-approved running state; the installer never lifts it.
 
 If any required step fails, it stops there instead of half-starting Thea. Full
 Linux and Windows test suites remain GitHub CI's job.
