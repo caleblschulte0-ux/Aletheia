@@ -815,3 +815,4 @@
 {"ts": "2026-08-31T17:47:14Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-08-31"}
 {"ts": "2026-08-31T23:40:33Z", "kind": "event", "actor": "operator-via-intercom", "subject": "policy:halt", "text": "kill switch lifted — resuming"}
 {"ts": "2026-08-31T23:40:33Z", "kind": "action", "actor": "operator-via-intercom", "subject": "intercom:20260831-resume-safe-windows", "text": "done — resumed"}
+{"ts": "2026-09-01T15:21:16Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-09-01"}
