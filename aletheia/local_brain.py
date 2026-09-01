@@ -17,6 +17,7 @@ from typing import Any
 
 DEFAULT_BASE_URL = "http://127.0.0.1:11434"
 DEFAULT_TIMEOUT_S = 45.0
+DEFAULT_KEEP_ALIVE = "30s"
 MAX_RESPONSE_BYTES = 512 * 1024
 MAX_CONTEXT_BYTES = 16 * 1024
 MAX_PROMPT_CHARS = 24_000
@@ -146,6 +147,31 @@ def _read_json(response) -> dict[str, Any]:
     return value
 
 
+def _runtime_limits() -> tuple[int, str]:
+    """Keep local inference useful without letting it monopolize the laptop."""
+    logical_cpus = max(1, os.cpu_count() or 1)
+    default_threads = max(1, logical_cpus // 4)
+    raw_threads = os.environ.get("ALETHEIA_LOCAL_AI_THREADS", "").strip()
+    if raw_threads:
+        try:
+            threads = int(raw_threads)
+        except ValueError as exc:
+            raise ValueError("ALETHEIA_LOCAL_AI_THREADS must be an integer") from exc
+        if not 1 <= threads <= logical_cpus:
+            raise ValueError(
+                f"ALETHEIA_LOCAL_AI_THREADS must be between 1 and {logical_cpus}"
+            )
+    else:
+        threads = default_threads
+
+    keep_alive = os.environ.get(
+        "ALETHEIA_LOCAL_AI_KEEP_ALIVE", DEFAULT_KEEP_ALIVE
+    ).strip() or DEFAULT_KEEP_ALIVE
+    if len(keep_alive) > 32 or any(ch in keep_alive for ch in "\r\n\x00"):
+        raise ValueError("ALETHEIA_LOCAL_AI_KEEP_ALIVE must be a short duration")
+    return threads, keep_alive
+
+
 def request_json(config: OllamaConfig, path: str, payload: dict | None = None) -> dict[str, Any]:
     config.validated()
     data = None if payload is None else json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -168,12 +194,14 @@ def build_payload(system_prompt: str, text: str, context: dict, config: OllamaCo
     if not isinstance(text, str) or not text.strip() or len(text) > MAX_PROMPT_CHARS:
         raise ValueError("local reasoning text must be non-empty and bounded")
     ctx = _context_json(context)
+    threads, keep_alive = _runtime_limits()
     return {
         "model": config.model,
         "stream": False,
         "think": config.think,
         "format": "json",
-        "options": {"temperature": 0},
+        "keep_alive": keep_alive,
+        "options": {"temperature": 0, "num_thread": threads},
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": text + ("\n\n--- UNTRUSTED CONTEXT JSON ---\n" + ctx if context else "")},
