@@ -745,3 +745,4 @@
 {"ts": "2026-09-01T02:38:46Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I could not plan that: ReasonerUnavailable: subscription reasoning and local deep reasoning are unavailable"}
 {"ts": "2026-09-01T02:44:02Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I could not plan that: ReasonerUnavailable: subscription reasoning and local deep reasoning are unavailable"}
 {"ts": "2026-09-01T02:52:50Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I could not plan that: ReasonerUnavailable: subscription reasoning and local deep reasoning are unavailable"}
+{"ts": "2026-09-01T02:59:29Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I could not plan that: ReasonerUnavailable: subscription reasoning and local deep reasoning are unavailable"}
