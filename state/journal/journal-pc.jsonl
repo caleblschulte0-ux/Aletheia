@@ -730,3 +730,4 @@
 {"ts": "2026-09-01T01:42:51Z", "kind": "event", "actor": "aletheia-voice", "subject": "voice:room", "text": "room voice listening (single local wake listener)"}
 {"ts": "2026-09-01T01:47:12Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I could not plan that: ReasonerUnavailable: subscription reasoning and local deep reasoning are unavailable"}
 {"ts": "2026-09-01T01:52:31Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I could not plan that: ReasonerUnavailable: subscription reasoning and local deep reasoning are unavailable"}
+{"ts": "2026-09-01T01:55:47Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I could not plan that: ReasonerUnavailable: subscription reasoning and local deep reasoning are unavailable"}
