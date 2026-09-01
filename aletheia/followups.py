@@ -160,11 +160,14 @@ def undelivered_count() -> int:
 def begin_update() -> bool:
     """Reserve the short pull/self-update window only when no promise exists.
 
-    The reservation and start() share one lock, closing the old check-then-pull
-    race. While reserved, start() refuses new slow follow-ups immediately rather
-    than allowing an in-memory promise to be born underneath a restart.
+    A cheap public count check makes the deferral contract directly observable
+    to callers/tests. The second check under the shared lock is still the real
+    race barrier: start() and this reservation cannot cross each other between
+    the decision and `_UPDATING = True`.
     """
     global _UPDATING
+    if undelivered_count():
+        return False
     with _LOCK:
         _prune()
         if _UPDATING or _SLOTS:
