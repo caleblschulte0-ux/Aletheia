@@ -349,6 +349,7 @@ def collect_followup(followup_id: str, core_url: str = CORE_URL,
                      wait_s: float = FOLLOWUP_WAIT_S,
                      poll_s: float = FOLLOWUP_POLL_S, sleep=None,
                      monotonic=None) -> str | None:
+    """Poll without consuming; the caller ACKs only after speech succeeds."""
     import time as _time
     sleep = sleep or _time.sleep
     monotonic = monotonic or _time.monotonic
@@ -361,8 +362,7 @@ def collect_followup(followup_id: str, core_url: str = CORE_URL,
                 payload = json.loads(response.read().decode("utf-8"))
         except Exception:
             # A self-update or brief socket failure must not turn the promised
-            # answer into silence.  Keep polling within the same bounded wait;
-            # a restarted Core will answer EXPIRED explicitly.
+            # answer into silence. Keep polling within the same bounded wait.
             sleep(poll_s)
             continue
         if payload.get("state") in ("READY", "FAILED"):
@@ -371,6 +371,33 @@ def collect_followup(followup_id: str, core_url: str = CORE_URL,
             return FOLLOWUP_EXPIRED_SAY
         sleep(poll_s)
     return FOLLOWUP_TIMEOUT_SAY
+
+
+def acknowledge_followup(followup_id: str, core_url: str = CORE_URL,
+                         attempts: int = 3, sleep=None) -> bool:
+    """Tell the Core a finished sentence was actually spoken.
+
+    ACK is separate from GET so a dropped response never consumes the only copy.
+    It happens after the blocking speaker returns. A lost ACK response is safe to
+    retry: EXPIRED means the first ACK already removed the finished slot.
+    """
+    import time as _time
+    sleep = sleep or _time.sleep
+    body = json.dumps({"id": followup_id}).encode("utf-8")
+    for attempt in range(max(1, attempts)):
+        req = urllib.request.Request(
+            f"{core_url}/api/voice/followup/ack", data=body,
+            headers={"Content-Type": "application/json"}, method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=5) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except Exception:
+            if attempt + 1 < max(1, attempts):
+                sleep(0.1)
+            continue
+        return payload.get("state") in ("ACKED", "EXPIRED")
+    return False
 
 
 def ask_core(transcript: str, core_url: str = CORE_URL) -> dict:
@@ -475,7 +502,11 @@ def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
         if followup_id:
             later = collect_followup(followup_id, core_url)
             if later:
+                # ACK only after the blocking speaker returns. If speech itself
+                # fails, the finished slot remains undelivered rather than being
+                # falsely marked as heard.
                 say(later)
+                acknowledge_followup(followup_id, core_url)
         handled += 1
         if max_utterances is not None and handled >= max_utterances:
             return handled
