@@ -727,3 +727,4 @@
 {"ts": "2026-09-01T01:41:36Z", "kind": "alert", "actor": "aletheia-liveness", "subject": "core:liveness", "text": "Aletheia was down for 2.3h — back up now (8443s since the last heartbeat)."}
 {"ts": "2026-09-01T01:41:37Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
 {"ts": "2026-09-01T01:41:37Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-09-01T01:42:51Z", "kind": "event", "actor": "aletheia-voice", "subject": "voice:room", "text": "room voice listening (single local wake listener)"}
