@@ -26,10 +26,15 @@ import uuid
 SLOTS = 8
 TTL_S = 300.0
 
-PENDING, READY, FAILED = "PENDING", "READY", "FAILED"
+PENDING, READY, FAILED, ACKED = "PENDING", "READY", "FAILED", "ACKED"
 
 _LOCK = threading.Lock()
 _SLOTS: dict[str, dict] = {}
+_UPDATING = False
+
+
+class UpdateInProgress(RuntimeError):
+    """Raised when a slow follow-up would race a Core code-update window."""
 
 
 def _prune(now: float | None = None) -> None:
@@ -48,9 +53,18 @@ def start(work, acknowledgement: str = "One moment.") -> dict:
     `work` returns the sentence to say. It runs with no lock held, and any
     exception it raises becomes a FAILED slot with an honest sentence —
     never a silent nothing, and never an exception in the Core.
+
+    A code-update window refuses a NEW promise instead of allowing the Core to
+    restart while that promise is being created. The HTTP layer turns this rare
+    condition into an immediate spoken "ask me again" response; it never leaves
+    the room waiting on a slot that cannot survive the restart.
     """
+    global _UPDATING
     followup_id = "fu-" + uuid.uuid4().hex[:10]
     with _LOCK:
+        _prune()
+        if _UPDATING:
+            raise UpdateInProgress("Core code update in progress")
         _SLOTS[followup_id] = {"id": followup_id, "state": PENDING, "say": None,
                                "created": time.monotonic()}
         _prune()  # after inserting, so the cap counts THIS slot too
@@ -74,8 +88,12 @@ def start(work, acknowledgement: str = "One moment.") -> dict:
 
 
 def poll(followup_id: str) -> dict:
-    """The slot's current state. Unknown ids read as expired, not as an error:
-    a caller that waited too long should hear that, not a 404."""
+    """Read a slot without consuming it.
+
+    READY/FAILED answers remain present until the listener explicitly ACKs
+    receipt. A socket can therefore die after the Core produced the response but
+    before the room received it; the retry sees the same finished sentence.
+    """
     with _LOCK:
         _prune()
         slot = _SLOTS.get(followup_id)
@@ -84,9 +102,33 @@ def poll(followup_id: str) -> dict:
         return {"id": slot["id"], "state": slot["state"], "say": slot["say"]}
 
 
+def acknowledge(followup_id: str) -> dict:
+    """Acknowledge a delivered READY/FAILED answer and remove it.
+
+    PENDING is deliberately non-destructive. ACK is idempotent from the
+    listener's perspective: a retry after the first ACK may read EXPIRED, which
+    means the finished slot is already gone and is safe to treat as delivered.
+    """
+    with _LOCK:
+        _prune()
+        slot = _SLOTS.get(followup_id)
+        if slot is None:
+            return {"id": followup_id, "state": "EXPIRED", "say": None}
+        if slot["state"] not in (READY, FAILED):
+            return {"id": slot["id"], "state": slot["state"], "say": slot["say"]}
+        delivered_state = slot["state"]
+        said = slot["say"]
+        _SLOTS.pop(followup_id, None)
+        return {"id": followup_id, "state": ACKED,
+                "delivered_state": delivered_state, "say": said}
+
+
 def take(followup_id: str) -> dict:
-    """Poll, and remove the slot once it has been delivered. Keeps a spoken
-    answer from being said twice if a listener polls after speaking."""
+    """Legacy one-call delivery helper retained for internal/tests compatibility.
+
+    New room delivery uses poll() + acknowledge() so an HTTP response cannot
+    consume the only copy before the listener actually receives it.
+    """
     with _LOCK:
         _prune()
         slot = _SLOTS.get(followup_id)
@@ -104,18 +146,47 @@ def pending_count() -> int:
 
 
 def undelivered_count() -> int:
-    """Answers the Core has promised but the room has not collected yet.
+    """Answers the Core has promised but the room has not ACKed yet.
 
-    READY and FAILED still count.  A self-update between computation and the
-    listener's next poll would otherwise erase the finished sentence just as
-    surely as restarting while the provider is still working.
+    READY and FAILED still count. A self-update between computation and the
+    listener's ACK would otherwise erase the finished sentence just as surely as
+    restarting while the provider is still working.
     """
     with _LOCK:
         _prune()
         return len(_SLOTS)
 
 
+def begin_update() -> bool:
+    """Reserve the short pull/self-update window only when no promise exists.
+
+    The reservation and start() share one lock, closing the old check-then-pull
+    race. While reserved, start() refuses new slow follow-ups immediately rather
+    than allowing an in-memory promise to be born underneath a restart.
+    """
+    global _UPDATING
+    with _LOCK:
+        _prune()
+        if _UPDATING or _SLOTS:
+            return False
+        _UPDATING = True
+        return True
+
+
+def end_update() -> None:
+    global _UPDATING
+    with _LOCK:
+        _UPDATING = False
+
+
+def update_in_progress() -> bool:
+    with _LOCK:
+        return _UPDATING
+
+
 def reset() -> None:
     """Tests only."""
+    global _UPDATING
     with _LOCK:
         _SLOTS.clear()
+        _UPDATING = False
