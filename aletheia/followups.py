@@ -103,6 +103,18 @@ def pending_count() -> int:
         return sum(1 for v in _SLOTS.values() if v["state"] == PENDING)
 
 
+def undelivered_count() -> int:
+    """Answers the Core has promised but the room has not collected yet.
+
+    READY and FAILED still count.  A self-update between computation and the
+    listener's next poll would otherwise erase the finished sentence just as
+    surely as restarting while the provider is still working.
+    """
+    with _LOCK:
+        _prune()
+        return len(_SLOTS)
+
+
 def reset() -> None:
     """Tests only."""
     with _LOCK:

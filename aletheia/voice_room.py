@@ -47,8 +47,17 @@ AGC_MAX_GAIN = 40
 AGC_FLOOR = 200
 WAKE_GRAMMAR = '["thea", "aletheia", "hey thea", "[unk]"]'
 WAKE_CONFIDENCE_MIN = 0.70
-FOLLOWUP_WAIT_S = 60.0
+# Standard planning owns a 90-second total provider budget.  The listener must
+# outwait that contract plus response/HTTP overhead or it can abandon a healthy
+# answer while the Core is still doing exactly what its deadline permits.
+FOLLOWUP_WAIT_S = 120.0
 FOLLOWUP_POLL_S = 1.0
+FOLLOWUP_EXPIRED_SAY = (
+    "I couldn't deliver that answer before it expired. Please ask me again."
+)
+FOLLOWUP_TIMEOUT_SAY = (
+    "That is taking longer than expected, and I couldn't confirm the answer."
+)
 BARE_WAKE_WINDOW_S = 8.0
 OUTPUT_TAIL_S = 0.55
 REPEAT_FAILURE_WINDOW_S = 20.0
@@ -338,24 +347,30 @@ def is_addressed(text: str) -> bool:
 
 def collect_followup(followup_id: str, core_url: str = CORE_URL,
                      wait_s: float = FOLLOWUP_WAIT_S,
-                     poll_s: float = FOLLOWUP_POLL_S, sleep=None) -> str | None:
+                     poll_s: float = FOLLOWUP_POLL_S, sleep=None,
+                     monotonic=None) -> str | None:
     import time as _time
     sleep = sleep or _time.sleep
-    deadline = _time.monotonic() + wait_s
-    while _time.monotonic() < deadline:
+    monotonic = monotonic or _time.monotonic
+    deadline = monotonic() + wait_s
+    while monotonic() < deadline:
         try:
             with urllib.request.urlopen(
                 f"{core_url}/api/voice/followup?id={followup_id}", timeout=5
             ) as response:
                 payload = json.loads(response.read().decode("utf-8"))
         except Exception:
-            return None
+            # A self-update or brief socket failure must not turn the promised
+            # answer into silence.  Keep polling within the same bounded wait;
+            # a restarted Core will answer EXPIRED explicitly.
+            sleep(poll_s)
+            continue
         if payload.get("state") in ("READY", "FAILED"):
             return payload.get("say")
         if payload.get("state") == "EXPIRED":
-            return None
+            return FOLLOWUP_EXPIRED_SAY
         sleep(poll_s)
-    return None
+    return FOLLOWUP_TIMEOUT_SAY
 
 
 def ask_core(transcript: str, core_url: str = CORE_URL) -> dict:

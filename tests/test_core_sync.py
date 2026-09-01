@@ -211,6 +211,18 @@ class SelfUpdateCase(CoreSyncFixture):
         status = core.core_tick(self.syncer, self.fleet, self.status)
         self.assertTrue(status["pull"]["ok"])
 
+    def test_sync_waits_until_a_promised_voice_answer_is_delivered(self):
+        self.relay_pushes_file("aletheia/newmod.py", "x = 1\n", "feat: new code")
+        fired = []
+        before = self.syncer.head()
+        with mock.patch.object(core.followups, "undelivered_count", return_value=1):
+            status = core.core_tick(
+                self.syncer, self.fleet, self.status, on_code_update=fired.append,
+            )
+        self.assertEqual(self.syncer.head(), before)
+        self.assertEqual(fired, [])
+        self.assertEqual(status["update_deferred"]["voice_followups"], 1)
+
 
 class JournalConflictRegressionCase(CoreSyncFixture):
     """The 2026-08-26 bootstrap abort: the PC and the cloud both appended

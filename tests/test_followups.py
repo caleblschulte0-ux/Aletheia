@@ -3,6 +3,8 @@ incapable of taking the Core down with them."""
 import threading
 import time
 import unittest
+import urllib.error
+from unittest import mock
 
 from aletheia import followups
 
@@ -88,6 +90,14 @@ class FollowupCase(unittest.TestCase):
         self.assertEqual(followups.pending_count(), 1)
         gate.set()
 
+    def test_undelivered_count_includes_ready_answers(self):
+        slot = followups.start(lambda: "ready but not collected")
+        self.wait_for(slot["id"])
+        self.assertEqual(followups.pending_count(), 0)
+        self.assertEqual(followups.undelivered_count(), 1)
+        followups.take(slot["id"])
+        self.assertEqual(followups.undelivered_count(), 0)
+
 
 class RoomCollectionCase(unittest.TestCase):
     """The listener's half: speak the acknowledgement, then the answer."""
@@ -118,15 +128,79 @@ class RoomCollectionCase(unittest.TestCase):
         self.assertEqual(spoken, ["Working on that."])
 
     def test_collect_followup_gives_up_rather_than_waiting_forever(self):
-        from unittest import mock
         from aletheia import voice_room
-        slept = []
+        now = [0.0]
+
+        def advance(seconds):
+            now[0] += seconds
+
         with mock.patch.object(voice_room.urllib.request, "urlopen") as urlopen:
             urlopen.return_value.__enter__.return_value.read.return_value = \
                 b'{"state": "PENDING", "say": null}'
             said = voice_room.collect_followup("fu-1", wait_s=0.05, poll_s=0.01,
-                                               sleep=slept.append)
-        self.assertIsNone(said)
+                                               sleep=advance,
+                                               monotonic=lambda: now[0])
+        self.assertIn("taking longer", said)
+
+    def test_collect_followup_outwaits_the_standard_reasoning_budget(self):
+        from aletheia import reasoning_gateway, voice_room
+        self.assertGreater(
+            voice_room.FOLLOWUP_WAIT_S,
+            reasoning_gateway.STANDARD_TOTAL_TIMEOUT_S,
+        )
+
+    def test_collect_followup_retries_a_temporary_core_disconnect(self):
+        from aletheia import voice_room
+        now = [0.0]
+
+        class Response:
+            def __init__(self, payload):
+                self.payload = payload
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return self.payload
+
+        def advance(seconds):
+            now[0] += seconds
+
+        with mock.patch.object(
+            voice_room.urllib.request,
+            "urlopen",
+            side_effect=[
+                urllib.error.URLError("Core restarting"),
+                Response(b'{"state": "PENDING", "say": null}'),
+                Response(b'{"state": "READY", "say": "finished answer"}'),
+            ],
+        ):
+            said = voice_room.collect_followup(
+                "fu-1", wait_s=10, poll_s=1, sleep=advance,
+                monotonic=lambda: now[0],
+            )
+        self.assertEqual(said, "finished answer")
+
+    def test_expired_followup_is_spoken_as_a_failure_not_silence(self):
+        from aletheia import voice_room
+
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return b'{"state": "EXPIRED", "say": null}'
+
+        with mock.patch.object(voice_room.urllib.request, "urlopen",
+                               return_value=Response()):
+            said = voice_room.collect_followup("fu-gone", wait_s=1)
+        self.assertIn("couldn't deliver", said)
 
 
 if __name__ == "__main__":

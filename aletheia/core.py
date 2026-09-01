@@ -319,6 +319,17 @@ def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
         journal.append("event", "core:presence",
                        f"could not refresh the wall: {type(exc).__name__}: {exc}",
                        actor=ACTOR)
+    # A follow-up is a promise made out loud.  Pulling code can deliberately
+    # restart this process, which erases its in-memory worker and even a READY
+    # sentence that the room has not collected yet.  Defer the pull—not merely
+    # the restart—until every promised answer has been delivered or its bounded
+    # five-minute slot expires.  This also avoids executing a mixture of old
+    # imported modules and newly pulled files.
+    undelivered = followups.undelivered_count()
+    if undelivered:
+        status["update_deferred"] = {"voice_followups": undelivered}
+        return status
+    status.pop("update_deferred", None)
     # checkpoint local run-truth FIRST so the pull rebases clean commits,
     # never a dirty journal (the exact conflict that broke a real PC)
     syncer.commit(["exchange/commands", "state/journal"], "core: state checkpoint")

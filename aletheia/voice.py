@@ -112,6 +112,39 @@ def _status_say() -> str:
     return " ".join(parts)
 
 
+def _attention_say() -> str:
+    """Read the durable attention queues locally; no model is needed."""
+    from aletheia import current_state
+    from aletheia.core import status_payload  # late import; core imports us too
+
+    state = current_state.snapshot()
+    needs = state["needs_attention"]
+    parts = []
+    if state["halted"]:
+        parts.append("I am halted — nothing acts until you say resume.")
+    alerts = status_payload()["pulse"].get("alerts") or 0
+    if alerts:
+        parts.append(f"{alerts} fleet alert{'s' if alerts != 1 else ''}.")
+    for key, singular in (
+        ("pending_approvals", "approval waiting on you"),
+        ("waiting_operator", "task waiting on you"),
+        ("blocked_tasks", "blocked task"),
+        ("overdue_replies", "overdue reply"),
+    ):
+        count = len(needs[key])
+        if count:
+            plural = singular if count == 1 else (
+                singular.replace("approval", "approvals")
+                .replace("task", "tasks")
+                .replace("reply", "replies")
+            )
+            parts.append(f"{count} {plural}.")
+    unread = needs["unread_notifications"]
+    if unread:
+        parts.append(f"{unread} unread notification{'s' if unread != 1 else ''}.")
+    return " ".join(parts) or "Nothing needs your attention right now."
+
+
 def interpret(transcript: str) -> dict:
     """One spoken sentence -> a command to gate-check, or words to say."""
     text = strip_wake_word(transcript)
@@ -132,6 +165,10 @@ def interpret(transcript: str) -> dict:
     if re.fullmatch(r"(status|what'?s going on|what is going on|what'?s up|"
                     r"how are things|anything happening|report)", low):
         return {"command": None, "say": _status_say()}
+
+    if re.fullmatch(r"(what needs my attention|does anything need my attention|"
+                    r"anything need my attention|what do i need to deal with)", low):
+        return {"command": None, "say": _attention_say()}
 
     # reminders — before email so "remind me to email bob" stays a reminder
     m = re.match(r"remind me (?:every day|daily) at ([\w: ]+?) (?:to|that) (.+)", low)

@@ -35,6 +35,11 @@ class InterpretCase(unittest.TestCase):
         self.assertIsNone(out["command"])
         self.assertIn("task", out["say"])
 
+    def test_what_needs_my_attention_is_local_not_a_slow_intent(self):
+        out = voice.interpret("Thea, what needs my attention?")
+        self.assertIsNone(out["command"])
+        self.assertTrue(out["say"])
+
     def test_read_a_spoken_url(self):
         out = voice.interpret("Thea, read example dot com")
         self.assertEqual(out["command"],
@@ -148,6 +153,12 @@ class VoiceEndpointCase(unittest.TestCase):
         res = self.post_voice("Thea, what's going on?")
         self.assertEqual(res["outcome"], "answered")
         self.assertTrue(res["say"])
+
+    def test_attention_question_answers_without_starting_a_followup(self):
+        res = self.post_voice("Thea, what needs my attention?")
+        self.assertEqual(res["outcome"], "answered")
+        self.assertTrue(res["say"])
+        self.assertNotIn("followup_id", res)
 
     def test_halt_then_resume_by_voice(self):
         res = self.post_voice("Thea, stop everything")
