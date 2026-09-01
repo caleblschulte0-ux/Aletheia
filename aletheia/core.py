@@ -45,7 +45,8 @@ API:
     GET  /api/schedules     durable schedule definitions
     GET  /api/runtime       last runtime tick summary
     GET  /api/setup         what the operator still has to supply, checked live
-    GET  /api/voice/followup?id=  a slow spoken answer, once it exists
+    GET  /api/voice/followup?id=  a slow spoken answer, non-destructive until ACK
+    POST /api/voice/followup/ack  {"id": …} after the room actually speaks it
     GET  /api/computer/status
     POST /api/command       {"kind": …, …args} (+optional "operator_quote")
                             → {outcome, detail}, executed inline, journaled
@@ -319,58 +320,66 @@ def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
         journal.append("event", "core:presence",
                        f"could not refresh the wall: {type(exc).__name__}: {exc}",
                        actor=ACTOR)
-    # A follow-up is a promise made out loud.  Pulling code can deliberately
-    # restart this process, which erases its in-memory worker and even a READY
-    # sentence that the room has not collected yet.  Defer the pull—not merely
-    # the restart—until every promised answer has been delivered or its bounded
-    # five-minute slot expires.  This also avoids executing a mixture of old
-    # imported modules and newly pulled files.
-    undelivered = followups.undelivered_count()
-    if undelivered:
-        status["update_deferred"] = {"voice_followups": undelivered}
-        return status
-    status.pop("update_deferred", None)
-    # checkpoint local run-truth FIRST so the pull rebases clean commits,
-    # never a dirty journal (the exact conflict that broke a real PC)
-    syncer.commit(["exchange/commands", "state/journal"], "core: state checkpoint")
-    prev_pull = status.get("pull")
-    before = syncer.head()
-    ok, detail = syncer.pull()
-    status["pull"] = {"ok": ok, "detail": detail}
-    if prev_pull is not None and prev_pull.get("ok") != ok:
-        journal.append("event", "core:sync",
-                       f"pull {'recovered' if ok else 'failing'}: {detail}", actor=ACTOR)
-        try:  # also a bus event, so watchers/rules can react to sync health
-            events.emit("core.sync_recovered" if ok else "core.sync_failed",
-                        "repo:aletheia", f"pull {'recovered' if ok else 'failing'}: {detail[:200]}",
-                        source="core")
-        except Exception:
-            pass  # the journal line above is the record; the bus is best-effort
-    if ok and before:
-        after = syncer.head()
-        if after and after != before:
-            changed = syncer.changed_paths(before, after, CODE_PATHS)
-            status["head"] = after
-            if changed and on_code_update is not None:
+
+    # Pull/self-update is the only part of the beat that may deliberately kill
+    # this process. Reserve that short window atomically with followup.start().
+    # If a spoken promise already exists, skip ONLY updating: schedules, local
+    # commands, mail and the runtime still execute on every beat.
+    update_window = followups.begin_update()
+    keep_update_window = False
+    if not update_window:
+        status["update_deferred"] = {
+            "voice_followups": followups.undelivered_count(),
+        }
+    else:
+        status.pop("update_deferred", None)
+        try:
+            # checkpoint local run-truth FIRST so the pull rebases clean commits,
+            # never a dirty journal (the exact conflict that broke a real PC)
+            syncer.commit(["exchange/commands", "state/journal"], "core: state checkpoint")
+            prev_pull = status.get("pull")
+            before = syncer.head()
+            ok, detail = syncer.pull()
+            status["pull"] = {"ok": ok, "detail": detail}
+            if prev_pull is not None and prev_pull.get("ok") != ok:
                 journal.append("event", "core:sync",
-                               f"code updated ({len(changed)} file(s), now at "
-                               f"{after[:10]}) — restarting to run it", actor=ACTOR)
-                on_code_update(changed)
-                return status  # restarting; skip command processing this tick
-    # A pull is not the only way code changes. When the operator (or a
-    # session working in this clone) commits locally, HEAD moved before the
-    # Core ever looked, so `after == before` and the restart never fires —
-    # the process keeps running code that is no longer on disk. Found live
-    # 2026-08-27: a new command kind was on disk and unknown to the Core for
-    # half an hour. Ask the FILES, not just git.
-    stale = stale_code_files()
-    if stale and on_code_update is not None:
-        journal.append("event", "core:sync",
-                       f"code on disk is newer than this process "
-                       f"({len(stale)} file(s), e.g. {stale[0]}) — restarting to run it",
-                       actor=ACTOR)
-        on_code_update(stale)
-        return status
+                               f"pull {'recovered' if ok else 'failing'}: {detail}", actor=ACTOR)
+                try:  # also a bus event, so watchers/rules can react to sync health
+                    events.emit("core.sync_recovered" if ok else "core.sync_failed",
+                                "repo:aletheia",
+                                f"pull {'recovered' if ok else 'failing'}: {detail[:200]}",
+                                source="core")
+                except Exception:
+                    pass  # the journal line above is the record; the bus is best-effort
+            if ok and before:
+                after = syncer.head()
+                if after and after != before:
+                    changed = syncer.changed_paths(before, after, CODE_PATHS)
+                    status["head"] = after
+                    if changed and on_code_update is not None:
+                        journal.append("event", "core:sync",
+                                       f"code updated ({len(changed)} file(s), now at "
+                                       f"{after[:10]}) — restarting to run it", actor=ACTOR)
+                        # The production callback returns True: keep the update
+                        # reservation until the process exits, so no new slow
+                        # promise can slip between shutdown request and exit.
+                        keep_update_window = bool(on_code_update(changed))
+                        return status  # restarting; skip command processing this tick
+            # A pull is not the only way code changes. When the operator (or a
+            # session working in this clone) commits locally, HEAD moved before the
+            # Core ever looked, so `after == before` and the restart never fires.
+            stale = stale_code_files()
+            if stale and on_code_update is not None:
+                journal.append("event", "core:sync",
+                               f"code on disk is newer than this process "
+                               f"({len(stale)} file(s), e.g. {stale[0]}) — restarting to run it",
+                               actor=ACTOR)
+                keep_update_window = bool(on_code_update(stale))
+                return status
+        finally:
+            if not keep_update_window:
+                followups.end_update()
+
     results = []
     try:
         results = intercom.run_pending(fleet, commands_dir=None, side="local")
@@ -571,7 +580,9 @@ class Handler(BaseHTTPRequestHandler):
             if not fid:
                 return self._json({"state": "EXPIRED", "say": None,
                                    "detail": "id required"}, code=400)
-            return self._json(followups.take(fid))
+            # Non-destructive. The listener ACKs only after it has actually
+            # spoken the returned sentence.
+            return self._json(followups.poll(fid))
         if url.path == "/api/journal":
             last = int(parse_qs(url.query).get("last", ["50"])[0])
             return self._json(journal.entries()[-last:])
@@ -596,12 +607,17 @@ class Handler(BaseHTTPRequestHandler):
             return
         path = urlparse(self.path).path
         if path not in ("/api/command", "/api/computer", "/api/voice",
-                        "/api/notifications/ack"):
+                        "/api/notifications/ack", "/api/voice/followup/ack"):
             return self.send_error(404)
         try:
             payload = self._payload()
         except (ValueError, json.JSONDecodeError) as exc:
             return self._json({"outcome": "invalid", "detail": str(exc)}, code=400)
+        if path == "/api/voice/followup/ack":
+            fid = payload.get("id")
+            if not isinstance(fid, str) or not fid:
+                return self._json({"outcome": "invalid", "detail": "id required"}, code=400)
+            return self._json(followups.acknowledge(fid))
         if path == "/api/command":
             result = run_command(payload, self.fleet)
             if payload.get("kind") in ("approve", "resume"):
@@ -637,9 +653,15 @@ class Handler(BaseHTTPRequestHandler):
                 # waits about two. Answer now, think in the background, and
                 # let the listener collect the real sentence when it exists.
                 fleet = self.fleet
-                slot = followups.start(
-                    lambda: run_command({**cmd, "operator_quote": quote}, fleet)["detail"],
-                    acknowledgement="Working on that.")
+                try:
+                    slot = followups.start(
+                        lambda: run_command({**cmd, "operator_quote": quote}, fleet)["detail"],
+                        acknowledgement="Working on that.")
+                except followups.UpdateInProgress:
+                    return self._json({
+                        "outcome": "busy",
+                        "say": "I'm applying an update right now. Ask me again in a moment.",
+                    })
                 return self._json({"outcome": "thinking", "say": slot["say"],
                                    "followup_id": slot["id"]})
             result = run_command({**cmd, "operator_quote": quote}, self.fleet)
@@ -769,9 +791,12 @@ def main(argv: list[str] | None = None) -> int:
     restarting = threading.Event()
 
     def on_code_update(changed):
-        # runs on the sync thread; shutdown() unblocks serve_forever below
+        # runs on the sync thread; shutdown() unblocks serve_forever below.
+        # True tells core_tick to keep the follow-up update reservation held
+        # until this process exits, closing the shutdown-request/exit race.
         restarting.set()
         threading.Thread(target=server.shutdown, daemon=True).start()
+        return True
 
     if not args.no_sync:
         start_sync_loop(load_fleet(), interval_s=args.sync_interval,
