@@ -1,24 +1,24 @@
 # Fleet briefing
 
-Generated 2026-08-31T22:54:11Z from fleet registry rev 4 via GitHubSource.
+Generated 2026-09-01T05:16:57Z from fleet registry rev 4 via GitHubSource.
 
 ## 🟢 `Aletheia` — hub (active)
 
 The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.
 
-Last commit `4ba1c3d13ebb` at 2026-08-31T22:46:27Z: pc: salvage locally journaled entries
+Last commit `6999df1b641f` at 2026-09-01T03:07:28Z: core: state checkpoint
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-08-31T22:54:08Z
-- `ci.yml`: success at 2026-08-31T00:54:53Z
+- `pulse.yml`: in_progress at 2026-09-01T05:16:51Z
+- `ci.yml`: success at 2026-09-01T02:46:38Z
 
 ## 🔴 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `652a9f5d3569` at 2026-08-31T22:05:24Z: explainer: update posted log + analytics [skip ci]
+Last commit `b833b2c74c6d` at 2026-09-01T01:12:56Z: explainer: update posted log + analytics [skip ci]
 
-Vitals — trending posted: 300 · explainer posted: 215 · third posted: 398 · curiosity posted: 1
+Vitals — trending posted: 300 · explainer posted: 218 · third posted: 398 · curiosity posted: 1
 
 Watched workflows:
 - `daily.yml`: failure at 2026-08-31T19:34:27Z
@@ -26,8 +26,8 @@ Watched workflows:
 - `exchange_phase_b.yml`: success at 2026-08-31T20:14:07Z
 - `story_forge.yml`: success at 2026-08-31T21:57:02Z
 - `third.yml`: failure at 2026-08-31T18:03:15Z
-- `explainer.yml`: in_progress at 2026-08-31T22:05:34Z
-- `retro.yml`: success at 2026-08-31T05:39:56Z
+- `explainer.yml`: failure at 2026-09-01T01:13:02Z
+- `retro.yml`: success at 2026-09-01T05:13:42Z
 - `doctor.yml`: success at 2026-08-31T11:33:57Z
 
 ## 🔴 `schwab-trader` — trading-bot (active)
@@ -40,7 +40,7 @@ Vitals — realized P&L: $-40.82 · win rate: 14.3% · closed trades: 14 · open
 
 Watched workflows:
 - `sell-brain.yml`: failure at 2026-08-31T18:35:26Z
-- `watchdog.yml`: success at 2026-08-31T19:18:49Z
+- `watchdog.yml`: success at 2026-08-31T23:15:16Z
 
 ## 💤 `Money_Machine` — unbuilt (stub)
 
