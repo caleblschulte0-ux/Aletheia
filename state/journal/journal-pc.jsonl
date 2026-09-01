@@ -723,3 +723,7 @@
 {"ts": "2026-08-31T13:15:35Z", "kind": "decision", "actor": "aletheia-code-trust", "subject": "code:trust", "text": "CLAIM ct-20260830-1314-cbe85f slot 4 for caleblschulte0-ux/Aletheia task issue-2", "refs": ["approval:ct-20260830-1314-cbe85f-operator"]}
 {"ts": "2026-08-31T14:15:35Z", "kind": "decision", "actor": "aletheia-code-trust", "subject": "code:trust", "text": "CLAIM ct-20260830-1314-cbe85f slot 5 for caleblschulte0-ux/Aletheia task issue-2", "refs": ["approval:ct-20260830-1314-cbe85f-operator"]}
 {"ts": "2026-08-31T14:45:33Z", "kind": "decision", "actor": "aletheia-code-trust", "subject": "code:trust", "text": "CLAIM ct-20260830-1314-cbe85f slot 6 for caleblschulte0-ux/Aletheia task issue-2", "refs": ["approval:ct-20260830-1314-cbe85f-operator"]}
+{"ts": "2026-09-01T01:41:36Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "supervisor up — the Core is now persistent"}
+{"ts": "2026-09-01T01:41:36Z", "kind": "alert", "actor": "aletheia-liveness", "subject": "core:liveness", "text": "Aletheia was down for 2.3h — back up now (8443s since the last heartbeat)."}
+{"ts": "2026-09-01T01:41:37Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
+{"ts": "2026-09-01T01:41:37Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
