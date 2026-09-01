@@ -738,3 +738,6 @@
 {"ts": "2026-09-01T02:15:58Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I could not plan that: ReasonerUnavailable: subscription reasoning and local deep reasoning are unavailable"}
 {"ts": "2026-09-01T02:27:12Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I could not plan that: ReasonerUnavailable: subscription reasoning and local deep reasoning are unavailable"}
 {"ts": "2026-09-01T02:29:31Z", "kind": "alert", "actor": "operator-local-core", "subject": "core:runtime:mail", "text": "subsystem failing: SSLEOFError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)"}
+{"ts": "2026-09-01T02:34:49Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "supervisor up — the Core is now persistent"}
+{"ts": "2026-09-01T02:34:50Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
+{"ts": "2026-09-01T02:34:50Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
