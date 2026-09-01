@@ -11,6 +11,16 @@
 $ErrorActionPreference = "Stop"
 $repo = "https://github.com/caleblschulte0-ux/Aletheia.git"
 $dest = Join-Path $HOME "Aletheia"
+$recovery = "https://raw.githubusercontent.com/caleblschulte0-ux/Aletheia/main/scripts/recover_operator_checkout.ps1"
+
+function Have($name) {
+  [bool](Get-Command $name -CommandType Application -ErrorAction SilentlyContinue)
+}
+
+function Refresh-Path {
+  $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
+              [Environment]::GetEnvironmentVariable("Path", "User")
+}
 
 function Find-AletheiaPython {
   foreach ($cand in @(@("py","-3.12"), @("py","-3.11"), @("py","-3.10"),
@@ -63,16 +73,53 @@ Get-CimInstance Win32_Process | Where-Object {
   Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
 }
 
-if (-not (Get-Command git -CommandType Application -ErrorAction SilentlyContinue)) {
-  throw "git is required. Install Git for Windows, then run this same command again."
+if (-not (Have git)) {
+  if (-not (Have winget)) {
+    throw "Git is missing and Windows Package Manager (winget) is unavailable."
+  }
+  Write-Host "  Installing Git ..." -ForegroundColor Yellow
+  winget install --id Git.Git -e --accept-source-agreements --accept-package-agreements
+  if ($LASTEXITCODE -ne 0) { throw "Git installation failed." }
+  Refresh-Path
+  if (-not (Have git)) {
+    throw "Git installed but is not visible yet; reopen PowerShell and rerun this command."
+  }
 }
 
+$python = Find-AletheiaPython
+if (-not $python) {
+  if (-not (Have winget)) {
+    throw "Python 3.10+ is missing and Windows Package Manager (winget) is unavailable."
+  }
+  Write-Host "  Installing Python 3.12 ..." -ForegroundColor Yellow
+  winget install --id Python.Python.3.12 -e --accept-source-agreements --accept-package-agreements
+  if ($LASTEXITCODE -ne 0) { throw "Python installation failed." }
+  Refresh-Path
+  $python = Find-AletheiaPython
+  if (-not $python) {
+    throw "Python installed but is not visible yet; reopen PowerShell and rerun this command."
+  }
+}
+$script:PyExe = $python.Exe
+$script:PyFlags = @($python.Flags)
+
 if (Test-Path $dest) {
-  Write-Host "  Updating Aletheia main ..." -ForegroundColor Yellow
-  git -C $dest fetch origin main
-  if ($LASTEXITCODE -ne 0) { throw "git fetch failed" }
-  git -C $dest checkout -f -B main origin/main
-  if ($LASTEXITCODE -ne 0) { throw "could not reset the checkout to current main" }
+  Write-Host "  Safely updating Aletheia main ..." -ForegroundColor Yellow
+  # The recovery entrypoint rebases local Aletheia state, preserves the one
+  # known legacy journal conflict, and refuses foreign work.  Keeping tasks
+  # stopped prevents its standalone finally block from restarting old code
+  # halfway through this larger bring-up.
+  $previousKeepStopped = $env:ALETHEIA_RECOVERY_KEEP_STOPPED
+  try {
+    $env:ALETHEIA_RECOVERY_KEEP_STOPPED = "1"
+    Invoke-RestMethod $recovery | Invoke-Expression
+  } finally {
+    if ($null -eq $previousKeepStopped) {
+      Remove-Item Env:\ALETHEIA_RECOVERY_KEEP_STOPPED -ErrorAction SilentlyContinue
+    } else {
+      $env:ALETHEIA_RECOVERY_KEEP_STOPPED = $previousKeepStopped
+    }
+  }
 } else {
   Write-Host "  Cloning Aletheia ..." -ForegroundColor Yellow
   git clone $repo $dest
@@ -80,12 +127,6 @@ if (Test-Path $dest) {
 }
 Set-Location $dest
 
-$python = Find-AletheiaPython
-if (-not $python) {
-  throw "Python 3.10+ is required. The previous bootstrap installed 3.12; reopen PowerShell if it is not visible yet."
-}
-$script:PyExe = $python.Exe
-$script:PyFlags = @($python.Flags)
 $version = & $script:PyExe @script:PyFlags -c "import sys; print(sys.version.split()[0])"
 Write-Host "  Python $version" -ForegroundColor Green
 

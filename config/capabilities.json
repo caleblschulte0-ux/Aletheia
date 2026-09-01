@@ -246,8 +246,8 @@
       "approval_policy": "operator_once",
       "caller": "Windows task 'AletheiaVoice' runs python -m aletheia.voice_room at logon: vosk offline recognizer (no API keys) + grammar-constrained wake spotter -> POST /api/voice -> the same intercom gates as every channel -> SAPI voice reply",
       "module": "aletheia.voice_room",
-      "notes": "Live-proven 2026-08-26 by machine self-test: TTS spoke 'Thea, what's going on?' through the speakers, the wake spotter fired, the Core answered through the gates, and she replied out loud ('2 fleet alerts. 7 live tasks.'). Found and fixed on the way: the mic endpoint was hardware-MUTED (the wall mic's silent failure too), the array runs ~500/32768 peak (software AGC added), and the small model cannot spell 'Thea' in open dictation (grammar-constrained spotter added). Audio never leaves the machine; unaddressed speech is dropped unjournaled.",
-      "verification": "self-test round trip on the operator's PC + the task's own listener heard the room independently (journal voice:room 2026-08-26T22:37Z) + 9 hermetic loop tests"
+      "notes": "Live-proven 2026-08-26 by machine self-test: TTS spoke 'Thea, what's going on?' through the speakers, the wake spotter fired, the Core answered through the gates, and she replied out loud ('2 fleet alerts. 7 live tasks.'). Found and fixed on the way: the mic endpoint was hardware-MUTED (the wall mic's silent failure too), the array runs ~500/32768 peak (software AGC added), and the small model cannot spell 'Thea' in open dictation (grammar-constrained spotter added). Audio never leaves the machine; unaddressed speech is dropped unjournaled. Since 2026-09-01, slow answers are collected without deafening the room, wait longer than the reasoner's standard deadline, and end in either the answer or an explicit failure. Production follow-ups are durable, create an IMPORTANT notification, and become an honest interrupted-reply notice if Core restarts mid-answer.",
+      "verification": "self-test round trip on the operator's PC + the task's own listener heard the room independently (journal voice:room 2026-08-26T22:37Z) + tests/test_followups.py and tests/test_voice.py cover asynchronous and durable reply delivery"
     },
     {
       "id": "email.read",
@@ -352,7 +352,7 @@
       "risk_class": "medium",
       "approval_policy": "none",
       "caller": "operator runs `python -m aletheia.core` on the Windows PC; Command Center + wall are its clients",
-      "verification": "GET /api/status; 7 tests in test_core.py incl. live HTTP round-trips",
+      "verification": "GET /api/status; tests/test_core.py includes live HTTP round-trips and asynchronous /api/ask delivery",
       "notes": "Live on the operator's Windows PC since 2026-08-26 and self-evidencing: the Core's own checkpoint commits land in this repo (193 in one day), and on 2026-08-27T04:38:46Z it pulled merge 095bbfde, journaled 'code updated (12 files) — restarting to run it', and the supervisor relaunched it onto the new code — back serving 6 seconds later. (Registry said NEEDS_CONFIGURATION until 2026-08-27; that was stale — the blocker it named, the operator starting it, was cleared the day before.)",
       "module": "aletheia.core"
     },

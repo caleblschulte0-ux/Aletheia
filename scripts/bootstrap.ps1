@@ -9,8 +9,9 @@
 #
 # Keep the familiar URL, but hand the work to the bounded live bring-up script.
 # That script stops stale watchdogs first, refreshes main, validates live
-# registries, smoke-gates local AI, proves Core + voice on this machine, and only
-# then resumes production. It never grants unattended ChatGPT browser reasoning.
+# registries, smoke-gates local AI, and proves Core + voice on this machine. It
+# verifies the operator's existing authority but never resumes production or
+# grants unattended ChatGPT browser reasoning.
 
 $ErrorActionPreference = "Stop"
 $bringup = "https://raw.githubusercontent.com/caleblschulte0-ux/Aletheia/main/scripts/bringup_windows.ps1"

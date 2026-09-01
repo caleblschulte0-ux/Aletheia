@@ -47,8 +47,9 @@ AGC_MAX_GAIN = 40
 AGC_FLOOR = 200
 WAKE_GRAMMAR = '["thea", "aletheia", "hey thea", "[unk]"]'
 WAKE_CONFIDENCE_MIN = 0.70
-FOLLOWUP_WAIT_S = 60.0
+FOLLOWUP_WAIT_S = 105.0
 FOLLOWUP_POLL_S = 1.0
+FOLLOWUP_FAILURE = "I couldn't finish that answer. Please ask me again."
 BARE_WAKE_WINDOW_S = 8.0
 OUTPUT_TAIL_S = 0.55
 REPEAT_FAILURE_WINDOW_S = 20.0
@@ -349,13 +350,34 @@ def collect_followup(followup_id: str, core_url: str = CORE_URL,
             ) as response:
                 payload = json.loads(response.read().decode("utf-8"))
         except Exception:
-            return None
+            # The supervised Core can restart while an answer is running. A
+            # transient refused connection is not proof the answer vanished.
+            sleep(poll_s)
+            continue
         if payload.get("state") in ("READY", "FAILED"):
             return payload.get("say")
         if payload.get("state") == "EXPIRED":
             return None
         sleep(poll_s)
     return None
+
+
+def launch_followup(followup_id: str, core_url: str, say,
+                    collector=None) -> threading.Thread:
+    """Collect one promised reply without making the room deaf meanwhile."""
+    collector = collector or collect_followup
+
+    def deliver():
+        try:
+            later = collector(followup_id, core_url)
+        except Exception:
+            later = None
+        say(later or FOLLOWUP_FAILURE)
+
+    thread = threading.Thread(target=deliver, name=f"voice-{followup_id}",
+                              daemon=True)
+    thread.start()
+    return thread
 
 
 def ask_core(transcript: str, core_url: str = CORE_URL) -> dict:
@@ -402,19 +424,22 @@ def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
     awaiting_since: float | None = None
     last_failure = ""
     last_failure_at = -1e9
+    followup_threads: list[threading.Thread] = []
+    say_lock = threading.Lock()
 
     def say(line: str | None) -> None:
         nonlocal last_failure, last_failure_at
-        if not line:
-            return
-        now = monotonic()
-        normalized = " ".join(str(line).split())
-        if (_is_failure_line(normalized) and normalized == last_failure
-                and now - last_failure_at < REPEAT_FAILURE_WINDOW_S):
-            return
-        speaker(normalized)
-        if _is_failure_line(normalized):
-            last_failure, last_failure_at = normalized, now
+        with say_lock:
+            if not line:
+                return
+            now = monotonic()
+            normalized = " ".join(str(line).split())
+            if (_is_failure_line(normalized) and normalized == last_failure
+                    and now - last_failure_at < REPEAT_FAILURE_WINDOW_S):
+                return
+            speaker(normalized)
+            if _is_failure_line(normalized):
+                last_failure, last_failure_at = normalized, now
 
     for wake_heard, text in recognizer:
         now = monotonic()
@@ -458,11 +483,14 @@ def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
             followup_id = None
         say(reply)
         if followup_id:
-            later = collect_followup(followup_id, core_url)
-            if later:
-                say(later)
+            followup_threads = [t for t in followup_threads if t.is_alive()]
+            followup_threads.append(launch_followup(followup_id, core_url, say))
         handled += 1
         if max_utterances is not None and handled >= max_utterances:
+            # Test/one-shot callers get deterministic delivery; the real
+            # forever-listener never blocks its ears on these joins.
+            for thread in followup_threads:
+                thread.join(timeout=1.0)
             return handled
     return handled
 
