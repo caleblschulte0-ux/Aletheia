@@ -11,6 +11,12 @@ from unittest import mock
 from aletheia import core, followups
 
 
+EMPTY_RUNTIME = {
+    "schedules": [], "reply_transitions": [], "events": [],
+    "watchers": [], "intents": [], "errands": [], "failures": [],
+}
+
+
 class FakeSyncer:
     def __init__(self, *, code_update: bool = False):
         self.pull_calls = 0
@@ -46,12 +52,8 @@ class CoreBeatRegressionCase(unittest.TestCase):
         followups.reset()
         self.addCleanup(followups.reset)
 
-    def _tick_patches(self):
-        empty_runtime = {
-            "schedules": [], "reply_transitions": [], "events": [],
-            "watchers": [], "intents": [], "errands": [], "failures": [],
-        }
-        return (
+    def _start_common_patches(self):
+        patches = (
             mock.patch.object(core.liveness, "beat"),
             mock.patch.object(core.journal, "append"),
             mock.patch("aletheia.presence.snapshot", return_value={}),
@@ -59,9 +61,11 @@ class CoreBeatRegressionCase(unittest.TestCase):
             mock.patch.object(core.intercom, "run_pending", return_value=[]),
             mock.patch("aletheia.mail.available", return_value=(False, "off")),
             mock.patch("aletheia.ics.refresh_if_due", return_value=None),
-            mock.patch.object(core.runtime, "tick", return_value=empty_runtime),
             mock.patch.object(core, "stale_code_files", return_value=[]),
         )
+        for patcher in patches:
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
     def test_undelivered_voice_answer_defers_only_pull_not_runtime(self):
         gate = threading.Event()
@@ -70,26 +74,21 @@ class CoreBeatRegressionCase(unittest.TestCase):
         syncer = FakeSyncer()
         status = {"enabled": True, "last_tick": None, "pull": None,
                   "push": None, "commands_executed": 0, "last_push_s": time.time()}
+        self._start_common_patches()
 
-        patches = self._tick_patches()
-        for p in patches:
-            p.start(); self.addCleanup(p.stop)
-        runtime_tick = patches[7].target if False else core.runtime.tick
-        with mock.patch.object(core.runtime, "tick", wraps=core.runtime.tick) as tick:
+        with mock.patch.object(core.runtime, "tick", return_value=dict(EMPTY_RUNTIME)) as tick:
             core.core_tick(syncer, {}, status)
 
         self.assertEqual(syncer.pull_calls, 0)
         self.assertEqual(status["update_deferred"]["voice_followups"], 1)
-        self.assertTrue(tick.called, "runtime must keep beating while update waits")
+        tick.assert_called_once_with({})
         self.assertEqual(followups.poll(slot["id"])["state"], followups.PENDING)
 
     def test_restart_callback_keeps_update_reservation_until_process_exit(self):
         syncer = FakeSyncer(code_update=True)
         status = {"enabled": True, "last_tick": None, "pull": None,
                   "push": None, "commands_executed": 0}
-        patches = self._tick_patches()
-        for p in patches:
-            p.start(); self.addCleanup(p.stop)
+        self._start_common_patches()
 
         fired = []
         result = core.core_tick(
