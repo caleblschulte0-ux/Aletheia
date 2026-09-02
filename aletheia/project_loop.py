@@ -68,10 +68,17 @@ def _issue_work(repo: dict, *, request=gh.request) -> dict | None:
         if not isinstance(number, int) or not title:
             continue
         body = str(issue.get("body") or "").strip()
-        objective = f"Resolve GitHub issue #{number}: {title}"
+        # The TITLE and the BODY are both written by strangers. They travel
+        # as `evidence`, never inside the objective: the objective is the
+        # only string the models take as instruction, and it is composed
+        # here from facts we control (the repository, the issue number).
+        objective = f"Resolve open GitHub issue #{number} in {repo['full_name']}"
+        evidence = f"Issue title: {title}"
         if body:
-            objective += "\n\nIssue details:\n" + body[:2800]
-        return {"task_id": f"issue-{number}", "kind": "issue", "objective": objective[:4000]}
+            evidence += "\n\nIssue body:\n" + body
+        return {"task_id": f"issue-{number}", "kind": "issue",
+                "objective": objective[:4000],
+                "evidence": code_worker.sanitize_external(evidence)}
     return None
 
 
@@ -103,21 +110,27 @@ def _ci_work(repo: dict, *, request=gh.request) -> dict | None:
                 str(step.get("name") or "") for step in job.get("steps", [])
                 if isinstance(step, dict) and str(step.get("conclusion") or "") == "failure"
             ]
-            label = str(job.get("name") or "job")
+            # Each name is its OWN untrusted string, so each is sanitized on
+            # its own: a role header ("System: ...") sits at the start of a
+            # job name and would be mid-line — invisible to a line anchor —
+            # once the names were joined into one blob.
+            label = code_worker.sanitize_external(str(job.get("name") or "job"))[:120] or "job"
             if failed_steps:
-                label += ": " + ", ".join(failed_steps[:5])
+                clean = [code_worker.sanitize_external(name)[:80] for name in failed_steps[:5]]
+                label += ": " + ", ".join(name for name in clean if name)
             details.append(label[:300])
     except Exception:
         pass
-    workflow = str(run.get("name") or "CI workflow")
     objective = (
-        f"Repair the current failing CI for {workflow} (run {run_id}). "
+        f"Repair the current failing CI run {run_id} in {repo['full_name']}. "
         "Do not edit GitHub workflow files; fix only safe application/test code. "
         "If the root cause requires a protected workflow, credential, policy, or governance path, make no change."
     )
-    if details:
-        objective += " Failing jobs/steps: " + "; ".join(details[:8])
-    return {"task_id": f"ci-{run_id}", "kind": "ci", "objective": objective[:4000]}
+    # Job and step names come from the repository's workflow files, which any
+    # contributor may edit — untrusted for the same reason an issue body is.
+    evidence = ("Failing jobs/steps: " + "; ".join(details[:8])) if details else ""
+    return {"task_id": f"ci-{run_id}", "kind": "ci", "objective": objective[:4000],
+            "evidence": code_worker.sanitize_external(evidence)}
 
 
 def choose_work(repo: dict, *, request=gh.request) -> dict | None:
@@ -181,7 +194,8 @@ def cycle(*, request=gh.request, daily_limit: int = DEFAULT_DAILY_LIMIT) -> dict
             continue
         try:
             run = code_worker.prepare_pr(
-                repo["full_name"], work["objective"], task_id=work["task_id"], request=request
+                repo["full_name"], work["objective"], task_id=work["task_id"],
+                evidence=work.get("evidence", ""), request=request
             )
             result = {
                 "version": 1, "status": "WORKED", "repo": repo["full_name"],

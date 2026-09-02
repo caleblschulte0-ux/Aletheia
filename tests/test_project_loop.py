@@ -82,7 +82,13 @@ class ProjectLoopCase(unittest.TestCase):
         repo = {"full_name": "me/repo", "private": False, "observation_complete": True}
         work = project_loop.choose_work(repo, request=request)
         self.assertEqual(work["task_id"], "issue-2")
-        self.assertIn("small bug", work["objective"])
+        # The issue TITLE and BODY are stranger text: they reach the models as
+        # labelled evidence, never inside the objective, which is composed from
+        # facts we control. See StrangerTextIsEvidenceNotInstruction.
+        self.assertIn("#2", work["objective"])
+        self.assertNotIn("small bug", work["objective"])
+        self.assertIn("small bug", work["evidence"])
+        self.assertIn("breaks startup", work["evidence"])
 
     def test_ci_failure_supplies_failed_job_names_without_editing_workflow(self):
         def request(method, path, body=None):
@@ -97,7 +103,11 @@ class ProjectLoopCase(unittest.TestCase):
         repo = {"full_name": "me/repo", "private": False, "observation_complete": True}
         work = project_loop.choose_work(repo, request=request)
         self.assertEqual(work["task_id"], "ci-9")
-        self.assertIn("test: pytest", work["objective"])
+        # Job, step and workflow names are all repository text a contributor
+        # can edit, so they are evidence too — the objective keeps only the
+        # run id and our own standing instruction.
+        self.assertIn("9", work["objective"])
+        self.assertIn("test: pytest", work["evidence"])
         self.assertIn("Do not edit GitHub workflow files", work["objective"])
 
     def test_reconcile_uses_external_evidence_but_does_not_merge(self):
