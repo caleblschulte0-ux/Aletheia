@@ -33,6 +33,14 @@ TEXT_EXTENSIONS = {
 }
 PROTECTED_PREFIXES = (
     ".github/", ".git/", "exchange/", "state/", "memory/", "plans/",
+    # config/ holds the REGISTRIES — fleet front-door grants and every
+    # capability's approval_policy. CLAUDE.md: authority "widens only by a
+    # reviewed registry edit — never a code path around the check", and an
+    # autonomous worker proposing its own widening is exactly such a path.
+    # (Found open in the 2026-09-01 catch-up review.)
+    "config/",
+    # agent instructions: skills/settings steer any session that reads them
+    ".claude/",
 )
 PROTECTED_BASENAMES = {
     ".env", ".env.local", "credentials.json", "secrets.json", "id_rsa", "id_ed25519",
@@ -45,6 +53,21 @@ ALETHEIA_PROTECTED = {
     "aletheia/contracts.py", "aletheia/capabilities.py", "aletheia/gh.py",
     "aletheia/reasoner.py", "aletheia/browser_reasoner.py", "aletheia/code_worker.py",
     "aletheia/project_loop.py",
+    # added 2026-09-01: authority surfaces that existed but were unlisted
+    "aletheia/machine_binding.py",   # root of trust for every standing grant
+    "aletheia/work_direct.py",       # the public bus's refusal list
+    "aletheia/sealed_observe.py",    # crypto for private-data egress
+    "aletheia/github_auth.py",       # the credentials this very loop uses
+    "aletheia/standing.py",          # standing-authority reads
+    "aletheia/proc.py",              # windowless-subprocess contract
+    "aletheia/core.py",              # the always-on host of every gate
+    "aletheia/supervisor.py",        # what relaunches it
+    "aletheia/sync.py",              # what pulls code onto the PC
+    "aletheia/project_autostart.py", # what starts the loop
+    "aletheia/portfolio.py",         # what the loop is allowed to look at
+    # the constitution and the playbook it serves: a worker must never
+    # propose an edit to the rules it is judged by
+    "claude.md", "docs/playbook.md", "docs/architecture.md", "readme.md",
 }
 
 PROPOSE_SYSTEM = """You are a code-edit proposal engine inside Aletheia.
@@ -78,11 +101,23 @@ def _enc_repo(full: str) -> str:
 
 
 def _safe_path(path: str) -> str:
+    """Normalize a repository path, or refuse it.
+
+    Returns the NORMALIZED form, not the raw string. PurePosixPath quietly
+    folds away a leading "./" and duplicate slashes, so a raw value could
+    survive the traversal checks here and then fail to match a protected
+    PREFIX downstream: "./config/fleet.json" does not start with "config/",
+    but it addresses the same file. Caught by a protection test on
+    2026-09-01 — the registries were reachable through that spelling.
+    """
     value = str(path or "").replace("\\", "/").strip("/")
     p = PurePosixPath(value)
     if not value or p.is_absolute() or ".." in p.parts or any(part in {"", "."} for part in p.parts):
         raise CodeWorkerError("unsafe repository path")
-    return value
+    normalized = str(p)
+    if normalized in (".", "/") or normalized.startswith(("/", "../")):
+        raise CodeWorkerError("unsafe repository path")
+    return normalized
 
 
 def protected_path(repo_full_name: str, path: str) -> bool:

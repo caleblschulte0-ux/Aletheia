@@ -748,6 +748,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--no-sync", action="store_true",
                     help="serve the API only; no git sync, no local command processing")
     args = ap.parse_args(argv)
+    # The Core is the always-on process. Whatever shell started it, it does
+    # not carry a foreground lease to open the operator's signed-in ChatGPT
+    # browser — see browser_reasoner.drop_lease(). Dropped before any
+    # thread, watchdog or project loop starts and inherits this environment.
+    from aletheia import browser_reasoner
+    browser_reasoner.drop_lease()
     journal.use_pc_journal()  # this process is the PC writer
     # Before anything else: measure the gap we are coming back from. If the
     # last heartbeat is old, this start ENDED an outage, and that is a fact

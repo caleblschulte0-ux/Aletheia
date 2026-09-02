@@ -118,3 +118,63 @@ class CodeWorkerCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AuthoritySurfacesAreProtected(unittest.TestCase):
+    """The autonomous coder must never be able to PROPOSE widening its own
+    authority. Found open in the 2026-09-01 catch-up review: config/ (the
+    fleet front-door grants and every capability's approval_policy), the
+    constitution, and several authority modules were all editable.
+
+    CLAUDE.md: authority "widens only by a reviewed registry edit — never a
+    code path around the check". An unattended worker opening PRs against
+    the registries IS such a path, even though a human merges: the loop's
+    whole premise is that it runs while nobody is watching.
+    """
+
+    REPO = "caleblschulte0-ux/Aletheia"
+
+    MUST_BE_PROTECTED = [
+        # registries — grants and approval policies live here
+        "config/fleet.json", "config/capabilities.json",
+        # the rules it is judged by
+        "CLAUDE.md", "docs/PLAYBOOK.md", "docs/ARCHITECTURE.md",
+        # roots of trust and gates
+        "aletheia/policy.py", "aletheia/machine_binding.py",
+        "aletheia/work_trust.py", "aletheia/secret_trust.py",
+        "aletheia/code_trust.py", "aletheia/work_session.py",
+        "aletheia/work_direct.py", "aletheia/sealed_observe.py",
+        "aletheia/secret_store.py", "aletheia/secret_browser.py",
+        "aletheia/intercom.py", "aletheia/capabilities.py",
+        # the loop's own machinery and credentials
+        "aletheia/code_worker.py", "aletheia/project_loop.py",
+        "aletheia/github_auth.py", "aletheia/portfolio.py",
+        # the always-on host, its supervisor, and what pulls code to the PC
+        "aletheia/core.py", "aletheia/supervisor.py", "aletheia/sync.py",
+        # agent instructions
+        ".claude/settings.json", ".github/workflows/ci.yml",
+        # secrets by shape, wherever they appear
+        ".env", "deploy/id_rsa", "certs/server.pem",
+    ]
+
+    def test_every_authority_surface_is_refused(self):
+        open_paths = [p for p in self.MUST_BE_PROTECTED
+                      if not code_worker.protected_path(self.REPO, p)]
+        self.assertEqual(open_paths, [],
+                         "the autonomous coder could proposeedits to these "
+                         "authority surfaces: " + ", ".join(open_paths))
+
+    def test_ordinary_code_is_still_workable(self):
+        """Protection must not become 'nothing may be fixed'."""
+        for path in ("aletheia/ics.py", "aletheia/calendar.py", "tests/test_ics.py"):
+            self.assertFalse(code_worker.protected_path(self.REPO, path), path)
+
+    def test_protection_survives_case_and_traversal_tricks(self):
+        for trick in ("CONFIG/fleet.json", "Aletheia/Policy.py",
+                      "./config/fleet.json", "config//fleet.json"):
+            with self.subTest(trick=trick):
+                try:
+                    refused = code_worker.protected_path(self.REPO, trick)
+                except Exception:
+                    refused = True   # rejecting the path outright is fine too
+                self.assertTrue(refused, f"{trick} slipped past protection")

@@ -68,7 +68,11 @@ def _child_env() -> dict:
     """The marker telling the Core a supervisor is waiting to relaunch it,
     so on a code update it may exit RESTART_EXIT_CODE instead of having to
     hand itself off (see core.main). Never set this by hand."""
-    return {**os.environ, "ALETHEIA_SUPERVISED": "1"}
+    from aletheia import browser_reasoner
+    # The Core is always-on: it must never inherit a foreground lease to
+    # open the operator's signed-in ChatGPT, even when the supervisor was
+    # itself started from a leased shell.
+    return browser_reasoner.drop_lease({**os.environ, "ALETHEIA_SUPERVISED": "1"})
 
 
 def run_forever(core_args: list[str] | None = None, launch=None,
