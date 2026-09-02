@@ -84,6 +84,7 @@ TERMINAL = {DONE, STOPPED, EXPIRED, FAILED}
 MISSION_ALLOWED = {
     "code.autonomous",   # proposes pull requests; no merge path exists
     "research.answer",   # reads public pages; writes a document; sends nothing
+    "agenda.execute",    # carries out compiled requests; money refused absolutely
 }
 REFUSED_POLICY = {"operator_always"}
 
@@ -120,6 +121,13 @@ KINDS: dict[str, dict] = {
                    "sources and writing up what the sources do not settle",
         "capabilities": ["research.answer"],
         "unit": "questions",
+    },
+    "anything": {
+        "summary": "Carry out the requests I give you, without asking each "
+                   "time - never spending money, never approving anything, "
+                   "never touching the kill switch",
+        "capabilities": ["agenda.execute"],
+        "unit": "requests",
     },
 }
 

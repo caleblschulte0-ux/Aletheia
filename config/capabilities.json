@@ -1,5 +1,5 @@
 {
-  "revision": 38,
+  "revision": 39,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1223,6 +1223,18 @@
       "module": "aletheia.research",
       "notes": "The second mission kind, and the one that gets daily use. It only ever READS - no approval, no interaction, nothing sent, nothing spent - which is why it can sit under a mission budget at all. There is no search API and there will not be one (No6: no API keys), so it searches the way a person does, through the operator's own browser. What separates it from asking a model the same question is that every claim carries the page it came from and a claim citing a page that was not read is DROPPED in code, not discouraged in a prompt - a model that invents a citation is not caught by asking it not to. Bounded to 5 sources, one page per site, and the report says what the sources failed to settle and how many claims were dropped. EXPERIMENTAL until a real question has been answered on the PC.",
       "verification": "tests/test_research.py: 16 tests - an invented citation is dropped and the drop is said out loud, one page per site, search engines are never cited as sources, a broken search costs the query rather than the question, no sources is an honest refusal rather than an invented answer, HALT stops it before the browser opens, and the module is asserted never to reach browse.interact or any secret"
+    },
+    {
+      "id": "agenda.execute",
+      "description": "Take a request in plain English and carry it out step by step without asking again - never spending money",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "python -m aletheia.agenda '<request>'; aletheia.mission kind 'anything' runs it under a budget",
+      "module": "aletheia.agenda",
+      "notes": "The operator's ask, in his words: 'take any request I give it and execute it except no spending money'. The pieces existed - the planner compiles plain English into validated commands, the intercom executes one, a mission bounds a budget - but every plan filed an approval and waited, so 'any request' meant 'any request, once you come back and click yes'. THREE refusals, all enforced in code: (1) MONEY names every capability that moves money, refused at compile time and before every step, with no flag that turns it off; (2) approve/deny are refused, because an agenda that can approve things can file the approval for the purchase it is forbidden to make and then grant it - that hole would have converted every other refusal into a speed bump; (3) halt/resume are refused, because a kill switch the agent can lift is decoration. Also refused: intent (recursion), rule (authority outliving the mission) and dispatch (someone else's compute). Drafting mail IS allowed and stays safe because mail.send_approved delivers only drafts he approved - she writes the letter and never posts it. EXPERIMENTAL: no agenda has run on his PC.",
+      "verification": "tests/test_agenda.py: 18 tests - every money capability refused with nothing executed first, approve/deny/halt/resume/intent/rule/dispatch refused while allowed steps in the same plan still run, refusals said out loud rather than swallowed, halting mid-plan stops at the next step, one failing step does not abandon the rest, and the source is asserted to contain no money-override flag"
     }
   ]
 }
