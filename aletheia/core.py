@@ -781,6 +781,15 @@ def start_sync_loop(fleet: dict, interval_s: float = SYNC_INTERVAL_S,
 
 
 def main(argv: list[str] | None = None) -> int:
+    # The Core is the always-on process. Whatever shell started it, it does
+    # not carry a foreground lease to open the operator's signed-in ChatGPT
+    # browser — see browser_reasoner.drop_lease(). Dropped FIRST, before
+    # anything can read it, so every thread, watchdog and child inherits an
+    # environment without it. Every always-on entry point does this the same
+    # way; tests/test_browser_reasoner_windows_mode.py enumerates them from
+    # the scheduled-task registry so a new one cannot skip it.
+    from aletheia import browser_reasoner
+    browser_reasoner.drop_lease()
     ap = argparse.ArgumentParser(description="Aletheia local Core V0.")
     ap.add_argument("--port", type=int, default=DEFAULT_PORT)
     ap.add_argument("--host", default="127.0.0.1",
@@ -793,12 +802,6 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--no-sync", action="store_true",
                     help="serve the API only; no git sync, no local command processing")
     args = ap.parse_args(argv)
-    # The Core is the always-on process. Whatever shell started it, it does
-    # not carry a foreground lease to open the operator's signed-in ChatGPT
-    # browser — see browser_reasoner.drop_lease(). Dropped before any
-    # thread, watchdog or project loop starts and inherits this environment.
-    from aletheia import browser_reasoner
-    browser_reasoner.drop_lease()
     journal.use_pc_journal()  # this process is the PC writer
     try:
         followups.recover_pending()

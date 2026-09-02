@@ -165,6 +165,36 @@ def _wall_voice() -> tuple[str, str]:
                      "your browser and cannot be checked from here")
 
 
+def _local_ai() -> tuple[str, str]:
+    """Offline reasoning is a fallback, never an authority — see the note in
+    the checklist step. Reports what the gateway ACTUALLY has, not what is
+    installable."""
+    from aletheia import reasoning_gateway
+    try:
+        status = reasoning_gateway.status()
+    except Exception as exc:
+        return BROKEN, f"{type(exc).__name__}: {exc}"[:160]
+    local = status.get("local", {})
+    if not local.get("enabled"):
+        return MISSING, f"local routing disabled ({local.get('enabled_source', 'default')})"
+    offline = [name for name, p in (local.get("profiles") or {}).items()
+               if not p.get("online")]
+    if offline:
+        return BROKEN, f"enabled but these profiles are not answering: {', '.join(offline)}"
+    return OK, "local profiles enabled and answering"
+
+
+def _chatgpt_browser() -> tuple[str, str]:
+    from aletheia import chatgpt_session
+    try:
+        status = chatgpt_session.status()
+    except Exception as exc:
+        return BROKEN, f"{type(exc).__name__}: {exc}"[:160]
+    if status.get("ready"):
+        return OK, "browser profile initialized and signed in"
+    return MISSING, str(status.get("reason", "not ready"))[:160]
+
+
 def steps() -> list[Step]:
     return [
         Step("email.read", "Email", 0,
@@ -217,6 +247,26 @@ def steps() -> list[Step]:
               "Connect the GitHub connector to this repository.",
               "Then say something to it and check: python -m aletheia.intercom list"],
              _relay, optional=True),
+        Step("reason.local", "Thinking with no internet", 20,
+             "Offline models so she still interprets and plans when the "
+             "subscriptions are unreachable. She will NOT use them to decide "
+             "anything critical or to write code — that stays on the "
+             "subscriptions and fails honestly rather than quietly dropping "
+             "to a smaller brain.",
+             ["Install Ollama, then: python -m aletheia.local_ai",
+              "It pulls the models and runs a real smoke test; local routing "
+              "only turns on if that passes."],
+             _local_ai, optional=True),
+        Step("reason.chatgpt_browser", "Your ChatGPT as a backup brain", 5,
+             "If the Claude CLI is out, she can fall back to your signed-in "
+             "ChatGPT in a real browser — no API key. It is deliberately "
+             "FOREGROUND-ONLY: nothing always-on (the Core, the voice room, "
+             "the project loop, any scheduled job) can open a ChatGPT window "
+             "on your screen while you are not there.",
+             ["python -m aletheia.chatgpt_session  (opens a browser; sign in once)",
+              "Then, only in a shell you started yourself:",
+              "  set ALETHEIA_ALLOW_CHATGPT_BROWSER_REASONING=1"],
+             _chatgpt_browser, optional=True),
         Step("voice.wall", "The wall's own ears", 1,
              "The wall and Command Center can hear 'Thea' directly in the "
              "browser — no side app.",

@@ -58,3 +58,53 @@ class UnattendedNeverInheritsTheLease(unittest.TestCase):
                          "the always-on Core must not inherit a foreground "
                          "lease to open the operator's ChatGPT browser")
         self.assertEqual(env.get("ALETHEIA_SUPERVISED"), "1")
+
+
+class EveryAlwaysOnEntryPointDropsTheLease(unittest.TestCase):
+    """The 2026-09-01 re-audit found the earlier fix incomplete.
+
+    `drop_lease()` was wired into the Core and into the supervisor's CHILD
+    environment — but the project loop and the voice room are registered as
+    their OWN Windows scheduled tasks (aletheia.project_autostart,
+    aletheia.autostart), so no parent of theirs scrubs anything and Task
+    Scheduler hands them the user's environment. A persistent user-level
+    lease variable would have given an unattended 30-minute code loop the
+    right to open the operator's signed-in ChatGPT on his screen.
+
+    This test reads the SCHEDULED TASK REGISTRY rather than a hand-written
+    list, so a new always-on entry point cannot be registered without
+    dropping the lease first.
+    """
+
+    def always_on_modules(self):
+        from aletheia import autostart, project_autostart
+        specs = list(autostart.TASKS.values()) + [project_autostart.SPEC]
+        # "aletheia.project_loop once" -> aletheia.project_loop
+        # aletheia.supervisor's whole job is starting aletheia.core, so the
+        # Core belongs to this surface even though no task names it directly.
+        return sorted({spec.module.split()[0] for spec in specs} | {"aletheia.core"})
+
+    def test_the_registry_still_names_the_entry_points_we_think_it_does(self):
+        self.assertEqual(
+            self.always_on_modules(),
+            ["aletheia.core", "aletheia.project_loop", "aletheia.supervisor",
+             "aletheia.voice_room"],
+            "an always-on entry point was added or renamed — check it drops the lease")
+
+    def test_each_always_on_main_drops_the_lease_before_doing_anything(self):
+        import importlib
+        for name in self.always_on_modules():
+            with self.subTest(module=name):
+                module = importlib.import_module(name)
+                dropped = []
+                with mock.patch.dict(os.environ, {browser_reasoner.ALLOW_ENV: "1"}), \
+                     mock.patch.object(browser_reasoner, "drop_lease",
+                                       side_effect=lambda env=None: dropped.append(True)), \
+                     mock.patch.object(module, "argparse") as ap:
+                    ap.ArgumentParser.side_effect = RuntimeError("stop after the drop")
+                    with self.assertRaises(RuntimeError):
+                        module.main([])
+                self.assertTrue(
+                    dropped,
+                    f"{name}.main() parsed arguments before dropping the ChatGPT "
+                    "browser lease — an unattended process must never inherit it")

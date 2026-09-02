@@ -219,6 +219,14 @@ def status() -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # This runs as its OWN Windows scheduled task every 30 minutes, not as a
+    # child of the supervisor — so the supervisor's environment scrubbing never
+    # reaches it, and Task Scheduler hands it the user's environment. If the
+    # operator ever sets the ChatGPT browser lease as a persistent user
+    # variable, an unattended code loop would inherit the right to open his
+    # signed-in ChatGPT on screen. Drop it before anything can read it.
+    from aletheia import browser_reasoner
+    browser_reasoner.drop_lease()
     ap = argparse.ArgumentParser(description="Aletheia continuous project repair loop.")
     sub = ap.add_subparsers(dest="cmd", required=True)
     once = sub.add_parser("once")

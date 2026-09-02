@@ -1,5 +1,5 @@
 {
-  "revision": 35,
+  "revision": 36,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1055,6 +1055,150 @@
       "module": "aletheia.setup",
       "notes": "Six credentials lived in four documents, each ending in 'and then it should work'. He would do three and stall on the one with the thinnest instructions, and nothing ever proved the finished ones worked. Every step carries a verifier that makes a REAL attempt - an IMAP login, a request to the hub, a token round-trip - so nothing claims to be configured on faith (§30, §106). The outstanding list is derived from config/capabilities.json at run time, and a NEEDS_CONFIGURATION capability this file does not mention is reported as unmapped rather than silently omitted, because an omission would read as a finished step. aletheia/apply.py finishes a step from one pasted secret - it writes the config, sets what must be set, runs the real check and reports what it can now see. It creates no credential and signs into nothing (§143). The cheap path is the default: a secret iCal URL is one copy-paste where OAuth is a cloud project and a consent screen, and reading the calendar is what availability and meeting slots actually need.",
       "verification": "tests/test_setup.py asserts the checklist covers every NEEDS_CONFIGURATION capability, that a failing verifier is reported rather than raised, and that the phone is not 'done' until a call has actually happened"
+    },
+    {
+      "id": "work.session",
+      "description": "A bounded workstation session: an expiry, an action budget, and one approval that every action inside it is charged against",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "python -m aletheia.work_session on|status|off; opened automatically by aletheia.work_trust.ensure_session; every aletheia.work_direct action is charged to the live session",
+      "module": "aletheia.work_session",
+      "notes": "The envelope, not the actions. It carries the hard-coded refusal set that no grant widens: ordinary passwords, 2FA/one-time codes, payment data, credential rotation or revocation, and account-security changes are refused inside a session exactly as they are outside one.",
+      "verification": "tests/test_work_session.py: expiry and action budget both end a session; the refusal set is asserted per class, not as a single blanket check"
+    },
+    {
+      "id": "work.trust",
+      "description": "Standing LOCAL permission to open bounded Work Sessions automatically, instead of the operator running `work_session on` every day",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "python -m aletheia.work_trust on|status|off (local PC only); read by aletheia.work_trust.ensure_session and aletheia.sealed_observe.run",
+      "module": "aletheia.work_trust",
+      "notes": "Authority, not ability: it authorizes opening ANOTHER session with the same boundary, and widens the action set by nothing. It cannot be enabled through the public intercom, and since 2026-09-01 it carries a machine binding (authority.machine_binding) so a grant file plus its public approval arriving over git sync is inert.",
+      "verification": "tests/test_work_trust.py; tests/test_machine_binding.py asserts a grant minted elsewhere is refused even with a valid approval"
+    },
+    {
+      "id": "work.direct",
+      "description": "Carry out a routine workstation request end to end under a live Work Session - browser and desktop only",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "high",
+      "approval_policy": "operator_once",
+      "caller": "aletheia.intents (an intent whose steps are workstation work routes here); requires work.session, which requires work.trust or an explicit local session",
+      "module": "aletheia.work_direct",
+      "notes": "EXPERIMENTAL because NOTHING HAS EVER RUN THROUGH IT in production: the journal carries no work.direct action on the operator's PC, only the build. The refusals it inherits from work.session are the whole safety argument, so the first supervised live run - a real, dull, reversible task on the PC with the operator watching - is what promotes this, not another test.",
+      "verification": "tests/test_work_direct.py exercises the classifier and the session accounting; no live evidence yet"
+    },
+    {
+      "id": "observation.sealed",
+      "description": "Answer a remote question about the screen or a page without the answer ever becoming readable in the repo: encrypted to the asker's ephemeral key",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "high",
+      "approval_policy": "operator_once",
+      "caller": "aletheia.work_direct (an observation step); sidecars land in exchange/commands/sealed/",
+      "module": "aletheia.sealed_observe",
+      "notes": "Requires a live local work.trust grant BEFORE the screen is read, and refuses a weak or malformed requester key before reading anything. Browser observations redact credentials and URL query strings before sealing, so even the holder of the key does not receive an API key or an OAuth code. Depends on the OPTIONAL `cryptography` package; available() reports the reason honestly and never raises (a broken native build panics rather than raising, which used to take the suite down with it). EXPERIMENTAL: no sealed observation has been produced on the operator's PC.",
+      "verification": "tests/test_sealed_observe.py: round-trip carries no plaintext, weak keys refused before any screen read, credentials and query strings redacted; skips honestly when cryptography is absent"
+    },
+    {
+      "id": "secret.store",
+      "description": "A local secret vault sealed by Windows DPAPI to this user on this machine - never a committed file, never an environment variable",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "high",
+      "approval_policy": "operator_once",
+      "caller": "python -m aletheia.secret_store; read by aletheia.github_auth and aletheia.gh for the fleet token, and by aletheia.secret_browser to fill a form",
+      "module": "aletheia.secret_store",
+      "notes": "available() reports (False, 'Windows DPAPI is only available on Windows') off Windows rather than falling back to something weaker - a vault with a portable fallback is not a vault. Plaintext never reaches git, the journal, a receipt, a screenshot or a command line; callers receive a value and journal only the NAME. EXPERIMENTAL until a secret has been stored and read on the operator's PC in ordinary use.",
+      "verification": "tests/test_secret_store.py: the sealed blob contains no plaintext, journal entries carry names only"
+    },
+    {
+      "id": "secret.fill",
+      "description": "Fill a stored secret into a page's form field under a standing local grant, without the value passing through a model, a log or a screenshot",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "caller": "python -m aletheia.secret_browser - the front door; requires an active aletheia.secret_trust grant and a matching stored secret",
+      "module": "aletheia.secret_browser",
+      "notes": "The hard refusals are the point and are unchanged by any grant: ordinary account passwords, 2FA and one-time codes, payment data, credential rotation or revocation, and account-security changes are refused. secret_trust is machine-bound (authority.machine_binding), so this authority cannot be manufactured by pushing a grant file. EXPERIMENTAL: never used against a live form.",
+      "verification": "tests/test_secret_browser.py: each refused class asserted separately; the value is never journaled, screenshotted or returned"
+    },
+    {
+      "id": "authority.machine_binding",
+      "description": "A standing grant is valid only on the machine that minted it - HMAC over its identifying fields, keyed by a secret that lives outside the repository",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "high",
+      "approval_policy": "none",
+      "caller": "aletheia.work_trust.active, aletheia.secret_trust.active, aletheia.code_trust.active - checked before any other condition",
+      "module": "aletheia.machine_binding",
+      "notes": "Closes a real hole found in the 2026-09-01 catch-up review: all three standing grants validated on a gitignored file plus a TRACKED, public approval, and .gitignore stops an accidental add rather than a deliberate one. One push could have manufactured standing workstation trust, secret-fill authority or autonomous-PR authority on the operator's PC. The key (~/.aletheia/machine.key) is a secret from the network, not from the operator; it never enters git, a journal entry, a receipt or a command line. Fails CLOSED, and tells the operator once, with the one command that re-mints a bound grant.",
+      "verification": "tests/test_machine_binding.py: a grant delivered with a valid approval but signed elsewhere is inert; tampering with limits, expiry or the approval id all break the binding"
+    },
+    {
+      "id": "code.autonomous",
+      "description": "Aletheia proposes its own code changes: rank files, draft a change, review it with a second judge, open a PR for a human to merge",
+      "provider": "claude.cli",
+      "status": "EXPERIMENTAL",
+      "risk_class": "high",
+      "approval_policy": "operator_once",
+      "caller": "aletheia.project_loop, started by aletheia.project_autostart under an active aletheia.code_trust grant; python -m aletheia.project_loop status",
+      "module": "aletheia.code_worker",
+      "notes": "There is NO automatic merge path: the loop opens a pull request and stops, and every merge in this repo is deliberate. The authority surfaces it may not touch are an explicit list (aletheia/policy.py, the trust modules, machine_binding, core, supervisor, config/, .claude/, CLAUDE.md, docs/PLAYBOOK.md and more), path-normalized so ./config/fleet.json cannot slip past a prefix check. A proposal is read and written at ONE pinned base_sha, so the tree reviewed is the tree changed. The review runs on a DIFFERENT model from the proposal where one is available, and when it cannot, the PR body says in plain words that the pass was a consistency check and not an independent opinion. project_loop.status reports NEVER_RUN today - EXPERIMENTAL until the first proposed PR is read by the operator.",
+      "verification": "tests/test_code_worker.py: every protected authority surface refused (including path-normalization bypasses), the review asserted to be a second judge, candidates asserted to be read at the exact pinned ref"
+    },
+    {
+      "id": "code.trust",
+      "description": "Standing LOCAL permission for the autonomous code loop to open a bounded number of pull requests",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "high",
+      "approval_policy": "operator_once",
+      "caller": "python -m aletheia.code_trust on|status|off (local PC only); read by aletheia.project_loop and aletheia.code_worker",
+      "module": "aletheia.code_trust",
+      "notes": "Bounded by a PR ceiling and an expiry, machine-bound since 2026-09-01, and it authorizes PROPOSING only - it confers no merge authority anywhere.",
+      "verification": "tests/test_machine_binding.py: raising max_prs on a real grant breaks the binding rather than raising the ceiling"
+    },
+    {
+      "id": "reason.local",
+      "description": "Offline local models (Ollama) as a reasoning provider when the subscription clients are unavailable",
+      "provider": "aletheia.local",
+      "status": "NEEDS_CONFIGURATION",
+      "risk_class": "medium",
+      "approval_policy": "registry_grant",
+      "caller": "aletheia.reasoner via aletheia.local_model_pool; policy in aletheia.reasoning_gateway; python -m aletheia.local_ai to provision",
+      "module": "aletheia.local_brain",
+      "notes": "DISABLED by default and reported so by reasoning_gateway.status (enabled=false, source=default). The invariant that matters more than the plumbing: a local model must never become the authority for a critical decision merely because Claude is out. The gateway's policy tiers are what enforce that - critical work degrades honestly instead of silently dropping to a smaller model, and shadow mode exists so a local model can be compared without being trusted. NEEDS_CONFIGURATION until the operator provisions models and opts in.",
+      "verification": "tests/test_local_ai_integration.py: the critical tier never downgrades to a local answer (the local pool is asserted NOT CALLED when the subscriptions are down, so it fails instead of quietly answering); a remote Ollama endpoint is refused; a failed activation leaves local routing disabled"
+    },
+    {
+      "id": "reason.chatgpt_browser",
+      "description": "The operator's ChatGPT subscription used as a reasoning fallback through a real browser session - no API key",
+      "provider": "chatgpt.app",
+      "status": "NEEDS_CONFIGURATION",
+      "risk_class": "medium",
+      "approval_policy": "registry_grant",
+      "caller": "aletheia.reasoner (fallback after the Claude CLI) and aletheia.perception, both via aletheia.reasoning_gateway; python -m aletheia.chatgpt_session to initialize the profile",
+      "module": "aletheia.browser_reasoner",
+      "notes": "Gated on an OPERATOR LEASE that unattended contexts must never inherit: EVERY always-on entry point drops the lease from its own environment as its first statement — the Core, the supervisor (which also strips it from every child environment), the project loop and the voice room. The last two matter most and were missed by the first pass: they run as their OWN Windows scheduled tasks, so no parent scrubs anything and Task Scheduler hands them the user's environment. A watchdog, project loop, scheduled process or voice room therefore cannot open a visible ChatGPT window on the operator's screen. chatgpt_session.status reports ready=false ('browser profile has not been initialized') today.",
+      "verification": "tests/test_browser_reasoner_windows_mode.py: the always-on entry points are enumerated from the SCHEDULED TASK REGISTRY, not a hand-written list, and each main() is asserted to drop the lease before it parses an argument — a new always-on task cannot be registered without doing the same"
+    },
+    {
+      "id": "followup.deliver",
+      "description": "Answer now, deliver the real answer when it exists: a durable slot for a reply that takes longer than the room can be held open",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "aletheia.core POST /api/voice opens a slot and GET /api/followup polls it; aletheia.presence speaks a READY slot; interface/voice.js collects it",
+      "module": "aletheia.followups",
+      "notes": "Built because the failure was real and reported by the operator: he asked Thea something, got an acknowledgement, and never received the finished answer - the planner takes ten to thirty seconds and the request was being dropped when the room closed. A slot is PENDING, then READY or FAILED; a FAILED slot says so out loud rather than staying silent, because silence is the bug.",
+      "verification": "tests/test_voice.py: an arbitrary ask returns within 2 seconds with a followup_id, and the real sentence is collectable from that slot"
     }
   ]
 }

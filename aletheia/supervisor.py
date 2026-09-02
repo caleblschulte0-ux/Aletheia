@@ -248,6 +248,11 @@ def status() -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Children are scrubbed in _child_env(); scrub this process too, first
+    # thing, so a supervisor started from a leased shell holds nothing to
+    # hand on and nothing can read it in between.
+    from aletheia import browser_reasoner
+    browser_reasoner.drop_lease()
     ap = argparse.ArgumentParser(description="Keep the Aletheia Core running.")
     ap.add_argument("cmd", nargs="?", default="run",
                     choices=["run", "install", "uninstall", "status"])

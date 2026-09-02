@@ -575,6 +575,11 @@ def setup() -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Always-on, launched at logon by its own scheduled task: same inheritance
+    # hazard as the project loop. The room must never be the thing that opens
+    # a visible ChatGPT conversation.
+    from aletheia import browser_reasoner
+    browser_reasoner.drop_lease()
     ap = argparse.ArgumentParser(description="Aletheia room voice (local wake word).")
     ap.add_argument("--check", action="store_true", help="report readiness honestly")
     ap.add_argument("--setup", action="store_true",

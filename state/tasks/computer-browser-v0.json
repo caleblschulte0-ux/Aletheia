@@ -1,13 +1,14 @@
 {
   "id": "computer-browser-v0",
   "description": "Phases 7-8: accessibility-first Windows control + dedicated browser profile on the local Core",
-  "status": "QUEUED",
+  "status": "COMPLETED",
   "created_at": "2026-08-25T15:56:51Z",
-  "updated_at": "2026-08-25T15:56:51Z",
+  "updated_at": "2026-09-02T00:29:00Z",
   "attempts": 0,
   "priority": 3,
   "dependencies": [
     "local-core-bootstrap"
   ],
-  "assigned_worker": "claude"
+  "assigned_worker": "claude",
+  "result": "Evidence: computer.control AND browser.read/browser.interact are all AVAILABLE with live verification; browser tests drive real Chromium."
 }
