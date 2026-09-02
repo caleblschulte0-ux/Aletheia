@@ -147,3 +147,32 @@ class TestGrantStateNeverTracked(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestHaltRefusesToMintAuthority(BindingCase):
+    """Windows lifecycle review, 2026-09-01.
+
+    Three activation scripts call `work_trust on` / `code_trust on`
+    unconditionally as an ordinary setup step. Re-running one while the
+    system was HALTED would have handed back the standing authority the
+    operator had just stopped — an installer quietly undoing the kill
+    switch. Minting authority is the one thing an installer does that
+    outlives the installer, so it refuses while halted; resuming is a
+    separate, deliberate decision.
+    """
+
+    def test_no_grant_is_minted_while_halted(self):
+        policy.halt("operator stopped everything", via="test")
+        for mod in MODULES:
+            with self.subTest(module=mod.__name__):
+                with self.assertRaises(policy.Halted):
+                    mod.enable(days=1, via="test")
+                self.assertFalse(mod.GRANT_PATH.exists(),
+                                 "a refused enable must leave no grant behind")
+
+    def test_enabling_works_again_after_a_deliberate_resume(self):
+        policy.halt("stop", via="test")
+        policy.resume(via="test")
+        for mod in MODULES:
+            mod.enable(days=1, via="test")
+            self.assertIsNotNone(mod.active(), mod.__name__)

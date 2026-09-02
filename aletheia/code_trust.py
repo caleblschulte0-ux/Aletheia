@@ -104,6 +104,13 @@ def enable(*, days: int = DEFAULT_DAYS, max_prs: int = DEFAULT_PRS,
         raise ValueError(f"days must be 1..{MAX_DAYS}")
     if type(max_prs) is not int or not 1 <= max_prs <= MAX_PRS:
         raise ValueError(f"max_prs must be 1..{MAX_PRS}")
+    # HALT is the kill switch, and minting standing authority is the one
+    # thing an installer does that outlives the installer. Three activation
+    # scripts call this unconditionally, so a re-run while halted would have
+    # handed back standing authority the operator had just stopped
+    # (2026-09-01 Windows lifecycle review). Refuse instead: resume first,
+    # deliberately, then enable.
+    policy.ensure_not_halted()
     owner = str(load_fleet().get("owner") or "").strip()
     if not owner:
         raise ValueError("fleet owner is not configured")

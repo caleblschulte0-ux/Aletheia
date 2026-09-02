@@ -112,6 +112,13 @@ def enable(*, days: int = DEFAULT_DAYS,
     if type(session_actions) is not int or not 1 <= session_actions <= work_session.MAX_ACTIONS:
         raise ValueError(f"session_actions must be 1..{work_session.MAX_ACTIONS}")
 
+    # HALT is the kill switch, and minting standing authority is the one
+    # thing an installer does that outlives the installer. Three activation
+    # scripts call this unconditionally, so a re-run while halted would have
+    # handed back standing authority the operator had just stopped
+    # (2026-09-01 Windows lifecycle review). Refuse instead: resume first,
+    # deliberately, then enable.
+    policy.ensure_not_halted()
     stamp = _now(now)
     grant_id = f"wt-{stamp.strftime('%Y%m%d-%H%M')}-{secrets.token_hex(3)}"
     approval_id = f"{grant_id}-operator"
