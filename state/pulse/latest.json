@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-02T11:26:11Z",
+  "generated_at": "2026-09-02T16:39:16Z",
   "fleet_revision": 4,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -10,6 +10,16 @@
       "status": "active",
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
+        {
+          "sha": "63ad9abf19aa",
+          "date": "2026-09-02T14:53:11Z",
+          "message": "brief: 2026-09-02"
+        },
+        {
+          "sha": "bb81eedcd921",
+          "date": "2026-09-02T11:26:23Z",
+          "message": "pulse: 2026-09-02T11:26Z"
+        },
         {
           "sha": "f02c58b2e8c0",
           "date": "2026-09-02T04:42:10Z",
@@ -24,30 +34,20 @@
           "sha": "09ac44710b9b",
           "date": "2026-09-01T21:06:34Z",
           "message": "pulse: 2026-09-01T21:06Z"
-        },
-        {
-          "sha": "a02817f8a752",
-          "date": "2026-09-01T16:43:47Z",
-          "message": "pulse: 2026-09-01T16:43Z"
-        },
-        {
-          "sha": "d2b801a7c884",
-          "date": "2026-09-01T15:21:18Z",
-          "message": "brief: 2026-09-01"
         }
       ],
       "commit": {
-        "sha": "f02c58b2e8c0",
-        "date": "2026-09-02T04:42:10Z",
-        "message": "pulse: 2026-09-02T04:42Z"
+        "sha": "63ad9abf19aa",
+        "date": "2026-09-02T14:53:11Z",
+        "message": "brief: 2026-09-02"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-09-02T11:26:02Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/33624559828"
+          "updated_at": "2026-09-02T16:39:13Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/33656228611"
         },
         "ci.yml": {
           "status": "completed",
@@ -59,7 +59,7 @@
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 12754
+          "bytes": 12702
         }
       },
       "health": "green"
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "4307756bc353",
-          "date": "2026-09-02T09:44:03Z",
-          "message": "exchange: phase A bundle for 20260902 [skip ci]"
+          "sha": "97cea3a2caaa",
+          "date": "2026-09-02T16:32:46Z",
+          "message": "watchdog: chatgpt task verdicts 20260902 [skip ci]"
         },
         {
-          "sha": "fb19507879ff",
-          "date": "2026-09-02T09:43:28Z",
-          "message": "daily packages 2026-09-02 (#324)"
+          "sha": "8559e2ec3416",
+          "date": "2026-09-02T16:19:21Z",
+          "message": "third: analytics [skip ci]"
         },
         {
-          "sha": "0b4ee1a8e784",
-          "date": "2026-09-02T09:33:43Z",
-          "message": "doctor: evidence pack + backlog 2026-09-02 [skip ci]"
+          "sha": "864f0f6e7941",
+          "date": "2026-09-02T16:19:11Z",
+          "message": "third: update posted log + analytics [skip ci]"
         },
         {
-          "sha": "ea5995a501e5",
-          "date": "2026-09-02T05:15:42Z",
-          "message": "exchange: phase A bundle for 20260902 [skip ci]"
+          "sha": "6f71a52acdad",
+          "date": "2026-09-02T16:19:06Z",
+          "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
         },
         {
-          "sha": "79e75da2f656",
-          "date": "2026-09-01T22:07:44Z",
-          "message": "explainer: update posted log + analytics [skip ci]"
+          "sha": "ddc400600a4d",
+          "date": "2026-09-02T15:26:15Z",
+          "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
         }
       ],
       "commit": {
-        "sha": "4307756bc353",
-        "date": "2026-09-02T09:44:03Z",
-        "message": "exchange: phase A bundle for 20260902 [skip ci]"
+        "sha": "97cea3a2caaa",
+        "date": "2026-09-02T16:32:46Z",
+        "message": "watchdog: chatgpt task verdicts 20260902 [skip ci]"
       },
       "vitals": [
         {
@@ -108,11 +108,11 @@
         },
         {
           "label": "explainer posted",
-          "value": 219
+          "value": 220
         },
         {
           "label": "third posted",
-          "value": 398
+          "value": 408
         },
         {
           "label": "curiosity posted",
@@ -129,8 +129,8 @@
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-02T09:44:10Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33615683677"
+          "updated_at": "2026-09-02T13:52:26Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33638306602"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
@@ -146,14 +146,14 @@
         },
         "third.yml": {
           "status": "completed",
-          "conclusion": "failure",
-          "updated_at": "2026-09-01T15:30:57Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33525759865"
+          "conclusion": "success",
+          "updated_at": "2026-09-02T16:19:30Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33646008397"
         },
         "explainer.yml": {
-          "status": "in_progress",
-          "conclusion": null,
-          "updated_at": "2026-09-02T09:43:50Z",
+          "status": "completed",
+          "conclusion": "failure",
+          "updated_at": "2026-09-02T12:54:00Z",
           "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33615689975"
         },
         "retro.yml": {
@@ -176,11 +176,11 @@
         },
         "state/explainer_posted_log.json": {
           "exists": true,
-          "bytes": 52189
+          "bytes": 52429
         },
         "state/third_posted_log.json": {
           "exists": true,
-          "bytes": 210773
+          "bytes": 216899
         },
         "state/curiosity_posted_log.json": {
           "exists": true,
@@ -188,7 +188,7 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 369633
+          "bytes": 389734
         },
         "config/channel_registry.json": {
           "exists": true,
@@ -204,6 +204,16 @@
       "summary": "Guardrailed paper-trading system. The SELL brain and executor watchdog are active; the subscription-backed BUY brain and trade executor are intentionally paused until the operator resumes them.",
       "commits": [
         {
+          "sha": "13d147e6eacc",
+          "date": "2026-09-02T15:37:49Z",
+          "message": "sell-brain: update exit decisions [skip ci]"
+        },
+        {
+          "sha": "0e362f27fcd8",
+          "date": "2026-09-02T12:36:31Z",
+          "message": "sell-brain: update exit decisions [skip ci]"
+        },
+        {
           "sha": "4dedfcb6247e",
           "date": "2026-09-01T18:36:36Z",
           "message": "sell-brain: update exit decisions [skip ci]"
@@ -217,21 +227,11 @@
           "sha": "cdabc9c73ca6",
           "date": "2026-08-28T15:36:53Z",
           "message": "sell-brain: update exit decisions [skip ci]"
-        },
-        {
-          "sha": "0fc4b9710568",
-          "date": "2026-08-28T12:37:12Z",
-          "message": "sell-brain: update exit decisions [skip ci]"
-        },
-        {
-          "sha": "e957a7f0f370",
-          "date": "2026-08-27T18:36:46Z",
-          "message": "sell-brain: update exit decisions [skip ci]"
         }
       ],
       "commit": {
-        "sha": "4dedfcb6247e",
-        "date": "2026-09-01T18:36:36Z",
+        "sha": "13d147e6eacc",
+        "date": "2026-09-02T15:37:49Z",
         "message": "sell-brain: update exit decisions [skip ci]"
       },
       "vitals": [
@@ -263,8 +263,8 @@
         "sell-brain.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-01T18:36:42Z",
-          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/33544486144"
+          "updated_at": "2026-09-02T15:37:55Z",
+          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/33649493468"
         },
         "watchdog.yml": {
           "status": "completed",
@@ -354,7 +354,7 @@
       "health": "red",
       "failing": [
         "daily.yml",
-        "third.yml"
+        "explainer.yml"
       ]
     }
   ],
