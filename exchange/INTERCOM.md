@@ -67,6 +67,7 @@ Command kinds and their arguments (anything else is refused):
 | `browse_read` | `url` (http/https) | **PC-only**: read a page in the PC's real browser — receipt carries title + a text excerpt to speak back |
 | `browse_shot` | `url` (http/https) | **PC-only**: screenshot a page; the image stays on the PC (media never enters git), the receipt names its local path |
 | `email_check` | — | **PC-only**: unread senders + subjects (read-only, marks nothing) |
+| `email_read` | `which` | **PC-only**: the text of ONE unread message named by sender or subject — exactly one match, otherwise she asks which; reading marks nothing |
 | `email_draft` | `to`, `body`, `subject?` | **PC-only**: draft an email + file its approval — NOTHING SENDS until the operator approves; `to` is a remembered person's name or a spoken address |
 | `remind_at` | `at` (ISO datetime), `text` | **PC-only**: a one-shot reminder — surfaces as a notification at that moment |
 | `remind_daily` | `time` (HH:MM), `text`, `tz?` | **PC-only**: a daily reminder (default tz America/Chicago) |

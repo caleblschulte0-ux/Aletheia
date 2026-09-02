@@ -1,0 +1,11 @@
+{
+  "id": "m-20260902-2209-eb83c0-operator",
+  "requested_action": "mission:fix_projects",
+  "reason": "Read every enabled public repository, find real defects (open issues, failing CI), and open reviewed pull requests",
+  "consequence": "until 2026-09-02T23:09:15Z or 3 pull requests, whichever comes first, this work proceeds without asking again; nothing that spends, sends, binds or destroys is covered, and HALT ends it immediately",
+  "reversible": true,
+  "state": "APPROVED",
+  "requested_at": "2026-09-02T22:09:15Z",
+  "decided_at": "2026-09-02T22:09:15Z",
+  "decided_via": "operator-local"
+}

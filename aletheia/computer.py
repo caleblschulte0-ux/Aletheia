@@ -49,7 +49,28 @@ ACTION_FIELDS = {
     "set_text": {"action", "window", "control", "text", "timeout_s"},
     "screenshot_window": {"action", "window", "filename", "timeout_s"},
     "close_window": {"action", "window", "timeout_s"},
+    # 2026-09-02: real apps need more than type-and-press. A hotkey from a
+    # SAFE list (navigation, clipboard, undo, find, save — never Enter,
+    # Delete, Alt+F4 or anything that closes/submits/sends), and select for
+    # a combo box or list item.
+    "hotkey": {"action", "window", "keys", "timeout_s"},
+    "select": {"action", "window", "control", "value", "timeout_s"},
 }
+# Hotkeys unattended hands may send, and how pywinauto spells them. Enter,
+# Delete, Alt+F4, Ctrl+Enter, Ctrl+W/Q are absent on purpose: each one
+# submits, sends, destroys or closes something, which is the committing
+# guard's business, and a hotkey has no label to read.
+SAFE_HOTKEYS = {
+    "ctrl+a": "^a", "ctrl+c": "^c", "ctrl+v": "^v", "ctrl+x": "^x",
+    "ctrl+z": "^z", "ctrl+y": "^y", "ctrl+f": "^f", "ctrl+h": "^h",
+    "ctrl+s": "^s", "ctrl+shift+s": "^+s", "ctrl+o": "^o", "ctrl+n": "^n",
+    "escape": "{ESC}", "tab": "{TAB}", "shift+tab": "+{TAB}",
+    "home": "{HOME}", "end": "{END}", "ctrl+home": "^{HOME}", "ctrl+end": "^{END}",
+    "pageup": "{PGUP}", "pagedown": "{PGDN}",
+    "up": "{UP}", "down": "{DOWN}", "left": "{LEFT}", "right": "{RIGHT}",
+    "f3": "{F3}",
+}
+MAX_VALUE_CHARS = 256
 WINDOW_SELECTOR_FIELDS = {"title", "title_re", "class_name", "auto_id", "control_type"}
 CONTROL_SELECTOR_FIELDS = WINDOW_SELECTOR_FIELDS | {"best_match"}
 DEFAULT_TIMEOUT_S = 10.0
@@ -187,6 +208,20 @@ def validate_steps(steps: object) -> list[str]:
             elif len(step["text"]) > MAX_TEXT_CHARS:
                 problems.append(
                     f"{label}.text: exceeds {MAX_TEXT_CHARS} characters")
+        if action == "hotkey":
+            keys = step.get("keys")
+            if not isinstance(keys, str) or keys.strip().casefold() not in SAFE_HOTKEYS:
+                problems.append(
+                    f"{label}.keys: {keys!r} is not a safe hotkey; allowed: "
+                    f"{', '.join(sorted(SAFE_HOTKEYS))}")
+        if action == "select":
+            problems += _selector(step.get("control"), f"{label}.control",
+                                  CONTROL_SELECTOR_FIELDS)
+            value = step.get("value")
+            if not isinstance(value, str) or not value.strip():
+                problems.append(f"{label}.value: expected a non-empty string")
+            elif len(value) > MAX_VALUE_CHARS:
+                problems.append(f"{label}.value: exceeds {MAX_VALUE_CHARS} characters")
         if action == "screenshot_window":
             filename = step.get("filename")
             if not isinstance(filename, str) or not filename:
@@ -356,6 +391,11 @@ class WindowsUIABackend:
             self._wait_interruptibly(
                 window.wait_not, "exists", self._timeout(step))
             return {"action": action, "verified": "window no longer exists"}
+        if action == "hotkey":
+            spelled = SAFE_HOTKEYS[step["keys"].strip().casefold()]
+            window.set_focus()
+            window.type_keys(spelled, set_foreground=True)
+            return {"action": action, "verified": f"sent {step['keys']} to the focused window"}
 
         control = window.child_window(**step["control"])
         self._wait_interruptibly(
@@ -371,7 +411,34 @@ class WindowsUIABackend:
                 raise VerificationFailed(
                     "set_text completed but exact text verification failed")
             return {"action": action, "verified": True}
+        if action == "select":
+            wanted = step["value"]
+            try:
+                wrapper.select(wanted)
+            except Exception as exc:
+                raise VerificationFailed(
+                    f"control could not select {wanted!r} ({type(exc).__name__})") from exc
+            observed = self._selected_text(wrapper)
+            if wanted.casefold() not in observed.casefold():
+                raise VerificationFailed(
+                    f"select completed but the control now reads {observed[:80]!r}")
+            return {"action": action, "verified": True}
         raise AssertionError(f"validated action was not implemented: {action}")
+
+    @staticmethod
+    def _selected_text(wrapper) -> str:
+        for reader in (
+            lambda: wrapper.selected_text(),
+            lambda: wrapper.get_selection()[0].name,
+            lambda: wrapper.window_text(),
+        ):
+            try:
+                value = reader()
+            except Exception:
+                continue
+            if isinstance(value, str) and value:
+                return value
+        return ""
 
     def describe_control(self, step: dict) -> dict:
         """What the control a step names actually IS on screen right now.
@@ -503,7 +570,8 @@ def observe(steps: object, backend: ComputerBackend | None = None,
 #     that would hand back everything aletheia.script's sandbox takes away.
 #   - HALT is re-read between every step.
 
-ACT_ACTIONS = frozenset({"open_app", "wait_window", "focus_window", "set_text", "invoke"})
+ACT_ACTIONS = frozenset({"open_app", "wait_window", "focus_window", "set_text", "invoke",
+                         "hotkey", "select"})
 
 COMMITTING_PATTERN = re.compile(
     r"\b(?:send|delete|pay|purchase|buy|confirm|submit|format|uninstall|"
@@ -573,6 +641,15 @@ def check_act_plan(steps: list[dict]) -> None:
                 f"step {index + 1} would start {step.get('app')!r}, a shell, "
                 "interpreter or system tool; unattended hands never open one — "
                 + approval_path)
+        if action == "select":
+            # A menu or list entry can commit as surely as a button can.
+            hit = committing_label(str(step.get("value", "")))
+            if hit:
+                raise CommittingControl(
+                    f"step {index + 1} would select {step.get('value')!r}, which matches "
+                    f"the committing/destructive pattern ({hit!r}); refused rather than "
+                    "skipped — " + approval_path)
+            continue
         if action != "invoke":
             continue
         label = _control_label(step.get("control") or {})

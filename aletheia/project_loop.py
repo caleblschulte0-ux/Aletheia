@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from urllib.parse import quote
 
 from aletheia import (code_trust, code_worker, gh, mission, policy, portfolio,
@@ -19,6 +20,15 @@ LATEST = ROOT / "latest.json"
 DEFAULT_DAILY_LIMIT = 3
 MAX_RECONCILE = 20
 SKIP_LABELS = {"wontfix", "duplicate", "question", "invalid", "no-auto", "manual-only"}
+# Issues that are not defects. The first live sweeps (2026-09-02) spent
+# every attempt on Aletheia's own fleet alerts, a watchdog's "executor
+# stalled" notice and a daily pipeline's tracking issue — all machine-made,
+# none a bug a bounded code change could fix — and the proposer said so,
+# three times, correctly. A machine author or a machine-shaped title is
+# skipped before a model is asked.
+SKIP_TITLE = re.compile(
+    r"(?:fleet alert|watchdog|stalled|tracking issue|\breports?\b|\bdigest\b|"
+    r"\bstatus\b|\bpulse\b|\bdaily\b|\bweekly\b|\bnightly\b)", re.IGNORECASE)
 
 
 class ProjectLoopError(RuntimeError):
@@ -68,6 +78,14 @@ def _issue_work(repo: dict, *, request=gh.request) -> dict | None:
         title = str(issue.get("title") or "").strip()
         if not isinstance(number, int) or not title:
             continue
+        author = issue.get("user") if isinstance(issue.get("user"), dict) else {}
+        login = str(author.get("login") or "")
+        if str(author.get("type") or "") == "Bot" or login.endswith("[bot]"):
+            continue
+        if SKIP_TITLE.search(title):
+            continue
+        if code_worker.declined(repo["full_name"], f"issue-{number}"):
+            continue
         body = str(issue.get("body") or "").strip()
         # The TITLE and the BODY are both written by strangers. They travel
         # as `evidence`, never inside the objective: the objective is the
@@ -83,7 +101,42 @@ def _issue_work(repo: dict, *, request=gh.request) -> dict | None:
     return None
 
 
-def _ci_work(repo: dict, *, request=gh.request) -> dict | None:
+LOG_TAIL_LINES = 80
+LOG_TAIL_CHARS = 3_000
+ERROR_LINE = re.compile(
+    r"(?:##\[error\]|Traceback \(most recent call last\)|\bError\b|\bFAILED\b|"
+    r"\bfailed\b|exit code [1-9]|\bexception\b|\bpanic\b)", re.IGNORECASE)
+
+
+def _job_log_tail(encoded: str, job_id: int, *, request_text=None) -> str:
+    """The last lines of a failing job's log - the error itself, which a
+    job NAME never carries. A log the API will not hand over costs the
+    evidence, not the repair attempt."""
+    request_text = request_text or gh.request_text
+    try:
+        text = request_text(f"/repos/{encoded}/actions/jobs/{job_id}/logs")
+    except Exception:
+        return ""
+    lines = [line.rstrip() for line in str(text).splitlines() if line.strip()]
+    # GitHub prefixes every line with an ISO timestamp; strip it
+    lines = [re.sub(r"^\S+T\S+Z\s?", "", line) for line in lines]
+    # The literal tail of a job log is cleanup boilerplate ("Post job
+    # cleanup", "Cleaning up orphan processes"); the error sits above it.
+    # Anchor on the LAST line that looks like one and show the lines
+    # around it; with no such line, the tail is all there is.
+    anchor = None
+    for index in range(len(lines) - 1, -1, -1):
+        if ERROR_LINE.search(lines[index]):
+            anchor = index
+            break
+    if anchor is None:
+        window = lines[-LOG_TAIL_LINES:]
+    else:
+        window = lines[max(0, anchor - LOG_TAIL_LINES + 20):anchor + 20]
+    return "\n".join(window)[-LOG_TAIL_CHARS:]
+
+
+def _ci_work(repo: dict, *, request=gh.request, request_text=None) -> dict | None:
     encoded = _enc_repo(repo["full_name"])
     try:
         data = request("GET", f"/repos/{encoded}/actions/runs?per_page=20")
@@ -95,6 +148,10 @@ def _ci_work(repo: dict, *, request=gh.request) -> dict | None:
         and str(r.get("status") or "") == "completed"
         and str(r.get("conclusion") or "") in portfolio.FAIL_CONCLUSIONS
     ]
+    # A run the proposer already looked at and declined is not asked again;
+    # the next failed run (if any) is.
+    failed = [r for r in failed if not (isinstance(r.get("id"), int)
+                                        and code_worker.declined(repo["full_name"], f"ci-{r['id']}"))]
     if not failed:
         return None
     run = failed[0]
@@ -102,11 +159,14 @@ def _ci_work(repo: dict, *, request=gh.request) -> dict | None:
     if not isinstance(run_id, int):
         return None
     details = []
+    log_tail = ""
     try:
         jobs = request("GET", f"/repos/{encoded}/actions/runs/{run_id}/jobs?per_page=30")
         for job in (jobs.get("jobs", []) if isinstance(jobs, dict) else []):
             if not isinstance(job, dict) or str(job.get("conclusion") or "") == "success":
                 continue
+            if not log_tail and isinstance(job.get("id"), int):
+                log_tail = _job_log_tail(encoded, job["id"], request_text=request_text)
             failed_steps = [
                 str(step.get("name") or "") for step in job.get("steps", [])
                 if isinstance(step, dict) and str(step.get("conclusion") or "") == "failure"
@@ -130,6 +190,10 @@ def _ci_work(repo: dict, *, request=gh.request) -> dict | None:
     # Job and step names come from the repository's workflow files, which any
     # contributor may edit — untrusted for the same reason an issue body is.
     evidence = ("Failing jobs/steps: " + "; ".join(details[:8])) if details else ""
+    if log_tail:
+        # The log is written by the repository's own tools and by whoever
+        # pushed - untrusted for the same reason an issue body is.
+        evidence += ("\n\nLast lines of the failing job's log:\n" + log_tail)
     return {"task_id": f"ci-{run_id}", "kind": "ci", "objective": objective[:4000],
             "evidence": code_worker.sanitize_external(evidence)}
 

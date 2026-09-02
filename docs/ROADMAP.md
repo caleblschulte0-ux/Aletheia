@@ -111,6 +111,26 @@ operator in his own words (journaled `operator:authorization`):
   unchanged. Verified live: "rename every .md file ... uppercase"
   compiled to file_list + do_task and ran under a mission.
 
+### Second build, same day (2026-09-02, "you keep building")
+
+- **code.autonomous can now act, and says why when it does not.** Six
+  files / 48 KB of context with a per-call reasoner ceiling; the prompt on
+  stdin (Windows' 32 K command-line cap killed the first big context);
+  the model chooses which files to read from a manifest; a grant slot is
+  spent only when a PR is actually opened; machine-made issues (bots,
+  fleet alerts, watchdogs, tracking issues) are skipped; declines are
+  recorded and not re-asked; a CI repair gets the failing job's log,
+  anchored on the error. Four live sweeps: every decline was a correct
+  diagnosis (a watchdog doing its job; a CLI weekly-limit outage). Still
+  EXPERIMENTAL until a PR exists for the operator to read.
+- **email.read_body** built and promoted: one unread message's text by
+  sender or subject, exactly one match or a question back, mailbox
+  readonly, body never journaled. Live: a real body read, still unseen.
+- **Desktop hands** gained `hotkey` (safe table only: clipboard, undo,
+  find, save, navigation, escape, tab; never Enter/Delete/Alt+F4) and
+  `select` (committing guard on the value). Hotkeys verified live in
+  Notepad; select hermetically only, and the registry says so.
+
 ## Next five engineering milestones (priority order, per §137)
 
 The five gaps between Aletheia and the thing she is supposed to be were

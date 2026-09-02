@@ -86,9 +86,60 @@ def available() -> tuple[bool, str]:
     return True, f"configured for {c['address']}"
 
 
+MAX_BODY_CHARS = 6_000
+
+
+class MailError(RuntimeError):
+    pass
+
+
 class MailTransport(Protocol):
     def fetch_unread(self, limit: int) -> list[dict]: ...
+    def fetch_body(self, message_id: str) -> dict: ...
     def send(self, msg: EmailMessage) -> None: ...
+
+
+def _body_text(msg) -> str:
+    """The readable text of a parsed message: text/plain first, else the
+    HTML with its tags stripped. Attachments are never opened."""
+    from html.parser import HTMLParser
+
+    class _Strip(HTMLParser):
+        def __init__(self):
+            super().__init__(); self.out = []; self.skip = 0
+
+        def handle_starttag(self, tag, attrs):
+            if tag in ("script", "style"):
+                self.skip += 1
+            elif tag in ("p", "br", "div", "li", "tr", "h1", "h2", "h3"):
+                self.out.append("\n")
+
+        def handle_endtag(self, tag):
+            if tag in ("script", "style") and self.skip:
+                self.skip -= 1
+
+        def handle_data(self, data):
+            if not self.skip:
+                self.out.append(data)
+
+    plain, html_parts = [], []
+    parts = msg.walk() if msg.is_multipart() else [msg]
+    for part in parts:
+        if part.get_content_maintype() != "text" or part.get_filename():
+            continue
+        try:
+            payload = part.get_payload(decode=True) or b""
+            text = payload.decode(part.get_content_charset() or "utf-8", "replace")
+        except (LookupError, ValueError):
+            continue
+        (plain if part.get_content_subtype() == "plain" else html_parts).append(text)
+    if plain:
+        text = "\n".join(plain)
+    elif html_parts:
+        stripper = _Strip(); stripper.feed("\n".join(html_parts)); text = "".join(stripper.out)
+    else:
+        text = ""
+    return re.sub(r"\n{3,}", "\n\n", text).strip()[:MAX_BODY_CHARS]
 
 
 class SmtpImapTransport:
@@ -119,6 +170,32 @@ class SmtpImapTransport:
                     "message_id": msg.get("Message-ID", ""),
                 })
         return out
+
+    def fetch_body(self, message_id: str) -> dict:
+        """One message's text, found by its Message-ID. Read-only: the
+        mailbox is opened readonly, so reading never marks anything seen."""
+        import imaplib
+        from email import message_from_bytes
+        from email.header import decode_header, make_header
+        mid = str(message_id or "").strip()
+        if not mid:
+            raise MailError("a Message-ID is required")
+        with imaplib.IMAP4_SSL(self.cfg["imap_host"], timeout=NETWORK_TIMEOUT_S) as imap:
+            imap.login(self.cfg["address"], self.cfg["password"])
+            imap.select("INBOX", readonly=True)
+            _, data = imap.search(None, "HEADER", "Message-ID", mid)
+            ids = data[0].split()
+            if not ids:
+                raise MailError("that message is no longer in the inbox")
+            _, msg_data = imap.fetch(ids[-1], "(BODY.PEEK[])")
+            msg = message_from_bytes(msg_data[0][1])
+        return {
+            "from": str(make_header(decode_header(msg.get("From", "?")))),
+            "subject": str(make_header(decode_header(msg.get("Subject", "(no subject)")))),
+            "date": msg.get("Date", ""),
+            "message_id": mid,
+            "text": _body_text(msg),
+        }
 
     def send(self, msg: EmailMessage) -> None:
         import smtplib
@@ -229,6 +306,37 @@ def check_unread(limit: int = CHECK_LIMIT, transport: MailTransport | None = Non
     parts = [f"{m['subject']} — from {parseaddr(m['from'])[0] or m['from']}" for m in unread]
     journal.append("action", "mail:check", f"{len(unread)} unread reported", actor=ACTOR)
     return (f"{len(unread)} unread. " if len(unread) > 1 else "One unread: ") + ". ".join(parts)
+
+
+def read_body(which: str, limit: int = CHECK_LIMIT,
+              transport: MailTransport | None = None) -> dict:
+    """The text of ONE unread message, named by sender or subject.
+
+    "What did the dentist say?" needs the body, and until 2026-09-02 she
+    could read only headers. The match must be exactly one message: zero is
+    an honest "nothing from them", more than one is a question back with
+    the candidates — never a guess at which one he meant. The mailbox is
+    read readonly, and the journal records the subject, never the text.
+    """
+    needle = str(which or "").strip().casefold()
+    if not needle:
+        raise MailError("say whose email, or what it is about")
+    driver = transport or SmtpImapTransport()
+    unread = driver.fetch_unread(limit)
+    hits = [m for m in unread
+            if needle in str(m.get("from", "")).casefold()
+            or needle in str(m.get("subject", "")).casefold()]
+    if not hits:
+        raise MailError(f"no unread email matches {which!r}")
+    if len(hits) > 1:
+        listed = "; ".join(f"{m['subject']} (from {parseaddr(m['from'])[0] or m['from']})"
+                           for m in hits[:5])
+        raise MailError(f"{len(hits)} unread emails match {which!r} — which one: {listed}")
+    message = driver.fetch_body(hits[0].get("message_id", ""))
+    journal.append("action", "mail:read_body",
+                   f"read body of {message['subject'][:80]!r} from "
+                   f"{parseaddr(message['from'])[0] or message['from']}", actor=ACTOR)
+    return message
 
 
 def _fingerprint(message: dict) -> str:

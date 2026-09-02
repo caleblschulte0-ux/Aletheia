@@ -85,6 +85,9 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "media_convert": ({"source", "out"}, {"height"}),
     "browse_shot":   ({"url"}, set()),
     "email_check":   (set(), set()),
+    # the text of ONE unread message, named by sender or subject; exactly
+    # one match or a question back, never a guess (2026-09-02)
+    "email_read":    ({"which"}, set()),
     "email_draft":   ({"to", "body"}, {"subject"}),
     # personal-OS verbs (2026-08-26): PC-private state, so all LOCAL_KINDS
     "remind_at":       ({"at", "text"}, set()),
@@ -151,7 +154,10 @@ KIND_NOTES: dict[str, str] = {
         '{"action":"wait_window","window":{"title_re":"Notepad"}} | '
         '{"action":"focus_window","window":{...}} | '
         '{"action":"set_text","window":{...},"control":{"control_type":"Edit"},"text":"..."} | '
-        '{"action":"invoke","window":{...},"control":{"title":"Save"}}. '
+        '{"action":"invoke","window":{...},"control":{"title":"Save"}} | '
+        '{"action":"hotkey","window":{...},"keys":"ctrl+s"} (safe keys only: clipboard, '
+        'undo, find, save, navigation, escape, tab — never enter/delete/alt+f4) | '
+        '{"action":"select","window":{...},"control":{"control_type":"ComboBox"},"value":"UTF-8"}. '
         "Selectors use title, title_re, class_name, auto_id, control_type (a control "
         "also best_match) — never screen coordinates. A control labelled Send, "
         "Delete, Pay, Purchase, Confirm, Submit, Format, Uninstall or Empty Trash "
@@ -160,6 +166,10 @@ KIND_NOTES: dict[str, str] = {
         "request is the ask in plain words. She writes a small Python program "
         "(standard library only, no network, no subprocess, workspace files only) "
         "and runs it. Use this ONLY when no other kind does the job."),
+    "email_read": (
+        "which is a sender name/address or a subject fragment; it must match exactly "
+        "one UNREAD message (otherwise she asks which). Use email_check first to see "
+        "what is unread."),
 }
 
 # Kinds that need the operator's PC (a real browser, later the desktop).
@@ -170,7 +180,7 @@ KIND_NOTES: dict[str, str] = {
 # command can ever be executed by both sides in a race. A local kind with
 # no receipt is honestly PENDING: the PC hasn't picked it up (Core off or
 # offline), and ChatGPT should say exactly that, not invent an outcome.
-LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_draft",
+LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email_draft",
                # research only READS pages, but it reads them with the
                # operator's browser, so it belongs to the PC runner
                "research",
@@ -205,7 +215,7 @@ READ_ONLY_KINDS = frozenset({
     "computer_observe",
     # reading what a media file IS changes nothing
     "media_probe",
-    "email_check", "screen_ask", "authority_status", "setup_status",
+    "email_check", "email_read", "screen_ask", "authority_status", "setup_status",
 })
 
 
@@ -488,6 +498,11 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "email_check":
         from aletheia import mail
         return mail.check_unread()
+    if kind == "email_read":
+        from aletheia import mail
+        message = mail.read_body(cmd["which"])
+        body = " ".join(message["text"].split())[:1500] or "(no readable text)"
+        return f"From {message['from']} — {message['subject']}: {body}"
     if kind == "email_draft":
         from aletheia import mail
         d = mail.draft(cmd["to"], cmd.get("subject", ""), cmd["body"],
