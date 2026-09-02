@@ -38,6 +38,9 @@
     dot.style.background =
       state === "listening" ? "#39d98a" :
       state === "heard" ? "#f5c542" :
+      // she is away thinking, not broken — the error colour would say the
+      // opposite of what is happening
+      state === "thinking" ? "#6aa9ff" :
       state === "off" ? "#4a5a70" : "#e0556a";
   }
 
@@ -76,6 +79,36 @@
     });
   }
 
+  // The answer he actually asked for.
+  //
+  // A request the planner has to think about takes ten to thirty seconds, so
+  // POST /api/voice answers immediately with an acknowledgement and a
+  // `followup_id`, and the real sentence lands in that slot later. The room
+  // microphone already collected it. THE WALL DID NOT — it spoke "one moment"
+  // and stopped, which is exactly what the operator reported: he asked, heard
+  // that she was working on it, and never got the answer. Silence is the bug,
+  // so a slot that fails is spoken too.
+  async function collect(followupId) {
+    const deadline = Date.now() + 180000;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 1200));
+      let slot;
+      try {
+        const r = await fetch(
+          "/api/voice/followup?id=" + encodeURIComponent(followupId));
+        if (!r.ok) continue;
+        slot = await r.json();
+      } catch (e) {
+        continue;               // a dropped beat is not an answer
+      }
+      if (slot.state === "PENDING") continue;
+      return slot.say || (slot.state === "FAILED"
+        ? "I could not finish that one."
+        : "That is done.");
+    }
+    return "That is taking longer than it should — it is in your notifications.";
+  }
+
   async function sendCommand(command) {
     busy = true;
     const transcript = `thea ${command}`;
@@ -90,6 +123,12 @@
       const say = res.say || res.detail || "done";
       setUI("heard", say.slice(0, 80));
       await speak(say);
+      if (res.followup_id) {
+        setUI("thinking", "thinking…");
+        const answer = await collect(res.followup_id);
+        setUI("heard", answer.slice(0, 80));
+        await speak(answer);
+      }
       if (typeof refresh === "function") refresh();
       setUI("off", "click to talk · no wake word");
     } catch (e) {

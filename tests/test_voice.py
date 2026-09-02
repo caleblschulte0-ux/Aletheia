@@ -216,3 +216,43 @@ class AttentionAnsweredWithoutAModel(unittest.TestCase):
                         return_value={"pulse": {"alerts": 0}}):
             self.assertIn("Nothing needs your attention",
                           voice.interpret("Thea, what needs my attention?")["say"])
+
+
+class TheWallCollectsTheAnswerItWasPromised(unittest.TestCase):
+    """The operator's live report: he asked Thea something, was told she
+    was working on it, and never received the finished answer.
+
+    POST /api/voice answers immediately with an acknowledgement and a
+    `followup_id` because the planner takes ten to thirty seconds. The
+    ROOM MICROPHONE collected that slot. The WALL — the surface he
+    actually uses — spoke the acknowledgement and stopped, so the real
+    sentence was written and never delivered. Silence is the bug.
+    """
+
+    def script(self):
+        from aletheia.fleet import REPO_ROOT
+        return (REPO_ROOT / "interface" / "voice.js").read_text(encoding="utf-8")
+
+    def test_the_wall_polls_the_followup_slot(self):
+        body = self.script()
+        self.assertIn("/api/voice/followup", body,
+                      "the wall never collects the answer it promised")
+        self.assertIn("res.followup_id", body,
+                      "collection must be driven by the id the Core returned")
+
+    def test_a_failed_slot_is_spoken_rather_than_swallowed(self):
+        body = self.script()
+        self.assertIn("FAILED", body,
+                      "a failure that says nothing is the same bug wearing a hat")
+
+    def test_polling_gives_up_out_loud_instead_of_hanging_forever(self):
+        body = self.script()
+        self.assertIn("deadline", body)
+        self.assertRegex(body, r"taking longer|notifications",
+                         "an expired wait must still say something")
+
+    def test_thinking_is_not_painted_as_an_error(self):
+        body = self.script()
+        self.assertIn('state === "thinking"', body,
+                      "an unknown state falls through to the error colour, which "
+                      "would tell him she is broken while she is thinking")
