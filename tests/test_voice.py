@@ -190,3 +190,29 @@ class VoiceEndpointCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AttentionAnsweredWithoutAModel(unittest.TestCase):
+    """Ported from PR #75 after review. "What needs my attention?" reads
+    durable local queues; routing it through the planner cost ~90 seconds
+    and a model call to answer from state we already hold."""
+
+    def test_phrases_answer_locally_and_never_reach_the_planner(self):
+        for phrase in ("Thea, what needs my attention?",
+                       "thea does anything need my attention",
+                       "Thea, what do I need to deal with?"):
+            with self.subTest(phrase=phrase):
+                out = voice.interpret(phrase)
+                self.assertIsNone(out["command"],
+                                  "must not compile to an intent/planner call")
+                self.assertTrue(out["say"].strip())
+
+    def test_quiet_state_says_so_rather_than_inventing(self):
+        empty = {"halted": None, "needs_attention": {
+            "pending_approvals": [], "waiting_operator": [], "blocked_tasks": [],
+            "overdue_replies": [], "unread_notifications": 0}}
+        with mock.patch("aletheia.current_state.snapshot", return_value=empty), \
+             mock.patch("aletheia.core.status_payload",
+                        return_value={"pulse": {"alerts": 0}}):
+            self.assertIn("Nothing needs your attention",
+                          voice.interpret("Thea, what needs my attention?")["say"])
