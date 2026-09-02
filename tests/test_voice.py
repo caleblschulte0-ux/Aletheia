@@ -256,3 +256,62 @@ class TheWallCollectsTheAnswerItWasPromised(unittest.TestCase):
         self.assertIn('state === "thinking"', body,
                       "an unknown state falls through to the error colour, which "
                       "would tell him she is broken while she is thinking")
+
+
+class ReadingTheAnswerDoesNotConsumeIt(unittest.TestCase):
+    """Ported from PR #75, whose diagnosis was right and matters more now
+    that the wall polls this slot: reading and consuming in one HTTP GET
+    means a response lost in transit destroys the only copy of the answer
+    — the operator's original complaint, one layer down. A browser tab is
+    a flaky client, so the GET is a pure read and the ACK is separate."""
+
+    def setUp(self):
+        from aletheia import followups
+        self.followups = followups
+        self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
+        d = Path(self.tmp.name)
+        p = mock.patch.dict(os.environ, {"ALETHEIA_PRIVATE_STATE": str(d)})
+        p.start(); self.addCleanup(p.stop)
+
+    def ready_slot(self):
+        slot = self.followups.start(lambda: "the real answer", "one moment")
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            if self.followups.poll(slot["id"])["state"] != self.followups.PENDING:
+                break
+            time.sleep(0.05)
+        return slot["id"]
+
+    def test_polling_twice_still_yields_the_answer(self):
+        fid = self.ready_slot()
+        first = self.followups.poll(fid)
+        second = self.followups.poll(fid)
+        self.assertEqual(first["state"], self.followups.READY)
+        self.assertEqual(second["say"], first["say"],
+                         "a retried read must not have eaten the answer")
+
+    def test_acknowledging_consumes_it_and_is_idempotent(self):
+        fid = self.ready_slot()
+        acked = self.followups.acknowledge(fid)
+        self.assertEqual(acked["state"], "ACKED")
+        self.assertEqual(acked["delivered_state"], self.followups.READY)
+        self.assertEqual(self.followups.poll(fid)["state"], "EXPIRED")
+        self.assertEqual(self.followups.acknowledge(fid)["state"], "EXPIRED",
+                         "a retried ack means already delivered, not an error")
+
+    def test_a_pending_slot_is_never_consumed_by_an_ack(self):
+        import threading
+        gate = threading.Event()
+        slot = self.followups.start(lambda: gate.wait(5) and "late", "one moment")
+        self.assertEqual(self.followups.acknowledge(slot["id"])["state"],
+                         self.followups.PENDING)
+        gate.set()
+
+    def test_the_wall_acknowledges_only_after_speaking(self):
+        from aletheia.fleet import REPO_ROOT
+        body = (REPO_ROOT / "interface" / "voice.js").read_text(encoding="utf-8")
+        self.assertIn("/api/voice/followup/ack", body)
+        speak = body.index("await speak(answer.say)")
+        ack = body.index("await acknowledge(answer.id)")
+        self.assertLess(speak, ack, "acknowledging before speaking loses the answer "
+                                    "if speech fails")

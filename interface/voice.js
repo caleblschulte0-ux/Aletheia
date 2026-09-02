@@ -102,11 +102,30 @@
         continue;               // a dropped beat is not an answer
       }
       if (slot.state === "PENDING") continue;
-      return slot.say || (slot.state === "FAILED"
-        ? "I could not finish that one."
-        : "That is done.");
+      return {
+        id: followupId,
+        say: slot.say || (slot.state === "FAILED"
+          ? "I could not finish that one."
+          : "That is done."),
+      };
     }
-    return "That is taking longer than it should — it is in your notifications.";
+    return { id: null,
+             say: "That is taking longer than it should — it is in your notifications." };
+  }
+
+  // Only after it has actually been SAID. The GET is a pure read, so a
+  // dropped response costs a retry rather than the answer itself.
+  async function acknowledge(followupId) {
+    if (!followupId) return;
+    try {
+      await fetch("/api/voice/followup/ack", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: followupId }),
+      });
+    } catch (e) {
+      // it stays collectable; the notification carries it either way
+    }
   }
 
   async function sendCommand(command) {
@@ -126,8 +145,9 @@
       if (res.followup_id) {
         setUI("thinking", "thinking…");
         const answer = await collect(res.followup_id);
-        setUI("heard", answer.slice(0, 80));
-        await speak(answer);
+        setUI("heard", answer.say.slice(0, 80));
+        await speak(answer.say);
+        await acknowledge(answer.id);
       }
       if (typeof refresh === "function") refresh();
       setUI("off", "click to talk · no wake word");

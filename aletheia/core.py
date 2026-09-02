@@ -45,7 +45,8 @@ API:
     GET  /api/schedules     durable schedule definitions
     GET  /api/runtime       last runtime tick summary
     GET  /api/setup         what the operator still has to supply, checked live
-    GET  /api/voice/followup?id=  a slow spoken answer, once it exists
+    GET  /api/voice/followup?id=  a slow spoken answer; non-destructive
+    POST /api/voice/followup/ack  {"id": …} once the listener has spoken it
     GET  /api/computer/status
     POST /api/command       {"kind": …, …args} (+optional "operator_quote")
                             → {outcome, detail}, executed inline, journaled
@@ -561,7 +562,10 @@ class Handler(BaseHTTPRequestHandler):
             if not fid:
                 return self._json({"state": "EXPIRED", "say": None,
                                    "detail": "id required"}, code=400)
-            return self._json(followups.take(fid))
+            # A pure read: consuming here would let a response lost in
+            # transit destroy the only copy of the answer. The listener
+            # POSTs /api/voice/followup/ack once it has actually spoken.
+            return self._json(followups.poll(fid))
         if url.path == "/api/journal":
             last = int(parse_qs(url.query).get("last", ["50"])[0])
             return self._json(journal.entries()[-last:])
@@ -586,7 +590,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         path = urlparse(self.path).path
         if path not in ("/api/command", "/api/computer", "/api/voice", "/api/ask",
-                        "/api/notifications/ack"):
+                        "/api/notifications/ack", "/api/voice/followup/ack"):
             return self.send_error(404)
         try:
             payload = self._payload()
@@ -631,6 +635,11 @@ class Handler(BaseHTTPRequestHandler):
                 # thread, so a slow errand still cannot stall the beat.
                 kick_approved_work(self.fleet)
             return self._json(result)
+        if path == "/api/voice/followup/ack":
+            fid = payload.get("id")
+            if not isinstance(fid, str) or not fid:
+                return self._json({"outcome": "invalid", "detail": "id required"}, code=400)
+            return self._json(followups.acknowledge(fid))
         if path == "/api/notifications/ack":
             nid = payload.get("id")
             if not isinstance(nid, str) or not nid:

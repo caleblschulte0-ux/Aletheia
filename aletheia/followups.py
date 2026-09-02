@@ -218,9 +218,47 @@ def poll(followup_id: str) -> dict:
     return {"id": followup_id, "state": "EXPIRED", "say": None}
 
 
+def acknowledge(followup_id: str) -> dict:
+    """Consume a delivered answer, AFTER the listener has actually said it.
+
+    Ported from PR #75, whose diagnosis was right: reading and consuming in
+    one HTTP GET means a response lost in transit destroys the only copy of
+    the answer — the operator's original complaint, reappearing one layer
+    down. The wall makes that likely rather than theoretical: a browser tab
+    is a flaky client, and it now polls this slot on every slow ask.
+
+    So the GET is a pure read and this is the consume. Idempotent from the
+    listener's side: a retried ACK reads EXPIRED, which means the finished
+    slot is already gone and is safe to treat as delivered.
+    """
+    result = poll(followup_id)
+    if result["state"] not in (READY, FAILED):
+        return result
+    with _LOCK:
+        _SLOTS.pop(followup_id, None)
+    record = _load_record(followup_id)
+    if record and record.get("state") in (READY, FAILED):
+        notice_id = record.get("notification_id")
+        if notice_id:
+            try:
+                notifications.set_state(notice_id, "ACKNOWLEDGED")
+            except Exception:
+                pass
+        record["state"] = DELIVERED
+        record["delivered_at"] = stateio.utcnow()
+        record["updated_at"] = record["delivered_at"]
+        stateio.write_json_atomic(_record_path(followup_id), record)
+    return {"id": followup_id, "state": "ACKED",
+            "delivered_state": result["state"], "say": result["say"]}
+
+
 def take(followup_id: str) -> dict:
-    """Poll, and remove the slot once it has been delivered. Keeps a spoken
-    answer from being said twice if a listener polls after speaking."""
+    """Read and consume in one call — for in-process listeners only.
+
+    The room microphone speaks in the same process that reads the slot, so
+    nothing can be lost between the two. Anything reaching this over HTTP
+    must use poll() then acknowledge() instead.
+    """
     result = poll(followup_id)
     if result["state"] not in (READY, FAILED):
         return result
