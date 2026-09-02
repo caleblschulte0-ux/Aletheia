@@ -863,3 +863,7 @@
 {"ts": "2026-09-02T19:36:16Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://www.wikiwand.com/en/List_of_tallest_people — Attention Required! | Cloudflare"}
 {"ts": "2026-09-02T19:36:21Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://simple.wikipedia.org/wiki/List_of_tallest_people_in_the_world — List of tallest people in the world - Simple English Wikipedia, the free encyclo"}
 {"ts": "2026-09-02T19:36:27Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://engineerine.com/tallest-people/ — 20 Tallest People In The World (Alive & Dead) – Engineerine"}
+{"ts": "2026-09-02T19:36:34Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://allthatsinteresting.com/tallest-people-ever — 11 Of The Tallest People Ever And Their Tragic Stories"}
+{"ts": "2026-09-02T19:37:26Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://html.duckduckgo.com/html/?q=tallest+building+Chicago — DuckDuckGo"}
+{"ts": "2026-09-02T19:37:26Z", "kind": "event", "actor": "aletheia-research", "subject": "research", "text": "duckduckgo gave no usable results for 'tallest building Chicago' — a challenge page or changed markup; trying the next engine"}
+{"ts": "2026-09-02T19:37:31Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://www.bing.com/search?q=tallest+building+Chicago — tallest building Chicago - Search"}
