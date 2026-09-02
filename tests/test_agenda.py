@@ -208,3 +208,51 @@ class ItStopsWhenToldTo(AgendaCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SheCanProduceAndObserve(AgendaCase):
+    """The two gaps closed together: she could think but not hand him
+    anything, and she could not see his desktop through the agenda at all."""
+
+    def test_the_file_kinds_are_reachable_from_an_agenda(self):
+        from aletheia import intercom
+        for kind in ("file_write", "file_edit", "file_read", "file_list"):
+            with self.subTest(kind=kind):
+                self.assertIn(kind, intercom.KIND_ARGS)
+                self.assertNotIn(kind, agenda.FORBIDDEN_KINDS)
+                self.assertIn(kind, intercom.LOCAL_KINDS,
+                              "the workspace is on his PC; Actions cannot see it")
+
+    def test_writing_a_file_is_routine_not_world_touching(self):
+        """Local, and reversible because every write keeps the previous
+        version — that is what makes it routine rather than world-touching."""
+        from aletheia import intercom
+        self.assertEqual(intercom.tier("file_write"), intercom.TIER_ROUTINE)
+        self.assertEqual(intercom.tier("file_read"), intercom.TIER_READ)
+
+    def test_a_write_plan_runs_end_to_end_through_an_agenda(self):
+        plan = plan_of({"kind": "file_write", "path": "notes.md", "text": "hi"},
+                       {"kind": "file_edit", "path": "notes.md",
+                        "find": "hi", "replace": "hello"})
+        record, ran = self.go(plan)
+        self.assertEqual(len(ran), 2)
+        self.assertEqual(record["succeeded"], 2)
+
+    def test_desktop_observation_is_reachable_but_mutation_is_not(self):
+        from aletheia import computer, intercom
+        self.assertEqual(intercom.tier("computer_observe"), intercom.TIER_READ)
+        self.assertNotIn("computer_observe", agenda.FORBIDDEN_KINDS)
+        # ...and the mutating half still refuses without an approval
+        for action in ("invoke", "set_text", "close_window", "open_app"):
+            with self.subTest(action=action):
+                self.assertNotIn(action, computer.OBSERVE_ACTIONS)
+
+    def test_observing_refuses_a_mutating_step_rather_than_filtering_it(self):
+        """A caller that asked to click and was quietly given a screenshot
+        would report success for work that never happened."""
+        from aletheia import computer
+        with self.assertRaises(computer.ApprovalRequired):
+            computer.observe([{"action": "list_windows"},
+                              {"action": "close_window",
+                               "window": {"title": "Notepad"}}],
+                             backend=mock.Mock())

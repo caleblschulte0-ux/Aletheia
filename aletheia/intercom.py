@@ -69,6 +69,13 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "remember":      ({"domain", "key", "value"}, {"memory_kind"}),
     "browse_read":   ({"url"}, set()),
     "research":      ({"question"}, set()),
+    # she can produce something now, not just say things
+    "file_write":    ({"path", "text"}, {"why"}),
+    "file_edit":     ({"path", "find", "replace"}, {"why"}),
+    "file_read":     ({"path"}, {"anywhere"}),
+    "file_list":     (set(), {"subdir"}),
+    # eyes on the desktop, never hands: mutation keeps its own approval
+    "computer_observe": (set(), {"window"}),
     "browse_shot":   ({"url"}, set()),
     "email_check":   (set(), set()),
     "email_draft":   ({"to", "body"}, {"subject"}),
@@ -128,6 +135,9 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_draft",
                # research only READS pages, but it reads them with the
                # operator's browser, so it belongs to the PC runner
                "research",
+               # the workspace is a directory on his PC; Actions cannot see it
+               "file_write", "file_edit", "file_read", "file_list",
+               "computer_observe",
                "remind_at", "remind_daily", "watch_email_from", "notify_check",
                "notify_clear", "free_time", "contact_add", "notify_operator",
                "intent", "screen_ask",
@@ -145,6 +155,10 @@ READ_ONLY_KINDS = frozenset({
     "projects", "car", "recall", "travel_time", "browse_read", "browse_shot",
     # reads public pages and writes a document; commits him to nothing
     "research",
+    # looking at his own files commits him to nothing
+    "file_read", "file_list",
+    # looking at his own screen commits him to nothing either
+    "computer_observe",
     "email_check", "screen_ask", "authority_status", "setup_status",
 })
 
@@ -157,6 +171,11 @@ ROUTINE_KINDS = frozenset({
     "plan_set", "remind_at", "remind_daily", "notify_operator",
     "notify_clear", "remember", "contact_add", "shopping_add",
     "watch_email_from", "handle",
+    # Writing a file in her own workspace is local and REVERSIBLE: every
+    # write keeps the previous version, so an undo always exists. The
+    # boundary that makes this routine rather than world-touching is
+    # aletheia.workspace — she cannot write outside her own directory.
+    "file_write", "file_edit",
 })
 
 # Everything else is WORLD-TOUCHING and is never granted away: dispatch and
@@ -297,6 +316,37 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                         source=f"operator via intercom: {quote[:120]}",
                         kind=cmd.get("memory_kind", "explicit"))
         return f"remembered {cmd['domain']}.{cmd['key']}"
+    if kind == "computer_observe":
+        from aletheia import computer
+        ok, why = computer.available()
+        if not ok:
+            return {"outcome": "unavailable", "detail": why}
+        window = args.get("window")
+        steps = ([{"action": "inspect_controls", "window": {"title": window}}]
+                 if window else [{"action": "list_windows"}])
+        result = computer.observe(steps)
+        found = result["steps"][0]["evidence"]
+        return {"outcome": "done", "detail": str(found)[:1500]}
+
+    if kind in ("file_write", "file_edit", "file_read", "file_list"):
+        from aletheia import workspace
+        if kind == "file_write":
+            out = workspace.write(args["path"], args["text"], why=args.get("why", ""))
+            return {"outcome": "done",
+                    "detail": f"wrote {out['path']} ({out['chars']:,} chars)"
+                              + ("" if out["created"] else " — previous version kept")}
+        if kind == "file_edit":
+            out = workspace.edit(args["path"], args["find"], args["replace"],
+                                 why=args.get("why", ""))
+            return {"outcome": "done",
+                    "detail": f"edited {out['path']} ({out['replacements']} change)"}
+        if kind == "file_read":
+            out = workspace.read(args["path"], anywhere=bool(args.get("anywhere")))
+            return {"outcome": "done", "detail": out["text"][:2000]}
+        rows = workspace.listing(args.get("subdir", ""))
+        return {"outcome": "done",
+                "detail": ", ".join(r["path"] for r in rows[:40]) or "(empty)"}
+
     if kind == "research":
         from aletheia import research as research_mod
         report = research_mod.run(args["question"])

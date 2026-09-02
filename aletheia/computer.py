@@ -428,6 +428,44 @@ def _journal_evidence(evidence: dict) -> dict:
     return safe
 
 
+# Actions that only LOOK. Splitting the action set by EFFECT is what lets
+# an agenda have eyes on the desktop without hands on it: listing windows
+# and reading controls changes nothing and can be undone by closing your
+# own eyes, while clicking, typing and closing windows can destroy an
+# afternoon of somebody's work. The second set keeps its hash-bound
+# operator approval; only this set is reachable without one.
+OBSERVE_ACTIONS = frozenset({"list_windows", "inspect_controls"})
+
+
+def observe(steps: object, backend: ComputerBackend | None = None,
+            backend_factory=None) -> dict:
+    """Look at the desktop. No approval, because nothing changes.
+
+    Refuses any mutating action outright rather than filtering it out
+    silently: a caller that asked to click something and was quietly given
+    a screenshot instead would report success for work that never happened.
+    """
+    problems = validate_steps(steps)
+    if problems:
+        raise ValueError("; ".join(problems))
+    for index, step in enumerate(steps):
+        action = step.get("action")
+        if action not in OBSERVE_ACTIONS:
+            raise ApprovalRequired(
+                f"step {index + 1} ({action}) changes the desktop, so it needs "
+                "an approval bound to the exact plan. Observation covers "
+                f"{', '.join(sorted(OBSERVE_ACTIONS))} and nothing else.")
+    policy.ensure_not_halted()
+    driver = backend or (backend_factory() if backend_factory else WindowsUIABackend())
+    results = []
+    for step in steps:
+        policy.ensure_not_halted()
+        results.append({"action": step["action"], "evidence": driver.perform(step)})
+    journal.append("action", "computer:observe",
+                   f"observed the desktop ({len(results)} step(s))", actor=ACTOR)
+    return {"outcome": "observed", "steps": results}
+
+
 def execute(steps: object, approval_id: str, backend: ComputerBackend | None = None,
             requested_by: str = "operator", backend_factory=None) -> dict:
     """Execute one approved plan, checking halt before setup and every step."""

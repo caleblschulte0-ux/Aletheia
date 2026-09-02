@@ -1,5 +1,5 @@
 {
-  "revision": 39,
+  "revision": 40,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1235,6 +1235,30 @@
       "module": "aletheia.agenda",
       "notes": "The operator's ask, in his words: 'take any request I give it and execute it except no spending money'. The pieces existed - the planner compiles plain English into validated commands, the intercom executes one, a mission bounds a budget - but every plan filed an approval and waited, so 'any request' meant 'any request, once you come back and click yes'. THREE refusals, all enforced in code: (1) MONEY names every capability that moves money, refused at compile time and before every step, with no flag that turns it off; (2) approve/deny are refused, because an agenda that can approve things can file the approval for the purchase it is forbidden to make and then grant it - that hole would have converted every other refusal into a speed bump; (3) halt/resume are refused, because a kill switch the agent can lift is decoration. Also refused: intent (recursion), rule (authority outliving the mission) and dispatch (someone else's compute). Drafting mail IS allowed and stays safe because mail.send_approved delivers only drafts he approved - she writes the letter and never posts it. EXPERIMENTAL: no agenda has run on his PC.",
       "verification": "tests/test_agenda.py: 18 tests - every money capability refused with nothing executed first, approve/deny/halt/resume/intent/rule/dispatch refused while allowed steps in the same plan still run, refusals said out loud rather than swallowed, halting mid-plan stops at the next step, one failing step does not abandon the rest, and the source is asserted to contain no money-override flag"
+    },
+    {
+      "id": "file.author",
+      "description": "Create and edit real files - documents, notes, data, captions - inside a workspace she owns, keeping every version she replaces",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "intercom kinds file_write/file_edit/file_read/file_list (LOCAL - the workspace is a directory on his PC), reachable from an agenda; python -m aletheia.workspace",
+      "module": "aletheia.workspace",
+      "notes": "She could think but not hand him anything - no document, no spreadsheet, no file - so 'open my resume and fix the formatting' compiled to nothing. Most of what sounds like desktop control is a FILE operation wearing a GUI, and driving Word to edit a document is the dangerous way to do what a text edit does safely. The boundary is what makes it safe: one root (~/Aletheia by default), every path RESOLVED before it is checked so `../` and symlinks out of the workspace fail the same test, absolute paths refused rather than quietly made relative (a confident write to a path nobody named is worse than a refusal - caught by its own boundary test), and a root that resolves to his home or Desktop refused as 'not a workspace, everything under it'. Every overwrite keeps the previous version in .versions/ and `restore` puts one back, so a mistake costs a paragraph rather than an afternoon. Reading is deliberately WIDER than writing - she may read a file he names anywhere, because reading destroys nothing - but writing is workspace-only with no argument that widens it. Text formats only: a binary format she cannot write correctly is a corrupted file with a confident receipt.",
+      "verification": "tests/test_workspace.py: 21 tests - traversal, symlinked files AND symlinked directories, absolute paths, a root that is everything, the version history being uneditable, an edit matching nothing raising rather than passing silently, an ambiguous edit asking for context, restore round-tripping, and no half-written file surviving"
+    },
+    {
+      "id": "computer.observe",
+      "description": "Look at the desktop - what windows are open, what is in them - without touching anything",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "intercom kind 'computer_observe' (LOCAL), reachable from an agenda; aletheia.computer.observe",
+      "module": "aletheia.computer",
+      "notes": "The desktop was entirely unreachable from an agenda: computer.control is operator_always, so the planner could not compile a step that touched it at all. Splitting the action set by EFFECT is what gives her eyes without hands. list_windows and inspect_controls change nothing; clicking, typing, launching and closing windows can destroy an afternoon of somebody's work, so those keep computer.control's hash-bound operator approval and are NOT reachable from an agenda. observe() REFUSES a mutating step rather than filtering it out, because a caller that asked to click and was quietly handed a window list would report success for work that never happened.",
+      "verification": "tests/test_agenda.py: observation is read-tier and agenda-reachable while invoke/set_text/close_window/open_app are asserted absent from OBSERVE_ACTIONS, and a plan mixing the two is refused whole"
     }
   ]
 }
