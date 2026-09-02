@@ -1,22 +1,22 @@
 # Fleet briefing
 
-Generated 2026-09-01T21:06:18Z from fleet registry rev 4 via GitHubSource.
+Generated 2026-09-02T04:42:01Z from fleet registry rev 4 via GitHubSource.
 
 ## 🟢 `Aletheia` — hub (active)
 
 The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.
 
-Last commit `a02817f8a752` at 2026-09-01T16:43:47Z: pulse: 2026-09-01T16:43Z
+Last commit `d0aa5327c405` at 2026-09-01T23:42:44Z: docs: make Aletheia single-front-door end state explicit
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-09-01T21:06:16Z
-- `ci.yml`: success at 2026-09-01T02:46:38Z
+- `pulse.yml`: in_progress at 2026-09-02T04:41:59Z
+- `ci.yml`: success at 2026-09-01T23:43:49Z
 
 ## 🔴 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `df8938502282` at 2026-09-01T19:43:36Z: explainer: update posted log + analytics [skip ci]
+Last commit `79e75da2f656` at 2026-09-01T22:07:44Z: explainer: update posted log + analytics [skip ci]
 
 Vitals — trending posted: 300 · explainer posted: 219 · third posted: 398 · curiosity posted: 1
 
@@ -26,8 +26,8 @@ Watched workflows:
 - `exchange_phase_b.yml`: success at 2026-09-01T17:53:52Z
 - `story_forge.yml`: success at 2026-09-01T20:00:00Z
 - `third.yml`: failure at 2026-09-01T15:30:57Z
-- `explainer.yml`: in_progress at 2026-09-01T19:54:58Z
-- `retro.yml`: success at 2026-09-01T05:13:42Z
+- `explainer.yml`: success at 2026-09-01T22:07:50Z
+- `retro.yml`: success at 2026-09-02T04:38:42Z
 - `doctor.yml`: success at 2026-09-01T10:02:27Z
 
 ## 🟢 `schwab-trader` — trading-bot (active)
@@ -40,7 +40,7 @@ Vitals — realized P&L: $-40.82 · win rate: 14.3% · closed trades: 14 · open
 
 Watched workflows:
 - `sell-brain.yml`: success at 2026-09-01T18:36:42Z
-- `watchdog.yml`: success at 2026-09-01T19:54:57Z
+- `watchdog.yml`: success at 2026-09-01T22:13:04Z
 
 ## 💤 `Money_Machine` — unbuilt (stub)
 
