@@ -1,5 +1,6 @@
 import base64
 import tempfile
+import base64
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -178,3 +179,45 @@ class AuthoritySurfacesAreProtected(unittest.TestCase):
                 except Exception:
                     refused = True   # rejecting the path outright is fine too
                 self.assertTrue(refused, f"{trick} slipped past protection")
+
+
+class ReviewIsASecondJudge(unittest.TestCase):
+    """Operator's challenge: 'can the same reasoning failure approve itself?'
+    It could — propose and review both ran on PLAN_MODEL."""
+
+    def test_review_model_differs_from_the_proposer(self):
+        from aletheia import reasoner
+        self.assertNotEqual(reasoner.review_model(reasoner.PLAN_MODEL),
+                            reasoner.PLAN_MODEL,
+                            "a review by the proposing model is a lint, not a second opinion")
+
+    def test_review_model_degrades_honestly_when_only_one_judge_exists(self):
+        from aletheia import reasoner
+        with mock.patch.object(reasoner, "REVIEW_MODEL", reasoner.PLAN_MODEL):
+            self.assertEqual(reasoner.review_model(reasoner.PLAN_MODEL),
+                             reasoner.PLAN_MODEL)
+        with mock.patch.object(reasoner, "REVIEW_MODEL", ""):
+            self.assertEqual(reasoner.review_model(reasoner.PLAN_MODEL),
+                             reasoner.PLAN_MODEL)
+
+
+class ProposalIsPinnedToOneTree(unittest.TestCase):
+    """Operator's challenge: 'can branch/ref races apply a proposal to a
+    different tree than was reviewed?' They could — base_sha was resolved
+    once, then every file was fetched by BRANCH NAME."""
+
+    def test_candidates_are_read_at_an_exact_ref(self):
+        seen = []
+
+        def request(method, path, *a, **kw):
+            seen.append(path)
+            return {"content": base64.b64encode(b"x = 1\n").decode(),
+                    "encoding": "base64", "sha": "b1", "type": "file"}
+
+        code_worker._fetch_candidates(
+            request, "o%2Fr", "abc123def456", [{"path": "a.py"}])
+        self.assertTrue(seen, "no request was made")
+        self.assertIn("ref=abc123def456", seen[0],
+                      "files must be read at the pinned base sha, never a "
+                      "moving branch name")
+        self.assertNotIn("ref=main", seen[0])

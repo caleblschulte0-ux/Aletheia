@@ -24,6 +24,21 @@ from aletheia.proc import hidden_flags
 
 INTERPRET_MODEL = "haiku"
 PLAN_MODEL = "sonnet"
+# A review is a second OPINION only when it comes from a second judge. The
+# autonomous coder proposes with PLAN_MODEL; reviewing with the same model
+# lets one systematic reasoning failure both write and approve a change.
+REVIEW_MODEL = "opus"
+
+
+def review_model(proposal_model: str) -> str:
+    """A model to review work proposed by `proposal_model`.
+
+    Returns a DIFFERENT model when one is configured, else echoes the
+    proposer's — callers must record which happened rather than calling a
+    same-model second pass "independent" (§104: no claim without evidence).
+    """
+    candidate = REVIEW_MODEL.strip()
+    return candidate if candidate and candidate != proposal_model else proposal_model
 TIMEOUT_S = 90.0
 MAX_OUTPUT_BYTES = 256 * 1024
 MAX_CONTEXT_BYTES = 8 * 1024

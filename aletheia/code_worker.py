@@ -264,12 +264,23 @@ def _save_run(repo_full_name: str, task_id: str, value: dict) -> None:
     stateio.write_json_atomic(_run_path(repo_full_name, task_id), value)
 
 
-def _fetch_candidates(request, encoded: str, branch: str, ranked: list[dict]) -> dict[str, dict]:
+def _fetch_candidates(request, encoded: str, ref: str, ranked: list[dict]) -> dict[str, dict]:
+    """Read candidate files at an EXACT ref.
+
+    Callers pass the resolved base SHA, never a branch name. Reading by
+    branch opened a race (found 2026-09-01): the base commit is resolved
+    once, then each file is fetched in its own request. A push landing in
+    between meant the model reviewed content from a newer tree than the
+    commit was built on — and because the commit is built on the OLD
+    base_tree, the PR would silently revert whatever had landed in the
+    files it rewrote. Reading at the pinned sha makes proposal, review and
+    commit describe one tree.
+    """
     selected: dict[str, dict] = {}
     used = 0
     for entry in ranked[:MAX_CANDIDATES]:
         path = str(entry["path"])
-        row = request("GET", f"/repos/{encoded}/contents/{quote(path, safe='/')}?ref={quote(branch, safe='')}")
+        row = request("GET", f"/repos/{encoded}/contents/{quote(path, safe='/')}?ref={quote(ref, safe='')}")
         text = _decode_content(row)
         cost = len(path) + len(text)
         if selected and used + cost > MAX_CONTEXT_CHARS:
@@ -319,7 +330,7 @@ def prepare_pr(repo_full_name: str, objective: str, *, task_id: str,
         raise CodeWorkerError("repository tree was unavailable or too large for bounded autonomous work")
 
     ranked = _rank_paths(repo_full_name, tree["tree"], objective)
-    selected = _fetch_candidates(request, encoded, default, ranked)
+    selected = _fetch_candidates(request, encoded, base_sha, ranked)
     if not selected:
         raise CodeWorkerError("no safe bounded text files were available for this objective")
     originals = {path: row["content"] for path, row in selected.items()}
@@ -338,11 +349,20 @@ def prepare_pr(repo_full_name: str, objective: str, *, task_id: str,
     diff = _diff_text(originals, changes)
     if not diff.strip():
         raise CodeWorkerError("proposal produced no material diff")
+    # The review is a SECOND OPINION only if it is a second judge. Using the
+    # proposer's model means one systematic reasoning failure both writes and
+    # approves the change (operator's challenge, 2026-09-01). Prefer a
+    # different model; when only one is reachable, say so in the record and
+    # in the PR body rather than calling it independent.
+    review_model = reasoner.review_model(reasoner.PLAN_MODEL)
     review = reasoner.subscription_json(
         REVIEW_SYSTEM, objective,
         context={"objective": objective, "proposed_diff": diff, "proposal_summary": proposal["summary"]},
-        model=reasoner.PLAN_MODEL, validator=_review_validator,
+        model=review_model, validator=_review_validator,
     )
+    review_independent = review_model != reasoner.PLAN_MODEL
+    review["model"] = review_model
+    review["independent"] = review_independent
     if not review["approved"]:
         result = {
             "version": 1, "status": "REVIEW_REJECTED", "repo": repo_full_name,
@@ -379,13 +399,24 @@ def prepare_pr(repo_full_name: str, objective: str, *, task_id: str,
     slug = re.sub(r"[^a-z0-9-]+", "-", task_id.casefold()).strip("-")[:45] or "task"
     branch = f"thea-auto/{slug}-{secrets.token_hex(3)}"
     request("POST", f"/repos/{encoded}/git/refs", {"ref": f"refs/heads/{branch}", "sha": commit_sha})
+    # Name the review honestly. A same-model second pass is a lint, not a
+    # second opinion, and a reviewer skimming this PR must be able to tell
+    # which one they are looking at without reading the run record.
+    review_label = (
+        f"Review ({review_model}, independent of the {reasoner.PLAN_MODEL} proposal)"
+        if review_independent else
+        f"Review ({review_model} — SAME model that wrote the change; a "
+        "consistency check, NOT an independent opinion)"
+    )
     body = (
         "Automated Aletheia code-work PR.\n\n"
         f"Objective: {objective}\n\n"
-        f"Proposal: {proposal['summary']}\n\n"
-        f"Independent review: {review['summary']}\n\n"
-        "Safety boundary: public-repo bounded replacements only; no workflow/governance/secret "
-        "paths; no default-branch write or merge. CI, if configured, remains authoritative.\n\n"
+        f"Proposal ({reasoner.PLAN_MODEL}): {proposal['summary']}\n\n"
+        f"{review_label}: {review['summary']}\n\n"
+        "Safety boundary: public-repo bounded replacements only; no workflow/governance/"
+        "registry/secret paths; no default-branch write or merge. Files were read at the "
+        "pinned base commit below, so this diff describes exactly the tree it was reviewed "
+        "against. CI, if configured, remains authoritative — and a human merges.\n\n"
         f"Task: `{task_id}`\nBase: `{base_sha}`"
     )
     pr = request("POST", f"/repos/{encoded}/pulls", {
