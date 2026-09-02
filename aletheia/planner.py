@@ -316,7 +316,7 @@ def materialize_gaps(plan: Plan, **kw) -> list[str]:
 
 
 def execute(plan: Plan, fleet: dict | None = None, quote: str = "",
-            executor=None) -> list[dict]:
+            executor=None, before_step=None, after_step=None) -> list[dict]:
     """Run the EXECUTABLE steps, in order, through the ordinary gates.
 
     Separate from compile() on purpose. Halt is re-read before every step,
@@ -330,17 +330,26 @@ def execute(plan: Plan, fleet: dict | None = None, quote: str = "",
     receipts: list[dict] = []
     for step in plan.executable:
         if policy.halted():
-            receipts.append({"n": step.n, "outcome": "halted",
-                             "detail": "Aletheia is halted — the rest of the plan is not running"})
+            receipt = {"n": step.n, "outcome": "halted",
+                       "detail": "Aletheia is halted — the rest of the plan is not running"}
+            receipts.append(receipt)
+            if after_step:
+                after_step(step, receipt, tuple(receipts))
             break
+        if before_step:
+            before_step(step, tuple(receipts))
         try:
             detail = executor(dict(step.command), fleet, quote=quote)
-            receipts.append({"n": step.n, "outcome": "done", "detail": detail,
-                             "kind": step.command["kind"]})
+            receipt = {"n": step.n, "outcome": "done", "detail": detail,
+                       "kind": step.command["kind"]}
         except Exception as exc:
-            receipts.append({"n": step.n, "outcome": "failed",
-                             "kind": step.command["kind"],
-                             "detail": f"{type(exc).__name__}: {exc}"})
+            receipt = {"n": step.n, "outcome": "failed",
+                       "kind": step.command["kind"],
+                       "detail": f"{type(exc).__name__}: {exc}"}
+        receipts.append(receipt)
+        if after_step:
+            after_step(step, receipt, tuple(receipts))
+        if receipt["outcome"] != "done":
             break
     journal.append("plan", "planner",
                    f"executed {len(receipts)}/{len(plan.executable)} step(s) of "
