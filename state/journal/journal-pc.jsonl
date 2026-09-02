@@ -790,3 +790,7 @@
 {"ts": "2026-09-02T19:58:20Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
 {"ts": "2026-09-02T19:58:20Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
 {"ts": "2026-09-02T20:59:44Z", "kind": "alert", "actor": "operator-local-core", "subject": "core:runtime:mail", "text": "subsystem failing: TimeoutError: The read operation timed out"}
+{"ts": "2026-09-02T22:07:17Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "code on disk is newer than this process (5 file(s), e.g. aletheia\\code_worker.py) — restarting to run it"}
+{"ts": "2026-09-02T22:07:18Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
+{"ts": "2026-09-02T22:07:18Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
+{"ts": "2026-09-02T22:07:18Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
