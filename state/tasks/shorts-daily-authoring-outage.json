@@ -1,0 +1,9 @@
+{
+  "id": "shorts-daily-authoring-outage",
+  "description": "Shorts-pipeline daily.yml + third.yml red since 2026-08-14: nobody authors the day's packages. run_trending_daily refuses with 'validated production manifest is incomplete: found 0/6 packages in state/trending_packages/<date>' — the fail-closed gate working correctly on an upstream authoring outage (the Routine and the ChatGPT takeover are both producing nothing). Zero-upload days have driven the failure counter to 2, its auto-pause threshold. Fix belongs in Shorts-pipeline, on its own branch.",
+  "status": "QUEUED",
+  "created_at": "2026-09-02T00:57:04Z",
+  "updated_at": "2026-09-02T00:57:04Z",
+  "attempts": 0,
+  "priority": 1
+}
