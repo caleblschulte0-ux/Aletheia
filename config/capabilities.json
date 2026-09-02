@@ -1,5 +1,5 @@
 {
-  "revision": 36,
+  "revision": 37,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1199,6 +1199,18 @@
       "module": "aletheia.followups",
       "notes": "Built because the failure was real and reported by the operator: he asked Thea something, got an acknowledgement, and never received the finished answer - the planner takes ten to thirty seconds and the request was being dropped when the room closed. A slot is PENDING, then READY or FAILED; a FAILED slot says so out loud rather than staying silent, because silence is the bug.",
       "verification": "tests/test_voice.py: an arbitrary ask returns within 2 seconds with a followup_id, and the real sentence is collectable from that slot"
+    },
+    {
+      "id": "mission.run",
+      "description": "Authorize a GOAL with a budget instead of approving every step of it, and work it until the budget, the deadline or HALT stops it",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "python -m aletheia.mission start|status|stop|kinds (local PC only); aletheia.project_loop.run_mission_slice sweeps every repository against the live mission",
+      "module": "aletheia.mission",
+      "notes": "Built because the operator asked for something the repo could not do: 'look at all my projects and fix the problems'. Nothing here could work on a GOAL - every capability was scoped to one action with one approval, and the code loop did one repair in one repository per run. A mission is not new authority: what it may cover is a POSITIVE allowlist (MISSION_ALLOWED, today just code.autonomous, which has no merge path), and operator_always is refused outright, so spending, sending, booking, phoning, interactive browsing and secret-filling still ask every time inside a mission exactly as outside one. It carries a wall-clock deadline AND a work ceiling and ends itself on whichever comes first; HALT is re-read between every repository; it is machine-bound like every standing grant, so a mission file arriving over git sync is inert. EXPERIMENTAL because no mission has been run on the operator's PC - the first live sweep is what promotes it.",
+      "verification": "tests/test_mission.py: 23 tests - the budget really stops it, a refused review costs nothing, progress survives a restart, a record edited to widen itself or raise its own ceiling is inert, halting mid-sweep stops after one repository, and one bad repository does not end the sweep"
     }
   ]
 }

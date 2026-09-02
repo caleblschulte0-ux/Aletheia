@@ -11,7 +11,8 @@ import argparse
 import json
 from urllib.parse import quote
 
-from aletheia import code_trust, code_worker, gh, policy, portfolio, stateio
+from aletheia import (code_trust, code_worker, gh, mission, policy, portfolio,
+                      stateio)
 
 ROOT = stateio.private_dir("project-loop")
 LATEST = ROOT / "latest.json"
@@ -232,6 +233,86 @@ def status() -> dict:
     return value if isinstance(value, dict) else {"status": "CORRUPT"}
 
 
+SLICE_MAX = 3
+
+
+def run_mission_slice(*, request=gh.request, slice_max: int = SLICE_MAX) -> dict:
+    """Work the ACTIVE MISSION across every repository, not one and stop.
+
+    `cycle()` returns after a single repair in a single repository. That is
+    correct for an unattended 30-minute heartbeat and it is why "look at all
+    my projects and fix the problems" was structurally impossible: six repos
+    and a trickle of one item per half hour is not an answer to that request,
+    it is a rounding error.
+
+    A slice is bounded rather than unbounded — at most `slice_max` items, so
+    the scheduled task keeps its execution limit and a crash costs one slice
+    instead of the mission — but it sweeps ALL repositories and keeps going
+    until the mission's own budget stops it. Progress is charged to the
+    mission after each item, durably, so the next slice resumes rather than
+    restarting (§27).
+
+    HALT is re-read between every repository. A kill switch that only applies
+    at the top of a run that lasts twenty minutes is a suggestion.
+    """
+    live = mission.active()
+    if not live:
+        return {"version": 1, "status": "NO_MISSION",
+                "detail": "no mission is running; `python -m aletheia.mission "
+                          "start fix_projects` authorizes one",
+                "updated_at": stateio.utcnow()}
+    grant = code_trust.active()
+    if not grant:
+        return {"version": 1, "status": "BLOCKED",
+                "reason": "code_work_grant_required", "updated_at": stateio.utcnow()}
+
+    reconciled = reconcile_prior(request=request)
+    snapshot = portfolio.scan_all(request=request)
+    public = [r for r in snapshot.get("repos", [])
+              if isinstance(r, dict) and not r.get("private")]
+
+    done, errors = [], []
+    for repo in sorted(public, key=_repo_priority):
+        if len(done) >= slice_max:
+            break
+        # Re-read both between repositories: the operator may have halted, and
+        # the mission may have spent its last unit on the previous repository.
+        policy.ensure_not_halted()
+        if not mission.active():
+            break
+        work = choose_work(repo, request=request)
+        if not work:
+            continue
+        try:
+            run = code_worker.prepare_pr(
+                repo["full_name"], work["objective"], task_id=work["task_id"],
+                evidence=work.get("evidence", ""), request=request)
+        except policy.Halted:
+            raise
+        except Exception as exc:
+            errors.append({"repo": repo["full_name"], "reason": type(exc).__name__})
+            mission.note(f"{repo['full_name']}: {type(exc).__name__}", spent=0)
+            continue
+        opened = run.get("status") == "PR_OPEN"
+        done.append({"repo": repo["full_name"], "source": work["kind"],
+                     "status": run.get("status"), "pr_url": run.get("pr_url")})
+        # Only an opened pull request spends budget. A change the reviewer
+        # refused cost time but produced nothing, and charging him for it
+        # would end the mission early on exactly the days it worked hardest.
+        mission.note(
+            f"{repo['full_name']}: {run.get('status')}"
+            + (f" {run.get('pr_url')}" if run.get("pr_url") else ""),
+            spent=1 if opened else 0)
+
+    result = {
+        "version": 1, "status": "SWEPT", "mission": live["id"],
+        "repos_scanned": len(public), "worked": done, "errors": errors,
+        "reconciled": len(reconciled), "updated_at": stateio.utcnow(),
+    }
+    stateio.write_json_atomic(LATEST, result)
+    return result
+
+
 def main(argv: list[str] | None = None) -> int:
     # This runs as its OWN Windows scheduled task every 30 minutes, not as a
     # child of the supervisor — so the supervisor's environment scrubbing never
@@ -245,10 +326,18 @@ def main(argv: list[str] | None = None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     once = sub.add_parser("once")
     once.add_argument("--daily-limit", type=int, default=DEFAULT_DAILY_LIMIT)
+    p_sweep = sub.add_parser(
+        "sweep", help="work the active mission across every repository")
+    p_sweep.add_argument("--max", type=int, default=SLICE_MAX)
     sub.add_parser("status")
     args = ap.parse_args(argv)
     try:
-        value = cycle(daily_limit=args.daily_limit) if args.cmd == "once" else status()
+        if args.cmd == "once":
+            value = cycle(daily_limit=args.daily_limit)
+        elif args.cmd == "sweep":
+            value = run_mission_slice(slice_max=args.max)
+        else:
+            value = status()
         print(json.dumps(value, indent=2))
         return 0 if value.get("status") not in {"ERROR", "CORRUPT"} else 1
     except Exception as exc:
