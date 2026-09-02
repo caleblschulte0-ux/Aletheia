@@ -49,6 +49,7 @@ API:
     GET  /api/computer/status
     POST /api/command       {"kind": …, …args} (+optional "operator_quote")
                             → {outcome, detail}, executed inline, journaled
+    POST /api/ask           {"text": …} → durable asynchronous arbitrary ask
     POST /api/notifications/ack  {"id": …}
     POST /api/computer      {steps, approval_id}
                             → executes only through computer.execute gates
@@ -584,13 +585,43 @@ class Handler(BaseHTTPRequestHandler):
         if not self.authorized():
             return
         path = urlparse(self.path).path
-        if path not in ("/api/command", "/api/computer", "/api/voice",
+        if path not in ("/api/command", "/api/computer", "/api/voice", "/api/ask",
                         "/api/notifications/ack"):
             return self.send_error(404)
         try:
             payload = self._payload()
         except (ValueError, json.JSONDecodeError) as exc:
             return self._json({"outcome": "invalid", "detail": str(exc)}, code=400)
+        if path == "/api/ask":
+            unknown = set(payload) - {"text"}
+            text = payload.get("text")
+            if unknown or not isinstance(text, str) or not text.strip():
+                detail = (f"unsupported fields {sorted(unknown)}" if unknown
+                          else "text must be a non-empty string")
+                return self._json({"outcome": "invalid", "detail": detail}, code=400)
+            fleet = self.fleet
+            asked = text.strip()[:8000]
+            try:
+                slot = followups.start(
+                    lambda: run_command(
+                        {"kind": "intent", "text": asked,
+                         "operator_quote":
+                             f"typed into the command center: {asked[:200]}"},
+                        fleet)["detail"],
+                    acknowledgement="Working on that.", durable=True)
+            except Exception as exc:
+                try:
+                    journal.append("alert", "followup",
+                                   f"could not record typed ask ({type(exc).__name__})",
+                                   actor="aletheia-core")
+                except Exception:
+                    pass
+                return self._json(
+                    {"outcome": "unavailable",
+                     "detail": "I could not safely record that request. Please try again."},
+                    code=503)
+            return self._json({"outcome": "thinking", "say": slot["say"],
+                               "followup_id": slot["id"]})
         if path == "/api/command":
             result = run_command(payload, self.fleet)
             if payload.get("kind") in ("approve", "resume"):
@@ -626,9 +657,23 @@ class Handler(BaseHTTPRequestHandler):
                 # waits about two. Answer now, think in the background, and
                 # let the listener collect the real sentence when it exists.
                 fleet = self.fleet
-                slot = followups.start(
-                    lambda: run_command({**cmd, "operator_quote": quote}, fleet)["detail"],
-                    acknowledgement="Working on that.")
+                try:
+                    slot = followups.start(
+                        lambda: run_command(
+                            {**cmd, "operator_quote": quote}, fleet)["detail"],
+                        acknowledgement="Working on that.", durable=True)
+                except Exception as exc:
+                    try:
+                        journal.append(
+                            "alert", "followup",
+                            f"could not record voice ask ({type(exc).__name__})",
+                            actor="aletheia-core")
+                    except Exception:
+                        pass
+                    return self._json(
+                        {"outcome": "unavailable",
+                         "say": "I could not safely record that request. Please ask again."},
+                        code=503)
                 return self._json({"outcome": "thinking", "say": slot["say"],
                                    "followup_id": slot["id"]})
             result = run_command({**cmd, "operator_quote": quote}, self.fleet)
@@ -755,6 +800,18 @@ def main(argv: list[str] | None = None) -> int:
     from aletheia import browser_reasoner
     browser_reasoner.drop_lease()
     journal.use_pc_journal()  # this process is the PC writer
+    try:
+        followups.recover_pending()
+    except Exception as exc:
+        # A damaged delivery store must degrade asks honestly, not prevent the
+        # status surface and repair controls from starting at all.
+        try:
+            journal.append(
+                "alert", "followup",
+                f"startup recovery failed ({type(exc).__name__})",
+                actor="aletheia-core")
+        except Exception:
+            pass
     # Before anything else: measure the gap we are coming back from. If the
     # last heartbeat is old, this start ENDED an outage, and that is a fact
     # the journal and the bus get to hear about (2026-08-27).

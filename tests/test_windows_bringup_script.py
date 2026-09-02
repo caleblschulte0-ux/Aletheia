@@ -23,8 +23,18 @@ class WindowsBringupScriptCase(unittest.TestCase):
 
     def test_stale_background_tasks_are_stopped_before_repo_repair(self):
         stop = self.bringup.index("Stop-ScheduledTask")
-        fetch = self.bringup.index("git -C $dest fetch")
-        self.assertLess(stop, fetch)
+        recover = self.bringup.index("Invoke-RestMethod $recovery")
+        self.assertLess(stop, recover)
+
+    def test_existing_checkout_uses_safe_recovery_not_a_force_checkout(self):
+        self.assertIn("recover_operator_checkout.ps1", self.bringup)
+        self.assertIn("ALETHEIA_RECOVERY_KEEP_STOPPED", self.bringup)
+        self.assertNotIn("checkout -f", self.bringup.casefold())
+
+    def test_one_command_bringup_installs_missing_prerequisites(self):
+        self.assertIn("winget install --id Git.Git", self.bringup)
+        self.assertIn("winget install --id Python.Python.3.12", self.bringup)
+        self.assertIn("Refresh-Path", self.bringup)
 
     def test_unattended_browser_lease_is_removed(self):
         self.assertIn("Remove-Item Env:\\ALETHEIA_ALLOW_CHATGPT_BROWSER_REASONING", self.bringup)
