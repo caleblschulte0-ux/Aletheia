@@ -257,10 +257,17 @@ class GitSync:
         code, out = _git(["add", "--", *rels], self.root)
         if code != 0:
             return False, f"add failed: {out[-200:]}"
-        code, out = _git(["diff", "--cached", "--quiet"], self.root)
+        code, out = _git(["diff", "--cached", "--quiet", "--", *rels], self.root)
         if code == 0:
             return True, "nothing to commit"
-        code, out = _git(["commit", "-m", message], self.root)
+        # Commit BY PATHSPEC, not "whatever is in the index". Observed live
+        # 2026-09-02: a session had staged a day's work in this clone and was
+        # waiting on the test suite before committing; the Core's next
+        # checkpoint swept all of it into "core: state checkpoint". Staging
+        # only its own paths was never enough — `git commit -m` commits the
+        # whole index, including what a person put there. With a pathspec,
+        # git commits those paths and leaves everyone else's staging alone.
+        code, out = _git(["commit", "-m", message, "--", *rels], self.root)
         if code != 0:
             return False, f"commit failed: {out[-200:]}"
         return True, "committed"
