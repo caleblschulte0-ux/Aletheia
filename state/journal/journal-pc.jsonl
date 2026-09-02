@@ -785,3 +785,7 @@
 {"ts": "2026-09-02T19:53:02Z", "kind": "action", "actor": "aletheia-computer", "subject": "computer:set_text", "text": "DONE run=hands-920bda6bbca5 step=2 verification={\"action\": \"set_text\", \"count\": null, \"path\": null, \"process_id\": null, \"verified\": true}", "refs": ["run:hands-920bda6bbca5"]}
 {"ts": "2026-09-02T19:53:02Z", "kind": "action", "actor": "aletheia-computer", "subject": "computer:act", "text": "COMPLETED run=hands-920bda6bbca5 steps=3", "refs": ["run:hands-920bda6bbca5"]}
 {"ts": "2026-09-02T19:53:02Z", "kind": "action", "actor": "operator-local-core", "subject": "core:computer_do", "text": "done — did 3 desktop step(s) [open_app, wait_window, set_text] — run hands-920bda6bbca5 — live intercom evidence"}
+{"ts": "2026-09-02T19:58:19Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "code on disk is newer than this process (1 file(s), e.g. aletheia\\sync.py) — restarting to run it"}
+{"ts": "2026-09-02T19:58:19Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
+{"ts": "2026-09-02T19:58:20Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
+{"ts": "2026-09-02T19:58:20Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
