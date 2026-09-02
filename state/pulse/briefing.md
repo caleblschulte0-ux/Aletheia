@@ -1,34 +1,34 @@
 # Fleet briefing
 
-Generated 2026-09-02T04:42:01Z from fleet registry rev 4 via GitHubSource.
+Generated 2026-09-02T11:26:11Z from fleet registry rev 4 via GitHubSource.
 
 ## 🟢 `Aletheia` — hub (active)
 
 The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.
 
-Last commit `d0aa5327c405` at 2026-09-01T23:42:44Z: docs: make Aletheia single-front-door end state explicit
+Last commit `f02c58b2e8c0` at 2026-09-02T04:42:10Z: pulse: 2026-09-02T04:42Z
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-09-02T04:41:59Z
+- `pulse.yml`: in_progress at 2026-09-02T11:26:02Z
 - `ci.yml`: success at 2026-09-01T23:43:49Z
 
 ## 🔴 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `79e75da2f656` at 2026-09-01T22:07:44Z: explainer: update posted log + analytics [skip ci]
+Last commit `4307756bc353` at 2026-09-02T09:44:03Z: exchange: phase A bundle for 20260902 [skip ci]
 
 Vitals — trending posted: 300 · explainer posted: 219 · third posted: 398 · curiosity posted: 1
 
 Watched workflows:
 - `daily.yml`: failure at 2026-09-01T17:25:34Z
-- `exchange_phase_a.yml`: success at 2026-09-01T14:17:09Z
+- `exchange_phase_a.yml`: success at 2026-09-02T09:44:10Z
 - `exchange_phase_b.yml`: success at 2026-09-01T17:53:52Z
-- `story_forge.yml`: success at 2026-09-01T20:00:00Z
+- `story_forge.yml`: success at 2026-09-02T09:44:09Z
 - `third.yml`: failure at 2026-09-01T15:30:57Z
-- `explainer.yml`: success at 2026-09-01T22:07:50Z
+- `explainer.yml`: in_progress at 2026-09-02T09:43:50Z
 - `retro.yml`: success at 2026-09-02T04:38:42Z
-- `doctor.yml`: success at 2026-09-01T10:02:27Z
+- `doctor.yml`: success at 2026-09-02T09:33:46Z
 
 ## 🟢 `schwab-trader` — trading-bot (active)
 
