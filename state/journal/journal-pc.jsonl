@@ -777,3 +777,6 @@
 {"ts": "2026-09-02T19:50:51Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
 {"ts": "2026-09-02T19:50:51Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
 {"ts": "2026-09-02T19:50:51Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-09-02T19:52:49Z", "kind": "action", "actor": "aletheia-computer", "subject": "computer:observe", "text": "observed the desktop (1 step(s))"}
+{"ts": "2026-09-02T19:52:49Z", "kind": "action", "actor": "operator-local-core", "subject": "core:computer_observe", "text": "done — 10 windows: Taskbar; ◐ Aletheia catchup audit production validation; Aletheia - Getting LLM Data - Google Chrome; Claude Code - Google Chrome; Claude Code - Google Chrome; Spotify Premium; The 12-Hour High That Causes Permanent Brain Damage - YouTube — Mozilla Firefox; Program Manager"}
+{"ts": "2026-09-02T19:52:49Z", "kind": "action", "actor": "aletheia-computer", "subject": "computer:act", "text": "STARTED run=hands-920bda6bbca5 requested_by=intercom: put a line in notepad steps=3", "refs": ["run:hands-920bda6bbca5"]}
