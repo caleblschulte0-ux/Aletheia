@@ -21,6 +21,7 @@ import secrets
 import sys
 
 from aletheia import journal, policy, stateio, work_session
+from aletheia import machine_binding
 
 ACTOR = "aletheia-work-trust"
 GRANT_PATH = stateio.private_dir("work-trust") / "grant.json"
@@ -58,9 +59,29 @@ def load() -> dict | None:
     return value if isinstance(value, dict) else None
 
 
+def _binding_fields(grant: dict) -> dict:
+    """Exactly what the machine binding covers — identity, the approval it
+    leans on, expiry, and every limit. Tampering with any of them (or
+    delivering the file from elsewhere) invalidates the signature."""
+    return {
+        "id": grant.get("id"),
+        "approval_id": grant.get("approval_id"),
+        "expires": grant.get("expires"),
+        "session_hours": grant.get("session_hours"),
+        "session_actions": grant.get("session_actions"),
+    }
+
+
 def active(*, now: dt.datetime | None = None) -> dict | None:
     grant = load()
     if not grant or not grant.get("enabled"):
+        return None
+    # A grant is only valid on the machine that minted it. See
+    # aletheia/machine_binding.py: without this, a grant plus its
+    # (already public) approval could both arrive over git sync.
+    if not machine_binding.verify(grant, _binding_fields(grant)):
+        machine_binding.refuse_unbound(
+            grant, kind="standing workstation trust", restore_command="python -m aletheia.work_trust on")
         return None
     try:
         if _parse_time(grant["expires"]) <= _now(now):
@@ -127,6 +148,10 @@ def enable(*, days: int = DEFAULT_DAYS,
             "account-security/shell-admin authority"
         ),
     }
+    # bind to THIS machine before it is written: an identical file
+    # appearing on another machine (or arriving over git) cannot carry a
+    # signature made with this machine's key, so active() refuses it.
+    record["machine_binding"] = machine_binding.sign(_binding_fields(record))
     stateio.write_json_atomic(GRANT_PATH, record)
     journal.append(
         "decision", "work:trust",
