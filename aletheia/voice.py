@@ -330,6 +330,17 @@ def interpret(transcript: str) -> dict:
         return {"command": {"kind": "email_draft", "to": m.group(1).strip(),
                             "body": m.group(2).strip()}, "say": None}
 
+    # BEFORE the browse pattern: "look into X" and "look at example.com" both
+    # start with "look", and the browse branch would swallow the first, then
+    # complain it heard no web address.
+    m = re.match(r"(?:look into|research|find out(?: about)?|dig into|"
+                 r"look up|what do you know about|tell me about)\s+(.+)", low)
+    if m:
+        question = m.group(1).strip(" ?.")
+        if len(question) > 2:
+            return {"command": {"kind": "research", "question": question},
+                    "say": None}   # the receipt speaks, not a canned line
+
     m = re.match(r"(?:read|open|check|look at|go to|browse)\s+(.+)", low)
     if m:
         url = _spoken_url(m.group(1))

@@ -22,10 +22,10 @@ judgement, but a ceiling that exists whether her judgement is good or not.
 Four things a mission is NOT, and each is enforced here rather than
 described:
 
-- **It is not new authority.** A mission may only cover capabilities that
-  are already permitted; `REFUSED_RISK` and `operator_always` are checked
-  at creation AND on every claim, so a mission record edited on disk to
-  name `email.send` or `purchase.execute` still buys nothing. Ability and
+- **It is not new authority.** A mission may only cover capabilities on
+  the `MISSION_ALLOWED` list, and `operator_always` is refused outright;
+  both are checked at creation AND on every claim, so a mission record
+  edited on disk to name `email.send` or `purchase.execute` buys nothing. Ability and
   permission stay separate (§70), and §56 L4 is untouched: spending,
   sending, binding and destructive actions keep asking every single time,
   inside a mission exactly as outside one.
@@ -83,6 +83,7 @@ TERMINAL = {DONE, STOPPED, EXPIRED, FAILED}
 #      budget makes those answerable in advance.
 MISSION_ALLOWED = {
     "code.autonomous",   # proposes pull requests; no merge path exists
+    "research.answer",   # reads public pages; writes a document; sends nothing
 }
 REFUSED_POLICY = {"operator_always"}
 
@@ -113,6 +114,12 @@ KINDS: dict[str, dict] = {
                    "(open issues, failing CI), and open reviewed pull requests",
         "capabilities": ["code.autonomous"],
         "unit": "pull requests",
+    },
+    "research": {
+        "summary": "Work through a list of questions, answering each from real "
+                   "sources and writing up what the sources do not settle",
+        "capabilities": ["research.answer"],
+        "unit": "questions",
     },
 }
 

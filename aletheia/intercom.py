@@ -68,6 +68,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "deny":          ({"id"}, {"because"}),
     "remember":      ({"domain", "key", "value"}, {"memory_kind"}),
     "browse_read":   ({"url"}, set()),
+    "research":      ({"question"}, set()),
     "browse_shot":   ({"url"}, set()),
     "email_check":   (set(), set()),
     "email_draft":   ({"to", "body"}, {"subject"}),
@@ -124,6 +125,9 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # no receipt is honestly PENDING: the PC hasn't picked it up (Core off or
 # offline), and ChatGPT should say exactly that, not invent an outcome.
 LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_draft",
+               # research only READS pages, but it reads them with the
+               # operator's browser, so it belongs to the PC runner
+               "research",
                "remind_at", "remind_daily", "watch_email_from", "notify_check",
                "notify_clear", "free_time", "contact_add", "notify_operator",
                "intent", "screen_ask",
@@ -139,6 +143,8 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_draft",
 READ_ONLY_KINDS = frozenset({
     "note", "notify_check", "free_time", "brief", "subscriptions", "money",
     "projects", "car", "recall", "travel_time", "browse_read", "browse_shot",
+    # reads public pages and writes a document; commits him to nothing
+    "research",
     "email_check", "screen_ask", "authority_status", "setup_status",
 })
 
@@ -291,6 +297,13 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                         source=f"operator via intercom: {quote[:120]}",
                         kind=cmd.get("memory_kind", "explicit"))
         return f"remembered {cmd['domain']}.{cmd['key']}"
+    if kind == "research":
+        from aletheia import research as research_mod
+        report = research_mod.run(args["question"])
+        return {"outcome": "done",
+                "detail": research_mod.spoken(report),
+                "sources": len(report["sources"]),
+                "findings": len(report["findings"])}
     if kind == "browse_read":
         from aletheia import browse
         page = browse.read_page(cmd["url"])

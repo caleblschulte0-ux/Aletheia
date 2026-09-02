@@ -1,5 +1,5 @@
 {
-  "revision": 37,
+  "revision": 38,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1211,6 +1211,18 @@
       "module": "aletheia.mission",
       "notes": "Built because the operator asked for something the repo could not do: 'look at all my projects and fix the problems'. Nothing here could work on a GOAL - every capability was scoped to one action with one approval, and the code loop did one repair in one repository per run. A mission is not new authority: what it may cover is a POSITIVE allowlist (MISSION_ALLOWED, today just code.autonomous, which has no merge path), and operator_always is refused outright, so spending, sending, booking, phoning, interactive browsing and secret-filling still ask every time inside a mission exactly as outside one. It carries a wall-clock deadline AND a work ceiling and ends itself on whichever comes first; HALT is re-read between every repository; it is machine-bound like every standing grant, so a mission file arriving over git sync is inert. EXPERIMENTAL because no mission has been run on the operator's PC - the first live sweep is what promotes it.",
       "verification": "tests/test_mission.py: 23 tests - the budget really stops it, a refused review costs nothing, progress survives a restart, a record edited to widen itself or raise its own ceiling is inert, halting mid-sweep stops after one repository, and one bad repository does not end the sweep"
+    },
+    {
+      "id": "research.answer",
+      "description": "Look into a question and answer it from real sources, with every claim bound to the page it came from",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "voice ('look into X', 'find out about X', 'what do you know about X'); intercom kind 'research' (LOCAL - the browser is on the PC); python -m aletheia.research; aletheia.mission kind 'research'",
+      "module": "aletheia.research",
+      "notes": "The second mission kind, and the one that gets daily use. It only ever READS - no approval, no interaction, nothing sent, nothing spent - which is why it can sit under a mission budget at all. There is no search API and there will not be one (No6: no API keys), so it searches the way a person does, through the operator's own browser. What separates it from asking a model the same question is that every claim carries the page it came from and a claim citing a page that was not read is DROPPED in code, not discouraged in a prompt - a model that invents a citation is not caught by asking it not to. Bounded to 5 sources, one page per site, and the report says what the sources failed to settle and how many claims were dropped. EXPERIMENTAL until a real question has been answered on the PC.",
+      "verification": "tests/test_research.py: 16 tests - an invented citation is dropped and the drop is said out loud, one page per site, search engines are never cited as sources, a broken search costs the query rather than the question, no sources is an honest refusal rather than an invented answer, HALT stops it before the browser opens, and the module is asserted never to reach browse.interact or any secret"
     }
   ]
 }
