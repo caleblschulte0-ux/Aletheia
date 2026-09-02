@@ -834,3 +834,10 @@
 {"ts": "2026-09-02T19:19:28Z", "kind": "event", "actor": "aletheia-machine-binding", "subject": "standing code-work trust:refused", "text": "grant ct-20260830-1314-cbe85f refused: no valid machine binding (re-enable locally with `python -m aletheia.code_trust on`)"}
 {"ts": "2026-09-02T19:21:35Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://html.duckduckgo.com/html/?q=tallest+building+Chicago — DuckDuckGo"}
 {"ts": "2026-09-02T19:21:37Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://html.duckduckgo.com/html/?q=Chicago+tallest+skyscraper — DuckDuckGo"}
+{"ts": "2026-09-02T19:21:51Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://html.duckduckgo.com/html/?q=tallest+building+in+Chicago — DuckDuckGo"}
+{"ts": "2026-09-02T19:22:10Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://search.brave.com/search?q=tallest+building+in+Chicago — Captcha - Brave Search"}
+{"ts": "2026-09-02T19:22:12Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://www.bing.com/search?q=tallest+building+in+Chicago — tallest building in Chicago - Search"}
+{"ts": "2026-09-02T19:22:16Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://lite.duckduckgo.com/lite/?q=tallest+building+in+Chicago — DuckDuckGo"}
+{"ts": "2026-09-02T19:22:19Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://www.mojeek.com/search?q=tallest+building+in+Chicago — 403 - Forbidden"}
+{"ts": "2026-09-02T19:22:23Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://cdn.startpage.com/sp/cdn/error-pages/blocked.html — Access Denied - Startpage"}
+{"ts": "2026-09-02T19:22:36Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://www.bing.com/search?q=tallest+building+in+Chicago — tallest building in Chicago - Search"}
