@@ -867,3 +867,4 @@
 {"ts": "2026-09-02T19:37:26Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://html.duckduckgo.com/html/?q=tallest+building+Chicago — DuckDuckGo"}
 {"ts": "2026-09-02T19:37:26Z", "kind": "event", "actor": "aletheia-research", "subject": "research", "text": "duckduckgo gave no usable results for 'tallest building Chicago' — a challenge page or changed markup; trying the next engine"}
 {"ts": "2026-09-02T19:37:31Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://www.bing.com/search?q=tallest+building+Chicago — tallest building Chicago - Search"}
+{"ts": "2026-09-02T19:37:37Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://en.wikipedia.org/wiki/List_of_tallest_people — List of tallest people - Wikipedia"}
