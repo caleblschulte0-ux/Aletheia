@@ -76,6 +76,13 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "file_list":     (set(), {"subdir"}),
     # eyes on the desktop, never hands: mutation keeps its own approval
     "computer_observe": (set(), {"window"}),
+    # video and audio: the source is never touched, output lands in the workspace
+    "media_probe":   ({"source"}, set()),
+    "media_trim":    ({"source", "out"}, {"start", "end", "duration"}),
+    "media_join":    ({"sources", "out"}, set()),
+    "media_audio":   ({"source", "out"}, set()),
+    "media_captions": ({"source", "subtitles", "out"}, set()),
+    "media_convert": ({"source", "out"}, {"height"}),
     "browse_shot":   ({"url"}, set()),
     "email_check":   (set(), set()),
     "email_draft":   ({"to", "body"}, {"subject"}),
@@ -138,6 +145,9 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_draft",
                # the workspace is a directory on his PC; Actions cannot see it
                "file_write", "file_edit", "file_read", "file_list",
                "computer_observe",
+               # ffmpeg and his media files live on the PC
+               "media_probe", "media_trim", "media_join", "media_audio",
+               "media_captions", "media_convert",
                "remind_at", "remind_daily", "watch_email_from", "notify_check",
                "notify_clear", "free_time", "contact_add", "notify_operator",
                "intent", "screen_ask",
@@ -159,6 +169,8 @@ READ_ONLY_KINDS = frozenset({
     "file_read", "file_list",
     # looking at his own screen commits him to nothing either
     "computer_observe",
+    # reading what a media file IS changes nothing
+    "media_probe",
     "email_check", "screen_ask", "authority_status", "setup_status",
 })
 
@@ -176,6 +188,10 @@ ROUTINE_KINDS = frozenset({
     # boundary that makes this routine rather than world-touching is
     # aletheia.workspace — she cannot write outside her own directory.
     "file_write", "file_edit",
+    # Media edits always write a NEW file and never touch the source, so
+    # the worst case is a spare file in her workspace.
+    "media_trim", "media_join", "media_audio", "media_captions",
+    "media_convert",
 })
 
 # Everything else is WORLD-TOUCHING and is never granted away: dispatch and
@@ -316,6 +332,32 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                         source=f"operator via intercom: {quote[:120]}",
                         kind=cmd.get("memory_kind", "explicit"))
         return f"remembered {cmd['domain']}.{cmd['key']}"
+    if kind.startswith("media_"):
+        from aletheia import media
+        ok, why = media.available()
+        if not ok:
+            return {"outcome": "unavailable", "detail": why}
+        if kind == "media_probe":
+            info = media.probe(args["source"])
+            return {"outcome": "done",
+                    "detail": f"{info['seconds']:.1f}s, {info['bytes']:,} bytes, "
+                              f"video={info['video']}, audio={info['audio']}"}
+        if kind == "media_trim":
+            out = media.trim(args["source"], args["out"], start=args.get("start", "0"),
+                             end=args.get("end"), duration=args.get("duration"))
+        elif kind == "media_join":
+            out = media.join(args["sources"], args["out"])
+        elif kind == "media_audio":
+            out = media.extract_audio(args["source"], args["out"])
+        elif kind == "media_captions":
+            out = media.burn_subtitles(args["source"], args["subtitles"], args["out"])
+        else:
+            height = args.get("height")
+            out = media.convert(args["source"], args["out"],
+                                height=int(height) if height is not None else None)
+        return {"outcome": "done",
+                "detail": f"{out['what']} -> {out['path']} ({out['bytes']:,} bytes)"}
+
     if kind == "computer_observe":
         from aletheia import computer
         ok, why = computer.available()

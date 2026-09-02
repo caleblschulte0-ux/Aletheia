@@ -1,5 +1,5 @@
 {
-  "revision": 40,
+  "revision": 41,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1259,6 +1259,18 @@
       "module": "aletheia.computer",
       "notes": "The desktop was entirely unreachable from an agenda: computer.control is operator_always, so the planner could not compile a step that touched it at all. Splitting the action set by EFFECT is what gives her eyes without hands. list_windows and inspect_controls change nothing; clicking, typing, launching and closing windows can destroy an afternoon of somebody's work, so those keep computer.control's hash-bound operator approval and are NOT reachable from an agenda. observe() REFUSES a mutating step rather than filtering it out, because a caller that asked to click and was quietly handed a window list would report success for work that never happened.",
       "verification": "tests/test_agenda.py: observation is read-tier and agenda-reachable while invoke/set_text/close_window/open_app are asserted absent from OBSERVE_ACTIONS, and a plan mixing the two is refused whole"
+    },
+    {
+      "id": "media.edit",
+      "description": "Edit video and audio - trim, join, extract sound, burn in captions, convert and resize - always writing a new file",
+      "provider": "aletheia.local",
+      "status": "NEEDS_CONFIGURATION",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "intercom kinds media_probe/trim/join/audio/captions/convert (LOCAL - ffmpeg and his files are on the PC), reachable from an agenda; python -m aletheia.media",
+      "module": "aletheia.media",
+      "notes": "The last genuine zero: 'I need you to edit this video' had no capability behind it at all, not even a ticket. THE SOURCE IS NEVER TOUCHED - every operation writes a new file into the workspace and leaves the original where it was, with no flag that changes it, because a re-encode is lossy and an overwritten master is gone. ffmpeg is invoked with an argument LIST and never a shell string, so a filename containing a quote is a filename rather than an injection. Failure is honest: a non-zero exit raises with ffmpeg's own stderr, and an output file that does not exist afterwards is treated as the failure it is even when nothing complained (No30). Trimming re-encodes rather than stream-copying, because a copy cuts only on keyframes and 'start at 1:05' silently becoming 1:03 is wrong in a way nobody notices until it matters. NEEDS_CONFIGURATION rather than EXPERIMENTAL: the code is finished and tested, but ffmpeg is a PROGRAM and cannot be installed from inside a run - `winget install Gyan.FFmpeg` on Windows is his to type. available() reports that honestly and every caller degrades instead of pretending.",
+      "verification": "tests/test_media.py: 21 tests - the source survives every operation, output outside the workspace refused, a missing or empty output is a failure even on a zero exit, a hung render is stopped, ffmpeg gets a list not a shell string, an awkward filename stays one argument, and a real generated clip is trimmed and probed where ffmpeg exists"
     }
   ]
 }

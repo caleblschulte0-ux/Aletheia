@@ -195,6 +195,14 @@ def _chatgpt_browser() -> tuple[str, str]:
     return MISSING, str(status.get("reason", "not ready"))[:160]
 
 
+def _ffmpeg() -> tuple[str, str]:
+    """ffmpeg is a program, not a package — she cannot install it herself,
+    and saying so is more use than a capability quietly reading UNAVAILABLE."""
+    from aletheia import media
+    ok, why = media.available()
+    return (OK, why) if ok else (MISSING, why[:160])
+
+
 def steps() -> list[Step]:
     return [
         Step("email.read", "Email", 0,
@@ -247,6 +255,13 @@ def steps() -> list[Step]:
               "Connect the GitHub connector to this repository.",
               "Then say something to it and check: python -m aletheia.intercom list"],
              _relay, optional=True),
+        Step("media.edit", "Editing video and audio", 3,
+             "Trimming clips, joining them, pulling the audio out, burning in "
+             "captions. The code is finished; it needs the tool it drives.",
+             ["winget install Gyan.FFmpeg",
+              "Then open a NEW terminal (PATH only updates for new ones) and:",
+              "  python -m aletheia.media check"],
+             _ffmpeg, optional=True),
         Step("reason.local", "Thinking with no internet", 20,
              "Offline models so she still interprets and plans when the "
              "subscriptions are unreachable. She will NOT use them to decide "
