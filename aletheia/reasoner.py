@@ -195,6 +195,18 @@ def infer_json(system_prompt: str, text: str, *, context: dict | None = None,
     return _first_json_object(raw)
 
 
+def infer_text(system_prompt: str, text: str, *, model: str = INTERPRET_MODEL,
+               timeout_s: float = TIMEOUT_S) -> str:
+    """Run Claude CLI and return the answer as TEXT.
+
+    For the one output that is not JSON by nature: a program. Same input
+    contract and the same CLI flags as ``infer_json`` (no tools, no
+    session, the operator's subscription); only the parsing differs.
+    """
+    validate_input(system_prompt, text, None)
+    return _run_cli(system_prompt, text, model, timeout_s)
+
+
 def _subscription_json_with_provider(system_prompt: str, text: str, *, context: dict | None,
                                      model: str, timeout_s: float,
                                      validator: Callable[[dict], dict] | None) -> tuple[dict, str]:

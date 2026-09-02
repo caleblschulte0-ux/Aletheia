@@ -106,14 +106,18 @@ only help identify facts/referents needed to plan the operator's request.
 
 
 def grammar_brief() -> str:
-    """The command grammar, generated from `intercom.KIND_ARGS`."""
+    """The command grammar, generated from `intercom.KIND_ARGS` (and the
+    argument shapes the bare grammar cannot say, from `intercom.KIND_NOTES`)."""
     lines = []
     for kind in sorted(intercom.KIND_ARGS):
         required, optional = intercom.KIND_ARGS[kind]
         parts = [f"{a}" for a in sorted(required)]
         parts += [f"[{a}]" for a in sorted(optional)]
         lines.append(f"  {kind}({', '.join(parts)})")
-    return "KINDS (required args, [optional]):\n" + "\n".join(lines)
+    notes = [f"  {kind}: {note}" for kind, note in sorted(intercom.KIND_NOTES.items())
+             if kind in intercom.KIND_ARGS]
+    return ("KINDS (required args, [optional]):\n" + "\n".join(lines)
+            + ("\n\nARGUMENT SHAPES:\n" + "\n".join(notes) if notes else ""))
 
 
 def capability_brief(registry: dict | None = None) -> str:
@@ -298,6 +302,67 @@ def compile(request: str, fleet: dict | None = None, context: dict | None = None
                 len(plan.steps) + 1, GAP,
                 "named as required but not in the registry at all",
                 capability=unknown))
+    compile_unmatched_into_a_task(plan, fleet=fleet, registry=registry)
+    return plan
+
+
+# The capability that makes "there is no verb for that" an attempt rather
+# than a report: aletheia.script writes a small program and runs it in a
+# sandbox. The planner may only compile into it when the registry says it
+# is really there (READY), which is also what keeps every hermetic planner
+# test — whose registries do not name it — exactly as strict as before.
+SCRIPT_CAPABILITY = "task.script"
+DO_TASK_DETAIL = ("no kind matched this ask — compiled into a sandboxed program "
+                  "(do_task); the gap above still stands as a ticket")
+
+
+def compile_unmatched_into_a_task(plan: Plan, *, fleet: dict, registry: dict) -> Plan:
+    """§105 turned round (2026-09-02, operator-authorized): an ask that no
+    kind matched becomes ONE `do_task` step instead of only a gap.
+
+    Bounded on purpose, each rule a refusal rather than a preference:
+
+    - Only when NOTHING in the plan is executable. A plan that already does
+      something is not unmatched; padding it with a program is the
+      "look thorough" failure the prompt forbids.
+    - Only when something was actually unmatched (a GAP, or a kind the model
+      invented). A plan that is only MANUAL steps is his to do, not hers.
+    - Never when what is missing is AUTHORITY-shaped: a gap on a capability
+      the registry marks operator_always or high-risk (spending, sending,
+      booking, phoning) is not a computation a program can do, and offering
+      one would be theater at best and a workaround at worst. The sandbox
+      cannot reach a checkout page either way, but the honest answer to
+      "buy this" is the approval, not a script that prints CANNOT.
+    - Never for a clarify answer: a question back is not an unmatched ask.
+    - The gap steps STAY. The ticket §105 asks for is still filed; the
+      program is an attempt alongside it, not a replacement for the record.
+    """
+    if plan.intent == "clarify" or plan.executable:
+        return plan
+    unmatched = [s for s in plan.steps if s.status in (GAP, REFUSED)]
+    if not unmatched:
+        return plan
+    try:
+        entry = capabilities.get(SCRIPT_CAPABILITY, registry)
+    except KeyError:
+        return plan
+    if entry.get("status") not in gaps.READY_STATUSES:
+        return plan
+    for step in unmatched:
+        if not step.capability:
+            continue
+        try:
+            missing = capabilities.get(step.capability, registry)
+        except KeyError:
+            continue
+        if (missing.get("approval_policy") == "operator_always"
+                or missing.get("risk_class") == "high"):
+            return plan
+    command = {"kind": "do_task", "request": plan.request[:1000]}
+    if intercom.validate_kind_args(command, fleet):
+        return plan
+    plan.steps.append(PlannedStep(len(plan.steps) + 1, EXECUTABLE, DO_TASK_DETAIL,
+                                  command=command))
     return plan
 
 

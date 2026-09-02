@@ -145,8 +145,14 @@ def run(request: str, *, fleet: dict | None = None, executor=None,
     if not request or len(request) > MAX_REQUEST_CHARS:
         raise ValueError(f"request must be 1..{MAX_REQUEST_CHARS} characters")
     policy.ensure_not_halted()
-    live = mission.active()
+    live = mission.covers("agenda.execute")
     if require_mission and not live:
+        running = mission.active()
+        if running:
+            raise AgendaError(
+                f"the running mission is {running['kind']!r}, which does not "
+                "cover agendas — `python -m aletheia.mission stop`, then "
+                "`python -m aletheia.mission start anything`")
         raise AgendaError(
             "no mission is running. `python -m aletheia.mission start anything` "
             "authorizes a budget; without one, every request is approved "
@@ -170,18 +176,32 @@ def run(request: str, *, fleet: dict | None = None, executor=None,
         # checked the kill switch once at the top would keep going for
         # nineteen minutes after he said stop.
         policy.ensure_not_halted()
-        if require_mission and not mission.active():
+        if require_mission and not mission.covers("agenda.execute"):
             refused.append({"step": step.n, "kind": step.command["kind"],
                             "reason": "the mission's budget ran out mid-plan"})
             break
         refuse_money([step.capability] if step.capability else [])
         try:
             result = executor(step.command, fleet)
+            # intercom.execute_command answers with a detail LINE, the way
+            # every channel expects; a test double may answer with a
+            # receipt dict. Both are receipts and neither shape is a
+            # failure — the first live agenda (2026-09-02) marked every
+            # string answer "failed" by calling .get() on it.
+            if isinstance(result, dict):
+                outcome = str(result.get("outcome") or "done")
+                detail = str(result.get("detail") or "")
+            else:
+                outcome, detail = "done", str(result or "")
             done.append({"step": step.n, "kind": step.command["kind"],
-                         "outcome": (result or {}).get("outcome", "done"),
-                         "detail": str((result or {}).get("detail", ""))[:300]})
+                         "outcome": outcome, "detail": detail[:300]})
         except policy.Halted:
             raise
+        except intercom.Unavailable as exc:
+            # A missing tool is neither her refusal nor her mistake; say
+            # which tool, so the next step is an install and not a rerun.
+            done.append({"step": step.n, "kind": step.command["kind"],
+                         "outcome": "unavailable", "detail": str(exc)[:300]})
         except Exception as exc:
             # One bad step does not abandon the rest: he asked for an
             # outcome, and stopping dead on step two of five delivers less
@@ -193,7 +213,7 @@ def run(request: str, *, fleet: dict | None = None, executor=None,
 
 def _finish(request: str, plan: planner.Plan, done: list, refused: list,
             note: str = "") -> dict:
-    ok = [d for d in done if d["outcome"] not in ("failed",)]
+    ok = [d for d in done if d["outcome"] not in ("failed", "unavailable")]
     record = {
         "request": request,
         "summary": plan.summary or request,

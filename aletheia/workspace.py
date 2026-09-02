@@ -47,7 +47,14 @@ from aletheia import journal, policy, stateio
 
 ACTOR = "aletheia-workspace"
 
-DEFAULT_ROOT = Path.home() / "Aletheia"
+# Her own directory under his Documents — NOT ~/Aletheia, which on the
+# operator's PC is this repository's checkout. A workspace inside the repo
+# put every file she produced into `git status` (which makes the Core's
+# sync refuse to touch "a person's uncommitted work"), and counted the
+# 2,000+ tracked files against her own ceiling, so the very first real
+# write was refused as "the workspace already holds 2000 files" (found
+# live 2026-09-02). root() now refuses a repository outright.
+DEFAULT_ROOT = Path.home() / "Documents" / "Aletheia"
 MAX_FILE_BYTES = 5_000_000
 MAX_READ_BYTES = 2_000_000
 MAX_FILES = 2_000
@@ -88,7 +95,27 @@ def root() -> Path:
                     "Point ALETHEIA_WORKSPACE at a directory of its own.")
         except (OSError, ValueError):
             continue
+    _refuse_repository(resolved)
     return resolved
+
+
+def _refuse_repository(resolved: Path) -> None:
+    """A source repository is not a workspace, and neither is anything
+    inside one. Files she writes there land in `git status`, the Core's
+    sync then refuses to rebase past "a person's uncommitted work", and the
+    repository's own files count against her ceiling."""
+    from aletheia.fleet import REPO_ROOT
+    try:
+        repo = Path(REPO_ROOT).resolve()
+    except OSError:
+        repo = None
+    inside_repo = repo is not None and (resolved == repo or repo in resolved.parents)
+    if inside_repo or (resolved / ".git").exists():
+        raise WorkspaceError(
+            f"{resolved} is a source repository (or inside one), not a "
+            "workspace: what she writes there would sit in git status and "
+            "block the Core's sync. Point ALETHEIA_WORKSPACE at a directory "
+            "of its own — the default is ~/Documents/Aletheia.")
 
 
 def resolve(relative: str) -> Path:

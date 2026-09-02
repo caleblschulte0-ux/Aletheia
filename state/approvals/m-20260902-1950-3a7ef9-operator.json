@@ -1,0 +1,11 @@
+{
+  "id": "m-20260902-1950-3a7ef9-operator",
+  "requested_action": "mission:anything",
+  "reason": "Carry out the requests I give you, without asking each time - never spending money, never approving anything, never touching the kill switch",
+  "consequence": "until 2026-09-02T20:50:29Z or 10 requests, whichever comes first, this work proceeds without asking again; nothing that spends, sends, binds or destroys is covered, and HALT ends it immediately",
+  "reversible": true,
+  "state": "APPROVED",
+  "requested_at": "2026-09-02T19:50:29Z",
+  "decided_at": "2026-09-02T19:50:29Z",
+  "decided_via": "operator-local"
+}

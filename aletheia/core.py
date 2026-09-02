@@ -134,6 +134,8 @@ def run_command(payload: dict, fleet: dict) -> dict:
                   "detail": intercom.execute_command(payload, fleet, quote=quote)}
     except act.Refused as exc:
         result = {"outcome": "refused", "detail": str(exc)}
+    except intercom.Unavailable as exc:
+        result = {"outcome": "unavailable", "detail": str(exc)}
     except Exception as exc:
         result = {"outcome": "error", "detail": f"{type(exc).__name__}: {exc}"}
     journal.append("action", f"core:{payload.get('kind')}",

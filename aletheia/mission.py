@@ -199,6 +199,21 @@ def _binding_fields(record: dict) -> dict:
     }
 
 
+def covers(capability_id: str, *, now: dt.datetime | None = None) -> dict | None:
+    """The live mission IF it authorizes `capability_id`, else None.
+
+    A mission is one goal, and its record names the capabilities that goal
+    spends. `active()` answers "is anything running?"; a caller about to
+    act must ask this instead, because a fix_projects mission is not an
+    authorization to carry out agendas — found 2026-09-02, when the agenda
+    checked only for a live mission and would have run under any kind.
+    """
+    live = active(now=now)
+    if not live or capability_id not in (live.get("capabilities") or []):
+        return None
+    return live
+
+
 def active(*, now: dt.datetime | None = None) -> dict | None:
     """The live mission, or None — with every reason it might not be live.
 

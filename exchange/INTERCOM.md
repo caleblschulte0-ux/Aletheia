@@ -76,6 +76,12 @@ Command kinds and their arguments (anything else is refused):
 | `notify_clear` | — | **PC-only**: acknowledge all unread notifications |
 | `free_time` | `day` (YYYY-MM-DD), `tz?`, `minutes?` | **PC-only**: free slots from the local calendar inside work hours |
 | `contact_add` | `name`, `email`, `alias?` | **PC-only**: add a PRIVATE contact (never the public repo); spoken "at/dot" addresses are normalized |
+| `research` | `question` | **PC-only**: look into a question with the PC's browser and answer it from real pages, every claim bound to the page it came from; the write-up lands in his documents |
+| `file_write` / `file_edit` / `file_read` / `file_list` | `path`, `text` / `path`, `find`, `replace` / `path`, `anywhere?` / `subdir?` | **PC-only**: her own workspace (`~/Documents/Aletheia`) — text formats only, every overwrite keeps the previous version, writing never leaves the workspace; reading may name a file anywhere |
+| `computer_observe` | `window?` | **PC-only**: what windows are open, or what controls a window has — eyes only, nothing is touched |
+| `computer_do` | `steps`, `why?` | **PC-only**: hands — a JSON list of `open_app` / `wait_window` / `focus_window` / `set_text` / `invoke` steps through Windows UI Automation. Any control labelled Send, Delete, Pay, Purchase, Confirm, Submit, Format, Uninstall, Empty Trash (and siblings) is **refused**, never skipped, and needs the operator's hash-bound approval instead; shells and system tools are never opened |
+| `do_task` | `request`, `label?` | **PC-only**: a request no kind covers — she writes a small Python program and runs it in a sandbox (standard-library whitelist, no network, no subprocess, workspace files only, source saved first); the receipt is what the program printed |
+| `media_probe` / `media_trim` / `media_join` / `media_audio` / `media_captions` / `media_convert` | `source` / `source`, `out`, `start?`, `end?`, `duration?` / `sources`, `out` / `source`, `out` / `source`, `subtitles`, `out` / `source`, `out`, `height?` | **PC-only**: ffmpeg — every operation writes a NEW file in the workspace and never touches the source |
 
 While Aletheia is halted, every command except `resume` comes back with a
 `halted` receipt — relay that honestly.

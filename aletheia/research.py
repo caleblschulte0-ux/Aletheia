@@ -36,6 +36,8 @@ this machine. That is why it can live under a mission budget at all.
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
 import json
 import re
 import sys
@@ -51,12 +53,34 @@ MAX_QUERIES = 3
 MAX_EXTRACT_CHARS = 6_000
 MAX_QUESTION_CHARS = 500
 SEARCH_URL = "https://duckduckgo.com/html/?q={}"
+# Engines, in the order she tries them. The first live run (2026-09-02)
+# found DuckDuckGo's HTML endpoint answering the headless browser with a
+# "select all squares containing a duck" challenge — one link, no results
+# — and Brave, Mojeek and Startpage refusing outright. Bing answers, with
+# every result wrapped in a redirect that carries the real address
+# base64-encoded (unwrapped below). Wikipedia's own search is the last
+# resort and a primary source in its own right. A challenge page is not an
+# error, it is a page with no results: it costs one engine, not the
+# question.
+BING_URL = "https://www.bing.com/search?q={}"
+WIKIPEDIA_URL = "https://en.wikipedia.org/w/index.php?search={}&ns0=1&fulltext=1"
+# Wikipedia before Bing: on the operator's PC Bing answers the headless
+# browser with an unrendered shell whose links belong to some OTHER query
+# (asked for Chicago's tallest building, it offered the tallest people),
+# and the guard in _results() treats an unrendered page as no results.
+SEARCH_ENGINES = (("duckduckgo", SEARCH_URL), ("wikipedia", WIKIPEDIA_URL),
+                  ("bing", BING_URL))
+# A results page a person could read has more text than a nav bar.
+MIN_RESULTS_PAGE_CHARS = 500
+_WIKI_ARTICLE = re.compile(r"^https://en\.wikipedia\.org/wiki/[^:#?]+$")
 
 # Never worth reading for a research question, and cheap to exclude before
 # spending a page load on them.
 SKIP_HOSTS = {
-    "duckduckgo.com", "html.duckduckgo.com", "google.com", "www.google.com",
-    "bing.com", "www.bing.com", "youtube.com", "www.youtube.com",
+    "duckduckgo.com", "html.duckduckgo.com", "lite.duckduckgo.com",
+    "google.com", "www.google.com",
+    "bing.com", "www.bing.com", "search.brave.com", "www.mojeek.com",
+    "www.startpage.com", "youtube.com", "www.youtube.com",
     "facebook.com", "www.facebook.com", "x.com", "twitter.com",
 }
 
@@ -140,16 +164,64 @@ def _host(url: str) -> str:
 
 
 def _unwrap(href: str) -> str:
-    """DuckDuckGo's HTML results wrap the real link in a redirect. Follow it
-    here rather than loading their hop: one fewer page load, and the source
-    we journal is the source we actually read."""
-    if "duckduckgo.com/l/" not in href:
-        return href
-    try:
-        target = parse_qs(urlparse(href).query).get("uddg", [])
-        return target[0] if target else href
-    except ValueError:
-        return href
+    """Search engines wrap the real link in a redirect. Follow it here
+    rather than loading their hop: one fewer page load, and the source we
+    journal is the source we actually read."""
+    if "duckduckgo.com/l/" in href:
+        try:
+            target = parse_qs(urlparse(href).query).get("uddg", [])
+            return target[0] if target else href
+        except ValueError:
+            return href
+    if "bing.com/ck/a" in href:
+        # Bing: ...&u=a1<urlsafe base64 of the destination>&... — a
+        # relative destination (Bing's own images/maps tabs) decodes to a
+        # path, which the http(s) check below then drops.
+        try:
+            packed = parse_qs(urlparse(href).query).get("u", [""])[0]
+        except ValueError:
+            return href
+        if not packed.startswith("a1"):
+            return href
+        body = packed[2:]
+        try:
+            return base64.urlsafe_b64decode(
+                body + "=" * (-len(body) % 4)).decode("utf-8", "replace")
+        except (ValueError, binascii.Error):
+            return href
+    return href
+
+
+def _results(engine: str, page: dict, limit: int) -> list[dict]:
+    """The usable result links on one engine's page — none for a challenge."""
+    if len(str(page.get("text") or "")) < MIN_RESULTS_PAGE_CHARS:
+        # A challenge page, or a shell whose results never rendered: the
+        # links on it are navigation and stale suggestions, not answers.
+        return []
+    out, seen = [], set()
+    for link in page.get("links", []):
+        href = _unwrap(str(link.get("href") or ""))
+        if not href.startswith(("http://", "https://")):
+            continue
+        host = _host(href)
+        if not host or host in SKIP_HOSTS:
+            continue
+        title = (link.get("text") or "").strip()[:160]
+        if engine == "wikipedia":
+            # One host by construction, so the rule is one page per ARTICLE;
+            # `library` tells run() not to collapse these to a single page.
+            if not _WIKI_ARTICLE.match(href) or href.endswith("/Main_Page") or href in seen:
+                continue
+            seen.add(href)
+            out.append({"url": href, "title": title, "library": True})
+        else:
+            if host in seen:
+                continue
+            seen.add(host)          # one page per site: five views of one outlet
+            out.append({"url": href, "title": title})
+        if len(out) >= limit:
+            break
+    return out
 
 
 def find_sources(query: str, *, limit: int = MAX_SOURCES,
@@ -159,26 +231,22 @@ def find_sources(query: str, *, limit: int = MAX_SOURCES,
     Failure here is survivable and must not end a run: a search engine that
     changes its markup should cost this query, not the whole question.
     """
-    try:
-        page = reader(SEARCH_URL.format(quote_plus(query)))
-    except Exception as exc:
-        journal.append("alert", "research",
-                       f"search failed for {query!r}: {type(exc).__name__}",
+    for engine, template in SEARCH_ENGINES:
+        try:
+            page = reader(template.format(quote_plus(query)))
+        except Exception as exc:
+            journal.append("alert", "research",
+                           f"{engine} search failed for {query!r}: {type(exc).__name__}",
+                           actor=ACTOR)
+            continue
+        found = _results(engine, page, limit)
+        if found:
+            return found
+        journal.append("event", "research",
+                       f"{engine} gave no usable results for {query!r} — a "
+                       "challenge page or changed markup; trying the next engine",
                        actor=ACTOR)
-        return []
-    out, seen = [], set()
-    for link in page.get("links", []):
-        href = _unwrap(str(link.get("href") or ""))
-        if not href.startswith(("http://", "https://")):
-            continue
-        host = _host(href)
-        if not host or host in SKIP_HOSTS or host in seen:
-            continue
-        seen.add(host)          # one page per site: five views of one outlet
-        out.append({"url": href, "title": (link.get("text") or "").strip()[:160]})
-        if len(out) >= limit:
-            break
-    return out
+    return []
 
 
 def read_sources(sources: list[dict], *, reader=browse.read_page) -> list[dict]:
@@ -206,6 +274,26 @@ def read_sources(sources: list[dict], *, reader=browse.read_page) -> list[dict]:
             "extract": text[:MAX_EXTRACT_CHARS],
         })
     return read, failed
+
+
+def _bounded(question: str, sources: list[dict],
+             limit: int = reasoner.MAX_CONTEXT_BYTES - 512) -> list[dict]:
+    """Extracts cut to fit the reasoner's whole-context ceiling.
+
+    Five pages at MAX_EXTRACT_CHARS is ~30 KB and the reasoner refuses
+    anything over 8 KB outright — which is how the first live question
+    (2026-09-02) found five good sources and then could not write a word.
+    Every source keeps a share; the share shrinks until the whole fits.
+    """
+    per = MAX_EXTRACT_CHARS
+    while True:
+        rows = [{"url": s["url"], "title": (s.get("title") or "")[:120],
+                 "extract": s["extract"][:per]} for s in sources]
+        size = len(json.dumps({"question": question, "sources": rows},
+                              ensure_ascii=False).encode("utf-8"))
+        if size <= limit or per <= 300:
+            return rows
+        per = int(per * 0.7)
 
 
 def _verified(report: dict, sources: list[dict]) -> dict:
@@ -244,7 +332,7 @@ def run(question: str, *, reader=browse.read_page, think=None) -> dict:
         policy.ensure_not_halted()
         for source in find_sources(query, reader=reader):
             host = _host(source["url"])
-            if host in seen_hosts:
+            if host in seen_hosts and not source.get("library"):
                 continue
             seen_hosts.add(host)
             candidates.append(source)
@@ -264,9 +352,7 @@ def run(question: str, *, reader=browse.read_page, think=None) -> dict:
 
     report = think(
         WRITE_SYSTEM, question,
-        context={"question": question,
-                 "sources": [{"url": s["url"], "title": s["title"],
-                              "extract": s["extract"]} for s in sources]},
+        context={"question": question, "sources": _bounded(question, sources)},
         model=reasoner.PLAN_MODEL, validator=_report_validator)
     report = _verified(report, sources)
     report.update({

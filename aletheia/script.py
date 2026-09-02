@@ -103,9 +103,17 @@ HARD RULES:
 - PRINT what you did — counts, filenames, totals. The printed output is the
   entire receipt the user will see, so a silent program is a failed one.
 - If the request cannot be done under these rules, print one line beginning
-  "CANNOT: " explaining exactly what is missing, and write nothing.
+  "CANNOT: " explaining exactly what is missing, and write nothing."""
 
-Return ONLY the program. No markdown fence, no commentary."""
+# The first live run (2026-09-02) failed before a line of code ran: the
+# brief ended "Return ONLY the program" and the caller appended "Return
+# JSON", and the model did the sensible thing — returned the program, in
+# a fence — which the JSON-only subscription seam refused. One brief, one
+# answer shape, and a text fallback that accepts the program as a program.
+SYSTEM_JSON_TAIL = ('\n\nReturn ONLY a JSON object of the form '
+                    '{"program": "<the complete Python source>"} — no markdown '
+                    'fence, no commentary outside the JSON.')
+SYSTEM_TEXT_TAIL = "\n\nReturn ONLY the program. No markdown fence, no commentary."
 
 
 class ScriptError(RuntimeError):
@@ -178,7 +186,19 @@ def _clean(text: str) -> str:
     return value.strip()
 
 
+def _program_from_text(raw: str) -> str:
+    """A text answer is the program itself, or the JSON object wrapping it."""
+    try:
+        value = reasoner._first_json_object(raw)
+        if isinstance(value, dict) and isinstance(value.get("program"), str):
+            return _clean(value["program"])
+    except ValueError:
+        pass
+    return _clean(raw)
+
+
 def write_program(request: str, *, think=None) -> str:
+    custom = think is not None
     think = think or reasoner.subscription_json
     listing = ", ".join(sorted(ALLOWED_IMPORTS))
 
@@ -191,13 +211,32 @@ def write_program(request: str, *, think=None) -> str:
         return {"program": _clean(program)}
 
     files = [row["path"] for row in workspace.listing()][:60]
-    result = think(
-        SYSTEM.format(allowed=listing) +
-        "\n\nReturn JSON: {\"program\": \"<the python source>\"}",
-        request,
-        context={"request": request, "files_in_workspace": files},
-        model=reasoner.PLAN_MODEL, validator=validator)
-    return result["program"]
+    brief = SYSTEM.format(allowed=listing)
+    try:
+        result = think(
+            brief + SYSTEM_JSON_TAIL, request,
+            context={"request": request, "files_in_workspace": files},
+            model=reasoner.PLAN_MODEL, validator=validator)
+        return result["program"]
+    except (reasoner.ReasonerUnavailable, ValueError) as exc:
+        if custom:
+            raise
+        # The subscription seam insists on JSON. A model asked for a program
+        # will sometimes hand back the program itself; that is not a failure
+        # of the program. Ask once more, as text, under the same rules — the
+        # static check afterwards is identical either way.
+        journal.append("event", "script:write",
+                       f"JSON answer unusable ({type(exc).__name__}); asking for "
+                       "the program as text", actor=ACTOR)
+        prompt = request
+        if files:
+            prompt += "\n\nFiles already in the workspace: " + ", ".join(files)
+        raw = reasoner.infer_text(brief + SYSTEM_TEXT_TAIL, prompt,
+                                  model=reasoner.PLAN_MODEL)
+        program = _program_from_text(raw)
+        if not program.strip():
+            raise ScriptError("the model returned no program") from None
+        return program
 
 
 def _environment() -> dict:

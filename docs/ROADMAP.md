@@ -56,6 +56,61 @@ the journal), built the missing wiring, and integrated it:
 - **Assistant CLI** (`aletheia/assistant.py`): the operator front door
   giving every personal-OS verb a real caller (rule zero).
 
+## PC bring-up of the catch-up build (2026-09-02)
+
+The 2026-09-01 cloud build (missions, agendas, research, the workspace,
+media, the script sandbox, desktop observation) had never run on the
+operator's PC. A local session ran every command for real and fixed what
+broke — none of it visible to a hermetic suite that was green throughout:
+
+- `python` on the machine PATH is 3.9 (the package refuses it); 3.12 is
+  installed and `py` resolves to it. Use `py -m aletheia...` or fix the
+  machine PATH order (needs an elevated shell).
+- The workspace default (`~/Aletheia`) was this repository's checkout:
+  the first `file_write` was refused at the 2,000-file ceiling, and any
+  file she wrote would have blocked the Core's sync as "a person's
+  uncommitted work". Default is now `~/Documents/Aletheia`; a repository
+  (or anything inside one) is refused as a root.
+- Every new intercom kind (file_*, media_*, computer_observe, research)
+  referenced a name that did not exist (NameError), and the agenda called
+  `.get()` on the string every ordinary kind answers with — so the first
+  live agenda reported its only step "failed". Both fixed; kinds answer
+  with a line, a missing tool is `unavailable`, not an error.
+- The script brief said "return ONLY the program" and its caller appended
+  "return JSON"; the model returned the program, fenced, and was refused.
+  One brief now, plus a text fallback.
+- Research: DuckDuckGo's HTML endpoint serves the headless browser a
+  captcha; Bing an unrendered shell with links for another query; and
+  five 6,000-char extracts overflow the reasoner's 8 KB context. Engines
+  now fall through (DuckDuckGo → Wikipedia search → Bing, redirects
+  unwrapped), thin pages yield nothing, extracts shrink to fit.
+- The code-trust grant from 2026-08-30 predated machine binding and was
+  refused as unbound; re-minted locally with its remaining budget.
+- A mission authorized an agenda regardless of its kind; `mission.covers`
+  now scopes a mission to the capability its record names.
+- Console output with an em dash or an odd window-title glyph crashed
+  `print()` under cp1252; streams now replace rather than raise.
+
+Promoted on live evidence (see each entry's `verification`): mission.run,
+agenda.execute, file.author, research.answer, computer.observe,
+media.edit (ffmpeg 9.0.1 installed; a real trim, source hash unchanged).
+Still EXPERIMENTAL: code.autonomous — one full sweep reached the proposal
+stage on three public repositories and the proposer declined each inside
+its 7,000-character context; no PR yet.
+
+Two capabilities the cloud sandbox could not build, authorized by the
+operator in his own words (journaled `operator:authorization`):
+
+- **computer.act** (`computer_do`): unattended hands — open, focus, type,
+  press — with committing/destructive controls refused back to the
+  hash-bound approval, never skipped; the live label re-read before every
+  press; shells never opened; HALT between steps. Verified live on
+  Notepad (four steps, exact text verified) and a `Send` plan refused.
+- **task.script** (`do_task`): the planner compiles an ask no kind
+  matched into a sandboxed program instead of only a gap; the sandbox is
+  unchanged. Verified live: "rename every .md file ... uppercase"
+  compiled to file_list + do_task and ran under a mission.
+
 ## Next five engineering milestones (priority order, per §137)
 
 The five gaps between Aletheia and the thing she is supposed to be were

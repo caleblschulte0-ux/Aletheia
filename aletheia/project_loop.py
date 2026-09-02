@@ -208,8 +208,8 @@ def cycle(*, request=gh.request, daily_limit: int = DEFAULT_DAILY_LIMIT) -> dict
             result = {
                 "version": 1, "status": "ERROR", "repo": repo["full_name"],
                 "source": work["kind"], "task_id": work["task_id"],
-                "reason": type(exc).__name__, "reconciled": len(reconciled),
-                "updated_at": stateio.utcnow(),
+                "reason": type(exc).__name__, "detail": str(exc)[:200],
+                "reconciled": len(reconciled), "updated_at": stateio.utcnow(),
             }
         stateio.write_json_atomic(LATEST, result)
         return result
@@ -255,11 +255,12 @@ def run_mission_slice(*, request=gh.request, slice_max: int = SLICE_MAX) -> dict
     HALT is re-read between every repository. A kill switch that only applies
     at the top of a run that lasts twenty minutes is a suggestion.
     """
-    live = mission.active()
+    live = mission.covers("code.autonomous")
     if not live:
         return {"version": 1, "status": "NO_MISSION",
-                "detail": "no mission is running; `python -m aletheia.mission "
-                          "start fix_projects` authorizes one",
+                "detail": "no mission covering code.autonomous is running; "
+                          "`python -m aletheia.mission start fix_projects` "
+                          "authorizes one",
                 "updated_at": stateio.utcnow()}
     grant = code_trust.active()
     if not grant:
@@ -278,7 +279,7 @@ def run_mission_slice(*, request=gh.request, slice_max: int = SLICE_MAX) -> dict
         # Re-read both between repositories: the operator may have halted, and
         # the mission may have spent its last unit on the previous repository.
         policy.ensure_not_halted()
-        if not mission.active():
+        if not mission.covers("code.autonomous"):
             break
         work = choose_work(repo, request=request)
         if not work:
@@ -290,8 +291,13 @@ def run_mission_slice(*, request=gh.request, slice_max: int = SLICE_MAX) -> dict
         except policy.Halted:
             raise
         except Exception as exc:
-            errors.append({"repo": repo["full_name"], "reason": type(exc).__name__})
-            mission.note(f"{repo['full_name']}: {type(exc).__name__}", spent=0)
+            # The first live sweep (2026-09-02) reported three bare
+            # "CodeWorkerError"s and nothing else; the message — "reasoner
+            # found no safe bounded code change to make" — is the finding.
+            errors.append({"repo": repo["full_name"], "reason": type(exc).__name__,
+                           "detail": str(exc)[:200]})
+            mission.note(f"{repo['full_name']}: {type(exc).__name__}: {str(exc)[:120]}",
+                         spent=0)
             continue
         opened = run.get("status") == "PR_OPEN"
         done.append({"repo": repo["full_name"], "source": work["kind"],

@@ -128,6 +128,38 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # "what do you still need from me?" — read-only; it checks, it configures
     # nothing. Every credential remains the operator's to create.
     "setup_status":     (set(), set()),
+    # ---- 2026-09-02, both operator-authorized in his own words -----------
+    # Desktop HANDS, not just eyes: a typed step list run through
+    # aletheia.computer.act. Any control whose label commits or destroys
+    # (Send, Delete, Pay, Purchase, Confirm, Submit, Format, Uninstall,
+    # Empty Trash ...) is refused there and bounced to the hash-bound
+    # approval in computer.execute — refused, never skipped.
+    "computer_do":      ({"steps"}, {"why"}),
+    # The slot for a request no kind fits: she writes a small program and
+    # runs it in the sandbox (aletheia.script — import whitelist, no
+    # network, no subprocess, fresh environment, source saved first).
+    "do_task":          ({"request"}, {"label"}),
+}
+
+# Argument shapes the bare grammar cannot say. The planner's prompt is
+# generated from KIND_ARGS and these together, so the model learns the
+# shape of a step list from the registry rather than from a guess.
+KIND_NOTES: dict[str, str] = {
+    "computer_do": (
+        "steps is a JSON LIST of step objects, each one of: "
+        '{"action":"open_app","app":"notepad.exe","arguments":[]} | '
+        '{"action":"wait_window","window":{"title_re":"Notepad"}} | '
+        '{"action":"focus_window","window":{...}} | '
+        '{"action":"set_text","window":{...},"control":{"control_type":"Edit"},"text":"..."} | '
+        '{"action":"invoke","window":{...},"control":{"title":"Save"}}. '
+        "Selectors use title, title_re, class_name, auto_id, control_type (a control "
+        "also best_match) — never screen coordinates. A control labelled Send, "
+        "Delete, Pay, Purchase, Confirm, Submit, Format, Uninstall or Empty Trash "
+        "is refused and needs his approval; do not plan around it."),
+    "do_task": (
+        "request is the ask in plain words. She writes a small Python program "
+        "(standard library only, no network, no subprocess, workspace files only) "
+        "and runs it. Use this ONLY when no other kind does the job."),
 }
 
 # Kinds that need the operator's PC (a real browser, later the desktop).
@@ -153,7 +185,9 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_draft",
                "intent", "screen_ask",
                # every private-state verb below lives on the PC
                "meet", "recall", "handle", "travel_time", "shopping_add",
-               "subscriptions", "money", "car", "projects", "authority_status", "setup_status"}
+               "subscriptions", "money", "car", "projects", "authority_status", "setup_status",
+               # the desktop and the sandbox are both on his PC
+               "computer_do", "do_task"}
 
 
 # Kinds that only LOOK. Nothing here changes the world, sends anything, or
@@ -226,6 +260,24 @@ def plan_tier(kinds) -> str:
     return TIER_READ
 
 
+class Unavailable(RuntimeError):
+    """The kind is real but this machine cannot do it right now — a tool or
+    backend is missing (no ffmpeg, no pywinauto). Not a refusal: nothing
+    said no; and not an error: nothing broke. Callers report it as such."""
+
+
+def _steps_of(cmd: dict):
+    """computer_do carries a step LIST; a relayed command may carry it as
+    JSON text. Either way it is decoded here, once, before validation."""
+    steps = cmd.get("steps")
+    if isinstance(steps, str):
+        try:
+            steps = json.loads(steps)
+        except json.JSONDecodeError:
+            return None
+    return steps
+
+
 def validate_kind_args(cmd, fleet: dict) -> list[str]:
     """Validate the inner command object (kind + args). Shared with the
     local Core's /api/command — one grammar, every channel."""
@@ -249,6 +301,23 @@ def validate_kind_args(cmd, fleet: dict) -> list[str]:
     if url is not None and not (isinstance(url, str)
                                 and url.startswith(("http://", "https://"))):
         problems.append(f"{kind}: url must be an http(s) URL")
+    if kind == "computer_do" and "steps" in cmd:
+        # The desktop plan is validated at the grammar gate, not first at
+        # the desktop: a committing control is named here as a refusal the
+        # planner can show, rather than discovered with a window open.
+        from aletheia import computer
+        steps = _steps_of(cmd)
+        if not isinstance(steps, list):
+            problems.append("computer_do: steps must be a JSON list of step objects")
+        else:
+            problems += [f"computer_do: {p}" for p in computer.validate_steps(steps)]
+            if not problems:
+                try:
+                    computer.check_act_plan(steps)
+                except computer.ApprovalRequired as exc:
+                    problems.append(f"computer_do: {exc}")
+    if kind == "do_task" and not str(cmd.get("request") or "").strip():
+        problems.append("do_task: request must be non-empty text")
     return problems
 
 
@@ -336,66 +405,81 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         from aletheia import media
         ok, why = media.available()
         if not ok:
-            return {"outcome": "unavailable", "detail": why}
+            raise Unavailable(why)
         if kind == "media_probe":
-            info = media.probe(args["source"])
-            return {"outcome": "done",
-                    "detail": f"{info['seconds']:.1f}s, {info['bytes']:,} bytes, "
-                              f"video={info['video']}, audio={info['audio']}"}
+            info = media.probe(cmd["source"])
+            return (f"{info['seconds']:.1f}s, {info['bytes']:,} bytes, "
+                    f"video={info['video']}, audio={info['audio']}")
         if kind == "media_trim":
-            out = media.trim(args["source"], args["out"], start=args.get("start", "0"),
-                             end=args.get("end"), duration=args.get("duration"))
+            out = media.trim(cmd["source"], cmd["out"], start=cmd.get("start", "0"),
+                             end=cmd.get("end"), duration=cmd.get("duration"))
         elif kind == "media_join":
-            out = media.join(args["sources"], args["out"])
+            sources = cmd["sources"]
+            if isinstance(sources, str):
+                sources = [s.strip() for s in sources.split(",") if s.strip()]
+            out = media.join(sources, cmd["out"])
         elif kind == "media_audio":
-            out = media.extract_audio(args["source"], args["out"])
+            out = media.extract_audio(cmd["source"], cmd["out"])
         elif kind == "media_captions":
-            out = media.burn_subtitles(args["source"], args["subtitles"], args["out"])
+            out = media.burn_subtitles(cmd["source"], cmd["subtitles"], cmd["out"])
         else:
-            height = args.get("height")
-            out = media.convert(args["source"], args["out"],
+            height = cmd.get("height")
+            out = media.convert(cmd["source"], cmd["out"],
                                 height=int(height) if height is not None else None)
-        return {"outcome": "done",
-                "detail": f"{out['what']} -> {out['path']} ({out['bytes']:,} bytes)"}
+        return f"{out['what']} -> {out['path']} ({out['bytes']:,} bytes) — source untouched"
 
     if kind == "computer_observe":
         from aletheia import computer
         ok, why = computer.available()
         if not ok:
-            return {"outcome": "unavailable", "detail": why}
-        window = args.get("window")
-        steps = ([{"action": "inspect_controls", "window": {"title": window}}]
+            raise Unavailable(why)
+        window = cmd.get("window")
+        steps = ([{"action": "inspect_controls", "window": {"title_re": re.escape(window)}}]
                  if window else [{"action": "list_windows"}])
         result = computer.observe(steps)
         found = result["steps"][0]["evidence"]
-        return {"outcome": "done", "detail": str(found)[:1500]}
+        rows = found.get("windows") or found.get("controls") or []
+        names = [r.get("name") for r in rows if r.get("name")]
+        head = (f"{found.get('count', len(rows))} "
+                f"{'controls in ' + repr(window) if window else 'windows'}")
+        return head + (": " + "; ".join(names[:25]) if names else "")
+
+    if kind == "computer_do":
+        from aletheia import computer
+        ok, why = computer.available()
+        if not ok:
+            raise Unavailable(why)
+        steps = _steps_of(cmd)
+        result = computer.act(steps, requested_by=f"intercom: {quote[:80]}" if quote else "intercom")
+        did = ", ".join(str(s.get("action")) for s in steps[:12])
+        return (f"did {result['steps_done']} desktop step(s) [{did}] — run {result['run_id']}"
+                + (f" — {cmd['why'][:120]}" if cmd.get("why") else ""))
 
     if kind in ("file_write", "file_edit", "file_read", "file_list"):
         from aletheia import workspace
         if kind == "file_write":
-            out = workspace.write(args["path"], args["text"], why=args.get("why", ""))
-            return {"outcome": "done",
-                    "detail": f"wrote {out['path']} ({out['chars']:,} chars)"
-                              + ("" if out["created"] else " — previous version kept")}
+            out = workspace.write(cmd["path"], cmd["text"], why=cmd.get("why", ""))
+            return (f"wrote {out['path']} ({out['chars']:,} chars)"
+                    + ("" if out["created"] else " — previous version kept"))
         if kind == "file_edit":
-            out = workspace.edit(args["path"], args["find"], args["replace"],
-                                 why=args.get("why", ""))
-            return {"outcome": "done",
-                    "detail": f"edited {out['path']} ({out['replacements']} change)"}
+            out = workspace.edit(cmd["path"], cmd["find"], cmd["replace"],
+                                 why=cmd.get("why", ""))
+            return f"edited {out['path']} ({out['replacements']} change)"
         if kind == "file_read":
-            out = workspace.read(args["path"], anywhere=bool(args.get("anywhere")))
-            return {"outcome": "done", "detail": out["text"][:2000]}
-        rows = workspace.listing(args.get("subdir", ""))
-        return {"outcome": "done",
-                "detail": ", ".join(r["path"] for r in rows[:40]) or "(empty)"}
+            out = workspace.read(cmd["path"], anywhere=bool(cmd.get("anywhere")))
+            return out["text"][:2000]
+        rows = workspace.listing(cmd.get("subdir", ""))
+        return ", ".join(r["path"] for r in rows[:40]) or "(empty)"
 
     if kind == "research":
         from aletheia import research as research_mod
-        report = research_mod.run(args["question"])
-        return {"outcome": "done",
-                "detail": research_mod.spoken(report),
-                "sources": len(report["sources"]),
-                "findings": len(report["findings"])}
+        report = research_mod.run(cmd["question"])
+        return research_mod.spoken(report)
+
+    if kind == "do_task":
+        from aletheia import script
+        result = script.run(cmd["request"], label=cmd.get("label") or "task")
+        return f"{script.spoken(result)} [program: {result['program']}]"
     if kind == "browse_read":
         from aletheia import browse
         page = browse.read_page(cmd["url"])
@@ -688,6 +772,9 @@ def run_pending(fleet: dict, request=gh.request, commands_dir: Path | None = Non
                                                    quote=c.get("operator_quote", ""))
             except act.Refused as exc:
                 result["outcome"] = "refused"
+                result["detail"] = str(exc)
+            except Unavailable as exc:
+                result["outcome"] = "unavailable"
                 result["detail"] = str(exc)
             except Exception as exc:
                 result["outcome"] = "error"

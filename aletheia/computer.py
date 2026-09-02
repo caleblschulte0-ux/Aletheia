@@ -373,6 +373,19 @@ class WindowsUIABackend:
             return {"action": action, "verified": True}
         raise AssertionError(f"validated action was not implemented: {action}")
 
+    def describe_control(self, step: dict) -> dict:
+        """What the control a step names actually IS on screen right now.
+
+        act() asks this before an `invoke`: the selector may say
+        auto_id "btn7" while the button on screen says "Send", and the
+        committing-control guard has to read the label a person would.
+        """
+        window = self._window(step)
+        control = window.child_window(**step["control"])
+        self._wait_interruptibly(
+            control.wait, "exists visible enabled ready", self._timeout(step))
+        return self._describe(control.wrapper_object())
+
     @staticmethod
     def _set_text(wrapper, text: str) -> None:
         """Set a control's full text on both old and new Windows edits.
@@ -466,6 +479,186 @@ def observe(steps: object, backend: ComputerBackend | None = None,
     return {"outcome": "observed", "steps": results}
 
 
+# ---- hands (2026-09-02, operator-authorized in his own words) --------------
+#
+# observe() gave an agenda eyes. This gives it hands, for the dull half of
+# desktop work — open the app, put the text in, press Save — under a
+# mission budget and with no per-plan approval. What keeps that safe to
+# say yes to is not a promise about judgement; it is a line drawn in code:
+#
+#   - The actions are a POSITIVE list. Closing windows and screenshots are
+#     not on it and keep execute()'s hash-bound approval.
+#   - A control whose label commits or destroys — Send, Delete, Pay,
+#     Purchase, Confirm, Submit, Format, Uninstall, Empty Trash and their
+#     obvious siblings — is REFUSED, and the refusal names the approval path.
+#     It is never skipped: a plan that ran with the Send removed "succeeds"
+#     having not done the thing, and that is the shape of failure that
+#     looks like success.
+#   - The guard reads the label twice: once from the plan's own selector,
+#     before anything runs, and once from the LIVE control on screen just
+#     before the click, because a selector can name a button by an id.
+#   - A control with no readable label at all is refused too: a guard that
+#     cannot read what it is about to press is not a guard.
+#   - open_app never launches a shell, an interpreter or a system tool —
+#     that would hand back everything aletheia.script's sandbox takes away.
+#   - HALT is re-read between every step.
+
+ACT_ACTIONS = frozenset({"open_app", "wait_window", "focus_window", "set_text", "invoke"})
+
+COMMITTING_PATTERN = re.compile(
+    r"\b(?:send|delete|pay|purchase|buy|confirm|submit|format|uninstall|"
+    r"empty\s+(?:the\s+)?(?:trash|recycle\s+bin)|check\s*out|place\s+order|"
+    r"sign|post|publish|remove|erase|wipe|reset|share|transfer|order)\b",
+    re.IGNORECASE)
+
+# Programs unattended hands never start. Each is a way to run arbitrary
+# commands or change the machine, which is exactly what the sandbox in
+# aletheia.script exists to make impossible for generated code.
+FORBIDDEN_APPS = frozenset({
+    "cmd", "powershell", "pwsh", "wt", "bash", "sh", "wsl", "python", "pythonw",
+    "py", "wscript", "cscript", "mshta", "regedit", "reg", "diskpart", "format",
+    "rundll32", "msiexec", "wmic", "schtasks", "sc", "net", "net1", "netsh",
+    "bcdedit", "cipher", "takeown", "icacls", "vssadmin", "wevtutil", "certutil",
+    "bitsadmin", "curl", "wget", "ssh", "telnet", "control", "shutdown",
+})
+
+
+class CommittingControl(ApprovalRequired):
+    """A control whose label commits or destroys; act() bounces it to execute()."""
+
+
+def committing_label(text: str) -> str | None:
+    """The committing word in a label, or None."""
+    match = COMMITTING_PATTERN.search(str(text or ""))
+    return match.group(0) if match else None
+
+
+def _control_label(control: dict) -> str:
+    """Every human-readable thing a control selector says about its target."""
+    parts = []
+    for key in ("title", "best_match", "auto_id", "title_re"):
+        value = control.get(key)
+        if isinstance(value, str) and value.strip():
+            if key == "title_re":
+                # read the words out of the pattern; metacharacters are not a label
+                value = re.sub(r"[\\^$.*+?()\[\]{}|]", " ", value)
+            parts.append(value)
+    return " ".join(parts).strip()
+
+
+def _app_name(app: str) -> str:
+    name = Path(app.strip().strip('"')).name.casefold()
+    return name[:-4] if name.endswith((".exe", ".com", ".bat", ".cmd")) else name
+
+
+def check_act_plan(steps: list[dict]) -> None:
+    """Refuse, BEFORE anything runs, any step unattended hands may not take.
+
+    Raises ApprovalRequired naming the step and the approval path. Called
+    by act() and by the intercom's grammar gate, so a planner sees the
+    refusal as a refusal rather than discovering it with a window open.
+    """
+    approval_path = ("it needs an approval bound to this exact plan: "
+                     "python -m aletheia.computer request <plan.json> "
+                     "--approval-id <id>, then run <plan.json> --approval <id>")
+    for index, step in enumerate(steps):
+        action = step.get("action")
+        if action not in ACT_ACTIONS:
+            raise ApprovalRequired(
+                f"step {index + 1} ({action}) is not something unattended hands do; "
+                f"they cover {', '.join(sorted(ACT_ACTIONS))} and nothing else — "
+                + approval_path)
+        if action == "open_app" and _app_name(str(step.get("app", ""))) in FORBIDDEN_APPS:
+            raise ApprovalRequired(
+                f"step {index + 1} would start {step.get('app')!r}, a shell, "
+                "interpreter or system tool; unattended hands never open one — "
+                + approval_path)
+        if action != "invoke":
+            continue
+        label = _control_label(step.get("control") or {})
+        if not label:
+            raise CommittingControl(
+                f"step {index + 1} (invoke) names its control by "
+                f"{sorted(step.get('control') or {})} only, with no readable label, "
+                "so the committing-control guard cannot read what it would press — "
+                + approval_path)
+        hit = committing_label(label)
+        if hit:
+            raise CommittingControl(
+                f"step {index + 1} would press {label!r}, which matches the "
+                f"committing/destructive pattern ({hit!r}). Unattended hands never "
+                "press that; refused rather than skipped, because a plan that ran "
+                "without it would report success for a thing not done — "
+                + approval_path)
+
+
+def act(steps: object, backend: ComputerBackend | None = None,
+        backend_factory=None, requested_by: str = "agenda") -> dict:
+    """Do something on the desktop without a per-plan approval.
+
+    The whole plan is checked before the first step runs; a forbidden step
+    anywhere refuses the plan whole. Between steps HALT is re-read, and
+    before every click the control's LIVE label is read and checked again.
+    """
+    if backend is not None and backend_factory is not None:
+        raise ValueError("provide backend or backend_factory, not both")
+    if not isinstance(requested_by, str) or not requested_by.strip():
+        raise ValueError("requested_by must be a non-empty string")
+    problems = validate_steps(steps)
+    if problems:
+        raise ValueError("; ".join(problems))
+    check_act_plan(steps)
+    policy.ensure_not_halted()
+    run_id = f"hands-{uuid.uuid4().hex[:12]}"
+    journal.append("action", "computer:act",
+                   f"STARTED run={run_id} requested_by={requested_by} steps={len(steps)}",
+                   actor=ACTOR, refs=[f"run:{run_id}"])
+    driver = backend or (backend_factory() if backend_factory else WindowsUIABackend())
+    results = []
+    for index, step in enumerate(steps):
+        policy.ensure_not_halted()
+        if step["action"] == "invoke":
+            describe = getattr(driver, "describe_control", None)
+            if callable(describe):
+                live = describe(step)
+                name = str((live or {}).get("name") or "")
+                hit = committing_label(name)
+                if hit:
+                    journal.append(
+                        "action", "computer:act",
+                        f"REFUSED run={run_id} step={index} the control on screen is "
+                        f"labelled {name[:60]!r} ({hit!r}); stopped after {len(results)} step(s)",
+                        actor=ACTOR, refs=[f"run:{run_id}"])
+                    raise CommittingControl(
+                        f"step {index + 1}: the control on screen is labelled {name!r}, "
+                        f"which matches the committing/destructive pattern ({hit!r}). "
+                        f"Stopped after {len(results)} step(s); nothing was pressed. "
+                        "Pressing it needs an approval bound to this exact plan "
+                        "(python -m aletheia.computer request/run).")
+        try:
+            evidence = driver.perform(step)
+            if not isinstance(evidence, dict):
+                raise VerificationFailed(
+                    f"backend returned non-object evidence for {step['action']}")
+        except Exception as exc:
+            journal.append(
+                "action", f"computer:{step['action']}",
+                f"FAILED run={run_id} step={index} error={type(exc).__name__}",
+                actor=ACTOR, refs=[f"run:{run_id}"])
+            raise
+        results.append(evidence)
+        journal.append(
+            "action", f"computer:{step['action']}",
+            f"DONE run={run_id} step={index} "
+            f"verification={json.dumps(_journal_evidence(evidence), ensure_ascii=False, sort_keys=True)}",
+            actor=ACTOR, refs=[f"run:{run_id}"])
+    journal.append("action", "computer:act",
+                   f"COMPLETED run={run_id} steps={len(results)}",
+                   actor=ACTOR, refs=[f"run:{run_id}"])
+    return {"run_id": run_id, "requested_by": requested_by,
+            "steps_done": len(results), "results": results}
+
+
 def execute(steps: object, approval_id: str, backend: ComputerBackend | None = None,
             requested_by: str = "operator", backend_factory=None) -> dict:
     """Execute one approved plan, checking halt before setup and every step."""
@@ -526,6 +719,9 @@ def main(argv: list[str] | None = None) -> int:
                      default="An unsaved window remains open; nothing is saved or submitted")
     run = sub.add_parser("run"); run.add_argument("file")
     run.add_argument("--approval", required=True)
+    hands = sub.add_parser(
+        "act", help="unattended hands: open/focus/type/press, committing controls refused")
+    hands.add_argument("file")
     args = parser.parse_args(argv)
 
     if args.command == "status":
@@ -540,6 +736,14 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if args.command == "plan":
         print(json.dumps(steps, indent=2, ensure_ascii=False))
+        return 0
+    if args.command == "act":
+        try:
+            print(json.dumps(act(steps, requested_by="operator-cli"),
+                             indent=2, ensure_ascii=False))
+        except ApprovalRequired as exc:
+            print(f"refused: {exc}", file=sys.stderr)
+            return 3
         return 0
     if args.command == "request":
         # was a PowerShell here-string piped to python -c; PowerShell 5.1
