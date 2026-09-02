@@ -16,8 +16,23 @@ from aletheia import (calendar, communications, contacts, journal, mail,
                       policy, scheduling)
 
 TZ = "America/Chicago"
-SLOTS = [{"start": "2026-09-01T15:00:00+00:00", "end": "2026-09-01T15:30:00+00:00"},
-         {"start": "2026-09-02T16:00:00+00:00", "end": "2026-09-02T16:30:00+00:00"}]
+def _slot(days_ahead: int, hour: int) -> dict:
+    """A slot RELATIVE to today, never a frozen date.
+
+    These were literals in September 2026, and on 2026-09-02 the suite
+    started failing for no reason but the calendar: an offer whose slots
+    have all passed is correctly ABANDONED, so two tests about "an offer
+    nobody has answered yet" aged into asserting the opposite of what they
+    meant. A fixture describing a live offer has to still describe one
+    tomorrow.
+    """
+    day = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=days_ahead)
+    start = day.replace(hour=hour, minute=0, second=0, microsecond=0)
+    return {"start": start.isoformat(),
+            "end": (start + dt.timedelta(minutes=30)).isoformat()}
+
+
+SLOTS = [_slot(2, 15), _slot(3, 16)]
 
 
 def verdict(decision="ACCEPTED", index=0, confidence=0.95, quote="Tuesday works"):
@@ -58,9 +73,10 @@ class SchedulingCase(unittest.TestCase):
         p.start(); self.addCleanup(p.stop)
 
     def start(self, nid="meet-dana"):
-        return scheduling.start(nid, "dana", start_day="2026-09-01",
-                                end_day="2026-09-05", timezone=TZ,
-                                purpose="Project kickoff")
+        first = dt.date.today() + dt.timedelta(days=1)
+        return scheduling.start(nid, "dana", start_day=first.isoformat(),
+                                end_day=(first + dt.timedelta(days=4)).isoformat(),
+                                timezone=TZ, purpose="Project kickoff")
 
     def send_the_mail(self, record):
         """Stand in for mail.send_approved having really delivered it."""
