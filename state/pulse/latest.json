@@ -425,46 +425,15 @@
     ]
   },
   "now": {
-    "generated_at": "2026-09-03T13:22:42Z",
+    "generated_at": "2026-09-03T18:48:22Z",
     "halted": false,
     "heartbeat_age_s": 0.0,
     "waiting_on_you": [],
     "waiting_count": 0,
-    "notifications": [
-      {
-        "title": "DONE: Find out how long sample.mp4 in my workspace is, then trim i",
-        "priority": "NORMAL",
-        "at": "2026-09-03T05:33:11Z"
-      },
-      {
-        "title": "Did: Open Notepad and write a haiku about autumn in it",
-        "priority": "NORMAL",
-        "at": "2026-09-03T01:37:21Z"
-      },
-      {
-        "title": "Did: rename every.md file in my workspace so its name is uppercase",
-        "priority": "NORMAL",
-        "at": "2026-09-02T19:50:47Z"
-      },
-      {
-        "title": "Looked into: what is the tallest building in Chicago",
-        "priority": "NORMAL",
-        "at": "2026-09-02T19:38:04Z"
-      },
-      {
-        "title": "Did: make a file called test.md that says hello",
-        "priority": "NORMAL",
-        "at": "2026-09-02T19:35:23Z"
-      },
-      {
-        "title": "standing code-work trust needs re-enabling once",
-        "priority": "IMPORTANT",
-        "at": "2026-09-02T19:15:15Z"
-      }
-    ],
+    "notifications": [],
     "meetings": [],
     "working": [],
     "next_appointment": null,
-    "headline": "standing code-work trust needs re-enabling once"
+    "headline": "All quiet"
   }
 }

@@ -155,8 +155,30 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
                        actor=ACTOR)
         return record
     if not plan.executable and plan.intent in ("answer", "clarify"):
+        # HE ASKED A QUESTION. Until 2026-09-03 this retired the record and
+        # spoken() fell through to plan.summary — a one-line restatement of
+        # what he had just said. She was an executor with no mouth: ask her
+        # anything a person asks an assistant and she handed back a gist.
+        # A question now gets a real answer, from the same subscription
+        # everything else runs on. Nothing is executed here.
         record["state"] = RETIRED
         record["read_only"] = True
+        if plan.intent == "clarify":
+            # A clarifying question is ALREADY the right thing to say. Sending
+            # it through converse turned "Which sister — Ana or Mia?" into a
+            # paragraph about ambiguity, which is worse in every way. Only a
+            # question he asked gets answered here.
+            return record
+        from aletheia import converse
+        try:
+            record["spoken"] = converse.answer(request)["answer"]
+        except Exception as exc:
+            # An unreachable model must not turn into silence: say which
+            # half failed, because "she said nothing" and "she could not
+            # think" are different problems with different fixes.
+            record["spoken"] = (
+                f"I couldn't reach a model to answer that ({type(exc).__name__}). "
+                "Everything else still works.")
         return record
     stateio.write_json_atomic(_record_path(intent_id), record)
 
@@ -182,6 +204,11 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
 
 def spoken(record: dict) -> str:
     """What Thea says back. Short, honest about what is and is not happening."""
+    # A real answer, when the ask was a QUESTION, beats every summary below.
+    # Narrow on purpose: `clarify` and the degraded no-provider case keep
+    # their own wording, which is already the right thing to say.
+    if record.get("intent") == "answer" and record.get("spoken"):
+        return str(record["spoken"])
     if record.get("direct_work"):
         return str(record.get("spoken") or record.get("summary") or "Work action completed.")[:600]
 
