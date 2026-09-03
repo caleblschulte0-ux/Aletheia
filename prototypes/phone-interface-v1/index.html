@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#050608">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Aletheia — Phone Prototype</title>
+  <link rel="stylesheet" href="./app.css">
+</head>
+<body>
+  <main class="shell" id="shell" data-state="idle">
+    <header class="topbar">
+      <button class="presence-chip" id="presenceButton" type="button" aria-label="Open Aletheia status">
+        <span class="presence-dot" aria-hidden="true"></span>
+        <span class="presence-copy">
+          <strong>Thea</strong>
+          <small id="presenceText">with you</small>
+        </span>
+      </button>
+
+      <button class="privacy-chip" id="privacyButton" type="button" aria-label="Open privacy and connection status">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3.2 19 6v5.2c0 4.5-2.6 8-7 9.8-4.4-1.8-7-5.3-7-9.8V6l7-2.8Z"/>
+          <path d="m9.3 12 1.8 1.8 3.7-4"/>
+        </svg>
+        <span>Private</span>
+      </button>
+    </header>
+
+    <section class="stage" aria-live="polite">
+      <div class="presence" id="presence">
+        <button class="mark-button" id="markButton" type="button" aria-label="Talk to Aletheia">
+          <span class="halo halo-one" aria-hidden="true"></span>
+          <span class="halo halo-two" aria-hidden="true"></span>
+          <svg class="a-mark" viewBox="0 0 160 160" aria-hidden="true">
+            <path class="mark-stroke mark-left" d="M38 126 78 34c1-2.2 3.1-2.2 4.1 0l40 92"/>
+            <path class="mark-stroke mark-right" d="M58 99h44"/>
+            <circle class="mark-core" cx="80" cy="80" r="3.5"/>
+          </svg>
+        </button>
+
+        <div class="presence-language">
+          <h1 id="stateTitle">Aletheia</h1>
+          <p id="stateSubtitle">Tap the A or just type.</p>
+        </div>
+      </div>
+
+      <div class="context-stack" id="contextStack" hidden>
+        <article class="response-card" id="responseCard" hidden>
+          <div class="eyebrow" id="responseEyebrow">THEA</div>
+          <div class="response-copy" id="responseCopy"></div>
+          <div class="card-actions" id="responseActions"></div>
+        </article>
+
+        <article class="approval-card" id="approvalCard" hidden>
+          <div class="approval-head">
+            <div>
+              <div class="eyebrow">APPROVAL REQUIRED</div>
+              <h2 id="approvalTitle">Open Barkly on your PC?</h2>
+            </div>
+            <span class="risk-pill">Computer</span>
+          </div>
+          <p id="approvalDetail">Aletheia would focus your Windows session and launch one app. No other actions are included.</p>
+          <div class="approval-summary">
+            <span>Device</span><strong>Your laptop</strong>
+            <span>Action</span><strong>Open Barkly</strong>
+            <span>Authority</span><strong>One time</strong>
+          </div>
+          <div class="approval-actions">
+            <button class="button ghost" id="denyButton" type="button">Deny</button>
+            <button class="button solid" id="approveButton" type="button">Approve once</button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <footer class="composer-wrap">
+      <div class="composer" id="composer">
+        <button class="plus-button" id="demoButton" type="button" aria-label="Show prototype action">
+          <span></span><span></span>
+        </button>
+        <textarea id="promptInput" rows="1" placeholder="Ask Thea anything" aria-label="Message Aletheia"></textarea>
+        <button class="voice-button" id="voiceButton" type="button" aria-label="Talk to Aletheia">
+          <svg class="mic-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="9" y="3.5" width="6" height="11" rx="3"/>
+            <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v3.5M9.5 20.5h5"/>
+          </svg>
+          <svg class="send-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m4 12 15-7-5.3 14-2.2-5.3L4 12Z"/>
+            <path d="m11.5 13.7 3.3-3.3"/>
+          </svg>
+        </button>
+      </div>
+      <div class="footer-hint" id="footerHint">Prototype only · no Core connection</div>
+    </footer>
+  </main>
+
+  <div class="scrim" id="scrim" hidden></div>
+  <aside class="system-sheet" id="systemSheet" aria-hidden="true">
+    <div class="sheet-grabber" aria-hidden="true"></div>
+    <div class="sheet-head">
+      <div>
+        <div class="eyebrow">SYSTEM</div>
+        <h2>Aletheia</h2>
+      </div>
+      <button class="close-button" id="closeSheet" type="button" aria-label="Close status">×</button>
+    </div>
+
+    <div class="status-hero">
+      <span class="status-orb"></span>
+      <div>
+        <strong id="systemState">Available</strong>
+        <span id="systemSubstate">Private Tailscale path · local brain</span>
+      </div>
+    </div>
+
+    <div class="status-grid">
+      <div class="status-row"><span>Connection</span><strong>Encrypted</strong></div>
+      <div class="status-row"><span>Phone permissions</span><strong>None</strong></div>
+      <div class="status-row"><span>Visible actions</span><strong>Approval gated</strong></div>
+      <div class="status-row"><span>Current activity</span><strong id="activityValue">Idle</strong></div>
+    </div>
+
+    <button class="halt-button" id="haltButton" type="button">
+      <span class="halt-icon"></span>
+      <span><strong id="haltLabel">HALT Aletheia</strong><small id="haltSub">Stops autonomous actions on the PC</small></span>
+    </button>
+  </aside>
+
+  <script src="./app.js"></script>
+</body>
+</html>
