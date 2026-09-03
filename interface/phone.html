@@ -55,6 +55,22 @@ button{border:0;background:none;cursor:pointer}
 }
 .through:active{background:var(--ink-2)}
 .through svg{width:19px;height:19px}
+/* Reading aloud. On a device with browser speech, asking out loud already
+   gets an answer out loud and this is only for typed asks; on iOS Safari,
+   which has no SpeechRecognition, it is the ONLY way she can talk — a
+   phone that cannot detect a spoken question cannot infer he wanted a
+   spoken answer, so he says so once and it sticks. */
+.voice{
+  width:40px;height:40px;border-radius:50%;display:grid;place-items:center;
+  color:var(--warm-faint);
+}
+.voice:active{background:var(--ink-2)}
+.voice svg{width:19px;height:19px}
+.voice.on{color:var(--amber)}
+.voice .wave{display:none}
+.voice.on .wave{display:block}
+.voice .muted{display:block}
+.voice.on .muted{display:none}
 .dot{
   position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;
   background:var(--amber);display:none;
@@ -175,6 +191,17 @@ main{
 
 <div class="rail">
   <span id="where" class="where">…</span>
+  <button id="voiceBtn" class="voice" aria-label="Read answers aloud"
+          aria-pressed="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"
+         aria-hidden="true">
+      <path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z"/>
+      <path class="wave" d="M16 9.2a4 4 0 010 5.6"/>
+      <path class="wave" d="M18.6 6.6a7.6 7.6 0 010 10.8"/>
+      <path class="muted" d="M16.5 9.5l5 5M21.5 9.5l-5 5"/>
+    </svg>
+  </button>
   <a id="through" class="through" href="/interface/console.html"
      aria-label="Everything">
     <span id="dot" class="dot"></span>

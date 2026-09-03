@@ -396,3 +396,62 @@ class NoDeadCode(unittest.TestCase):
         for name in ("talk.js", "console.js"):
             self.assertNotIn("fetch(", read(name),
                              name + " must go through thea.js")
+
+
+class SheCanTalkBack(unittest.TestCase):
+    """`speak()` sat in the transport, exported, and called by NOTHING.
+
+    A phone assistant that cannot answer out loud is half of one, and an
+    unwired capability is the exact thing rule zero forbids. This is the
+    other half of the loop: he asks her something on the way to the car and
+    hears the answer.
+    """
+
+    def test_speaking_is_actually_wired(self):
+        self.assertIn("T.speak(", read("talk.js"))
+
+    def test_a_spoken_question_gets_a_spoken_answer(self):
+        body = read("talk.js")
+        self.assertIn("ask(heard, true)", body)
+        self.assertIn("aloud || speakBack", body)
+
+    def test_typing_stays_silent_unless_he_asked_for_voice(self):
+        """Typing in a quiet room and having the phone start talking is
+        wrong; no setting is needed to express "voice in, voice out"."""
+        body = read("talk.js")
+        send = body[body.index('$("send").addEventListener'):]
+        self.assertNotIn("true", send[:send.index("\n")],
+                         "the send button must not claim the ask was spoken")
+
+    def test_ios_gets_an_explicit_choice_because_it_cannot_be_inferred(self):
+        """Safari has no SpeechRecognition, so his dictated question arrives
+        as typing. A device that cannot detect a spoken question cannot
+        infer that he wanted a spoken answer."""
+        self.assertIn('id="voiceBtn"', read("phone.html"))
+        body = read("talk.js")
+        self.assertIn("thea.speak", body)          # remembered on the device
+        self.assertIn("localStorage", body)
+
+    def test_it_reads_a_reply_not_a_document(self):
+        """6,000 characters read aloud is a hostage situation."""
+        body = read("thea.js")
+        self.assertIn("SPEAK_CHARS", body)
+        self.assertIn("The rest is on screen", body)
+
+    def test_talking_over_her_stops_her(self):
+        self.assertIn("T.hush()", read("talk.js"))
+
+    def test_leaving_the_page_does_not_leave_her_talking(self):
+        body = read("talk.js")
+        vis = body[body.index('visibilitychange'):]
+        self.assertIn("T.hush()", vis[:200])
+
+    def test_ios_needs_the_gesture_so_the_gesture_primes_it(self):
+        """By the time an answer exists, the tap that asked for it is
+        several awaits in the past and iOS refuses to start speaking."""
+        self.assertIn("unlockSpeech", read("talk.js"))
+        self.assertIn("volume = 0", read("thea.js"))
+
+
+if __name__ == "__main__":
+    unittest.main()

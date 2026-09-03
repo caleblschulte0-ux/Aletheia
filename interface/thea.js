@@ -157,11 +157,56 @@ window.Thea = (() => {
     return rec;
   }
 
+  /* SPEAKING BACK.
+   *
+   * Two rules, both about not being annoying. Only what he ASKED for out
+   * loud is answered out loud — typing in a quiet room and having the phone
+   * start talking is wrong, and no setting is needed to express "voice in,
+   * voice out". And she speaks a REPLY, not a document: a 6,000-character
+   * answer read aloud is a hostage situation, so it stops at a sentence
+   * boundary near SPEAK_CHARS and says that the rest is on screen. The card
+   * has the whole thing, so nothing is lost by not saying it.
+   */
+  const SPEAK_CHARS = 420;
+
+  function spokenForm(text) {
+    const body = String(text || "").trim();
+    if (body.length <= SPEAK_CHARS) return body;
+    const cut = body.slice(0, SPEAK_CHARS);
+    const stop = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("? "),
+                          cut.lastIndexOf("! "), cut.lastIndexOf("\n"));
+    const head = stop > SPEAK_CHARS * 0.4 ? cut.slice(0, stop + 1) : cut;
+    return head.trim() + " The rest is on screen.";
+  }
+
+  /* iOS will not start speech outside a user gesture, and the gesture that
+   * began this (tapping her) is several awaits in the past by the time an
+   * answer exists. Priming inside the gesture with a silent utterance
+   * unlocks the queue so the real one is allowed later. */
+  function unlockSpeech() {
+    try {
+      if (!window.speechSynthesis) return;
+      const u = new SpeechSynthesisUtterance(" ");
+      u.volume = 0;
+      speechSynthesis.speak(u);
+    } catch { /* nothing is lost: the answer is on screen either way */ }
+  }
+
+  function hush() {
+    try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch {}
+  }
+
+  function speaking() {
+    try { return !!(window.speechSynthesis && speechSynthesis.speaking); }
+    catch { return false; }
+  }
+
   function speak(text) {
     try {
-      if (!window.speechSynthesis || !text) return;
+      const body = spokenForm(text);
+      if (!window.speechSynthesis || !body) return;
       speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
+      const u = new SpeechSynthesisUtterance(body);
       u.rate = 1.0;
       speechSynthesis.speak(u);
     } catch { /* speaking is a bonus, never the delivery */ }
@@ -172,5 +217,6 @@ window.Thea = (() => {
   }
 
   return { api, ask, collect, ack, getToken, setToken, esc, ago,
-           canListen, listen, speak };
+           canListen, listen, speak, spokenForm, unlockSpeech, hush,
+           speaking };
 })();

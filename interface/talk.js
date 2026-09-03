@@ -16,6 +16,43 @@
   const $ = (id) => document.getElementById(id);
 
   let busy = false, listening = false, rec = null, restTimer = null;
+  // Did THIS ask arrive out loud? Voice in, voice out — and typing stays
+  // silent, which is a rule a person understands without a setting.
+  let aloud = false;
+
+  /* Reading aloud, as a standing choice.
+   *
+   * "Voice in, voice out" is the right rule on a device that can HEAR the
+   * question — and his phone is an iPhone, where Safari has no
+   * SpeechRecognition at all. He dictates with the keyboard's own mic, which
+   * arrives here as typing, indistinguishable from typing. So a phone that
+   * cannot detect a spoken question cannot infer that he wanted a spoken
+   * answer: he says so once, and it sticks on this device. */
+  const SPEAK_KEY = "thea.speak";
+  let speakBack = false;
+  try { speakBack = localStorage.getItem(SPEAK_KEY) === "1"; } catch {}
+
+  function paintVoice() {
+    const btn = $("voiceBtn");
+    btn.classList.toggle("on", speakBack);
+    btn.setAttribute("aria-pressed", speakBack ? "true" : "false");
+    btn.setAttribute("aria-label", speakBack ? "Stop reading answers aloud"
+                                             : "Read answers aloud");
+  }
+
+  $("voiceBtn").addEventListener("click", () => {
+    speakBack = !speakBack;
+    try { localStorage.setItem(SPEAK_KEY, speakBack ? "1" : "0"); } catch {}
+    paintVoice();
+    if (speakBack) {
+      // Inside the gesture, so iOS allows the real utterance later, and a
+      // word back so he knows it took.
+      T.unlockSpeech();
+      T.speak("I'll read answers out loud.");
+    } else {
+      T.hush();
+    }
+  });
   const RESTING = "Tap to speak to her.";
 
   // ---- her ------------------------------------------------------------
@@ -97,15 +134,20 @@
   }
 
   // ---- asking ---------------------------------------------------------
-  async function ask(text) {
+  async function ask(text, spoken) {
     if (busy || !String(text || "").trim()) return;
+    aloud = !!spoken;
     busy = true;
     $("send").disabled = true;
     state("thinking");
     try {
-      await T.ask(text, (t) => reply(t), (secs) => state("thinking", secs));
+      let last = "";
+      await T.ask(text, (t) => { last = t; reply(t); },
+                  (secs) => state("thinking", secs));
       $("q").value = "";
       state("answering");
+      // Out loud when he asked out loud, or when he has said to.
+      if (aloud || speakBack) T.speak(last);
       setTimeout(() => { if (!busy && !listening) state("ready"); }, 600);
       refresh();
     } catch (err) {
@@ -120,8 +162,14 @@
 
   // ---- tapping her -----------------------------------------------------
   $("her").addEventListener("click", () => {
+    // Talking over her is how you stop her talking. A reply already read
+    // aloud is still on screen, so cutting it off costs nothing.
+    if (T.speaking()) { T.hush(); if (busy) return; }
     if (busy) return;
     if (listening) { try { rec && rec.stop(); } catch {} return; }
+    // Inside the gesture, while iOS still allows it: by the time an answer
+    // exists this tap is several awaits in the past and speech is refused.
+    T.unlockSpeech();
     if (!T.canListen) {
       /* No browser speech here (iOS Safari). The mark still means "I want
        * you" — it just hands him the keyboard, where the phone's own
@@ -133,7 +181,7 @@
     rec = T.listen({
       onStart: () => { listening = true; state("listening"); reply(""); },
       onEnd: () => { listening = false; if (!busy) state("ready"); },
-      onResult: (heard) => { $("q").value = heard; ask(heard); },
+      onResult: (heard) => { $("q").value = heard; ask(heard, true); },
       onError: (why) => {
         listening = false;
         state("ready");
@@ -150,9 +198,10 @@
   });
 
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) refresh();
+    if (document.hidden) T.hush(); else refresh();
   });
 
+  paintVoice();
   state("ready");
   reply("");
   refresh();
