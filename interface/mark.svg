@@ -1,5 +1,4 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Aletheia">
-  <!-- Home-screen icon: the same mark, inset for a maskable crop. -->
   <!-- THE ALETHEIA MARK.
        Aletheia is the Greek for unconcealment — truth as something that
        comes uncovered rather than something asserted. So the A is drawn
@@ -10,8 +9,7 @@
        Deliberately not: a glowing orb, a waveform, a circuit trace, a
        microphone. Those say "AI product". This says her name. -->
   <rect width="512" height="512" rx="114" fill="#0a0b0e"/>
-  <g transform="translate(256 256) scale(0.78) translate(-256 -256)"
-     fill="none" stroke="#f0ece4" stroke-width="27"
+  <g fill="none" stroke="#f0ece4" stroke-width="27"
      stroke-linecap="round" stroke-linejoin="round">
     <!-- left rise, stopping short of the apex -->
     <path d="M158 372 L240 176"/>

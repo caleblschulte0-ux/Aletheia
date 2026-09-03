@@ -6,7 +6,7 @@
  * approvals as though they were pending is worse than a phone showing
  * nothing, and this whole system is built on not doing that.
  */
-const SHELL = "thea-shell-v2";
+const SHELL = "thea-shell-v3";
 const FILES = [
   "/interface/phone.html",     // the front door
   "/interface/console.html",   // everything, one tap behind it
@@ -14,6 +14,7 @@ const FILES = [
   "/interface/talk.js",
   "/interface/console.js",
   "/interface/icon.svg",
+  "/interface/mark.svg",
   "/interface/manifest.webmanifest",
 ];
 

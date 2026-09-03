@@ -1,52 +1,66 @@
-/* The front door. One job: he says a thing, she does it and answers.
+/* The front door. One object on the screen, and it is her.
  *
- * The whole design question here was what the big button does on a browser
- * with no speech recognition — which is to say, on his iPhone. A mic that
- * silently fails is the worst option; a mic that is greyed out is a dead
- * centre of the screen. So the button is "the way you talk to her", and on
- * a browser that cannot listen it focuses the text field instead. The
- * primary action always does something.
+ * The design correction this file carries: the mark means THEA, not
+ * "microphone". Tapping it means "I want you". How the words get there —
+ * browser speech where it exists, the keyboard where it does not — is a
+ * detail underneath that. The first version made a 152px mic the largest
+ * thing on screen and then, on iOS Safari, quietly opened the keyboard
+ * instead; the object was making a promise the device could not keep.
+ *
+ * So: the mark never changes meaning by platform. Only the HINT under it
+ * does, and it says the true thing before he taps, not after.
  */
 (() => {
   "use strict";
   const T = window.Thea;
   const $ = (id) => document.getElementById(id);
 
-  let busy = false;
-  let listening = false;
-  let rec = null;
-  let idleTimer = null;
+  let busy = false, listening = false, rec = null, restTimer = null;
+  const RESTING = "Tap to speak to her.";
 
-  const IDLE = "Tap and talk.";
+  // ---- her ------------------------------------------------------------
+  function state(mode) {
+    const her = $("her");
+    her.className = "her " + mode;
+    $("hint").textContent =
+      mode === "listening" ? "listening — tap to stop"
+      : mode === "thinking" ? "thinking"
+      : mode === "halted" ? "halted"
+      : T.canListen ? "" : "tap to write";
+  }
 
-  function show(text, isError) {
-    const el = $("answer");
-    el.textContent = text || IDLE;
-    el.classList.toggle("idle", !text);
-    el.classList.toggle("err", !!isError);
-    clearTimeout(idleTimer);
-    if (text && !isError) {
-      // Fall back to the resting line so the screen is not left holding
-      // yesterday's answer the next time he opens it.
-      idleTimer = setTimeout(() => {
-        $("answer").textContent = IDLE;
-        $("answer").classList.add("idle");
-      }, 90000);
+  /* The reply MORPHS. A short answer is a sentence in her voice; anything
+     longer becomes a card that can be read and scrolled, rather than a
+     22-character column. The threshold is about where a centred line stops
+     being a sentence and starts being a paragraph. */
+  function reply(text, kind) {
+    const box = $("reply");
+    clearTimeout(restTimer);
+    const body = String(text == null ? "" : text);
+    if (!body) {
+      box.innerHTML = '<p class="sentence resting"></p>';
+      box.firstChild.textContent = RESTING;
+      return;
+    }
+    if (kind !== "trouble" && body.length > 150) {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.textContent = body;
+      box.replaceChildren(card);
+    } else {
+      const p = document.createElement("p");
+      p.className = "sentence" + (kind === "trouble" ? " trouble" : "");
+      p.textContent = body;
+      box.replaceChildren(p);
+    }
+    if (kind !== "trouble") {
+      // Return to rest, so opening the app later does not show yesterday's
+      // answer as though it were current.
+      restTimer = setTimeout(() => reply(""), 120000);
     }
   }
 
-  function setButton(mode) {
-    const b = $("talk");
-    b.classList.toggle("on", mode === "listening");
-    b.classList.toggle("thinking", mode === "thinking");
-    $("glyph").textContent = mode === "listening" ? "■"
-      : mode === "thinking" ? "⋯" : "🎤";
-    $("cap").textContent = mode === "listening" ? "listening — tap to stop"
-      : mode === "thinking" ? "working on it"
-      : T.canListen ? "tap and talk" : "tap to type";
-  }
-
-  // ---- the state rail, and the badge that earns a second tap ---------
+  // ---- the state line and the amber dot -------------------------------
   async function refresh() {
     try {
       const [status, approvals, notices] = await Promise.all([
@@ -56,76 +70,73 @@
       ]);
       const halted = status.halted;
       const alive = status.liveness && status.liveness.alive;
-      $("orb").className = "orb " + (halted ? "halted" : alive ? "live" : "");
-      // Never colour alone — the words carry it too.
-      $("state").textContent = halted ? "Halted"
-        : alive ? "Ready" : "Core not running";
+      // Human words, never a heartbeat age. "heard from 8s ago" is a
+      // diagnostic; "here" is an answer.
+      $("where").textContent = halted ? "Halted" : alive ? "Here" : "Not running";
+      if (halted && !busy && !listening) state("halted");
+      else if (!busy && !listening) state("ready");
 
-      const pending = (Array.isArray(approvals) ? approvals : []).filter(
-        (a) => a.state === "PENDING").length;
-      const unread = (Array.isArray(notices) ? notices : []).filter(
-        (n) => n.state !== "ACKNOWLEDGED").length;
-      const need = pending + unread;
-      $("badge").textContent = need > 9 ? "9+" : String(need);
-      $("more").classList.toggle("needs", need > 0);
+      const need =
+        (Array.isArray(approvals) ? approvals : []).filter((a) => a.state === "PENDING").length +
+        (Array.isArray(notices) ? notices : []).filter((n) => n.state !== "ACKNOWLEDGED").length;
+      $("through").classList.toggle("needs", need > 0);
+      $("through").setAttribute(
+        "aria-label", need ? `Everything — ${need} waiting` : "Everything");
     } catch (err) {
-      $("orb").className = "orb";
-      $("state").textContent = err.unauthorized ? "Needs a token"
-                                                : "Can't reach her";
+      $("where").textContent = err.unauthorized ? "Not linked" : "Can't reach her";
       if (err.unauthorized) {
-        show("This device isn't authorized yet — open Everything and tap Access.",
-             true);
+        reply("This phone isn't linked yet. Open the aperture, then System.",
+              "trouble");
       }
     }
   }
 
-  // ---- asking --------------------------------------------------------
+  // ---- asking ---------------------------------------------------------
   async function ask(text) {
     if (busy || !String(text || "").trim()) return;
     busy = true;
     $("send").disabled = true;
-    setButton("thinking");
+    state("thinking");
     try {
-      await T.ask(text, show, () => setButton("thinking"));
+      await T.ask(text, (t) => reply(t), () => state("thinking"));
       $("q").value = "";
+      state("answering");
+      setTimeout(() => { if (!busy && !listening) state("ready"); }, 600);
       refresh();
     } catch (err) {
-      show(err.unauthorized ? "This device isn't authorized yet."
-                            : "That didn't go through.", true);
+      reply(err.unauthorized ? "This phone isn't linked yet."
+                             : "That didn't go through.", "trouble");
+      state("ready");
     } finally {
       busy = false;
       $("send").disabled = false;
-      setButton("idle");
     }
   }
 
-  // ---- the one button ------------------------------------------------
-  function startListening() {
+  // ---- tapping her -----------------------------------------------------
+  $("her").addEventListener("click", () => {
+    if (busy) return;
+    if (listening) { try { rec && rec.stop(); } catch {} return; }
+    if (!T.canListen) {
+      /* No browser speech here (iOS Safari). The mark still means "I want
+       * you" — it just hands him the keyboard, where the phone's own
+       * dictation key is one tap away. The hint has already said so, so
+       * nothing is discovered by being lied to. */
+      $("q").focus();
+      return;
+    }
     rec = T.listen({
-      onStart: () => { listening = true; setButton("listening"); show("Listening…"); },
-      onEnd: () => { listening = false; if (!busy) setButton("idle"); },
+      onStart: () => { listening = true; state("listening"); reply(""); },
+      onEnd: () => { listening = false; if (!busy) state("ready"); },
       onResult: (heard) => { $("q").value = heard; ask(heard); },
       onError: (why) => {
         listening = false;
-        setButton("idle");
-        show(why === "not-allowed"
+        state("ready");
+        reply(why === "not-allowed"
           ? "The microphone is blocked for this site — allow it in Settings."
-          : "Didn't catch that.", true);
+          : "I didn't catch that.", "trouble");
       },
     });
-  }
-
-  $("talk").addEventListener("click", () => {
-    if (busy) return;
-    if (!T.canListen) {
-      // No speech in this browser (iOS Safari). The button still does the
-      // thing it promises: it gets him to a place he can say it.
-      $("q").focus();
-      show("This browser can't listen — type it and she'll answer.", true);
-      return;
-    }
-    if (listening) { try { rec && rec.stop(); } catch {} return; }
-    startListening();
   });
 
   $("send").addEventListener("click", () => ask($("q").value));
@@ -133,12 +144,12 @@
     if (e.key === "Enter") { e.preventDefault(); ask($("q").value); }
   });
 
-  // Refresh when he actually looks at it; nothing while it sits in a pocket.
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) refresh();
   });
 
-  setButton("idle");
+  state("ready");
+  reply("");
   refresh();
   setInterval(() => { if (!document.hidden && !busy) refresh(); }, 30000);
 })();
