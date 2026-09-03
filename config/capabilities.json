@@ -1,5 +1,5 @@
 {
-  "revision": 63,
+  "revision": 64,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1399,6 +1399,17 @@
       "caller": "intercom kind 'compose' (so voice, the phone, and any compiled plan); python -m aletheia.compose",
       "module": "aletheia.compose",
       "notes": "Found by running the sentence: 'summarize my resume into three bullets and save it as summary.md' compiled to file_write with text='Three-bullet summary of resume, generated from the resume content retrieved above' - EXECUTABLE, validating clean, and it would have put that sentence in his file. The cause is structural, not a bad guess: the planner is a COMPILER and file_write(path, text) demands finished text as an argument at compile time, before anything has been read, so a request to WRITE something had only two outcomes available - a clarifying question or a placeholder - and which one it got was luck. compose moves the authoring to EXECUTION time. It adds no reach: it writes through aletheia.workspace (her directory only, versioned on overwrite, size-capped, halted when she is halted) and reads through the same module's wider read half. It never pretends: every source unreadable writes NOTHING, a partial read is declared in the prompt, a model refusal (CANNOT WRITE) and an unreachable model both save nothing and say why."
+    },
+    {
+      "id": "application.prepare",
+      "description": "Find real job postings, read them, and write a ready-to-send packet per job — posting, tailored cover letter, checklist, and a task. Submits nothing.",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "intercom kind 'apply_prepare' (so voice, the phone and any compiled plan); python -m aletheia.applications",
+      "module": "aletheia.applications",
+      "notes": "'Apply to 10 jobs for me' is one sentence containing about eight hours of real work and one irreversible act at the end. The planner answered it honestly and uselessly - research the openings, a GAP saying nothing submits an application, a MANUAL step reading 'submit each one yourself' - which left him with ten browser tabs. This does the eight hours. It does NOT submit, and that is not an apology: a submitted application is a real message to a real employer under his name with no undo, and four gates already refuse it (errand.run is EXPERIMENTAL + operator_always + inside agenda.MONEY; browser.interact is operator_always and needs an approval bound to a sha256 of the exact steps; computer.act refuses any control labelled Submit; the planner names the gap). Everything this writes is a file in a folder he can delete. It refuses to fake: a page it could not actually read is dropped and said out loud rather than written up from a search blurb, because a cover letter about a job she never opened would sit in his outbox rather than in a log."
     }
   ]
 }

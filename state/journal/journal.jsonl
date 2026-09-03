@@ -1016,3 +1016,24 @@
 {"ts": "2026-09-03T21:35:30Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:remove", "text": "removed summary.md [kept: .versions/summary-20260903T213530Z.md]"}
 {"ts": "2026-09-03T21:35:30Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:write", "text": "wrote summary.md (13 chars) — restored summary-20260903T213530Z.md [new file]"}
 {"ts": "2026-09-03T21:35:30Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:move", "text": "moved a.md -> b.md"}
+{"ts": "2026-09-03T22:21:30Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:write", "text": "wrote posting.md (778 chars) — the posting as she actually read it [new file]"}
+{"ts": "2026-09-03T22:21:30Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:write", "text": "wrote checklist.md (676 chars) — what is still his to do [new file]"}
+{"ts": "2026-09-03T22:21:30Z", "kind": "task", "actor": "aletheia", "subject": "task:apply-senior-backend-engineer-foundr-20260903", "text": "created — Apply: Senior Backend Engineer — Foundry 0 — https://jobs.example.com/0"}
+{"ts": "2026-09-03T22:21:30Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:write", "text": "wrote posting.md (778 chars) — the posting as she actually read it [previous kept: .versions/applications/20260903-jobs-example-com-senior-backend-engineer-foundry/posting-20260903T222130Z.md]"}
+{"ts": "2026-09-03T22:21:30Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:write", "text": "wrote checklist.md (676 chars) — what is still his to do [previous kept: .versions/applications/20260903-jobs-example-com-senior-backend-engineer-foundry/checklist-20260903T222130Z.md]"}
+{"ts": "2026-09-03T22:21:30Z", "kind": "action", "actor": "aletheia-applications", "subject": "applications", "text": "prepared 2 application packet(s) for 'senior backend engineer' — submitted none"}
+{"ts": "2026-09-03T22:22:03Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:write", "text": "wrote posting.md (981 chars) — the posting as she actually read it [new file]"}
+{"ts": "2026-09-03T22:22:03Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume.md (321 bytes)"}
+{"ts": "2026-09-03T22:22:03Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read posting.md (983 bytes)"}
+{"ts": "2026-09-03T22:22:46Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:write", "text": "wrote cover-letter.md (680 chars) — cover letter for Senior Backend Engineer — Foundry 0 [new file]"}
+{"ts": "2026-09-03T22:22:46Z", "kind": "action", "actor": "aletheia-compose", "subject": "compose", "text": "wrote /tmp/tmpwrnne234/ws/applications/20260903-jobs-example-com-senior-backend-engineer-foun-f4dd2c/cover-letter.md from 2 source(s) via claude.cli:haiku"}
+{"ts": "2026-09-03T22:22:46Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:write", "text": "wrote checklist.md (732 chars) — what is still his to do [new file]"}
+{"ts": "2026-09-03T22:22:46Z", "kind": "task", "actor": "aletheia", "subject": "task:apply-senior-backend-engineer-fo-f4dd2c", "text": "created — Apply: Senior Backend Engineer — Foundry 0 — https://jobs.example.com/0"}
+{"ts": "2026-09-03T22:22:46Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:write", "text": "wrote posting.md (981 chars) — the posting as she actually read it [new file]"}
+{"ts": "2026-09-03T22:22:46Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume.md (321 bytes)"}
+{"ts": "2026-09-03T22:22:46Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read posting.md (983 bytes)"}
+{"ts": "2026-09-03T22:23:21Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:write", "text": "wrote cover-letter.md (791 chars) — cover letter for Senior Backend Engineer — Foundry 1 [new file]"}
+{"ts": "2026-09-03T22:23:21Z", "kind": "action", "actor": "aletheia-compose", "subject": "compose", "text": "wrote /tmp/tmpwrnne234/ws/applications/20260903-jobs-example-com-senior-backend-engineer-foun-9f00e0/cover-letter.md from 2 source(s) via claude.cli:haiku"}
+{"ts": "2026-09-03T22:23:21Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:write", "text": "wrote checklist.md (732 chars) — what is still his to do [new file]"}
+{"ts": "2026-09-03T22:23:21Z", "kind": "task", "actor": "aletheia", "subject": "task:apply-senior-backend-engineer-fo-9f00e0", "text": "created — Apply: Senior Backend Engineer — Foundry 1 — https://jobs.example.com/1"}
+{"ts": "2026-09-03T22:23:21Z", "kind": "action", "actor": "aletheia-applications", "subject": "applications", "text": "prepared 2 application packet(s) for 'senior backend engineer' — submitted none"}

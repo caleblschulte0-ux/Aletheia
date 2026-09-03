@@ -80,6 +80,8 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # version first, so both are reversible with `workspace restore`.
     "file_delete":   ({"path"}, {"why"}),
     "file_move":     ({"path", "to"}, {"why"}),
+    # Everything up to the submit, which stays his. See aletheia.applications.
+    "apply_prepare": ({"role"}, {"count", "where", "resume"}),
     # eyes on the desktop, never hands: mutation keeps its own approval
     "computer_observe": (set(), {"window"}),
     # video and audio: the source is never touched, output lands in the workspace
@@ -155,6 +157,17 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # generated from KIND_ARGS and these together, so the model learns the
 # shape of a step list from the registry rather than from a guess.
 KIND_NOTES: dict[str, str] = {
+    "apply_prepare": (
+        'Use for "apply to N jobs for me". It finds real postings, reads '
+        'them, and writes a PACKET per job into her workspace — the posting '
+        'as read, a cover letter written against it and his resume, and a '
+        'checklist — then files a task per application. It SUBMITS NOTHING '
+        'and never can: a submitted application is a real message to a real '
+        'employer under his name with no undo, and four separate gates '
+        'refuse it. Do not add a step that tries to submit; say in the '
+        'summary that the last step is his. role is the kind of job ("senior '
+        'backend engineer"), count is at most 10, where is an optional '
+        'location or "remote", resume is a workspace path.'),
     "compose": (
         'USE THIS, NOT file_write, whenever the content has to be WRITTEN '
         'rather than pasted — "write me a note about X", "summarise my '
@@ -214,6 +227,8 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email
                # the workspace is a directory on his PC; Actions cannot see it
                "file_write", "file_edit", "file_read", "file_list", "compose",
                "file_delete", "file_move",
+               # reads the open web and writes into her workspace: both PC
+               "apply_prepare",
                "computer_observe",
                # ffmpeg and his media files live on the PC
                "media_probe", "media_trim", "media_join", "media_audio",
@@ -271,6 +286,9 @@ ROUTINE_KINDS = frozenset({
     # Deleting and moving keep a version FIRST, so both are undoable. A
     # delete that cannot lose anything is a shelf, not a shredder.
     "file_delete", "file_move",
+    # Application packets are files and tasks; the one irreversible step in
+    # a job application is deliberately not in this kind at all.
+    "apply_prepare",
     # Media edits always write a NEW file and never touch the source, so
     # the worst case is a spare file in her workspace.
     "media_trim", "media_join", "media_audio", "media_captions",
@@ -595,6 +613,13 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return (f"did {result['steps_done']} desktop step(s) [{did}] — run {result['run_id']}"
                 + (f" — {cmd['why'][:120]}" if cmd.get("why") else ""))
 
+    if kind == "apply_prepare":
+        from aletheia import applications
+        out = applications.prepare(
+            cmd["role"], count=int(cmd.get("count", 5)),
+            where=cmd.get("where", ""),
+            resume=cmd.get("resume", "resume.md"))
+        return applications.spoken(out)
     if kind == "file_delete":
         from aletheia import workspace
         out = workspace.remove(cmd["path"], why=cmd.get("why", ""))

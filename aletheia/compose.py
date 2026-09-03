@@ -48,7 +48,13 @@ from aletheia import journal, reasoner, workspace
 
 ACTOR = "aletheia-compose"
 
-MAX_WHAT_CHARS = 400
+# The instruction, not the document. 400 was too tight the first time a
+# real caller wrote a real brief (aletheia.applications: name the company,
+# connect concrete work to what the posting asks, four paragraphs, and
+# refuse rather than invent) — 500 characters of genuine guidance that
+# silently produced NO letter at all. Still small enough that pasting a
+# document in here is refused, which is what the cap is for.
+MAX_WHAT_CHARS = 1_000
 MAX_SOURCES = 3
 # Budgeted against `brain.MAX_TEXT` (16,000) like every other prompt in the
 # system: the instruction, the sources and the framing all have to fit, and
