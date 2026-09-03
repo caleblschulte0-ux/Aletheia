@@ -269,6 +269,76 @@ block is only as useful as what is in memory, which today holds five
 facts copied from the playbook in August — the next unlock is his own,
 and it costs a conversation rather than a credential.
 
+### Security review, verified and acted on (2026-09-03)
+
+The operator brought a SWOT/security review written by ChatGPT and said to
+act on what was good in it rather than take it at face value. Every claim
+below was checked against the code before anything changed; four were real
+and are fixed, and the rest are recorded honestly with what is verified
+and what it would cost.
+
+**Fixed, each with a regression test that fails on the old code:**
+
+1. **Browser interaction was a confused deputy.** `browse.interact` checked
+   only that its approval was APPROVED — never that it was issued for THIS
+   url and THESE steps. Any approved id authorized any browser action, so
+   an approval to click "Next" on one site could be handed to a plan that
+   pressed "Place order" on another. The errand layer did its own hash
+   check and was safe; nothing else was, and "every caller remembers" is
+   what a confused-deputy bug is made of. The binding now lives in the
+   primitive (§61, §70).
+2. **A spending errand could overspend its ceiling.** The ceiling was
+   compared with the page BEFORE the steps ran; then the whole sequence,
+   irreversible click included, ran with no re-read. A $40 cart that
+   becomes $75 at checkout passed. The docstring claimed the ceiling was
+   "checked twice" — the second check was a §143 boundary check on the
+   after-text, not a money check. Spending errands are refused at run time
+   until the two-phase checkout verifier exists. No spending errand had
+   ever run live, so nothing was lost.
+3. **The room microphone was an authentication device.** Voice already
+   refused to widen standing authority — a television or a guest could say
+   it — and then accepted "approve" for whatever was pending, with no risk
+   check at all. If that was an email send or a live errand, the room
+   approved it. Voice now refuses high-risk and operator_always approvals
+   and fails closed on an approval whose risk it cannot read. It keeps
+   HALT, which is the one thing a room should always be able to say.
+4. **Training capture defaulted to ON** with a 512 MB budget, keeping
+   prompts, context and responses. Its redaction is CREDENTIAL redaction,
+   which is not privacy redaction: the store would accumulate his
+   relationships, finances, health and calendar — precisely the corpus
+   worth stealing from a personal machine. Default is now OFF.
+
+**Verified, real, and NOT yet fixed** — each needs either his decision or
+a build larger than one session, and none should be forgotten:
+
+- **The control plane is a public repository.** `caleblschulte0-ux/Aletheia`
+  is PUBLIC and the journal, approvals, receipts and operator quotes sync
+  through it. Confirmed. Private operational state belongs on a private
+  transport; code can stay public. This is the largest architectural item.
+- **`main` is unprotected and the Core auto-updates from it.** Branch
+  protection is off, the latest commit is unsigned, and `core_tick`
+  restarts onto whatever code appears. Anything with GitHub write access
+  therefore has code execution on his PC. Protection is his setting to
+  make; a signed promotion channel is the code half.
+- **Loopback is treated as authenticated.** The Core accepts unauthenticated
+  requests on 127.0.0.1, and `/api/command` can approve and resume. Any
+  process running as him inherits that. Localhost proves origin, not
+  authorization.
+- **Secrets live in ordinary JSON.** `~/.aletheia/mail.json` holds an app
+  password. `secret_store` (DPAPI) exists and is EXPERIMENTAL; the mail
+  path does not use it.
+- **`open_app` can launch interpreters through the approval path.** Work
+  Sessions block shells; the underlying hash-bound `computer.execute` does
+  not, so an approved plan can start one. Code execution should be its own
+  capability, not an argument to app-launching.
+- **Information-flow labels do not exist.** Nothing marks a bank balance
+  or a private message as SENSITIVE, so nothing structurally prevents such
+  a value reaching an outbound channel. This is the review's best idea and
+  the correct answer to "I don't want it blackmailing me": make it
+  impossible by construction rather than by asking a model to behave.
+
+Registry revision 48.
+
 ## Next five engineering milestones (priority order, per §137)
 
 The five gaps between Aletheia and the thing she is supposed to be were

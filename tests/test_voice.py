@@ -50,9 +50,31 @@ class InterpretCase(unittest.TestCase):
         self.assertIn("web address", out["say"])
 
     def test_approve_with_exactly_one_pending(self):
-        policy.request("ap-1", "do thing", "why", "consequence", True)
+        policy.request("ap-1", "do thing", "why", "consequence", True,
+                       capability="journal.append")
         out = voice.interpret("Thea, approve")
         self.assertEqual(out["command"], {"kind": "approve", "id": "ap-1"})
+
+    def test_voice_will_not_approve_a_high_risk_action(self):
+        """The room microphone is an input device, not an authentication
+        device (2026-09-03 review): a television, a guest or a passing
+        sentence must not be able to send an email or run an errand."""
+        policy.request("ap-hi", "send it", "why", "an email leaves", False,
+                       capability="email.send")
+        out = voice.interpret("Thea, approve")
+        self.assertIsNone(out["command"])
+        self.assertIn("won't approve that one by voice", out["say"])
+        self.assertIn("email.send", out["say"])
+
+    def test_an_approval_with_no_capability_fails_closed(self):
+        policy.request("ap-x", "mystery", "why", "unknown", True)
+        out = voice.interpret("Thea, approve")
+        self.assertIsNone(out["command"])
+        self.assertIn("cannot tell how risky", out["say"])
+
+    def test_voice_can_still_halt_everything(self):
+        out = voice.interpret("Thea, stop everything")
+        self.assertEqual(out["command"]["kind"], "halt")
 
     def test_approve_with_two_pending_reads_them_out_instead_of_refusing(self):
         # It used to say "I won't guess which one — use the Command Center",
@@ -67,10 +89,17 @@ class InterpretCase(unittest.TestCase):
         self.assertNotIn("Command Center", out["say"])
 
     def test_approve_the_first_needs_no_identifier(self):
-        policy.request("ap-1", "a", "r", "c", True)
-        policy.request("ap-2", "b", "r", "c", True)
+        policy.request("ap-1", "a", "r", "c", True, capability="journal.append")
+        policy.request("ap-2", "b", "r", "c", True, capability="journal.append")
         self.assertEqual(voice.interpret("Thea, approve the first")["command"],
                          {"kind": "approve", "id": "ap-1"})
+
+    def test_naming_a_high_risk_approval_by_position_is_refused_too(self):
+        policy.request("ap-1", "a", "r", "c", True, capability="journal.append")
+        policy.request("ap-2", "send", "r", "c", False, capability="email.send")
+        out = voice.interpret("Thea, approve the second")
+        self.assertIsNone(out["command"])
+        self.assertIn("won't approve that one by voice", out["say"])
 
     def test_new_task_by_voice(self):
         out = voice.interpret("Thea, add a task to water the plants")

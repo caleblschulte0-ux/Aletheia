@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import re
 
-from aletheia import policy, tasks
+from aletheia import capabilities, policy, tasks
 
 WAKE_WORDS = ("thea", "theia", "tia", "althea", "aletheia")
 
@@ -362,10 +362,10 @@ def interpret(transcript: str) -> dict:
         if not pending:
             return {"command": None, "say": "Nothing is waiting for approval."}
         if len(pending) == 1:
-            return {"command": {"kind": "approve", "id": pending[0]["id"]}, "say": None}
+            return _approve_by_voice(pending[0])
         chosen = _pick_approval(pending, m.group("ord"), m.group("what"))
         if chosen is not None:
-            return {"command": {"kind": "approve", "id": chosen["id"]}, "say": None}
+            return _approve_by_voice(chosen)
         # More than one is now the ORDINARY case — an intent, a mail draft
         # and a meeting can all be waiting at once. Refusing to guess is
         # right; sending him to a browser is not. Read them out so he can
@@ -429,6 +429,50 @@ def approval_label(approval: dict) -> str:
     if capability == "agent.delegate" or action.startswith("delegate"):
         return "the work order"
     return speech.tidy(speech.strip_ids(action))[:60] or "the pending one"
+
+
+# The room microphone is an INPUT device, not an authentication device
+# (found by a security review, 2026-09-03). This module already refused to
+# widen standing authority by voice — a television, a guest or a passing
+# sentence could say it — and then, forty lines later, accepted "approve"
+# for whatever happened to be pending. If the pending item was an email
+# send or a live errand, the microphone WAS the authorization device.
+#
+# Voice keeps everything that is safe to say out loud: asking, planning,
+# drafting, reading, and above all HALT. What it may no longer do is
+# authorize an action the registry calls high-risk or operator_always —
+# spending, sending, binding agreements, disclosures, destructive changes
+# (§56 L4). Those want a decision from him at a keyboard or a trusted
+# device, which is the same standard `standing` already applies.
+VOICE_MAY_NOT_APPROVE = "high"
+
+
+def approvable_by_voice(approval: dict) -> tuple[bool, str]:
+    """(may voice decide this, why not). Unknown capability fails CLOSED:
+    an approval whose risk cannot be read is not one to take off the air."""
+    capability = (approval or {}).get("capability")
+    if not capability:
+        return False, ("it does not name the capability it authorizes, so I "
+                       "cannot tell how risky it is")
+    try:
+        entry = capabilities.get(capability)
+    except Exception:
+        return False, f"I cannot read the risk of {capability} right now"
+    if entry.get("approval_policy") == "operator_always":
+        return False, f"{capability} always needs you, not the room"
+    if entry.get("risk_class") == VOICE_MAY_NOT_APPROVE:
+        return False, f"{capability} is high-risk"
+    return True, ""
+
+
+def _approve_by_voice(approval: dict):
+    ok, why = approvable_by_voice(approval)
+    if ok:
+        return {"command": {"kind": "approve", "id": approval["id"]}, "say": None}
+    return {"command": None,
+            "say": (f"I won't approve that one by voice — {why}. Anything in "
+                    f"the room could say it. Decide it at the keyboard: "
+                    f"python -m aletheia.policy decide {approval['id']} APPROVED")}
 
 
 def _pick_approval(pending: list[dict], ordinal: str | None,

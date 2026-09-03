@@ -25,7 +25,21 @@ of {site, kind, steps, ceiling}. Change a selector, a URL, or a price cap
 after he says yes and the hash no longer matches — refused, never
 adapted. Same binding ratified for computer control, email, and intents.
 
-**Money has a ceiling, checked twice.** An errand that spends declares a
+**Money has a ceiling — and as of 2026-09-03 a spending errand does not
+run at all.** A security review found that the ceiling was compared with the
+largest figure on the page BEFORE the step sequence, and then the entire
+sequence, final "Place order" click included, ran without re-reading the
+total. A $40 cart that becomes $75 at checkout (shipping, tax, a tip
+default) passed the check and then spent $75. The docstring below claimed
+the ceiling was "checked twice"; the second check was a §143 BOUNDARY check
+on the after-text, not a money check, so the claim was false. purchase.execute
+and the other spending kinds had never run live, so nothing was lost — and
+they are refused here until the two-phase checkout verifier exists: execute up
+to the committing step, re-read merchant/items/shipping/tax/total, compare the
+EXACT transaction against the authorization, and only then click. Ticket:
+capability `purchase.execute` notes.
+
+**The original design intent, for when that verifier lands.** An errand that spends declares a
 maximum, and the observed total is checked against it AFTER the page
 shows a number. A page that turns out to cost more than authorized is
 abandoned mid-errand, not completed and apologized for.
@@ -54,7 +68,7 @@ import re
 import sys
 from decimal import Decimal, InvalidOperation
 
-from aletheia import journal, policy, stateio
+from aletheia import browse, journal, policy, stateio
 
 ACTOR = "aletheia-errand"
 
@@ -196,8 +210,13 @@ def propose(errand_id: str, *, site: str, kind: str, steps: list[dict],
     spend = (f"; up to {currency} {ceiling}" if ceiling is not None else "")
     policy.request(
         approval_id,
-        requested_action=f"{kind} on {site} ({len(steps)} step(s)){spend}",
-        reason=why or f"errand {errand_id}",
+        # Bound to the exact page and step list, so browse.interact can verify
+        # it itself rather than trusting this caller to have checked (the
+        # 2026-09-03 confused-deputy finding). The human sentence moves to
+        # `reason`, which is what the approval UI reads out anyway.
+        requested_action=browse.approval_action(site, steps),
+        reason=(f"{kind} on {site} ({len(steps)} step(s)){spend}"
+                + (f" — {why}" if why else f" — errand {errand_id}")),
         consequence=("money leaves your account" if kind in SPENDING_KINDS
                      else "this changes something on someone else's system"),
         reversible=False, capability="errand.run")
@@ -281,6 +300,15 @@ def run(errand_id: str, *, reader=None, interact=None) -> dict:
                        detail=hit[1],
                        remaining=f"open {record['site']} and finish it yourself")
 
+    if record["kind"] in SPENDING_KINDS:
+        # Refused at the last possible moment as well as at proposal time:
+        # a record proposed before this guard existed must not run either.
+        return _finish(record, AT_BOUNDARY, boundary="spending-verifier",
+                       detail=("a spending errand cannot run until the final "
+                               "total is re-read and compared immediately "
+                               "before the irreversible click; the pre-flight "
+                               "check alone cannot see checkout-time shipping, "
+                               "tax or tips"))
     if record.get("ceiling") is not None:
         seen = observed_total(text)
         if seen is not None and seen > _money(record["ceiling"]):

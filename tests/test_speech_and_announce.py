@@ -78,6 +78,10 @@ class SpeechCase(unittest.TestCase):
         self.assertEqual(speech.count_phrase(2, "thing"), "2 things")
 
 
+# Every one of these is high-risk on purpose: since 2026-09-03 voice may
+# pick them out but may not DECIDE them (the room microphone is an input
+# device, not an authentication device). `note-plants` is the low-risk one
+# that voice may still approve.
 APPROVALS = [
     {"id": "intent-0a06bbb663", "state": "PENDING", "capability": "intent.execute",
      "requested_action": "run 3 steps"},
@@ -86,6 +90,9 @@ APPROVALS = [
     {"id": "book-meet-dana", "state": "PENDING", "capability": "calendar.write",
      "requested_action": "calendar.write:abc"},
 ]
+LOW_RISK = {"id": "note-plants", "state": "PENDING", "capability": "journal.append",
+            "requested_action": "note: water the plants",
+            "reason": "note about the plants"}
 
 
 class ApprovalByVoiceCase(unittest.TestCase):
@@ -94,8 +101,13 @@ class ApprovalByVoiceCase(unittest.TestCase):
             return voice.interpret(f"thea {phrase}")
 
     def test_one_pending_still_needs_no_name(self):
-        out = self.approve("approve", APPROVALS[:1])
-        self.assertEqual(out["command"], {"kind": "approve", "id": "intent-0a06bbb663"})
+        out = self.approve("approve", [LOW_RISK])
+        self.assertEqual(out["command"], {"kind": "approve", "id": "note-plants"})
+
+    def test_one_pending_high_risk_thing_is_refused_by_voice(self):
+        out = self.approve("approve", APPROVALS[1:2])
+        self.assertIsNone(out["command"])
+        self.assertIn("email.send", out["say"])
 
     def test_nothing_pending_says_so(self):
         self.assertIn("Nothing is waiting", self.approve("approve", [])["say"])
@@ -108,17 +120,24 @@ class ApprovalByVoiceCase(unittest.TestCase):
         # the old dead end sent him to a browser
         self.assertNotIn("Command Center", said)
 
-    def test_he_can_pick_by_position(self):
-        self.assertEqual(self.approve("approve the first")["command"]["id"],
-                         "intent-0a06bbb663")
-        self.assertEqual(self.approve("approve the last")["command"]["id"],
-                         "book-meet-dana")
+    def test_he_can_pick_by_position_and_the_pick_is_still_gated(self):
+        # The picking logic must keep working — it is how he says WHICH —
+        # and the risk guard must then refuse the one it picked.
+        first = self.approve("approve the first")
+        self.assertIsNone(first["command"])
+        self.assertIn("intent.execute", first["say"])
+        last = self.approve("approve the last")
+        self.assertIn("calendar.write", last["say"])
 
-    def test_he_can_pick_by_name(self):
-        self.assertEqual(self.approve("approve the email")["command"]["id"],
-                         "mail-a1e1957d0f")
-        self.assertEqual(self.approve("approve the calendar booking")["command"]["id"],
-                         "book-meet-dana")
+    def test_he_can_pick_by_name_and_the_pick_is_still_gated(self):
+        out = self.approve("approve the email")
+        self.assertIsNone(out["command"])
+        self.assertIn("email.send", out["say"])
+        self.assertIn("mail-a1e1957d0f", out["say"], "it names the one it picked")
+
+    def test_picking_a_low_risk_one_out_of_several_still_approves(self):
+        out = self.approve("approve the plants", APPROVALS + [LOW_RISK])
+        self.assertEqual(out["command"], {"kind": "approve", "id": "note-plants"})
 
     def test_an_ambiguous_name_asks_again_rather_than_guessing(self):
         out = self.approve("approve the thing")
