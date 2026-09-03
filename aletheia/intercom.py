@@ -96,6 +96,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "notify_operator": ({"text"}, {"priority"}),
     "notify_check":    (set(), set()),
     "notify_clear":    (set(), set()),
+    "announce_set":    ({"on"}, {"quiet_from", "quiet_until"}),
     "free_time":       ({"day"}, {"tz", "minutes"}),
     "contact_add":     ({"name", "email"}, {"alias"}),
     # The slot for everything that is not a slot (2026-08-27). `text` is
@@ -148,6 +149,13 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # generated from KIND_ARGS and these together, so the model learns the
 # shape of a step list from the registry rather than from a guess.
 KIND_NOTES: dict[str, str] = {
+    "announce_set": (
+        'on is a boolean: true lets her SPEAK UP unasked in the room when '
+        'something urgent or important is waiting, false goes back to '
+        'answering only when asked. quiet_from/quiet_until are "HH:MM" local '
+        'times she stays silent between. Use it for "tell me when something '
+        'needs me", "stop talking to me unless I ask", "no announcements '
+        'after ten".'),
     "computer_do": (
         "steps is a JSON LIST of step objects, each one of: "
         '{"action":"open_app","app":"notepad.exe","arguments":[]} | '
@@ -197,7 +205,9 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email
                "meet", "recall", "handle", "travel_time", "shopping_add",
                "subscriptions", "money", "car", "projects", "authority_status", "setup_status",
                # the desktop and the sandbox are both on his PC
-               "computer_do", "do_task"}
+               "computer_do", "do_task",
+               # the room that speaks, and the config it reads, are on the PC
+               "announce_set"}
 
 
 # Kinds that only LOOK. Nothing here changes the world, sends anything, or
@@ -226,6 +236,9 @@ ROUTINE_KINDS = frozenset({
     "task_new", "task_status", "plan_new", "plan_add_step", "plan_step",
     "plan_set", "remind_at", "remind_daily", "notify_operator",
     "notify_clear", "remember", "contact_add", "shopping_add",
+    # reversible by saying the opposite, reaches nobody but him, and its
+    # own default is silence
+    "announce_set",
     "watch_email_from", "handle",
     # Writing a file in her own workspace is local and REVERSIBLE: every
     # write keeps the previous version, so an undo always exists. The
@@ -685,6 +698,16 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "authority_status":
         from aletheia import standing
         return standing.spoken()
+    if kind == "announce_set":
+        from aletheia import announce
+        on = cmd["on"]
+        if isinstance(on, str):
+            on = on.strip().lower() in ("true", "yes", "on", "1")
+        announce.set_enabled(bool(on), via="operator-via-intercom")
+        if cmd.get("quiet_from") and cmd.get("quiet_until"):
+            announce.set_quiet_hours(cmd["quiet_from"], cmd["quiet_until"],
+                                     via="operator-via-intercom")
+        return announce.spoken()
     if kind == "notify_clear":
         from aletheia import notifications
         unread = notifications.all_notifications(state="UNREAD")

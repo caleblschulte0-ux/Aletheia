@@ -42,6 +42,12 @@ CORE_URL = "http://127.0.0.1:8777"
 SAMPLE_RATE = 16_000
 VOICE_LOCK = Path.home() / ".aletheia" / "run" / "voice.lock"
 
+# How often the room checks whether it has anything to say first. Every
+# utterance would re-read the whole notification store for a question that
+# is almost always "nothing"; `announce` has its own per-hour cap, so this
+# is only about not doing the work, never about how often she speaks.
+ANNOUNCE_EVERY_S = 20.0
+
 AGC_TARGET_PEAK = 9000
 AGC_MAX_GAIN = 40
 AGC_FLOOR = 200
@@ -412,11 +418,17 @@ def _is_failure_line(text: str) -> bool:
 def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
                    max_utterances: int | None = None, on_heard=None,
                    monotonic=time.monotonic) -> int:
-    """Wake -> command, with no unsolicited speech and no indefinite follow-up.
+    """Wake -> command, and only the speaking he has asked for.
 
     A bare wake word opens an eight-second follow-up window. If that expires,
     ordinary room speech is ignored again. Identical failure lines are also
     throttled briefly as a final guard against a provider/error feedback loop.
+
+    It also says anything `announce` has pending before handling an utterance
+    (§144, speaking first) — which is OPT-IN and off by default: with
+    announcements disabled the store is not even read, so this line said
+    "no unsolicited speech" for as long as he leaves it that way, and says
+    what he turned on when he turns it on.
     """
     recognizer = recognizer if recognizer is not None else microphone_recognizer()
     speaker = speaker or speak
@@ -424,6 +436,7 @@ def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
     awaiting_since: float | None = None
     last_failure = ""
     last_failure_at = -1e9
+    last_announced = -1e9
     followup_threads: list[threading.Thread] = []
     say_lock = threading.Lock()
 
@@ -443,6 +456,31 @@ def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
 
     for wake_heard, text in recognizer:
         now = monotonic()
+        # SPEAKING FIRST (§144). The capability registry has claimed since it
+        # was written that this loop says pending lines before handling an
+        # utterance — and it did not: `announce` was imported by nothing but
+        # its own tests while an AVAILABLE entry named this function as its
+        # caller. Here is the caller.
+        #
+        # It is quiet by construction, not by hope: `announce.pending()`
+        # returns nothing unless the feature is enabled, refuses during a
+        # halt and during quiet hours, caps itself per hour, and never
+        # repeats a notice it has already said. A failure here must never
+        # cost him the room, so nothing raises out of it.
+        if now - last_announced >= ANNOUNCE_EVERY_S:
+            last_announced = now
+            try:
+                from aletheia import announce
+                announce.speak_pending(speaker=say)
+            except Exception as exc:
+                try:
+                    from aletheia import journal
+                    journal.append("event", "voice-room",
+                                   "could not speak pending lines "
+                                   f"({type(exc).__name__})",
+                                   actor="aletheia-voice-room")
+                except Exception:
+                    pass
         if on_heard:
             on_heard((wake_heard, text))
 

@@ -209,12 +209,68 @@ def speak_pending(speaker=None, *, config: dict | None = None,
     return said
 
 
+def set_enabled(on: bool, *, via: str = "operator-cli",
+                path: Path | None = None) -> dict:
+    """Turn speaking-first on or off, and say so in the journal.
+
+    Wiring `speak_pending` into the room was only half the fix: the feature
+    is off by default (correctly — she must not start talking at him
+    unasked) and until this existed there was NO WAY to turn it on short of
+    hand-writing `~/.aletheia/announce.json`. A capability with no
+    on-switch is not opt-in, it is unavailable with extra steps.
+    """
+    path = path or CONFIG_FILE
+    config = validate_config({**load_config(path), "enabled": bool(on)})
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+    journal.append("note", "announce",
+                   f"speaking first {'enabled' if on else 'disabled'}", actor=via)
+    return config
+
+
+def set_quiet_hours(start: str, until: str, *, via: str = "operator-cli",
+                    path: Path | None = None) -> dict:
+    """The window in which she stays silent however urgent it is."""
+    path = path or CONFIG_FILE
+    config = validate_config({**load_config(path), "quiet_from": start,
+                              "quiet_until": until})
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+    journal.append("note", "announce", f"quiet hours {start}-{until}", actor=via)
+    return config
+
+
+def spoken() -> str:
+    """One line for the room or the phone."""
+    config = load_config()
+    if not config["enabled"]:
+        return ("I don't speak up on my own. Say 'start telling me when "
+                "something needs me' if you want me to.")
+    waiting = len(pending(config))
+    quiet = " I'm in quiet hours right now." if in_quiet_hours(config) else ""
+    return (f"I speak up for {' and '.join(config['priorities']).lower()} things, "
+            f"quiet {config['quiet_from']} to {config['quiet_until']}, at most "
+            f"{config['max_per_hour']} an hour.{quiet} "
+            f"{waiting} waiting.")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="What Aletheia would say unprompted.")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("status")
     sub.add_parser("pending", help="the lines she would say now; says nothing")
+    sub.add_parser("on", help="let her speak up when something needs him")
+    sub.add_parser("off", help="back to answering only when asked")
+    quiet = sub.add_parser("quiet", help="set the hours she stays silent")
+    quiet.add_argument("start")
+    quiet.add_argument("until")
     args = ap.parse_args(argv)
+    if args.cmd in ("on", "off"):
+        print(json.dumps(set_enabled(args.cmd == "on"), indent=2))
+        return 0
+    if args.cmd == "quiet":
+        print(json.dumps(set_quiet_hours(args.start, args.until), indent=2))
+        return 0
     config = load_config()
     if args.cmd == "status":
         print(json.dumps({"config": config,

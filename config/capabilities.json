@@ -1,5 +1,5 @@
 {
-  "revision": 53,
+  "revision": 54,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1030,9 +1030,9 @@
       "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "operator_once",
-      "caller": "aletheia.voice_room.listen_forever speaks pending lines before handling an utterance; python -m aletheia.announce pending",
+      "caller": "aletheia.voice_room.listen_forever speaks pending lines before handling an utterance (throttled to one check every 20s); turned on and off by intercom kind 'announce_set' (so by voice and from the phone) or python -m aletheia.announce on|off|quiet",
       "module": "aletheia.announce",
-      "notes": "Every speaker() call used to sit inside answer-a-question, so a booked meeting or an errand stopped at a bank's verification step waited silently until he thought to ask. Only URGENT and IMPORTANT notices are ever spoken, at most a few an hour, never the same one twice, never while halted, and never in quiet hours - a machine that wakes someone at 3am to report a red CI job has done more harm than the red job. It can only re-say what is already in the notification store, so anything spoken is findable afterwards (§30)."
+      "notes": "Every speaker() call used to sit inside answer-a-question, so a booked meeting or an errand stopped at a bank's verification step waited silently until he thought to ask. Only URGENT and IMPORTANT notices are ever spoken, at most a few an hour, never the same one twice, never while halted, and never in quiet hours - a machine that wakes someone at 3am to report a red CI job has done more harm than the red job. It can only re-say what is already in the notification store, so anything spoken is findable afterwards (§30). 2026-09-03: this entry was a LIE and is now true. It named voice_room.listen_forever as its caller from the day it was written, and that function did not mention announce at all - the module was imported by nothing but its own tests. Wired now, and still silent by default: DEFAULT_CONFIG['enabled'] is False and a disabled config does not even read the notification store. It also had no ON-SWITCH: enabling it meant hand-writing ~/.aletheia/announce.json, which is not opt-in, it is unavailable with extra steps. He can now say 'tell me when something needs me' and 'no announcements after ten'."
     },
     {
       "id": "intent.execute.routine",
