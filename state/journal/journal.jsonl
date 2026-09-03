@@ -1013,3 +1013,6 @@
 {"ts": "2026-09-03T21:31:25Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume.md (396 bytes)"}
 {"ts": "2026-09-03T21:31:31Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:write", "text": "wrote summary.md (495 chars) — A three-bullet summary of his resume, plain language [new file]"}
 {"ts": "2026-09-03T21:31:31Z", "kind": "action", "actor": "aletheia-compose", "subject": "compose", "text": "wrote /tmp/tmpvwwla96w/ws/summary.md from 1 source(s) via claude.cli:haiku"}
+{"ts": "2026-09-03T21:35:30Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:remove", "text": "removed summary.md [kept: .versions/summary-20260903T213530Z.md]"}
+{"ts": "2026-09-03T21:35:30Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:write", "text": "wrote summary.md (13 chars) — restored summary-20260903T213530Z.md [new file]"}
+{"ts": "2026-09-03T21:35:30Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:move", "text": "moved a.md -> b.md"}

@@ -76,6 +76,10 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "file_edit":     ({"path", "find", "replace"}, {"why"}),
     "file_read":     ({"path"}, {"anywhere"}),
     "file_list":     (set(), {"subdir"}),
+    # Ordinary file operations she did not have a verb for. Both keep a
+    # version first, so both are reversible with `workspace restore`.
+    "file_delete":   ({"path"}, {"why"}),
+    "file_move":     ({"path", "to"}, {"why"}),
     # eyes on the desktop, never hands: mutation keeps its own approval
     "computer_observe": (set(), {"window"}),
     # video and audio: the source is never touched, output lands in the workspace
@@ -209,6 +213,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email
                "research",
                # the workspace is a directory on his PC; Actions cannot see it
                "file_write", "file_edit", "file_read", "file_list", "compose",
+               "file_delete", "file_move",
                "computer_observe",
                # ffmpeg and his media files live on the PC
                "media_probe", "media_trim", "media_join", "media_audio",
@@ -263,6 +268,9 @@ ROUTINE_KINDS = frozenset({
     # Composing is a file_write whose text she writes instead of pastes:
     # same directory, same version history, same undo. Nothing wider.
     "compose",
+    # Deleting and moving keep a version FIRST, so both are undoable. A
+    # delete that cannot lose anything is a shelf, not a shredder.
+    "file_delete", "file_move",
     # Media edits always write a NEW file and never touch the source, so
     # the worst case is a spare file in her workspace.
     "media_trim", "media_join", "media_audio", "media_captions",
@@ -587,6 +595,18 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return (f"did {result['steps_done']} desktop step(s) [{did}] — run {result['run_id']}"
                 + (f" — {cmd['why'][:120]}" if cmd.get("why") else ""))
 
+    if kind == "file_delete":
+        from aletheia import workspace
+        out = workspace.remove(cmd["path"], why=cmd.get("why", ""))
+        return (f"deleted {cmd['path']}"
+                + (f" — the previous version is kept as {out['kept']}"
+                   if out.get("kept") else ""))
+    if kind == "file_move":
+        from aletheia import workspace
+        out = workspace.move(cmd["path"], cmd["to"], why=cmd.get("why", ""))
+        return (f"moved {cmd['path']} to {cmd['to']}"
+                + (" — what was there is kept in the version history"
+                   if out.get("replaced") else ""))
     if kind in ("file_write", "file_edit", "file_read", "file_list"):
         from aletheia import workspace
         if kind == "file_write":

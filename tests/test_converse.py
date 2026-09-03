@@ -581,10 +581,13 @@ class ThePlannerKnowsAnsweringIsAnOption(ConverseCase):
         self.assertIn("never for a question", flat.lower())
 
     def test_research_is_still_the_route_for_current_information(self):
-        """"Look into X" must not collapse into an offline opinion."""
+        """A question about the state of the world today must not collapse
+        into an offline opinion — and the rule is about the ANSWER, not the
+        phrasing, so it does not have to say "look into"."""
         from aletheia import planner
         flat = " ".join(planner.PROMPT_HEADER.split())
-        self.assertIn("research kind", flat)
+        self.assertIn("RESEARCH kind", flat)
+        self.assertIn("changes with the day", flat)
 
     def test_the_intent_it_names_is_one_the_validator_accepts(self):
         from aletheia import brain

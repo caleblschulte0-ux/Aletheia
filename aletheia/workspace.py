@@ -271,6 +271,54 @@ def edit(path: str, find: str, replace: str, *, count: int = 1,
     return result
 
 
+def remove(path: str, *, why: str = "") -> dict:
+    """Delete a file — after keeping a copy of it.
+
+    "Delete summary.md" had no verb at all: `file_write`, `file_edit`,
+    `file_read` and `file_list` were the whole vocabulary, so the planner
+    fell through to the script sandbox to do an ordinary file operation.
+
+    Deletion here is the same promise as overwriting: the previous version
+    goes to `.versions/` FIRST, so `versions()` still lists it and
+    `restore()` still brings it back. She cannot destroy his work, only
+    take it off the shelf — which is what makes this routine rather than a
+    thing that needs an approval every time.
+    """
+    policy.ensure_not_halted()
+    target = resolve(path)
+    if not target.is_file():
+        raise WorkspaceError(f"{path} is not a file in the workspace")
+    kept = _keep_previous(target)
+    target.unlink()
+    journal.append("action", "workspace:remove",
+                   f"removed {target.name}" + (f" — {why[:120]}" if why else "")
+                   + (f" [kept: {kept}]" if kept else ""), actor=ACTOR)
+    return {"path": str(target), "kept": kept, "removed": True}
+
+
+def move(path: str, to: str, *, why: str = "") -> dict:
+    """Rename or move a file inside the workspace, keeping what it lands on."""
+    policy.ensure_not_halted()
+    source = resolve(path)
+    target = resolve(to)
+    if not source.is_file():
+        raise WorkspaceError(f"{path} is not a file in the workspace")
+    if source == target:
+        raise WorkspaceError("that is already where it is")
+    _text_ok(target)
+    # Landing on an existing file is an overwrite, and an overwrite keeps
+    # the previous version — the same rule as `write`, for the same reason.
+    kept = _keep_previous(target)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    source.replace(target)
+    journal.append("action", "workspace:move",
+                   f"moved {source.name} -> {target.name}"
+                   + (f" — {why[:120]}" if why else "")
+                   + (f" [replaced, previous kept: {kept}]" if kept else ""),
+                   actor=ACTOR)
+    return {"from": str(source), "path": str(target), "replaced": kept}
+
+
 def listing(subdir: str = "") -> list[dict]:
     base = root()
     start = resolve(subdir) if subdir else base

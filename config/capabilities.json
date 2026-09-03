@@ -1,5 +1,5 @@
 {
-  "revision": 62,
+  "revision": 63,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1248,7 +1248,7 @@
       "approval_policy": "none",
       "caller": "intercom kinds file_write/file_edit/file_read/file_list (LOCAL - the workspace is a directory on his PC), reachable from an agenda; python -m aletheia.workspace",
       "module": "aletheia.workspace",
-      "notes": "One root (~/Documents/Aletheia by default; ALETHEIA_WORKSPACE overrides), every path RESOLVED before it is checked so `../` and symlinks out of the workspace fail the same test, absolute paths refused, a root that resolves to his home/Desktop/Documents refused as 'everything under it', and - found live 2026-09-02 - a root that is a source repository refused: the old default (~/Aletheia) WAS this repository's checkout, so the first write was refused as 'the workspace already holds 2000 files' and anything she wrote would have blocked the Core's sync as a person's uncommitted work. Every overwrite keeps the previous version in .versions/; reading is deliberately wider than writing; text formats only.",
+      "notes": "One root (~/Documents/Aletheia by default; ALETHEIA_WORKSPACE overrides), every path RESOLVED before it is checked so `../` and symlinks out of the workspace fail the same test, absolute paths refused, a root that resolves to his home/Desktop/Documents refused as 'everything under it', and - found live 2026-09-02 - a root that is a source repository refused: the old default (~/Aletheia) WAS this repository's checkout, so the first write was refused as 'the workspace already holds 2000 files' and anything she wrote would have blocked the Core's sync as a person's uncommitted work. Every overwrite keeps the previous version in .versions/; reading is deliberately wider than writing; text formats only. 2026-09-03: DELETE and MOVE exist now. 'Delete summary.md' had no matching kind at all - file_write/file_edit/file_read/file_list was the whole vocabulary - so the planner claimed file.author was missing (refused: the registry said otherwise) and fell through to the SCRIPT SANDBOX to do an ordinary file operation. Both new verbs keep a version FIRST, so both are undoable with restore: a delete that cannot lose anything is a shelf, not a shredder, which is what makes them routine rather than approval-gated. Moving onto an existing file keeps what was there, the same rule as write.",
       "verification": "Live 2026-09-02: write, list and read against the real workspace on the operator's PC (test.md, hands-plan.json, clips/). tests/test_workspace.py: 21 tests on the boundary; tests/test_hands_and_do_task.py: the repository and any git checkout refused as a root."
     },
     {
