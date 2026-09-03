@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#08090c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Thea">
+<link rel="manifest" href="/interface/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/interface/icon.svg">
+<title>Everything · Thea</title>
+<style>
+/* EVERYTHING IN ONE SPOT — the page behind the front door.
+   This is the sitting-down moment: what needs a decision, what she is
+   working on, what she has been doing. The front door (phone.html) owns
+   talking; this page owns looking, and the two never duplicate each other. */
+:root{
+  --bg:#08090c; --raised:#11141a; --line:#1d222c; --line-2:#2a313d;
+  --ink:#f2f5f9; --dim:#8d97a6; --faint:#5b6472;
+  --accent:#7cc6ff; --ok:#5fd39a; --warn:#f2c14e; --bad:#ff6f6f;
+  --r:18px;
+  --safe-t:env(safe-area-inset-top,0px);
+  --safe-b:env(safe-area-inset-bottom,0px);
+  color-scheme:dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{
+  font:400 16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,system-ui,sans-serif;
+  min-height:100dvh;overscroll-behavior-y:none;
+  padding:calc(var(--safe-t) + 12px) 16px calc(var(--safe-b) + 78px);
+  max-width:620px;margin:0 auto;
+}
+button{border:0;background:none;cursor:pointer;font:inherit;color:inherit}
+
+.top{display:flex;align-items:center;gap:12px;margin:0 0 22px}
+.back{
+  display:flex;align-items:center;gap:6px;padding:9px 14px 9px 11px;
+  border-radius:99px;border:1px solid var(--line);font-size:14px;color:var(--dim);
+}
+.back:active{background:var(--raised)}
+.top h1{margin:0;font-size:17px;font-weight:650;letter-spacing:-.01em;flex:1;text-align:center}
+.refresh{width:40px;height:40px;border-radius:50%;color:var(--dim);
+  display:grid;place-items:center;font-size:17px}
+.refresh:active{background:var(--raised)}
+.refresh.spin{animation:spin .7s linear}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.status{
+  display:flex;align-items:center;gap:10px;background:var(--raised);
+  border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;margin-bottom:24px;
+}
+.orb{width:11px;height:11px;border-radius:50%;background:var(--faint);flex:none}
+.orb.live{background:var(--ok)}
+.orb.halted{background:var(--bad)}
+.status span{font-size:15px;color:var(--dim)}
+
+section{margin-bottom:26px}
+section[hidden]{display:none!important}
+h2{margin:0 0 11px;font-size:12px;font-weight:600;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--faint)}
+.card{background:var(--raised);border:1px solid var(--line);
+  border-radius:var(--r);padding:16px;margin-bottom:10px}
+.card.attention{border-color:#4a3d18;background:#171308}
+.card p{margin:0 0 4px;font-size:16px;line-height:1.4}
+.card .why{margin:0;font-size:13.5px;color:var(--dim);line-height:1.45}
+.card .when{margin:8px 0 0;font-size:12px;color:var(--faint)}
+
+.choices{display:flex;gap:10px;margin-top:14px}
+.choices button{flex:1;min-height:50px;border-radius:13px;font-weight:600;font-size:15px}
+.yes{background:var(--ink);color:#0a0c10}
+.yes:active{background:#c9d3e0}
+.no{background:transparent;border:1px solid var(--line-2);color:var(--dim)}
+.no:active{background:#191d25}
+
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{background:var(--raised);border:1px solid var(--line);
+  border-radius:var(--r);padding:15px 16px}
+.tile b{display:block;font-size:27px;font-weight:700;letter-spacing:-.02em}
+.tile span{font-size:12.5px;color:var(--dim)}
+
+.bar{height:5px;border-radius:99px;background:#1b202a;overflow:hidden;margin-top:12px}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:99px}
+
+.line{display:flex;gap:11px;align-items:baseline;padding:13px 0;border-top:1px solid var(--line)}
+.line:first-child{border-top:0;padding-top:2px}
+.line em{font-style:normal;color:var(--faint);font-size:12px;flex:none}
+.line span{flex:1;font-size:14.5px;color:var(--dim)}
+
+.quiet{color:var(--faint);font-size:14.5px;text-align:center;padding:28px 0 12px}
+
+.foot{position:fixed;left:0;right:0;bottom:0;z-index:5;
+  padding:12px 16px calc(var(--safe-b) + 12px);
+  background:linear-gradient(transparent,var(--bg) 40%)}
+.foot-in{max-width:620px;margin:0 auto;display:flex;gap:14px;justify-content:center;
+  font-size:13px;color:var(--faint)}
+.foot button{color:var(--faint);padding:8px 10px}
+.foot button:active{color:var(--dim)}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(var(--safe-b) + 76px);z-index:20;
+  background:#e9eef5;color:#0a0c10;font-size:14px;font-weight:600;
+  padding:11px 18px;border-radius:99px;box-shadow:0 8px 28px rgba(0,0,0,.45);
+  opacity:0;pointer-events:none;transition:opacity .18s}
+.toast.show{opacity:1}
+.err{color:var(--bad);font-size:14px;text-align:center;padding:18px 0}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <a class="back" href="/interface/phone.html">&#8592; Talk</a>
+  <h1>Everything</h1>
+  <button id="refresh" class="refresh" aria-label="Refresh">&#8635;</button>
+</div>
+
+<div class="status">
+  <span id="orb" class="orb"></span>
+  <span id="state">connecting…</span>
+</div>
+
+<div id="problem" class="err" hidden></div>
+
+<section id="needsSec" hidden>
+  <h2>Needs you</h2>
+  <div id="needs"></div>
+</section>
+
+<section id="workSec" hidden>
+  <h2>Working on</h2>
+  <div id="work"></div>
+</section>
+
+<section id="glanceSec" hidden>
+  <h2>At a glance</h2>
+  <div class="tiles" id="tiles"></div>
+</section>
+
+<section id="recentSec" hidden>
+  <h2>Lately</h2>
+  <div class="card" id="recent"></div>
+</section>
+
+<div id="allQuiet" class="quiet" hidden>Nothing needs you.</div>
+
+<div class="foot"><div class="foot-in">
+  <button id="haltBtn">Halt everything</button>
+  <button id="tokenBtn">Access</button>
+</div></div>
+
+<div id="toast" class="toast"></div>
+<script src="/interface/thea.js"></script>
+<script src="/interface/console.js"></script>
+</body>
+</html>

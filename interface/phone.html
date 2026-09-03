@@ -11,205 +11,129 @@
 <link rel="apple-touch-icon" href="/interface/icon.svg">
 <title>Thea</title>
 <style>
-/* One screen, one thumb.
-   The old mobile page was a five-tab dashboard with a "paste JSON
-   arguments" box — a developer tool that happened to be narrow. What a
-   phone is for is different: know she is alive, clear what needs me, say
-   the thing, put the phone away. So there are no tabs, the ask bar is
-   pinned under the thumb, and everything that needs no attention renders
-   as nothing at all. */
+/* THE FRONT DOOR. One thing on it: talk to her.
+   Everything else — approvals, tasks, the fleet, what she has been doing —
+   lives one tap away on console.html. The reason for the split is that
+   those are different moments: this is "I am walking and I want to say a
+   thing", and that is "I am sitting down and want to see everything". A
+   page that serves both serves neither. */
 :root{
-  --bg:#08090c; --raised:#11141a; --line:#1d222c; --line-2:#2a313d;
-  --ink:#f2f5f9; --dim:#8d97a6; --faint:#5b6472;
-  --accent:#7cc6ff; --ok:#5fd39a; --warn:#f2c14e; --bad:#ff6f6f;
-  --r:18px;
+  --bg:#08090c; --ink:#f2f5f9; --dim:#8d97a6; --faint:#525b69;
+  --accent:#7cc6ff; --ok:#5fd39a; --bad:#ff6f6f; --warn:#f2c14e;
   --safe-t:env(safe-area-inset-top,0px);
   --safe-b:env(safe-area-inset-bottom,0px);
   color-scheme:dark;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;background:var(--bg);color:var(--ink)}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink)}
 body{
-  font:400 16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,system-ui,sans-serif;
-  min-height:100dvh; overscroll-behavior-y:none;
-  padding:calc(var(--safe-t) + 14px) 16px calc(var(--safe-b) + 168px);
-  max-width:620px; margin:0 auto;
+  font:400 17px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,system-ui,sans-serif;
+  display:flex;flex-direction:column;
+  min-height:100dvh; overscroll-behavior:none;
+  padding:calc(var(--safe-t) + 10px) 22px calc(var(--safe-b) + 18px);
 }
 button,input{font:inherit;color:inherit}
-button{cursor:pointer;border:0;background:none}
+button{border:0;background:none;cursor:pointer}
 
-/* ---- her state: the one line you check at a glance ------------------ */
-.top{display:flex;align-items:center;gap:12px;margin:2px 0 22px}
-.orb{
-  width:13px;height:13px;border-radius:50%;flex:none;
-  background:var(--faint); box-shadow:0 0 0 0 transparent;
-}
-.orb.live{background:var(--ok);animation:breathe 3.4s ease-in-out infinite}
+/* ---- a thin top rail: her state, and the way through ---------------- */
+.rail{display:flex;align-items:center;gap:9px;flex:none;min-height:38px}
+.orb{width:9px;height:9px;border-radius:50%;background:var(--faint);flex:none}
+.orb.live{background:var(--ok)}
 .orb.halted{background:var(--bad)}
-.orb.cold{background:var(--faint)}
-@keyframes breathe{
-  0%,100%{box-shadow:0 0 0 0 rgba(95,211,154,.45)}
-  50%{box-shadow:0 0 0 7px rgba(95,211,154,0)}
+.rail .state{font-size:13px;color:var(--faint);flex:1;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.more{
+  display:flex;align-items:center;gap:7px;padding:8px 13px;border-radius:99px;
+  font-size:13px;color:var(--dim);border:1px solid #1d222c;
 }
-@media (prefers-reduced-motion:reduce){.orb.live{animation:none}}
-.top h1{margin:0;font-size:26px;font-weight:700;letter-spacing:-.02em;flex:1}
-.state{font-size:13px;color:var(--dim);margin-top:1px}
-.refresh{
-  width:40px;height:40px;border-radius:50%;color:var(--dim);
-  display:grid;place-items:center;font-size:17px;
+.more:active{background:#11141a}
+.more.needs{border-color:#5a4a1c;color:var(--warn)}
+.badge{
+  min-width:19px;height:19px;padding:0 5px;border-radius:99px;
+  background:var(--warn);color:#100c02;font-size:11.5px;font-weight:800;
+  display:none;place-items:center;
 }
-.refresh:active{background:var(--raised)}
-.refresh.spin{animation:spin .7s linear}
+.more.needs .badge{display:grid}
+
+/* ---- the middle: her answer, and the one button --------------------- */
+main{
+  flex:1;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:34px;text-align:center;padding:8px 0;
+}
+#answer{
+  font-size:21px;line-height:1.45;color:var(--ink);
+  max-width:22ch;margin:0;min-height:1.45em;
+  overflow-y:auto;max-height:38vh;
+}
+#answer.idle{color:var(--faint);font-size:19px}
+#answer.err{color:var(--bad);font-size:17px}
+
+.talk{
+  width:152px;height:152px;border-radius:50%;flex:none;
+  display:grid;place-items:center;position:relative;
+  background:radial-gradient(circle at 50% 38%,#1b2husb 0,#141922 60%,#10141b 100%);
+  background:radial-gradient(circle at 50% 38%,#1d2430 0,#141922 62%,#10141b 100%);
+  border:1px solid #262e3a;
+  box-shadow:0 12px 40px rgba(0,0,0,.5);
+  transition:transform .12s;
+}
+.talk:active{transform:scale(.96)}
+.talk .glyph{font-size:46px;line-height:1}
+.talk .cap{position:absolute;bottom:-30px;font-size:13px;color:var(--faint);white-space:nowrap}
+.talk.on{border-color:var(--bad);background:radial-gradient(circle at 50% 38%,#3a1c22 0,#20141a 70%)}
+.talk.on::after{
+  content:"";position:absolute;inset:-10px;border-radius:50%;
+  border:2px solid var(--bad);opacity:.55;animation:ring 1.35s ease-out infinite;
+}
+.talk.thinking{border-color:var(--accent)}
+.talk.thinking::after{
+  content:"";position:absolute;inset:-10px;border-radius:50%;
+  border:2px solid var(--accent);border-top-color:transparent;
+  animation:spin 1s linear infinite;
+}
+@keyframes ring{to{transform:scale(1.22);opacity:0}}
 @keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){
+  .talk.on::after,.talk.thinking::after{animation:none}
+}
 
-/* ---- sections render as NOTHING when there is nothing --------------- */
-section{margin-bottom:26px}
-section[hidden]{display:none!important}
-h2{
-  margin:0 0 11px;font-size:12px;font-weight:600;letter-spacing:.09em;
-  text-transform:uppercase;color:var(--faint);
-}
-.card{
-  background:var(--raised);border:1px solid var(--line);
-  border-radius:var(--r);padding:16px;margin-bottom:10px;
-}
-.card.attention{border-color:#4a3d18;background:#171308}
-.card p{margin:0 0 4px;font-size:16px;line-height:1.4}
-.card .why{margin:0;font-size:13.5px;color:var(--dim);line-height:1.45}
-.card .when{margin:8px 0 0;font-size:12px;color:var(--faint)}
-
-/* Thumb-sized, and far enough apart that Deny is not a mis-tap of
-   Approve — the two buttons here whose confusion actually costs. */
-.choices{display:flex;gap:10px;margin-top:14px}
-.choices button{
-  flex:1;min-height:50px;border-radius:13px;font-weight:600;font-size:15px;
-}
-.yes{background:var(--ink);color:#0a0c10}
-.yes:active{background:#c9d3e0}
-.no{background:transparent;border:1px solid var(--line-2);color:var(--dim)}
-.no:active{background:#191d25}
-
-.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.tile{
-  background:var(--raised);border:1px solid var(--line);
-  border-radius:var(--r);padding:15px 16px;
-}
-.tile b{display:block;font-size:27px;font-weight:700;letter-spacing:-.02em}
-.tile span{font-size:12.5px;color:var(--dim)}
-
-.bar{height:5px;border-radius:99px;background:#1b202a;overflow:hidden;margin-top:12px}
-.bar i{display:block;height:100%;background:var(--accent);border-radius:99px}
-
-.line{
-  display:flex;gap:11px;align-items:baseline;padding:13px 0;
-  border-top:1px solid var(--line);
-}
-.line:first-child{border-top:0;padding-top:2px}
-.line em{font-style:normal;color:var(--faint);font-size:12px;flex:none}
-.line span{flex:1;font-size:14.5px;color:var(--dim)}
-
-.quiet{color:var(--faint);font-size:14px;padding:6px 0}
-
-/* ---- the ask bar: the reason the page exists ------------------------ */
-.dock{
-  position:fixed;left:0;right:0;bottom:0;z-index:9;
-  padding:14px 16px calc(var(--safe-b) + 14px);
-  background:linear-gradient(transparent,var(--bg) 34%);
-}
-.dock-in{max-width:620px;margin:0 auto}
-.said{
-  font-size:14.5px;line-height:1.45;color:var(--dim);
-  margin:0 2px 10px;max-height:6.4em;overflow-y:auto;
-}
-.said.err{color:var(--bad)}
-.ask{
-  display:flex;align-items:center;gap:9px;
-  background:var(--raised);border:1px solid var(--line-2);
-  border-radius:26px;padding:6px 6px 6px 18px;
-}
-.ask input{
-  flex:1;border:0;background:none;outline:none;min-width:0;
-  padding:12px 0;font-size:16px; /* 16px or iOS zooms on focus */
-}
-.ask input::placeholder{color:var(--faint)}
-.mic,.go{
-  width:44px;height:44px;border-radius:50%;flex:none;
-  display:grid;place-items:center;
-}
-.mic{background:#1c222c;color:var(--ink);font-size:18px}
-.mic.on{background:var(--bad);animation:pulse 1.2s ease-in-out infinite}
-.mic:disabled{opacity:.35}
-@keyframes pulse{50%{transform:scale(1.09)}}
-.go{background:var(--accent);color:#06121c;font-size:19px;font-weight:700}
-.go:disabled{opacity:.3}
-
-.toast{
-  position:fixed;left:50%;transform:translateX(-50%);
-  bottom:calc(var(--safe-b) + 148px);z-index:20;
-  background:#e9eef5;color:#0a0c10;font-size:14px;font-weight:600;
-  padding:11px 18px;border-radius:99px;box-shadow:0 8px 28px rgba(0,0,0,.45);
-  opacity:0;pointer-events:none;transition:opacity .18s;
-}
-.toast.show{opacity:1}
-
-.foot{
-  display:flex;gap:14px;justify-content:center;
-  font-size:12.5px;color:var(--faint);padding:4px 0 2px;
-}
-.foot button{color:var(--faint);padding:6px}
-.foot button:active{color:var(--dim)}
+/* ---- the bottom: typing, always available -------------------------- */
+.typed{flex:none;display:flex;align-items:center;gap:9px;
+  background:#11141a;border:1px solid #232a35;border-radius:26px;
+  padding:5px 5px 5px 18px;margin-top:20px}
+.typed input{flex:1;border:0;background:none;outline:none;min-width:0;
+  padding:12px 0;font-size:16px}      /* 16px or iOS zooms on focus */
+.typed input::placeholder{color:var(--faint)}
+.send{width:42px;height:42px;border-radius:50%;flex:none;display:grid;
+  place-items:center;background:var(--accent);color:#06121c;font-size:19px;font-weight:700}
+.send:disabled{opacity:.3}
 </style>
 </head>
 <body>
 
-<div class="top">
-  <div id="orb" class="orb cold"></div>
-  <div style="flex:1">
-    <h1>Thea</h1>
-    <div id="state" class="state">connecting…</div>
-  </div>
-  <button id="refresh" class="refresh" aria-label="Refresh">&#8635;</button>
+<div class="rail">
+  <span id="orb" class="orb"></span>
+  <span id="state" class="state">…</span>
+  <a id="more" class="more" href="/interface/console.html">
+    <span id="badge" class="badge">0</span>Everything
+  </a>
 </div>
 
-<!-- Nothing needing attention renders as nothing. A phone that always has
-     a red badge is a phone you stop looking at. -->
-<section id="needsSec" hidden>
-  <h2>Needs you</h2>
-  <div id="needs"></div>
-</section>
+<main>
+  <p id="answer" class="idle">Tap and talk.</p>
+  <button id="talk" class="talk" aria-label="Talk to Thea">
+    <span class="glyph" id="glyph">&#127908;</span>
+    <span class="cap" id="cap">hold nothing — just tap</span>
+  </button>
+</main>
 
-<section id="workSec" hidden>
-  <h2>Working on</h2>
-  <div id="work"></div>
-</section>
-
-<section id="glanceSec" hidden>
-  <h2>At a glance</h2>
-  <div class="tiles" id="tiles"></div>
-</section>
-
-<section id="recentSec" hidden>
-  <h2>Lately</h2>
-  <div class="card" id="recent"></div>
-</section>
-
-<div class="dock">
-  <div class="dock-in">
-    <div id="said" class="said"></div>
-    <div class="ask">
-      <input id="q" type="text" placeholder="Ask Thea…"
-             autocomplete="off" autocorrect="off" enterkeyhint="send">
-      <button id="mic" class="mic" aria-label="Speak">&#127908;</button>
-      <button id="go" class="go" aria-label="Send">&#8593;</button>
-    </div>
-    <div class="foot">
-      <button id="haltBtn">Halt everything</button>
-      <button id="tokenBtn">Access</button>
-    </div>
-  </div>
+<div class="typed">
+  <input id="q" type="text" placeholder="…or type it"
+         autocomplete="off" autocorrect="off" enterkeyhint="send">
+  <button id="send" class="send" aria-label="Send">&#8593;</button>
 </div>
 
-<div id="toast" class="toast"></div>
-<script src="/interface/phone.js"></script>
+<script src="/interface/thea.js"></script>
+<script src="/interface/talk.js"></script>
 </body>
 </html>
