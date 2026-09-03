@@ -301,6 +301,35 @@ def _steps_of(cmd: dict):
     return steps
 
 
+# Kinds the PLANNER is not shown and may not emit.
+#
+# Every one of them is reached by its own direct path in `aletheia.voice`,
+# BEFORE the planner is ever called: "stop everything" and "resume" match
+# their own regexes, and so do "approve" and "deny". So the planner does
+# not need them — and being able to emit them is pure downside, because a
+# compiler that turns English into command names can be led there by a
+# word that merely LOOKS like one.
+#
+# Found by running the sentence, 2026-09-03. "Summarize my resume into
+# three bullets and save it as summary.md" compiled to
+#
+#     [{"kind": "resume"}, {"kind": "file_write", ...}]
+#
+# — a step that LIFTS HER KILL SWITCH, marked EXECUTABLE and validating
+# clean, because the English noun "résumé" and the kind name `resume` are
+# the same six letters. The same door is open on `approve`: a sentence
+# containing "approve" could compile into granting an approval, which is
+# the self-authorization hole every other refusal in this system is built
+# to keep shut.
+#
+# This mirrors `agenda.FORBIDDEN_KINDS` on purpose. An agenda may not run
+# them; the planner may not even name them.
+PLANNER_FORBIDDEN = frozenset({
+    "halt", "resume",      # a kill switch a compiler can trip is decoration
+    "approve", "deny",     # self-authorization, from an ambiguous word
+})
+
+
 # Arguments whose value is a CLOSED SET, and the module that owns it.
 #
 # The grammar the planner is shown is generated from `KIND_ARGS`, which
@@ -328,6 +357,9 @@ KIND_ENUMS: dict[str, dict[str, object]] = {
     "remember": {"domain": _enum("aletheia.memory", "DOMAINS"),
                  "memory_kind": _enum("aletheia.memory", "KINDS")},
     "task_status": {"state": _enum("aletheia.contracts", "TASK_STATES")},
+    "rule": {"state": _enum("aletheia.suggestions", "VALID_STATES")},
+    "plan_set": {"state": _enum("aletheia.plans", "PLAN_STATES")},
+    "plan_step": {"state": _enum("aletheia.plans", "STEP_STATES")},
 }
 
 

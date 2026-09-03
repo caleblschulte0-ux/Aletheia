@@ -158,11 +158,34 @@ def interpret(transcript: str) -> dict:
     if not low:
         return {"command": None, "say": "I'm listening."}
 
-    if re.fullmatch(r"(halt|stop|stop everything|kill switch|emergency stop|"
-                    r"halt everything|shut it down)", low):
+    # THE KILL SWITCH HAS TO CATCH THE SENTENCE HE WOULD ACTUALLY SAY.
+    #
+    # This was a `fullmatch` against a short list, so "stop everything you're
+    # doing" — the natural phrasing, and longer than any entry — fell
+    # through to the planner and depended on a language model to compile it
+    # into `halt`. Depending on a compiler to reach an emergency stop is the
+    # wrong shape twice over: it is slow when it works, and as of today the
+    # planner is forbidden from emitting `halt` at all
+    # (intercom.PLANNER_FORBIDDEN), so it would not have worked.
+    #
+    # Phrases, not a bare "stop": searched anywhere in the sentence, and
+    # every one of them is unambiguous on its own. "Stop the music" does not
+    # contain any of them.
+    if (re.fullmatch(r"(halt|stop|kill switch|emergency stop|shut it down|"
+                     r"stand down)", low)
+            or re.search(r"\b(stop everything|halt everything|stop all of (it|this)|"
+                         r"stop what you.?re doing|stop everything you.?re doing|"
+                         r"kill switch|emergency stop|shut (it|everything) down|"
+                         r"stand down|drop everything)\b", low)):
         return {"command": {"kind": "halt", "reason": f"by voice: {transcript!r}"},
                 "say": None}
-    if re.fullmatch(r"(resume|start again|back on|carry on|un-?halt)", low):
+    # RESUME STAYS CONSERVATIVE, and deliberately so: the English noun
+    # "résumé" is the same six letters as the kind that lifts the kill
+    # switch. A `search` here would turn "read my resume" into un-halting
+    # her. Only whole sentences that can mean nothing else.
+    if re.fullmatch(r"(resume|resume everything|start again|back on|carry on|"
+                    r"un-?halt|you can (resume|start again|carry on)|"
+                    r"(go ahead and )?resume now)", low):
         return {"command": {"kind": "resume"}, "say": None}
 
     # Apostrophes optional: speech-to-text drops them far more often than it

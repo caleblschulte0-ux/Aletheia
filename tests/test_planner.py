@@ -224,8 +224,28 @@ class PromptCase(unittest.TestCase):
     def test_the_grammar_is_generated_from_the_intercom_not_restated(self):
         from aletheia import intercom
         brief = planner.grammar_brief()
-        for kind in intercom.KIND_ARGS:
+        for kind in set(intercom.KIND_ARGS) - intercom.PLANNER_FORBIDDEN:
             self.assertIn(kind, brief)
+
+    def test_the_kill_switch_is_not_in_the_grammar_at_all(self):
+        """A compiler that turns English into command names can be led to
+        one by a word that merely LOOKS like it: "summarize my resume"
+        compiled to [{"kind": "resume"}, ...] — a step that lifts her kill
+        switch, marked EXECUTABLE and validating clean, because the noun
+        and the kind are the same six letters. Every kind here is reached
+        by saying it directly, in aletheia.voice, before the planner is
+        ever called."""
+        brief = planner.grammar_brief()
+        for kind in ("halt", "resume", "approve", "deny"):
+            self.assertNotIn(f"  {kind}(", brief, kind)
+
+    def test_it_is_refused_even_if_the_model_names_it_anyway(self):
+        """Not shown is a request; refused is a gate."""
+        from aletheia import intercom
+        for kind in sorted(intercom.PLANNER_FORBIDDEN):
+            step = planner._classify({"kind": kind}, FLEET, REGISTRY, 1)
+            self.assertEqual(step.status, planner.REFUSED, kind)
+            self.assertIn("not a step a plan may take", step.detail)
 
     def test_capability_brief_splits_on_registry_truth(self):
         brief = planner.capability_brief(REGISTRY)

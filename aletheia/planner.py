@@ -150,7 +150,7 @@ def grammar_brief() -> str:
     """The command grammar, generated from `intercom.KIND_ARGS` (and the
     argument shapes the bare grammar cannot say, from `intercom.KIND_NOTES`)."""
     lines = []
-    for kind in sorted(intercom.KIND_ARGS):
+    for kind in sorted(set(intercom.KIND_ARGS) - intercom.PLANNER_FORBIDDEN):
         required, optional = intercom.KIND_ARGS[kind]
         parts = [f"{a}" for a in sorted(required)]
         parts += [f"[{a}]" for a in sorted(optional)]
@@ -167,7 +167,7 @@ def grammar_brief() -> str:
     # this can never be the copy that disagrees with the validator.
     values = []
     for kind in sorted(intercom.KIND_ENUMS):
-        if kind not in intercom.KIND_ARGS:
+        if kind not in intercom.KIND_ARGS or kind in intercom.PLANNER_FORBIDDEN:
             continue
         for arg in sorted(intercom.KIND_ENUMS[kind]):
             allowed = intercom.allowed_values(kind, arg)
@@ -175,7 +175,7 @@ def grammar_brief() -> str:
                 values.append(f"  {kind}.{arg} is EXACTLY one of: "
                               + ", ".join(allowed))
     notes = [f"  {kind}: {note}" for kind, note in sorted(intercom.KIND_NOTES.items())
-             if kind in intercom.KIND_ARGS]
+             if kind in intercom.KIND_ARGS and kind not in intercom.PLANNER_FORBIDDEN]
     return ("KINDS (required args, [optional]):\n" + "\n".join(lines)
             + ("\n\nCLOSED SETS — any other value is refused:\n"
                + "\n".join(values) if values else "")
@@ -271,6 +271,16 @@ def _classify(step: dict, fleet: dict, registry: dict, n: int) -> PlannedStep:
         return PlannedStep(n, GAP, f"{entry['status']}" + (f" — {why}" if why else ""),
                            capability=cid)
     command = {k: v for k, v in step.items() if k != "why"}
+    # Not shown in the grammar AND refused if it appears anyway. Leaving
+    # only the first half would be a prompt rule, and a prompt rule is a
+    # request; this is the gate. See intercom.PLANNER_FORBIDDEN for the
+    # sentence that found it.
+    if command.get("kind") in intercom.PLANNER_FORBIDDEN:
+        return PlannedStep(
+            n, REFUSED,
+            f"{command['kind']} is not a step a plan may take — it is reached "
+            "by saying it directly, never by compiling a sentence into it",
+            command=command)
     problems = intercom.validate_kind_args(command, fleet)
     if problems:
         # A model that proposed a kind that does not exist has found a real

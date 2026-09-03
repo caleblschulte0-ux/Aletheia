@@ -111,5 +111,80 @@ class ThePlannerIsToldBeforeItGuesses(unittest.TestCase):
             self.assertNotIn("CLOSED SETS", planner.grammar_brief())
 
 
+class TheKillSwitchIsNotSomethingASENTENCECanTrip(unittest.TestCase):
+    """"Summarize my resume into three bullets and save it as summary.md"
+    compiled to [{"kind": "resume"}, {"kind": "file_write", ...}] — a step
+    that LIFTS HER KILL SWITCH, marked EXECUTABLE and validating clean,
+    because the English noun and the kind name are the same six letters."""
+
+    def test_those_kinds_are_reached_by_saying_them_not_by_compiling(self):
+        from aletheia import voice
+        for said, kind in (("thea stop everything", "halt"),
+                           ("thea halt", "halt"),
+                           ("thea resume", "resume")):
+            got = voice.interpret(said)["command"]
+            self.assertEqual((got or {}).get("kind"), kind, said)
+
+    def test_the_natural_phrasing_of_an_emergency_stop_lands(self):
+        """It was a fullmatch against a short list, so the sentence a person
+        actually says — longer than any entry — fell through to the planner
+        and depended on a language model to compile an EMERGENCY STOP."""
+        from aletheia import voice
+        for said in ("thea stop everything you're doing",
+                     "thea stop what you're doing",
+                     "thea drop everything",
+                     "thea shut everything down",
+                     "thea stand down"):
+            got = voice.interpret(said)["command"]
+            self.assertEqual((got or {}).get("kind"), "halt", said)
+
+    def test_a_resume_is_never_read_out_of_the_word_resume(self):
+        """The one place a `search` would be actively dangerous."""
+        from aletheia import voice
+        for said in ("thea read my resume and tell me what's weak",
+                     "thea summarize my resume into three bullets",
+                     "thea what's on my resume"):
+            got = voice.interpret(said)["command"]
+            self.assertNotEqual((got or {}).get("kind"), "resume", said)
+
+    def test_stopping_a_song_is_not_stopping_her(self):
+        from aletheia import voice
+        got = voice.interpret("thea stop the music")["command"]
+        self.assertNotEqual((got or {}).get("kind"), "halt")
+
+    def test_the_planner_may_not_name_them(self):
+        from aletheia import intercom
+        self.assertEqual(intercom.PLANNER_FORBIDDEN,
+                         frozenset({"halt", "resume", "approve", "deny"}))
+
+    def test_the_agenda_refuses_the_same_ones(self):
+        """Two lists that disagree is one list that is wrong."""
+        from aletheia import agenda, intercom
+        self.assertTrue(intercom.PLANNER_FORBIDDEN <= agenda.FORBIDDEN_KINDS)
+
+
+class OtherClosedSetsAreCoveredToo(unittest.TestCase):
+    def test_a_rule_state_is_the_suggestions_own(self):
+        from aletheia import suggestions
+        self.assertEqual(intercom.allowed_values("rule", "state"),
+                         sorted(suggestions.VALID_STATES))
+
+    def test_the_planner_reaching_for_rule_to_halt_is_refused(self):
+        """With `halt` gone from the grammar it reached for the next thing
+        that looked like it: rule(id="global-halt", state="halt")."""
+        problems = intercom.validate_kind_args(
+            {"kind": "rule", "id": "global-halt", "state": "halt",
+             "because": "operator asked"}, {})
+        self.assertTrue(problems)
+        self.assertIn("halt", problems[0])
+
+    def test_plan_states_are_the_plans_own(self):
+        from aletheia import plans
+        self.assertEqual(intercom.allowed_values("plan_set", "state"),
+                         sorted(plans.PLAN_STATES))
+        self.assertEqual(intercom.allowed_values("plan_step", "state"),
+                         sorted(plans.STEP_STATES))
+
+
 if __name__ == "__main__":
     unittest.main()
