@@ -32,7 +32,7 @@ import sys
 import threading
 import time
 import uuid
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Protocol
 
 from aletheia import journal, policy
@@ -907,7 +907,18 @@ def _control_label(control: dict) -> str:
 
 
 def _app_name(app: str) -> str:
-    name = Path(app.strip().strip('"')).name.casefold()
+    """The bare program name, however the path was spelled.
+
+    Backslashes are normalized FIRST because `Path` only treats them as
+    separators on Windows: on a POSIX runner
+    `Path(r"C:\\Windows\\System32\\cmd.exe").name` is the entire string, so
+    the FORBIDDEN_APPS check silently missed every full Windows path and
+    this guard meant something different in CI than on the operator's PC.
+    A security check has to mean the same thing wherever it is evaluated.
+    (Found by test_a_shell_is_never_opened, which was red on the branch.)
+    """
+    raw = app.strip().strip('"').replace("\\", "/")
+    name = PurePosixPath(raw).name.casefold()
     return name[:-4] if name.endswith((".exe", ".com", ".bat", ".cmd")) else name
 
 
