@@ -128,15 +128,20 @@ def phone_access(label: str = "iPhone", scope: str = "read") -> dict:
     """Mint the credential and say exactly what is left, with real values."""
     from aletheia import access
     token, record = access.mint(label, scope=scope)
-    host = os.environ.get("COMPUTERNAME") or "this-machine"
+    # His real MagicDNS name when Tailscale can tell us, rather than a
+    # placeholder he has to go and look up (2026-09-02: he had already
+    # signed in and we were still printing <your-tailnet>).
+    from aletheia import tailscale
+    ts = tailscale.state()
     return {
         "token_id": record["id"],
         "token": token,
         "scope": record["scope"],
         "expires": record["expires"],
         "shown_once": True,
+        "tailnet_name": ts.dns_name or None,
         "next": [
-            "tailscale cert " + host.lower() + ".<your-tailnet>.ts.net",
+            tailscale.cert_command(ts),
             "python -m aletheia.core --host 0.0.0.0 "
             "--tls-cert <cert.crt> --tls-key <cert.key>",
         ],
@@ -144,8 +149,11 @@ def phone_access(label: str = "iPhone", scope: str = "read") -> dict:
 
 
 def tailscale_present() -> bool:
-    from shutil import which
-    return which("tailscale") is not None
+    """Installed — on PATH or where the Windows installer puts it. `which`
+    alone answered None on a machine running Tailscale, because the
+    installer does not extend PATH."""
+    from aletheia import tailscale
+    return tailscale.binary() is not None
 
 
 def main(argv: list[str] | None = None) -> int:

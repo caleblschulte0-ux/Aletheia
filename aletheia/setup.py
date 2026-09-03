@@ -46,29 +46,69 @@ class Step:
     title: str
     minutes: int
     why: str
-    how: list[str]
+    how: "list[str] | Callable[[], list[str]]"
     verify: Callable[[], tuple[str, str]]
     optional: bool = False
     tags: list[str] = field(default_factory=list)
 
+    def instructions(self) -> list[str]:
+        """The lines to show him now. A step whose next command depends on
+        this machine computes them (`_remote_how` reads Tailscale), because
+        telling him to install what he already has is worse than silence."""
+        if not callable(self.how):
+            return list(self.how)
+        try:
+            return list(self.how())
+        except Exception as exc:      # guidance must never break the audit
+            return [f"(could not read this machine's state: {type(exc).__name__})"]
+
+
+EMPTY_CALENDAR = ("read live, and it is EMPTY (0 events in the next 60 days) — "
+                  "'am I free?' will answer yes to every hour. If that is wrong, "
+                  "the schedule lives on a different calendar than the feed given")
+
 
 def _calendar() -> tuple[str, str]:
+    """Configured is not read (§30). This fetches.
+
+    2026-09-02: the operator connected a secret-ICS feed and this said
+    "1 secret-ICS feed(s) configured" — the count of a config entry, never
+    a request. A revoked URL, a typo, or an empty calendar all reported
+    ok, and this module's own docstring promises "a real calendar read".
+    Now it refreshes, and an empty mirror is SAID rather than passed off
+    as a working calendar: answering "yes, you are free" from a calendar
+    with nothing in it is the wrong-answer failure `aletheia.ics` warns
+    about, not a small one.
+    """
     from aletheia import calendar_live, ics
     ok, why = calendar_live.available()
     if ok:
         try:
-            provider = calendar_live.build_provider()
-            events = calendar_live.refresh(transport=None)
-            return OK, f"official provider live ({calendar_live.config()['provider']})"
+            result = calendar_live.refresh(transport=None)
+            mirrored = int((result or {}).get("mirrored", 0))
+            provider = calendar_live.config()["provider"]
+            if mirrored:
+                return OK, f"official provider live ({provider}); {mirrored} event(s) mirrored"
+            return OK, f"official provider live ({provider}); {EMPTY_CALENDAR}"
         except Exception as exc:
             return BROKEN, f"configured but failing: {type(exc).__name__}: {exc}"[:160]
     try:
         feeds = ics._config().get("feeds", [])
     except Exception:
         feeds = []
-    if feeds:
-        return OK, f"{len(feeds)} secret-ICS feed(s) configured"
-    return MISSING, why[:160]
+    if not feeds:
+        return MISSING, why[:160]
+    try:
+        result = ics.refresh()
+    except Exception as exc:
+        return BROKEN, (f"{len(feeds)} feed(s) configured but the fetch failed: "
+                        f"{type(exc).__name__}: {exc}")[:160]
+    mirrored = int((result or {}).get("mirrored", 0))
+    unsupported = int((result or {}).get("unsupported", 0))
+    tail = f"; {unsupported} recurrence(s) this parser cannot expand" if unsupported else ""
+    if mirrored:
+        return OK, f"{len(feeds)} feed(s) read; {mirrored} event(s) mirrored{tail}"
+    return OK, f"{len(feeds)} feed(s) {EMPTY_CALENDAR}{tail}"
 
 
 def _room() -> tuple[str, str]:
@@ -90,6 +130,25 @@ def _remote() -> tuple[str, str]:
         return (BROKEN, f"{len(live)} token(s) exist but no TLS certificate is "
                         "configured, so the Core still refuses to listen off-loopback")
     return OK, f"{len(live)} live token(s) and a certificate"
+
+
+def _remote_how() -> list[str]:
+    """What is actually left for the phone to reach her, on THIS machine."""
+    from aletheia import tailscale
+    current = tailscale.state()
+    if not current.installed:
+        lines = ["winget install Tailscale.Tailscale     (not installed yet)",
+                 "Sign in, then re-run this checklist for the exact cert command."]
+    elif not current.ready:
+        lines = [f"Tailscale is installed but {current.backend or 'not signed in'} "
+                 "— open it and sign in, then re-run this checklist.",
+                 tailscale.cert_command(current)]
+    else:
+        lines = [f"Tailscale is signed in as {current.dns_name} — that part is done.",
+                 tailscale.cert_command(current)
+                 + "     (run in an elevated PowerShell; writes .crt and .key here)"]
+    return lines + ["python -m aletheia.apply phone-access   (mints the token and "
+                    "prints the rest with your values filled in)"]
 
 
 def _phone() -> tuple[str, str]:
@@ -235,10 +294,7 @@ def steps() -> list[Step]:
         Step("access.remote", "Your phone reaching her", 10,
              "The phone surface has existed since Phase 21 and no phone could "
              "load it.",
-             ["winget install Tailscale.Tailscale     (not installed yet)",
-              "Sign in, then: tailscale cert <this-machine>.<tailnet>.ts.net",
-              "python -m aletheia.apply phone-access   (mints the token and "
-              "prints the rest with your values filled in)"],
+             _remote_how,
              _remote),
         Step("phone.call", "The first phone call", 5,
              "Every mechanism is verified; no call has been placed, and placing "
@@ -329,7 +385,7 @@ def _audit_now() -> dict:
         checked.append({"capability": step.capability, "title": step.title,
                         "state": state, "detail": detail,
                         "minutes": step.minutes, "optional": step.optional,
-                        "how": step.how, "why": step.why})
+                        "how": step.instructions(), "why": step.why})
     mapped = {s.capability for s in steps()}
     reg = capabilities.load_registry()
     unmapped = sorted(c["id"] for c in reg["capabilities"]

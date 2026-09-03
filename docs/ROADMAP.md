@@ -216,6 +216,59 @@ Registry revision 46. Not a new capability among them: the day's work
 was the distance between "the capability exists" and "he says it and it
 happens", which is the only distance that counts.
 
+### The loop (2026-09-02, "i dont need 16 commands")
+
+Shown a list of sixteen asks that worked, the operator named the actual
+standard: *"i need to know i can ask this anything and it will do it or
+route it to the right place ... find and apply to 10 jobs for me and it
+gets it done ... or i give it a video and say edit this whatever it may
+be."* Three of his real asks were put through the planner. All three came
+back as a question with **zero steps**. Two causes, both now fixed.
+
+**She was never told who he is.** The situational snapshot handed to the
+planner contained her own bookkeeping — her tasks, her capability gaps,
+nine unread notices, a broken Shorts pipeline — and nothing about the man
+asking. Asked to find him a job it could not know his field, and had no
+way to look. `situational.snapshot()` now carries an `operator` block:
+his remembered identity and preferences, the NAMES she can resolve in
+people/organizations (names only — a phone number is not needed to plan
+and does not go in a prompt; `contacts.resolve` reads details at
+execution behind its own gates), the documents she holds, and the files
+in his workspace. The planner prompt says to look there before asking,
+and to say what it checked when it must ask anyway (§98). Immediately
+visible: "edit this video" went from "where is it?" to "I don't see a
+captions file in the workspace (only sample.mp4, sample.sha256 and a
+clips folder)" — it looked first.
+
+**Nothing could look, then decide.** `agenda` compiles ONE plan from ONE
+sentence and runs it straight through; `mission` is a budget and an
+authorization, not a loop. So the shape every real task needs — look at
+what is there → act → look at what happened → decide again — did not
+exist anywhere, and "cut this video down" could only ever be a question
+because there was no "and then". `aletheia/pursue.py` is that loop, and
+it inherits every gate rather than re-deriving one (money, forbidden
+kinds, per-step `intercom.execute_command`, HALT before each round and
+each step, the mission budget). Its bounds are the design: 6 rounds, 6
+steps a round, 24 a goal, a stop on a verbatim-repeated command, and a
+stop after two consecutive barren rounds — one is survivable on purpose,
+because a failure is information the next round should use (§31).
+
+Live, on a goal that cannot be done without looking: round 1 probed
+sample.mp4 (6.0s) and its blind trim failed; round 2 used what round 1
+learned — "half of 6.0s" — and wrote a 3.000000s file with the source
+hash unchanged. `goal.pursue` is registered EXPERIMENTAL on that
+evidence: one goal shape has round-tripped, which is not yet a sample.
+Registry revision 47.
+
+**What this does not yet make true.** "Find and apply to 10 jobs" still
+ends at a named gap, correctly: submitting an application is a binding
+statement about his own work history, `errand.run` is EXPERIMENTAL, and
+Submit is operator_always by design. The loop can find postings, tailor a
+resume and fill the forms; the last click stays his. And the operator
+block is only as useful as what is in memory, which today holds five
+facts copied from the playbook in August — the next unlock is his own,
+and it costs a conversation rather than a credential.
+
 ## Next five engineering milestones (priority order, per §137)
 
 The five gaps between Aletheia and the thing she is supposed to be were

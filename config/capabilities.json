@@ -1,5 +1,5 @@
 {
-  "revision": 46,
+  "revision": 47,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1307,6 +1307,18 @@
       "approval_policy": "operator_always",
       "caller": "ticket — Phase 13/21 messaging: Windows Phone Link paired to the iPhone, driven through computer.act (compose) with the Send control refused back to a hash-bound approval; contacts.resolve names the person",
       "notes": "Registered 2026-09-02 because the planner, asked to 'text Brant', named intercom.relay as the closest gap and then compiled a sandboxed program for it — a program with no network cannot text anyone, and intercom.relay is not messaging. A gap with the right name is what §105 asks for. Sending reaches another person, so it is operator_always whatever adapter arrives (§72–§73); a build never bundles the grant (§70). Checked live 2026-09-02: Phone Link 1.26071 is installed and its host runs, but the app sits at its onboarding screen ('Choose your device to get started' - Android / iPhone): no phone is paired. Pairing the iPhone is his to do (a QR scan on the phone and a Bluetooth pairing - physical steps, section 143). Once paired, the build is: contacts.resolve -> Phone Link Messages via computer.act (open, find the conversation, set_text the message) -> the Send control refused back to a hash-bound approval he decides -> the sent message read back from the thread as verification."
+    },
+    {
+      "id": "goal.pursue",
+      "description": "Work one outcome until it is done: plan a little, act, look at what happened, decide again — instead of compiling a single plan and running it blind",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "python -m aletheia.pursue <goal>; aletheia.pursue.pursue()",
+      "module": "aletheia.pursue",
+      "notes": "Built 2026-09-02 on the operator's own framing: sixteen working commands were not the point, because every one of them was compile-once-run-straight-through. agenda turns ONE sentence into ONE plan; mission is a budget, not a loop. Nothing could look at what is actually there, act, look at what happened and decide again — which is why 'edit this video, cut it down' could only ever be a question. Each ROUND re-reads a fresh situational snapshot and re-compiles against the goal plus every receipt so far. It is NOT wider than an agenda and does not re-implement a single gate: agenda.refuse_money on every plan and every step, agenda.FORBIDDEN_KINDS (approve/deny/halt/resume/intent/rule/dispatch), every step through intercom.execute_command so operator_always stays operator_always, HALT re-read before each round AND each step, the mission budget re-read each round. Bounds are the interesting part: 6 rounds, 6 steps a round, 24 steps a goal, a stop when a command repeats verbatim (a loop, not persistence), and a stop after TWO consecutive rounds that achieve nothing — one barren round is survivable on purpose, because a failure is information the next round should use (§31). Deliberately NOT reachable from an intercom kind or an agenda: a loop that could start loops is the recursion FORBIDDEN_KINDS already refuses for 'intent'.",
+      "verification": "Live 2026-09-02 on the operator's PC, a goal that CANNOT be done without looking first: 'Find out how long sample.mp4 in my workspace is, then trim it to just the first half and save that as a new file'. Round 1 probed the file (6.0s) and its blind trim FAILED with a MediaError; round 2 used what round 1 learned — 'trim to its first 3 seconds (half of 6.0s)' — and succeeded. Verified independently afterwards: sample_half.mp4 is 3.000000s by ffprobe, 46,420 bytes, and sample.mp4's sha256 is unchanged from sample.sha256. That is look -> act -> observe a failure -> re-decide -> succeed, which is the whole reason the module exists. tests/test_pursue.py (18): rounds carry history forward, a failed step reaches the next round rather than being hidden, a repeated command stops it, two barren rounds stop it and one does not, a question returns to the operator, a gap is named rather than worked around, round/step ceilings hold, money refused inside a loop exactly as in one plan, forbidden kinds never execute, HALT before the first round and mid-pursuit, no mission no pursuit, a budget that runs out mid-pursuit ends it."
     }
   ]
 }
