@@ -39,6 +39,10 @@ from aletheia import capabilities
 # quietly omitted — a gap in this file must not look like a finished step.
 OK, MISSING, BROKEN = "ok", "missing", "broken"
 
+# Long enough for a cold CLI start on a laptop, short enough that a
+# checklist still feels like a checklist.
+CLI_PROBE_S = 45.0
+
 
 @dataclass
 class Step:
@@ -262,8 +266,99 @@ def _ffmpeg() -> tuple[str, str]:
     return (OK, why) if ok else (MISSING, why[:160])
 
 
+def _claude_cli() -> tuple[str, str]:
+    """The BRAIN, proved by using it.
+
+    This was the one thing the checklist did not check, and it is the one
+    thing everything that thinks depends on: planning, conversation,
+    research, the code worker, the showrunner. An expired subscription
+    login on a Thursday evening does not announce itself — it turns every
+    question into "I could not reach a model" and leaves the rest of the
+    system green. Presence on PATH is not proof, so this asks it something
+    and waits for an answer.
+    """
+    from aletheia import reasoner
+    if not reasoner.cli_path():
+        return MISSING, "the claude CLI is not on PATH"
+    try:
+        said = reasoner.infer_text(
+            "Answer with one word and nothing else.",
+            "Reply with the single word: ready", timeout_s=CLI_PROBE_S)
+    except Exception as exc:
+        return BROKEN, f"{type(exc).__name__}: {exc}"[:160]
+    return (OK, "answered a live prompt") if said.strip() else (
+        BROKEN, "the CLI ran and returned nothing")
+
+
+def _workspace() -> tuple[str, str]:
+    """Can she actually produce a file?
+
+    Found live 2026-09-02, not by a test: the default root resolved to this
+    repository's checkout, so `root()` refused it and the very first real
+    write failed. Everything about the capability was correct and she could
+    not write a sentence to disk.
+    """
+    from aletheia import workspace
+    try:
+        base = workspace.root()
+    except Exception as exc:
+        return BROKEN, f"{type(exc).__name__}: {exc}"[:160]
+    probe = base / ".setup-probe"
+    try:
+        probe.write_text("ok", encoding="utf-8")
+        got = probe.read_text(encoding="utf-8")
+        probe.unlink()
+    except Exception as exc:
+        return BROKEN, f"{base} is not writable ({type(exc).__name__})"
+    if got != "ok":
+        return BROKEN, f"{base} did not read back what was written"
+    return OK, f"writable at {base}"
+
+
+def _browser_pages() -> tuple[str, str]:
+    """Research really opens the pages it cites, so it needs a browser."""
+    from aletheia import browse
+    ok, why = browse.available()
+    return (OK, why) if ok else (MISSING, why[:160])
+
+
+def _desktop_toasts() -> tuple[str, str]:
+    from aletheia import desktop_notify
+    ok, why = desktop_notify.available()
+    return (OK, why) if ok else (MISSING, why[:160])
+
+
 def steps() -> list[Step]:
     return [
+        Step("reason.infer", "Her brain", 2,
+             "Everything that thinks runs on your Claude subscription: "
+             "planning, conversation, research, the code worker. If this "
+             "login has expired, every question comes back 'I could not "
+             "reach a model' while the rest of her stays green.",
+             ["claude login",
+              "  (then ask her anything — this step proves it by asking)"],
+             _claude_cli),
+        Step("file.author", "Somewhere to write", 1,
+             "Without a writable workspace she can think and say things and "
+             "produce nothing: no document, no spreadsheet, no file at all.",
+             ["Set a directory of her own (NOT this repo, NOT your home "
+              "folder — she refuses both):",
+              "  setx ALETHEIA_WORKSPACE \"%USERPROFILE%\\Documents\\Aletheia\"",
+              "  (then restart the Core so it picks the variable up)"],
+             _workspace),
+        Step("browser.read", "Reading the open web", 5,
+             "Research really opens the pages it cites, so without a browser "
+             "she refuses the question honestly rather than answering it from "
+             "memory.",
+             ["python -m pip install playwright",
+              "python -m playwright install chromium"],
+             _browser_pages),
+        Step("notification.deliver", "Reminders you actually see", 0,
+             "A reminder that fires correctly and appears nowhere is not a "
+             "reminder. This puts urgent and important ones on this screen.",
+             ["Nothing to install — it uses Windows' own toasts.",
+              "python -m aletheia.desktop_notify test   (shows one now)"],
+             _desktop_toasts),
         Step("email.read", "Email", 0,
              "She can already read headers and send with your approval.",
              ["Nothing to do — this is already configured."], _mail),
