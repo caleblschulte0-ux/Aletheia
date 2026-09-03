@@ -1,5 +1,5 @@
 {
-  "revision": 59,
+  "revision": 60,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1376,6 +1376,17 @@
       "caller": "aletheia.converse.answer attaches it to any question about her own past; python -m aletheia.recollection [question]",
       "module": "aletheia.recollection",
       "notes": "The thing no other assistant can do at all - a chat assistant elsewhere has no history with him and cannot parse 'what were you working on this morning' as a question about itself - and the one place where a confident wrong answer is indistinguishable from a right one until he goes and checks. Asked 'did you send that email?' with no evidence attached, a model produces a plausible sentence, because producing plausible sentences is what it does; a made-up 'yes, at 2:15' looks exactly like a true one. The enforceable rule is: she may only say she did something if a journal line says she did, and ABSENCE IS EVIDENCE - which is only sound because the journal is append-only and every action writes to it. Retrieval like self_knowledge: term overlap over a bounded window, alerts and decisions weighted above the hundredth routine action, times rendered in HIS clock because a UTC journal answering 'what did you do this morning' is off by exactly the amount that makes the answer wrong. No model call, no network."
+    },
+    {
+      "id": "demand.ledger",
+      "description": "Count what he asked for and could not have, in his own words, so the roadmap is written by use rather than by guesswork",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.intents.propose records every GAP step of a compiled plan; aletheia.converse records a 'can you...?' whose best match is not AVAILABLE; converse.situation() carries the notable ones so she can be asked; python -m aletheia.demand",
+      "module": "aletheia.demand",
+      "notes": "Rule zero works inside one session and dissolves between them. A gap named on Tuesday and the same gap on Friday were indistinguishable: gaps.materialize files a build task the first time and then quietly does nothing, so a capability asked for eleven times and one mentioned once looked identical on the task list forever. This counts, with HIS OWN WORDS, because 'he asked for this eleven times' is an argument and 'he asked for message.send eleven times' is a statistic. It counts, it does not conclude - frequency is evidence of demand, not proof of priority - and it forgets after 90 days, because an ask from four months ago is history. His words live in private state (gitignored), never the repo. Appended and pruned, not rewritten per ask: the first version was quadratic in how much he asks, which is the wrong direction for a file whose whole point is that he keeps asking."
     }
   ]
 }

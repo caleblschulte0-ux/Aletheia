@@ -161,6 +161,26 @@ committed files (Actions secrets only). `state/pulse/history/` keeps one
 small file per day. Interactive sessions develop on `claude/*` branches
 and push there; no auto-merge here — merges to `main` are deliberate.
 
+## What to build next is not a guess — ask the demand ledger
+
+`python -m aletheia.demand` is the first thing to read when deciding what
+to build. Every plan that came back with a GAP step, and every "can
+you...?" whose best match was not AVAILABLE, is counted there with the
+operator's own words. Ranked, that is a roadmap nobody wrote: not what an
+agent guessed would be useful, not what a plan file said in July — what
+he actually tried to do and could not.
+
+Rule zero works inside one session and dissolves between them. A gap named
+on Tuesday and the same gap on Friday were indistinguishable, because
+`gaps.materialize` files a build task the first time and then quietly does
+nothing. The ledger is what makes "he has asked for this eleven times"
+sayable.
+
+It counts; it does not conclude. Frequency is evidence of demand, not
+proof of priority — a thing asked once in anger may matter more than a
+thing asked weekly out of habit. Read it, then decide. His words live in
+private state and are never committed.
+
 ## The standing assignment
 
 Every session acts on the playbook rather than re-describing it (§156):

@@ -119,6 +119,17 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
     intent_id = f"intent-{digest[:10]}"
     approval_id = intent_id
 
+    # What he asked for and could not have, counted in his own words. A gap
+    # named on Tuesday and the same gap on Friday were indistinguishable:
+    # `materialize_gaps` files a build task the first time and then quietly
+    # does nothing, so a capability asked for eleven times and one mentioned
+    # once looked identical on the task list forever.
+    try:
+        from aletheia import demand
+        demand.record_plan(plan, request)
+    except Exception:
+        pass
+
     gap_tasks: list[str] = []
     if materialize:
         try:

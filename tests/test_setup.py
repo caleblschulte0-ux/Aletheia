@@ -300,11 +300,19 @@ class TheThingsTonightActuallyDependsOn(unittest.TestCase):
             self.assertEqual(list(Path(tmp).iterdir()), [], "the probe is cleaned up")
 
     def test_an_unwritable_workspace_is_broken(self):
+        """A path under a FILE, not an absent directory: this suite can run
+        as root, where a missing parent is simply created and the probe
+        succeeds — which made the earlier version of this test pass for the
+        wrong reason and then fail once something created the path."""
+        import tempfile
         from pathlib import Path
         from aletheia import workspace
-        with mock.patch.object(workspace, "root",
-                               return_value=Path("/definitely/not/here")):
-            state, _ = setup._workspace()
+        with tempfile.TemporaryDirectory() as tmp:
+            blocker = Path(tmp) / "a-file"
+            blocker.write_text("not a directory")
+            with mock.patch.object(workspace, "root",
+                                   return_value=blocker / "inside"):
+                state, _ = setup._workspace()
         self.assertEqual(state, setup.BROKEN)
 
     def test_the_browser_and_the_toast_are_on_the_list(self):

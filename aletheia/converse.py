@@ -470,6 +470,15 @@ def situation() -> dict:
             facts["halted"] = halted.get("reason") or True
     except Exception:
         pass
+    try:
+        from aletheia import demand
+        keeps_asking = demand.notable()
+        if keeps_asking:
+            facts["he_keeps_asking_for"] = [
+                {"capability": h["capability"], "times": h["times"],
+                 "status": h["status"]} for h in keeps_asking[:5]]
+    except Exception:
+        pass
     # LAST because it is the biggest and the least urgent: if the context has
     # to be cut to fit, the thing to lose is a remembered preference, never
     # the fact that she is halted. Recall by exact key is fine for code and
@@ -583,6 +592,18 @@ def answer(question: str, *, think=None, include_thread: bool = True,
         about_her = self_knowledge.for_question(question)
     except Exception:
         about_her = {}
+    if about_her.get("matches"):
+        # A "can you...?" about something not AVAILABLE is demand too, and
+        # it never reaches the planner at all — he asks, she says not yet,
+        # and until now that was the end of it.
+        try:
+            from aletheia import demand
+            top = about_her["matches"][0]
+            if top["status"] != "AVAILABLE":
+                demand.record(top["capability"], question,
+                              status=top["status"], source="converse")
+        except Exception:
+            pass
     if about_her:
         sections.append(
             "--- WHAT I CAN DO (my registry, read just now — quote it, do not "
