@@ -41,7 +41,18 @@ window.Thea = (() => {
     const headers = Object.assign({}, options.headers);
     if (token) headers.Authorization = "Bearer " + token;
     const method = (options.method || "GET").toUpperCase();
-    if (!token && method !== "GET" && method !== "HEAD") {
+    // Independent of `token`, not "else": the two prove different things
+    // (a remote device's minted grant vs. "this request reached the Core
+    // from its own machine") and the server checks them in separate
+    // branches, so there is no reason for one stored value to shadow the
+    // other. Found live 2026-09-03: a phone with ANY token already saved
+    // — even a stale or read-only one from earlier testing — silently
+    // never tried the local secret at all, because this was `else`-shaped
+    // when it did not need to be. Harmless to always attach: on a
+    // genuinely remote (non-loopback) request `localSecret()` is "" (the
+    // Core only ever injects it into loopback-served pages), so the
+    // header is simply omitted.
+    if (method !== "GET" && method !== "HEAD") {
       const local = localSecret();
       if (local) headers["X-Aletheia-Local"] = local;
     }

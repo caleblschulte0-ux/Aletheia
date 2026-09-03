@@ -425,9 +425,9 @@
     ]
   },
   "now": {
-    "generated_at": "2026-09-03T14:14:25Z",
+    "generated_at": "2026-09-03T13:22:42Z",
     "halted": false,
-    "heartbeat_age_s": 1.0,
+    "heartbeat_age_s": 0.0,
     "waiting_on_you": [],
     "waiting_count": 0,
     "notifications": [
