@@ -301,6 +301,61 @@ def _steps_of(cmd: dict):
     return steps
 
 
+# Arguments whose value is a CLOSED SET, and the module that owns it.
+#
+# The grammar the planner is shown is generated from `KIND_ARGS`, which
+# gives argument NAMES and nothing else — so an argument that only accepts
+# four values looked, from the prompt, like free text. It guessed
+# reasonably and wrongly: `remember` with domain "family" (the real ones
+# are identity/preferences/people/organizations) and memory_kind "fact"
+# (the real ones are explicit/inferred/temporary). Both passed
+# `validate_kind_args`, which checked that the ARGUMENT was allowed and
+# never what was in it, so the step was marked EXECUTABLE, approved, and
+# then died at execution with a bare ValueError. "Remember my sister is
+# Mia" — the most ordinary sentence an assistant hears — did nothing.
+#
+# Resolved from the owning module at call time, never copied: a second
+# copy of an enum in a prompt is a copy that disagrees with the validator
+# the day someone adds a value.
+def _enum(module_name: str, attribute: str):
+    def read():
+        import importlib
+        return sorted(getattr(importlib.import_module(module_name), attribute))
+    return read
+
+
+KIND_ENUMS: dict[str, dict[str, object]] = {
+    "remember": {"domain": _enum("aletheia.memory", "DOMAINS"),
+                 "memory_kind": _enum("aletheia.memory", "KINDS")},
+    "task_status": {"state": _enum("aletheia.contracts", "TASK_STATES")},
+}
+
+
+def allowed_values(kind: str, arg: str) -> list[str] | None:
+    """The closed set for one argument, read from the code that enforces it."""
+    reader = KIND_ENUMS.get(kind, {}).get(arg)
+    if reader is None:
+        return None
+    try:
+        return list(reader())
+    except Exception:
+        return None
+
+
+def _enum_problems(cmd: dict) -> list[str]:
+    out = []
+    for arg, reader in KIND_ENUMS.get(cmd.get("kind"), {}).items():
+        if arg not in cmd:
+            continue
+        allowed = allowed_values(cmd["kind"], arg)
+        if allowed is None:
+            continue
+        if cmd[arg] not in allowed:
+            out.append(f"{cmd['kind']}: {arg}={cmd[arg]!r} is not one of "
+                       f"{allowed}")
+    return out
+
+
 def validate_kind_args(cmd, fleet: dict) -> list[str]:
     """Validate the inner command object (kind + args). Shared with the
     local Core's /api/command — one grammar, every channel."""
@@ -317,6 +372,10 @@ def validate_kind_args(cmd, fleet: dict) -> list[str]:
         problems.append(f"{kind}: missing args {sorted(required - args)}")
     if args - required - optional:
         problems.append(f"{kind}: unexpected args {sorted(args - required - optional)}")
+    # A closed-set argument is checked HERE, where a bad value becomes a
+    # refusal the planner can see and repair, rather than an exception with
+    # an approval already spent on it.
+    problems += _enum_problems(cmd)
     repo = cmd.get("repo")
     if repo is not None and repo != "fleet" and repo not in fleet["repos"]:
         problems.append(f"repo {repo!r} is not 'fleet' or a fleet registry key")

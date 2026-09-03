@@ -155,9 +155,30 @@ def grammar_brief() -> str:
         parts = [f"{a}" for a in sorted(required)]
         parts += [f"[{a}]" for a in sorted(optional)]
         lines.append(f"  {kind}({', '.join(parts)})")
+    # An argument whose value is a CLOSED SET reads, from a list of names
+    # alone, exactly like free text — and the model fills it in with
+    # something reasonable and wrong. `remember` was called with domain
+    # "family" (the real ones are identity/preferences/people/organizations)
+    # and memory_kind "fact" (explicit/inferred/temporary), which is to say
+    # that "remember my sister is Mia" — the most ordinary sentence an
+    # assistant hears — compiled cleanly and then died at execution.
+    #
+    # Rendered from the OWNING MODULE at call time (intercom.KIND_ENUMS), so
+    # this can never be the copy that disagrees with the validator.
+    values = []
+    for kind in sorted(intercom.KIND_ENUMS):
+        if kind not in intercom.KIND_ARGS:
+            continue
+        for arg in sorted(intercom.KIND_ENUMS[kind]):
+            allowed = intercom.allowed_values(kind, arg)
+            if allowed:
+                values.append(f"  {kind}.{arg} is EXACTLY one of: "
+                              + ", ".join(allowed))
     notes = [f"  {kind}: {note}" for kind, note in sorted(intercom.KIND_NOTES.items())
              if kind in intercom.KIND_ARGS]
     return ("KINDS (required args, [optional]):\n" + "\n".join(lines)
+            + ("\n\nCLOSED SETS — any other value is refused:\n"
+               + "\n".join(values) if values else "")
             + ("\n\nARGUMENT SHAPES:\n" + "\n".join(notes) if notes else ""))
 
 
