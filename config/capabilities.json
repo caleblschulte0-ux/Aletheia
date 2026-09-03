@@ -1,5 +1,5 @@
 {
-  "revision": 65,
+  "revision": 66,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1421,6 +1421,28 @@
       "caller": "aletheia.workspace.read for any .pdf/.docx (so converse attachments, compose sources and application packets all inherit it); python -m aletheia.doctext <path>",
       "module": "aletheia.doctext",
       "notes": "His resume is a PDF and nothing in this system could open it. Everything built on 'read his resume' was reading a .md file that existed only because a test wrote one: workspace.read refuses a suffix it cannot author, and aletheia.documents says in its own docstring that it does not pretend to parse PDFs without the corresponding parser. There was no parser. The most important input in the system was the one input she could not open. STDLIB ONLY on purpose - .docx is a zip of XML and zipfile is stdlib, a PDF's text lives in content streams and zlib is stdlib - because 'pip install pypdf on his PC' makes a feature work on the machine of whoever remembered to run it, which is the same shape as a capability that says AVAILABLE and is not. pypdf is used FIRST when importable and needed never. It refuses honestly: a scan is a picture of words and the refusal names the fix (export a .docx) rather than returning forty characters of ligature soup that would become a cover letter about nobody."
+    },
+    {
+      "id": "profile.answers",
+      "description": "The information he should never type again — name, contact, location, links, work authorization — learned from his resume, private, never committed",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.formfill.plan for every form field; python -m aletheia.profile show|set|learn",
+      "module": "aletheia.profile",
+      "notes": "His words: 'half the jobs these days are on an external website where you type in all your information again - that's what I'm trying to avoid'. Not job-specific: the same store answers a doctor's intake form or a DMV renewal. It LEARNS rather than interrogates - learn_from_resume took nine facts off a real resume with nothing typed - because being asked twelve questions before she can help is the thing being replaced, not a smaller version of it. Private state, gitignored: this is his home address and phone number, and the VALUE never reaches the journal, only the fact that it is on file. What he told her outranks what she read."
+    },
+    {
+      "id": "form.fill_plan",
+      "description": "Read any web form and split it: what she can fill from his profile, and what only he can answer",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.formfill <url>; produces the step list aletheia.browse.interact takes under an approval bound to that exact page and plan",
+      "module": "aletheia.formfill",
+      "notes": "Reads the form the way a PERSON sees it - label-for, wrapping labels, aria-label, placeholders, legends - because 'q_31415926' is what a Workday calls 'Are you legally authorized to work?'. THE SAFETY MODEL IS ONE RULE WITH NO OFF SWITCH: a field she does not know is a QUESTION, never a guess. A wrong phone number is an annoyance; a guessed 'no' on 'have you ever been convicted of a felony' is a lie submitted under his name to a company that keeps it. Protected characteristics, legal declarations, certifications, salary history and signatures are refused even when the profile holds an answer. A dropdown answer is matched to that dropdown's real options - selecting one that does not exist silently does nothing in some browsers and throws in others, and either way the form is submitted empty. It presses NOTHING: it produces a plan, and the plan still needs an approval. Verified against a Workday-shaped form rendered in real Chromium: 18 fields, 11 filled, 6 returned to him, the resume upload left alone."
     }
   ]
 }
