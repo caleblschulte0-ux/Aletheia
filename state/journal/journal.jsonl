@@ -978,3 +978,5 @@
 {"ts": "2026-09-03T01:37:21Z", "kind": "action", "actor": "aletheia-computer", "subject": "computer:set_text", "text": "DONE run=hands-c3d3e2cd8f80 step=3 verification={\"action\": \"set_text\", \"count\": null, \"path\": null, \"process_id\": null, \"verified\": true}", "refs": ["run:hands-c3d3e2cd8f80"]}
 {"ts": "2026-09-03T01:37:21Z", "kind": "action", "actor": "aletheia-computer", "subject": "computer:act", "text": "COMPLETED run=hands-c3d3e2cd8f80 steps=4", "refs": ["run:hands-c3d3e2cd8f80"]}
 {"ts": "2026-09-03T01:37:21Z", "kind": "action", "actor": "aletheia-agenda", "subject": "agenda", "text": "Open Notepad and write a haiku about autumn in it — 1 done, 0 failed, 0 refused"}
+{"ts": "2026-09-03T02:13:10Z", "kind": "event", "actor": "aletheia-ics", "subject": "calendar:refresh", "text": "0 mirrored, 0 stale cancelled, 0 unsupported across 1 feed(s)"}
+{"ts": "2026-09-03T02:13:10Z", "kind": "event", "actor": "aletheia-apply", "subject": "setup:calendar", "text": "secret-ICS feed 'primary' configured; 0 event(s) mirrored"}
