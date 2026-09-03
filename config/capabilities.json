@@ -1,5 +1,5 @@
 {
-  "revision": 61,
+  "revision": 62,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1388,6 +1388,17 @@
       "caller": "aletheia.intents.propose records every GAP step of a compiled plan; aletheia.converse records a 'can you...?' whose best match is not AVAILABLE; converse.situation() carries the notable ones so she can be asked; python -m aletheia.demand",
       "module": "aletheia.demand",
       "notes": "Rule zero works inside one session and dissolves between them. A gap named on Tuesday and the same gap on Friday were indistinguishable: gaps.materialize files a build task the first time and then quietly does nothing, so a capability asked for eleven times and one mentioned once looked identical on the task list forever. This counts, with HIS OWN WORDS, because 'he asked for this eleven times' is an argument and 'he asked for message.send eleven times' is a statistic. It counts, it does not conclude - frequency is evidence of demand, not proof of priority - and it forgets after 90 days, because an ask from four months ago is history. His words live in private state (gitignored), never the repo. Appended and pruned, not rewritten per ask: the first version was quadratic in how much he asks, which is the wrong direction for a file whose whole point is that he keeps asking."
+    },
+    {
+      "id": "document.compose",
+      "description": "Write a document from named sources and save it in her workspace — the prose authored when the step runs, not pasted by the planner",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "intercom kind 'compose' (so voice, the phone, and any compiled plan); python -m aletheia.compose",
+      "module": "aletheia.compose",
+      "notes": "Found by running the sentence: 'summarize my resume into three bullets and save it as summary.md' compiled to file_write with text='Three-bullet summary of resume, generated from the resume content retrieved above' - EXECUTABLE, validating clean, and it would have put that sentence in his file. The cause is structural, not a bad guess: the planner is a COMPILER and file_write(path, text) demands finished text as an argument at compile time, before anything has been read, so a request to WRITE something had only two outcomes available - a clarifying question or a placeholder - and which one it got was luck. compose moves the authoring to EXECUTION time. It adds no reach: it writes through aletheia.workspace (her directory only, versioned on overwrite, size-capped, halted when she is halted) and reads through the same module's wider read half. It never pretends: every source unreadable writes NOTHING, a partial read is declared in the prompt, a model refusal (CANNOT WRITE) and an unreachable model both save nothing and say why."
     }
   ]
 }

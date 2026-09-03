@@ -1010,3 +1010,6 @@
 {"ts": "2026-09-03T21:00:55Z", "kind": "action", "actor": "aletheia-converse", "subject": "converse", "text": "answered a question (45 chars in, 340 out, 0 file(s) read, via claude.cli:sonnet)"}
 {"ts": "2026-09-03T21:14:15Z", "kind": "note", "actor": "aletheia", "subject": "memory:people.sister", "text": "set people.sister = \"Mia\" (explicit)"}
 {"ts": "2026-09-03T21:14:20Z", "kind": "note", "actor": "aletheia", "subject": "memory:preferences.food_dislikes.cilantro", "text": "set preferences.food_dislikes.cilantro = \"hates cilantro\" (explicit)"}
+{"ts": "2026-09-03T21:31:25Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume.md (396 bytes)"}
+{"ts": "2026-09-03T21:31:31Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:write", "text": "wrote summary.md (495 chars) — A three-bullet summary of his resume, plain language [new file]"}
+{"ts": "2026-09-03T21:31:31Z", "kind": "action", "actor": "aletheia-compose", "subject": "compose", "text": "wrote /tmp/tmpvwwla96w/ws/summary.md from 1 source(s) via claude.cli:haiku"}

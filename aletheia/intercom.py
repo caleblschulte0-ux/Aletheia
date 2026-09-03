@@ -71,6 +71,8 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "research":      ({"question"}, set()),
     # she can produce something now, not just say things
     "file_write":    ({"path", "text"}, {"why"}),
+    # Writing something that has to be WRITTEN, not pasted. See below.
+    "compose":       ({"path", "what"}, {"sources", "why"}),
     "file_edit":     ({"path", "find", "replace"}, {"why"}),
     "file_read":     ({"path"}, {"anywhere"}),
     "file_list":     (set(), {"subdir"}),
@@ -149,6 +151,19 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # generated from KIND_ARGS and these together, so the model learns the
 # shape of a step list from the registry rather than from a guess.
 KIND_NOTES: dict[str, str] = {
+    "compose": (
+        'USE THIS, NOT file_write, whenever the content has to be WRITTEN '
+        'rather than pasted — "write me a note about X", "summarise my '
+        'resume into three bullets", "draft a cover letter". `what` is the '
+        'instruction in one sentence ("a three-bullet summary of his '
+        'resume, plain language"); `sources` is a JSON LIST of file paths '
+        'to read first (at most 3), workspace-relative or absolute; `path` '
+        'is where to save it, relative to her workspace. The prose is '
+        'written when the step RUNS, so the sources are actually read '
+        'first. file_write is only for text you already have verbatim: '
+        'used for authoring it produces a placeholder — "Three-bullet '
+        'summary of resume, generated from the resume content retrieved '
+        'above" is a real thing it wrote into a real file.'),
     "announce_set": (
         'on is a boolean: true lets her SPEAK UP unasked in the room when '
         'something urgent or important is waiting, false goes back to '
@@ -193,7 +208,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email
                # operator's browser, so it belongs to the PC runner
                "research",
                # the workspace is a directory on his PC; Actions cannot see it
-               "file_write", "file_edit", "file_read", "file_list",
+               "file_write", "file_edit", "file_read", "file_list", "compose",
                "computer_observe",
                # ffmpeg and his media files live on the PC
                "media_probe", "media_trim", "media_join", "media_audio",
@@ -245,6 +260,9 @@ ROUTINE_KINDS = frozenset({
     # boundary that makes this routine rather than world-touching is
     # aletheia.workspace — she cannot write outside her own directory.
     "file_write", "file_edit",
+    # Composing is a file_write whose text she writes instead of pastes:
+    # same directory, same version history, same undo. Nothing wider.
+    "compose",
     # Media edits always write a NEW file and never touch the source, so
     # the worst case is a spare file in her workspace.
     "media_trim", "media_join", "media_audio", "media_captions",
@@ -789,6 +807,14 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "authority_status":
         from aletheia import standing
         return standing.spoken()
+    if kind == "compose":
+        from aletheia import compose as composer
+        sources = cmd.get("sources") or []
+        if isinstance(sources, str):
+            sources = [s.strip() for s in sources.split(",") if s.strip()]
+        receipt = composer.compose(cmd["what"], cmd["path"],
+                                   sources=list(sources), why=cmd.get("why", ""))
+        return composer.spoken(receipt)
     if kind == "announce_set":
         from aletheia import announce
         on = cmd["on"]
