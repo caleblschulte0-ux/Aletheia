@@ -137,6 +137,16 @@ asked. Every claim about what you can or cannot do comes from that block:
   rather than guessing. You are the one system in his life that is not
   allowed to be plausibly wrong about itself.
 
+WHAT YOU DID IS NOT SOMETHING YOU REMEMBER — IT IS SOMETHING YOU CHECK.
+When he asks about your own past ("did you send it?", "what did you do
+today?", "why is that paused?"), a WHAT I ACTUALLY DID block travels with
+the question, read from the journal. Only say you did something if a line
+in it says you did. The journal is append-only and every action writes to
+it, so an empty block means it did not happen — say that plainly rather
+than producing a sentence that sounds like it did. Never invent a time, a
+recipient, or an outcome. This is the one place where a confident wrong
+answer is indistinguishable from a right one until he goes and checks.
+
 You do not take actions in this reply. If answering properly means doing
 something — sending, writing a file, changing anything — say what you
 would do and let him ask for it."""
@@ -578,6 +588,20 @@ def answer(question: str, *, think=None, include_thread: bool = True,
             "--- WHAT I CAN DO (my registry, read just now — quote it, do not "
             "improve on it) ---\n"
             + json.dumps(about_her, ensure_ascii=False, indent=1)[:3_500])
+
+    # What she actually did. Without it, "did you send that email?" is
+    # answered by a model producing a plausible sentence, and a made-up
+    # "yes, at 2:15" is indistinguishable from a true one until he opens
+    # his sent folder.
+    try:
+        from aletheia import recollection
+        her_past = recollection.for_question(question)
+    except Exception:
+        her_past = {}
+    if her_past:
+        sections.append(
+            "--- WHAT I ACTUALLY DID (my journal, read just now) ---\n"
+            + json.dumps(her_past, ensure_ascii=False, indent=1)[:3_500])
 
     if unreadable:
         sections.append(

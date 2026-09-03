@@ -1,5 +1,5 @@
 {
-  "revision": 58,
+  "revision": 59,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1365,6 +1365,17 @@
       "caller": "aletheia.converse.answer attaches it to every question it is relevant to; python -m aletheia.self_knowledge [question]",
       "module": "aletheia.self_knowledge",
       "notes": "The most likely first question anyone asks a new assistant is 'what can you do?' and the second is 'can you do X?', and the conversational half had no path to this file at all - both were answered by a model reasoning from its general idea of what an assistant probably does (No104, No106). Worse here than elsewhere because most of those answers would have been RIGHT: she really can send email, write files and drive the desktop, which is exactly what makes the wrong ones impossible to spot. Retrieval, not recitation - 115 entries do not fit under brain.MAX_TEXT, so only what the question is about travels. A 'no' carries its next step: a NEEDS_CONFIGURATION entry is joined to its aletheia.setup instructions rather than a second copy being written that disagrees by Friday. Word overlap plus a small hand-written synonym map, because it runs inside the prompt-building path of every question: no model call, no network, no imports that could make one."
+    },
+    {
+      "id": "journal.recall",
+      "description": "Answer 'did you?', 'what did you do today?', 'why is that paused?' from the append-only journal",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.converse.answer attaches it to any question about her own past; python -m aletheia.recollection [question]",
+      "module": "aletheia.recollection",
+      "notes": "The thing no other assistant can do at all - a chat assistant elsewhere has no history with him and cannot parse 'what were you working on this morning' as a question about itself - and the one place where a confident wrong answer is indistinguishable from a right one until he goes and checks. Asked 'did you send that email?' with no evidence attached, a model produces a plausible sentence, because producing plausible sentences is what it does; a made-up 'yes, at 2:15' looks exactly like a true one. The enforceable rule is: she may only say she did something if a journal line says she did, and ABSENCE IS EVIDENCE - which is only sound because the journal is append-only and every action writes to it. Retrieval like self_knowledge: term overlap over a bounded window, alerts and decisions weighted above the hundredth routine action, times rendered in HIS clock because a UTC journal answering 'what did you do this morning' is off by exactly the amount that makes the answer wrong. No model call, no network."
     }
   ]
 }
