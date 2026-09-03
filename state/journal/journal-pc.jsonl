@@ -920,3 +920,4 @@
 {"ts": "2026-09-03T07:29:58Z", "kind": "alert", "actor": "operator-local-core", "subject": "core:runtime:mail", "text": "subsystem failing: TimeoutError: The read operation timed out"}
 {"ts": "2026-09-03T07:53:36Z", "kind": "event", "actor": "aletheia-ics", "subject": "calendar:refresh", "text": "0 mirrored, 0 stale cancelled, 0 unsupported across 1 feed(s)"}
 {"ts": "2026-09-03T08:24:36Z", "kind": "event", "actor": "aletheia-ics", "subject": "calendar:refresh", "text": "0 mirrored, 0 stale cancelled, 0 unsupported across 1 feed(s)"}
+{"ts": "2026-09-03T08:54:50Z", "kind": "event", "actor": "aletheia-ics", "subject": "calendar:refresh", "text": "0 mirrored, 0 stale cancelled, 0 unsupported across 1 feed(s)"}
