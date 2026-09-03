@@ -57,6 +57,10 @@ ACTOR = "aletheia-workspace"
 DEFAULT_ROOT = Path.home() / "Documents" / "Aletheia"
 MAX_FILE_BYTES = 5_000_000
 MAX_READ_BYTES = 2_000_000
+# A PDF carries its fonts around with it, so the same number of
+# WORDS is a much bigger file. The char ceiling is what protects a
+# prompt, and aletheia.doctext holds that.
+MAX_DOCUMENT_BYTES = 10_000_000
 MAX_FILES = 2_000
 VERSIONS = ".versions"
 
@@ -183,15 +187,29 @@ def read(path: str, *, anywhere: bool = False) -> dict:
     target = Path(path).expanduser().resolve() if anywhere else resolve(path)
     if not target.is_file():
         raise WorkspaceError(f"{path} is not a file")
+    # A PDF or a .docx is a DOCUMENT, and reading his documents is the point.
+    # His resume is a PDF; everything built on "read his resume" was reading a
+    # .md file that only existed because a test made one. Extraction is
+    # stdlib-only (aletheia.doctext) so nothing here depends on a package
+    # somebody remembered to install.
+    from aletheia import doctext
+    document = doctext.kind_of(target) in (doctext.PDF, doctext.DOCX)
+    ceiling = MAX_DOCUMENT_BYTES if document else MAX_READ_BYTES
     size = target.stat().st_size
-    if size > MAX_READ_BYTES:
+    if size > ceiling:
         raise WorkspaceError(f"{path} is {size:,} bytes; the read ceiling is "
-                             f"{MAX_READ_BYTES:,}")
-    try:
-        text = target.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        raise WorkspaceError(f"{path} is not UTF-8 text — she cannot read it "
-                             "honestly, so she does not guess") from None
+                             f"{ceiling:,}")
+    if document:
+        try:
+            text = doctext.extract(target)["text"]
+        except doctext.UnreadableDocument as exc:
+            raise WorkspaceError(str(exc)) from None
+    else:
+        try:
+            text = target.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            raise WorkspaceError(f"{path} is not UTF-8 text — she cannot read "
+                                 "it honestly, so she does not guess") from None
     journal.append("action", "workspace:read", f"read {target.name} ({size:,} bytes)",
                    actor=ACTOR)
     return {"path": str(target), "bytes": size, "text": text}

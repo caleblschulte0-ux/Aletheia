@@ -34,7 +34,18 @@ class ApplicationCase(unittest.TestCase):
         d = Path(self.tmp.name)
         self.ws = d / "ws"
         self.ws.mkdir()
-        (self.ws / "resume.md").write_text("- built a pipeline\n- built an OS\n")
+        # A REAL length. The 33-character stub these tests used to carry
+        # stopped working the moment the resume became required, which is
+        # the point: she will not write a "tailored" letter from two lines.
+        (self.ws / "resume.md").write_text(
+            "# Caleb Schulte\n"
+            "- Built a multi-channel automated YouTube pipeline: discovery,\n"
+            "  scripting, render and upload, unattended, with a headless\n"
+            "  quality gate that can refuse to publish.\n"
+            "- Built Aletheia, a personal operating system with approval\n"
+            "  gates, voice control and an append-only journal.\n"
+            "- Built an automated options trader with hard risk guardrails.\n"
+            "SKILLS: Python, ffmpeg, GitHub Actions, Windows automation\n")
         env = mock.patch.dict(os.environ, {"ALETHEIA_WORKSPACE": str(self.ws),
                                            "ALETHEIA_PRIVATE_STATE": str(d)})
         env.start(); self.addCleanup(env.stop)
@@ -94,7 +105,7 @@ class ItDoesTheEightHours(ApplicationCase):
         applications.prepare("senior backend engineer", count=1,
                              finder=self.finder(), reader=self.reader(),
                              writer=writer)
-        self.assertIn("built a pipeline", seen["prompt"])
+        self.assertIn("headless", seen["prompt"])
         self.assertIn("media pipeline", seen["prompt"])
 
     def test_one_task_per_application_so_follow_up_is_answerable(self):
@@ -233,6 +244,85 @@ class ItStaysInsideTheUsualBoundaries(ApplicationCase):
         self.assertIn("apply_prepare", intercom.ROUTINE_KINDS)
         self.assertEqual(intercom.validate_kind_args(
             {"kind": "apply_prepare", "role": "engineer", "count": 3}, {}), [])
+
+
+class TheLetterIsSPECIFICToTheResumeHeGAVEIt(ApplicationCase):
+    """The bug that made every letter generic, and it was silent.
+
+    The resume was one of two sources handed to `compose`, and compose
+    proceeds when SOME sources read — correctly, for its own purposes. So
+    an unreadable resume produced ten cover letters written from the job
+    postings alone: fluent, plausible, about nobody. "Tailored to your
+    resume" would have been a lie in every one, and the only way to notice
+    was to read all ten.
+    """
+
+    def test_an_unreadable_resume_writes_NOTHING(self):
+        (self.ws / "resume.md").write_text("hi")      # far too short to use
+        with self.assertRaises(applications.ApplicationError) as caught:
+            applications.prepare("engineer", count=2, resume="resume.md",
+                                 finder=self.finder(), reader=self.reader(),
+                                 writer=self.writer())
+        self.assertIn("not enough to write from", str(caught.exception))
+        self.assertFalse((self.ws / applications.FOLDER).exists())
+
+    def test_a_missing_resume_says_where_it_looked(self):
+        with self.assertRaises(applications.ApplicationError) as caught:
+            applications.find_resume("nowhere.pdf")
+        self.assertIn("nowhere.pdf", str(caught.exception))
+
+    def test_the_resume_it_used_is_named_in_the_result(self):
+        (self.ws / "resume.md").write_text("- built a pipeline\n" * 30)
+        out = applications.prepare("engineer", count=1, resume="resume.md",
+                                   finder=self.finder(), reader=self.reader(),
+                                   writer=self.writer())
+        self.assertTrue(out["resume"].endswith("resume.md"))
+
+    def test_the_brief_demands_evidence_from_the_resume(self):
+        flat = " ".join(applications.LETTER.split())
+        self.assertIn("EVERY concrete claim must come from that resume", flat)
+        self.assertIn("No skill he does not list", flat)
+
+
+class HeShouldNotHaveToKnowAPath(ApplicationCase):
+    """`resume="resume.md"` was the default and it was a fiction: the only
+    reason that file existed is that a test wrote one. His actual resume is
+    a PDF in Downloads."""
+
+    def test_it_finds_the_resume_in_her_workspace(self):
+        (self.ws / "resume.md").write_text("- built things\n" * 40)
+        self.assertTrue(applications.find_resume().endswith("resume.md"))
+
+    def test_it_finds_a_pdf_in_his_home_folder(self):
+        (self.ws / "resume.md").unlink()
+        home = Path(self.tmp.name) / "home"
+        (home / "Downloads").mkdir(parents=True)
+        (home / "Downloads" / "resume.pdf").write_bytes(b"%PDF-1.4\n")
+        with mock.patch("pathlib.Path.home", return_value=home):
+            self.assertEqual(applications.find_resume(),
+                             str(home / "Downloads" / "resume.pdf"))
+
+    def test_a_cv_counts_as_a_resume(self):
+        (self.ws / "resume.md").unlink()
+        (self.ws / "cv.docx").write_bytes(b"PK\x03\x04")
+        self.assertTrue(applications.find_resume().endswith("cv.docx"))
+
+    def test_finding_nothing_says_exactly_where_it_looked(self):
+        (self.ws / "resume.md").unlink()
+        home = Path(self.tmp.name) / "empty-home"
+        home.mkdir()
+        with mock.patch("pathlib.Path.home", return_value=home):
+            with self.assertRaises(applications.ApplicationError) as caught:
+                applications.find_resume()
+        said = str(caught.exception)
+        for place in ("Downloads", "Documents", "Desktop", ".pdf", ".docx"):
+            self.assertIn(place, said)
+
+    def test_a_named_path_wins_over_the_search(self):
+        (self.ws / "resume.md").write_text("workspace one\n" * 40)
+        other = Path(self.tmp.name) / "elsewhere.md"
+        other.write_text("the one he named\n" * 40)
+        self.assertEqual(applications.find_resume(str(other)), str(other))
 
 
 if __name__ == "__main__":

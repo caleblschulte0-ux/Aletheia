@@ -279,7 +279,11 @@ def forget() -> None:
 # directory), so this adds no authority — it just makes her use the eyes
 # she already had.
 
-READABLE_SUFFIXES = frozenset(workspace.TEXT_SUFFIXES)
+# What she may READ, which is wider than what she may write — and now
+# includes the formats his real documents are actually in. "Look at my
+# resume.pdf" was, until today, a file she could not open.
+READABLE_SUFFIXES = frozenset(workspace.TEXT_SUFFIXES
+                              | {".pdf", ".docx", ".dotx"})
 
 # A DELIBERATE reference, not a passing mention. Either the token carries a
 # path separator or a `~`, or the sentence asks her to look at something.

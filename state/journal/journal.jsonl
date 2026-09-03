@@ -1037,3 +1037,13 @@
 {"ts": "2026-09-03T22:23:21Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:write", "text": "wrote checklist.md (732 chars) — what is still his to do [new file]"}
 {"ts": "2026-09-03T22:23:21Z", "kind": "task", "actor": "aletheia", "subject": "task:apply-senior-backend-engineer-fo-9f00e0", "text": "created — Apply: Senior Backend Engineer — Foundry 1 — https://jobs.example.com/1"}
 {"ts": "2026-09-03T22:23:21Z", "kind": "action", "actor": "aletheia-applications", "subject": "applications", "text": "prepared 2 application packet(s) for 'senior backend engineer' — submitted none"}
+{"ts": "2026-09-03T22:32:52Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume.pdf (538 bytes)"}
+{"ts": "2026-09-03T22:33:47Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume.pdf (635 bytes)"}
+{"ts": "2026-09-03T22:33:47Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:write", "text": "wrote posting.md (1,570 chars) — the posting as she actually read it [new file]"}
+{"ts": "2026-09-03T22:33:47Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume.pdf (635 bytes)"}
+{"ts": "2026-09-03T22:33:47Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read posting.md (1,572 bytes)"}
+{"ts": "2026-09-03T22:34:42Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:write", "text": "wrote cover-letter.md (615 chars) — cover letter for Senior Media Systems Engineer — Foundry [new file]"}
+{"ts": "2026-09-03T22:34:42Z", "kind": "action", "actor": "aletheia-compose", "subject": "compose", "text": "wrote /tmp/tmpomemnph8/ws/applications/20260903-jobs-example-com-senior-media-systems-enginee-9f00e0/cover-letter.md from 2 source(s) via claude.cli:haiku"}
+{"ts": "2026-09-03T22:34:42Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:write", "text": "wrote checklist.md (736 chars) — what is still his to do [new file]"}
+{"ts": "2026-09-03T22:34:42Z", "kind": "task", "actor": "aletheia", "subject": "task:apply-senior-media-systems-engin-9f00e0", "text": "created — Apply: Senior Media Systems Engineer — Foundry — https://jobs.example.com/1"}
+{"ts": "2026-09-03T22:34:42Z", "kind": "action", "actor": "aletheia-applications", "subject": "applications", "text": "prepared 1 application packet(s) for 'senior media systems engineer' — submitted none"}

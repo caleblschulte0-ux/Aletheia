@@ -58,6 +58,9 @@ MAX_APPLICATIONS = 10
 # postings, and dropping the ones she could not read is the point.
 CANDIDATE_FACTOR = 3
 MIN_POSTING_CHARS = 600
+# Enough of a resume to write a specific letter from. Below this she is
+# guessing about him, which is the thing this whole module refuses to do.
+MIN_RESUME_CHARS = 300
 MAX_POSTING_CHARS = 8_000
 FOLDER = "applications"
 
@@ -68,13 +71,56 @@ HIRING_WORDS = ("responsibilities", "qualifications", "requirements",
                 "apply", "we're looking for", "we are looking for",
                 "experience with", "benefits")
 
+# Where a person's resume actually lives, in the order she should look. He
+# should not have to know a path to use his own document.
+RESUME_NAMES = ("resume", "cv", "curriculum-vitae", "curriculum_vitae")
+RESUME_SUFFIXES = (".pdf", ".docx", ".md", ".txt", ".rtf")
+RESUME_PLACES = ("", "Documents", "Downloads", "Desktop", "Documents/Aletheia")
+
+
+def find_resume(named: str = "") -> str:
+    """His resume, wherever it is. Returns a path, or raises with the fix.
+
+    `resume="resume.md"` was the default and it was a fiction: the only
+    reason that file existed was that a test wrote one. His actual resume
+    is a PDF in Downloads, which nothing in this system could open until
+    today, and which he should not have to type the path of.
+    """
+    from pathlib import Path as _Path
+    if named:
+        for candidate in (workspace.root() / named, _Path(named).expanduser()):
+            if candidate.is_file():
+                return str(candidate)
+        raise ApplicationError(
+            f"she could not find {named}. Put it in her workspace "
+            f"({workspace.root()}) or give the full path.")
+    seen = []
+    for place in RESUME_PLACES:
+        for stem in RESUME_NAMES:
+            for suffix in RESUME_SUFFIXES:
+                for base in (workspace.root(), _Path.home()):
+                    candidate = (base / place / f"{stem}{suffix}"
+                                 if place else base / f"{stem}{suffix}")
+                    seen.append(candidate)
+                    if candidate.is_file():
+                        return str(candidate)
+    raise ApplicationError(
+        "she could not find your resume. She looked for resume/cv as .pdf, "
+        ".docx, .md or .txt in her workspace, your home folder, Documents, "
+        "Downloads and Desktop. Say `apply ... --resume <path>` or drop a "
+        "copy in " + str(workspace.root()) + ".")
+
+
 LETTER = (
-    "Write a cover letter from Caleb Schulte for the job posting below, "
-    "using his resume. Specific, not generic: name the actual company and "
-    "role, and connect two or three concrete things he has really built to "
-    "what this posting actually asks for. Four short paragraphs at most, no "
-    "flattery, no 'I am writing to express my interest'. If the posting does "
-    "not say what the job is, say CANNOT WRITE rather than inventing a role."
+    "Write a cover letter for the job posting below, from the person whose "
+    "resume is also below. EVERY concrete claim must come from that resume: "
+    "name two or three specific things he has really built or done, in his "
+    "own numbers and nouns, and connect each one to something this posting "
+    "actually asks for. No skill he does not list. No 'passionate about', no "
+    "'I am writing to express my interest', no flattery. Four short "
+    "paragraphs at most. If the posting does not say what the job is, or the "
+    "resume has nothing to do with it, say CANNOT WRITE and why, rather than "
+    "writing something that would fit anybody."
 )
 
 
@@ -164,7 +210,7 @@ def _write_checklist(folder: str, page: dict, letter_path: str | None,
     return path
 
 
-def prepare(role: str, *, count: int = 5, resume: str = "resume.md",
+def prepare(role: str, *, count: int = 5, resume: str = "",
             where: str = "", finder=None, reader=None, writer=None) -> dict:
     """Find real postings, write a packet for each. Submits nothing."""
     role = " ".join(str(role or "").split())
@@ -172,6 +218,28 @@ def prepare(role: str, *, count: int = 5, resume: str = "resume.md",
         raise ValueError("say what kind of role")
     count = max(1, min(int(count), MAX_APPLICATIONS))
     policy.ensure_not_halted()
+
+    # THE RESUME IS REQUIRED, AND PROVED BEFORE ANYTHING ELSE HAPPENS.
+    #
+    # It used to be one of two sources handed to `compose`, and compose
+    # proceeds when SOME sources read — correctly, for its own purposes. So
+    # an unreadable resume produced ten cover letters written from the job
+    # postings alone: fluent, plausible, about nobody. "Tailored to your
+    # resume" would have been a lie in every one of them, and the only way
+    # to notice was to read all ten.
+    resume_path = find_resume(resume)
+    try:
+        proof = workspace.read(resume_path, anywhere=True)
+    except Exception as exc:
+        raise ApplicationError(
+            f"she could not read your resume ({resume_path}): {exc} Nothing "
+            "was written — a cover letter with no resume behind it is not a "
+            "tailored letter, it is a form letter with your name on it.")
+    if len(proof.get("text", "")) < MIN_RESUME_CHARS:
+        raise ApplicationError(
+            f"she got only {len(proof.get('text', ''))} characters out of "
+            f"{resume_path}, which is not enough to write from. Nothing was "
+            "written.")
 
     if finder is None or reader is None:
         usable, why = browse.available()
@@ -209,7 +277,7 @@ def prepare(role: str, *, count: int = 5, resume: str = "resume.md",
         try:
             receipt = compose.compose(
                 LETTER, f"{folder}/cover-letter.md",
-                sources=[resume, posting_path],
+                sources=[resume_path, posting_path],
                 why=f"cover letter for {page.get('title', '')[:60]}",
                 think=writer)
             letter_path = receipt["path"]
@@ -238,7 +306,8 @@ def prepare(role: str, *, count: int = 5, resume: str = "resume.md",
     journal.append("action", "applications",
                    f"prepared {len(packets)} application packet(s) for {role!r} "
                    f"— submitted none", actor=ACTOR)
-    return {"role": role, "prepared": packets, "skipped": skipped,
+    return {"role": role, "resume": resume_path,
+            "prepared": packets, "skipped": skipped,
             "unreadable": unreadable, "submitted": 0,
             "note": ("Nothing was submitted. Each folder has the posting, a "
                      "cover letter and a checklist; the last step is yours.")}
@@ -266,7 +335,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("role")
     ap.add_argument("--count", type=int, default=5)
     ap.add_argument("--where", default="")
-    ap.add_argument("--resume", default="resume.md")
+    ap.add_argument("--resume", default="",
+                    help="path to your resume; found automatically if omitted")
     args = ap.parse_args(argv)
     try:
         out = prepare(args.role, count=args.count, where=args.where,
