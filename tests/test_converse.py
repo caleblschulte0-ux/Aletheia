@@ -348,5 +348,215 @@ class AnAnswerGetsLongerThanAnInterpretation(ConverseCase):
         self.assertIn("Sign the Claude CLI in", said)
 
 
+class SheKnowsWhatHeToldHerToRemember(ConverseCase):
+    """Recall by exact key is fine for code and useless in conversation: he
+    says "what's my sister's name", not "recall people.sister". Until this
+    existed, a fact he had deliberately asked her to remember could not
+    reach an answer — the most obvious way for an assistant to feel like a
+    stranger."""
+
+    def test_remembered_facts_travel_with_the_question(self):
+        from aletheia import memory
+        with mock.patch.object(memory, "_load", side_effect=lambda d: (
+                {"sister": {"value": "Ana", "kind": "explicit",
+                            "source": "he said so", "ts": "now"}}
+                if d == "people" else {})):
+            converse.answer("what's my sister's name?", think=self.says())
+        self.assertIn("Ana", self.seen["prompt"])
+
+    def test_a_guess_is_labelled_as_a_guess(self):
+        from aletheia import memory
+        with mock.patch.object(memory, "_load", side_effect=lambda d: (
+                {"coffee": {"value": "black", "kind": "inferred",
+                            "source": "watched", "ts": "now"}}
+                if d == "preferences" else {})):
+            converse.answer("how do I take my coffee?", think=self.says())
+        self.assertIn("inferred", self.seen["prompt"])
+
+    def test_a_corrupt_memory_file_thins_her_rather_than_muting_her(self):
+        from aletheia import memory
+        with mock.patch.object(memory, "_load", side_effect=ValueError("bad json")):
+            self.assertTrue(converse.answer("hi", think=self.says())["answer"])
+
+    def test_memory_is_bounded(self):
+        from aletheia import memory
+        fat = {f"k{i}": {"value": "v" * 500, "kind": "explicit",
+                         "source": "s", "ts": "t"} for i in range(50)}
+        with mock.patch.object(memory, "_load", return_value=fat):
+            self.assertLess(len(json.dumps(memory.everything())), 20_000)
+
+
+class SheAnswersInHisTimeNotUTC(ConverseCase):
+    def test_his_local_clock_travels_with_the_question(self):
+        """"What's on today?" answered against a UTC clock is wrong for six
+        hours out of every twenty-four, in the way that looks right."""
+        converse.answer("what's on today?", think=self.says())
+        self.assertIn("local time", self.seen["prompt"])
+
+    def test_todays_calendar_is_part_of_the_situation(self):
+        from aletheia import calendar, localtime
+        import datetime as dt
+        here = localtime.operator_tz()
+        start = dt.datetime.now(here).replace(hour=15, minute=0, second=0,
+                                              microsecond=0)
+        event = {"version": 1, "id": "ev1", "title": "Dentist",
+                 "start": start.isoformat(),
+                 "end": (start + dt.timedelta(hours=1)).isoformat(),
+                 "created_at": "x", "updated_at": "x", "status": "CONFIRMED"}
+        with mock.patch.object(calendar, "all_events", return_value=[event]):
+            converse.answer("am I free tonight?", think=self.says())
+        self.assertIn("Dentist", self.seen["prompt"])
+
+    def test_a_cancelled_event_is_not_on_his_day(self):
+        from aletheia import calendar, localtime
+        import datetime as dt
+        start = dt.datetime.now(localtime.operator_tz())
+        event = {"version": 1, "id": "ev1", "title": "Called off",
+                 "start": start.isoformat(),
+                 "end": (start + dt.timedelta(hours=1)).isoformat(),
+                 "created_at": "x", "updated_at": "x", "status": "CANCELLED"}
+        with mock.patch.object(calendar, "all_events", return_value=[event]):
+            converse.answer("what's on?", think=self.says())
+        self.assertNotIn("Called off", self.seen["prompt"])
+
+    def test_a_broken_calendar_does_not_end_the_conversation(self):
+        from aletheia import calendar
+        with mock.patch.object(calendar, "all_events", side_effect=OSError("gone")):
+            self.assertTrue(converse.answer("hi", think=self.says())["answer"])
+
+
+class TheFileStaysOpenForTheFollOwUp(ConverseCase):
+    """"Look at resume.md" then "make the second bullet stronger" is ONE
+    conversation. The second half names no file, so without this she goes
+    blind again mid-thread and answers from a 900-character summary of her
+    own last reply."""
+
+    def setUp(self):
+        super().setUp()
+        self.ws = Path(self.tmp.name) / "ws"
+        self.ws.mkdir()
+        env = mock.patch.dict(os.environ, {"ALETHEIA_WORKSPACE": str(self.ws)})
+        env.start(); self.addCleanup(env.stop)
+        (self.ws / "resume.md").write_text("- ran a pipeline\n- the weak bullet\n")
+
+    def test_the_follow_up_still_sees_the_file(self):
+        converse.answer("look at resume.md, what is weak?", think=self.says())
+        converse.answer("make the second bullet stronger", think=self.says())
+        self.assertIn("the weak bullet", self.seen["prompt"])
+        self.assertIn("STILL OPEN", self.seen["prompt"])
+
+    def test_the_thread_stores_the_PATH_never_the_contents(self):
+        """His resume does not get copied into her conversation store."""
+        converse.answer("look at resume.md", think=self.says())
+        raw = converse.THREAD_PATH.read_text()
+        self.assertIn("resume.md", raw)
+        self.assertNotIn("the weak bullet", raw)
+
+    def test_an_old_file_is_not_dragged_into_a_new_subject(self):
+        converse.answer("look at resume.md", think=self.says())
+        turns = json.loads(converse.THREAD_PATH.read_text())["turns"]
+        turns[-1]["at"] = "2020-01-01T00:00:00Z"
+        converse.THREAD_PATH.write_text(json.dumps({"turns": turns}))
+        converse.answer("what is the capital of Peru?", think=self.says())
+        self.assertNotIn("the weak bullet", self.seen["prompt"])
+
+    def test_naming_a_new_file_replaces_the_carried_one(self):
+        (self.ws / "cover.md").write_text("- the cover letter line")
+        converse.answer("look at resume.md", think=self.says())
+        converse.answer("now read cover.md", think=self.says())
+        self.assertIn("the cover letter line", self.seen["prompt"])
+        self.assertNotIn("the weak bullet", self.seen["prompt"])
+
+    def test_a_carried_file_that_vanished_is_not_an_error_message(self):
+        """He did not ask for it this time; "could not read resume.md"
+        stapled to an unrelated answer reads like a malfunction."""
+        converse.answer("look at resume.md", think=self.says())
+        (self.ws / "resume.md").unlink()
+        out = converse.answer("what is the capital of Peru?", think=self.says())
+        self.assertEqual(out["unreadable"], [])
+
+
+class ThePromptFitsWhatTheReasonerWillACCEPT(ConverseCase):
+    """The ceiling is not ours. `reasoner.validate_input` refuses any prompt
+    over brain.MAX_TEXT (16,000) before the CLI is even started, with a bare
+    ValueError that reads — by the time it reaches the phone — as "I could
+    not reach a model". A 20 KB document would not have produced a worse
+    answer; it would have produced NO answer and no hint of why."""
+
+    def setUp(self):
+        super().setUp()
+        self.ws = Path(self.tmp.name) / "ws"
+        self.ws.mkdir()
+        env = mock.patch.dict(os.environ, {"ALETHEIA_WORKSPACE": str(self.ws)})
+        env.start(); self.addCleanup(env.stop)
+
+    def checked(self, text="fine"):
+        """A `think` that enforces the REAL contract, not a stand-in for it."""
+        from aletheia import reasoner
+        seen = {}
+
+        def fake(system, prompt, **kwargs):
+            reasoner.validate_input(system, prompt, None)   # raises if too big
+            seen["prompt"] = prompt
+            return text
+        self.seen = seen
+        return fake
+
+    def test_a_big_document_still_gets_an_answer(self):
+        (self.ws / "spec.md").write_text("PARAGRAPH. " * 6_000)   # ~66 KB
+        out = converse.answer("read spec.md and summarise it", think=self.checked())
+        self.assertEqual(out["answer"], "fine")
+        self.assertIn("truncated here", self.seen["prompt"])
+
+    def test_the_ceiling_holds_with_everything_at_once(self):
+        from aletheia import memory
+        (self.ws / "a.md").write_text("A" * 40_000)
+        (self.ws / "b.md").write_text("B" * 40_000)
+        for i in range(30):
+            converse.answer(f"turn {i} " + "x" * 500, think=self.says("y" * 800))
+        fat = {f"k{i}": {"value": "v" * 400, "kind": "explicit",
+                         "source": "s", "ts": "t"} for i in range(30)}
+        with mock.patch.object(memory, "_load", return_value=fat):
+            converse.answer("read a.md and b.md, " + "q" * 3_000,
+                            think=self.checked())
+        self.assertLessEqual(len(self.seen["prompt"]), converse.MAX_PROMPT_CHARS)
+
+    def test_the_budget_leaves_room_for_the_context_floor(self):
+        self.assertGreater(
+            converse.MAX_PROMPT_CHARS,
+            converse.MAX_QUESTION_CHARS + converse.MAX_ATTACHED_CHARS
+            + converse.MIN_CONTEXT_CHARS + converse.SECTION_OVERHEAD,
+            "the worst case must fit without relying on the belt-and-braces cut")
+
+
+class TheContextIsCutBySENSENotByTheByte(ConverseCase):
+    def test_a_halt_survives_a_crowded_context(self):
+        """What gets squeezed out by a spreadsheet must never be "she is
+        stopped". Slicing the JSON string dropped whatever happened to be
+        last, which — once memory and the calendar joined — was exactly
+        that."""
+        from aletheia import memory
+        policy.halt("I stopped her", via="test")
+        fat = {f"k{i}": {"value": "v" * 400, "kind": "explicit",
+                         "source": "s", "ts": "t"} for i in range(40)}
+        with mock.patch.object(memory, "_load", return_value=fat):
+            converse.answer("why is nothing happening?", think=self.says())
+        self.assertIn("halted", self.seen["prompt"])
+
+    def test_what_was_dropped_is_said_not_silently_missing(self):
+        from aletheia import memory
+        fat = {f"k{i}": {"value": "v" * 400, "kind": "explicit",
+                         "source": "s", "ts": "t"} for i in range(40)}
+        with mock.patch.object(memory, "_load", return_value=fat):
+            converse.answer("hello", think=self.says())
+        self.assertIn("context_trimmed", self.seen["prompt"])
+
+    def test_the_context_is_always_valid_json(self):
+        """A truncated object that stops mid-key is worse than a smaller one."""
+        big = {"now": "t", "situation": {"a": "x" * 9_000, "b": "y" * 9_000},
+               "recent_exchanges": [{"you": "z" * 9_000, "her": "w"}]}
+        json.loads(converse._fit(big, 2_000))
+
+
 if __name__ == "__main__":
     unittest.main()

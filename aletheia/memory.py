@@ -78,6 +78,45 @@ def recall(domain: str, key: str):
     return entry["value"] if entry else None
 
 
+def everything(*, max_chars: int = 4_000) -> dict:
+    """Every remembered fact, shaped for a reasoning prompt.
+
+    Recall by exact key only is fine for code and useless in conversation:
+    he says "what's my sister's name?", not "recall people.sister". Until
+    this existed, `converse` had no path to any of it, so a fact he had
+    deliberately told her to remember could not reach the answer — the
+    single most obvious way for a personal assistant to feel like a
+    stranger.
+
+    Values only, with the KIND kept (`inferred` is a guess she made and he
+    should be able to see that it is), and bounded: memory is small by
+    design, but a prompt that grows without a ceiling is a bug waiting for
+    the day somebody remembers a lot.
+    """
+    out: dict[str, dict] = {}
+    spent = 0
+    for domain in sorted(DOMAINS):
+        try:
+            entries = _load(domain)
+        except (OSError, ValueError):
+            continue                      # a corrupt file thins her, never mutes her
+        for key in sorted(entries):
+            entry = entries[key]
+            if not isinstance(entry, dict) or "value" not in entry:
+                continue
+            value = entry["value"]
+            text = value if isinstance(value, str) else json.dumps(
+                value, ensure_ascii=False)
+            spent += len(key) + len(text)
+            if spent > max_chars:
+                return out
+            held = {"value": value}
+            if entry.get("kind") and entry["kind"] != "explicit":
+                held["kind"] = entry["kind"]   # a guess is labelled as one
+            out.setdefault(domain, {})[key] = held
+    return out
+
+
 def why(domain: str, key: str) -> str:
     entry = _load(domain).get(key)
     if not entry:

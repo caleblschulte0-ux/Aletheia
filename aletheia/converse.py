@@ -40,6 +40,7 @@ they were.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import re
 import sys
@@ -55,10 +56,24 @@ THREAD_PATH = stateio.private_dir("conversation") / "recent.json"
 # answers is nothing; eight turns of long ones is a slow expensive question
 # every time. What matters is how much travels, so that is what is bounded.
 KEEP_TURNS = 24
-MAX_THREAD_CHARS = 12_000
+MAX_THREAD_CHARS = 6_000
 
 MAX_QUESTION_CHARS = 4_000
 MAX_ANSWER_CHARS = 6_000
+
+# THE HARD CEILING, and it is not ours: `reasoner.validate_input` refuses
+# any prompt over `brain.MAX_TEXT` (16,000 characters) before the CLI is
+# even started, and the refusal is a bare ValueError that reads, by the time
+# it reaches the phone, as "I could not reach a model". So a 20 KB document
+# would not have produced a worse answer — it would have produced NO answer
+# and no hint of why. Everything below is budgeted to stay under it.
+MAX_PROMPT_CHARS = 15_000
+MAX_CONTEXT_CHARS = 4_000
+# Always kept for the context even when a large file is open: whether she is
+# halted, and what time it is where he is, must never be the thing that got
+# squeezed out by a spreadsheet.
+MIN_CONTEXT_CHARS = 1_200
+SECTION_OVERHEAD = 500
 
 # A thoughtful answer takes longer than an interpretation. The default 90s
 # is sized for classifying a sentence; a real reply to a real question is
@@ -69,7 +84,15 @@ TIMEOUT_S = 180.0
 # is common and "read my whole folder" is a different request with a
 # different tool (research/script), not a chat message.
 MAX_ATTACHED = 2
-MAX_ATTACHED_CHARS = 30_000
+# Sized to FIT, not to a round number: see MAX_PROMPT_CHARS. A longer file
+# is truncated and says so, which is a worse answer; the alternative was no
+# answer at all.
+MAX_ATTACHED_CHARS = 9_000
+
+# How long a file she just read stays open for the next question. A
+# follow-up comes in seconds; a document from an hour ago is a different
+# subject and carrying it forward is just cost.
+CARRY_FILE_S = 1_800.0
 
 SYSTEM = """You are Thea — Aletheia — Caleb's own assistant, running on his
 machine. You are answering him directly, in conversation.
@@ -143,12 +166,44 @@ def _thread() -> list[dict]:
     return _trim(turns) if isinstance(turns, list) else []
 
 
-def _remember_turn(question: str, answer: str) -> None:
+def _remember_turn(question: str, answer: str,
+                   files: list[str] | None = None) -> None:
     """Keep the last few exchanges so 'what about the other one?' resolves."""
     turns = _thread()
-    turns.append({"at": stateio.utcnow(), "you": question[:600],
-                  "her": answer[:900]})
+    turn = {"at": stateio.utcnow(), "you": question[:600], "her": answer[:900]}
+    if files:
+        # PATHS, never contents: the thread is a small file and a resume in
+        # it would be both huge and a copy of his document living somewhere
+        # he did not put it. The next turn re-reads from the original.
+        turn["files"] = files[:MAX_ATTACHED]
+    turns.append(turn)
     stateio.write_json_atomic(THREAD_PATH, {"turns": _trim(turns)})
+
+
+def _carried_over(turns: list[dict]) -> list[str]:
+    """The file she read a moment ago, still open for the next question.
+
+    "Look at resume.md" then "make the second bullet stronger" is one
+    conversation, and the second half named no file — so without this she
+    goes blind again mid-thread and answers from a 900-character summary of
+    her own last reply. Only the MOST RECENT turn carries, and only for a
+    little while: a document from an hour ago is a different subject.
+    """
+    if not turns:
+        return []
+    last = turns[-1]
+    files = last.get("files") if isinstance(last, dict) else None
+    if not isinstance(files, list) or not files:
+        return []
+    try:
+        from aletheia import localtime
+        when = localtime.parse_utc(str(last.get("at", "")))
+        age = (dt.datetime.now(dt.timezone.utc) - when).total_seconds()
+    except Exception:
+        return []
+    if age > CARRY_FILE_S:
+        return []
+    return [str(f) for f in files[:MAX_ATTACHED]]
 
 
 def forget() -> None:
@@ -237,7 +292,8 @@ def _open_named(token: str) -> dict:
         "folder — there is no such file")
 
 
-def attachments(question: str) -> tuple[list[dict], list[str]]:
+def attachments(question: str, *, budget: int = MAX_ATTACHED_CHARS
+                ) -> tuple[list[dict], list[str]]:
     """Files named in the question, actually read — and what could not be.
 
     Returns (read, problems). `problems` is never silently dropped: it
@@ -250,7 +306,7 @@ def attachments(question: str) -> tuple[list[dict], list[str]]:
     asked_to_look = bool(_LOOK.search(question))
     read: list[dict] = []
     problems: list[str] = []
-    budget = MAX_ATTACHED_CHARS
+    budget = min(int(budget), MAX_ATTACHED_CHARS)
     for token in named:
         explicit = (asked_to_look or "/" in token or "\\" in token
                     or token.startswith("~"))
@@ -280,6 +336,32 @@ def attachments(question: str) -> tuple[list[dict], list[str]]:
     return read, problems
 
 
+def _todays_events(limit: int = 8) -> list[str]:
+    """What is on his calendar between now and the end of his day.
+
+    Bounded to today on purpose: the whole calendar is a different question
+    with a different tool. This is the part that makes "am I free tonight?"
+    answerable at all instead of deferred back to him.
+    """
+    from aletheia import calendar, localtime
+    now = dt.datetime.now(dt.timezone.utc)
+    here = localtime.operator_tz()
+    today = now.astimezone(here).date()
+    rows = []
+    for event in calendar.all_events():
+        if event.get("status") == "CANCELLED":
+            continue
+        try:
+            start = calendar.parse_time(event["start"]).astimezone(here)
+        except Exception:
+            continue
+        if start.date() != today:
+            continue
+        rows.append((start, f"{start.strftime('%H:%M')} {event.get('title', '')}"))
+    rows.sort(key=lambda row: row[0])
+    return [text for _, text in rows[:limit]]
+
+
 def situation() -> dict:
     """What she is actually doing, for a question that might be about it.
 
@@ -287,7 +369,15 @@ def situation() -> dict:
     mission store is mid-write or a module is unavailable. Missing context
     makes an answer thinner, never absent.
     """
-    facts = {}
+    facts: dict = {}
+    # HIS time, not UTC. "What's on today?" answered against a UTC clock is
+    # wrong for six hours out of every twenty-four, and wrong in the way
+    # that looks right.
+    try:
+        from aletheia import localtime
+        facts["clock"] = localtime.describe_now()
+    except Exception:
+        pass
     try:
         from aletheia import mission
         live = mission.status()
@@ -314,12 +404,63 @@ def situation() -> dict:
     except Exception:
         pass
     try:
+        facts["today"] = _todays_events()
+        if not facts["today"]:
+            facts.pop("today")
+    except Exception:
+        pass
+    try:
         halted = policy.halted()
         if halted:
             facts["halted"] = halted.get("reason") or True
     except Exception:
         pass
+    # LAST because it is the biggest and the least urgent: if the context has
+    # to be cut to fit, the thing to lose is a remembered preference, never
+    # the fact that she is halted. Recall by exact key is fine for code and
+    # useless in conversation — he says "what's my sister's name", not
+    # "recall people.sister" — so all of it travels and she picks.
+    try:
+        from aletheia import memory
+        known = memory.everything()
+        if known:
+            facts["remembered"] = known
+    except Exception:
+        pass
     return facts
+
+
+def _fit(context: dict, limit: int = MAX_CONTEXT_CHARS) -> str:
+    """Serialise the context, dropping whole facts until it fits.
+
+    Slicing the JSON string was the obvious version and the wrong one: it
+    hands the model a truncated object that stops mid-key, and what it cuts
+    is whatever happens to be last — which, once memory and the calendar
+    joined, was "she is halted". Facts are dropped WHOLE, least urgent
+    first, and what went is said out loud rather than silently missing.
+    """
+    dropped: list[str] = []
+    facts = dict(context.get("situation") or {})
+    body = dict(context)
+    while True:
+        body["situation"] = facts
+        if dropped:
+            body["context_trimmed"] = dropped
+        text = json.dumps(body, ensure_ascii=False, indent=1)
+        if len(text) <= limit or not facts:
+            return text[:limit]
+        # reversed insertion order: `situation` is built most-urgent-first
+        victim = list(facts)[-1]
+        facts.pop(victim)
+        dropped.append(victim)
+        if not facts:
+            # Facts exhausted and still over: give up the OLDEST exchanges,
+            # one at a time, rather than slicing the JSON mid-key.
+            older = body.get("recent_exchanges")
+            while (isinstance(older, list) and older
+                   and len(json.dumps(body, ensure_ascii=False, indent=1)) > limit):
+                older.pop(0)
+                dropped.append("an older exchange")
 
 
 def answer(question: str, *, think=None, include_thread: bool = True,
@@ -341,25 +482,57 @@ def answer(question: str, *, think=None, include_thread: bool = True,
         if recent:
             context["recent_exchanges"] = recent
 
-    files, unreadable = ([], []) if not read_files else attachments(question)
+    # What is left for a file, once the question and a floor for the context
+    # are paid for. Computed BEFORE reading rather than trimmed after, so a
+    # long document is truncated with an honest marker instead of pushing the
+    # whole prompt over the reasoner's ceiling and returning nothing.
+    room = MAX_PROMPT_CHARS - len(question) - MIN_CONTEXT_CHARS - SECTION_OVERHEAD
+    files, unreadable, carried = [], [], False
+    if read_files and room > 0:
+        files, unreadable = attachments(question, budget=room)
+        if not files and not unreadable and include_thread:
+            # He named no file THIS time. If she was just reading one, it is
+            # still the subject: "make the second bullet stronger" is the
+            # same conversation as "look at resume.md".
+            again = _carried_over(_thread())
+            if again:
+                files, _gone = attachments(" ".join(again), budget=room)
+                # A carried file that has since moved is NOT worth telling
+                # him about: he did not ask for it this time, and "could not
+                # read C:/…/resume.md" attached to an unrelated answer reads
+                # like a malfunction. It simply stops being carried.
+                carried = bool(files)
 
     sections = []
     for handle in files:
         sections.append(
-            f"--- FILE HE NAMED: {handle['named']} (read from {handle['path']}) "
-            f"---\n{handle['text']}")
+            (f"--- STILL OPEN FROM A MOMENT AGO: {handle['path']} ---\n"
+             if carried else
+             f"--- FILE HE NAMED: {handle['named']} (read from {handle['path']}) "
+             f"---\n")
+            + handle["text"])
     if unreadable:
         sections.append(
             "--- COULD NOT READ ---\n"
             + "\n".join(unreadable)
             + "\nTell him this plainly. Do not answer as though you had read "
               "it, and do not guess what it probably says.")
+    spent = sum(len(part) for part in sections)
     if context.get("situation") or context.get("recent_exchanges"):
+        left = max(MIN_CONTEXT_CHARS,
+                   min(MAX_CONTEXT_CHARS,
+                       MAX_PROMPT_CHARS - len(question) - spent - SECTION_OVERHEAD))
         sections.append(
             "--- CONTEXT (yours, not his — use only what is relevant) ---\n"
-            + json.dumps(context, ensure_ascii=False, indent=1)[:6_000])
+            + _fit(context, left))
 
     prompt = question + ("\n\n" + "\n\n".join(sections) if sections else "")
+    if len(prompt) > MAX_PROMPT_CHARS:
+        # Belt and braces. Every path above is budgeted, so reaching here is
+        # a bug — but a bug that silently returns nothing is worse than one
+        # that returns a slightly short prompt, and the arithmetic must never
+        # be the reason she cannot answer at all.
+        prompt = prompt[:MAX_PROMPT_CHARS - 60] + "\n[... context truncated]"
 
     try:
         said = think(SYSTEM, prompt, model=reasoner.PLAN_MODEL,
@@ -379,7 +552,7 @@ def answer(question: str, *, think=None, include_thread: bool = True,
     if not said:
         raise ConverseError("the model returned nothing")
 
-    _remember_turn(question, said)
+    _remember_turn(question, said, [handle["path"] for handle in files])
     # The question and answer are HIS. The journal records that a
     # conversation happened, how long the answer was, and how many files she
     # opened — not what he asked and not what she said.

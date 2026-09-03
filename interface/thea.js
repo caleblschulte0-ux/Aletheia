@@ -85,14 +85,24 @@ window.Thea = (() => {
    * with a followup_id and the real sentence lands later. The GET is a
    * pure read, so a dropped response costs a retry rather than the answer;
    * the ack is sent only after the caller has SHOWN it. */
+  /* The wait has to outlast the Core's worst case, or the phone gives up on
+   * an answer that is about to arrive. A conversational reply is allowed
+   * 180s of thinking on the far side; polling for exactly 180s here meant a
+   * slow answer was abandoned in the last second and only ever seen as a
+   * notification. 300s matches the follow-up store's own TTL. */
+  const WAIT_MS = 300000;
+
   async function collect(id, onWait) {
-    const deadline = Date.now() + 180000;
-    while (Date.now() < deadline) {
+    const started = Date.now();
+    while (Date.now() - started < WAIT_MS) {
       await new Promise((r) => setTimeout(r, 1400));
       let slot;
       try { slot = await api("/api/voice/followup?id=" + encodeURIComponent(id)); }
       catch { continue; }
-      if (slot.state === "PENDING") { if (onWait) onWait(); continue; }
+      if (slot.state === "PENDING") {
+        if (onWait) onWait(Math.round((Date.now() - started) / 1000));
+        continue;
+      }
       return { id, say: slot.say || (slot.state === "FAILED"
         ? "I could not finish that one." : "That is done.") };
     }
@@ -120,8 +130,8 @@ window.Thea = (() => {
     });
     show(res.say || res.detail || "Done.");
     if (!res.followup_id) return res;
-    if (onThinking) onThinking();
-    const answer = await collect(res.followup_id);
+    if (onThinking) onThinking(0);
+    const answer = await collect(res.followup_id, onThinking);
     show(answer.say);
     ack(answer.id);
     return res;

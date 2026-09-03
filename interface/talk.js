@@ -19,12 +19,17 @@
   const RESTING = "Tap to speak to her.";
 
   // ---- her ------------------------------------------------------------
-  function state(mode) {
+  function state(mode, seconds) {
     const her = $("her");
     her.className = "her " + mode;
+    // A long think must not look like a hang. After twenty seconds the hint
+    // starts counting, because "thinking, 48s" is a working machine and
+    // "thinking" for a silent minute is a broken one.
+    const waited = mode === "thinking" && seconds > 20
+      ? `thinking · ${seconds}s` : "thinking";
     $("hint").textContent =
       mode === "listening" ? "listening — tap to stop"
-      : mode === "thinking" ? "thinking"
+      : mode === "thinking" ? waited
       : mode === "halted" ? "halted"
       : T.canListen ? "" : "tap to write";
   }
@@ -98,7 +103,7 @@
     $("send").disabled = true;
     state("thinking");
     try {
-      await T.ask(text, (t) => reply(t), () => state("thinking"));
+      await T.ask(text, (t) => reply(t), (secs) => state("thinking", secs));
       $("q").value = "";
       state("answering");
       setTimeout(() => { if (!busy && !listening) state("ready"); }, 600);
