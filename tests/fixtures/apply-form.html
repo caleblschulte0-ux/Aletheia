@@ -1,35 +1,35 @@
 <!doctype html><meta charset="utf-8"><title>Apply — Senior Media Systems Engineer</title>
 <h1>Apply: Senior Media Systems Engineer</h1>
-<form>
+<form method="POST" action="/" enctype="multipart/form-data">
 <fieldset><legend>About you</legend>
-<label for="fn">First name *</label><input id="fn" required>
-<label for="ln">Last name *</label><input id="ln" required>
-<label for="em">Email address *</label><input id="em" type="email" required>
+<label for="fn">First name *</label><input id="fn" name="first_name" required>
+<label for="ln">Last name *</label><input id="ln" name="last_name" required>
+<label for="em">Email address *</label><input id="em" name="email" type="email" required>
 <label>Phone <input name="phone_number"></label>
-<label for="loc">City</label><input id="loc">
-<label for="st">State</label><input id="st">
+<label for="loc">City</label><input id="loc" name="city">
+<label for="st">State</label><input id="st" name="state">
 <input name="q_8871" aria-label="LinkedIn Profile">
 <input name="q_8872" placeholder="GitHub URL">
-<label for="cv">Resume/CV *</label><input id="cv" type="file" required>
+<label for="cv">Resume/CV *</label><input id="cv" name="resume" type="file" required>
 </fieldset>
 <fieldset><legend>Screening</legend>
 <label for="auth">Are you legally authorized to work in the United States? *</label>
-<select id="auth" required><option value="">Select…</option><option>Yes</option><option>No</option></select>
+<select id="auth" name="work_auth" required><option value="">Select…</option><option>Yes</option><option>No</option></select>
 <label for="spon">Will you now or in the future require sponsorship? *</label>
-<select id="spon" required><option value="">Select…</option><option>Yes</option><option>No</option></select>
+<select id="spon" name="sponsorship" required><option value="">Select…</option><option>Yes</option><option>No</option></select>
 <label for="reloc">Willing to relocate?</label>
-<select id="reloc"><option value="">Select…</option><option value="yes">Yes</option><option value="no">No</option></select>
-<label for="pay">Desired salary</label><input id="pay">
-<label for="why">Why do you want to work here? *</label><textarea id="why" required></textarea>
+<select id="reloc" name="relocate"><option value="">Select…</option><option value="yes">Yes</option><option value="no">No</option></select>
+<label for="pay">Desired salary</label><input id="pay" name="pay">
+<label for="why">Why do you want to work here? *</label><textarea id="why" name="why" required></textarea>
 </fieldset>
 <fieldset><legend>Voluntary self-identification</legend>
 <label for="gender">Gender</label>
-<select id="gender"><option value="">Decline</option><option>Male</option><option>Female</option></select>
+<select id="gender" name="gender"><option value="">Decline</option><option>Male</option><option>Female</option></select>
 <label for="vet">Protected veteran status</label>
-<select id="vet"><option value="">Decline</option><option>Yes</option><option>No</option></select>
+<select id="vet" name="veteran"><option value="">Decline</option><option>Yes</option><option>No</option></select>
 <label for="felony">Have you ever been convicted of a felony? *</label>
-<select id="felony" required><option value="">Select…</option><option>Yes</option><option>No</option></select>
-<label><input type="checkbox" id="cert" required> I certify the above is true and complete.</label>
+<select id="felony" name="felony" required><option value="">Select…</option><option>Yes</option><option>No</option></select>
+<label><input type="checkbox" id="cert" name="certify" required> I certify the above is true and complete.</label>
 </fieldset>
 <button type="submit">Submit application</button>
 </form>

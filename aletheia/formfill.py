@@ -219,6 +219,57 @@ def plan(fields: list[dict], *, answers: dict | None = None) -> dict:
     return {"fill": fill, "ask": ask, "skipped": skipped}
 
 
+def apply_answers(out: dict, fields: list[dict], answers: dict) -> dict:
+    """His answers to THIS form's own questions, keyed by selector.
+
+    The questions she hands back are not all facts about him. "Why do you
+    want to work here" is an essay; "have you been convicted of a felony"
+    is a declaration; "I certify the above is true" is a checkbox he ticks
+    himself. None of those belong in a profile that gets reused on the next
+    form, so they arrive here, are used once, and are not stored.
+
+    Each answer is turned into the right ACTION for that field's real type
+    — `fill` does nothing useful to a checkbox, and selecting an option a
+    dropdown does not have leaves it empty.
+    """
+    by_selector = {f["selector"]: f for f in fields}
+    steps_out, filled, refused = [], [], []
+    still_asked = []
+    for row in out["ask"]:
+        selector = row["selector"]
+        if selector not in answers:
+            still_asked.append(row)
+            continue
+        field = by_selector.get(selector, {})
+        value = answers[selector]
+        label = row["label"]
+        if field.get("tag") == "select":
+            option = _option_for(field, value)
+            if option is None:
+                row = dict(row, why=f"{value!r} is not one of its options")
+                refused.append(row)
+                still_asked.append(row)
+                continue
+            steps_out.append({"action": "select", "selector": selector,
+                              "value": option})
+            filled.append({"label": label, "value": option})
+        elif field.get("type") in ("checkbox", "radio"):
+            # A checkbox is clicked, never filled — and only when he said
+            # yes. "No" on a checkbox means leave it alone, not click it.
+            if value is True or str(value).strip().casefold() in (
+                    "yes", "true", "1", "on", "checked", "i agree"):
+                steps_out.append({"action": "click", "selector": selector})
+                filled.append({"label": label, "value": "ticked"})
+            else:
+                filled.append({"label": label, "value": "left unticked"})
+        else:
+            steps_out.append({"action": "type", "selector": selector,
+                              "value": str(value)})
+            filled.append({"label": label, "value": str(value)})
+    out["ask"] = still_asked
+    return {"steps": steps_out, "filled": filled, "refused": refused}
+
+
 def steps(filled: list[dict]) -> list[dict]:
     """The plan in `browse.interact`'s grammar — and nothing that submits."""
     return [{"action": s["action"], "selector": s["selector"],
