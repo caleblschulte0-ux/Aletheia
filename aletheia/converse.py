@@ -474,7 +474,13 @@ def answer(question: str, *, think=None, include_thread: bool = True,
     # Halt means she stops working. Answering a question is not work, and a
     # halted assistant that also goes mute is harder to get back from — the
     # explanation of why everything stopped is exactly what he needs then.
-    think = think or reasoner.infer_text
+    #
+    # `subscription_text`, not `infer_text`: the CLI first and the browser
+    # session behind it. Planning, filing, reminding and research have had
+    # two paths since they were written; conversation had one, so an expired
+    # Claude login would have taken out the only half of her he talks to
+    # while everything else carried on normally.
+    think = think or reasoner.subscription_text
 
     context = {"now": stateio.utcnow(), "situation": situation()}
     if include_thread:
@@ -537,6 +543,12 @@ def answer(question: str, *, think=None, include_thread: bool = True,
     try:
         said = think(SYSTEM, prompt, model=reasoner.PLAN_MODEL,
                      timeout_s=TIMEOUT_S)
+        # A test's `think` hands back a plain string; the real one hands back
+        # (answer, provider) so she can say which mouth spoke. Both are
+        # accepted rather than forcing every caller to fake a tuple.
+        provider = ""
+        if isinstance(said, tuple) and len(said) == 2:
+            said, provider = said
     except Exception as exc:
         # The reason is CARRIED, not swallowed into a type name. "Claude CLI
         # is not on PATH" tells him what to do; "ReasonerUnavailable" tells
@@ -558,8 +570,11 @@ def answer(question: str, *, think=None, include_thread: bool = True,
     # opened — not what he asked and not what she said.
     journal.append("action", "converse",
                    f"answered a question ({len(question)} chars in, "
-                   f"{len(said)} out, {len(files)} file(s) read)", actor=ACTOR)
+                   f"{len(said)} out, {len(files)} file(s) read"
+                   + (f", via {provider}" if provider else "") + ")",
+                   actor=ACTOR)
     return {"question": question, "answer": said, "at": stateio.utcnow(),
+            "provider": provider,
             "files_read": [handle["path"] for handle in files],
             "unreadable": unreadable}
 

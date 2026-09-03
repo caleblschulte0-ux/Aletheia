@@ -289,6 +289,58 @@ def infer_text(system_prompt: str, text: str, *, model: str = INTERPRET_MODEL,
     return _run_cli(system_prompt, text, model, timeout_s)
 
 
+def subscription_text(system_prompt: str, text: str, *,
+                      model: str = INTERPRET_MODEL,
+                      timeout_s: float = TIMEOUT_S) -> tuple[str, str]:
+    """Prose from whichever subscription is answering. (text, provider).
+
+    `infer_json` has had a second path since it was written — Claude CLI,
+    then the ChatGPT browser session — and `infer_text` never did. That
+    asymmetry did not matter while the only text caller was a code
+    generator, and started mattering the moment CONVERSATION became a text
+    caller: an expired Claude login would have left her planning, filing,
+    reminding and researching normally while every question he actually
+    asked came back "I could not reach a model". The half of her he talks
+    to would have been the only half without a fallback.
+
+    The browser path answers JSON, so it is asked for one field and the
+    field is unwrapped here. The provider comes back with the answer
+    because she has to be able to say which mouth spoke.
+    """
+    budget = float(timeout_s)
+    if not math.isfinite(budget) or budget < 0.5:
+        raise ValueError("subscription timeout must be finite and at least 0.5 seconds")
+    started = time.monotonic()
+
+    def remaining() -> float:
+        return max(0.0, budget - (time.monotonic() - started))
+
+    try:
+        said = infer_text(system_prompt, text, model=model, timeout_s=remaining())
+        if said.strip():
+            return said, f"claude.cli:{model}"
+    except (ReasonerUnavailable, ValueError):
+        pass
+
+    try:
+        from aletheia import browser_reasoner
+        if remaining() <= 0.5:
+            raise ReasonerUnavailable("subscription reasoning time budget expired")
+        value = browser_reasoner.infer_json(
+            system_prompt + "\n\nReply with ONE JSON object and nothing else: "
+            '{"answer": "<your entire reply, as a single string>"}',
+            text, timeout_s=remaining())
+        said = value.get("answer")
+        if isinstance(said, str) and said.strip():
+            return said, "chatgpt.browser"
+        raise ReasonerUnavailable("the browser path returned no answer")
+    except Exception as exc:
+        raise ReasonerUnavailable(
+            "both subscription paths are unavailable: the Claude CLI could not "
+            f"answer and the browser session could not either ({type(exc).__name__})"
+        ) from None
+
+
 def _subscription_json_with_provider(system_prompt: str, text: str, *, context: dict | None,
                                      model: str, timeout_s: float,
                                      validator: Callable[[dict], dict] | None,
