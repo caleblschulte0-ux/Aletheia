@@ -558,5 +558,52 @@ class TheContextIsCutBySENSENotByTheByte(ConverseCase):
         json.loads(converse._fit(big, 2_000))
 
 
+class ThePlannerKnowsAnsweringIsAnOption(ConverseCase):
+    """The whole conversational half was UNREACHABLE.
+
+    `brain.ALLOWED_INTENTS` has always contained "answer" and
+    `intents.propose` has routed it to `converse` since this morning — but
+    the planner's own system prompt never told the model that returning
+    intent "answer" was allowed. It documented plans, gaps, manual steps
+    and clarify, so a question with no matching command came back as one of
+    those: most often `clarify`, which returns BEFORE converse is reached.
+    A capability nothing can select is not a capability.
+    """
+
+    def test_the_prompt_says_answering_is_a_valid_reply(self):
+        from aletheia import planner
+        self.assertIn('"intent": "answer"', planner.PROMPT_HEADER)
+
+    def test_it_says_a_question_is_not_a_missing_capability(self):
+        from aletheia import planner
+        flat = " ".join(planner.PROMPT_HEADER.split())
+        self.assertIn("not a missing capability", flat)
+        self.assertIn("never for a question", flat.lower())
+
+    def test_research_is_still_the_route_for_current_information(self):
+        """"Look into X" must not collapse into an offline opinion."""
+        from aletheia import planner
+        flat = " ".join(planner.PROMPT_HEADER.split())
+        self.assertIn("research kind", flat)
+
+    def test_the_intent_it_names_is_one_the_validator_accepts(self):
+        from aletheia import brain
+        brain.validate_output({"intent": "answer", "summary": "why the tides?",
+                               "steps": [], "required_capabilities": [],
+                               "confidence": 0.9})
+
+    def test_such_a_plan_routes_to_converse_not_to_a_summary(self):
+        """End to end through the real planner, with only the model faked."""
+        from aletheia import intents, planner
+        plan = planner.Plan(
+            request="why are there tides?", summary="why are there tides?",
+            intent="answer", steps=[], provider="test", degraded=None)
+        with mock.patch.object(planner, "compile", return_value=plan), \
+             mock.patch.object(converse, "answer",
+                               return_value={"answer": "The moon pulls."}):
+            record = intents.propose("why are there tides?", quote="he asked")
+        self.assertEqual(intents.spoken(record), "The moon pulls.")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -88,6 +88,31 @@ is done":
    "required_capabilities": ["reservation.book", "task.persist"],
    "confidence": 0.7}
 
+NOT EVERY REQUEST IS A PLAN. If he is asking a QUESTION — for an
+explanation, a fact, a judgement, a recommendation, an opinion, a draft, a
+comparison, or anything whose right response is WORDS rather than actions —
+return exactly:
+
+  {"intent": "answer", "summary": "<his question, in one line>", "steps": [],
+   "required_capabilities": [], "confidence": 0.9}
+
+and nothing else. Another part of her answers it properly, with his own
+remembered facts, his calendar, the thread of the conversation so far, and
+any file he named read in full. Examples that are ANSWERS, not plans:
+"why are there tides", "which of these two should I pick", "what did I
+decide about the trader", "look at my resume and tell me what is weak",
+"write me a paragraph about X", "explain what you just did".
+
+  - Do NOT turn a question into a gap, a manual step, or a task just because
+    no command matches it. A question with no matching kind is not a missing
+    capability — answering is the capability.
+  - Do NOT ask a clarifying question about something you could simply
+    answer. `clarify` is for an ambiguous INSTRUCTION, never for a question.
+  - The exception is CURRENT information from the open web ("look into X",
+    "what is the latest on Y", "find out about Z"): that is the research
+    kind, which really opens the pages it cites.
+  - A question that also asks for an action is a plan: do the action.
+
 Rules that matter more than being helpful:
   - NEVER invent a kind or an argument name. If what he wants has no kind, \
 emit a {"gap": ...} step naming the closest capability id, or {"manual": ...}.
