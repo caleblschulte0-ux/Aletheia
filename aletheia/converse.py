@@ -122,6 +122,21 @@ what you are working on, what is waiting for him, what he asked you to
 remember. Use it when it is relevant and ignore it when it is not. Do not
 recite it back at him.
 
+WHAT YOU CAN DO IS NOT SOMETHING YOU KNOW — IT IS SOMETHING YOU LOOK UP.
+When the question is about your own abilities, a WHAT I CAN DO block
+travels with it, read from your capability registry at the moment he
+asked. Every claim about what you can or cannot do comes from that block:
+
+- AVAILABLE means it really works; say so plainly.
+- NEEDS_CONFIGURATION is not "I can't" — it is "not yet", and the block
+  carries the exact command. Give it to him.
+- EXPERIMENTAL means it exists and you have not proven it. Say that;
+  do not describe it in the same voice as something you use daily.
+- NOT_BUILT means it does not exist. Do not soften it into a maybe.
+- If the block does not cover what he asked, say you would have to check
+  rather than guessing. You are the one system in his life that is not
+  allowed to be plausibly wrong about itself.
+
 You do not take actions in this reply. If answering properly means doing
 something — sending, writing a file, changing anything — say what you
 would do and let him ask for it."""
@@ -547,6 +562,23 @@ def answer(question: str, *, think=None, include_thread: bool = True,
              f"--- FILE HE NAMED: {handle['named']} (read from {handle['path']}) "
              f"---\n")
             + handle["text"])
+    # What she can actually do, read from the registry at the moment he
+    # asked. Without this the most likely question of the whole evening —
+    # "can you...?" — was answered by a model reasoning from its general
+    # idea of what an assistant probably does (§104, §106). Most of those
+    # answers would have been RIGHT, which is exactly what makes the wrong
+    # ones impossible to spot.
+    try:
+        from aletheia import self_knowledge
+        about_her = self_knowledge.for_question(question)
+    except Exception:
+        about_her = {}
+    if about_her:
+        sections.append(
+            "--- WHAT I CAN DO (my registry, read just now — quote it, do not "
+            "improve on it) ---\n"
+            + json.dumps(about_her, ensure_ascii=False, indent=1)[:3_500])
+
     if unreadable:
         sections.append(
             "--- COULD NOT READ ---\n"

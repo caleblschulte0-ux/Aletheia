@@ -1,5 +1,5 @@
 {
-  "revision": 57,
+  "revision": 58,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1354,6 +1354,17 @@
       "caller": "aletheia.runtime.tick every beat (after attention, which is what decides a notice is loud); python -m aletheia.desktop_notify test|deliver|status",
       "module": "aletheia.desktop_notify",
       "notes": "The last inch of a reminder, and it was missing. 'Remind me at three to call the dentist' worked end to end - planner -> remind_at -> scheduler -> runtime.tick claims it at three exactly -> intercom notify_operator -> a notification written to disk - and NOTHING appeared on his screen, nothing made a sound, and his phone in his pocket was not polling. Everything upstream was correct, which is why every test passed and the journal said 'reminder surfaced'. Surfaced WHERE. A real Windows toast through PowerShell's WinRT bridge, which ships with the OS: nothing to install and no cloud round trip. It is never the record (a failed toast leaves the notification UNREAD, and a shown one does not mark it read either - seeing a toast go by is not dealing with it), it is capped at 3 a beat, it never repeats one, and on a non-Windows machine available() says so and no shell is spawned at all. URGENT and IMPORTANT only: a machine that interrupts for everything is one he turns off. Separate consent from announce.speak - seeing something on your own screen is not a machine talking in a room that may have other people in it."
+    },
+    {
+      "id": "capability.self_knowledge",
+      "description": "Answer 'what can you do?' and 'can you do X?' from the registry, with the setup command when the answer is 'not yet'",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.converse.answer attaches it to every question it is relevant to; python -m aletheia.self_knowledge [question]",
+      "module": "aletheia.self_knowledge",
+      "notes": "The most likely first question anyone asks a new assistant is 'what can you do?' and the second is 'can you do X?', and the conversational half had no path to this file at all - both were answered by a model reasoning from its general idea of what an assistant probably does (No104, No106). Worse here than elsewhere because most of those answers would have been RIGHT: she really can send email, write files and drive the desktop, which is exactly what makes the wrong ones impossible to spot. Retrieval, not recitation - 115 entries do not fit under brain.MAX_TEXT, so only what the question is about travels. A 'no' carries its next step: a NEEDS_CONFIGURATION entry is joined to its aletheia.setup instructions rather than a second copy being written that disagrees by Friday. Word overlap plus a small hand-written synonym map, because it runs inside the prompt-building path of every question: no model call, no network, no imports that could make one."
     }
   ]
 }
