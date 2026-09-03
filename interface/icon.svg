@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Thea">
+  <!-- Vector, not a binary: the repo keeps no media, and an SVG icon is
+       text that scales to every launcher size on its own. Generous dark
+       padding so a maskable crop cannot clip the mark. -->
+  <rect width="512" height="512" rx="114" fill="#08090c"/>
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#1d222c" stroke-width="14"/>
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#7cc6ff" stroke-width="14"
+          stroke-linecap="round" stroke-dasharray="330 613" transform="rotate(-90 256 256)"/>
+  <circle cx="256" cy="256" r="46" fill="#7cc6ff"/>
+</svg>

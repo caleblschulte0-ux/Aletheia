@@ -1,0 +1,15 @@
+{
+  "name": "Thea",
+  "short_name": "Thea",
+  "description": "Aletheia on the phone: what needs you, and one place to ask.",
+  "start_url": "/interface/phone.html",
+  "scope": "/interface/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#08090c",
+  "theme_color": "#08090c",
+  "icons": [
+    { "src": "/interface/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/interface/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

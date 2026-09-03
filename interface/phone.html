@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#08090c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Thea">
+<link rel="manifest" href="/interface/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/interface/icon.svg">
+<title>Thea</title>
+<style>
+/* One screen, one thumb.
+   The old mobile page was a five-tab dashboard with a "paste JSON
+   arguments" box — a developer tool that happened to be narrow. What a
+   phone is for is different: know she is alive, clear what needs me, say
+   the thing, put the phone away. So there are no tabs, the ask bar is
+   pinned under the thumb, and everything that needs no attention renders
+   as nothing at all. */
+:root{
+  --bg:#08090c; --raised:#11141a; --line:#1d222c; --line-2:#2a313d;
+  --ink:#f2f5f9; --dim:#8d97a6; --faint:#5b6472;
+  --accent:#7cc6ff; --ok:#5fd39a; --warn:#f2c14e; --bad:#ff6f6f;
+  --r:18px;
+  --safe-t:env(safe-area-inset-top,0px);
+  --safe-b:env(safe-area-inset-bottom,0px);
+  color-scheme:dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{
+  font:400 16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,system-ui,sans-serif;
+  min-height:100dvh; overscroll-behavior-y:none;
+  padding:calc(var(--safe-t) + 14px) 16px calc(var(--safe-b) + 168px);
+  max-width:620px; margin:0 auto;
+}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+
+/* ---- her state: the one line you check at a glance ------------------ */
+.top{display:flex;align-items:center;gap:12px;margin:2px 0 22px}
+.orb{
+  width:13px;height:13px;border-radius:50%;flex:none;
+  background:var(--faint); box-shadow:0 0 0 0 transparent;
+}
+.orb.live{background:var(--ok);animation:breathe 3.4s ease-in-out infinite}
+.orb.halted{background:var(--bad)}
+.orb.cold{background:var(--faint)}
+@keyframes breathe{
+  0%,100%{box-shadow:0 0 0 0 rgba(95,211,154,.45)}
+  50%{box-shadow:0 0 0 7px rgba(95,211,154,0)}
+}
+@media (prefers-reduced-motion:reduce){.orb.live{animation:none}}
+.top h1{margin:0;font-size:26px;font-weight:700;letter-spacing:-.02em;flex:1}
+.state{font-size:13px;color:var(--dim);margin-top:1px}
+.refresh{
+  width:40px;height:40px;border-radius:50%;color:var(--dim);
+  display:grid;place-items:center;font-size:17px;
+}
+.refresh:active{background:var(--raised)}
+.refresh.spin{animation:spin .7s linear}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---- sections render as NOTHING when there is nothing --------------- */
+section{margin-bottom:26px}
+section[hidden]{display:none!important}
+h2{
+  margin:0 0 11px;font-size:12px;font-weight:600;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--faint);
+}
+.card{
+  background:var(--raised);border:1px solid var(--line);
+  border-radius:var(--r);padding:16px;margin-bottom:10px;
+}
+.card.attention{border-color:#4a3d18;background:#171308}
+.card p{margin:0 0 4px;font-size:16px;line-height:1.4}
+.card .why{margin:0;font-size:13.5px;color:var(--dim);line-height:1.45}
+.card .when{margin:8px 0 0;font-size:12px;color:var(--faint)}
+
+/* Thumb-sized, and far enough apart that Deny is not a mis-tap of
+   Approve — the two buttons here whose confusion actually costs. */
+.choices{display:flex;gap:10px;margin-top:14px}
+.choices button{
+  flex:1;min-height:50px;border-radius:13px;font-weight:600;font-size:15px;
+}
+.yes{background:var(--ink);color:#0a0c10}
+.yes:active{background:#c9d3e0}
+.no{background:transparent;border:1px solid var(--line-2);color:var(--dim)}
+.no:active{background:#191d25}
+
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{
+  background:var(--raised);border:1px solid var(--line);
+  border-radius:var(--r);padding:15px 16px;
+}
+.tile b{display:block;font-size:27px;font-weight:700;letter-spacing:-.02em}
+.tile span{font-size:12.5px;color:var(--dim)}
+
+.bar{height:5px;border-radius:99px;background:#1b202a;overflow:hidden;margin-top:12px}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:99px}
+
+.line{
+  display:flex;gap:11px;align-items:baseline;padding:13px 0;
+  border-top:1px solid var(--line);
+}
+.line:first-child{border-top:0;padding-top:2px}
+.line em{font-style:normal;color:var(--faint);font-size:12px;flex:none}
+.line span{flex:1;font-size:14.5px;color:var(--dim)}
+
+.quiet{color:var(--faint);font-size:14px;padding:6px 0}
+
+/* ---- the ask bar: the reason the page exists ------------------------ */
+.dock{
+  position:fixed;left:0;right:0;bottom:0;z-index:9;
+  padding:14px 16px calc(var(--safe-b) + 14px);
+  background:linear-gradient(transparent,var(--bg) 34%);
+}
+.dock-in{max-width:620px;margin:0 auto}
+.said{
+  font-size:14.5px;line-height:1.45;color:var(--dim);
+  margin:0 2px 10px;max-height:6.4em;overflow-y:auto;
+}
+.said.err{color:var(--bad)}
+.ask{
+  display:flex;align-items:center;gap:9px;
+  background:var(--raised);border:1px solid var(--line-2);
+  border-radius:26px;padding:6px 6px 6px 18px;
+}
+.ask input{
+  flex:1;border:0;background:none;outline:none;min-width:0;
+  padding:12px 0;font-size:16px; /* 16px or iOS zooms on focus */
+}
+.ask input::placeholder{color:var(--faint)}
+.mic,.go{
+  width:44px;height:44px;border-radius:50%;flex:none;
+  display:grid;place-items:center;
+}
+.mic{background:#1c222c;color:var(--ink);font-size:18px}
+.mic.on{background:var(--bad);animation:pulse 1.2s ease-in-out infinite}
+.mic:disabled{opacity:.35}
+@keyframes pulse{50%{transform:scale(1.09)}}
+.go{background:var(--accent);color:#06121c;font-size:19px;font-weight:700}
+.go:disabled{opacity:.3}
+
+.toast{
+  position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(var(--safe-b) + 148px);z-index:20;
+  background:#e9eef5;color:#0a0c10;font-size:14px;font-weight:600;
+  padding:11px 18px;border-radius:99px;box-shadow:0 8px 28px rgba(0,0,0,.45);
+  opacity:0;pointer-events:none;transition:opacity .18s;
+}
+.toast.show{opacity:1}
+
+.foot{
+  display:flex;gap:14px;justify-content:center;
+  font-size:12.5px;color:var(--faint);padding:4px 0 2px;
+}
+.foot button{color:var(--faint);padding:6px}
+.foot button:active{color:var(--dim)}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div id="orb" class="orb cold"></div>
+  <div style="flex:1">
+    <h1>Thea</h1>
+    <div id="state" class="state">connecting…</div>
+  </div>
+  <button id="refresh" class="refresh" aria-label="Refresh">&#8635;</button>
+</div>
+
+<!-- Nothing needing attention renders as nothing. A phone that always has
+     a red badge is a phone you stop looking at. -->
+<section id="needsSec" hidden>
+  <h2>Needs you</h2>
+  <div id="needs"></div>
+</section>
+
+<section id="workSec" hidden>
+  <h2>Working on</h2>
+  <div id="work"></div>
+</section>
+
+<section id="glanceSec" hidden>
+  <h2>At a glance</h2>
+  <div class="tiles" id="tiles"></div>
+</section>
+
+<section id="recentSec" hidden>
+  <h2>Lately</h2>
+  <div class="card" id="recent"></div>
+</section>
+
+<div class="dock">
+  <div class="dock-in">
+    <div id="said" class="said"></div>
+    <div class="ask">
+      <input id="q" type="text" placeholder="Ask Thea…"
+             autocomplete="off" autocorrect="off" enterkeyhint="send">
+      <button id="mic" class="mic" aria-label="Speak">&#127908;</button>
+      <button id="go" class="go" aria-label="Send">&#8593;</button>
+    </div>
+    <div class="foot">
+      <button id="haltBtn">Halt everything</button>
+      <button id="tokenBtn">Access</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+<script src="/interface/phone.js"></script>
+</body>
+</html>

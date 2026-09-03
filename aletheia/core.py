@@ -489,8 +489,14 @@ class Handler(BaseHTTPRequestHandler):
         if not str(target).startswith(str(INTERFACE_DIR.resolve())) or not target.is_file():
             self.send_error(404)
             return
+        # webmanifest and svg are what make the phone page INSTALLABLE.
+        # Served as octet-stream a browser ignores the manifest without
+        # complaining, and "Add to Home Screen" quietly produces a
+        # bookmark instead of an app — a failure with no error message.
         ctype = {"html": "text/html", "json": "application/json",
-                 "js": "text/javascript", "css": "text/css"}.get(
+                 "js": "text/javascript", "css": "text/css",
+                 "webmanifest": "application/manifest+json",
+                 "svg": "image/svg+xml"}.get(
                      target.suffix.lstrip("."), "application/octet-stream")
         body = target.read_bytes()
         self.send_response(200)
@@ -583,6 +589,9 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(body)
                 return
             return self.send_error(404)
+        # A service worker may only control paths at or below its own URL,
+        # so /interface/sw.js can claim /interface/* — which is the whole
+        # phone app. Nothing else needs a special route.
         rel = "index.html" if url.path in ("/", "/interface/", "/interface/index.html") \
             else url.path.removeprefix("/interface/").lstrip("/")
         return self._static(rel)
