@@ -230,6 +230,31 @@ class ItIsBuiltForAThumb(unittest.TestCase):
                       "an empty page says it is empty rather than looking broken")
 
 
+class TheInstructionItGIVESActuallyWorks(unittest.TestCase):
+    """The one command he will type tonight, when the phone says it is not
+    linked. It read `python -m aletheia.access mint` — which now exits with
+    "the following arguments are required: label", because the per-device
+    token work made the label mandatory. A dead end printed in a confident
+    voice is worse than no instruction."""
+
+    def test_the_command_the_console_prints_parses(self):
+        import shlex
+        from aletheia import access
+        body = read("console.js")
+        start = body.index("aletheia.access mint")
+        printed = body[start:start + 120]
+        # reassemble the string literal the page concatenates
+        printed = printed.replace('"', "").replace("+", "").split(";")[0]
+        argv = shlex.split(printed)[1:]      # drop "aletheia.access"
+        parsed = access.build_parser().parse_args(argv)
+        self.assertEqual(parsed.cmd, "mint")
+        self.assertTrue(parsed.label)
+
+    def test_it_asks_for_the_scope_the_console_actually_needs(self):
+        """The console approves and denies; a read token cannot."""
+        self.assertIn("--scope full", read("console.js"))
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -451,6 +476,31 @@ class SheCanTalkBack(unittest.TestCase):
         several awaits in the past and iOS refuses to start speaking."""
         self.assertIn("unlockSpeech", read("talk.js"))
         self.assertIn("volume = 0", read("thea.js"))
+
+
+class TheInstructionItGIVESActuallyWorks(unittest.TestCase):
+    """The one command he will type tonight, when the phone says it is not
+    linked. It read `python -m aletheia.access mint` — which now exits with
+    "the following arguments are required: label", because the per-device
+    token work made the label mandatory. A dead end printed in a confident
+    voice is worse than no instruction."""
+
+    def test_the_command_the_console_prints_parses(self):
+        import shlex
+        from aletheia import access
+        body = read("console.js")
+        start = body.index("aletheia.access mint")
+        printed = body[start:start + 120]
+        # reassemble the string literal the page concatenates
+        printed = printed.replace('"', "").replace("+", "").split(";")[0]
+        argv = shlex.split(printed)[1:]      # drop "aletheia.access"
+        parsed = access.build_parser().parse_args(argv)
+        self.assertEqual(parsed.cmd, "mint")
+        self.assertTrue(parsed.label)
+
+    def test_it_asks_for_the_scope_the_console_actually_needs(self):
+        """The console approves and denies; a read token cannot."""
+        self.assertIn("--scope full", read("console.js"))
 
 
 if __name__ == "__main__":

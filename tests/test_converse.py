@@ -605,5 +605,75 @@ class ThePlannerKnowsAnsweringIsAnOption(ConverseCase):
         self.assertEqual(intents.spoken(record), "The moon pulls.")
 
 
+class DoThatMeansTheThingSheJustSaid(ConverseCase):
+    """The most common follow-up there is, and the planner had no path to
+    it. He asks a question, she answers, he says "do that" — and the planner
+    received the words "do that" with no conversation anywhere in its
+    context, so it asked what "that" meant. He had just said."""
+
+    def test_the_thread_is_readable_by_anything_that_needs_a_referent(self):
+        converse.answer("what should I do about the trader?",
+                        think=self.says("Pause it and look at the log."))
+        recent = converse.recent()
+        self.assertEqual(len(recent), 1)
+        self.assertIn("trader", recent[0]["he_asked"])
+        self.assertIn("Pause it", recent[0]["she_answered"])
+
+    def test_it_is_short_because_it_costs_a_planning_prompt(self):
+        for i in range(10):
+            converse.answer("q" * 900, think=self.says("a" * 900))
+        recent = converse.recent()
+        self.assertLessEqual(len(recent), 3)
+        self.assertLessEqual(max(len(t["she_answered"]) for t in recent), 240)
+
+    def test_the_planner_context_carries_it(self):
+        from aletheia import situational
+        converse.answer("which backup should I use?",
+                        think=self.says("Backblaze, then a local copy."))
+        snap = situational.snapshot()
+        self.assertTrue(snap["recent_conversation"])
+        self.assertIn("Backblaze",
+                      snap["recent_conversation"][-1]["she_answered"])
+
+    def test_the_planner_is_told_what_to_do_with_it(self):
+        from aletheia import planner
+        flat = " ".join(planner.PROMPT_HEADER.split())
+        self.assertIn("recent_conversation", flat)
+        self.assertIn("he has just said", flat)
+
+    def test_it_is_declared_untrusted_like_everything_else(self):
+        """Half of it is her own model output, which may be quoting a page."""
+        from aletheia import situational
+        snap = situational.snapshot()
+        self.assertIn("never instructions", snap["trust_boundary"])
+
+    def test_a_broken_thread_does_not_break_planning(self):
+        from aletheia import situational
+        with mock.patch.object(converse, "recent", side_effect=OSError("gone")):
+            self.assertEqual(situational.snapshot()["recent_conversation"], [])
+
+
+class TwoQuestionsAtOnceLoseNothing(ConverseCase):
+    """The Core is a ThreadingHTTPServer and its beat runs on another
+    thread, so the phone and the room really can ask at the same moment.
+    Remembering a turn is read-modify-write on one small file."""
+
+    def test_concurrent_answers_all_reach_the_thread(self):
+        import threading
+        done = []
+
+        def ask(i):
+            converse.answer(f"question {i}", think=self.says(f"answer {i}"))
+            done.append(i)
+        workers = [threading.Thread(target=ask, args=(i,)) for i in range(8)]
+        for w in workers:
+            w.start()
+        for w in workers:
+            w.join()
+        turns = json.loads(converse.THREAD_PATH.read_text())["turns"]
+        self.assertEqual(len(done), 8)
+        self.assertEqual(len(turns), 8, "a lost race is a lost exchange")
+
+
 if __name__ == "__main__":
     unittest.main()

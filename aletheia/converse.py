@@ -44,6 +44,7 @@ import datetime as dt
 import json
 import re
 import sys
+import threading
 from pathlib import Path
 
 from aletheia import journal, policy, reasoner, stateio, workspace
@@ -130,6 +131,13 @@ class ConverseError(RuntimeError):
     pass
 
 
+# The Core is a ThreadingHTTPServer and its beat runs on another thread, so
+# two questions really can land at once — the phone and the room. Remembering
+# a turn is read-modify-write on one small file, and the loser of that race
+# silently loses his exchange. One process, one lock.
+_THREAD_LOCK = threading.Lock()
+
+
 def _trim(turns: list[dict]) -> list[dict]:
     """Newest-first until the size budget runs out, then back into order.
 
@@ -169,15 +177,16 @@ def _thread() -> list[dict]:
 def _remember_turn(question: str, answer: str,
                    files: list[str] | None = None) -> None:
     """Keep the last few exchanges so 'what about the other one?' resolves."""
-    turns = _thread()
     turn = {"at": stateio.utcnow(), "you": question[:600], "her": answer[:900]}
     if files:
         # PATHS, never contents: the thread is a small file and a resume in
         # it would be both huge and a copy of his document living somewhere
         # he did not put it. The next turn re-reads from the original.
         turn["files"] = files[:MAX_ATTACHED]
-    turns.append(turn)
-    stateio.write_json_atomic(THREAD_PATH, {"turns": _trim(turns)})
+    with _THREAD_LOCK:
+        turns = _thread()
+        turns.append(turn)
+        stateio.write_json_atomic(THREAD_PATH, {"turns": _trim(turns)})
 
 
 def _carried_over(turns: list[dict]) -> list[str]:
@@ -204,6 +213,27 @@ def _carried_over(turns: list[dict]) -> list[str]:
     if age > CARRY_FILE_S:
         return []
     return [str(f) for f in files[:MAX_ATTACHED]]
+
+
+def recent(limit: int = 3) -> list[dict]:
+    """The last few exchanges, for anything that has to resolve "do that".
+
+    Public because the PLANNER needs it. A question answered in
+    conversation is very often followed by an instruction that only makes
+    sense against it — "do that", "yes, go ahead", "the second one" — and
+    the planner had no path to the conversation at all, so those came back
+    as clarifying questions about what "that" meant. He had just said.
+
+    Short on purpose: this is for resolving a referent, not for re-reading
+    the whole discussion, and every character of it costs a planning prompt.
+    """
+    out = []
+    for turn in _thread()[-max(0, int(limit)):]:
+        if isinstance(turn, dict):
+            out.append({"at": str(turn.get("at", ""))[:40],
+                        "he_asked": str(turn.get("you", ""))[:240],
+                        "she_answered": str(turn.get("her", ""))[:240]})
+    return out
 
 
 def forget() -> None:

@@ -167,7 +167,8 @@
     $("linkState").textContent = T.getToken()
       ? "Linked. The code is stored on this phone only."
       : "Not linked. On loopback it works without one; over Tailscale it "
-        + "needs a code from `python -m aletheia.access mint`.";
+        + "needs a code. On your PC run:  python -m aletheia.access mint "
+        + "phone --scope full";
     $("tokenBtn").textContent = T.getToken() ? "Replace or remove the code"
                                              : "Link this phone";
     if (!status) { $("connDetail").textContent = "Not reachable right now."; return; }

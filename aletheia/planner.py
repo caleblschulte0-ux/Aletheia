@@ -125,6 +125,12 @@ remembered facts, the people and organizations she can resolve by name, the \
 documents she holds, and the files in his workspace. Resolve "my resume", "my \
 workspace", "Brant", "my usual" from it rather than asking him to repeat what \
 he has already told her.
+  - "DO THAT", "YES", "GO AHEAD", "THE SECOND ONE" refer to the conversation. \
+The context carries "recent_conversation": the last few things he asked and \
+she answered. Resolve the referent from it and plan the thing she just \
+described, instead of asking what "that" means — he has just said. If the \
+answer she gave named several options, "the second one" is the second option \
+she named. Only ask if the conversation genuinely does not contain it.
   - If the request is still ambiguous in a way that would change what you do, \
 return {"intent": "clarify", "summary": "<the one question>"} instead of \
 guessing — and say what you already checked, so he is not asked for something \

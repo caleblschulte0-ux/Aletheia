@@ -339,7 +339,16 @@ def bind_refusal(host: str, tls_cert: str | None, tls_key: str | None,
     return None
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
+    """The CLI contract, separately so it can be CHECKED.
+
+    The phone's System sheet prints the exact command he types when it says
+    "not linked". That string said `python -m aletheia.access mint` and the
+    per-device token work made `label` mandatory, so the one instruction he
+    would follow tonight exits with an argparse error. A dead end printed in
+    a confident voice is worse than no instruction, and a test that parses
+    what the page prints is the only thing that keeps the two together.
+    """
     ap = argparse.ArgumentParser(
         description="Credentials for reaching the Core from off this machine.")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -350,7 +359,11 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("list")
     p_rev = sub.add_parser("revoke")
     p_rev.add_argument("id")
-    args = ap.parse_args(argv)
+    return ap
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     if args.cmd == "mint":
         token, record = mint(args.label, args.scope, args.days)

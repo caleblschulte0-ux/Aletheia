@@ -197,6 +197,24 @@ def _references(max_items: int) -> list[dict]:
     return out
 
 
+def _conversation(max_items: int) -> list[dict]:
+    """The last few things he said to her and she said back.
+
+    Untrusted like everything else here — half of it is her own model
+    output, which may be quoting a web page — and present for exactly one
+    job: resolving a referent. "Do that", "yes, go ahead", "the second one"
+    are the normal way a person follows up on an answer, and until this
+    existed the planner had no path to the conversation, so every one of
+    them came back as a clarifying question about something he had just
+    said.
+    """
+    try:
+        from aletheia import converse
+        return converse.recent(limit=min(3, max_items))
+    except Exception:
+        return []
+
+
 def _outcomes(max_items: int) -> list[dict]:
     out = []
     for value in handler.all_requests():
@@ -330,6 +348,9 @@ def _budget(value: dict) -> dict:
     paths = [
         ("room",), ("unread_notifications",), ("active_outcomes",),
         ("recent_references",), ("calendar_next",),
+        # Dropped before references but after the calendar: it is cheap and
+        # it is what "do that" points at.
+        ("recent_conversation",),
         ("now", "focus", "tasks"), ("now", "focus", "projects"),
         ("now", "upcoming_automations"), ("now", "capability_gaps"),
         ("now", "waiting_replies"),
@@ -401,6 +422,7 @@ def snapshot(*, now: dt.datetime | None = None,
         "now": _compact_now(base, max_items),
         "calendar_next": _calendar(utc_now, horizon, max_items),
         "room": _devices(max_items),
+        "recent_conversation": _conversation(max_items),
         "recent_references": _references(max_items),
         "active_outcomes": _outcomes(max_items),
         "unread_notifications": _notices(max_items),
