@@ -115,12 +115,20 @@
 
   // Only after it has actually been SAID. The GET is a pure read, so a
   // dropped response costs a retry rather than the answer itself.
+  // Injected by the Core into every page it serves; a loopback WRITE must
+  // carry it (2026-09-03: 127.0.0.1 proves origin, not authorization).
+  const localSecret = () => {
+    const m = document.querySelector('meta[name="aletheia-local"]');
+    return m ? m.content : "";
+  };
+
   async function acknowledge(followupId) {
     if (!followupId) return;
     try {
       await fetch("/api/voice/followup/ack", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json",
+                   "X-Aletheia-Local": localSecret() },
         body: JSON.stringify({ id: followupId }),
       });
     } catch (e) {
@@ -135,7 +143,8 @@
     try {
       const r = await fetch("/api/voice", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json",
+                   "X-Aletheia-Local": localSecret() },
         body: JSON.stringify({ transcript }),
       });
       const res = await r.json();

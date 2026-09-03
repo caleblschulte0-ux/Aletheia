@@ -5,3 +5,5 @@ cache/
 state/mail/
 state/private/
 .aletheia/
+state/approvals/
+state/journal/journal-pc.jsonl

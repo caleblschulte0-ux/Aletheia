@@ -49,6 +49,7 @@ import sys
 import threading
 
 from aletheia import journal, stateio
+from aletheia.stateio import private_dir
 
 ACTOR = "aletheia-access"
 
@@ -206,6 +207,57 @@ def bearer(headers) -> str:
         return ""
     prefix = "bearer "
     return raw[len(prefix):].strip() if raw.lower().startswith(prefix) else ""
+
+
+LOCAL_SECRET_NAME = "local-session.token"
+LOCAL_SECRET_BYTES = 32
+
+
+def local_secret_path() -> Path:
+    return private_dir("access") / LOCAL_SECRET_NAME
+
+
+def local_secret() -> str:
+    """A per-machine secret that local WRITES must carry (2026-09-03).
+
+    Loopback used to be trusted outright: the Core's own comment called it
+    "the operator's own machine talking to itself". A security review made
+    the distinction that matters — 127.0.0.1 proves where a packet came
+    from, not that Caleb sent it. Any process running under his Windows
+    account could POST /api/command and approve an email, resume after a
+    halt, or drive the desktop.
+
+    Reads stay open on loopback deliberately, and that is not laziness: a
+    local process can already read `state/` off the same disk, so gating GET
+    would cost real usability and buy nothing against this threat. WRITES
+    are different — approving is an escalation nothing on disk gives away —
+    so a POST from loopback must present this secret.
+
+    The Core mints it at startup and injects it into the pages it serves, so
+    the wall and the Command Center keep working with no login.
+    """
+    path = local_secret_path()
+    try:
+        existing = path.read_text(encoding="utf-8").strip()
+        if existing:
+            return existing
+    except OSError:
+        pass
+    secret = secrets.token_urlsafe(LOCAL_SECRET_BYTES)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(secret, encoding="utf-8")
+    try:      # best effort; the private dir is already user-scoped
+        path.chmod(0o600)
+    except OSError:
+        pass
+    return secret
+
+
+def local_write_allowed(supplied: str | None) -> bool:
+    """Constant-time comparison of a supplied local secret."""
+    if not supplied:
+        return False
+    return secrets.compare_digest(str(supplied), local_secret())
 
 
 def is_loopback(address: str) -> bool:

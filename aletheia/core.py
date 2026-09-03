@@ -325,7 +325,9 @@ def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
                        actor=ACTOR)
     # checkpoint local run-truth FIRST so the pull rebases clean commits,
     # never a dirty journal (the exact conflict that broke a real PC)
-    syncer.commit(["exchange/commands", "state/journal"], "core: state checkpoint")
+    # state/journal is no longer his: the PC writer lives in private state
+    # (2026-09-03), so a checkpoint carries the intercom lane and nothing else.
+    syncer.commit(["exchange/commands"], "core: state checkpoint")
     prev_pull = status.get("pull")
     before = syncer.head()
     ok, detail = syncer.pull()
@@ -421,11 +423,10 @@ def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
     # pending commits still ride out with the next receipt push.
     now_s = dt.datetime.now(dt.timezone.utc).timestamp()
     if not results and now_s - status.get("last_push_s", 0.0) < 600:
-        syncer.commit(["exchange/commands", "state/journal"],
-                      "core: state checkpoint")
+        syncer.commit(["exchange/commands"], "core: state checkpoint")
         return status
     ok, detail = syncer.commit_push(
-        ["exchange/commands", "state/journal"],
+        ["exchange/commands"],
         f"core: {len(results)} local command receipt(s)" if results
         else "core: state checkpoint")
     prev_push = status.get("push")
@@ -457,7 +458,25 @@ class Handler(BaseHTTPRequestHandler):
         """
         address = self.client_address[0] if self.client_address else "?"
         if access.is_loopback(address):
-            return True
+            # Reading stays open: a local process can read state/ off the disk
+            # anyway. WRITING is an escalation — approving, resuming, driving
+            # the desktop — and 127.0.0.1 proves origin, not authorization
+            # (2026-09-03 review). The pages the Core serves carry the secret,
+            # so the wall and Command Center are unaffected.
+            if self.command in ("GET", "HEAD"):
+                return True
+            supplied = (self.headers.get("X-Aletheia-Local")
+                        or access.bearer(self.headers)
+                        or parse_qs(urlparse(self.path).query).get("local", [None])[0])
+            if access.local_write_allowed(supplied):
+                return True
+            journal.append(
+                "alert", "access",
+                f"a local process attempted {self.command} "
+                f"{self.path.split('?')[0]} without the local session secret",
+                actor="aletheia-access")
+            self._json({"error": "unauthorized"}, code=401)
+            return False
         record = access.verify(access.bearer(self.headers), address)
         if record is None:
             self._json({"error": "unauthorized"}, code=401)
@@ -499,6 +518,20 @@ class Handler(BaseHTTPRequestHandler):
                  "svg": "image/svg+xml"}.get(
                      target.suffix.lstrip("."), "application/octet-stream")
         body = target.read_bytes()
+        address = self.client_address[0] if self.client_address else "?"
+        if target.suffix == ".html" and access.is_loopback(address):
+            # The pages the Core serves ON LOOPBACK carry the local session
+            # secret, so the wall and Command Center keep working with no
+            # login while a stray local process still cannot POST
+            # (2026-09-03). Scoped to loopback only: a phone reaching this
+            # same file over Tailscale has no use for a secret that only
+            # means something when the SOURCE ADDRESS is 127.0.0.1, and
+            # handing it to every device on the tailnet anyway was a needless
+            # leak, not a load-bearing one — worth closing regardless.
+            tag = ('<meta name="aletheia-local" content="'
+                   + access.local_secret() + '">').encode("utf-8")
+            body = (body.replace(b"<head>", b"<head>" + tag, 1)
+                    if b"<head>" in body else tag + body)
         self.send_response(200)
         self.send_header("Content-Type", f"{ctype}; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))

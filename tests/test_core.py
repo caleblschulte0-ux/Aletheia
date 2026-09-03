@@ -7,6 +7,7 @@ import urllib.request
 from pathlib import Path
 from unittest import mock
 
+from aletheia import access
 from aletheia import core, followups, journal, memory, notifications, plans, policy, tasks
 
 
@@ -46,7 +47,8 @@ class CoreCase(unittest.TestCase):
         req = urllib.request.Request(
             f"http://127.0.0.1:{self.port}{path}",
             data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"}, method="POST")
+            headers={"Content-Type": "application/json",
+                     "X-Aletheia-Local": access.local_secret()}, method="POST")
         with urllib.request.urlopen(req) as r:
             return json.loads(r.read().decode("utf-8"))
 
@@ -103,7 +105,8 @@ class CoreCase(unittest.TestCase):
         req = urllib.request.Request(
             f"http://127.0.0.1:{self.port}/api/notifications/ack",
             data=json.dumps({"id": notice["id"]}).encode("utf-8"),
-            headers={"Content-Type": "application/json"}, method="POST")
+            headers={"Content-Type": "application/json",
+                     "X-Aletheia-Local": access.local_secret()}, method="POST")
         with urllib.request.urlopen(req) as r:
             self.assertEqual(json.loads(r.read())["state"], "ACKNOWLEDGED")
         self.assertEqual(notifications.load(notice["id"])["state"], "ACKNOWLEDGED")

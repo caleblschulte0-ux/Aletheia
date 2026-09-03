@@ -138,6 +138,34 @@ def _selector(value: object, name: str, allowed: set[str]) -> list[str]:
     return problems
 
 
+# Programs unattended hands never start. Each is a way to run arbitrary
+# commands or change the machine, which is exactly what the sandbox in
+# aletheia.script exists to make impossible for generated code.
+FORBIDDEN_APPS = frozenset({
+    "cmd", "powershell", "pwsh", "wt", "bash", "sh", "wsl", "python", "pythonw",
+    "py", "wscript", "cscript", "mshta", "regedit", "reg", "diskpart", "format",
+    "rundll32", "msiexec", "wmic", "schtasks", "sc", "net", "net1", "netsh",
+    "bcdedit", "cipher", "takeown", "icacls", "vssadmin", "wevtutil", "certutil",
+    "bitsadmin", "curl", "wget", "ssh", "telnet", "control", "shutdown",
+})
+
+
+def _app_name(app: str) -> str:
+    """The bare program name, however the path was spelled.
+
+    Backslashes are normalized FIRST because `Path` only treats them as
+    separators on Windows: on a POSIX runner
+    `Path(r"C:\Windows\System32\cmd.exe").name` is the entire string, so
+    the FORBIDDEN_APPS check silently missed every full Windows path and
+    this guard meant something different in CI than on the operator's PC.
+    A security check has to mean the same thing wherever it is evaluated.
+    (Found by test_a_shell_is_never_opened, which was red on the branch.)
+    """
+    raw = app.strip().strip('"').replace("\\", "/")
+    name = PurePosixPath(raw).name.casefold()
+    return name[:-4] if name.endswith((".exe", ".com", ".bat", ".cmd")) else name
+
+
 def validate_steps(steps: object) -> list[str]:
     """Validate the complete plan before approval lookup or desktop access."""
     if not isinstance(steps, list) or not steps:
@@ -158,6 +186,19 @@ def validate_steps(steps: object) -> list[str]:
         unknown = set(step) - ACTION_FIELDS[action]
         if unknown:
             problems.append(f"{label}: unsupported fields {sorted(unknown)}")
+        if action == "open_app" and _app_name(str(step.get("app", ""))) in FORBIDDEN_APPS:
+            # Launching an app and executing code are different powers, and
+            # until 2026-09-03 only unattended hands knew that: act() refused
+            # interpreters while execute() — the hash-bound approval path —
+            # did not, so an approved plan could start PowerShell and the
+            # sandbox in aletheia.script became decoration. Refused here, in
+            # the validator every caller already runs, because "an approval
+            # said so" must not be a route to arbitrary code (§61, §70).
+            problems.append(
+                f"{label}.app: {step.get('app')!r} is a shell, interpreter or "
+                "system tool. Starting one is code execution, which is a "
+                "separate capability nobody has built or granted — not an "
+                "argument to open_app")
         if "timeout_s" in step and (
                 isinstance(step["timeout_s"], bool)
                 or not isinstance(step["timeout_s"], (int, float))
@@ -871,18 +912,6 @@ COMMITTING_PATTERN = re.compile(
     r"sign|post|publish|remove|erase|wipe|reset|share|transfer|order)\b",
     re.IGNORECASE)
 
-# Programs unattended hands never start. Each is a way to run arbitrary
-# commands or change the machine, which is exactly what the sandbox in
-# aletheia.script exists to make impossible for generated code.
-FORBIDDEN_APPS = frozenset({
-    "cmd", "powershell", "pwsh", "wt", "bash", "sh", "wsl", "python", "pythonw",
-    "py", "wscript", "cscript", "mshta", "regedit", "reg", "diskpart", "format",
-    "rundll32", "msiexec", "wmic", "schtasks", "sc", "net", "net1", "netsh",
-    "bcdedit", "cipher", "takeown", "icacls", "vssadmin", "wevtutil", "certutil",
-    "bitsadmin", "curl", "wget", "ssh", "telnet", "control", "shutdown",
-})
-
-
 class CommittingControl(ApprovalRequired):
     """A control whose label commits or destroys; act() bounces it to execute()."""
 
@@ -904,22 +933,6 @@ def _control_label(control: dict) -> str:
                 value = re.sub(r"[\\^$.*+?()\[\]{}|]", " ", value)
             parts.append(value)
     return " ".join(parts).strip()
-
-
-def _app_name(app: str) -> str:
-    """The bare program name, however the path was spelled.
-
-    Backslashes are normalized FIRST because `Path` only treats them as
-    separators on Windows: on a POSIX runner
-    `Path(r"C:\\Windows\\System32\\cmd.exe").name` is the entire string, so
-    the FORBIDDEN_APPS check silently missed every full Windows path and
-    this guard meant something different in CI than on the operator's PC.
-    A security check has to mean the same thing wherever it is evaluated.
-    (Found by test_a_shell_is_never_opened, which was red on the branch.)
-    """
-    raw = app.strip().strip('"').replace("\\", "/")
-    name = PurePosixPath(raw).name.casefold()
-    return name[:-4] if name.endswith((".exe", ".com", ".bat", ".cmd")) else name
 
 
 def check_act_plan(steps: list[dict]) -> None:

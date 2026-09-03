@@ -116,17 +116,25 @@ class WindowlessInterpreterCase(unittest.TestCase):
 
 
 class JournalRoutingCase(unittest.TestCase):
-    def test_use_pc_journal_routes_appends_but_entries_merge(self):
+    def test_the_pc_writer_is_private_and_entries_still_merge(self):
+        """Since 2026-09-03 the PC writer lives in PRIVATE state (the repo is
+        public and it holds what she did on his behalf), while a read of the
+        in-repo journal still returns one merged stream."""
+        import os
         import tempfile
         from aletheia import journal as j
         with tempfile.TemporaryDirectory() as tmp:
-            d = Path(tmp) / "state" / "journal"
-            with mock.patch.object(j, "JOURNAL_PATH", d / "journal.jsonl"):
+            repo_journal = Path(tmp) / "state" / "journal"
+            private = Path(tmp) / "private"
+            with mock.patch.dict(os.environ, {"ALETHEIA_PRIVATE_STATE": str(private)}),                     mock.patch.object(j, "REPO_JOURNAL_DIR", repo_journal),                     mock.patch.object(j, "JOURNAL_PATH", repo_journal / "journal.jsonl"):
                 j.append("note", "cloud", "from the cloud writer")
                 pc = j.use_pc_journal()
                 self.assertEqual(pc.name, "journal-pc.jsonl")
+                self.assertTrue(str(pc).startswith(str(private)),
+                                f"the PC journal must be private, got {pc}")
                 with mock.patch.object(j, "JOURNAL_PATH", pc):
                     j.append("note", "pc", "from the pc writer")
+                # a reader at the in-repo location sees BOTH writers
+                with mock.patch.object(j, "JOURNAL_PATH", repo_journal / "journal.jsonl"):
                     texts = {e["text"] for e in j.entries()}
-            # same-second entries across files: presence matters, order doesn't
             self.assertEqual(texts, {"from the cloud writer", "from the pc writer"})

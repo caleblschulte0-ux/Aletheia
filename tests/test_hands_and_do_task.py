@@ -143,12 +143,27 @@ class HandsRefuseWhatCommits(Isolated):
         self.assertNotIn("close_window", computer.ACT_ACTIONS)
         self.assertNotIn("screenshot_window", computer.ACT_ACTIONS)
 
+    SHELLS = ("cmd.exe", "powershell", r"C:\Windows\System32\cmd.exe",
+              "python.exe", "regedit", "format.com")
+
     def test_a_shell_is_never_opened(self):
-        for app in ("cmd.exe", "powershell", r"C:\Windows\System32\cmd.exe",
-                    "python.exe", "regedit", "format.com"):
+        for app in self.SHELLS:
             with self.subTest(app=app):
-                with self.assertRaises(computer.ApprovalRequired):
+                with self.assertRaises(ValueError):
                     computer.act([{"action": "open_app", "app": app}], backend=FakeDesktop())
+
+    def test_no_approval_can_authorize_a_shell_either(self):
+        """Until 2026-09-03 the guard lived only in act(); execute() — the
+        hash-bound approval path — happily started PowerShell, which made the
+        script sandbox decoration. Launching an interpreter is code
+        execution, a capability nobody has built or granted."""
+        for app in self.SHELLS:
+            with self.subTest(app=app):
+                steps = [{"action": "open_app", "app": app}]
+                self.assertTrue(any("separate capability" in p
+                                    for p in computer.validate_steps(steps)))
+                with self.assertRaises(ValueError):
+                    computer.execute(steps, "any-approval", backend=FakeDesktop())
 
 
 class HandsThatWork(Isolated):

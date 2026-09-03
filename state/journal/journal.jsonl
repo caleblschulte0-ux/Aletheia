@@ -983,3 +983,8 @@
 {"ts": "2026-09-03T02:17:20Z", "kind": "event", "actor": "aletheia-ics", "subject": "calendar:refresh", "text": "0 mirrored, 0 stale cancelled, 0 unsupported across 1 feed(s)"}
 {"ts": "2026-09-03T05:33:07Z", "kind": "action", "actor": "aletheia-media", "subject": "media", "text": "trim -> sample_half.mp4 (46,420 bytes)"}
 {"ts": "2026-09-03T05:33:11Z", "kind": "action", "actor": "aletheia-pursue", "subject": "pursue", "text": "Find out how long sample.mp4 in my workspace is, then trim it to just the first half and save that a — DONE, 2/3 step(s) over 2 round(s)"}
+{"ts": "2026-09-03T12:43:29Z", "kind": "event", "actor": "aletheia-mail", "subject": "mail:secret", "text": "the mail app password moved from mail.json into the DPAPI vault"}
+{"ts": "2026-09-03T12:46:53Z", "kind": "alert", "actor": "aletheia-access", "subject": "access", "text": "a local process attempted POST /api/command without the local session secret"}
+{"ts": "2026-09-03T12:46:53Z", "kind": "alert", "actor": "aletheia-access", "subject": "access", "text": "a local process attempted POST /api/command without the local session secret"}
+{"ts": "2026-09-03T12:46:53Z", "kind": "note", "actor": "operator-via-intercom", "subject": "operator", "text": "legitimate"}
+{"ts": "2026-09-03T12:46:53Z", "kind": "action", "actor": "operator-local-core", "subject": "core:note", "text": "done — journaled"}

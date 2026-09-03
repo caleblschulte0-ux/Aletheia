@@ -62,6 +62,31 @@ POLL_MIN_INTERVAL_S = 300  # one IMAP login per 5 min is plenty; a login per
 NETWORK_TIMEOUT_S = 15     # a hung socket must never hang the runtime
 
 
+SECRET_NAME = "mail.password"
+
+
+def stored_password() -> str:
+    """The app password out of the DPAPI vault, or "" if it is not there.
+
+    Added 2026-09-03. It lived in `~/.aletheia/mail.json` as plain text,
+    which a security review named correctly: gitignored is not encrypted.
+    Any process running as him, any backup or sync that follows the folder,
+    any archive of the home directory carried a working credential to his
+    mailbox. `aletheia.secret_store` seals a secret with Windows DPAPI to
+    this user on this machine, and has since the secrets slice landed — the
+    mail path simply never used it.
+
+    Reading is best-effort: a machine without DPAPI (or a vault that has
+    not been written yet) falls through to the environment and then to the
+    legacy file, so nothing breaks while he migrates.
+    """
+    try:
+        from aletheia import secret_store
+        return secret_store.get(SECRET_NAME)
+    except Exception:
+        return ""
+
+
 def _config() -> dict:
     cfg = {}
     if CONFIG_FILE.exists():
@@ -69,9 +94,12 @@ def _config() -> dict:
             cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             cfg = {}
+    # env (an explicit override) -> sealed vault -> the legacy plaintext file
+    password = (os.environ.get("ALETHEIA_MAIL_PASSWORD", "")
+                or stored_password() or cfg.get("password", ""))
     return {
         "address": os.environ.get("ALETHEIA_MAIL_ADDRESS", cfg.get("address", "")),
-        "password": os.environ.get("ALETHEIA_MAIL_PASSWORD", cfg.get("password", "")),
+        "password": password,
         "imap_host": os.environ.get("ALETHEIA_IMAP_HOST", cfg.get("imap_host", "imap.gmail.com")),
         "smtp_host": os.environ.get("ALETHEIA_SMTP_HOST", cfg.get("smtp_host", "smtp.gmail.com")),
     }
@@ -84,6 +112,37 @@ def available() -> tuple[bool, str]:
                        "ALETHEIA_MAIL_PASSWORD (an app password), or write "
                        f"{CONFIG_FILE} — see aletheia/mail.py")
     return True, f"configured for {c['address']}"
+
+
+def migrate_password_to_vault() -> dict:
+    """Move the app password from the plaintext file into the sealed vault.
+
+    Idempotent, and it does not delete anything it has not first verified
+    it can read back — losing his mail credential to a tidy-up would be a
+    worse outcome than the plaintext it is fixing.
+    """
+    from aletheia import secret_store
+    ok, why = secret_store.available()
+    if not ok:
+        return {"moved": False, "reason": why}
+    if not CONFIG_FILE.exists():
+        return {"moved": False, "reason": "no legacy mail.json to migrate"}
+    try:
+        cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return {"moved": False, "reason": f"mail.json is unreadable: {type(exc).__name__}"}
+    secret = str(cfg.get("password", ""))
+    if not secret:
+        return {"moved": False, "reason": "mail.json holds no password"}
+    secret_store.put(SECRET_NAME, secret, provider="mail", kind="app_password")
+    if secret_store.get(SECRET_NAME) != secret:
+        return {"moved": False, "reason": "the vault did not read back what was written"}
+    cfg.pop("password", None)
+    CONFIG_FILE.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+    journal.append("event", "mail:secret",
+                   "the mail app password moved from mail.json into the DPAPI vault",
+                   actor=ACTOR)
+    return {"moved": True, "vault_name": SECRET_NAME, "file": str(CONFIG_FILE)}
 
 
 MAX_BODY_CHARS = 6_000

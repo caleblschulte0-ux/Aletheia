@@ -8,6 +8,7 @@ import urllib.request
 from pathlib import Path
 from unittest import mock
 
+from aletheia import access
 from aletheia import core, journal, policy
 
 
@@ -61,7 +62,8 @@ class CoreComputerCase(unittest.TestCase):
         request = urllib.request.Request(
             f"http://127.0.0.1:{self.port}/api/computer",
             data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json",
+                     "X-Aletheia-Local": access.local_secret()},
             method="POST")
         try:
             with urllib.request.urlopen(request) as response:

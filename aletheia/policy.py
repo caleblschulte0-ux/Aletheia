@@ -25,13 +25,29 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
 import sys
 from pathlib import Path
 
 from aletheia import capabilities, contracts, gh, journal
 from aletheia.fleet import REPO_ROOT
 
-APPROVALS_DIR = REPO_ROOT / "state" / "approvals"
+def _approvals_dir() -> Path:
+    """Where approval objects live: PRIVATE state, not the repository.
+
+    Moved 2026-09-03. An approval records what he authorised, why, what it
+    would cost and often his own words — and they were committed to a public
+    repository. `ALETHEIA_APPROVALS_DIR` overrides for tooling; the default
+    is `state/private/approvals`, which is gitignored.
+    """
+    override = os.environ.get("ALETHEIA_APPROVALS_DIR", "").strip()
+    if override:
+        return Path(override).expanduser()
+    from aletheia.stateio import private_dir
+    return private_dir("approvals")
+
+
+APPROVALS_DIR = _approvals_dir()
 HALT_PATH = REPO_ROOT / "state" / "policy" / "halt.json"
 ISSUE_PREFIX = "🔐 Approval required:"
 

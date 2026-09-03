@@ -8,6 +8,7 @@ import urllib.request
 from pathlib import Path
 from unittest import mock
 
+from aletheia import access
 from aletheia import journal, plans, policy, reasoner, tasks, voice
 from aletheia import memory
 
@@ -169,7 +170,10 @@ class VoiceEndpointCase(unittest.TestCase):
         req = urllib.request.Request(
             f"http://127.0.0.1:{self.port}/api/voice",
             data=json.dumps({"transcript": transcript}).encode("utf-8"),
-            headers={"Content-Type": "application/json"}, method="POST")
+            # a loopback WRITE carries the local session secret, exactly as
+            # the served voice page does (2026-09-03)
+            headers={"Content-Type": "application/json",
+                     "X-Aletheia-Local": access.local_secret()}, method="POST")
         with urllib.request.urlopen(req) as r:
             return json.loads(r.read().decode("utf-8"))
 

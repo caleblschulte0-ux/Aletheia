@@ -26,9 +26,25 @@ window.Thea = (() => {
     } catch { /* private mode: this session only */ }
   }
 
+  // Injected by the Core into every page it serves FROM LOOPBACK (never
+  // over Tailscale/remote — 2026-09-03). A write from loopback must carry
+  // it: 127.0.0.1 proves origin, not that Caleb sent it. It travels
+  // separately from `token`, which is the real minted credential a phone
+  // presents over Tailscale; the two are never the same value and this
+  // page only ever has one of them populated.
+  function localSecret() {
+    const m = document.querySelector('meta[name="aletheia-local"]');
+    return m ? m.content : "";
+  }
+
   async function api(path, options = {}) {
     const headers = Object.assign({}, options.headers);
     if (token) headers.Authorization = "Bearer " + token;
+    const method = (options.method || "GET").toUpperCase();
+    if (!token && method !== "GET" && method !== "HEAD") {
+      const local = localSecret();
+      if (local) headers["X-Aletheia-Local"] = local;
+    }
     if (options.body) headers["Content-Type"] = "application/json";
     const res = await fetch(path, Object.assign({}, options, { headers }));
     if (res.status === 401) {
