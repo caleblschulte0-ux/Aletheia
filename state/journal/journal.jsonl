@@ -981,3 +981,5 @@
 {"ts": "2026-09-03T02:13:10Z", "kind": "event", "actor": "aletheia-ics", "subject": "calendar:refresh", "text": "0 mirrored, 0 stale cancelled, 0 unsupported across 1 feed(s)"}
 {"ts": "2026-09-03T02:13:10Z", "kind": "event", "actor": "aletheia-apply", "subject": "setup:calendar", "text": "secret-ICS feed 'primary' configured; 0 event(s) mirrored"}
 {"ts": "2026-09-03T02:17:20Z", "kind": "event", "actor": "aletheia-ics", "subject": "calendar:refresh", "text": "0 mirrored, 0 stale cancelled, 0 unsupported across 1 feed(s)"}
+{"ts": "2026-09-03T05:33:07Z", "kind": "action", "actor": "aletheia-media", "subject": "media", "text": "trim -> sample_half.mp4 (46,420 bytes)"}
+{"ts": "2026-09-03T05:33:11Z", "kind": "action", "actor": "aletheia-pursue", "subject": "pursue", "text": "Find out how long sample.mp4 in my workspace is, then trim it to just the first half and save that a — DONE, 2/3 step(s) over 2 round(s)"}
