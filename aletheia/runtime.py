@@ -16,8 +16,9 @@ import hashlib
 import json
 from pathlib import Path
 
-from aletheia import (act, attention, communications, events, gaps, handler, intercom, mail,
-                      notifications, policy, proactive, scheduler, tasks, verification)
+from aletheia import (act, attention, communications, desktop_notify, events, gaps,
+                      handler, intercom, mail, notifications, policy, proactive,
+                      scheduler, tasks, verification)
 from aletheia.pulse import PULSE_DIR
 from aletheia.stateio import private_dir, read_json, write_json_atomic
 
@@ -460,6 +461,13 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # LAST: everything above may create notifications. Attention never executes
     # them; it only classifies READY vs DEFERRED and escalates eligible priority.
     attention_records = guarded("attention", lambda: attention.reconcile(now=now))
+    # AFTER attention, because attention is what decides a notice is loud.
+    # This is the inch that was missing: "remind me at three to call the
+    # dentist" produced a correct, on-time notification that appeared
+    # NOWHERE — not on his screen, not audibly, and not on a phone in his
+    # pocket that was not polling. Everything upstream was right, which is
+    # exactly why nothing caught it.
+    delivered = guarded("desktop", desktop_notify.deliver_pending)
     return {
         "failures": failures,
         "skipped": skipped,
@@ -477,4 +485,5 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
         "calendar": calendar_updates,
         "handle_requests": handle_requests,
         "attention": attention_records,
+        "delivered": delivered,
     }
