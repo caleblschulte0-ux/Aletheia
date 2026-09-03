@@ -41,7 +41,7 @@ import re
 import sys
 from pathlib import Path
 
-from aletheia import act, gh, journal, plans, policy, suggestions, tasks
+from aletheia import act, gh, journal, localtime, plans, policy, suggestions, tasks
 from aletheia.fleet import REPO_ROOT, load_fleet
 
 COMMANDS_DIR = REPO_ROOT / "exchange" / "commands"
@@ -159,7 +159,7 @@ KIND_NOTES: dict[str, str] = {
         'undo, find, save, navigation, escape, tab — never enter/delete/alt+f4) | '
         '{"action":"select","window":{...},"control":{"control_type":"ComboBox"},"value":"UTF-8"}. '
         "Selectors use title, title_re, class_name, auto_id, control_type (a control "
-        "also best_match) — never screen coordinates. A control labelled Send, "
+        "also best_match) — never screen coordinates. A window title_re matches anywhere in the title, ignoring case. A text area is control_type Edit or Document (either finds it). Windows 11 Notepad reopens its last tabs on launch: to write fresh text, send hotkey ctrl+n after wait_window, then set_text. A control labelled Send, "
         "Delete, Pay, Purchase, Confirm, Submit, Format, Uninstall or Empty Trash "
         "is refused and needs his approval; do not plan around it."),
     "do_task": (
@@ -530,7 +530,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         import uuid as _uuid
         sid = "remind-daily-" + _uuid.uuid4().hex[:8]
         scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
-                         kind="daily", timezone=cmd.get("tz", "America/Chicago"),
+                         kind="daily", timezone=cmd.get("tz") or localtime.operator_timezone(),
                          time=cmd["time"])
         return f"daily reminder {sid} set for {cmd['time']} — {cmd['text'][:80]!r}"
     if kind == "notify_operator":
@@ -575,7 +575,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         slug = _re.sub(r"[^a-z0-9]+", "-", cmd["person"].lower()).strip("-")[:30]
         record = scheduling.start(
             f"meet-{slug}-{_dt.date.today().isoformat()}"[:60], cmd["person"],
-            start_day=start, end_day=end, timezone="America/Chicago",
+            start_day=start, end_day=end, timezone=localtime.operator_timezone(),
             duration_minutes=int(cmd.get("minutes", 30)),
             purpose=cmd.get("purpose", ""))
         return scheduling.spoken(record)
@@ -694,7 +694,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "free_time":
         import datetime as _dt
         from aletheia import calendar as cal
-        tz = cmd.get("tz", "America/Chicago")
+        tz = cmd.get("tz") or localtime.operator_timezone()
         minutes = int(cmd.get("minutes", 30))
         day = _dt.date.fromisoformat(cmd["day"])
         slots = cal.free_slots(day, duration_minutes=minutes, timezone=tz)

@@ -82,8 +82,8 @@ def _spoken_day(text: str) -> str | None:
 def _next_occurrence_iso(hhmm: str) -> str:
     """The next future moment today/tomorrow at HH:MM, operator-local."""
     import datetime as dt
-    from zoneinfo import ZoneInfo
-    tz = ZoneInfo("America/Chicago")
+    from aletheia import localtime
+    tz = localtime.operator_tz()
     now = dt.datetime.now(tz)
     hour, minute = map(int, hhmm.split(":"))
     candidate = now.replace(hour=hour, minute=minute, second=0, microsecond=0)

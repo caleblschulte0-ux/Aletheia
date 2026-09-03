@@ -103,6 +103,15 @@ class ItAnswersWithSources(ResearchCase):
                         "an answer that exists only in a log is one he never gets")
         self.assertTrue(list(notifications.NOTICES_DIR.glob("*.json")))
 
+    def test_the_same_question_twice_in_a_day_stores_two_reports(self):
+        research.run("what is the answer", reader=reader, think=self.think())
+        research.run("what is the answer", reader=reader, think=self.think())
+        stored = list(documents.DOCS_DIR.glob("research-*.json"))
+        self.assertEqual(len(stored), 2, [p.name for p in stored])
+        alerts = [line for line in journal.JOURNAL_PATH.read_text(encoding="utf-8").splitlines()
+                  if "could not store" in line]
+        self.assertEqual(alerts, [])
+
 
 class AnInventedCitationDoesNotSurvive(ResearchCase):
     """The line between research and a plausible paragraph. Enforced in code

@@ -390,13 +390,30 @@ def _deliver(report: dict) -> str:
     doc_id = "research-" + re.sub(r"[^a-z0-9]+", "-",
                                   report["question"].casefold())[:48].strip("-")
     doc_id = f"{doc_id}-{report['at'][:10].replace('-', '')}"
-    try:
-        documents.ingest_text(doc_id, title=report["question"],
-                              text=as_markdown(report), source="aletheia.research")
-    except Exception as exc:      # a delivery failure must not lose the answer
+    # The same question asked twice in a day is two reports, not one
+    # report and one alert: the store refuses to overwrite (a document is
+    # evidence), so the second takes the time of day as well. 2026-09-02,
+    # live: the tallest building in Chicago, asked again, "could not store
+    # the report: FileExistsError" — and the answer he was given had no
+    # document behind it.
+    stamp = report["at"][11:19].replace(":", "")
+    for candidate in (doc_id, f"{doc_id}-{stamp}"):
+        try:
+            documents.ingest_text(candidate, title=report["question"],
+                                  text=as_markdown(report), source="aletheia.research")
+            doc_id = candidate
+            break
+        except FileExistsError:
+            continue
+        except Exception as exc:      # a delivery failure must not lose the answer
+            journal.append("alert", "research",
+                           f"could not store the report: {type(exc).__name__}",
+                           actor=ACTOR)
+            break
+    else:
         journal.append("alert", "research",
-                       f"could not store the report: {type(exc).__name__}",
-                       actor=ACTOR)
+                       "could not store the report: a report with this id "
+                       "already exists for this second", actor=ACTOR)
     try:
         notifications.publish(
             f"Looked into: {report['question'][:70]}",

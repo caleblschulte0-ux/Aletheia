@@ -310,6 +310,8 @@ REGISTRY_WITH_SCRIPT = {
          "approval_policy": "operator_always", "risk_class": "high"},
         {"id": "calendar.read", "status": "NEEDS_CONFIGURATION", "provider": "aletheia.local",
          "approval_policy": "none", "risk_class": "read"},
+        {"id": "file.rename", "status": "NOT_BUILT", "provider": "aletheia.local",
+         "approval_policy": "none", "risk_class": "low"},
     ],
 }
 REGISTRY_WITHOUT_SCRIPT = {
@@ -339,10 +341,19 @@ class UnmatchedAsksBecomeAProgram(Isolated):
 
     def test_a_gap_on_a_computation_becomes_a_do_task_step_and_the_gap_stays(self):
         plan_ = self.compile({"intent": "plan", "summary": "s", "steps": [
-            {"gap": "calendar.read", "why": "no calendar"}]})
+            {"gap": "file.rename", "why": "nothing renames files"}]})
         self.assertEqual([s.status for s in plan_.steps],
                          [planner.GAP, planner.EXECUTABLE])
-        self.assertEqual(plan_.steps[0].capability, "calendar.read", "the ticket stays")
+        self.assertEqual(plan_.steps[0].capability, "file.rename", "the ticket stays")
+
+    def test_a_built_but_unconfigured_capability_gets_its_setup_not_a_program(self):
+        # 2026-09-02: "what's on my calendar tomorrow" compiled to a sandboxed
+        # program because calendar.read was NEEDS_CONFIGURATION; a sandbox
+        # with no network reads no calendar. The verb exists; it needs him.
+        plan_ = self.compile({"intent": "plan", "summary": "s", "steps": [
+            {"gap": "calendar.read", "why": "no calendar"}]})
+        self.assertEqual([s.status for s in plan_.steps], [planner.GAP])
+        self.assertEqual(plan_.executable, [])
 
     def test_authority_shaped_gaps_are_never_turned_into_a_program(self):
         plan_ = self.compile({"intent": "plan", "summary": "s", "steps": [

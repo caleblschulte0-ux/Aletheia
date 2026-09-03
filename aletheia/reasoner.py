@@ -130,6 +130,62 @@ def _context_json(context: dict, limit: int = MAX_CONTEXT_BYTES) -> str:
     return encoded
 
 
+# The CLI runs in an empty directory of its own so it can read nothing of
+# ours. On Windows that directory is sometimes still HELD for a moment
+# after the CLI has exited (a child it spawned keeps it as its working
+# directory), and `TemporaryDirectory.cleanup()` then raises
+# PermissionError — after the answer was already in hand. On 2026-09-02
+# fifteen of sixteen planner calls died that way: a correct plan, thrown
+# away over an empty folder. So: our own directory, discarded with a few
+# short retries, and left for the next call's sweep if it is still held.
+WORKDIR_PREFIX = "aletheia-brain-"
+WORKDIR_STALE_S = 600.0
+DISCARD_TRIES = 5
+DISCARD_PAUSE_S = 0.2
+
+
+def _workdir() -> str:
+    _sweep_stale_workdirs()
+    return tempfile.mkdtemp(prefix=WORKDIR_PREFIX)
+
+
+def _discard_workdir(path: str) -> bool:
+    """Remove the CLI's working directory. Never raises: a directory that
+    is still held is left for `_sweep_stale_workdirs`, and the answer the
+    caller already has is not the thing to lose over it."""
+    for attempt in range(DISCARD_TRIES):
+        shutil.rmtree(path, ignore_errors=True)
+        if not os.path.exists(path):
+            return True
+        time.sleep(DISCARD_PAUSE_S * (attempt + 1))
+    return False
+
+
+def _sweep_stale_workdirs(now: float | None = None) -> int:
+    """Remove brain directories an earlier call had to leave behind, once
+    they are old enough that nothing can still be holding them."""
+    root = tempfile.gettempdir()
+    try:
+        names = os.listdir(root)
+    except OSError:
+        return 0
+    now = time.time() if now is None else now
+    removed = 0
+    for name in names:
+        if not name.startswith(WORKDIR_PREFIX):
+            continue
+        path = os.path.join(root, name)
+        try:
+            if not os.path.isdir(path) or now - os.path.getmtime(path) < WORKDIR_STALE_S:
+                continue
+        except OSError:
+            continue
+        shutil.rmtree(path, ignore_errors=True)
+        if not os.path.exists(path):
+            removed += 1
+    return removed
+
+
 def _run_cli(system_prompt: str, user_prompt: str, model: str,
              timeout_s: float = TIMEOUT_S) -> str:
     path = cli_path()
@@ -150,18 +206,20 @@ def _run_cli(system_prompt: str, user_prompt: str, model: str,
         "--disable-slash-commands",
         "--strict-mcp-config",
     ]
-    with tempfile.TemporaryDirectory(prefix="aletheia-brain-") as workdir:
-        try:
-            proc = subprocess.run(
-                argv, cwd=workdir, capture_output=True, text=True, input=user_prompt,
-                encoding="utf-8", errors="replace", timeout=timeout_s,
-                creationflags=hidden_flags(),
-                env={**os.environ, "CLAUDE_CODE_DISABLE_TERMINAL_TITLE": "1"})
-        except subprocess.TimeoutExpired as exc:
-            raise ReasonerUnavailable(
-                f"Claude reasoning timed out after {timeout_s:g}s") from exc
-        except OSError as exc:
-            raise ReasonerUnavailable(f"could not run Claude CLI: {type(exc).__name__}") from None
+    workdir = _workdir()
+    try:
+        proc = subprocess.run(
+            argv, cwd=workdir, capture_output=True, text=True, input=user_prompt,
+            encoding="utf-8", errors="replace", timeout=timeout_s,
+            creationflags=hidden_flags(),
+            env={**os.environ, "CLAUDE_CODE_DISABLE_TERMINAL_TITLE": "1"})
+    except subprocess.TimeoutExpired as exc:
+        raise ReasonerUnavailable(
+            f"Claude reasoning timed out after {timeout_s:g}s") from exc
+    except OSError as exc:
+        raise ReasonerUnavailable(f"could not run Claude CLI: {type(exc).__name__}") from None
+    finally:
+        _discard_workdir(workdir)
     if proc.returncode != 0:
         detail = (proc.stderr or "").strip()[:300]
         suffix = f": {detail}" if detail else ""

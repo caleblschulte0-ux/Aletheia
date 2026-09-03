@@ -48,7 +48,7 @@ if (Test-Path $cfgFile) {
 
 # ---- 2. Prove computer control (Notepad acceptance) ------------------------
 Step 2 "Windows computer control acceptance (you will type APPROVE)"
-& $py -m pip install --quiet --only-binary=":all:" pywinauto
+& $py -m pip install --quiet --only-binary=":all:" pywinauto pillow
 if ($LASTEXITCODE -ne 0) {
   Write-Host "pywinauto install failed - skipping; computer control stays EXPERIMENTAL." -ForegroundColor Yellow
 } else {

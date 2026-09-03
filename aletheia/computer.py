@@ -291,6 +291,94 @@ def _claim_approval(approval_id: str, steps: list[dict], run_id: str,
             actor=ACTOR, refs=[ref, f"run:{run_id}"])
 
 
+def _quiet(call):
+    """A wrapper property read that may fail on a window mid-close."""
+    try:
+        return call()
+    except Exception:
+        return None
+
+
+def _line_endings(text: object) -> str:
+    """Text with its line breaks as newlines and no trailing break. The
+    verification is still exact in every character a person wrote: a
+    control reports the SAME lines with its own break convention (Windows
+    11 Notepad answers "\\r" for the "\\n" it was given — the first live
+    haiku, 2026-09-02, was on screen in full and failed verification)."""
+    return str(text or "").replace("\r\n", "\n").replace("\r", "\n").rstrip("\n")
+
+
+def _normalized(text: object) -> str:
+    """Case and whitespace folded: what a person reads, not what UIA stores."""
+    return " ".join(str(text or "").casefold().split())
+
+
+_INLINE_FLAGS = re.compile(r"\(\?([aiLmsux]+)\)")
+
+
+def _window_selector(selector: dict) -> dict:
+    """The selector as handed to UI Automation. A title pattern is matched
+    ANYWHERE in the title and without regard to case: pywinauto anchors
+    `title_re` at the start, so the planner's "Notepad" could never find
+    "Untitled - Notepad" (live, 2026-09-02), and titles differ in case
+    between Windows versions ("Save As" / "Save as") and never in meaning.
+    A person writing "Notepad" means a window with Notepad in its title.
+    This touches window LOOKUP only — the committing-control guard reads
+    the live label of the control, which this does not change."""
+    out = dict(selector)
+    pattern = out.get("title_re")
+    if isinstance(pattern, str):
+        head = _INLINE_FLAGS.match(pattern)
+        flags, rest = (head.group(1), pattern[head.end():]) if head else ("", pattern)
+        if "i" not in flags:
+            flags += "i"
+        if not rest.startswith(".*"):
+            rest = ".*" + rest
+        out["title_re"] = f"(?{flags}){rest}"
+    return out
+
+
+# The two UI Automation types a text area may carry. A planner that cannot
+# see the screen writes "Edit" (the note's example); Windows 11 Notepad's
+# area is a "Document". When a control selector names ONLY a type and it is
+# one of these, the other is tried too — they are the same thing to the
+# person asking, and the selector names no other property that could be
+# meant more precisely.
+TEXT_ENTRY_TYPES = ("Edit", "Document")
+
+
+def _control_candidates(selector: dict) -> list[dict]:
+    if set(selector) == {"control_type"} and selector["control_type"] in TEXT_ENTRY_TYPES:
+        other = next(t for t in TEXT_ENTRY_TYPES if t != selector["control_type"])
+        return [dict(selector), {"control_type": other}]
+    return [dict(selector)]
+
+
+def _selector_matches(element, selector: dict) -> bool:
+    """Does a UIA element satisfy a window selector? Mirrors what
+    pywinauto's own finder checks for the fields a plan may use."""
+    text = element.window_text() or ""
+    if "title" in selector and text != selector["title"]:
+        return False
+    if "title_re" in selector and not re.match(selector["title_re"], text):
+        return False
+    if "class_name" in selector and element.class_name() != selector["class_name"]:
+        return False
+    if "auto_id" in selector:
+        try:
+            if element.element_info.automation_id != selector["auto_id"]:
+                return False
+        except Exception:
+            return False
+    if "control_type" in selector:
+        try:
+            if element.element_info.control_type != selector["control_type"]:
+                return False
+        except Exception:
+            return False
+    return True
+
+
 class WindowsUIABackend:
     """Windows UI Automation implementation; imported only on the Windows host."""
 
@@ -304,16 +392,159 @@ class WindowsUIABackend:
         self._Application = Application
         self._Desktop = Desktop
         self._TimeoutError = UIATimeoutError
+        try:
+            from pywinauto.findwindows import ElementAmbiguousError
+        except Exception:      # a test double without the finder module
+            class ElementAmbiguousError(Exception):
+                pass
+        self._AmbiguousError = ElementAmbiguousError
+        # processes this backend started: a tie-breaker when a title names
+        # more than one window
+        self._opened: set[int] = set()
 
     @staticmethod
     def _timeout(step: dict) -> float:
         return float(step.get("timeout_s", DEFAULT_TIMEOUT_S))
 
     def _window(self, step: dict):
-        window = self._Desktop(backend="uia").window(**step["window"])
-        self._wait_interruptibly(
-            window.wait, "exists visible enabled ready", self._timeout(step))
-        return window
+        """The window a step names, ready to use.
+
+        Two things the first live Save-as run (2026-09-02) taught, each a
+        TimeoutError on a dialog that was plainly on screen:
+
+        - Windows 11 titles its file dialog "Save as"; the plan said
+          "Save As". A person does not see the difference, so the title
+          pattern is matched case-insensitively (`_window_selector`).
+        - Under UI Automation an app's dialog is NOT a top-level window:
+          it hangs under its owner (Desktop -> Notepad -> "Save as"), and
+          `Desktop.window()` searches only the top level. So when the
+          top-level lookup comes up empty the direct children of every
+          top-level window are tried too (`_owned_dialog`), and the
+          match is anchored by handle so the rest of the step treats it
+          like any other window.
+
+        The wait is polled in short slices with HALT re-read between
+        them, the same as every other wait here.
+        """
+        selector = _window_selector(step["window"])
+        desktop = self._Desktop(backend="uia")
+        condition = "exists visible enabled ready"
+        deadline = time.monotonic() + self._timeout(step)
+        while True:
+            policy.ensure_not_halted()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise self._TimeoutError(
+                    f"timed out waiting for UIA condition {condition!r}")
+            slice_s = min(WAIT_POLL_S, remaining)
+            window = desktop.window(**selector)
+            try:
+                window.wait(condition, timeout=slice_s)
+                return self._anchored(desktop, window)
+            except self._TimeoutError:
+                pass
+            except self._AmbiguousError:
+                chosen = self._disambiguate(desktop, selector)
+                if chosen is None:
+                    raise
+                window = desktop.window(handle=chosen)
+                try:
+                    window.wait(condition, timeout=slice_s)
+                    return window
+                except self._TimeoutError:
+                    continue
+            owned = self._owned_dialog(desktop, selector)
+            if owned is None:
+                continue
+            window = desktop.window(handle=owned)
+            try:
+                window.wait(condition, timeout=slice_s)
+                return window
+            except self._TimeoutError:
+                continue
+
+    def _disambiguate(self, desktop, selector: dict):
+        """Two windows carry the title the plan named; which did he mean?
+
+        Live, 2026-09-02: "Open Notepad and write a haiku" a second time,
+        with the first haiku's Notepad still open — Windows 11 Notepad
+        opened a SECOND window from the same process and "Notepad" matched
+        both. A person means the one that just opened, which is the
+        active one; failing that, a window of a process this run started;
+        failing both, the ambiguity is refused rather than guessed, and
+        the plan must say more.
+        """
+        try:
+            matches = list(desktop.windows(**selector))
+        except Exception:
+            return None
+        active = [m for m in matches if _quiet(m.is_active)]
+        if len(active) == 1:
+            return active[0].handle
+        mine = [m for m in matches if _quiet(m.process_id) in self._opened]
+        if len(mine) == 1:
+            return mine[0].handle
+        return None
+
+    @staticmethod
+    def _anchored(desktop, window):
+        """The found window, re-addressed by its handle. A specification
+        resolves its criteria again on EVERY attribute access, so a title
+        that changes between the wait and the action (Notepad prefixes
+        "*" the moment text changes; a loading app retitles itself) or a
+        momentarily incomplete enumeration turns a found window into
+        ElementNotFoundError one line later — which is how the 01:18 run
+        on 2026-09-02 failed at set_focus after wait_window had passed."""
+        try:
+            handle = window.handle
+        except Exception:
+            return window
+        return desktop.window(handle=handle) if handle else window
+
+    def _control(self, window, step: dict):
+        """The control a step names, ready. Candidates (see
+        `_control_candidates`) are tried in turn in short slices until one
+        is ready or the step's timeout is spent; HALT is re-read between
+        slices."""
+        candidates = _control_candidates(step["control"])
+        condition = "exists visible enabled ready"
+        deadline = time.monotonic() + self._timeout(step)
+        while True:
+            policy.ensure_not_halted()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise self._TimeoutError(
+                    f"timed out waiting for UIA condition {condition!r}")
+            for selector in candidates:
+                control = window.child_window(**selector)
+                try:
+                    control.wait(condition, timeout=min(WAIT_POLL_S, remaining))
+                    return control
+                except self._TimeoutError:
+                    continue
+
+    @staticmethod
+    def _owned_dialog(desktop, selector: dict):
+        """Handle of a dialog owned by a top-level window that matches the
+        selector, or None. Direct children only: a walk of every
+        descendant of every app (Chrome alone has thousands) would take
+        longer than the wait it is meant to shorten."""
+        try:
+            tops = desktop.windows()
+        except Exception:
+            return None
+        for top in tops:
+            try:
+                children = top.children(control_type="Window")
+            except Exception:
+                continue
+            for child in children:
+                try:
+                    if _selector_matches(child, selector):
+                        return child.handle
+                except Exception:
+                    continue
+        return None
 
     def _wait_interruptibly(self, wait_fn, condition: str, timeout: float) -> None:
         deadline = time.monotonic() + timeout
@@ -356,6 +587,7 @@ class WindowsUIABackend:
         if action == "open_app":
             command = subprocess.list2cmdline([step["app"], *step.get("arguments", [])])
             app = self._Application(backend="uia").start(command)
+            self._opened.add(app.process)
             return {"action": action, "process_id": app.process}
         if action == "list_windows":
             maximum = step.get("max_results", 50)
@@ -382,7 +614,12 @@ class WindowsUIABackend:
             if out.exists() or out.is_symlink():
                 raise FileExistsError(
                     "screenshot target already exists; evidence is never overwritten")
-            window.capture_as_image().save(str(out), format="PNG")
+            image = window.capture_as_image()
+            if image is None:
+                raise RuntimeError(
+                    "window screenshots need Pillow (pip install pillow); "
+                    "pywinauto's capture_as_image returned nothing without it")
+            image.save(str(out), format="PNG")
             if not out.is_file() or out.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
                 raise VerificationFailed("window screenshot did not produce a valid PNG")
             return {"action": action, "verified": True, "path": str(out)}
@@ -397,9 +634,7 @@ class WindowsUIABackend:
             window.type_keys(spelled, set_foreground=True)
             return {"action": action, "verified": f"sent {step['keys']} to the focused window"}
 
-        control = window.child_window(**step["control"])
-        self._wait_interruptibly(
-            control.wait, "exists visible enabled ready", self._timeout(step))
+        control = self._control(window, step)
         wrapper = control.wrapper_object()
         if action == "invoke":
             wrapper.invoke()
@@ -407,23 +642,82 @@ class WindowsUIABackend:
         if action == "set_text":
             self._set_text(wrapper, step["text"])
             observed = self._read_text(wrapper)
-            if observed != step["text"]:
+            if _line_endings(observed) != _line_endings(step["text"]):
                 raise VerificationFailed(
                     "set_text completed but exact text verification failed")
             return {"action": action, "verified": True}
         if action == "select":
             wanted = step["value"]
+            choice = self._choice_on(wrapper, wanted)
             try:
-                wrapper.select(wanted)
+                wrapper.select(choice)
             except Exception as exc:
                 raise VerificationFailed(
-                    f"control could not select {wanted!r} ({type(exc).__name__})") from exc
+                    f"control could not select {choice!r} ({type(exc).__name__})") from exc
             observed = self._selected_text(wrapper)
-            if wanted.casefold() not in observed.casefold():
+            if _normalized(wanted) not in _normalized(observed):
                 raise VerificationFailed(
                     f"select completed but the control now reads {observed[:80]!r}")
-            return {"action": action, "verified": True}
+            return {"action": action, "verified": True, "selected": choice}
         raise AssertionError(f"validated action was not implemented: {action}")
+
+    @staticmethod
+    def _items(wrapper) -> list[str]:
+        """The choices a list or combo box offers, read from the control.
+        Empty when it cannot be read — the caller then lets the control
+        answer for itself."""
+        try:
+            wrapper.expand()
+        except Exception:
+            pass
+        try:
+            names = [c.window_text() for c in wrapper.descendants(control_type="ListItem")]
+        except Exception:
+            names = []
+        finally:
+            try:
+                wrapper.collapse()
+            except Exception:
+                pass
+        return [n for n in names if isinstance(n, str) and n.strip()]
+
+    @classmethod
+    def _choice_on(cls, wrapper, wanted: str) -> str:
+        """The item text to hand the control for what the plan asked.
+
+        The first live `select` (2026-09-02) asked for "All files" and the
+        Save-as type box holds "All files " — a trailing space no person
+        sees. So: the item whose text matches ignoring case and spacing;
+        failing that, the ONE item the wanted text is a prefix of ("All
+        files" -> "All files (*.*)"). Two matches is a question for the
+        operator, not a guess; a prefix that reaches a committing word the
+        plan never said ("Sen" -> "Send now") is refused outright, so the
+        guard act() ran on the plan's value still covers what is actually
+        selected.
+        """
+        items = cls._items(wrapper)
+        if not items:
+            return wanted
+        key = _normalized(wanted)
+        exact = [i for i in items if _normalized(i) == key]
+        if len(exact) == 1:
+            return exact[0]
+        if exact:
+            raise VerificationFailed(
+                f"{wanted!r} names {len(exact)} identical items on this control")
+        prefixed = [i for i in items if _normalized(i).startswith(key)]
+        if len(prefixed) > 1:
+            raise VerificationFailed(
+                f"{wanted!r} is ambiguous on this control: {prefixed[:5]!r}")
+        if not prefixed:
+            return wanted
+        item = prefixed[0]
+        hit = committing_label(item)
+        if hit and not committing_label(wanted):
+            raise VerificationFailed(
+                f"{wanted!r} would select {item!r}, which says {hit!r} where the "
+                "plan did not; refused")
+        return item
 
     @staticmethod
     def _selected_text(wrapper) -> str:
@@ -448,9 +742,7 @@ class WindowsUIABackend:
         committing-control guard has to read the label a person would.
         """
         window = self._window(step)
-        control = window.child_window(**step["control"])
-        self._wait_interruptibly(
-            control.wait, "exists visible enabled ready", self._timeout(step))
+        control = self._control(window, step)
         return self._describe(control.wrapper_object())
 
     @staticmethod

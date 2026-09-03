@@ -131,6 +131,91 @@ operator in his own words (journaled `operator:authorization`):
   `select` (committing guard on the value). Hotkeys verified live in
   Notepad; select hermetically only, and the registry says so.
 
+### Third build, same day (2026-09-02, "if it's not Jarvis yet, you're not done")
+
+The measure was a battery: sixteen arbitrary asks — "what's going on",
+"remind me tomorrow at 9am", "open Notepad and write a haiku", "text
+Brant", "turn off the lights", "book a table" — compiled through the
+planner on the operator's PC, then the hands plan that had failed twice
+the day before rerun until it passed. What the battery found, all fixed:
+
+- **A successful plan crashed on the way out.** Fifteen of sixteen
+  planner calls returned a correct plan and died in
+  `TemporaryDirectory` cleanup: Windows still held the CLI's empty
+  working directory for a moment (`PermissionError`). The reasoner now
+  discards its directory with bounded retries, never raises over it,
+  and sweeps what an earlier call had to leave behind.
+- **"Tomorrow at 9am" was the wrong day and the wrong hour.** The
+  planner was told only the UTC instant; at 20:00 in Chicago it was
+  already the 3rd in UTC, and it answered `2026-09-04T09:00:00Z`.
+  `aletheia/localtime.py` is the operator's clock (memory
+  `identity.timezone` → `ALETHEIA_TZ` → the America/Chicago the repo
+  already assumed); the planner is told his local time and the rule, and
+  the same ask now compiles to `2026-09-03T09:00:00-05:00`. The
+  hard-coded zone in the intercom and voice paths is gone.
+- **"Text Brant" named the wrong gap and offered a fake attempt.** No
+  `message.send` existed, so the model reached for `intercom.relay` and
+  the unmatched-ask rule compiled a sandboxed program — which has no
+  network and could text nobody. `message.send` is registered NOT_BUILT
+  with its ticket (Phone Link through the hands, Send refused to the
+  approval); the plan now says exactly that and offers no program.
+- **"Unavailable" hid its reason.** Eight calls in the parallel battery
+  were refused by the CLI and the gateway reported only that both paths
+  were unavailable. Both causes now travel with the refusal.
+- **Research asked twice in a day lost its second report**
+  (`FileExistsError`, journaled as an alert). The second report takes
+  the time of day in its id.
+- **The hands could not find a dialog that was on screen.** Windows 11
+  titles it "Save as" and the plan said "Save As"; worse, under UI
+  Automation an app's dialog is a child of its owner, not a top-level
+  window, and `Desktop.window()` searches only the top level. Titles
+  now match case-insensitively (lookup only — the committing guard
+  still reads the live label), the direct Window children of every
+  top-level window are searched, and a found window is anchored by
+  handle for the rest of the step so a retitle mid-step cannot lose it.
+  `select "All files"` then failed because the control holds
+  `"All files "` — trailing space; select now reads the control's real
+  items and picks the one a person means, refusing two candidates and
+  refusing a prefix that reaches a committing word the plan never said.
+  The eight-step plan COMPLETED unattended (run hands-39a87325ab11).
+  Pillow, which window screenshots need, was missing and is now part of
+  finish-setup.
+- **"Open Notepad and write a haiku" through the agenda** — the whole
+  loop, said in words. The planner followed its own `computer_do` note
+  and the note's examples were false on this PC: `title_re: "Notepad"`
+  is anchored at the start by pywinauto and cannot find
+  "Untitled - Notepad" (patterns now search the title, case-insensitive);
+  `control_type: "Edit"` names a control Windows 11 Notepad calls a
+  `Document` (when a selector names only a text-entry type, both are
+  tried — a planner cannot see the screen); Notepad reopens its last
+  tabs, so the note now says to send ctrl+n first; and the verifier
+  refused a haiku that was on screen in full because Notepad reports
+  line breaks as `\r` (compared with line endings normalized — every
+  character a person wrote is still checked). Asked a third time with
+  the first haiku's Notepad still open, Windows 11 Notepad opened a
+  second window from the same process and "Notepad" named both: the
+  active window is the one he means, then a window of a process the
+  run started, and otherwise the ambiguity is refused, not guessed.
+  Live: run hands-be17492072b9 wrote all three lines into a fresh tab;
+  the rerun after these fixes is the evidence line in the registry.
+- **A program was offered where setup was the answer.** "Turn off the
+  lights" and "what's on my calendar tomorrow" compiled to a sandboxed
+  program beside their gaps, because room.scene and calendar.read are
+  NEEDS_CONFIGURATION and the unmatched-ask rule only excluded
+  authority-shaped gaps. A sandbox with no network reaches neither a
+  light nor a calendar; she has those verbs and they need his token or
+  his consent. A program is now offered only for NOT_BUILT, for an id
+  the registry has never heard of, and for a kind the model invented.
+  The sequential 16-ask battery afterwards: 16/16 compiled, none
+  degraded, every reminder in his offset, every gap named honestly.
+- A sync test read the developer's uncommitted edits out of the live
+  checkout (`stale_code_files` is right for the Core, wrong for the
+  pull-path tests) and is scoped out there.
+
+Registry revision 46. Not a new capability among them: the day's work
+was the distance between "the capability exists" and "he says it and it
+happens", which is the only distance that counts.
+
 ## Next five engineering milestones (priority order, per §137)
 
 The five gaps between Aletheia and the thing she is supposed to be were
@@ -162,6 +247,14 @@ entry on real evidence, not on more code.
    EXPERIMENTAL against a hermetic backend and has never touched a real
    Windows device. `scripts/phase11_accept_audio.ps1` on the PC decides
    AVAILABLE or repair.
+6. **Pair the iPhone with Phone Link** (`message.send`, NOT_BUILT — added
+   2026-09-02 when "text Brant" had nothing honest to name): Phone Link
+   is installed and running on the PC but sits at its onboarding screen
+   with no phone paired. Pairing is a QR scan and a Bluetooth handshake —
+   physical, his. With a paired phone the adapter is composable from
+   what exists (contacts.resolve, computer.act to compose, the Send
+   control refused to a hash-bound approval, the thread read back as
+   verification), and "Text him back" becomes a build, not a boundary.
 
 ## Non-goals, on the record
 

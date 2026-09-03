@@ -180,6 +180,16 @@ if __name__ == "__main__":
 class SelfUpdateCase(CoreSyncFixture):
     """A pulled commit touching code triggers restart; state-only commits don't."""
 
+    def setUp(self):
+        super().setUp()
+        # core_tick also asks the FILES of the real checkout whether code is
+        # newer than this process (stale_code_files). That is right for the
+        # Core and wrong here: a developer editing aletheia/ while the suite
+        # runs made the state-only case "restart" on 2026-09-02. These tests
+        # are about the PULL path; the disk path has StaleCodeCase.
+        quiet = mock.patch.object(core, "stale_code_files", return_value=[])
+        quiet.start(); self.addCleanup(quiet.stop)
+
     def relay_pushes_file(self, rel, content, msg):
         path = self.relay / rel
         path.parent.mkdir(parents=True, exist_ok=True)
