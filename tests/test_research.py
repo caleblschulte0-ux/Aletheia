@@ -178,6 +178,37 @@ class FailuresAreSurvivableAndHonest(ResearchCase):
         self.assertEqual(failed[0]["reason"], "no readable text")
 
 
+class NoBrowserIsSaidPlainly(ResearchCase):
+    """The failure mode that blames the question for a missing dependency.
+
+    Without Playwright, every search raised inside `find_sources`, the error
+    was swallowed into a journal alert, and the run ended on "no readable
+    sources were found — it may be something the open web does not answer".
+    False, and expensively so: nobody installs a dependency they were never
+    told was missing.
+    """
+
+    def test_a_missing_browser_names_itself_and_the_fix(self):
+        from aletheia import browse
+        with mock.patch.object(browse, "available",
+                               return_value=(False, "playwright is not "
+                                             "installed (pip install playwright)")):
+            with self.assertRaises(research.ResearchError) as caught:
+                research.run("what is the tallest building in Chicago?")
+        said = str(caught.exception)
+        self.assertIn("playwright", said)
+        self.assertNotIn("does not answer", said,
+                         "the question is not what is broken")
+
+    def test_it_refuses_before_spending_a_plan_on_it(self):
+        from aletheia import browse
+        thought = []
+        with mock.patch.object(browse, "available", return_value=(False, "no")):
+            with self.assertRaises(research.ResearchError):
+                research.run("anything", think=lambda *a, **k: thought.append(1))
+        self.assertEqual(thought, [], "no model call for a run that cannot run")
+
+
 class ItReadsNothingItShouldNot(ResearchCase):
     def test_halt_stops_a_run_before_any_page_is_read(self):
         policy.halt("stop", via="test")

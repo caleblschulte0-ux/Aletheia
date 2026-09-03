@@ -172,6 +172,11 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
         from aletheia import converse
         try:
             record["spoken"] = converse.answer(request)["answer"]
+        except converse.ConverseError as exc:
+            # Its message already names the real reason and the fix ("Claude
+            # CLI is not on PATH"). Rewriting that into a class name is how
+            # an actionable failure becomes a shrug.
+            record["spoken"] = str(exc)
         except Exception as exc:
             # An unreachable model must not turn into silence: say which
             # half failed, because "she said nothing" and "she could not

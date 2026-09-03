@@ -322,6 +322,19 @@ def run(question: str, *, reader=browse.read_page, think=None) -> dict:
     if not question or len(question) > MAX_QUESTION_CHARS:
         raise ValueError(f"question must be 1..{MAX_QUESTION_CHARS} characters")
     policy.ensure_not_halted()
+    # Ask the browser whether it exists BEFORE spending a plan on it. Without
+    # this, every search raised inside `find_sources`, was swallowed into a
+    # journal alert, and `run` ended on "no readable sources were found —
+    # it may be something the open web does not answer". That sentence is
+    # false and it is the expensive kind of false: it blames the question
+    # for a missing dependency, so nobody installs the dependency.
+    if reader is browse.read_page:
+        usable, why = browse.available()
+        if not usable:
+            raise ResearchError(
+                f"she cannot read web pages right now: {why}. Research really "
+                "opens the pages it cites, so there is nothing honest to "
+                "return until that is fixed — everything else still works.")
     think = think or reasoner.subscription_json
 
     plan = think(PLAN_SYSTEM, question, model=reasoner.INTERPRET_MODEL,

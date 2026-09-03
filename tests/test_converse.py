@@ -170,9 +170,20 @@ class TheAskPathUsesIt(ConverseCase):
                   ).read_text(encoding="utf-8")
         self.assertIn("converse.answer(request)", source)
 
+    def test_an_actionable_failure_reaches_him_intact(self):
+        """"Claude CLI is not on PATH" tells him what to do. Rewriting it
+        into "(ConverseError)" is how an actionable failure becomes a shrug."""
+        from aletheia import intents
+        source = (Path(__file__).parent.parent / "aletheia" / "intents.py"
+                  ).read_text(encoding="utf-8")
+        branch = source[source.index("converse.answer(request)"):]
+        branch = branch[:branch.index("return record")]
+        self.assertIn("except converse.ConverseError", branch)
+        self.assertIn("str(exc)", branch)
+        self.assertLess(branch.index("except converse.ConverseError"),
+                        branch.index("except Exception"),
+                        "the specific reason must be caught first")
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class ClarifyingIsNotAnswering(ConverseCase):
@@ -195,3 +206,147 @@ class ClarifyingIsNotAnswering(ConverseCase):
         self.assertLess(branch.index('plan.intent == "clarify"'),
                         branch.index("converse.answer"),
                         "clarify must return before the answer path")
+
+
+class SheReadsTheFileHeNames(ConverseCase):
+    """"Look at my resume and tell me what's weak" was answered BLIND.
+
+    She had no way to notice that `resume.md` was a file rather than a word,
+    so the reply was a confident paragraph about a document she had never
+    opened — indistinguishable from the real thing until he checked.
+    """
+
+    def setUp(self):
+        super().setUp()
+        ws = Path(self.tmp.name) / "ws"
+        ws.mkdir()
+        self.ws = ws
+        env = mock.patch.dict(os.environ, {"ALETHEIA_WORKSPACE": str(ws)})
+        env.start(); self.addCleanup(env.stop)
+
+    def test_the_contents_travel_with_the_question(self):
+        (self.ws / "resume.md").write_text("Ran a six-video-a-day pipeline.")
+        out = converse.answer("look at resume.md and tell me what is weak",
+                              think=self.says())
+        self.assertIn("Ran a six-video-a-day pipeline.", self.seen["prompt"])
+        self.assertEqual(len(out["files_read"]), 1)
+
+    def test_a_file_she_cannot_read_is_named_not_papered_over(self):
+        out = converse.answer("read missing_notes.md and summarise it",
+                              think=self.says())
+        self.assertEqual(out["files_read"], [])
+        self.assertTrue(out["unreadable"])
+        self.assertIn("missing_notes.md", out["unreadable"][0])
+        self.assertIn("COULD NOT READ", self.seen["prompt"])
+        self.assertIn("Do not answer as though you had read it",
+                      self.seen["prompt"])
+
+    def test_the_miss_does_not_name_paths_he_never_mentioned(self):
+        """The first version reported the LAST attempt's error verbatim —
+        "/root/notes.md is not a file" — which is true, useless, and tells
+        him where she went rummaging."""
+        out = converse.answer("read notes.md please", think=self.says())
+        self.assertNotIn(str(Path.home()), out["unreadable"][0])
+
+    def test_a_file_found_but_unusable_says_WHY(self):
+        (self.ws / "bad.md").write_bytes(b"\xff\xfe\x00not text")
+        out = converse.answer("read bad.md", think=self.says())
+        self.assertIn("UTF-8", out["unreadable"][0])
+
+    def test_a_passing_mention_of_a_filename_is_not_a_complaint(self):
+        """"The bug is in converse.py" must not produce "I couldn't find
+        converse.py" stapled to an otherwise fine answer."""
+        out = converse.answer("the bug is somewhere in converse.py I think",
+                              think=self.says())
+        self.assertEqual(out["unreadable"], [])
+        self.assertNotIn("COULD NOT READ", self.seen["prompt"])
+
+    def test_she_does_not_slurp_the_whole_folder(self):
+        for i in range(4):
+            (self.ws / f"f{i}.md").write_text(f"file {i}")
+        out = converse.answer(
+            "read f0.md f1.md f2.md f3.md and compare them", think=self.says())
+        self.assertEqual(len(out["files_read"]), converse.MAX_ATTACHED)
+        self.assertTrue(out["unreadable"], "the ones she skipped are declared")
+
+    def test_a_long_file_is_truncated_and_says_so(self):
+        (self.ws / "long.md").write_text("y" * (converse.MAX_ATTACHED_CHARS + 5_000))
+        converse.answer("read long.md", think=self.says())
+        self.assertIn("truncated here", self.seen["prompt"])
+
+    def test_reading_is_the_only_thing_it_does_to_a_file(self):
+        source = (Path(__file__).parent.parent / "aletheia" / "converse.py"
+                  ).read_text(encoding="utf-8")
+        for reach in ("workspace.write", "workspace.edit", "workspace.restore"):
+            self.assertNotIn(reach, source, reach)
+
+    def test_the_journal_counts_files_without_naming_their_contents(self):
+        (self.ws / "resume.md").write_text("A private line about my health.")
+        converse.answer("look at resume.md", think=self.says())
+        log = journal.JOURNAL_PATH.read_text(encoding="utf-8")
+        self.assertIn("1 file(s) read", log)
+        self.assertNotIn("private line about my health", log)
+
+
+class TheThreadIsBoundedBySize(ConverseCase):
+    """A turn COUNT is the wrong bound. Twenty-four one-line exchanges are
+    nothing; twenty-four long ones are a slow, expensive question every
+    time, and the oldest of them stopped being relevant long ago."""
+
+    def test_long_turns_are_dropped_before_the_count_runs_out(self):
+        big = "z" * 800
+        for i in range(10):
+            converse.answer(f"q{i} " + big, think=self.says("a" + big))
+        turns = json.loads(converse.THREAD_PATH.read_text())["turns"]
+        size = sum(len(t["you"]) + len(t["her"]) for t in turns)
+        self.assertLess(len(turns), 10, "size, not just the turn ceiling")
+        self.assertLessEqual(size, converse.MAX_THREAD_CHARS)
+
+    def test_the_most_recent_turn_always_survives(self):
+        """Even one turn over budget on its own. Dropping what he just said
+        is never the right answer to "this is too long"."""
+        huge = [{"at": "now", "you": "x" * 99_999, "her": "y" * 99_999}]
+        self.assertEqual(len(converse._trim(huge)), 1)
+
+    def test_an_oversized_thread_on_disk_is_trimmed_on_the_way_out(self):
+        converse.THREAD_PATH.parent.mkdir(parents=True, exist_ok=True)
+        converse.THREAD_PATH.write_text(json.dumps({"turns": [
+            {"at": "t", "you": "old " * 400, "her": "older " * 400}
+            for _ in range(30)]}))
+        converse.answer("and now?", think=self.says())
+        self.assertLess(len(self.seen["prompt"]),
+                        converse.MAX_THREAD_CHARS + 40_000)
+
+    def test_junk_in_the_thread_does_not_crash_the_answer(self):
+        converse.THREAD_PATH.parent.mkdir(parents=True, exist_ok=True)
+        converse.THREAD_PATH.write_text(json.dumps({"turns": ["not a turn", 7]}))
+        self.assertTrue(converse.answer("still there?", think=self.says())["answer"])
+
+
+class AnAnswerGetsLongerThanAnInterpretation(ConverseCase):
+    def test_the_model_call_carries_the_conversation_timeout(self):
+        """90s is sized for classifying a sentence. A real reply to a real
+        question is allowed longer before it is called a failure."""
+        seen = {}
+
+        def fake(system, prompt, **kwargs):
+            seen.update(kwargs)
+            return "fine"
+        converse.answer("explain the trade-off", think=fake)
+        self.assertEqual(seen.get("timeout_s"), converse.TIMEOUT_S)
+        self.assertGreater(converse.TIMEOUT_S, 90.0)
+
+    def test_an_unreachable_model_carries_the_REASON_not_a_type_name(self):
+        """"Claude CLI is not on PATH" tells him what to do. The old message
+        printed only the exception class and dropped the useful sentence."""
+        def dead(*a, **k):
+            raise RuntimeError("Claude CLI is not on PATH")
+        with self.assertRaises(converse.ConverseError) as caught:
+            converse.answer("hello", think=dead)
+        said = str(caught.exception)
+        self.assertIn("Claude CLI is not on PATH", said)
+        self.assertIn("Sign the Claude CLI in", said)
+
+
+if __name__ == "__main__":
+    unittest.main()

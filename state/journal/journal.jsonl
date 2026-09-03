@@ -988,3 +988,8 @@
 {"ts": "2026-09-03T12:46:53Z", "kind": "alert", "actor": "aletheia-access", "subject": "access", "text": "a local process attempted POST /api/command without the local session secret"}
 {"ts": "2026-09-03T12:46:53Z", "kind": "note", "actor": "operator-via-intercom", "subject": "operator", "text": "legitimate"}
 {"ts": "2026-09-03T12:46:53Z", "kind": "action", "actor": "operator-local-core", "subject": "core:note", "text": "done — journaled"}
+{"ts": "2026-09-03T19:04:18Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume.md (32 bytes)"}
+{"ts": "2026-09-03T19:04:18Z", "kind": "action", "actor": "aletheia-converse", "subject": "converse", "text": "answered a question (62 chars in, 20 out, 1 file(s) read)"}
+{"ts": "2026-09-03T19:04:42Z", "kind": "action", "actor": "aletheia-converse", "subject": "converse", "text": "answered a question (28 chars in, 2 out, 0 file(s) read)"}
+{"ts": "2026-09-03T19:04:42Z", "kind": "action", "actor": "aletheia-converse", "subject": "converse", "text": "answered a question (11 chars in, 2 out, 0 file(s) read)"}
+{"ts": "2026-09-03T19:04:42Z", "kind": "action", "actor": "aletheia-converse", "subject": "converse", "text": "answered a question (35 chars in, 2 out, 0 file(s) read)"}
