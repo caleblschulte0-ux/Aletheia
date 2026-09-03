@@ -446,18 +446,21 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def authorized(self) -> bool:
-        """Gate every remote request; leave loopback exactly as it was.
+        """Gate every request. Genuinely-local keeps its original trust;
+        everything else — including a phone proxied through
+        `tailscale serve`, which also arrives from 127.0.0.1 — is a
+        REMOTE caller and needs a real, scoped, revocable token (2026-09-03,
+        closing the gap the 2026-09-03 loopback-secret fix left open: any
+        device on the tailnet inherited full local write trust with no
+        credential at all, because it looked identical to the operator's
+        own machine at the socket level).
 
-        Loopback is the operator's own machine talking to itself — the
-        Core's trust boundary since V0, unchanged here. A request from
-        anywhere else must carry a bearer token that is live, unexpired
-        and scoped to the method: a `read` token answers GET and cannot
-        become a command channel because a phone was left unlocked.
         Refusals are quiet about WHY (a 401 that explains itself is an
         oracle) and loud in the journal.
         """
         address = self.client_address[0] if self.client_address else "?"
-        if access.is_loopback(address):
+        path = urlparse(self.path).path
+        if access.is_genuinely_local(address, self.headers):
             # Reading stays open: a local process can read state/ off the disk
             # anyway. WRITING is an escalation — approving, resuming, driving
             # the desktop — and 127.0.0.1 proves origin, not authorization
@@ -473,25 +476,33 @@ class Handler(BaseHTTPRequestHandler):
             journal.append(
                 "alert", "access",
                 f"a local process attempted {self.command} "
-                f"{self.path.split('?')[0]} without the local session secret",
+                f"{path} without the local session secret",
                 actor="aletheia-access")
             self._json({"error": "unauthorized"}, code=401)
             return False
-        record = access.verify(access.bearer(self.headers), address)
+        # REMOTE: a genuinely off-loopback peer, or anything tailscale-serve
+        # proxied. The UI SHELL loads without a token — it is not sensitive,
+        # and it is the only way a new device ever reaches the "Access"
+        # prompt that lets it save one. Everything under /api/ — reads
+        # included — needs a real credential from here on.
+        if self.command in ("GET", "HEAD") and not path.startswith("/api/"):
+            return True
+        source = access.forwarded_address(self.headers, address)
+        record = access.verify(access.bearer(self.headers), source)
         if record is None:
             self._json({"error": "unauthorized"}, code=401)
             return False
         if not access.scope_allows(record["scope"], self.command):
             journal.append("alert", "access",
                            f"{record['id']} ({record['scope']}) tried "
-                           f"{self.command} {self.path.split('?')[0]} from {address}",
+                           f"{self.command} {path} from {source}",
                            actor="aletheia-access")
             self._json({"error": "this token is read-only"}, code=403)
             return False
         access.note_use(record["id"])
         journal.append("event", "access",
                        f"{record['id']} {self.command} "
-                       f"{self.path.split('?')[0]} from {address}",
+                       f"{path} from {source}",
                        actor="aletheia-access")
         return True
 
@@ -519,7 +530,7 @@ class Handler(BaseHTTPRequestHandler):
                      target.suffix.lstrip("."), "application/octet-stream")
         body = target.read_bytes()
         address = self.client_address[0] if self.client_address else "?"
-        if target.suffix == ".html" and access.is_loopback(address):
+        if target.suffix == ".html" and access.is_genuinely_local(address, self.headers):
             # The pages the Core serves ON LOOPBACK carry the local session
             # secret, so the wall and Command Center keep working with no
             # login while a stray local process still cannot POST

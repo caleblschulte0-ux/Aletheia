@@ -264,6 +264,50 @@ def is_loopback(address: str) -> bool:
     return str(address) in ("127.0.0.1", "::1", "localhost")
 
 
+def proxied_via_tailscale(headers) -> bool:
+    """Did this request arrive through `tailscale serve`'s local proxy?
+
+    Added 2026-09-03. `tailscale serve` terminates TLS on the tailnet
+    hostname and forwards to the configured backend as a NEW connection
+    FROM THIS MACHINE — so a phone reaching the Core over Tailscale looks,
+    at the socket level, identical to a script sitting at the keyboard:
+    both show client_address 127.0.0.1. Treating both as "loopback" (the
+    Core's original, narrower meaning — HIS machine talking to itself) let
+    every device on the tailnet inherit full local trust with no token, no
+    scope, no revocation.
+
+    The distinguishing signal is real, not inferred: tailscaled itself
+    adds `Tailscale-*` headers to every request it forwards (verified live
+    against this machine's tailscaled — `Tailscale-User-Login`,
+    `Tailscale-Headers-Info`, and others), and nothing else on this
+    machine has a reason to send them. A local process COULD forge one on
+    its own direct request, but that only routes it into the STRICTER
+    branch below (a real minted token, checked in constant time) — forging
+    the header buys an attacker nothing; it cannot manufacture the token.
+    """
+    try:
+        return any(str(name).lower().startswith("tailscale-") for name in headers.keys())
+    except AttributeError:
+        return False
+
+
+def forwarded_address(headers, fallback: str) -> str:
+    """The real originating tailnet IP when tailscale served the request,
+    for rate-limiting and audit that mean something per-device again."""
+    try:
+        forwarded = (headers.get("X-Forwarded-For", "") or "").split(",")[0].strip()
+    except AttributeError:
+        forwarded = ""
+    return forwarded or fallback
+
+
+def is_genuinely_local(address: str, headers) -> bool:
+    """The Core's ORIGINAL loopback trust: this machine talking to itself,
+    not merely a packet that happens to arrive from 127.0.0.1 (which a
+    tailscale-serve-proxied phone request also does)."""
+    return is_loopback(address) and not proxied_via_tailscale(headers)
+
+
 def scope_allows(scope: str, method: str) -> bool:
     """A read token answers GET and HEAD. Anything that changes state is full."""
     return scope == "full" or str(method).upper() in ("GET", "HEAD")

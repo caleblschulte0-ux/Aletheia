@@ -26,6 +26,25 @@ window.Thea = (() => {
     } catch { /* private mode: this session only */ }
   }
 
+  // A one-tap pairing link: ?token=... saves it and is then scrubbed from
+  // the address bar/history, so the credential does not sit there in
+  // plaintext after the first open. Added 2026-09-03 alongside the server
+  // now requiring a real token for every remote device (tailscale serve
+  // makes a phone request look identical to a local one at the socket
+  // level, so "on the tailnet" stopped being enough on its own). Typing a
+  // 40-character token on a phone keyboard is not a real onboarding step;
+  // a link he opens once is.
+  try {
+    const fromLink = new URL(location.href).searchParams.get("token");
+    if (fromLink) {
+      setToken(fromLink);
+      const clean = new URL(location.href);
+      clean.searchParams.delete("token");
+      history.replaceState(null, "", clean.pathname + clean.search + clean.hash);
+    }
+  } catch { /* malformed URL or a browser that refuses history edits: token
+              is still saved, the address bar just keeps the query string */ }
+
   // Injected by the Core into every page it serves FROM LOOPBACK (never
   // over Tailscale/remote — 2026-09-03). A write from loopback must carry
   // it: 127.0.0.1 proves origin, not that Caleb sent it. It travels
