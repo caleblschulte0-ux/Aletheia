@@ -899,3 +899,4 @@
 {"ts": "2026-09-03T02:43:18Z", "kind": "event", "actor": "aletheia-supervisor", "subject": "supervisor", "text": "relaunching Core on updated code"}
 {"ts": "2026-09-03T02:43:19Z", "kind": "event", "actor": "operator-local-core", "subject": "core:sync", "text": "sync loop ON every 60s — origin -> https://github.com/caleblschulte0-ux/Aletheia.git"}
 {"ts": "2026-09-03T02:43:19Z", "kind": "event", "actor": "aletheia", "subject": "core", "text": "local Core up on 127.0.0.1:8777"}
+{"ts": "2026-09-03T02:47:45Z", "kind": "event", "actor": "aletheia-ics", "subject": "calendar:refresh", "text": "0 mirrored, 0 stale cancelled, 0 unsupported across 1 feed(s)"}
