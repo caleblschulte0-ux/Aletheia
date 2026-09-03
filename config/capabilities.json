@@ -1,5 +1,5 @@
 {
-  "revision": 35,
+  "revision": 65,
   "providers": [
     {
       "id": "aletheia.local",
@@ -158,7 +158,8 @@
       "approval_policy": "none",
       "caller": "CLI (aletheia.tasks); intercom wiring is the next milestone",
       "verification": "state/tasks/*.json round-trips through contracts.validate_task",
-      "module": "aletheia.tasks"
+      "module": "aletheia.tasks",
+      "notes": "2026-09-03: a deadline is now READ. tasks.create accepted one, stored it, and no code in the system ever compared one to the clock - 'renew the registration by Friday' was a sentence in a file that would never come back, which is the whole difference between a task list and a graveyard. tasks.due() finds what is overdue or within 24h; runtime.surface_due_tasks() nudges once a DAY per task (once, and a 3am notice has reminded him of nothing; every beat, and it is a notification he turns off) via the local date in the dedupe key. A bare date means the END of that day in HIS timezone, because 'by Friday' is not Friday midnight UTC, which is Thursday evening where he lives. An unparseable deadline is now refused at create() - where the mistake is - instead of stored happily and silently never coming due."
     },
     {
       "id": "github.workflow.dispatch",
@@ -246,8 +247,8 @@
       "approval_policy": "operator_once",
       "caller": "Windows task 'AletheiaVoice' runs python -m aletheia.voice_room at logon: vosk offline recognizer (no API keys) + grammar-constrained wake spotter -> POST /api/voice -> the same intercom gates as every channel -> SAPI voice reply",
       "module": "aletheia.voice_room",
-      "notes": "Live-proven 2026-08-26 by machine self-test: TTS spoke 'Thea, what's going on?' through the speakers, the wake spotter fired, the Core answered through the gates, and she replied out loud ('2 fleet alerts. 7 live tasks.'). Found and fixed on the way: the mic endpoint was hardware-MUTED (the wall mic's silent failure too), the array runs ~500/32768 peak (software AGC added), and the small model cannot spell 'Thea' in open dictation (grammar-constrained spotter added). Audio never leaves the machine; unaddressed speech is dropped unjournaled.",
-      "verification": "self-test round trip on the operator's PC + the task's own listener heard the room independently (journal voice:room 2026-08-26T22:37Z) + 9 hermetic loop tests"
+      "notes": "Live-proven 2026-08-26 by machine self-test: TTS spoke 'Thea, what's going on?' through the speakers, the wake spotter fired, the Core answered through the gates, and she replied out loud ('2 fleet alerts. 7 live tasks.'). Found and fixed on the way: the mic endpoint was hardware-MUTED (the wall mic's silent failure too), the array runs ~500/32768 peak (software AGC added), and the small model cannot spell 'Thea' in open dictation (grammar-constrained spotter added). Audio never leaves the machine; unaddressed speech is dropped unjournaled. Since 2026-09-01, slow answers are collected without deafening the room, wait longer than the reasoner's standard deadline, and end in either the answer or an explicit failure. Production follow-ups are durable, create an IMPORTANT notification, and become an honest interrupted-reply notice if Core restarts mid-answer. 2026-09-03: the room microphone could APPROVE. This module already refused to widen standing authority by voice — a television, a guest or a passing sentence could say it — and then accepted 'approve' for whatever was pending, with no risk check at all: policy.decide(id, APPROVED). If the pending item was an email send or a live errand, the microphone WAS the authorization device. Voice now refuses to decide any approval whose capability is high-risk or operator_always, and fails CLOSED when the approval names no capability or its risk cannot be read. Voice keeps everything safe to say out loud — asking, planning, drafting, reading, and above all HALT (§56 L4, §62).",
+      "verification": "self-test round trip on the operator's PC + the task's own listener heard the room independently (journal voice:room 2026-08-26T22:37Z) + tests/test_followups.py and tests/test_voice.py cover asynchronous and durable reply delivery"
     },
     {
       "id": "email.read",
@@ -352,7 +353,7 @@
       "risk_class": "medium",
       "approval_policy": "none",
       "caller": "operator runs `python -m aletheia.core` on the Windows PC; Command Center + wall are its clients",
-      "verification": "GET /api/status; 7 tests in test_core.py incl. live HTTP round-trips",
+      "verification": "GET /api/status; tests/test_core.py includes live HTTP round-trips and asynchronous /api/ask delivery",
       "notes": "Live on the operator's Windows PC since 2026-08-26 and self-evidencing: the Core's own checkpoint commits land in this repo (193 in one day), and on 2026-08-27T04:38:46Z it pulled merge 095bbfde, journaled 'code updated (12 files) — restarting to run it', and the supervisor relaunched it onto the new code — back serving 6 seconds later. (Registry said NEEDS_CONFIGURATION until 2026-08-27; that was stale — the blocker it named, the operator starting it, was cleared the day before.)",
       "module": "aletheia.core"
     },
@@ -387,7 +388,7 @@
       "status": "NEEDS_CONFIGURATION",
       "risk_class": "low",
       "approval_policy": "none",
-      "caller": "interface/voice.js (Web Speech API in the operator's browser) -> POST /api/voice -> voice.interpret -> the same run_command gates as every channel",
+      "caller": "interface/voice.js (Web Speech API in the operator's browser) -> POST /api/voice -> voice.interpret -> the same run_command gates as every channel; interface/phone.js on the phone (same /api/voice path)",
       "verification": "tests/test_voice.py: 15 tests â€” wake word, halt/resume, spoken URLs ('example dot com'), approve refuses to guess between two pending, unrecognized speech becomes a journaled note (never a guessed action), endpoint round trip on a live Core",
       "notes": "NEEDS_CONFIGURATION until the Core runs on the PC and the operator clicks the mic indicator once (browser permission). Ears/mouth are the browser's own (Chrome/Edge); the interpreter is deterministic on purpose - unmatched speech is journaled and said so, never guessed (Â§104). ChatGPT Voice remains the away-from-home channel. 2026-08-26: the PC's mic endpoint was found MUTED in Windows — the likely cause of the wall mic's silent failure; unmuted, and voice_room --check now reports mute honestly.",
       "module": "aletheia.voice"
@@ -413,7 +414,7 @@
       "approval_policy": "operator_always",
       "caller": "aletheia.browse.interact â€” refuses without an APPROVED approval, before the browser opens",
       "verification": "tested end to end: an approved run fills a form, selects an option and submits it; unapproved, denied, malformed and halted runs are all refused",
-      "notes": "never bypasses authentication: the operator signs in once via 'python -m aletheia.browse login <url>' into a dedicated persistent profile (cache/browser-profile, gitignored). Permission to read a page is never permission to press its buttons (Â§61).",
+      "notes": "never bypasses authentication: the operator signs in once via 'python -m aletheia.browse login <url>' into a dedicated persistent profile (cache/browser-profile, gitignored). Permission to read a page is never permission to press its buttons (Â§61). 2026-09-03: the primitive checked only that its approval was APPROVED, never that the approval was issued for THIS url and THESE steps — so any approved id authorized any browser action, and an approval to click 'Next' on one site could be handed to a plan that pressed 'Place order' on another. The errand layer did its own hash check and was safe; nothing else was. Authorization now lives in the primitive (browse.approval_action = 'browser.interact:' + sha256 of {url, steps}), where a caller cannot forget it. work_session already minted approvals in exactly this shape; errands now do too.",
       "module": "aletheia.browse"
     },
     {
@@ -700,7 +701,7 @@
       "risk_class": "high",
       "approval_policy": "operator_always",
       "caller": "python -m aletheia.errands new --kind purchase; aletheia.runtime.tick runs authorized errands each Core beat",
-      "notes": "aletheia.errands: one approval-bound, evidence-verified web errand executed through the existing browser gate (browse.interact refuses before the browser opens unless the approval is APPROVED). Authorization binds to a sha256 of {site, kind, steps, ceiling}; a step or a ceiling edited afterwards is refused, not adapted. §143 boundaries - bank step-up, one-time codes, CAPTCHA, signatures, ID checks, biometrics, consent - stop the errand and hand the operator the remainder. A purchase additionally declares a spending ceiling, and the LARGEST money figure observed on the page is checked against it before anything is clicked. EXPERIMENTAL until the first real merchant checkout completes with a receipt: 22 hermetic tests drive it, no live purchase has been made.",
+      "notes": "aletheia.errands: one approval-bound, evidence-verified web errand executed through the existing browser gate (browse.interact refuses before the browser opens unless the approval is APPROVED). Authorization binds to a sha256 of {site, kind, steps, ceiling}; a step or a ceiling edited afterwards is refused, not adapted. §143 boundaries - bank step-up, one-time codes, CAPTCHA, signatures, ID checks, biometrics, consent - stop the errand and hand the operator the remainder. A purchase additionally declares a spending ceiling, and the LARGEST money figure observed on the page is checked against it before anything is clicked. EXPERIMENTAL until the first real merchant checkout completes with a receipt: 22 hermetic tests drive it, no live purchase has been made. 2026-09-03 security review (ChatGPT-authored, verified line by line against the code before any of it was acted on): the spending path had a real money defect. The ceiling was compared with the largest figure on the page BEFORE the step sequence ran, and then the ENTIRE sequence — the irreversible click included — executed with no re-read; only a §143 boundary check followed. A $40 cart that becomes $75 at checkout (shipping, tax, a tip default) passed the check and then spent $75, and the module docstring's claim that the ceiling was 'checked twice' was false. Spending errands are now REFUSED at run time until a two-phase checkout verifier exists: execute up to the committing step, re-read merchant/items/shipping/tax/total/currency, compare the EXACT transaction against the authorization, then click. Nothing was lost — no spending errand had ever run live.",
       "module": "aletheia.errands",
       "verification": "tests/test_errands.py: over-ceiling pages abandoned before the click, tampered plans refused, every §143 boundary class recognised"
     },
@@ -724,7 +725,7 @@
       "approval_policy": "operator_always",
       "caller": "python -m aletheia.errands new --kind cancellation; aletheia.runtime.tick runs authorized errands each Core beat",
       "module": "aletheia.errands",
-      "notes": "aletheia.errands: one approval-bound, evidence-verified web errand executed through the existing browser gate (browse.interact refuses before the browser opens unless the approval is APPROVED). Authorization binds to a sha256 of {site, kind, steps, ceiling}; a step or a ceiling edited afterwards is refused, not adapted. §143 boundaries - bank step-up, one-time codes, CAPTCHA, signatures, ID checks, biometrics, consent - stop the errand and hand the operator the remainder. A cancellation spends nothing and is refused if it declares a ceiling. EXPERIMENTAL until a live cancellation round-trips with the merchant's confirmation."
+      "notes": "aletheia.errands: one approval-bound, evidence-verified web errand executed through the existing browser gate (browse.interact refuses before the browser opens unless the approval is APPROVED). Authorization binds to a sha256 of {site, kind, steps, ceiling}; a step or a ceiling edited afterwards is refused, not adapted. §143 boundaries - bank step-up, one-time codes, CAPTCHA, signatures, ID checks, biometrics, consent - stop the errand and hand the operator the remainder. A cancellation spends nothing and is refused if it declares a ceiling. EXPERIMENTAL until a live cancellation round-trips with the merchant's confirmation. 2026-09-03 security review (ChatGPT-authored, verified line by line against the code before any of it was acted on): the spending path had a real money defect. The ceiling was compared with the largest figure on the page BEFORE the step sequence ran, and then the ENTIRE sequence — the irreversible click included — executed with no re-read; only a §143 boundary check followed. A $40 cart that becomes $75 at checkout (shipping, tax, a tip default) passed the check and then spent $75, and the module docstring's claim that the ceiling was 'checked twice' was false. Spending errands are now REFUSED at run time until a two-phase checkout verifier exists: execute up to the committing step, re-read merchant/items/shipping/tax/total/currency, compare the EXACT transaction against the authorization, then click. Nothing was lost — no spending errand had ever run live."
     },
     {
       "id": "finance.visibility",
@@ -787,7 +788,7 @@
       "approval_policy": "operator_always",
       "caller": "python -m aletheia.errands new --kind reservation; aletheia.runtime.tick runs authorized errands each Core beat",
       "module": "aletheia.errands",
-      "notes": "aletheia.errands: one approval-bound, evidence-verified web errand executed through the existing browser gate (browse.interact refuses before the browser opens unless the approval is APPROVED). Authorization binds to a sha256 of {site, kind, steps, ceiling}; a step or a ceiling edited afterwards is refused, not adapted. §143 boundaries - bank step-up, one-time codes, CAPTCHA, signatures, ID checks, biometrics, consent - stop the errand and hand the operator the remainder. reservations.confirm() still requires a real confirmation identifier from the provider before a booking is CONFIRMED - completing the errand is not the same as being booked (§30). EXPERIMENTAL until a live booking round-trips."
+      "notes": "aletheia.errands: one approval-bound, evidence-verified web errand executed through the existing browser gate (browse.interact refuses before the browser opens unless the approval is APPROVED). Authorization binds to a sha256 of {site, kind, steps, ceiling}; a step or a ceiling edited afterwards is refused, not adapted. §143 boundaries - bank step-up, one-time codes, CAPTCHA, signatures, ID checks, biometrics, consent - stop the errand and hand the operator the remainder. reservations.confirm() still requires a real confirmation identifier from the provider before a booking is CONFIRMED - completing the errand is not the same as being booked (§30). EXPERIMENTAL until a live booking round-trips. 2026-09-03 security review (ChatGPT-authored, verified line by line against the code before any of it was acted on): the spending path had a real money defect. The ceiling was compared with the largest figure on the page BEFORE the step sequence ran, and then the ENTIRE sequence — the irreversible click included — executed with no re-read; only a §143 boundary check followed. A $40 cart that becomes $75 at checkout (shipping, tax, a tip default) passed the check and then spent $75, and the module docstring's claim that the ceiling was 'checked twice' was false. Spending errands are now REFUSED at run time until a two-phase checkout verifier exists: execute up to the committing step, re-read merchant/items/shipping/tax/total/currency, compare the EXACT transaction against the authorization, then click. Nothing was lost — no spending errand had ever run live."
     },
     {
       "id": "calendar.write",
@@ -892,7 +893,7 @@
       "approval_policy": "operator_always",
       "caller": "python -m aletheia.errands; aletheia.runtime.tick each Core beat (_run_authorized_errands)",
       "module": "aletheia.errands",
-      "notes": "aletheia.errands: one approval-bound, evidence-verified web errand executed through the existing browser gate (browse.interact refuses before the browser opens unless the approval is APPROVED). Authorization binds to a sha256 of {site, kind, steps, ceiling}; a step or a ceiling edited afterwards is refused, not adapted. §143 boundaries - bank step-up, one-time codes, CAPTCHA, signatures, ID checks, biometrics, consent - stop the errand and hand the operator the remainder. This is the primitive §152 asks for: purchase.execute, reservation.book and subscription.cancel are the same errand with different kinds, and the next class of task is too."
+      "notes": "aletheia.errands: one approval-bound, evidence-verified web errand executed through the existing browser gate (browse.interact refuses before the browser opens unless the approval is APPROVED). Authorization binds to a sha256 of {site, kind, steps, ceiling}; a step or a ceiling edited afterwards is refused, not adapted. §143 boundaries - bank step-up, one-time codes, CAPTCHA, signatures, ID checks, biometrics, consent - stop the errand and hand the operator the remainder. This is the primitive §152 asks for: purchase.execute, reservation.book and subscription.cancel are the same errand with different kinds, and the next class of task is too. 2026-09-03 security review (ChatGPT-authored, verified line by line against the code before any of it was acted on): the spending path had a real money defect. The ceiling was compared with the largest figure on the page BEFORE the step sequence ran, and then the ENTIRE sequence — the irreversible click included — executed with no re-read; only a §143 boundary check followed. A $40 cart that becomes $75 at checkout (shipping, tax, a tip default) passed the check and then spent $75, and the module docstring's claim that the ceiling was 'checked twice' was false. Spending errands are now REFUSED at run time until a two-phase checkout verifier exists: execute up to the committing step, re-read merchant/items/shipping/tax/total/currency, compare the EXACT transaction against the authorization, then click. Nothing was lost — no spending errand had ever run live."
     },
     {
       "id": "finance.hand_off",
@@ -980,11 +981,13 @@
       "id": "email.read_body",
       "description": "Read the body text of a received email, not just its headers",
       "provider": "aletheia.local",
-      "status": "NOT_BUILT",
-      "risk_class": "high",
-      "approval_policy": "operator_always",
-      "caller": "TICKET: no caller. Wanted by aletheia.scheduling.note_reply, which can see that a meeting reply arrived but not what it says.",
-      "notes": "Named rather than worked around (§105). aletheia.mail deliberately fetches BODY.PEEK[HEADER] - headers only - so Aletheia never holds the operator's correspondence, and the private stores keep fingerprints rather than text. That is the right default, and it is exactly why a meeting negotiation cannot read 'Tuesday works' for itself; it asks the operator to relay the answer in one line instead of guessing an acceptance from a subject. Building this widens what Aletheia reads of his mail and is a privacy decision that is his to make, not a missing function: it needs an explicit ruling on which messages may be read, how long any text is retained, and whether a body may ever reach a reasoning provider."
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.mail.read_body via intercom kind email_read (LOCAL — the mailbox credentials live on the PC), reachable from voice, the Command Center and an agenda",
+      "notes": "The text of ONE unread message, named by sender or subject. The match must be exactly one message: none is an honest 'nothing from them', more than one is a question back listing the candidates — never a guess at which he meant. The mailbox is opened readonly (reading never marks anything seen); text/plain is preferred, HTML is stripped to text, attachments are never opened; the journal records the subject, never the body. Built 2026-09-02 when 'what did they say?' was still answerable only with a subject line.",
+      "module": "aletheia.mail",
+      "verification": "Live 2026-09-02 on the operator's PC: a real unread message's body read by Message-ID over IMAP (119 chars) and confirmed still UNSEEN afterwards; five same-subject unread messages refused as ambiguous with the candidates listed. tests/test_more_hands_mail_and_context.py: exact match read, ambiguity is a question, no match is honest, HTML stripped, body never journaled, kind is read-tier and local."
     },
     {
       "id": "perception.screen",
@@ -1028,9 +1031,9 @@
       "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "operator_once",
-      "caller": "aletheia.voice_room.listen_forever speaks pending lines before handling an utterance; python -m aletheia.announce pending",
+      "caller": "aletheia.voice_room.listen_forever speaks pending lines before handling an utterance (throttled to one check every 20s); turned on and off by intercom kind 'announce_set' (so by voice and from the phone) or python -m aletheia.announce on|off|quiet",
       "module": "aletheia.announce",
-      "notes": "Every speaker() call used to sit inside answer-a-question, so a booked meeting or an errand stopped at a bank's verification step waited silently until he thought to ask. Only URGENT and IMPORTANT notices are ever spoken, at most a few an hour, never the same one twice, never while halted, and never in quiet hours - a machine that wakes someone at 3am to report a red CI job has done more harm than the red job. It can only re-say what is already in the notification store, so anything spoken is findable afterwards (§30)."
+      "notes": "Every speaker() call used to sit inside answer-a-question, so a booked meeting or an errand stopped at a bank's verification step waited silently until he thought to ask. Only URGENT and IMPORTANT notices are ever spoken, at most a few an hour, never the same one twice, never while halted, and never in quiet hours - a machine that wakes someone at 3am to report a red CI job has done more harm than the red job. It can only re-say what is already in the notification store, so anything spoken is findable afterwards (§30). 2026-09-03: this entry was a LIE and is now true. It named voice_room.listen_forever as its caller from the day it was written, and that function did not mention announce at all - the module was imported by nothing but its own tests. Wired now, and still silent by default: DEFAULT_CONFIG['enabled'] is False and a disabled config does not even read the notification store. It also had no ON-SWITCH: enabling it meant hand-writing ~/.aletheia/announce.json, which is not opt-in, it is unavailable with extra steps. He can now say 'tell me when something needs me' and 'no announcements after ten'."
     },
     {
       "id": "intent.execute.routine",
@@ -1055,6 +1058,369 @@
       "module": "aletheia.setup",
       "notes": "Six credentials lived in four documents, each ending in 'and then it should work'. He would do three and stall on the one with the thinnest instructions, and nothing ever proved the finished ones worked. Every step carries a verifier that makes a REAL attempt - an IMAP login, a request to the hub, a token round-trip - so nothing claims to be configured on faith (§30, §106). The outstanding list is derived from config/capabilities.json at run time, and a NEEDS_CONFIGURATION capability this file does not mention is reported as unmapped rather than silently omitted, because an omission would read as a finished step. aletheia/apply.py finishes a step from one pasted secret - it writes the config, sets what must be set, runs the real check and reports what it can now see. It creates no credential and signs into nothing (§143). The cheap path is the default: a secret iCal URL is one copy-paste where OAuth is a cloud project and a consent screen, and reading the calendar is what availability and meeting slots actually need.",
       "verification": "tests/test_setup.py asserts the checklist covers every NEEDS_CONFIGURATION capability, that a failing verifier is reported rather than raised, and that the phone is not 'done' until a call has actually happened"
+    },
+    {
+      "id": "work.session",
+      "description": "A bounded workstation session: an expiry, an action budget, and one approval that every action inside it is charged against",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "python -m aletheia.work_session on|status|off; opened automatically by aletheia.work_trust.ensure_session; every aletheia.work_direct action is charged to the live session",
+      "module": "aletheia.work_session",
+      "notes": "The envelope, not the actions. It carries the hard-coded refusal set that no grant widens: ordinary passwords, 2FA/one-time codes, payment data, credential rotation or revocation, and account-security changes are refused inside a session exactly as they are outside one.",
+      "verification": "tests/test_work_session.py: expiry and action budget both end a session; the refusal set is asserted per class, not as a single blanket check"
+    },
+    {
+      "id": "work.trust",
+      "description": "Standing LOCAL permission to open bounded Work Sessions automatically, instead of the operator running `work_session on` every day",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "python -m aletheia.work_trust on|status|off (local PC only); read by aletheia.work_trust.ensure_session and aletheia.sealed_observe.run",
+      "module": "aletheia.work_trust",
+      "notes": "Authority, not ability: it authorizes opening ANOTHER session with the same boundary, and widens the action set by nothing. It cannot be enabled through the public intercom, and since 2026-09-01 it carries a machine binding (authority.machine_binding) so a grant file plus its public approval arriving over git sync is inert.",
+      "verification": "tests/test_work_trust.py; tests/test_machine_binding.py asserts a grant minted elsewhere is refused even with a valid approval"
+    },
+    {
+      "id": "work.direct",
+      "description": "Carry out a routine workstation request end to end under a live Work Session - browser and desktop only",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "high",
+      "approval_policy": "operator_once",
+      "caller": "aletheia.intents (an intent whose steps are workstation work routes here); requires work.session, which requires work.trust or an explicit local session",
+      "module": "aletheia.work_direct",
+      "notes": "EXPERIMENTAL because NOTHING HAS EVER RUN THROUGH IT in production: the journal carries no work.direct action on the operator's PC, only the build. The refusals it inherits from work.session are the whole safety argument, so the first supervised live run - a real, dull, reversible task on the PC with the operator watching - is what promotes this, not another test.",
+      "verification": "tests/test_work_direct.py exercises the classifier and the session accounting; no live evidence yet"
+    },
+    {
+      "id": "observation.sealed",
+      "description": "Answer a remote question about the screen or a page without the answer ever becoming readable in the repo: encrypted to the asker's ephemeral key",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "high",
+      "approval_policy": "operator_once",
+      "caller": "aletheia.work_direct (an observation step); sidecars land in exchange/commands/sealed/",
+      "module": "aletheia.sealed_observe",
+      "notes": "Requires a live local work.trust grant BEFORE the screen is read, and refuses a weak or malformed requester key before reading anything. Browser observations redact credentials and URL query strings before sealing, so even the holder of the key does not receive an API key or an OAuth code. Depends on the OPTIONAL `cryptography` package; available() reports the reason honestly and never raises (a broken native build panics rather than raising, which used to take the suite down with it). EXPERIMENTAL: no sealed observation has been produced on the operator's PC.",
+      "verification": "tests/test_sealed_observe.py: round-trip carries no plaintext, weak keys refused before any screen read, credentials and query strings redacted; skips honestly when cryptography is absent"
+    },
+    {
+      "id": "secret.store",
+      "description": "A local secret vault sealed by Windows DPAPI to this user on this machine - never a committed file, never an environment variable",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "high",
+      "approval_policy": "operator_once",
+      "caller": "python -m aletheia.secret_store; read by aletheia.github_auth and aletheia.gh for the fleet token, and by aletheia.secret_browser to fill a form",
+      "module": "aletheia.secret_store",
+      "notes": "available() reports (False, 'Windows DPAPI is only available on Windows') off Windows rather than falling back to something weaker - a vault with a portable fallback is not a vault. Plaintext never reaches git, the journal, a receipt, a screenshot or a command line; callers receive a value and journal only the NAME. EXPERIMENTAL until a secret has been stored and read on the operator's PC in ordinary use.",
+      "verification": "tests/test_secret_store.py: the sealed blob contains no plaintext, journal entries carry names only"
+    },
+    {
+      "id": "secret.fill",
+      "description": "Fill a stored secret into a page's form field under a standing local grant, without the value passing through a model, a log or a screenshot",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "caller": "python -m aletheia.secret_browser - the front door; requires an active aletheia.secret_trust grant and a matching stored secret",
+      "module": "aletheia.secret_browser",
+      "notes": "The hard refusals are the point and are unchanged by any grant: ordinary account passwords, 2FA and one-time codes, payment data, credential rotation or revocation, and account-security changes are refused. secret_trust is machine-bound (authority.machine_binding), so this authority cannot be manufactured by pushing a grant file. EXPERIMENTAL: never used against a live form.",
+      "verification": "tests/test_secret_browser.py: each refused class asserted separately; the value is never journaled, screenshotted or returned"
+    },
+    {
+      "id": "authority.machine_binding",
+      "description": "A standing grant is valid only on the machine that minted it - HMAC over its identifying fields, keyed by a secret that lives outside the repository",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "high",
+      "approval_policy": "none",
+      "caller": "aletheia.work_trust.active, aletheia.secret_trust.active, aletheia.code_trust.active - checked before any other condition",
+      "module": "aletheia.machine_binding",
+      "notes": "Closes a real hole found in the 2026-09-01 catch-up review: all three standing grants validated on a gitignored file plus a TRACKED, public approval, and .gitignore stops an accidental add rather than a deliberate one. One push could have manufactured standing workstation trust, secret-fill authority or autonomous-PR authority on the operator's PC. The key (~/.aletheia/machine.key) is a secret from the network, not from the operator; it never enters git, a journal entry, a receipt or a command line. Fails CLOSED, and tells the operator once, with the one command that re-mints a bound grant.",
+      "verification": "tests/test_machine_binding.py: a grant delivered with a valid approval but signed elsewhere is inert; tampering with limits, expiry or the approval id all break the binding"
+    },
+    {
+      "id": "code.autonomous",
+      "description": "Aletheia proposes its own code changes: rank files, draft a change, review it with a second judge, open a PR for a human to merge",
+      "provider": "claude.cli",
+      "status": "EXPERIMENTAL",
+      "risk_class": "high",
+      "approval_policy": "operator_once",
+      "caller": "aletheia.project_loop, started by aletheia.project_autostart under an active aletheia.code_trust grant; python -m aletheia.project_loop status",
+      "module": "aletheia.code_worker",
+      "notes": "There is NO automatic merge path: the loop opens a pull request and stops, and every merge in this repo is deliberate. The authority surfaces it may not touch are an explicit, path-normalized list (aletheia/policy.py, the trust modules, machine_binding, core, supervisor, config/, .claude/, CLAUDE.md, docs/PLAYBOOK.md and more). A proposal is read and written at ONE pinned base_sha. The review runs on a DIFFERENT model where one is available and says so in the PR body when it cannot. Stranger text (issue bodies, job names, job logs) travels as sanitized evidence in a labelled field, never inside the objective; HALT is re-read across every long gap. SECOND BUILD 2026-09-02, from four live sweeps on the operator's PC: (1) the proposer now reads enough to act - up to six files, 40 KB each, 48,000 characters, with a per-call context ceiling asked of the reasoner (the default 8 KB stays for everyone else) and the prompt sent over stdin, because Windows caps a command line at 32,767 characters and the first big context died there; (2) when more files fit than may be read, the model CHOOSES which from a manifest of paths and sizes, refused outside the manifest; (3) the grant slot is claimed just before the first GitHub write, so a declined proposal or a rejected review costs nothing; (4) machine-made issues - bot authors, fleet alerts, watchdog notices, daily/weekly tracking issues - are skipped before a model is asked, and a decline is recorded so the next sweep moves to the next issue or run; (5) a CI repair receives the failing job's log, fetched without forwarding the token to blob storage, timestamps stripped, the window anchored on the last error-shaped line. The last live sweep diagnosed both open CI failures correctly and declined both, with reasons a person would give: Shorts-pipeline's watchdog job failed because it correctly found no artifact, and schwab-trader's sell-brain job failed because its Claude CLI hit a weekly usage limit. Neither is a code defect. Stays EXPERIMENTAL until a proposed PR exists for the operator to read - the loop is now capable of one; the repositories currently offer nothing a bounded code change fixes.",
+      "verification": "tests/test_code_worker.py + tests/test_more_hands_mail_and_context.py + tests/test_ci_log_evidence.py: every protected surface refused, the review a second judge, files read at the pinned ref, stranger text never in the instruction field, halting mid-flight creates nothing, the model's file choice bounded to the manifest, a declined proposal and a rejected review claim no slot, a PR claims once before the first write, machine-made issues skipped, declined tasks not re-asked, the job log window anchored on the error, the token stripped on redirect; live 2026-09-02: four sweeps on the operator's PC reaching the proposal stage each time, zero PRs, every decline recorded with its reason"
+    },
+    {
+      "id": "code.trust",
+      "description": "Standing LOCAL permission for the autonomous code loop to open a bounded number of pull requests",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "high",
+      "approval_policy": "operator_once",
+      "caller": "python -m aletheia.code_trust on|status|off (local PC only); read by aletheia.project_loop and aletheia.code_worker",
+      "module": "aletheia.code_trust",
+      "notes": "Bounded by a PR ceiling and an expiry, machine-bound since 2026-09-01, and it authorizes PROPOSING only - it confers no merge authority anywhere.",
+      "verification": "tests/test_machine_binding.py: raising max_prs on a real grant breaks the binding rather than raising the ceiling"
+    },
+    {
+      "id": "reason.local",
+      "description": "Offline local models (Ollama) as a reasoning provider when the subscription clients are unavailable",
+      "provider": "aletheia.local",
+      "status": "NEEDS_CONFIGURATION",
+      "risk_class": "medium",
+      "approval_policy": "registry_grant",
+      "caller": "aletheia.reasoner via aletheia.local_model_pool; policy in aletheia.reasoning_gateway; python -m aletheia.local_ai to provision",
+      "module": "aletheia.local_brain",
+      "notes": "DISABLED by default and reported so by reasoning_gateway.status (enabled=false, source=default). The invariant that matters more than the plumbing: a local model must never become the authority for a critical decision merely because Claude is out. The gateway's policy tiers are what enforce that - critical work degrades honestly instead of silently dropping to a smaller model, and shadow mode exists so a local model can be compared without being trusted. NEEDS_CONFIGURATION until the operator provisions models and opts in.",
+      "verification": "tests/test_local_ai_integration.py: the critical tier never downgrades to a local answer (the local pool is asserted NOT CALLED when the subscriptions are down, so it fails instead of quietly answering); a remote Ollama endpoint is refused; a failed activation leaves local routing disabled"
+    },
+    {
+      "id": "reason.chatgpt_browser",
+      "description": "The operator's ChatGPT subscription used as a reasoning fallback through a real browser session - no API key",
+      "provider": "chatgpt.app",
+      "status": "NEEDS_CONFIGURATION",
+      "risk_class": "medium",
+      "approval_policy": "registry_grant",
+      "caller": "aletheia.reasoner (fallback after the Claude CLI) and aletheia.perception, both via aletheia.reasoning_gateway; python -m aletheia.chatgpt_session to initialize the profile",
+      "module": "aletheia.browser_reasoner",
+      "notes": "Gated on an OPERATOR LEASE that unattended contexts must never inherit: EVERY always-on entry point drops the lease from its own environment as its first statement — the Core, the supervisor (which also strips it from every child environment), the project loop and the voice room. The last two matter most and were missed by the first pass: they run as their OWN Windows scheduled tasks, so no parent scrubs anything and Task Scheduler hands them the user's environment. A watchdog, project loop, scheduled process or voice room therefore cannot open a visible ChatGPT window on the operator's screen. chatgpt_session.status reports ready=false ('browser profile has not been initialized') today.",
+      "verification": "tests/test_browser_reasoner_windows_mode.py: the always-on entry points are enumerated from the SCHEDULED TASK REGISTRY, not a hand-written list, and each main() is asserted to drop the lease before it parses an argument — a new always-on task cannot be registered without doing the same"
+    },
+    {
+      "id": "followup.deliver",
+      "description": "Answer now, deliver the real answer when it exists: a durable slot for a reply that takes longer than the room can be held open",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "aletheia.core POST /api/voice opens a slot and GET /api/followup polls it; aletheia.presence speaks a READY slot; interface/voice.js collects it",
+      "module": "aletheia.followups",
+      "notes": "Built because the failure was real and reported by the operator: he asked Thea something, got an acknowledgement, and never received the finished answer - the planner takes ten to thirty seconds and the request was being dropped when the room closed. A slot is PENDING, then READY or FAILED; a FAILED slot says so out loud rather than staying silent, because silence is the bug.",
+      "verification": "tests/test_voice.py: an arbitrary ask returns within 2 seconds with a followup_id, and the real sentence is collectable from that slot"
+    },
+    {
+      "id": "mission.run",
+      "description": "Authorize a GOAL with a budget instead of approving every step of it, and work it until the budget, the deadline or HALT stops it",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "python -m aletheia.mission start|status|stop|kinds (local PC only); aletheia.project_loop.run_mission_slice sweeps every repository against the live mission",
+      "module": "aletheia.mission",
+      "notes": "Built because the operator asked for something the repo could not do: 'look at all my projects and fix the problems'. A mission is not new authority: what it may cover is a POSITIVE allowlist (MISSION_ALLOWED), operator_always is refused outright, it carries a wall-clock deadline AND a work ceiling, HALT is re-read between slices, and it is machine-bound like every standing grant. Promoted on live evidence 2026-09-02: mission m-20260902-1923-20cfb4 (anything, 2h/20) ran on the operator's PC, was charged by two agendas (2/20), and was stopped by one word; m-20260902-1942-74ec3f (fix_projects, 1h/3) was swept by project_loop across five repositories.",
+      "verification": "Live 2026-09-02: two missions started, charged, and ended on the operator's PC (journal: mission STARTED/STOPPED, agenda notes). tests/test_mission.py: 23 tests - the budget really stops it, a refused review costs nothing, progress survives a restart, a record edited to widen itself is inert."
+    },
+    {
+      "id": "research.answer",
+      "description": "Look into a question and answer it from real sources, with every claim bound to the page it came from",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "voice ('look into X', 'find out about X', 'what do you know about X'); intercom kind 'research' (LOCAL - the browser is on the PC); python -m aletheia.research; aletheia.mission kind 'research'",
+      "module": "aletheia.research",
+      "notes": "It only ever READS - no approval, no interaction, nothing sent, nothing spent. There is no search API and there will not be one (No6). Every claim carries the page it came from and a claim citing a page that was not read is DROPPED in code. First live question 2026-09-02 found three things: DuckDuckGo's HTML endpoint answers the headless browser with a 'select all squares containing a duck' challenge; Bing answers with an unrendered shell whose links belong to some other query; and five 6,000-char extracts are 30 KB against the reasoner's 8 KB whole-context ceiling. Now: engines tried in order (DuckDuckGo, Wikipedia's own search, Bing with its redirects unwrapped), a page with no readable text yields no results rather than junk, and extracts shrink to fit. 2026-09-03: a missing browser now refuses UP FRONT with the real reason. Without Playwright every search raised inside find_sources, was swallowed into a journal alert, and the run ended on 'no readable sources were found - it may be something the open web does not answer' - which blames the question for a missing dependency, so nobody installs the dependency.",
+      "verification": "Live 2026-09-02: 'what is the tallest building in Chicago' -> Willis Tower, 1,451 ft, one sourced finding from five Wikipedia pages read, confidence 90%, report stored as a document and a notification. tests/test_research.py (16) + tests/test_hands_and_do_task.py: a challenge page costs the engine not the question, an unrendered page yields nothing, Bing redirects unwrap, extracts fit the ceiling."
+    },
+    {
+      "id": "agenda.execute",
+      "description": "Take a request in plain English and carry it out step by step without asking again - never spending money",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "python -m aletheia.agenda '<request>'; aletheia.mission kind 'anything' runs it under a budget",
+      "module": "aletheia.agenda",
+      "notes": "The operator's ask, in his words: 'take any request I give it and execute it except no spending money'. THREE refusals, all enforced in code: MONEY is refused at compile time and before every step with no flag that turns it off; approve/deny are refused because an agenda that can approve things can approve its own; halt/resume are refused because a kill switch the agent can lift is decoration. Also refused: intent, rule, dispatch. First live run 2026-09-02 found two defects a test double had hidden: the intercom's new kinds referenced a name that did not exist (NameError on the first file_write), and the agenda called .get() on the string every ordinary kind answers with, so every honest step read as 'failed'. Both fixed; the second live run wrote test.md to the workspace under mission m-20260902-1923-20cfb4.",
+      "verification": "Live 2026-09-02: `python -m aletheia.agenda \"make a file called test.md that says hello\"` -> file_write done, C:\\\\Users\\\\caleb\\\\Documents\\\\Aletheia\\\\test.md contains 'hello', mission charged. tests/test_agenda.py + tests/test_hands_and_do_task.py: every money capability refused with nothing executed first, a string receipt is done not failed, a missing tool is 'unavailable', the source contains no money-override flag."
+    },
+    {
+      "id": "file.author",
+      "description": "Create and edit real files - documents, notes, data, captions - inside a workspace she owns, keeping every version she replaces",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "intercom kinds file_write/file_edit/file_read/file_list (LOCAL - the workspace is a directory on his PC), reachable from an agenda; python -m aletheia.workspace",
+      "module": "aletheia.workspace",
+      "notes": "One root (~/Documents/Aletheia by default; ALETHEIA_WORKSPACE overrides), every path RESOLVED before it is checked so `../` and symlinks out of the workspace fail the same test, absolute paths refused, a root that resolves to his home/Desktop/Documents refused as 'everything under it', and - found live 2026-09-02 - a root that is a source repository refused: the old default (~/Aletheia) WAS this repository's checkout, so the first write was refused as 'the workspace already holds 2000 files' and anything she wrote would have blocked the Core's sync as a person's uncommitted work. Every overwrite keeps the previous version in .versions/; reading is deliberately wider than writing; text formats only. 2026-09-03: DELETE and MOVE exist now. 'Delete summary.md' had no matching kind at all - file_write/file_edit/file_read/file_list was the whole vocabulary - so the planner claimed file.author was missing (refused: the registry said otherwise) and fell through to the SCRIPT SANDBOX to do an ordinary file operation. Both new verbs keep a version FIRST, so both are undoable with restore: a delete that cannot lose anything is a shelf, not a shredder, which is what makes them routine rather than approval-gated. Moving onto an existing file keeps what was there, the same rule as write.",
+      "verification": "Live 2026-09-02: write, list and read against the real workspace on the operator's PC (test.md, hands-plan.json, clips/). tests/test_workspace.py: 21 tests on the boundary; tests/test_hands_and_do_task.py: the repository and any git checkout refused as a root."
+    },
+    {
+      "id": "computer.observe",
+      "description": "Look at the desktop - what windows are open, what is in them - without touching anything",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "intercom kind 'computer_observe' (LOCAL), reachable from an agenda; aletheia.computer.observe",
+      "module": "aletheia.computer",
+      "notes": "Splitting computer control by EFFECT gives an agenda eyes without hands: list_windows and inspect_controls change nothing. observe() REFUSES a mutating step rather than filtering it out. Live 2026-09-02 on the operator's PC: pywinauto 0.6.9 listed the desktop's windows (taskbar, Notepad, ...) through UI Automation; the intercom kind now answers with a line (it used to reference a name that did not exist).",
+      "verification": "Live 2026-09-02: computer.observe([list_windows]) -> 8 windows described with name/class/control_type/process_id. tests/test_agenda.py: observation is read-tier and agenda-reachable while mutating actions are asserted absent."
+    },
+    {
+      "id": "media.edit",
+      "description": "Edit video and audio - trim, join, extract sound, burn in captions, convert and resize - always writing a new file",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "intercom kinds media_probe/trim/join/audio/captions/convert (LOCAL - ffmpeg and his files are on the PC), reachable from an agenda; python -m aletheia.media",
+      "module": "aletheia.media",
+      "notes": "ffmpeg driven honestly: every operation writes a NEW file in the workspace and never touches the source (no flag changes that); absence is reported, not raised; ffmpeg's exit code is the receipt and a missing output file is a failure even when ffmpeg said nothing. Installed 2026-09-02 (winget Gyan.FFmpeg -> ffmpeg 9.0.1, on the user PATH for new terminals).",
+      "verification": "Live 2026-09-02: `media check` -> ffmpeg and ffprobe on PATH; a 6 s test-pattern sample was probed (h264/aac), trimmed to clips/sample-first2s.mp4 (2.0 s, 31,885 bytes), and the source's sha256 verified unchanged afterwards. tests/test_media.py hermetic."
+    },
+    {
+      "id": "computer.act",
+      "description": "Hands on the desktop without a per-plan approval: open an app, focus a window, put text in a control, press a control - with every committing or destructive control refused back to the hash-bound approval",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "high",
+      "approval_policy": "operator_once",
+      "caller": "intercom kind 'computer_do' (LOCAL), reachable from an agenda under a mission; python -m aletheia.computer act <plan.json>; aletheia.computer.act",
+      "module": "aletheia.computer",
+      "notes": "Operator-authorized 2026-09-02 in his own words (journaled: operator:authorization). The actions are a POSITIVE list - open_app, wait_window, focus_window, set_text, invoke; close_window and screenshots keep execute()'s hash-bound approval. Any control whose label matches the committing/destructive pattern (Send, Delete, Pay, Purchase, Buy, Confirm, Submit, Format, Uninstall, Empty Trash/Recycle Bin, Check out, Place order, Sign, Post, Publish, Remove, Erase, Wipe, Reset, Share, Transfer, Order) is REFUSED and the refusal names the approval path; it is never skipped, because a plan that ran with the Send removed reports success for a thing not done. The label is read twice - from the plan's selector before anything runs, and from the LIVE control on screen just before the press - and a control with no readable label is refused too. open_app never starts a shell, an interpreter or a system tool. HALT is re-read between every step. Lesson from the first live run: open_app on a file that does not exist leaves Windows 11 Notepad on a 'create it?' dialog titled just 'Notepad', so a plan should create the file first or match that title. 2026-09-02 (second build): hotkey and select joined the action list. Hotkeys come from a SAFE table only — clipboard, undo, find, save, navigation, escape, tab; Enter, Delete, Alt+F4, Ctrl+Enter and anything that closes or submits are absent, because a keystroke has no label for the guard to read. select applies the committing guard to the VALUE (a menu entry can commit as surely as a button). Third build (2026-09-02): the earlier note blamed Notepad for rebinding Ctrl+Shift+S; that was wrong. Two real causes, both fixed: Windows 11 titles the dialog 'Save as' and title patterns were matched case-sensitively (now case-insensitive - lookup only, the committing guard still reads the live label); and under UI Automation an app's dialog is a CHILD of its owner, not a top-level window, so Desktop.window() never saw it (the direct Window children of every top-level window are searched too, and the match is anchored by handle for the rest of the step). select reads the control's real items and picks the one a person means - 'All files' finds 'All files ' (trailing space) or 'All files (*.*)'; two candidates are refused, and a prefix that reaches a committing word the plan never said is refused. Pillow is required for window screenshots and is now installed by finish-setup.ps1. Also from the haiku runs: a title pattern searches the whole title (pywinauto anchors it at the start, so the planner's 'Notepad' missed 'Untitled - Notepad'); a selector naming only control_type Edit or Document tries both (a planner cannot see the screen; Windows 11 Notepad's area is a Document); set_text verification compares line endings normalized (Notepad reports CR for the LF it was given); two windows with the same title resolve to the active one, then one of a process this run started, else refused.",
+      "verification": "Live 2026-09-02 on the operator's PC, said in words through the agenda front door: python -m aletheia.agenda 'Open Notepad and write a haiku about autumn in it' -> the planner compiled computer_do [open_app, wait_window, hotkey ctrl+n, set_text] and the hands COMPLETED it unattended (run hands-c3d3e2cd8f80), the haiku verified character-for-character in a fresh Notepad tab and read back from the screen afterwards. The same day the eight-step Notepad plan (open_app with a file, wait_window, focus_window, hotkey ctrl+end, hotkey ctrl+shift+s, wait_window 'Save As' - an owned dialog - select 'All files' in the Save-as-type combo box, hotkey escape) COMPLETED unattended (run hands-39a87325ab11); earlier, the four-step set_text plan (run hands-9ebdf9267fa7) and a plan pressing a control titled 'Send' refused before any step ran (exit 3). tests/test_hands_and_do_task.py and tests/test_computer_owned_dialog.py: every word on the operator's list refused, refused-never-skipped, the live label checked before the click, unlabelled controls refused, shells never opened, HALT between steps, typed text never journaled, owned dialogs found, titles searched not anchored, Edit/Document text areas equivalent, select resolution bounded, two same-titled windows resolved to the active one or refused."
+    },
+    {
+      "id": "task.script",
+      "description": "When there is no verb for it, write a small Python program for the request and run it in a sandbox - standard library whitelist, no network, no subprocess, fresh environment, source saved before it runs",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "intercom kind 'do_task' (LOCAL), reachable from an agenda; aletheia.planner compiles an ask no kind matched into it (compile_unmatched_into_a_task); python -m aletheia.script",
+      "module": "aletheia.script",
+      "notes": "Operator-authorized 2026-09-02 (journaled: operator:authorization) on the condition that the sandbox stays exactly as it is: an import WHITELIST (a module nobody thought of is refused), eval/exec/compile/__import__ and dunder access refused, os.system/popen/spawn/exec refused, a separate process with the workspace as cwd, a wall-clock timeout, an output cap, and an environment carrying none of his variables. No network is what makes 'never spends money' hold for generated code. The first live run found the brief contradicting its caller ('return ONLY the program' vs 'return JSON'); the model returned the program, fenced, and the JSON seam refused it. One brief now, and a text fallback that accepts a program as a program. The planner may compile into this only while the registry says AVAILABLE, never for a gap on an operator_always or high-risk capability, and never by padding a plan that already does something; the gap step stays as the ticket.",
+      "verification": "Live 2026-09-02: `python -m aletheia.script \"count the files in this folder by extension\"` -> program generated, statically checked, saved to .scripts/, run in the sandbox, printed the count for the real workspace. tests/test_script.py + tests/test_hands_and_do_task.py: whitelist unchanged, a fenced program accepted as text, a custom thinker not second-guessed, the planner's synthesis bounded by the registry."
+    },
+    {
+      "id": "message.send",
+      "description": "Send a text message (SMS/iMessage) to a person on the operator's behalf",
+      "provider": "aletheia.local",
+      "status": "NOT_BUILT",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "caller": "ticket — Phase 13/21 messaging: Windows Phone Link paired to the iPhone, driven through computer.act (compose) with the Send control refused back to a hash-bound approval; contacts.resolve names the person",
+      "notes": "Registered 2026-09-02 because the planner, asked to 'text Brant', named intercom.relay as the closest gap and then compiled a sandboxed program for it — a program with no network cannot text anyone, and intercom.relay is not messaging. A gap with the right name is what §105 asks for. Sending reaches another person, so it is operator_always whatever adapter arrives (§72–§73); a build never bundles the grant (§70). Checked live 2026-09-02: Phone Link 1.26071 is installed and its host runs, but the app sits at its onboarding screen ('Choose your device to get started' - Android / iPhone): no phone is paired. Pairing the iPhone is his to do (a QR scan on the phone and a Bluetooth pairing - physical steps, section 143). Once paired, the build is: contacts.resolve -> Phone Link Messages via computer.act (open, find the conversation, set_text the message) -> the Send control refused back to a hash-bound approval he decides -> the sent message read back from the thread as verification."
+    },
+    {
+      "id": "goal.pursue",
+      "description": "Work one outcome until it is done: plan a little, act, look at what happened, decide again — instead of compiling a single plan and running it blind",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "python -m aletheia.pursue <goal>; aletheia.pursue.pursue()",
+      "module": "aletheia.pursue",
+      "notes": "Built 2026-09-02 on the operator's own framing: sixteen working commands were not the point, because every one of them was compile-once-run-straight-through. agenda turns ONE sentence into ONE plan; mission is a budget, not a loop. Nothing could look at what is actually there, act, look at what happened and decide again — which is why 'edit this video, cut it down' could only ever be a question. Each ROUND re-reads a fresh situational snapshot and re-compiles against the goal plus every receipt so far. It is NOT wider than an agenda and does not re-implement a single gate: agenda.refuse_money on every plan and every step, agenda.FORBIDDEN_KINDS (approve/deny/halt/resume/intent/rule/dispatch), every step through intercom.execute_command so operator_always stays operator_always, HALT re-read before each round AND each step, the mission budget re-read each round. Bounds are the interesting part: 6 rounds, 6 steps a round, 24 steps a goal, a stop when a command repeats verbatim (a loop, not persistence), and a stop after TWO consecutive rounds that achieve nothing — one barren round is survivable on purpose, because a failure is information the next round should use (§31). Deliberately NOT reachable from an intercom kind or an agenda: a loop that could start loops is the recursion FORBIDDEN_KINDS already refuses for 'intent'.",
+      "verification": "Live 2026-09-02 on the operator's PC, a goal that CANNOT be done without looking first: 'Find out how long sample.mp4 in my workspace is, then trim it to just the first half and save that as a new file'. Round 1 probed the file (6.0s) and its blind trim FAILED with a MediaError; round 2 used what round 1 learned — 'trim to its first 3 seconds (half of 6.0s)' — and succeeded. Verified independently afterwards: sample_half.mp4 is 3.000000s by ffprobe, 46,420 bytes, and sample.mp4's sha256 is unchanged from sample.sha256. That is look -> act -> observe a failure -> re-decide -> succeed, which is the whole reason the module exists. tests/test_pursue.py (18): rounds carry history forward, a failed step reaches the next round rather than being hidden, a repeated command stops it, two barren rounds stop it and one does not, a question returns to the operator, a gap is named rather than worked around, round/step ceilings hold, money refused inside a loop exactly as in one plan, forbidden kinds never execute, HALT before the first round and mid-pursuit, no mission no pursuit, a budget that runs out mid-pursuit ends it."
+    },
+    {
+      "id": "interface.phone",
+      "description": "Thea on the phone: a front door that only talks, and everything in one spot a tap behind it",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "the Core serves interface/phone.html (talk) and interface/console.html (everything) under /interface/; reachable over the operator's tailnet",
+      "module": "aletheia.core",
+      "notes": "TWO SURFACES, because they are two different moments: walking and wanting to say a thing, versus sitting down and wanting to see everything. A page that serves both serves neither, so phone.html is a state rail, one big talk button and her answer - nothing else - and console.html behind it carries approvals, the running mission, tiles and recent activity. Each reaches the other in one tap, and the front door's badge only appears when something actually needs him, so the second tap is always earned. Neither duplicates the other: only the front door asks, only the console decides. Transport, token and the follow-up dance live once in thea.js, because two copies drift and the drift shows up as one page working and the other quietly not. The big button does something real on a browser with no SpeechRecognition - iOS Safari has none - by focusing the text field instead of sitting dead in the middle of the screen. Replaces interface/mobile.html, a five-tab dashboard with a 'paste JSON arguments' box and a banner saying remote access did not exist, which stopped being true when he set up Tailscale. Installable: a manifest with a shortcut straight to the console, a maskable vector icon, and a service worker that caches the SHELL but never an API response - a phone showing yesterday's approvals as pending is worse than one showing nothing. Every URL is relative so it behaves the same on loopback, a tailnet name and a `tailscale cert` hostname; off-loopback it carries an aletheia.access bearer token kept on the device. The security boundary is untouched: make_server still refuses to bind off-loopback without a token AND a certificate. EXPERIMENTAL until he has opened it on his phone.",
+      "verification": "tests/test_phone_interface.py: 29 tests - the two surfaces reach each other and never duplicate (only talk.js asks, only console.js approves, and neither has its own fetch), the manifest is valid and every file it names exists, the Core serves webmanifest and svg as themselves, no host is hard-coded, API responses are never cached, status is never colour-alone, an answer is shown before it is acknowledged, the big button works without speech recognition, an empty console says so, and off-loopback binding still needs a token and TLS"
+    },
+    {
+      "id": "converse.answer",
+      "description": "Answer a question in conversation, reading any file he names in it — the second half of her, alongside the half that executes",
+      "provider": "claude.cli",
+      "status": "EXPERIMENTAL",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.intents when the planner's intent is 'answer' (so voice, the phone, POST /api/ask and the intercom all reach it); python -m aletheia.converse",
+      "module": "aletheia.converse",
+      "notes": "The gap that decided whether she could be used instead of a chat assistant. EVERY ask went through planner.compile(), which turns English into COMMAND STEPS - right for 'remind me Tuesday', wrong for 'explain this' or 'which should I pick'. For those the planner returned intent 'answer' with nothing executable, the record was retired, and spoken() fell through to plan.summary: a one-line restatement of the question. She was an executor with no mouth. Now a question gets a real answer from the same subscription everything else uses, and carries what a chat assistant elsewhere cannot know - what she is working on, what is waiting for him, his open tasks, whether she is halted - plus the last few exchanges so a follow-up resolves. It ANSWERS AND DOES NOT ACT: the module reaches no executor, and a test asserts it. `clarify` is deliberately NOT routed here (a clarifying question is already the right thing to say; sending it through made it a paragraph about ambiguity). His questions and her answers are not journaled - only that a conversation happened. EXPERIMENTAL until he has used it as his assistant for a day. 2026-09-03: she now READS a file he names in the question ('look at resume.md and tell me what's weak'), through the read half of aletheia.workspace, which adds no authority - reading is already wider than writing there. At most 2 files and 30,000 characters; a file she could not read is NAMED in the prompt with an instruction not to answer as though she had opened it, because a confident paragraph about a document she never saw is the worst thing she can produce. A passing mention of a filename is not a complaint. The thread is bounded by SIZE (12,000 chars) as well as turn count, and the model call gets 180s rather than the 90s sized for classifying a sentence. 2026-09-03 (second pass): the prompt is now BUDGETED against brain.MAX_TEXT (16,000), which reasoner.validate_input enforces before the CLI starts - a 20 KB document did not give a worse answer, it gave NO answer and a message that read as 'I could not reach a model'. Context is cut by dropping whole facts, least urgent first, so a halt is never what a spreadsheet squeezed out. She also now carries his LOCAL clock (not UTC), everything in aletheia.memory, and today's calendar; and a file she just read stays open for 30 minutes so 'make the second bullet stronger' is still about the resume. 2026-09-03 (third pass): it goes through reasoner.subscription_text - the Claude CLI first, the ChatGPT browser session behind it - not the bare infer_text. infer_json has had two paths since it was written and infer_text had one, which was harmless while the only text caller was a code generator and stopped being harmless the moment conversation became one: an expired Claude login would have left planning, reminders, filing and research working normally while every question he actually asked came back 'I could not reach a model'. The answer carries which provider spoke. 2026-09-03 (fourth pass): converse.recent() is public because the PLANNER needs it - situational.snapshot() now carries recent_conversation, so 'do that', 'yes go ahead' and 'the second one' resolve against what she just said instead of coming back as a clarifying question about something he had just told her. Untrusted like everything else in the snapshot: half of it is her own model output, which may be quoting a page. Remembering a turn is now under a lock - the Core is a ThreadingHTTPServer and the phone and the room can ask at once.",
+      "verification": "tests/test_converse.py: 21 tests - a question gets prose rather than a plan, she is told who she is and to say when she does not know, open work and pending approvals travel with the question, a broken store thins the answer rather than killing it, the thread is bounded and forgettable, an unreachable model says which half broke, the module reaches no executor, the journal records that it happened and not what was said, and clarify keeps its own wording"
+    },
+    {
+      "id": "notification.deliver",
+      "description": "Put an urgent or important notification on his actual screen, where he is",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.runtime.tick every beat (after attention, which is what decides a notice is loud); python -m aletheia.desktop_notify test|deliver|status",
+      "module": "aletheia.desktop_notify",
+      "notes": "The last inch of a reminder, and it was missing. 'Remind me at three to call the dentist' worked end to end - planner -> remind_at -> scheduler -> runtime.tick claims it at three exactly -> intercom notify_operator -> a notification written to disk - and NOTHING appeared on his screen, nothing made a sound, and his phone in his pocket was not polling. Everything upstream was correct, which is why every test passed and the journal said 'reminder surfaced'. Surfaced WHERE. A real Windows toast through PowerShell's WinRT bridge, which ships with the OS: nothing to install and no cloud round trip. It is never the record (a failed toast leaves the notification UNREAD, and a shown one does not mark it read either - seeing a toast go by is not dealing with it), it is capped at 3 a beat, it never repeats one, and on a non-Windows machine available() says so and no shell is spawned at all. URGENT and IMPORTANT only: a machine that interrupts for everything is one he turns off. Separate consent from announce.speak - seeing something on your own screen is not a machine talking in a room that may have other people in it."
+    },
+    {
+      "id": "capability.self_knowledge",
+      "description": "Answer 'what can you do?' and 'can you do X?' from the registry, with the setup command when the answer is 'not yet'",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.converse.answer attaches it to every question it is relevant to; python -m aletheia.self_knowledge [question]",
+      "module": "aletheia.self_knowledge",
+      "notes": "The most likely first question anyone asks a new assistant is 'what can you do?' and the second is 'can you do X?', and the conversational half had no path to this file at all - both were answered by a model reasoning from its general idea of what an assistant probably does (No104, No106). Worse here than elsewhere because most of those answers would have been RIGHT: she really can send email, write files and drive the desktop, which is exactly what makes the wrong ones impossible to spot. Retrieval, not recitation - 115 entries do not fit under brain.MAX_TEXT, so only what the question is about travels. A 'no' carries its next step: a NEEDS_CONFIGURATION entry is joined to its aletheia.setup instructions rather than a second copy being written that disagrees by Friday. Word overlap plus a small hand-written synonym map, because it runs inside the prompt-building path of every question: no model call, no network, no imports that could make one."
+    },
+    {
+      "id": "journal.recall",
+      "description": "Answer 'did you?', 'what did you do today?', 'why is that paused?' from the append-only journal",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.converse.answer attaches it to any question about her own past; python -m aletheia.recollection [question]",
+      "module": "aletheia.recollection",
+      "notes": "The thing no other assistant can do at all - a chat assistant elsewhere has no history with him and cannot parse 'what were you working on this morning' as a question about itself - and the one place where a confident wrong answer is indistinguishable from a right one until he goes and checks. Asked 'did you send that email?' with no evidence attached, a model produces a plausible sentence, because producing plausible sentences is what it does; a made-up 'yes, at 2:15' looks exactly like a true one. The enforceable rule is: she may only say she did something if a journal line says she did, and ABSENCE IS EVIDENCE - which is only sound because the journal is append-only and every action writes to it. Retrieval like self_knowledge: term overlap over a bounded window, alerts and decisions weighted above the hundredth routine action, times rendered in HIS clock because a UTC journal answering 'what did you do this morning' is off by exactly the amount that makes the answer wrong. No model call, no network."
+    },
+    {
+      "id": "demand.ledger",
+      "description": "Count what he asked for and could not have, in his own words, so the roadmap is written by use rather than by guesswork",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.intents.propose records every GAP step of a compiled plan; aletheia.converse records a 'can you...?' whose best match is not AVAILABLE; converse.situation() carries the notable ones so she can be asked; python -m aletheia.demand",
+      "module": "aletheia.demand",
+      "notes": "Rule zero works inside one session and dissolves between them. A gap named on Tuesday and the same gap on Friday were indistinguishable: gaps.materialize files a build task the first time and then quietly does nothing, so a capability asked for eleven times and one mentioned once looked identical on the task list forever. This counts, with HIS OWN WORDS, because 'he asked for this eleven times' is an argument and 'he asked for message.send eleven times' is a statistic. It counts, it does not conclude - frequency is evidence of demand, not proof of priority - and it forgets after 90 days, because an ask from four months ago is history. His words live in private state (gitignored), never the repo. Appended and pruned, not rewritten per ask: the first version was quadratic in how much he asks, which is the wrong direction for a file whose whole point is that he keeps asking."
+    },
+    {
+      "id": "document.compose",
+      "description": "Write a document from named sources and save it in her workspace — the prose authored when the step runs, not pasted by the planner",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "intercom kind 'compose' (so voice, the phone, and any compiled plan); python -m aletheia.compose",
+      "module": "aletheia.compose",
+      "notes": "Found by running the sentence: 'summarize my resume into three bullets and save it as summary.md' compiled to file_write with text='Three-bullet summary of resume, generated from the resume content retrieved above' - EXECUTABLE, validating clean, and it would have put that sentence in his file. The cause is structural, not a bad guess: the planner is a COMPILER and file_write(path, text) demands finished text as an argument at compile time, before anything has been read, so a request to WRITE something had only two outcomes available - a clarifying question or a placeholder - and which one it got was luck. compose moves the authoring to EXECUTION time. It adds no reach: it writes through aletheia.workspace (her directory only, versioned on overwrite, size-capped, halted when she is halted) and reads through the same module's wider read half. It never pretends: every source unreadable writes NOTHING, a partial read is declared in the prompt, a model refusal (CANNOT WRITE) and an unreachable model both save nothing and say why."
+    },
+    {
+      "id": "application.prepare",
+      "description": "Find real job postings, read them, and write a ready-to-send packet per job — posting, tailored cover letter, checklist, and a task. Submits nothing.",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "intercom kind 'apply_prepare' (so voice, the phone and any compiled plan); python -m aletheia.applications",
+      "module": "aletheia.applications",
+      "notes": "'Apply to 10 jobs for me' is one sentence containing about eight hours of real work and one irreversible act at the end. The planner answered it honestly and uselessly - research the openings, a GAP saying nothing submits an application, a MANUAL step reading 'submit each one yourself' - which left him with ten browser tabs. This does the eight hours. It does NOT submit, and that is not an apology: a submitted application is a real message to a real employer under his name with no undo, and four gates already refuse it (errand.run is EXPERIMENTAL + operator_always + inside agenda.MONEY; browser.interact is operator_always and needs an approval bound to a sha256 of the exact steps; computer.act refuses any control labelled Submit; the planner names the gap). Everything this writes is a file in a folder he can delete. It refuses to fake: a page it could not actually read is dropped and said out loud rather than written up from a search blurb, because a cover letter about a job she never opened would sit in his outbox rather than in a log."
+    },
+    {
+      "id": "document.read_any",
+      "description": "Get the words out of a PDF, .docx or text file — his real documents, with no package to install",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.workspace.read for any .pdf/.docx (so converse attachments, compose sources and application packets all inherit it); python -m aletheia.doctext <path>",
+      "module": "aletheia.doctext",
+      "notes": "His resume is a PDF and nothing in this system could open it. Everything built on 'read his resume' was reading a .md file that existed only because a test wrote one: workspace.read refuses a suffix it cannot author, and aletheia.documents says in its own docstring that it does not pretend to parse PDFs without the corresponding parser. There was no parser. The most important input in the system was the one input she could not open. STDLIB ONLY on purpose - .docx is a zip of XML and zipfile is stdlib, a PDF's text lives in content streams and zlib is stdlib - because 'pip install pypdf on his PC' makes a feature work on the machine of whoever remembered to run it, which is the same shape as a capability that says AVAILABLE and is not. pypdf is used FIRST when importable and needed never. It refuses honestly: a scan is a picture of words and the refusal names the fix (export a .docx) rather than returning forty characters of ligature soup that would become a cover letter about nobody."
     }
   ]
 }

@@ -114,6 +114,7 @@ class RecoveryScriptContractCase(unittest.TestCase):
         self.assertIn('Invoke-GitCapture -GitArgs @("rebase", "--abort")', script)
         self.assertIn('"Applied autostash"', script)
         self.assertIn('$code = $LASTEXITCODE', script)
+        self.assertIn("ALETHEIA_RECOVERY_KEEP_STOPPED", script)
 
 
 class LegacyJournalUnionCase(unittest.TestCase):

@@ -111,3 +111,65 @@ class SubscriptionFallbackCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProseHasTwoPathsToo(unittest.TestCase):
+    """`infer_json` has had a second path since it was written; `infer_text`
+    never did. That was harmless while the only text caller was a code
+    generator, and stopped being harmless the moment CONVERSATION became
+    one: an expired Claude login would have left her planning, filing,
+    reminding and researching normally while every question he actually
+    asked came back "I could not reach a model"."""
+
+    def test_the_cli_answers_first_and_says_so(self):
+        with mock.patch.object(reasoner, "infer_text", return_value="The moon."):
+            said, provider = reasoner.subscription_text("sys", "why tides?")
+        self.assertEqual(said, "The moon.")
+        self.assertTrue(provider.startswith("claude.cli:"))
+
+    def test_the_browser_answers_when_the_cli_cannot(self):
+        with mock.patch.object(reasoner, "infer_text",
+                               side_effect=reasoner.ReasonerUnavailable("no CLI")), \
+             mock.patch.object(browser_reasoner, "infer_json",
+                               return_value={"answer": "The moon, still."}):
+            said, provider = reasoner.subscription_text("sys", "why tides?")
+        self.assertEqual(said, "The moon, still.")
+        self.assertEqual(provider, "chatgpt.browser")
+
+    def test_the_browser_is_asked_for_the_one_field_it_can_return(self):
+        seen = {}
+
+        def fake(system, text, **kwargs):
+            seen["system"] = system
+            return {"answer": "ok"}
+        with mock.patch.object(reasoner, "infer_text",
+                               side_effect=reasoner.ReasonerUnavailable("no CLI")), \
+             mock.patch.object(browser_reasoner, "infer_json", side_effect=fake):
+            reasoner.subscription_text("sys", "q")
+        self.assertIn('{"answer"', seen["system"])
+
+    def test_both_paths_down_is_one_honest_error(self):
+        with mock.patch.object(reasoner, "infer_text",
+                               side_effect=reasoner.ReasonerUnavailable("no CLI")), \
+             mock.patch.object(browser_reasoner, "infer_json",
+                               side_effect=RuntimeError("no session")):
+            with self.assertRaises(reasoner.ReasonerUnavailable) as caught:
+                reasoner.subscription_text("sys", "q")
+        self.assertIn("both subscription paths", str(caught.exception))
+
+    def test_an_empty_cli_answer_falls_through_rather_than_shipping_blank(self):
+        with mock.patch.object(reasoner, "infer_text", return_value="   "), \
+             mock.patch.object(browser_reasoner, "infer_json",
+                               return_value={"answer": "a real one"}):
+            said, provider = reasoner.subscription_text("sys", "q")
+        self.assertEqual(said, "a real one")
+
+    def test_conversation_uses_the_chain_not_the_bare_cli(self):
+        from aletheia.fleet import REPO_ROOT
+        body = (REPO_ROOT / "aletheia" / "converse.py").read_text(encoding="utf-8")
+        self.assertIn("reasoner.subscription_text", body)
+        self.assertNotIn("think or reasoner.infer_text", body)
+
+
+if __name__ == "__main__":
+    unittest.main()

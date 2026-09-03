@@ -138,7 +138,8 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
     except reasoner.ReasonerUnavailable as cloud_exc:
         if not local_enabled:
             raise reasoner.ReasonerUnavailable(
-                "both subscription reasoning paths are unavailable; local reasoning disabled"
+                "both subscription reasoning paths are unavailable; local reasoning "
+                f"disabled (subscription: {cloud_exc})"
             ) from None
         if remaining() <= 0.5:
             raise reasoner.ReasonerUnavailable(
@@ -157,9 +158,13 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
                 degraded=f"subscriptions unavailable: {type(cloud_exc).__name__}",
                 turn_id=local.turn_id,
             )
-        except local_model_pool.LocalPoolUnavailable:
+        except local_model_pool.LocalPoolUnavailable as local_exc:
+            # Both causes travel with the refusal. On 2026-09-02 eight
+            # planner calls answered only "unavailable" and the real reason
+            # (the CLI refusing a burst of concurrent calls) was invisible.
             raise reasoner.ReasonerUnavailable(
-                "subscription reasoning and local deep reasoning are unavailable"
+                "subscription reasoning and local deep reasoning are unavailable "
+                f"(subscription: {cloud_exc}; local: {local_exc})"
             ) from None
 
 

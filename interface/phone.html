@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#0a0b0e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Thea">
+<link rel="manifest" href="/interface/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/interface/icon.svg">
+<title>Thea</title>
+<style>
+/* THE FRONT DOOR.
+   The centre of this screen is HER, not the input method. The first pass
+   put a 152px microphone emoji there, which made the largest object on
+   the page a promise about hardware — and on iOS Safari, which has no
+   SpeechRecognition, a promise the device cannot keep. The mark means
+   "Thea"; tapping it means "I want you", and how the words arrive
+   (speech where it exists, the keyboard where it doesn't) is a detail
+   underneath that, not the headline.
+
+   Palette is warm and quiet on purpose: ivory, ink, and one amber that is
+   reserved for "this needs you". No tech-blue, no glow, no HUD. */
+:root{
+  --ink:#0a0b0e; --ink-2:#101217; --line:#1e2027;
+  --warm:#f0ece4; --warm-dim:#9a958c; --warm-faint:#5d5a55;
+  --amber:#d8b25f; --alive:#7fc79a; --stop:#e0736d;
+  --safe-t:env(safe-area-inset-top,0px);
+  --safe-b:env(safe-area-inset-bottom,0px);
+  color-scheme:dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--ink);color:var(--warm)}
+body{
+  font:400 17px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+  display:flex;flex-direction:column;min-height:100dvh;overscroll-behavior:none;
+  padding:calc(var(--safe-t) + 12px) 20px calc(var(--safe-b) + 16px);
+}
+button,input{font:inherit;color:inherit}
+button{border:0;background:none;cursor:pointer}
+
+/* ---- top: her state as a word, and the quiet way through ------------ */
+.rail{display:flex;align-items:center;gap:10px;flex:none;min-height:36px}
+.rail .where{
+  font-size:13px;letter-spacing:.02em;color:var(--warm-faint);flex:1;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+/* Not a pill saying "Everything" — a small aperture glyph. The amber dot
+   is the only thing that ever asks for a second tap, and it appears only
+   when something genuinely needs him. */
+.through{
+  width:40px;height:40px;border-radius:50%;position:relative;
+  display:grid;place-items:center;color:var(--warm-faint);
+}
+.through:active{background:var(--ink-2)}
+.through svg{width:19px;height:19px}
+/* Reading aloud. On a device with browser speech, asking out loud already
+   gets an answer out loud and this is only for typed asks; on iOS Safari,
+   which has no SpeechRecognition, it is the ONLY way she can talk — a
+   phone that cannot detect a spoken question cannot infer he wanted a
+   spoken answer, so he says so once and it sticks. */
+.voice{
+  width:40px;height:40px;border-radius:50%;display:grid;place-items:center;
+  color:var(--warm-faint);
+}
+.voice:active{background:var(--ink-2)}
+.voice svg{width:19px;height:19px}
+.voice.on{color:var(--amber)}
+.voice .wave{display:none}
+.voice.on .wave{display:block}
+.voice .muted{display:block}
+.voice.on .muted{display:none}
+.dot{
+  position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;
+  background:var(--amber);display:none;
+}
+.through.needs .dot{display:block}
+.through.needs{color:var(--amber)}
+
+/* ---- middle: the answer, then her ----------------------------------- */
+main{
+  flex:1;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:38px;min-height:0;
+}
+
+/* The answer MORPHS with what it is. A short reply is a spoken sentence,
+   centred and large. Anything longer becomes a readable card with its own
+   scroll, rather than a 22-character column of text. */
+#reply{width:100%;max-width:460px;display:flex;justify-content:center}
+#reply .sentence{
+  font-size:22px;line-height:1.42;text-align:center;letter-spacing:-.01em;
+  max-width:19ch;margin:0;color:var(--warm);
+}
+#reply .sentence.resting{color:var(--warm-faint);font-size:18px;max-width:24ch}
+#reply .sentence.trouble{color:var(--stop);font-size:16.5px;max-width:28ch}
+#reply .card{
+  width:100%;background:var(--ink-2);border:1px solid var(--line);
+  border-radius:20px;padding:18px 20px;max-height:42vh;overflow-y:auto;
+  font-size:16.5px;line-height:1.55;color:var(--warm);
+  text-align:left;white-space:pre-wrap;
+  -webkit-overflow-scrolling:touch;
+}
+#reply .card::-webkit-scrollbar{width:0}
+
+/* The mark. Everything it does is a state on this one element. */
+.her{
+  width:172px;height:172px;flex:none;position:relative;
+  display:grid;place-items:center;border-radius:50%;
+  transition:transform .16s ease;
+}
+.her:active{transform:scale(.97)}
+.her svg{width:112px;height:112px;overflow:visible}
+.her .stroke{
+  fill:none;stroke:var(--warm);stroke-width:15;
+  stroke-linecap:round;stroke-linejoin:round;
+  opacity:.72;transition:opacity .4s,stroke-width .4s;
+}
+.her .held{stroke:var(--amber);opacity:.55;
+  transition:opacity .4s,transform .4s;transform-origin:center}
+/* the ring is drawn always but invisible at rest, so state changes are a
+   fade rather than a pop */
+.her .ring{
+  fill:none;stroke:var(--warm);stroke-width:2;opacity:0;
+  transition:opacity .35s;
+}
+
+.her.ready .stroke{opacity:.62}
+.her.ready .held{opacity:.42}
+
+/* listening: she opens. The held line widens, the strokes brighten, and
+   one slow ring breathes outward — no waveform, no equaliser. */
+.her.listening .stroke{opacity:1;stroke-width:16}
+.her.listening .held{opacity:1;transform:scaleX(1.16)}
+.her.listening .ring{opacity:.5;animation:breathe 2.6s ease-out infinite}
+@keyframes breathe{
+  0%{transform:scale(.82);opacity:.55}
+  100%{transform:scale(1.14);opacity:0}
+}
+
+/* thinking: the ring traces instead of pulsing, and the held line dims —
+   she is not taking anything in right now. */
+.her.thinking .stroke{opacity:.85}
+.her.thinking .held{opacity:.25}
+.her.thinking .ring{
+  opacity:.6;stroke-dasharray:44 300;
+  animation:trace 1.5s linear infinite;transform-origin:center;
+}
+@keyframes trace{to{transform:rotate(360deg)}}
+
+/* answering: a single settle, so a reply lands rather than appears */
+.her.answering .stroke{opacity:1}
+.her.answering .held{opacity:1}
+.her.answering{animation:settle .5s ease-out}
+@keyframes settle{0%{transform:scale(1.04)}100%{transform:scale(1)}}
+
+.her.halted .stroke{opacity:.3}
+.her.halted .held{stroke:var(--stop);opacity:.8}
+
+@media (prefers-reduced-motion:reduce){
+  .her.listening .ring,.her.thinking .ring{animation:none;opacity:.4}
+  .her.answering{animation:none}
+}
+
+.hint{
+  font-size:13px;color:var(--warm-faint);letter-spacing:.02em;
+  min-height:1.2em;text-align:center;margin:0;
+}
+
+/* ---- bottom: the composer, deliberately quiet ------------------------ */
+.compose{
+  flex:none;display:flex;align-items:center;gap:8px;margin-top:18px;
+  border-bottom:1px solid var(--line);padding:2px 2px 8px;
+  transition:border-color .25s;
+}
+.compose:focus-within{border-color:#33363f}
+.compose input{
+  flex:1;border:0;background:none;outline:none;min-width:0;
+  padding:10px 2px;font-size:16px;      /* 16px or iOS zooms on focus */
+}
+.compose input::placeholder{color:var(--warm-faint)}
+.send{
+  width:36px;height:36px;border-radius:50%;flex:none;display:grid;
+  place-items:center;color:var(--warm-dim);font-size:17px;
+}
+.send:disabled{opacity:.25}
+.send:not(:disabled):active{background:var(--ink-2);color:var(--warm)}
+</style>
+</head>
+<body>
+
+<div class="rail">
+  <span id="where" class="where">…</span>
+  <button id="voiceBtn" class="voice" aria-label="Read answers aloud"
+          aria-pressed="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"
+         aria-hidden="true">
+      <path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z"/>
+      <path class="wave" d="M16 9.2a4 4 0 010 5.6"/>
+      <path class="wave" d="M18.6 6.6a7.6 7.6 0 010 10.8"/>
+      <path class="muted" d="M16.5 9.5l5 5M21.5 9.5l-5 5"/>
+    </svg>
+  </button>
+  <a id="through" class="through" href="/interface/console.html"
+     aria-label="Everything">
+    <span id="dot" class="dot"></span>
+    <!-- an aperture, not a hamburger: it opens onto the rest of her -->
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/><path d="M12 3v6M21 12h-6M12 21v-6M3 12h6"/>
+    </svg>
+  </a>
+</div>
+
+<main>
+  <div id="reply"><p class="sentence resting">Tap to speak to her.</p></div>
+
+  <button id="her" class="her ready" aria-label="Speak to Thea">
+    <svg viewBox="0 0 512 512" aria-hidden="true">
+      <circle class="ring" cx="256" cy="270" r="150"/>
+      <path class="stroke" d="M158 372 L240 176"/>
+      <path class="stroke" d="M354 372 L272 176"/>
+      <path class="stroke held" d="M196 296 L316 296"/>
+    </svg>
+  </button>
+
+  <p id="hint" class="hint"></p>
+</main>
+
+<div class="compose">
+  <input id="q" type="text" placeholder="or write to her"
+         autocomplete="off" autocorrect="off" enterkeyhint="send">
+  <button id="send" class="send" aria-label="Send">&#8593;</button>
+</div>
+
+<script src="/interface/thea.js"></script>
+<script src="/interface/talk.js"></script>
+</body>
+</html>

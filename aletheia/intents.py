@@ -27,12 +27,15 @@ import argparse
 import hashlib
 import json
 import sys
+import threading
 
 from aletheia import intercom, journal, planner, policy, stateio
 from aletheia.fleet import load_fleet
 
 ACTOR = "aletheia-intent"
-PROPOSED, EXECUTED, RETIRED, FAILED = "PROPOSED", "EXECUTED", "RETIRED", "FAILED"
+PROPOSED, RUNNING, EXECUTED, RETIRED, FAILED, INTERRUPTED = (
+    "PROPOSED", "RUNNING", "EXECUTED", "RETIRED", "FAILED", "INTERRUPTED")
+_RUN_LOCK = threading.Lock()
 
 
 def intents_dir():
@@ -116,6 +119,17 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
     intent_id = f"intent-{digest[:10]}"
     approval_id = intent_id
 
+    # What he asked for and could not have, counted in his own words. A gap
+    # named on Tuesday and the same gap on Friday were indistinguishable:
+    # `materialize_gaps` files a build task the first time and then quietly
+    # does nothing, so a capability asked for eleven times and one mentioned
+    # once looked identical on the task list forever.
+    try:
+        from aletheia import demand
+        demand.record_plan(plan, request)
+    except Exception:
+        pass
+
     gap_tasks: list[str] = []
     if materialize:
         try:
@@ -152,8 +166,35 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
                        actor=ACTOR)
         return record
     if not plan.executable and plan.intent in ("answer", "clarify"):
+        # HE ASKED A QUESTION. Until 2026-09-03 this retired the record and
+        # spoken() fell through to plan.summary — a one-line restatement of
+        # what he had just said. She was an executor with no mouth: ask her
+        # anything a person asks an assistant and she handed back a gist.
+        # A question now gets a real answer, from the same subscription
+        # everything else runs on. Nothing is executed here.
         record["state"] = RETIRED
         record["read_only"] = True
+        if plan.intent == "clarify":
+            # A clarifying question is ALREADY the right thing to say. Sending
+            # it through converse turned "Which sister — Ana or Mia?" into a
+            # paragraph about ambiguity, which is worse in every way. Only a
+            # question he asked gets answered here.
+            return record
+        from aletheia import converse
+        try:
+            record["spoken"] = converse.answer(request)["answer"]
+        except converse.ConverseError as exc:
+            # Its message already names the real reason and the fix ("Claude
+            # CLI is not on PATH"). Rewriting that into a class name is how
+            # an actionable failure becomes a shrug.
+            record["spoken"] = str(exc)
+        except Exception as exc:
+            # An unreachable model must not turn into silence: say which
+            # half failed, because "she said nothing" and "she could not
+            # think" are different problems with different fixes.
+            record["spoken"] = (
+                f"I couldn't reach a model to answer that ({type(exc).__name__}). "
+                "Everything else still works.")
         return record
     stateio.write_json_atomic(_record_path(intent_id), record)
 
@@ -179,6 +220,11 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
 
 def spoken(record: dict) -> str:
     """What Thea says back. Short, honest about what is and is not happening."""
+    # A real answer, when the ask was a QUESTION, beats every summary below.
+    # Narrow on purpose: `clarify` and the degraded no-provider case keep
+    # their own wording, which is already the right thing to say.
+    if record.get("intent") == "answer" and record.get("spoken"):
+        return str(record["spoken"])
     if record.get("direct_work"):
         return str(record.get("spoken") or record.get("summary") or "Work action completed.")[:600]
 
@@ -219,12 +265,54 @@ def spoken(record: dict) -> str:
 def run_approved(fleet: dict | None = None, executor=None) -> list[dict]:
     """Execute every PROPOSED intent whose approval is APPROVED.
 
-    Called from the Core's runtime tick. Idempotent by state transition:
-    a record leaves PROPOSED before its receipts are written, so a crash
-    mid-plan cannot replay the steps that already ran.
+    Called from the Core's runtime tick. Each step is durably claimed before it
+    runs and receipted immediately afterwards. A run abandoned by a crash is
+    recovered from durable terminal receipts when possible. Otherwise it is
+    marked INTERRUPTED and never replayed automatically.
     """
+    # The periodic Core beat and an immediate HTTP kick can overlap in the
+    # same process. Serializing claims prevents one beat from mistaking the
+    # other's live RUNNING record for an abandoned process.
+    with _RUN_LOCK:
+        return _run_approved(fleet, executor)
+
+
+def _run_approved(fleet: dict | None = None, executor=None) -> list[dict]:
     fleet = fleet if fleet is not None else load_fleet()
     done: list[dict] = []
+    for record in all_intents(state=RUNNING):
+        receipts = record.get("receipts") or []
+        runnable = [s["n"] for s in record.get("steps", [])
+                    if s.get("status") == planner.EXECUTABLE]
+        receipt_steps = [item.get("n") for item in receipts]
+        if (runnable and receipt_steps == runnable
+                and all(item.get("outcome") == "done" for item in receipts)):
+            record["state"] = EXECUTED
+            record["executed_at"] = stateio.utcnow()
+            record["recovered_at"] = record["executed_at"]
+            detail = "all step receipts were durable; finalized after restart"
+        elif receipts and receipts[-1].get("outcome") in ("failed", "halted"):
+            record["state"] = FAILED
+            record["failed_at"] = stateio.utcnow()
+            record["recovered_at"] = record["failed_at"]
+            detail = "terminal step receipt was durable; finalized after restart"
+        else:
+            record["state"] = INTERRUPTED
+            record["interrupted_at"] = stateio.utcnow()
+            if record.get("current_step") is not None:
+                record["interrupted_reason"] = (
+                    "execution stopped after the current step was claimed; its "
+                    "outcome is unknown; automatic replay is refused")
+            else:
+                record["interrupted_reason"] = (
+                    "execution stopped before the full plan completed; durable "
+                    "receipts were preserved; automatic continuation is refused")
+            detail = record["interrupted_reason"]
+        stateio.write_json_atomic(_record_path(record["id"]), record)
+        journal.append("alert" if record["state"] == INTERRUPTED else "event",
+                       "intent", f"{record['id']}: {detail}", actor=ACTOR)
+        done.append({"intent": record["id"], "outcome": record["state"],
+                     "detail": detail})
     for record in all_intents(state=PROPOSED):
         approval_id = record.get("approval")
         if not approval_id:
@@ -266,15 +354,35 @@ def run_approved(fleet: dict | None = None, executor=None) -> list[dict]:
             steps=[planner.PlannedStep(s["n"], s["status"], s["detail"],
                                        s.get("command"), s.get("capability"))
                    for s in record["steps"]])
-        record["state"] = EXECUTED
-        record["executed_at"] = stateio.utcnow()
+        record["state"] = RUNNING
+        record["started_at"] = stateio.utcnow()
+        record["receipts"] = []
         stateio.write_json_atomic(_record_path(record["id"]), record)
+
+        def before_step(step, receipts):
+            record["current_step"] = step.n
+            record["current_kind"] = step.command["kind"]
+            record["receipts"] = list(receipts)
+            stateio.write_json_atomic(_record_path(record["id"]), record)
+
+        def after_step(step, receipt, receipts):
+            record["receipts"] = list(receipts)
+            record["completed_steps"] = sum(
+                1 for item in receipts if item.get("outcome") == "done")
+            record.pop("current_step", None)
+            record.pop("current_kind", None)
+            stateio.write_json_atomic(_record_path(record["id"]), record)
+
         receipts = planner.execute(plan, fleet=fleet,
                                    quote=record.get("operator_quote", ""),
-                                   executor=executor)
+                                   executor=executor, before_step=before_step,
+                                   after_step=after_step)
         record["receipts"] = receipts
-        if any(r["outcome"] not in ("done",) for r in receipts):
-            record["state"] = FAILED
+        record["state"] = (FAILED if any(
+            r["outcome"] != "done" for r in receipts) else EXECUTED)
+        record["finished_at"] = stateio.utcnow()
+        if record["state"] == EXECUTED:
+            record["executed_at"] = record["finished_at"]
         stateio.write_json_atomic(_record_path(record["id"]), record)
         done.append({"intent": record["id"], "outcome": record["state"],
                      "receipts": receipts})
@@ -288,7 +396,8 @@ def main(argv: list[str] | None = None) -> int:
     p_new.add_argument("request")
     p_new.add_argument("--quote", default="")
     p_list = sub.add_parser("list")
-    p_list.add_argument("--state", choices=[PROPOSED, EXECUTED, RETIRED, FAILED])
+    p_list.add_argument("--state", choices=[
+        PROPOSED, RUNNING, EXECUTED, RETIRED, FAILED, INTERRUPTED])
     p_show = sub.add_parser("show")
     p_show.add_argument("id")
     sub.add_parser("run", help="execute every approved intent")

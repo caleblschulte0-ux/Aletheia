@@ -9,15 +9,26 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from urllib.parse import quote
 
-from aletheia import code_trust, code_worker, gh, policy, portfolio, stateio
+from aletheia import (code_trust, code_worker, gh, mission, policy, portfolio,
+                      stateio)
 
 ROOT = stateio.private_dir("project-loop")
 LATEST = ROOT / "latest.json"
 DEFAULT_DAILY_LIMIT = 3
 MAX_RECONCILE = 20
 SKIP_LABELS = {"wontfix", "duplicate", "question", "invalid", "no-auto", "manual-only"}
+# Issues that are not defects. The first live sweeps (2026-09-02) spent
+# every attempt on Aletheia's own fleet alerts, a watchdog's "executor
+# stalled" notice and a daily pipeline's tracking issue — all machine-made,
+# none a bug a bounded code change could fix — and the proposer said so,
+# three times, correctly. A machine author or a machine-shaped title is
+# skipped before a model is asked.
+SKIP_TITLE = re.compile(
+    r"(?:fleet alert|watchdog|stalled|tracking issue|\breports?\b|\bdigest\b|"
+    r"\bstatus\b|\bpulse\b|\bdaily\b|\bweekly\b|\bnightly\b)", re.IGNORECASE)
 
 
 class ProjectLoopError(RuntimeError):
@@ -67,15 +78,65 @@ def _issue_work(repo: dict, *, request=gh.request) -> dict | None:
         title = str(issue.get("title") or "").strip()
         if not isinstance(number, int) or not title:
             continue
+        author = issue.get("user") if isinstance(issue.get("user"), dict) else {}
+        login = str(author.get("login") or "")
+        if str(author.get("type") or "") == "Bot" or login.endswith("[bot]"):
+            continue
+        if SKIP_TITLE.search(title):
+            continue
+        if code_worker.declined(repo["full_name"], f"issue-{number}"):
+            continue
         body = str(issue.get("body") or "").strip()
-        objective = f"Resolve GitHub issue #{number}: {title}"
+        # The TITLE and the BODY are both written by strangers. They travel
+        # as `evidence`, never inside the objective: the objective is the
+        # only string the models take as instruction, and it is composed
+        # here from facts we control (the repository, the issue number).
+        objective = f"Resolve open GitHub issue #{number} in {repo['full_name']}"
+        evidence = f"Issue title: {title}"
         if body:
-            objective += "\n\nIssue details:\n" + body[:2800]
-        return {"task_id": f"issue-{number}", "kind": "issue", "objective": objective[:4000]}
+            evidence += "\n\nIssue body:\n" + body
+        return {"task_id": f"issue-{number}", "kind": "issue",
+                "objective": objective[:4000],
+                "evidence": code_worker.sanitize_external(evidence)}
     return None
 
 
-def _ci_work(repo: dict, *, request=gh.request) -> dict | None:
+LOG_TAIL_LINES = 80
+LOG_TAIL_CHARS = 3_000
+ERROR_LINE = re.compile(
+    r"(?:##\[error\]|Traceback \(most recent call last\)|\bError\b|\bFAILED\b|"
+    r"\bfailed\b|exit code [1-9]|\bexception\b|\bpanic\b)", re.IGNORECASE)
+
+
+def _job_log_tail(encoded: str, job_id: int, *, request_text=None) -> str:
+    """The last lines of a failing job's log - the error itself, which a
+    job NAME never carries. A log the API will not hand over costs the
+    evidence, not the repair attempt."""
+    request_text = request_text or gh.request_text
+    try:
+        text = request_text(f"/repos/{encoded}/actions/jobs/{job_id}/logs")
+    except Exception:
+        return ""
+    lines = [line.rstrip() for line in str(text).splitlines() if line.strip()]
+    # GitHub prefixes every line with an ISO timestamp; strip it
+    lines = [re.sub(r"^\S+T\S+Z\s?", "", line) for line in lines]
+    # The literal tail of a job log is cleanup boilerplate ("Post job
+    # cleanup", "Cleaning up orphan processes"); the error sits above it.
+    # Anchor on the LAST line that looks like one and show the lines
+    # around it; with no such line, the tail is all there is.
+    anchor = None
+    for index in range(len(lines) - 1, -1, -1):
+        if ERROR_LINE.search(lines[index]):
+            anchor = index
+            break
+    if anchor is None:
+        window = lines[-LOG_TAIL_LINES:]
+    else:
+        window = lines[max(0, anchor - LOG_TAIL_LINES + 20):anchor + 20]
+    return "\n".join(window)[-LOG_TAIL_CHARS:]
+
+
+def _ci_work(repo: dict, *, request=gh.request, request_text=None) -> dict | None:
     encoded = _enc_repo(repo["full_name"])
     try:
         data = request("GET", f"/repos/{encoded}/actions/runs?per_page=20")
@@ -87,6 +148,10 @@ def _ci_work(repo: dict, *, request=gh.request) -> dict | None:
         and str(r.get("status") or "") == "completed"
         and str(r.get("conclusion") or "") in portfolio.FAIL_CONCLUSIONS
     ]
+    # A run the proposer already looked at and declined is not asked again;
+    # the next failed run (if any) is.
+    failed = [r for r in failed if not (isinstance(r.get("id"), int)
+                                        and code_worker.declined(repo["full_name"], f"ci-{r['id']}"))]
     if not failed:
         return None
     run = failed[0]
@@ -94,30 +159,43 @@ def _ci_work(repo: dict, *, request=gh.request) -> dict | None:
     if not isinstance(run_id, int):
         return None
     details = []
+    log_tail = ""
     try:
         jobs = request("GET", f"/repos/{encoded}/actions/runs/{run_id}/jobs?per_page=30")
         for job in (jobs.get("jobs", []) if isinstance(jobs, dict) else []):
             if not isinstance(job, dict) or str(job.get("conclusion") or "") == "success":
                 continue
+            if not log_tail and isinstance(job.get("id"), int):
+                log_tail = _job_log_tail(encoded, job["id"], request_text=request_text)
             failed_steps = [
                 str(step.get("name") or "") for step in job.get("steps", [])
                 if isinstance(step, dict) and str(step.get("conclusion") or "") == "failure"
             ]
-            label = str(job.get("name") or "job")
+            # Each name is its OWN untrusted string, so each is sanitized on
+            # its own: a role header ("System: ...") sits at the start of a
+            # job name and would be mid-line — invisible to a line anchor —
+            # once the names were joined into one blob.
+            label = code_worker.sanitize_external(str(job.get("name") or "job"))[:120] or "job"
             if failed_steps:
-                label += ": " + ", ".join(failed_steps[:5])
+                clean = [code_worker.sanitize_external(name)[:80] for name in failed_steps[:5]]
+                label += ": " + ", ".join(name for name in clean if name)
             details.append(label[:300])
     except Exception:
         pass
-    workflow = str(run.get("name") or "CI workflow")
     objective = (
-        f"Repair the current failing CI for {workflow} (run {run_id}). "
+        f"Repair the current failing CI run {run_id} in {repo['full_name']}. "
         "Do not edit GitHub workflow files; fix only safe application/test code. "
         "If the root cause requires a protected workflow, credential, policy, or governance path, make no change."
     )
-    if details:
-        objective += " Failing jobs/steps: " + "; ".join(details[:8])
-    return {"task_id": f"ci-{run_id}", "kind": "ci", "objective": objective[:4000]}
+    # Job and step names come from the repository's workflow files, which any
+    # contributor may edit — untrusted for the same reason an issue body is.
+    evidence = ("Failing jobs/steps: " + "; ".join(details[:8])) if details else ""
+    if log_tail:
+        # The log is written by the repository's own tools and by whoever
+        # pushed - untrusted for the same reason an issue body is.
+        evidence += ("\n\nLast lines of the failing job's log:\n" + log_tail)
+    return {"task_id": f"ci-{run_id}", "kind": "ci", "objective": objective[:4000],
+            "evidence": code_worker.sanitize_external(evidence)}
 
 
 def choose_work(repo: dict, *, request=gh.request) -> dict | None:
@@ -181,7 +259,8 @@ def cycle(*, request=gh.request, daily_limit: int = DEFAULT_DAILY_LIMIT) -> dict
             continue
         try:
             run = code_worker.prepare_pr(
-                repo["full_name"], work["objective"], task_id=work["task_id"], request=request
+                repo["full_name"], work["objective"], task_id=work["task_id"],
+                evidence=work.get("evidence", ""), request=request
             )
             result = {
                 "version": 1, "status": "WORKED", "repo": repo["full_name"],
@@ -193,8 +272,8 @@ def cycle(*, request=gh.request, daily_limit: int = DEFAULT_DAILY_LIMIT) -> dict
             result = {
                 "version": 1, "status": "ERROR", "repo": repo["full_name"],
                 "source": work["kind"], "task_id": work["task_id"],
-                "reason": type(exc).__name__, "reconciled": len(reconciled),
-                "updated_at": stateio.utcnow(),
+                "reason": type(exc).__name__, "detail": str(exc)[:200],
+                "reconciled": len(reconciled), "updated_at": stateio.utcnow(),
             }
         stateio.write_json_atomic(LATEST, result)
         return result
@@ -218,15 +297,117 @@ def status() -> dict:
     return value if isinstance(value, dict) else {"status": "CORRUPT"}
 
 
+SLICE_MAX = 3
+
+
+def run_mission_slice(*, request=gh.request, slice_max: int = SLICE_MAX) -> dict:
+    """Work the ACTIVE MISSION across every repository, not one and stop.
+
+    `cycle()` returns after a single repair in a single repository. That is
+    correct for an unattended 30-minute heartbeat and it is why "look at all
+    my projects and fix the problems" was structurally impossible: six repos
+    and a trickle of one item per half hour is not an answer to that request,
+    it is a rounding error.
+
+    A slice is bounded rather than unbounded — at most `slice_max` items, so
+    the scheduled task keeps its execution limit and a crash costs one slice
+    instead of the mission — but it sweeps ALL repositories and keeps going
+    until the mission's own budget stops it. Progress is charged to the
+    mission after each item, durably, so the next slice resumes rather than
+    restarting (§27).
+
+    HALT is re-read between every repository. A kill switch that only applies
+    at the top of a run that lasts twenty minutes is a suggestion.
+    """
+    live = mission.covers("code.autonomous")
+    if not live:
+        return {"version": 1, "status": "NO_MISSION",
+                "detail": "no mission covering code.autonomous is running; "
+                          "`python -m aletheia.mission start fix_projects` "
+                          "authorizes one",
+                "updated_at": stateio.utcnow()}
+    grant = code_trust.active()
+    if not grant:
+        return {"version": 1, "status": "BLOCKED",
+                "reason": "code_work_grant_required", "updated_at": stateio.utcnow()}
+
+    reconciled = reconcile_prior(request=request)
+    snapshot = portfolio.scan_all(request=request)
+    public = [r for r in snapshot.get("repos", [])
+              if isinstance(r, dict) and not r.get("private")]
+
+    done, errors = [], []
+    for repo in sorted(public, key=_repo_priority):
+        if len(done) >= slice_max:
+            break
+        # Re-read both between repositories: the operator may have halted, and
+        # the mission may have spent its last unit on the previous repository.
+        policy.ensure_not_halted()
+        if not mission.covers("code.autonomous"):
+            break
+        work = choose_work(repo, request=request)
+        if not work:
+            continue
+        try:
+            run = code_worker.prepare_pr(
+                repo["full_name"], work["objective"], task_id=work["task_id"],
+                evidence=work.get("evidence", ""), request=request)
+        except policy.Halted:
+            raise
+        except Exception as exc:
+            # The first live sweep (2026-09-02) reported three bare
+            # "CodeWorkerError"s and nothing else; the message — "reasoner
+            # found no safe bounded code change to make" — is the finding.
+            errors.append({"repo": repo["full_name"], "reason": type(exc).__name__,
+                           "detail": str(exc)[:200]})
+            mission.note(f"{repo['full_name']}: {type(exc).__name__}: {str(exc)[:120]}",
+                         spent=0)
+            continue
+        opened = run.get("status") == "PR_OPEN"
+        done.append({"repo": repo["full_name"], "source": work["kind"],
+                     "status": run.get("status"), "pr_url": run.get("pr_url")})
+        # Only an opened pull request spends budget. A change the reviewer
+        # refused cost time but produced nothing, and charging him for it
+        # would end the mission early on exactly the days it worked hardest.
+        mission.note(
+            f"{repo['full_name']}: {run.get('status')}"
+            + (f" {run.get('pr_url')}" if run.get("pr_url") else ""),
+            spent=1 if opened else 0)
+
+    result = {
+        "version": 1, "status": "SWEPT", "mission": live["id"],
+        "repos_scanned": len(public), "worked": done, "errors": errors,
+        "reconciled": len(reconciled), "updated_at": stateio.utcnow(),
+    }
+    stateio.write_json_atomic(LATEST, result)
+    return result
+
+
 def main(argv: list[str] | None = None) -> int:
+    # This runs as its OWN Windows scheduled task every 30 minutes, not as a
+    # child of the supervisor — so the supervisor's environment scrubbing never
+    # reaches it, and Task Scheduler hands it the user's environment. If the
+    # operator ever sets the ChatGPT browser lease as a persistent user
+    # variable, an unattended code loop would inherit the right to open his
+    # signed-in ChatGPT on screen. Drop it before anything can read it.
+    from aletheia import browser_reasoner
+    browser_reasoner.drop_lease()
     ap = argparse.ArgumentParser(description="Aletheia continuous project repair loop.")
     sub = ap.add_subparsers(dest="cmd", required=True)
     once = sub.add_parser("once")
     once.add_argument("--daily-limit", type=int, default=DEFAULT_DAILY_LIMIT)
+    p_sweep = sub.add_parser(
+        "sweep", help="work the active mission across every repository")
+    p_sweep.add_argument("--max", type=int, default=SLICE_MAX)
     sub.add_parser("status")
     args = ap.parse_args(argv)
     try:
-        value = cycle(daily_limit=args.daily_limit) if args.cmd == "once" else status()
+        if args.cmd == "once":
+            value = cycle(daily_limit=args.daily_limit)
+        elif args.cmd == "sweep":
+            value = run_mission_slice(slice_max=args.max)
+        else:
+            value = status()
         print(json.dumps(value, indent=2))
         return 0 if value.get("status") not in {"ERROR", "CORRUPT"} else 1
     except Exception as exc:

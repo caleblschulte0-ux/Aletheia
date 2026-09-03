@@ -8,6 +8,7 @@ import urllib.request
 from pathlib import Path
 from unittest import mock
 
+from aletheia import access
 from aletheia import journal, plans, policy, reasoner, tasks, voice
 from aletheia import memory
 
@@ -50,9 +51,31 @@ class InterpretCase(unittest.TestCase):
         self.assertIn("web address", out["say"])
 
     def test_approve_with_exactly_one_pending(self):
-        policy.request("ap-1", "do thing", "why", "consequence", True)
+        policy.request("ap-1", "do thing", "why", "consequence", True,
+                       capability="journal.append")
         out = voice.interpret("Thea, approve")
         self.assertEqual(out["command"], {"kind": "approve", "id": "ap-1"})
+
+    def test_voice_will_not_approve_a_high_risk_action(self):
+        """The room microphone is an input device, not an authentication
+        device (2026-09-03 review): a television, a guest or a passing
+        sentence must not be able to send an email or run an errand."""
+        policy.request("ap-hi", "send it", "why", "an email leaves", False,
+                       capability="email.send")
+        out = voice.interpret("Thea, approve")
+        self.assertIsNone(out["command"])
+        self.assertIn("won't approve that one by voice", out["say"])
+        self.assertIn("email.send", out["say"])
+
+    def test_an_approval_with_no_capability_fails_closed(self):
+        policy.request("ap-x", "mystery", "why", "unknown", True)
+        out = voice.interpret("Thea, approve")
+        self.assertIsNone(out["command"])
+        self.assertIn("cannot tell how risky", out["say"])
+
+    def test_voice_can_still_halt_everything(self):
+        out = voice.interpret("Thea, stop everything")
+        self.assertEqual(out["command"]["kind"], "halt")
 
     def test_approve_with_two_pending_reads_them_out_instead_of_refusing(self):
         # It used to say "I won't guess which one — use the Command Center",
@@ -67,10 +90,17 @@ class InterpretCase(unittest.TestCase):
         self.assertNotIn("Command Center", out["say"])
 
     def test_approve_the_first_needs_no_identifier(self):
-        policy.request("ap-1", "a", "r", "c", True)
-        policy.request("ap-2", "b", "r", "c", True)
+        policy.request("ap-1", "a", "r", "c", True, capability="journal.append")
+        policy.request("ap-2", "b", "r", "c", True, capability="journal.append")
         self.assertEqual(voice.interpret("Thea, approve the first")["command"],
                          {"kind": "approve", "id": "ap-1"})
+
+    def test_naming_a_high_risk_approval_by_position_is_refused_too(self):
+        policy.request("ap-1", "a", "r", "c", True, capability="journal.append")
+        policy.request("ap-2", "send", "r", "c", False, capability="email.send")
+        out = voice.interpret("Thea, approve the second")
+        self.assertIsNone(out["command"])
+        self.assertIn("won't approve that one by voice", out["say"])
 
     def test_new_task_by_voice(self):
         out = voice.interpret("Thea, add a task to water the plants")
@@ -140,7 +170,10 @@ class VoiceEndpointCase(unittest.TestCase):
         req = urllib.request.Request(
             f"http://127.0.0.1:{self.port}/api/voice",
             data=json.dumps({"transcript": transcript}).encode("utf-8"),
-            headers={"Content-Type": "application/json"}, method="POST")
+            # a loopback WRITE carries the local session secret, exactly as
+            # the served voice page does (2026-09-03)
+            headers={"Content-Type": "application/json",
+                     "X-Aletheia-Local": access.local_secret()}, method="POST")
         with urllib.request.urlopen(req) as r:
             return json.loads(r.read().decode("utf-8"))
 
@@ -190,3 +223,128 @@ class VoiceEndpointCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AttentionAnsweredWithoutAModel(unittest.TestCase):
+    """Ported from PR #75 after review. "What needs my attention?" reads
+    durable local queues; routing it through the planner cost ~90 seconds
+    and a model call to answer from state we already hold."""
+
+    def test_phrases_answer_locally_and_never_reach_the_planner(self):
+        for phrase in ("Thea, what needs my attention?",
+                       "thea does anything need my attention",
+                       "Thea, what do I need to deal with?"):
+            with self.subTest(phrase=phrase):
+                out = voice.interpret(phrase)
+                self.assertIsNone(out["command"],
+                                  "must not compile to an intent/planner call")
+                self.assertTrue(out["say"].strip())
+
+    def test_quiet_state_says_so_rather_than_inventing(self):
+        empty = {"halted": None, "needs_attention": {
+            "pending_approvals": [], "waiting_operator": [], "blocked_tasks": [],
+            "overdue_replies": [], "unread_notifications": 0}}
+        with mock.patch("aletheia.current_state.snapshot", return_value=empty), \
+             mock.patch("aletheia.core.status_payload",
+                        return_value={"pulse": {"alerts": 0}}):
+            self.assertIn("Nothing needs your attention",
+                          voice.interpret("Thea, what needs my attention?")["say"])
+
+
+class TheWallCollectsTheAnswerItWasPromised(unittest.TestCase):
+    """The operator's live report: he asked Thea something, was told she
+    was working on it, and never received the finished answer.
+
+    POST /api/voice answers immediately with an acknowledgement and a
+    `followup_id` because the planner takes ten to thirty seconds. The
+    ROOM MICROPHONE collected that slot. The WALL — the surface he
+    actually uses — spoke the acknowledgement and stopped, so the real
+    sentence was written and never delivered. Silence is the bug.
+    """
+
+    def script(self):
+        from aletheia.fleet import REPO_ROOT
+        return (REPO_ROOT / "interface" / "voice.js").read_text(encoding="utf-8")
+
+    def test_the_wall_polls_the_followup_slot(self):
+        body = self.script()
+        self.assertIn("/api/voice/followup", body,
+                      "the wall never collects the answer it promised")
+        self.assertIn("res.followup_id", body,
+                      "collection must be driven by the id the Core returned")
+
+    def test_a_failed_slot_is_spoken_rather_than_swallowed(self):
+        body = self.script()
+        self.assertIn("FAILED", body,
+                      "a failure that says nothing is the same bug wearing a hat")
+
+    def test_polling_gives_up_out_loud_instead_of_hanging_forever(self):
+        body = self.script()
+        self.assertIn("deadline", body)
+        self.assertRegex(body, r"taking longer|notifications",
+                         "an expired wait must still say something")
+
+    def test_thinking_is_not_painted_as_an_error(self):
+        body = self.script()
+        self.assertIn('state === "thinking"', body,
+                      "an unknown state falls through to the error colour, which "
+                      "would tell him she is broken while she is thinking")
+
+
+class ReadingTheAnswerDoesNotConsumeIt(unittest.TestCase):
+    """Ported from PR #75, whose diagnosis was right and matters more now
+    that the wall polls this slot: reading and consuming in one HTTP GET
+    means a response lost in transit destroys the only copy of the answer
+    — the operator's original complaint, one layer down. A browser tab is
+    a flaky client, so the GET is a pure read and the ACK is separate."""
+
+    def setUp(self):
+        from aletheia import followups
+        self.followups = followups
+        self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
+        d = Path(self.tmp.name)
+        p = mock.patch.dict(os.environ, {"ALETHEIA_PRIVATE_STATE": str(d)})
+        p.start(); self.addCleanup(p.stop)
+
+    def ready_slot(self):
+        slot = self.followups.start(lambda: "the real answer", "one moment")
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            if self.followups.poll(slot["id"])["state"] != self.followups.PENDING:
+                break
+            time.sleep(0.05)
+        return slot["id"]
+
+    def test_polling_twice_still_yields_the_answer(self):
+        fid = self.ready_slot()
+        first = self.followups.poll(fid)
+        second = self.followups.poll(fid)
+        self.assertEqual(first["state"], self.followups.READY)
+        self.assertEqual(second["say"], first["say"],
+                         "a retried read must not have eaten the answer")
+
+    def test_acknowledging_consumes_it_and_is_idempotent(self):
+        fid = self.ready_slot()
+        acked = self.followups.acknowledge(fid)
+        self.assertEqual(acked["state"], "ACKED")
+        self.assertEqual(acked["delivered_state"], self.followups.READY)
+        self.assertEqual(self.followups.poll(fid)["state"], "EXPIRED")
+        self.assertEqual(self.followups.acknowledge(fid)["state"], "EXPIRED",
+                         "a retried ack means already delivered, not an error")
+
+    def test_a_pending_slot_is_never_consumed_by_an_ack(self):
+        import threading
+        gate = threading.Event()
+        slot = self.followups.start(lambda: gate.wait(5) and "late", "one moment")
+        self.assertEqual(self.followups.acknowledge(slot["id"])["state"],
+                         self.followups.PENDING)
+        gate.set()
+
+    def test_the_wall_acknowledges_only_after_speaking(self):
+        from aletheia.fleet import REPO_ROOT
+        body = (REPO_ROOT / "interface" / "voice.js").read_text(encoding="utf-8")
+        self.assertIn("/api/voice/followup/ack", body)
+        speak = body.index("await speak(answer.say)")
+        ack = body.index("await acknowledge(answer.id)")
+        self.assertLess(speak, ack, "acknowledging before speaking loses the answer "
+                                    "if speech fails")

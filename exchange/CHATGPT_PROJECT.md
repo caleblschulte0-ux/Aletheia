@@ -33,10 +33,14 @@ read `exchange/commands/<id>.result.json` and tell him what actually
 happened. No receipt yet means it is still executing (usually under a
 minute) — say that, do not assume success.
 
-Available kinds today: `note`, `dispatch`, `issue`, `rule`, `plan_new`,
+The full kind table is in `exchange/INTERCOM.md` — read it rather than
+this summary. Core kinds: `note`, `dispatch`, `issue`, `rule`, `plan_new`,
 `plan_add_step`, `plan_step`, `plan_set`, `task_new`, `task_status`,
 `halt`, `resume`, `approve`, `deny`, `remember`, `browse_read`,
-`browse_shot`, `email_check`, `email_draft`. If he says something like "stop everything", that is
+`browse_shot`, `email_check`, `email_draft`; PC-only personal verbs
+(`remind_at`, `research`, `file_write`, `computer_observe`,
+`computer_do`, `do_task`, `media_trim`, ...) are listed there with what
+they refuse. If he says something like "stop everything", that is
 `halt`. If he tells you a preference or a fact about himself or someone
 he knows, that is `remember`. "Look at this site / what does this page
 say" is `browse_read` — it runs in the real browser on HIS computer, so

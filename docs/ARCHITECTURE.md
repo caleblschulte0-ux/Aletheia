@@ -74,6 +74,9 @@ line-by-line review:
 | Delegated authority | `aletheia/authority.py` | EXPERIMENTAL: records only — nothing consumes grants; consuming would widen authority and awaits an operator ruling |
 | Personal-OS stores | places, documents, shopping, subscriptions, finance, vehicles, travel, reservations | private visibility/planning; world-touching halves NOT_BUILT operator_always |
 | Operator front door | `aletheia/assistant.py` | the CLI giving every verb a real caller (rule zero) |
+| Missions & agendas | `aletheia/mission.py`, `aletheia/agenda.py` | one goal + budget + deadline authorized once; a mission covers only the capabilities its record names; money, approve/deny, halt/resume refused in code |
+| Her own files, media, research | `aletheia/workspace.py`, `aletheia/media.py`, `aletheia/research.py` | `~/Documents/Aletheia` (never a repository); ffmpeg writes new files only; research cites only pages it read, engines fall through |
+| Desktop hands & the sandbox | `aletheia/computer.py` (`act`), `aletheia/script.py` | committing controls refused to the hash-bound approval; a request with no verb becomes a whitelisted, network-less program (`do_task`) |
 
 ## The worker model (§4–7)
 

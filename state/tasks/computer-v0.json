@@ -1,13 +1,14 @@
 {
   "id": "computer-v0",
   "description": "Phase 7: accessibility-first Windows computer control, written and verified against the running local Core",
-  "status": "QUEUED",
+  "status": "COMPLETED",
   "created_at": "2026-08-25T17:22:23Z",
-  "updated_at": "2026-08-25T17:22:23Z",
+  "updated_at": "2026-09-02T00:29:00Z",
   "attempts": 0,
   "priority": 3,
   "dependencies": [
     "local-core-bootstrap"
   ],
-  "assigned_worker": "claude"
+  "assigned_worker": "claude",
+  "result": "Evidence: computer.control is AVAILABLE, live-verified on the operator's Windows PC 2026-08-26 (registry notes carry the acceptance run). Task predates that and stayed QUEUED."
 }

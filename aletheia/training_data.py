@@ -46,7 +46,17 @@ _INLINE_SECRET = re.compile(
 
 
 def capture_enabled() -> bool:
-    return os.environ.get(ENV_CAPTURE, "1").strip().lower() not in {"0", "false", "no", "off"}
+    """OFF unless he turns it on (changed 2026-09-03).
+
+    It defaulted to ON with a 512 MB budget, keeping prompts, context and
+    responses. The redaction it applies is CREDENTIAL redaction — it strips
+    things shaped like tokens — and a security review made the distinction
+    that matters: that is not privacy redaction. The store would still
+    accumulate his relationships, finances, health, business and calendar,
+    which is precisely the corpus worth stealing from a personal machine.
+    Collecting a life by default is not a default anyone chose; it is one
+    nobody was asked about."""
+    return os.environ.get(ENV_CAPTURE, "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def data_root() -> Path:

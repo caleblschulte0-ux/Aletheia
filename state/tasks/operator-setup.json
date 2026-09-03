@@ -1,10 +1,10 @@
 {
   "id": "operator-setup",
-  "description": "Operator: merge, FLEET_TOKEN, Pages, ChatGPT Project, run the Core (docs/SETUP.md)",
+  "description": "Operator: create the ChatGPT Project + scheduled task for the intercom relay (docs/SETUP.md step 4) — the last unfinished setup step; merge, FLEET_TOKEN, Pages and the running Core are all done",
   "status": "WAITING_OPERATOR",
   "created_at": "2026-08-25T16:35:43Z",
-  "updated_at": "2026-08-25T16:57:08Z",
+  "updated_at": "2026-09-02T00:32:01Z",
   "attempts": 0,
   "priority": 1,
-  "result": "reduced to 3 steps: Pages toggle, ChatGPT Project, run the Core. Merge done by Claude; FLEET_TOKEN demoted to optional"
+  "result": "Reconciled 2026-09-01 against evidence. DONE: repo merged; fleet telemetry live (12 workflows across 3 active repos); Pages deploying (40 successful runs); the Core is running on the PC and self-updating (core.serve/sync/supervise AVAILABLE on production evidence). REMAINING: the ChatGPT Project for the intercom relay (intercom.relay is still NEEDS_CONFIGURATION) - that is the only item from the original list still outstanding."
 }

@@ -1,12 +1,14 @@
 import json
 import tempfile
 import threading
+import time
 import unittest
 import urllib.request
 from pathlib import Path
 from unittest import mock
 
-from aletheia import core, journal, memory, notifications, plans, policy, tasks
+from aletheia import access
+from aletheia import core, followups, journal, memory, notifications, plans, policy, tasks
 
 
 class CoreCase(unittest.TestCase):
@@ -22,6 +24,7 @@ class CoreCase(unittest.TestCase):
             mock.patch.object(policy, "APPROVALS_DIR", base / "approvals"),
             mock.patch.object(policy, "HALT_PATH", base / "halt.json"),
             mock.patch.object(notifications, "NOTICES_DIR", base / "notices"),
+            mock.patch.object(followups, "records_dir", return_value=base / "followups"),
         ]
         for p in cls.patches:
             p.start()
@@ -40,11 +43,12 @@ class CoreCase(unittest.TestCase):
         with urllib.request.urlopen(f"http://127.0.0.1:{self.port}{path}") as r:
             return json.loads(r.read().decode("utf-8"))
 
-    def _post(self, payload):
+    def _post(self, payload, path="/api/command"):
         req = urllib.request.Request(
-            f"http://127.0.0.1:{self.port}/api/command",
+            f"http://127.0.0.1:{self.port}{path}",
             data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"}, method="POST")
+            headers={"Content-Type": "application/json",
+                     "X-Aletheia-Local": access.local_secret()}, method="POST")
         with urllib.request.urlopen(req) as r:
             return json.loads(r.read().decode("utf-8"))
 
@@ -101,7 +105,8 @@ class CoreCase(unittest.TestCase):
         req = urllib.request.Request(
             f"http://127.0.0.1:{self.port}/api/notifications/ack",
             data=json.dumps({"id": notice["id"]}).encode("utf-8"),
-            headers={"Content-Type": "application/json"}, method="POST")
+            headers={"Content-Type": "application/json",
+                     "X-Aletheia-Local": access.local_secret()}, method="POST")
         with urllib.request.urlopen(req) as r:
             self.assertEqual(json.loads(r.read())["state"], "ACKNOWLEDGED")
         self.assertEqual(notifications.load(notice["id"])["state"], "ACKNOWLEDGED")
@@ -109,6 +114,25 @@ class CoreCase(unittest.TestCase):
     def test_refuses_non_loopback_bind(self):
         with self.assertRaises(ValueError):
             core.make_server(host="0.0.0.0", port=0)
+
+    def test_arbitrary_ask_acknowledges_then_delivers_the_answer(self):
+        with mock.patch.object(
+                core, "run_command",
+                return_value={"outcome": "done", "detail": "Eventual answer."}):
+            first = self._post({"text": "take your time"}, path="/api/ask")
+            self.assertEqual(first["outcome"], "thinking")
+            self.assertEqual(first["say"], "Working on that.")
+            deadline = time.monotonic() + 3
+            while time.monotonic() < deadline:
+                result = self._get(
+                    f"/api/voice/followup?id={first['followup_id']}")
+                if result["state"] != followups.PENDING:
+                    break
+                time.sleep(0.01)
+            else:
+                self.fail("typed ask never produced its follow-up")
+        self.assertEqual(result["state"], followups.READY)
+        self.assertEqual(result["say"], "Eventual answer.")
 
 
 if __name__ == "__main__":
@@ -133,3 +157,10 @@ class CommandGrammarSingleSource(CoreCase):
         self.assertIn("/api/kinds", html)
         self.assertNotIn("plan_add_step", html,
                          "command.html restates the kind grammar — it must render /api/kinds")
+
+    def test_command_center_waits_for_async_answers_and_surfaces_errors(self):
+        from aletheia.fleet import REPO_ROOT
+        html = (REPO_ROOT / "interface" / "command.html").read_text(encoding="utf-8")
+        self.assertIn('api("/api/ask"', html)
+        self.assertIn("waitForFollowup", html)
+        self.assertIn("catch (err)", html)

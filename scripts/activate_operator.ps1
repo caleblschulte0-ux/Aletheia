@@ -62,6 +62,45 @@ if (-not $python) {
 $script:pyExe = $python.Exe
 $script:pyFlags = @($python.Flags)
 
+# ---- do not race the always-on Core, and do not destroy unpushed work ------
+# `git checkout -f -B main origin/main` below discards EVERY uncommitted change
+# and EVERY local commit that is not on origin/main. Two things made that
+# dangerous on a machine where Aletheia actually runs (2026-09-01 Windows
+# lifecycle review):
+#
+#   * The Core writes state continuously and checkpoint-commits it. Resetting
+#     the tree underneath a running Core destroys whatever it had written but
+#     not yet committed, and can leave it half-updated mid-beat.
+#   * Checkpoint commits that could not be pushed (network out) live only here.
+#     A reset deletes the only copy.
+#
+# So: stop the always-on tasks first, and refuse to discard unpushed commits
+# unless the operator explicitly asks. state/private/ is gitignored and is
+# never touched by any of this - grants, keys and secrets survive a reset.
+function Stop-AletheiaTasks {
+  foreach ($name in @("Aletheia", "AletheiaVoice", "AletheiaProjects")) {
+    Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue |
+      Stop-ScheduledTask -ErrorAction SilentlyContinue
+  }
+  # The supervisor relaunches the Core, so it goes first; give both a moment
+  # to close their files before the tree moves under them.
+  Start-Sleep -Seconds 2
+}
+
+function Assert-NothingUnpushed($repo) {
+  $ahead = (git -C $repo rev-list --count "origin/main..HEAD" 2>$null)
+  if ($LASTEXITCODE -eq 0 -and $ahead -and [int]$ahead -gt 0) {
+    if ($env:ALETHEIA_DISCARD_LOCAL_COMMITS -eq "1") {
+      Write-Host "  Discarding $ahead local commit(s) as instructed." -ForegroundColor Yellow
+      return
+    }
+    throw ("This checkout has $ahead local commit(s) that are not on origin/main - " +
+           "most likely Core state checkpoints that never pushed. Resetting would " +
+           "delete the only copy. Push them (git -C $repo push origin main), or " +
+           "rerun with ALETHEIA_DISCARD_LOCAL_COMMITS=1 to discard them on purpose.")
+  }
+}
+
 # ---- get an exact current main while preserving local journal lines --------
 if (-not (Test-Path $dest)) {
   Write-Host "  Cloning Aletheia ..." -ForegroundColor Yellow
@@ -74,6 +113,8 @@ if (-not (Test-Path $dest)) {
   $localJournal = Join-Path $dest "state\journal\journal.jsonl"
   $salvage = ""
   if (Test-Path $localJournal) { $salvage = Get-Content $localJournal -Raw }
+  Stop-AletheiaTasks
+  Assert-NothingUnpushed $dest
   git -C $dest checkout -f -B main origin/main
   if ($LASTEXITCODE -ne 0) { throw "Could not reset local checkout to current main." }
   if ($salvage) {

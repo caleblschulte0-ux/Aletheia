@@ -118,9 +118,13 @@ class CoreSyncCase(CoreSyncFixture):
             .read_text(encoding="utf-8"))
         self.assertEqual(receipt["outcome"], "done")
         self.assertIn("Example Domain", receipt["detail"])
-        # and the journal entry rode along in the same push
-        self.assertTrue(
-            (self.relay / "state" / "journal" / "journal.jsonl").exists())
+        # ...and his journal did NOT ride along. Since 2026-09-03 the PC
+        # journal lives in private state and is never committed: the
+        # repository is public, and every action she takes on his behalf
+        # was being pushed to it.
+        self.assertFalse(
+            (self.relay / "state" / "journal" / "journal-pc.jsonl").exists(),
+            "the PC journal reached a public remote")
 
     def test_receipt_makes_second_tick_a_noop(self):
         self.relay_files_command("20260826-read", "browse_read", url="https://example.com")
@@ -179,6 +183,16 @@ if __name__ == "__main__":
 
 class SelfUpdateCase(CoreSyncFixture):
     """A pulled commit touching code triggers restart; state-only commits don't."""
+
+    def setUp(self):
+        super().setUp()
+        # core_tick also asks the FILES of the real checkout whether code is
+        # newer than this process (stale_code_files). That is right for the
+        # Core and wrong here: a developer editing aletheia/ while the suite
+        # runs made the state-only case "restart" on 2026-09-02. These tests
+        # are about the PULL path; the disk path has StaleCodeCase.
+        quiet = mock.patch.object(core, "stale_code_files", return_value=[])
+        quiet.start(); self.addCleanup(quiet.stop)
 
     def relay_pushes_file(self, rel, content, msg):
         path = self.relay / rel
@@ -244,17 +258,24 @@ class JournalConflictRegressionCase(CoreSyncFixture):
         self.assertIn("local entry before pull", texts)
         self.assertIn("cloud entry", texts)
 
-    def test_checkpoint_commits_reach_the_remote_without_receipts(self):
+    def test_the_pc_journal_never_reaches_the_remote(self):
+        """It used to, and the remote is public. A journal entry names what
+        she did on his behalf — pages read, memories recalled, totals seen."""
         journal.append("note", "pc", "quiet tick entry")
-        status = core.core_tick(self.syncer, self.fleet, self.status)
-        self.assertTrue(status["push"]["ok"], status["push"])
+        core.core_tick(self.syncer, self.fleet, self.status)
         run(["git", "pull", "origin", "main"], self.relay)
-        pc_file = self.relay / "state" / "journal" / "journal-pc.jsonl"
-        self.assertIn("quiet tick entry", pc_file.read_text(encoding="utf-8"))
+        self.assertFalse(
+            (self.relay / "state" / "journal" / "journal-pc.jsonl").exists())
+        tracked = subprocess.run(
+            ["git", "ls-files", "state/journal"], cwd=str(self.pc),
+            capture_output=True, text=True).stdout
+        self.assertNotIn("journal-pc.jsonl", tracked)
 
 
 class HeartbeatBatchingCase(CoreSyncFixture):
-    """Journal-only pushes batch to one per 10 minutes; receipts never wait."""
+    """Receipts never wait. (The journal no longer pushes at all — since
+    2026-09-03 the PC writer is private state, so a quiet tick has nothing
+    to send and the batching window only ever holds receipts back.)"""
 
     def test_quiet_journal_change_within_window_commits_but_does_not_push(self):
         core.core_tick(self.syncer, self.fleet, self.status)  # sets last_push_s
@@ -277,16 +298,16 @@ class HeartbeatBatchingCase(CoreSyncFixture):
         self.assertTrue((self.relay / "exchange" / "commands" /
                          "20260827-read.result.json").exists())
 
-    def test_batched_heartbeats_ride_out_with_the_next_push(self):
+    def test_a_journal_entry_alone_never_becomes_a_push(self):
         core.core_tick(self.syncer, self.fleet, self.status)
         journal.append("note", "pc", "batched entry")
-        core.core_tick(self.syncer, self.fleet, self.status)   # committed, unpushed
         self.status["last_push_s"] = 0.0                       # window expires
-        status = core.core_tick(self.syncer, self.fleet, self.status)
-        self.assertTrue(status["push"]["ok"], status.get("push"))
+        core.core_tick(self.syncer, self.fleet, self.status)
         run(["git", "pull", "origin", "main"], self.relay)
-        pc_journal = self.relay / "state" / "journal" / "journal.jsonl"
-        self.assertIn("batched entry", pc_journal.read_text(encoding="utf-8"))
+        for name in ("journal.jsonl", "journal-pc.jsonl"):
+            path = self.relay / "state" / "journal" / name
+            if path.exists():
+                self.assertNotIn("batched entry", path.read_text(encoding="utf-8"))
 
 class StaleCodeCase(unittest.TestCase):
     """Local commits move HEAD before the Core ever looks, so `after ==

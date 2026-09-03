@@ -38,6 +38,9 @@
     dot.style.background =
       state === "listening" ? "#39d98a" :
       state === "heard" ? "#f5c542" :
+      // she is away thinking, not broken — the error colour would say the
+      // opposite of what is happening
+      state === "thinking" ? "#6aa9ff" :
       state === "off" ? "#4a5a70" : "#e0556a";
   }
 
@@ -76,6 +79,63 @@
     });
   }
 
+  // The answer he actually asked for.
+  //
+  // A request the planner has to think about takes ten to thirty seconds, so
+  // POST /api/voice answers immediately with an acknowledgement and a
+  // `followup_id`, and the real sentence lands in that slot later. The room
+  // microphone already collected it. THE WALL DID NOT — it spoke "one moment"
+  // and stopped, which is exactly what the operator reported: he asked, heard
+  // that she was working on it, and never got the answer. Silence is the bug,
+  // so a slot that fails is spoken too.
+  async function collect(followupId) {
+    const deadline = Date.now() + 180000;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 1200));
+      let slot;
+      try {
+        const r = await fetch(
+          "/api/voice/followup?id=" + encodeURIComponent(followupId));
+        if (!r.ok) continue;
+        slot = await r.json();
+      } catch (e) {
+        continue;               // a dropped beat is not an answer
+      }
+      if (slot.state === "PENDING") continue;
+      return {
+        id: followupId,
+        say: slot.say || (slot.state === "FAILED"
+          ? "I could not finish that one."
+          : "That is done."),
+      };
+    }
+    return { id: null,
+             say: "That is taking longer than it should — it is in your notifications." };
+  }
+
+  // Only after it has actually been SAID. The GET is a pure read, so a
+  // dropped response costs a retry rather than the answer itself.
+  // Injected by the Core into every page it serves; a loopback WRITE must
+  // carry it (2026-09-03: 127.0.0.1 proves origin, not authorization).
+  const localSecret = () => {
+    const m = document.querySelector('meta[name="aletheia-local"]');
+    return m ? m.content : "";
+  };
+
+  async function acknowledge(followupId) {
+    if (!followupId) return;
+    try {
+      await fetch("/api/voice/followup/ack", {
+        method: "POST",
+        headers: { "Content-Type": "application/json",
+                   "X-Aletheia-Local": localSecret() },
+        body: JSON.stringify({ id: followupId }),
+      });
+    } catch (e) {
+      // it stays collectable; the notification carries it either way
+    }
+  }
+
   async function sendCommand(command) {
     busy = true;
     const transcript = `thea ${command}`;
@@ -83,13 +143,21 @@
     try {
       const r = await fetch("/api/voice", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json",
+                   "X-Aletheia-Local": localSecret() },
         body: JSON.stringify({ transcript }),
       });
       const res = await r.json();
       const say = res.say || res.detail || "done";
       setUI("heard", say.slice(0, 80));
       await speak(say);
+      if (res.followup_id) {
+        setUI("thinking", "thinking…");
+        const answer = await collect(res.followup_id);
+        setUI("heard", answer.say.slice(0, 80));
+        await speak(answer.say);
+        await acknowledge(answer.id);
+      }
       if (typeof refresh === "function") refresh();
       setUI("off", "click to talk · no wake word");
     } catch (e) {

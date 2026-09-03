@@ -45,10 +45,12 @@ API:
     GET  /api/schedules     durable schedule definitions
     GET  /api/runtime       last runtime tick summary
     GET  /api/setup         what the operator still has to supply, checked live
-    GET  /api/voice/followup?id=  a slow spoken answer, once it exists
+    GET  /api/voice/followup?id=  a slow spoken answer; non-destructive
+    POST /api/voice/followup/ack  {"id": …} once the listener has spoken it
     GET  /api/computer/status
     POST /api/command       {"kind": …, …args} (+optional "operator_quote")
                             → {outcome, detail}, executed inline, journaled
+    POST /api/ask           {"text": …} → durable asynchronous arbitrary ask
     POST /api/notifications/ack  {"id": …}
     POST /api/computer      {steps, approval_id}
                             → executes only through computer.execute gates
@@ -132,6 +134,8 @@ def run_command(payload: dict, fleet: dict) -> dict:
                   "detail": intercom.execute_command(payload, fleet, quote=quote)}
     except act.Refused as exc:
         result = {"outcome": "refused", "detail": str(exc)}
+    except intercom.Unavailable as exc:
+        result = {"outcome": "unavailable", "detail": str(exc)}
     except Exception as exc:
         result = {"outcome": "error", "detail": f"{type(exc).__name__}: {exc}"}
     journal.append("action", f"core:{payload.get('kind')}",
@@ -321,7 +325,9 @@ def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
                        actor=ACTOR)
     # checkpoint local run-truth FIRST so the pull rebases clean commits,
     # never a dirty journal (the exact conflict that broke a real PC)
-    syncer.commit(["exchange/commands", "state/journal"], "core: state checkpoint")
+    # state/journal is no longer his: the PC writer lives in private state
+    # (2026-09-03), so a checkpoint carries the intercom lane and nothing else.
+    syncer.commit(["exchange/commands"], "core: state checkpoint")
     prev_pull = status.get("pull")
     before = syncer.head()
     ok, detail = syncer.pull()
@@ -417,11 +423,10 @@ def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
     # pending commits still ride out with the next receipt push.
     now_s = dt.datetime.now(dt.timezone.utc).timestamp()
     if not results and now_s - status.get("last_push_s", 0.0) < 600:
-        syncer.commit(["exchange/commands", "state/journal"],
-                      "core: state checkpoint")
+        syncer.commit(["exchange/commands"], "core: state checkpoint")
         return status
     ok, detail = syncer.commit_push(
-        ["exchange/commands", "state/journal"],
+        ["exchange/commands"],
         f"core: {len(results)} local command receipt(s)" if results
         else "core: state checkpoint")
     prev_push = status.get("push")
@@ -441,34 +446,63 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def authorized(self) -> bool:
-        """Gate every remote request; leave loopback exactly as it was.
+        """Gate every request. Genuinely-local keeps its original trust;
+        everything else — including a phone proxied through
+        `tailscale serve`, which also arrives from 127.0.0.1 — is a
+        REMOTE caller and needs a real, scoped, revocable token (2026-09-03,
+        closing the gap the 2026-09-03 loopback-secret fix left open: any
+        device on the tailnet inherited full local write trust with no
+        credential at all, because it looked identical to the operator's
+        own machine at the socket level).
 
-        Loopback is the operator's own machine talking to itself — the
-        Core's trust boundary since V0, unchanged here. A request from
-        anywhere else must carry a bearer token that is live, unexpired
-        and scoped to the method: a `read` token answers GET and cannot
-        become a command channel because a phone was left unlocked.
         Refusals are quiet about WHY (a 401 that explains itself is an
         oracle) and loud in the journal.
         """
         address = self.client_address[0] if self.client_address else "?"
-        if access.is_loopback(address):
+        path = urlparse(self.path).path
+        if access.is_genuinely_local(address, self.headers):
+            # Reading stays open: a local process can read state/ off the disk
+            # anyway. WRITING is an escalation — approving, resuming, driving
+            # the desktop — and 127.0.0.1 proves origin, not authorization
+            # (2026-09-03 review). The pages the Core serves carry the secret,
+            # so the wall and Command Center are unaffected.
+            if self.command in ("GET", "HEAD"):
+                return True
+            supplied = (self.headers.get("X-Aletheia-Local")
+                        or access.bearer(self.headers)
+                        or parse_qs(urlparse(self.path).query).get("local", [None])[0])
+            if access.local_write_allowed(supplied):
+                return True
+            journal.append(
+                "alert", "access",
+                f"a local process attempted {self.command} "
+                f"{path} without the local session secret",
+                actor="aletheia-access")
+            self._json({"error": "unauthorized"}, code=401)
+            return False
+        # REMOTE: a genuinely off-loopback peer, or anything tailscale-serve
+        # proxied. The UI SHELL loads without a token — it is not sensitive,
+        # and it is the only way a new device ever reaches the "Access"
+        # prompt that lets it save one. Everything under /api/ — reads
+        # included — needs a real credential from here on.
+        if self.command in ("GET", "HEAD") and not path.startswith("/api/"):
             return True
-        record = access.verify(access.bearer(self.headers), address)
+        source = access.forwarded_address(self.headers, address)
+        record = access.verify(access.bearer(self.headers), source)
         if record is None:
             self._json({"error": "unauthorized"}, code=401)
             return False
         if not access.scope_allows(record["scope"], self.command):
             journal.append("alert", "access",
                            f"{record['id']} ({record['scope']}) tried "
-                           f"{self.command} {self.path.split('?')[0]} from {address}",
+                           f"{self.command} {path} from {source}",
                            actor="aletheia-access")
             self._json({"error": "this token is read-only"}, code=403)
             return False
         access.note_use(record["id"])
         journal.append("event", "access",
                        f"{record['id']} {self.command} "
-                       f"{self.path.split('?')[0]} from {address}",
+                       f"{path} from {source}",
                        actor="aletheia-access")
         return True
 
@@ -485,10 +519,30 @@ class Handler(BaseHTTPRequestHandler):
         if not str(target).startswith(str(INTERFACE_DIR.resolve())) or not target.is_file():
             self.send_error(404)
             return
+        # webmanifest and svg are what make the phone page INSTALLABLE.
+        # Served as octet-stream a browser ignores the manifest without
+        # complaining, and "Add to Home Screen" quietly produces a
+        # bookmark instead of an app — a failure with no error message.
         ctype = {"html": "text/html", "json": "application/json",
-                 "js": "text/javascript", "css": "text/css"}.get(
+                 "js": "text/javascript", "css": "text/css",
+                 "webmanifest": "application/manifest+json",
+                 "svg": "image/svg+xml"}.get(
                      target.suffix.lstrip("."), "application/octet-stream")
         body = target.read_bytes()
+        address = self.client_address[0] if self.client_address else "?"
+        if target.suffix == ".html" and access.is_genuinely_local(address, self.headers):
+            # The pages the Core serves ON LOOPBACK carry the local session
+            # secret, so the wall and Command Center keep working with no
+            # login while a stray local process still cannot POST
+            # (2026-09-03). Scoped to loopback only: a phone reaching this
+            # same file over Tailscale has no use for a secret that only
+            # means something when the SOURCE ADDRESS is 127.0.0.1, and
+            # handing it to every device on the tailnet anyway was a needless
+            # leak, not a load-bearing one — worth closing regardless.
+            tag = ('<meta name="aletheia-local" content="'
+                   + access.local_secret() + '">').encode("utf-8")
+            body = (body.replace(b"<head>", b"<head>" + tag, 1)
+                    if b"<head>" in body else tag + body)
         self.send_response(200)
         self.send_header("Content-Type", f"{ctype}; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
@@ -560,7 +614,10 @@ class Handler(BaseHTTPRequestHandler):
             if not fid:
                 return self._json({"state": "EXPIRED", "say": None,
                                    "detail": "id required"}, code=400)
-            return self._json(followups.take(fid))
+            # A pure read: consuming here would let a response lost in
+            # transit destroy the only copy of the answer. The listener
+            # POSTs /api/voice/followup/ack once it has actually spoken.
+            return self._json(followups.poll(fid))
         if url.path == "/api/journal":
             last = int(parse_qs(url.query).get("last", ["50"])[0])
             return self._json(journal.entries()[-last:])
@@ -576,6 +633,9 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(body)
                 return
             return self.send_error(404)
+        # A service worker may only control paths at or below its own URL,
+        # so /interface/sw.js can claim /interface/* — which is the whole
+        # phone app. Nothing else needs a special route.
         rel = "index.html" if url.path in ("/", "/interface/", "/interface/index.html") \
             else url.path.removeprefix("/interface/").lstrip("/")
         return self._static(rel)
@@ -584,13 +644,43 @@ class Handler(BaseHTTPRequestHandler):
         if not self.authorized():
             return
         path = urlparse(self.path).path
-        if path not in ("/api/command", "/api/computer", "/api/voice",
-                        "/api/notifications/ack"):
+        if path not in ("/api/command", "/api/computer", "/api/voice", "/api/ask",
+                        "/api/notifications/ack", "/api/voice/followup/ack"):
             return self.send_error(404)
         try:
             payload = self._payload()
         except (ValueError, json.JSONDecodeError) as exc:
             return self._json({"outcome": "invalid", "detail": str(exc)}, code=400)
+        if path == "/api/ask":
+            unknown = set(payload) - {"text"}
+            text = payload.get("text")
+            if unknown or not isinstance(text, str) or not text.strip():
+                detail = (f"unsupported fields {sorted(unknown)}" if unknown
+                          else "text must be a non-empty string")
+                return self._json({"outcome": "invalid", "detail": detail}, code=400)
+            fleet = self.fleet
+            asked = text.strip()[:8000]
+            try:
+                slot = followups.start(
+                    lambda: run_command(
+                        {"kind": "intent", "text": asked,
+                         "operator_quote":
+                             f"typed into the command center: {asked[:200]}"},
+                        fleet)["detail"],
+                    acknowledgement="Working on that.", durable=True)
+            except Exception as exc:
+                try:
+                    journal.append("alert", "followup",
+                                   f"could not record typed ask ({type(exc).__name__})",
+                                   actor="aletheia-core")
+                except Exception:
+                    pass
+                return self._json(
+                    {"outcome": "unavailable",
+                     "detail": "I could not safely record that request. Please try again."},
+                    code=503)
+            return self._json({"outcome": "thinking", "say": slot["say"],
+                               "followup_id": slot["id"]})
         if path == "/api/command":
             result = run_command(payload, self.fleet)
             if payload.get("kind") in ("approve", "resume"):
@@ -600,6 +690,11 @@ class Handler(BaseHTTPRequestHandler):
                 # thread, so a slow errand still cannot stall the beat.
                 kick_approved_work(self.fleet)
             return self._json(result)
+        if path == "/api/voice/followup/ack":
+            fid = payload.get("id")
+            if not isinstance(fid, str) or not fid:
+                return self._json({"outcome": "invalid", "detail": "id required"}, code=400)
+            return self._json(followups.acknowledge(fid))
         if path == "/api/notifications/ack":
             nid = payload.get("id")
             if not isinstance(nid, str) or not nid:
@@ -626,9 +721,23 @@ class Handler(BaseHTTPRequestHandler):
                 # waits about two. Answer now, think in the background, and
                 # let the listener collect the real sentence when it exists.
                 fleet = self.fleet
-                slot = followups.start(
-                    lambda: run_command({**cmd, "operator_quote": quote}, fleet)["detail"],
-                    acknowledgement="Working on that.")
+                try:
+                    slot = followups.start(
+                        lambda: run_command(
+                            {**cmd, "operator_quote": quote}, fleet)["detail"],
+                        acknowledgement="Working on that.", durable=True)
+                except Exception as exc:
+                    try:
+                        journal.append(
+                            "alert", "followup",
+                            f"could not record voice ask ({type(exc).__name__})",
+                            actor="aletheia-core")
+                    except Exception:
+                        pass
+                    return self._json(
+                        {"outcome": "unavailable",
+                         "say": "I could not safely record that request. Please ask again."},
+                        code=503)
                 return self._json({"outcome": "thinking", "say": slot["say"],
                                    "followup_id": slot["id"]})
             result = run_command({**cmd, "operator_quote": quote}, self.fleet)
@@ -736,6 +845,15 @@ def start_sync_loop(fleet: dict, interval_s: float = SYNC_INTERVAL_S,
 
 
 def main(argv: list[str] | None = None) -> int:
+    # The Core is the always-on process. Whatever shell started it, it does
+    # not carry a foreground lease to open the operator's signed-in ChatGPT
+    # browser — see browser_reasoner.drop_lease(). Dropped FIRST, before
+    # anything can read it, so every thread, watchdog and child inherits an
+    # environment without it. Every always-on entry point does this the same
+    # way; tests/test_browser_reasoner_windows_mode.py enumerates them from
+    # the scheduled-task registry so a new one cannot skip it.
+    from aletheia import browser_reasoner
+    browser_reasoner.drop_lease()
     ap = argparse.ArgumentParser(description="Aletheia local Core V0.")
     ap.add_argument("--port", type=int, default=DEFAULT_PORT)
     ap.add_argument("--host", default="127.0.0.1",
@@ -749,6 +867,18 @@ def main(argv: list[str] | None = None) -> int:
                     help="serve the API only; no git sync, no local command processing")
     args = ap.parse_args(argv)
     journal.use_pc_journal()  # this process is the PC writer
+    try:
+        followups.recover_pending()
+    except Exception as exc:
+        # A damaged delivery store must degrade asks honestly, not prevent the
+        # status surface and repair controls from starting at all.
+        try:
+            journal.append(
+                "alert", "followup",
+                f"startup recovery failed ({type(exc).__name__})",
+                actor="aletheia-core")
+        except Exception:
+            pass
     # Before anything else: measure the gap we are coming back from. If the
     # last heartbeat is old, this start ENDED an outage, and that is a fact
     # the journal and the bus get to hear about (2026-08-27).

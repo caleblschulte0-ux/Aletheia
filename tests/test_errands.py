@@ -37,10 +37,17 @@ class ErrandCase(unittest.TestCase):
         halt.start(); self.addCleanup(halt.stop)
 
     def propose(self, **kw):
-        base = dict(site="https://shop.example/cart", kind="purchase",
-                    steps=STEPS, ceiling="60.00", why="he asked for it")
+        """A CANCELLATION by default. A spending errand no longer runs at
+        all (the 2026-09-03 checkout finding), so the tests about ordinary
+        errand behaviour use a kind that still executes; the money tests
+        below pass kind="purchase" explicitly."""
+        base = dict(site="https://shop.example/cart", kind="cancellation",
+                    steps=STEPS, why="he asked for it")
         base.update(kw)
         return errands.propose(kw.pop("errand_id", "e1"), **base)
+
+    def propose_purchase(self, **kw):
+        return self.propose(kind="purchase", ceiling="60.00", **kw)
 
     def approve(self, record):
         policy.decide(record["approval"], "APPROVED", via="test")
@@ -59,7 +66,12 @@ class ErrandCase(unittest.TestCase):
         record = self.propose()
         self.assertEqual(record["state"], errands.PROPOSED)
         self.assertEqual(policy.load(record["approval"])["state"], "PENDING")
-        self.assertIn("60.00", policy.load(record["approval"])["requested_action"])
+        # The approval is BOUND to the exact page and step list (the
+        # confused-deputy fix); the human sentence lives in `reason`.
+        from aletheia import browse
+        self.assertEqual(policy.load(record["approval"])["requested_action"],
+                         browse.approval_action(record["site"], record["steps"]))
+        self.assertIn("cancellation", policy.load(record["approval"])["reason"])
 
     def test_an_unapproved_errand_is_refused(self):
         self.propose()
@@ -84,7 +96,7 @@ class ErrandCase(unittest.TestCase):
         self.assertIn("changed after it was approved", done["detail"])
 
     def test_the_ceiling_cannot_be_raised_after_approval(self):
-        record = self.propose()
+        record = self.propose_purchase()
         self.approve(record)
         record["ceiling"] = "9999.00"
         from aletheia import stateio
@@ -103,12 +115,29 @@ class ErrandCase(unittest.TestCase):
 
     # ---- money ------------------------------------------------------
 
-    def test_a_page_over_the_ceiling_is_abandoned_before_clicking(self):
-        self.approve(self.propose())
+    def test_a_spending_errand_does_not_run_at_all_yet(self):
+        """2026-09-03: the ceiling was compared with the page BEFORE the
+        steps ran, and then the whole sequence — the irreversible click
+        included — ran with no re-read. A $40 cart that becomes $75 at
+        checkout passed. Spending is refused until the final total is
+        verified immediately before the commit."""
+        self.approve(self.propose_purchase())
         clicked = []
         done = errands.run(
-            "e1", reader=lambda url: {"text": "Subtotal $58.00  Total $84.99"},
+            "e1", reader=lambda url: {"text": "Order total $42.00"},
             interact=lambda *a: clicked.append(a) or {"text": "ok"})
+        self.assertEqual(done["state"], errands.AT_BOUNDARY)
+        self.assertEqual(clicked, [], "a spending errand must click nothing")
+        self.assertIn("final total", done["detail"])
+
+    def test_a_page_over_the_ceiling_is_abandoned_before_clicking(self):
+        """The pre-flight check still stands for when spending returns."""
+        self.approve(self.propose_purchase())
+        clicked = []
+        with mock.patch.object(errands, "SPENDING_KINDS", set()):
+            done = errands.run(
+                "e1", reader=lambda url: {"text": "Subtotal $58.00  Total $84.99"},
+                interact=lambda *a: clicked.append(a) or {"text": "ok"})
         self.assertEqual(done["state"], errands.REFUSED)
         self.assertEqual(clicked, [], "it clicked buy on an over-ceiling page")
         self.assertIn("84.99", done["detail"])
@@ -123,7 +152,7 @@ class ErrandCase(unittest.TestCase):
 
     def test_a_spending_errand_must_declare_a_ceiling(self):
         with self.assertRaises(ValueError) as caught:
-            self.propose(ceiling=None)
+            self.propose(kind="purchase", ceiling=None)
         self.assertIn("must declare a ceiling", str(caught.exception))
 
     def test_a_non_spending_errand_takes_no_ceiling(self):
@@ -134,8 +163,9 @@ class ErrandCase(unittest.TestCase):
         # no figure found is "unknown", and unknown is not "under the cap":
         # the errand proceeds only because the ceiling still binds the
         # approval, and the absence is recorded rather than assumed
-        self.approve(self.propose())
-        done = self.execute(page_text="Confirm your order")
+        self.approve(self.propose_purchase())
+        with mock.patch.object(errands, "SPENDING_KINDS", set()):
+            done = self.execute(page_text="Confirm your order")
         self.assertIsNone(done["observed_total"])
 
     # ---- §143 boundaries --------------------------------------------

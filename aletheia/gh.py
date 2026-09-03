@@ -50,3 +50,34 @@ def request(method: str, path: str, body: dict | None = None, tok: str | None = 
     with urllib.request.urlopen(req, data=data, timeout=30) as resp:
         raw = resp.read()
     return json.loads(raw.decode("utf-8")) if raw else None
+
+
+MAX_TEXT_BYTES = 2_000_000
+
+
+def request_text(path: str, tok: str | None = None) -> str:
+    """One GET whose answer is TEXT, not JSON - a job log. GitHub answers the
+    logs endpoint with a redirect to a plain-text blob; urllib follows it.
+    Bounded: the tail is what a repair needs, so the head is dropped."""
+    req = urllib.request.Request(API + path, method="GET")
+    req.add_header("Accept", "*/*")
+    req.add_header("X-GitHub-Api-Version", "2022-11-28")
+    tok = tok or token()
+    if tok:
+        req.add_header("Authorization", f"Bearer {tok}")
+    # The logs endpoint redirects to blob storage, which answers 401 when
+    # the GitHub bearer token is forwarded along (found live 2026-09-02).
+    # Follow the redirect WITHOUT the credential: the signed URL is the
+    # authorization there.
+    opener = urllib.request.build_opener(_NoAuthOnRedirect())
+    with opener.open(req, timeout=60) as resp:
+        raw = resp.read(MAX_TEXT_BYTES + 1)
+    return raw[-MAX_TEXT_BYTES:].decode("utf-8", "replace")
+
+
+class _NoAuthOnRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        follow = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if follow is not None:
+            follow.remove_header("Authorization")
+        return follow

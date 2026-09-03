@@ -83,3 +83,51 @@ class TestDependencies(TaskCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDescription(TaskCase):
+    """A description is durable truth. The 2026-09-01 catch-up found
+    `operator-setup` still reading "merge, FLEET_TOKEN, Pages, ChatGPT
+    Project, run the Core" with four of the five long done — every
+    downstream surface faithfully rendered the stale sentence."""
+
+    def test_correcting_a_description_is_journaled_and_keeps_history(self):
+        tasks.create("setup", "merge, token, pages, run the core")
+        out = tasks.describe("setup", "create the ChatGPT Project (the last step)")
+        self.assertEqual(out["description"], "create the ChatGPT Project (the last step)")
+        self.assertEqual(tasks.load("setup")["description"], out["description"])
+        entries = journal.JOURNAL_PATH.read_text(encoding="utf-8")
+        self.assertIn("description corrected", entries)
+        self.assertIn("merge, token, pages, run the core", entries,
+                      "the superseded sentence must survive in the journal")
+
+    def test_a_terminal_task_is_a_record_not_a_draft(self):
+        tasks.create("done-thing", "the thing that was done")
+        tasks.set_status("done-thing", "COMPLETED")
+        with self.assertRaises(ValueError):
+            tasks.describe("done-thing", "something nicer")
+
+    def test_empty_description_refused(self):
+        tasks.create("t", "real work")
+        with self.assertRaises(ValueError):
+            tasks.describe("t", "   ")
+
+
+class TestOpenTasksDescribeOpenWork(unittest.TestCase):
+    """Reads the REAL store on purpose: this is the invariant the catch-up
+    audit was asked to enforce ("no generated state describing setup work
+    that already exists"), and it can only be checked against production
+    truth. A non-terminal task must not name a capability the registry
+    already reports AVAILABLE as though it were still to be done."""
+
+    def test_no_open_task_asks_for_work_the_registry_says_is_done(self):
+        from aletheia import capabilities
+        available = {c["id"] for c in capabilities.by_status("AVAILABLE")}
+        stale = []
+        for task in tasks.all_tasks():
+            if task["status"] in ("COMPLETED", "CANCELLED", "FAILED_TERMINAL"):
+                continue
+            for cap in task.get("required_capabilities", []):
+                if cap in available:
+                    stale.append(f"{task['id']} waits on {cap}, which is AVAILABLE")
+        self.assertEqual(stale, [], "; ".join(stale))

@@ -39,6 +39,10 @@ from aletheia import capabilities
 # quietly omitted — a gap in this file must not look like a finished step.
 OK, MISSING, BROKEN = "ok", "missing", "broken"
 
+# Long enough for a cold CLI start on a laptop, short enough that a
+# checklist still feels like a checklist.
+CLI_PROBE_S = 45.0
+
 
 @dataclass
 class Step:
@@ -46,29 +50,69 @@ class Step:
     title: str
     minutes: int
     why: str
-    how: list[str]
+    how: "list[str] | Callable[[], list[str]]"
     verify: Callable[[], tuple[str, str]]
     optional: bool = False
     tags: list[str] = field(default_factory=list)
 
+    def instructions(self) -> list[str]:
+        """The lines to show him now. A step whose next command depends on
+        this machine computes them (`_remote_how` reads Tailscale), because
+        telling him to install what he already has is worse than silence."""
+        if not callable(self.how):
+            return list(self.how)
+        try:
+            return list(self.how())
+        except Exception as exc:      # guidance must never break the audit
+            return [f"(could not read this machine's state: {type(exc).__name__})"]
+
+
+EMPTY_CALENDAR = ("read live, and it is EMPTY (0 events in the next 60 days) — "
+                  "'am I free?' will answer yes to every hour. If that is wrong, "
+                  "the schedule lives on a different calendar than the feed given")
+
 
 def _calendar() -> tuple[str, str]:
+    """Configured is not read (§30). This fetches.
+
+    2026-09-02: the operator connected a secret-ICS feed and this said
+    "1 secret-ICS feed(s) configured" — the count of a config entry, never
+    a request. A revoked URL, a typo, or an empty calendar all reported
+    ok, and this module's own docstring promises "a real calendar read".
+    Now it refreshes, and an empty mirror is SAID rather than passed off
+    as a working calendar: answering "yes, you are free" from a calendar
+    with nothing in it is the wrong-answer failure `aletheia.ics` warns
+    about, not a small one.
+    """
     from aletheia import calendar_live, ics
     ok, why = calendar_live.available()
     if ok:
         try:
-            provider = calendar_live.build_provider()
-            events = calendar_live.refresh(transport=None)
-            return OK, f"official provider live ({calendar_live.config()['provider']})"
+            result = calendar_live.refresh(transport=None)
+            mirrored = int((result or {}).get("mirrored", 0))
+            provider = calendar_live.config()["provider"]
+            if mirrored:
+                return OK, f"official provider live ({provider}); {mirrored} event(s) mirrored"
+            return OK, f"official provider live ({provider}); {EMPTY_CALENDAR}"
         except Exception as exc:
             return BROKEN, f"configured but failing: {type(exc).__name__}: {exc}"[:160]
     try:
         feeds = ics._config().get("feeds", [])
     except Exception:
         feeds = []
-    if feeds:
-        return OK, f"{len(feeds)} secret-ICS feed(s) configured"
-    return MISSING, why[:160]
+    if not feeds:
+        return MISSING, why[:160]
+    try:
+        result = ics.refresh()
+    except Exception as exc:
+        return BROKEN, (f"{len(feeds)} feed(s) configured but the fetch failed: "
+                        f"{type(exc).__name__}: {exc}")[:160]
+    mirrored = int((result or {}).get("mirrored", 0))
+    unsupported = int((result or {}).get("unsupported", 0))
+    tail = f"; {unsupported} recurrence(s) this parser cannot expand" if unsupported else ""
+    if mirrored:
+        return OK, f"{len(feeds)} feed(s) read; {mirrored} event(s) mirrored{tail}"
+    return OK, f"{len(feeds)} feed(s) {EMPTY_CALENDAR}{tail}"
 
 
 def _room() -> tuple[str, str]:
@@ -90,6 +134,25 @@ def _remote() -> tuple[str, str]:
         return (BROKEN, f"{len(live)} token(s) exist but no TLS certificate is "
                         "configured, so the Core still refuses to listen off-loopback")
     return OK, f"{len(live)} live token(s) and a certificate"
+
+
+def _remote_how() -> list[str]:
+    """What is actually left for the phone to reach her, on THIS machine."""
+    from aletheia import tailscale
+    current = tailscale.state()
+    if not current.installed:
+        lines = ["winget install Tailscale.Tailscale     (not installed yet)",
+                 "Sign in, then re-run this checklist for the exact cert command."]
+    elif not current.ready:
+        lines = [f"Tailscale is installed but {current.backend or 'not signed in'} "
+                 "— open it and sign in, then re-run this checklist.",
+                 tailscale.cert_command(current)]
+    else:
+        lines = [f"Tailscale is signed in as {current.dns_name} — that part is done.",
+                 tailscale.cert_command(current)
+                 + "     (run in an elevated PowerShell; writes .crt and .key here)"]
+    return lines + ["python -m aletheia.apply phone-access   (mints the token and "
+                    "prints the rest with your values filled in)"]
 
 
 def _phone() -> tuple[str, str]:
@@ -165,8 +228,137 @@ def _wall_voice() -> tuple[str, str]:
                      "your browser and cannot be checked from here")
 
 
+def _local_ai() -> tuple[str, str]:
+    """Offline reasoning is a fallback, never an authority — see the note in
+    the checklist step. Reports what the gateway ACTUALLY has, not what is
+    installable."""
+    from aletheia import reasoning_gateway
+    try:
+        status = reasoning_gateway.status()
+    except Exception as exc:
+        return BROKEN, f"{type(exc).__name__}: {exc}"[:160]
+    local = status.get("local", {})
+    if not local.get("enabled"):
+        return MISSING, f"local routing disabled ({local.get('enabled_source', 'default')})"
+    offline = [name for name, p in (local.get("profiles") or {}).items()
+               if not p.get("online")]
+    if offline:
+        return BROKEN, f"enabled but these profiles are not answering: {', '.join(offline)}"
+    return OK, "local profiles enabled and answering"
+
+
+def _chatgpt_browser() -> tuple[str, str]:
+    from aletheia import chatgpt_session
+    try:
+        status = chatgpt_session.status()
+    except Exception as exc:
+        return BROKEN, f"{type(exc).__name__}: {exc}"[:160]
+    if status.get("ready"):
+        return OK, "browser profile initialized and signed in"
+    return MISSING, str(status.get("reason", "not ready"))[:160]
+
+
+def _ffmpeg() -> tuple[str, str]:
+    """ffmpeg is a program, not a package — she cannot install it herself,
+    and saying so is more use than a capability quietly reading UNAVAILABLE."""
+    from aletheia import media
+    ok, why = media.available()
+    return (OK, why) if ok else (MISSING, why[:160])
+
+
+def _claude_cli() -> tuple[str, str]:
+    """The BRAIN, proved by using it.
+
+    This was the one thing the checklist did not check, and it is the one
+    thing everything that thinks depends on: planning, conversation,
+    research, the code worker, the showrunner. An expired subscription
+    login on a Thursday evening does not announce itself — it turns every
+    question into "I could not reach a model" and leaves the rest of the
+    system green. Presence on PATH is not proof, so this asks it something
+    and waits for an answer.
+    """
+    from aletheia import reasoner
+    if not reasoner.cli_path():
+        return MISSING, "the claude CLI is not on PATH"
+    try:
+        said = reasoner.infer_text(
+            "Answer with one word and nothing else.",
+            "Reply with the single word: ready", timeout_s=CLI_PROBE_S)
+    except Exception as exc:
+        return BROKEN, f"{type(exc).__name__}: {exc}"[:160]
+    return (OK, "answered a live prompt") if said.strip() else (
+        BROKEN, "the CLI ran and returned nothing")
+
+
+def _workspace() -> tuple[str, str]:
+    """Can she actually produce a file?
+
+    Found live 2026-09-02, not by a test: the default root resolved to this
+    repository's checkout, so `root()` refused it and the very first real
+    write failed. Everything about the capability was correct and she could
+    not write a sentence to disk.
+    """
+    from aletheia import workspace
+    try:
+        base = workspace.root()
+    except Exception as exc:
+        return BROKEN, f"{type(exc).__name__}: {exc}"[:160]
+    probe = base / ".setup-probe"
+    try:
+        probe.write_text("ok", encoding="utf-8")
+        got = probe.read_text(encoding="utf-8")
+        probe.unlink()
+    except Exception as exc:
+        return BROKEN, f"{base} is not writable ({type(exc).__name__})"
+    if got != "ok":
+        return BROKEN, f"{base} did not read back what was written"
+    return OK, f"writable at {base}"
+
+
+def _browser_pages() -> tuple[str, str]:
+    """Research really opens the pages it cites, so it needs a browser."""
+    from aletheia import browse
+    ok, why = browse.available()
+    return (OK, why) if ok else (MISSING, why[:160])
+
+
+def _desktop_toasts() -> tuple[str, str]:
+    from aletheia import desktop_notify
+    ok, why = desktop_notify.available()
+    return (OK, why) if ok else (MISSING, why[:160])
+
+
 def steps() -> list[Step]:
     return [
+        Step("reason.infer", "Her brain", 2,
+             "Everything that thinks runs on your Claude subscription: "
+             "planning, conversation, research, the code worker. If this "
+             "login has expired, every question comes back 'I could not "
+             "reach a model' while the rest of her stays green.",
+             ["claude login",
+              "  (then ask her anything — this step proves it by asking)"],
+             _claude_cli),
+        Step("file.author", "Somewhere to write", 1,
+             "Without a writable workspace she can think and say things and "
+             "produce nothing: no document, no spreadsheet, no file at all.",
+             ["Set a directory of her own (NOT this repo, NOT your home "
+              "folder — she refuses both):",
+              "  setx ALETHEIA_WORKSPACE \"%USERPROFILE%\\Documents\\Aletheia\"",
+              "  (then restart the Core so it picks the variable up)"],
+             _workspace),
+        Step("browser.read", "Reading the open web", 5,
+             "Research really opens the pages it cites, so without a browser "
+             "she refuses the question honestly rather than answering it from "
+             "memory.",
+             ["python -m pip install playwright",
+              "python -m playwright install chromium"],
+             _browser_pages),
+        Step("notification.deliver", "Reminders you actually see", 0,
+             "A reminder that fires correctly and appears nowhere is not a "
+             "reminder. This puts urgent and important ones on this screen.",
+             ["Nothing to install — it uses Windows' own toasts.",
+              "python -m aletheia.desktop_notify test   (shows one now)"],
+             _desktop_toasts),
         Step("email.read", "Email", 0,
              "She can already read headers and send with your approval.",
              ["Nothing to do — this is already configured."], _mail),
@@ -197,10 +389,7 @@ def steps() -> list[Step]:
         Step("access.remote", "Your phone reaching her", 10,
              "The phone surface has existed since Phase 21 and no phone could "
              "load it.",
-             ["winget install Tailscale.Tailscale     (not installed yet)",
-              "Sign in, then: tailscale cert <this-machine>.<tailnet>.ts.net",
-              "python -m aletheia.apply phone-access   (mints the token and "
-              "prints the rest with your values filled in)"],
+             _remote_how,
              _remote),
         Step("phone.call", "The first phone call", 5,
              "Every mechanism is verified; no call has been placed, and placing "
@@ -217,6 +406,33 @@ def steps() -> list[Step]:
               "Connect the GitHub connector to this repository.",
               "Then say something to it and check: python -m aletheia.intercom list"],
              _relay, optional=True),
+        Step("media.edit", "Editing video and audio", 3,
+             "Trimming clips, joining them, pulling the audio out, burning in "
+             "captions. The code is finished; it needs the tool it drives.",
+             ["winget install Gyan.FFmpeg",
+              "Then open a NEW terminal (PATH only updates for new ones) and:",
+              "  python -m aletheia.media check"],
+             _ffmpeg, optional=True),
+        Step("reason.local", "Thinking with no internet", 20,
+             "Offline models so she still interprets and plans when the "
+             "subscriptions are unreachable. She will NOT use them to decide "
+             "anything critical or to write code — that stays on the "
+             "subscriptions and fails honestly rather than quietly dropping "
+             "to a smaller brain.",
+             ["Install Ollama, then: python -m aletheia.local_ai",
+              "It pulls the models and runs a real smoke test; local routing "
+              "only turns on if that passes."],
+             _local_ai, optional=True),
+        Step("reason.chatgpt_browser", "Your ChatGPT as a backup brain", 5,
+             "If the Claude CLI is out, she can fall back to your signed-in "
+             "ChatGPT in a real browser — no API key. It is deliberately "
+             "FOREGROUND-ONLY: nothing always-on (the Core, the voice room, "
+             "the project loop, any scheduled job) can open a ChatGPT window "
+             "on your screen while you are not there.",
+             ["python -m aletheia.chatgpt_session  (opens a browser; sign in once)",
+              "Then, only in a shell you started yourself:",
+              "  set ALETHEIA_ALLOW_CHATGPT_BROWSER_REASONING=1"],
+             _chatgpt_browser, optional=True),
         Step("voice.wall", "The wall's own ears", 1,
              "The wall and Command Center can hear 'Thea' directly in the "
              "browser — no side app.",
@@ -264,7 +480,7 @@ def _audit_now() -> dict:
         checked.append({"capability": step.capability, "title": step.title,
                         "state": state, "detail": detail,
                         "minutes": step.minutes, "optional": step.optional,
-                        "how": step.how, "why": step.why})
+                        "how": step.instructions(), "why": step.why})
     mapped = {s.capability for s in steps()}
     reg = capabilities.load_registry()
     unmapped = sorted(c["id"] for c in reg["capabilities"]

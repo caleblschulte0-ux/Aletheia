@@ -67,6 +67,30 @@ def operator_lease_enabled() -> bool:
     return os.environ.get(ALLOW_ENV, "").strip() == "1"
 
 
+def drop_lease(env: dict | None = None) -> dict:
+    """Remove the foreground lease from an always-on process's environment.
+
+    The lease is an environment variable, and environment variables are
+    INHERITED. The check in `operator_lease_enabled()` is necessary but not
+    sufficient: if the operator sets the lease in a shell and then starts
+    the Core, supervisor or a watchdog from that same shell, every
+    always-on loop inherits the right to open his signed-in ChatGPT — the
+    precise scenario #74 exists to prevent, reachable by accident rather
+    than by design.
+
+    So the always-on side does not merely decline to set the lease; it
+    actively drops whatever it was handed. Deliberate foreground work
+    (`python -m aletheia.reasoner ...` run by the operator in a leased
+    shell) is untouched, because that process is the one he launched.
+
+    Mutates and returns `env` (defaults to os.environ) so it works both
+    for this process and for a child env dict being assembled.
+    """
+    target = os.environ if env is None else env
+    target.pop(ALLOW_ENV, None)
+    return target
+
+
 def available() -> tuple[bool, str]:
     if not operator_lease_enabled():
         return False, (

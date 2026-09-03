@@ -42,13 +42,20 @@ CORE_URL = "http://127.0.0.1:8777"
 SAMPLE_RATE = 16_000
 VOICE_LOCK = Path.home() / ".aletheia" / "run" / "voice.lock"
 
+# How often the room checks whether it has anything to say first. Every
+# utterance would re-read the whole notification store for a question that
+# is almost always "nothing"; `announce` has its own per-hour cap, so this
+# is only about not doing the work, never about how often she speaks.
+ANNOUNCE_EVERY_S = 20.0
+
 AGC_TARGET_PEAK = 9000
 AGC_MAX_GAIN = 40
 AGC_FLOOR = 200
 WAKE_GRAMMAR = '["thea", "aletheia", "hey thea", "[unk]"]'
 WAKE_CONFIDENCE_MIN = 0.70
-FOLLOWUP_WAIT_S = 60.0
+FOLLOWUP_WAIT_S = 105.0
 FOLLOWUP_POLL_S = 1.0
+FOLLOWUP_FAILURE = "I couldn't finish that answer. Please ask me again."
 BARE_WAKE_WINDOW_S = 8.0
 OUTPUT_TAIL_S = 0.55
 REPEAT_FAILURE_WINDOW_S = 20.0
@@ -349,13 +356,34 @@ def collect_followup(followup_id: str, core_url: str = CORE_URL,
             ) as response:
                 payload = json.loads(response.read().decode("utf-8"))
         except Exception:
-            return None
+            # The supervised Core can restart while an answer is running. A
+            # transient refused connection is not proof the answer vanished.
+            sleep(poll_s)
+            continue
         if payload.get("state") in ("READY", "FAILED"):
             return payload.get("say")
         if payload.get("state") == "EXPIRED":
             return None
         sleep(poll_s)
     return None
+
+
+def launch_followup(followup_id: str, core_url: str, say,
+                    collector=None) -> threading.Thread:
+    """Collect one promised reply without making the room deaf meanwhile."""
+    collector = collector or collect_followup
+
+    def deliver():
+        try:
+            later = collector(followup_id, core_url)
+        except Exception:
+            later = None
+        say(later or FOLLOWUP_FAILURE)
+
+    thread = threading.Thread(target=deliver, name=f"voice-{followup_id}",
+                              daemon=True)
+    thread.start()
+    return thread
 
 
 def ask_core(transcript: str, core_url: str = CORE_URL) -> dict:
@@ -390,11 +418,17 @@ def _is_failure_line(text: str) -> bool:
 def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
                    max_utterances: int | None = None, on_heard=None,
                    monotonic=time.monotonic) -> int:
-    """Wake -> command, with no unsolicited speech and no indefinite follow-up.
+    """Wake -> command, and only the speaking he has asked for.
 
     A bare wake word opens an eight-second follow-up window. If that expires,
     ordinary room speech is ignored again. Identical failure lines are also
     throttled briefly as a final guard against a provider/error feedback loop.
+
+    It also says anything `announce` has pending before handling an utterance
+    (§144, speaking first) — which is OPT-IN and off by default: with
+    announcements disabled the store is not even read, so this line said
+    "no unsolicited speech" for as long as he leaves it that way, and says
+    what he turned on when he turns it on.
     """
     recognizer = recognizer if recognizer is not None else microphone_recognizer()
     speaker = speaker or speak
@@ -402,22 +436,51 @@ def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
     awaiting_since: float | None = None
     last_failure = ""
     last_failure_at = -1e9
+    last_announced = -1e9
+    followup_threads: list[threading.Thread] = []
+    say_lock = threading.Lock()
 
     def say(line: str | None) -> None:
         nonlocal last_failure, last_failure_at
-        if not line:
-            return
-        now = monotonic()
-        normalized = " ".join(str(line).split())
-        if (_is_failure_line(normalized) and normalized == last_failure
-                and now - last_failure_at < REPEAT_FAILURE_WINDOW_S):
-            return
-        speaker(normalized)
-        if _is_failure_line(normalized):
-            last_failure, last_failure_at = normalized, now
+        with say_lock:
+            if not line:
+                return
+            now = monotonic()
+            normalized = " ".join(str(line).split())
+            if (_is_failure_line(normalized) and normalized == last_failure
+                    and now - last_failure_at < REPEAT_FAILURE_WINDOW_S):
+                return
+            speaker(normalized)
+            if _is_failure_line(normalized):
+                last_failure, last_failure_at = normalized, now
 
     for wake_heard, text in recognizer:
         now = monotonic()
+        # SPEAKING FIRST (§144). The capability registry has claimed since it
+        # was written that this loop says pending lines before handling an
+        # utterance — and it did not: `announce` was imported by nothing but
+        # its own tests while an AVAILABLE entry named this function as its
+        # caller. Here is the caller.
+        #
+        # It is quiet by construction, not by hope: `announce.pending()`
+        # returns nothing unless the feature is enabled, refuses during a
+        # halt and during quiet hours, caps itself per hour, and never
+        # repeats a notice it has already said. A failure here must never
+        # cost him the room, so nothing raises out of it.
+        if now - last_announced >= ANNOUNCE_EVERY_S:
+            last_announced = now
+            try:
+                from aletheia import announce
+                announce.speak_pending(speaker=say)
+            except Exception as exc:
+                try:
+                    from aletheia import journal
+                    journal.append("event", "voice-room",
+                                   "could not speak pending lines "
+                                   f"({type(exc).__name__})",
+                                   actor="aletheia-voice-room")
+                except Exception:
+                    pass
         if on_heard:
             on_heard((wake_heard, text))
 
@@ -458,11 +521,14 @@ def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
             followup_id = None
         say(reply)
         if followup_id:
-            later = collect_followup(followup_id, core_url)
-            if later:
-                say(later)
+            followup_threads = [t for t in followup_threads if t.is_alive()]
+            followup_threads.append(launch_followup(followup_id, core_url, say))
         handled += 1
         if max_utterances is not None and handled >= max_utterances:
+            # Test/one-shot callers get deterministic delivery; the real
+            # forever-listener never blocks its ears on these joins.
+            for thread in followup_threads:
+                thread.join(timeout=1.0)
             return handled
     return handled
 
@@ -547,6 +613,11 @@ def setup() -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Always-on, launched at logon by its own scheduled task: same inheritance
+    # hazard as the project loop. The room must never be the thing that opens
+    # a visible ChatGPT conversation.
+    from aletheia import browser_reasoner
+    browser_reasoner.drop_lease()
     ap = argparse.ArgumentParser(description="Aletheia room voice (local wake word).")
     ap.add_argument("--check", action="store_true", help="report readiness honestly")
     ap.add_argument("--setup", action="store_true",

@@ -8,6 +8,25 @@ from unittest import mock
 
 from aletheia import journal, sealed_observe
 
+# `cryptography` is OPTIONAL (requirements-optional.txt). The suite passing
+# is the bootstrap's gate for starting the Core on the operator's PC, so an
+# optional capability's absence must SKIP, never fail — the same rule the
+# browser tests follow. Uses the module's own probe so the skip reason is
+# the honest one a caller would see.
+CRYPTO_OK, CRYPTO_WHY = sealed_observe.available()
+needs_crypto = unittest.skipUnless(CRYPTO_OK, f"sealed observation absent: {CRYPTO_WHY}")
+
+
+class TestHonestyWithoutCrypto(unittest.TestCase):
+    """Always runs: absence is reported cleanly, never raised."""
+
+    def test_available_returns_a_verdict_and_never_raises(self):
+        ok, why = sealed_observe.available()   # must not raise, even on a
+        self.assertIsInstance(ok, bool)        # broken native build
+        self.assertTrue(why.strip())
+        if not ok:
+            self.assertIn("cryptography", why.lower())
+
 
 def keypair():
     from cryptography.hazmat.primitives.asymmetric import rsa
@@ -39,6 +58,7 @@ def decrypt(private, envelope):
     return json.loads(AESGCM(data_key).decrypt(nonce, ciphertext, aad))
 
 
+@needs_crypto
 class SealedObservationCase(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -184,6 +204,7 @@ class FakeSession:
         return False
 
 
+@needs_crypto
 class BrowserObservationCase(unittest.TestCase):
     def test_browser_observation_redacts_credentials_and_url_queries(self):
         with mock.patch.object(

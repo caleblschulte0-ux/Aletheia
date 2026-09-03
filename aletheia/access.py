@@ -49,6 +49,7 @@ import sys
 import threading
 
 from aletheia import journal, stateio
+from aletheia.stateio import private_dir
 
 ACTOR = "aletheia-access"
 
@@ -208,8 +209,103 @@ def bearer(headers) -> str:
     return raw[len(prefix):].strip() if raw.lower().startswith(prefix) else ""
 
 
+LOCAL_SECRET_NAME = "local-session.token"
+LOCAL_SECRET_BYTES = 32
+
+
+def local_secret_path() -> Path:
+    return private_dir("access") / LOCAL_SECRET_NAME
+
+
+def local_secret() -> str:
+    """A per-machine secret that local WRITES must carry (2026-09-03).
+
+    Loopback used to be trusted outright: the Core's own comment called it
+    "the operator's own machine talking to itself". A security review made
+    the distinction that matters — 127.0.0.1 proves where a packet came
+    from, not that Caleb sent it. Any process running under his Windows
+    account could POST /api/command and approve an email, resume after a
+    halt, or drive the desktop.
+
+    Reads stay open on loopback deliberately, and that is not laziness: a
+    local process can already read `state/` off the same disk, so gating GET
+    would cost real usability and buy nothing against this threat. WRITES
+    are different — approving is an escalation nothing on disk gives away —
+    so a POST from loopback must present this secret.
+
+    The Core mints it at startup and injects it into the pages it serves, so
+    the wall and the Command Center keep working with no login.
+    """
+    path = local_secret_path()
+    try:
+        existing = path.read_text(encoding="utf-8").strip()
+        if existing:
+            return existing
+    except OSError:
+        pass
+    secret = secrets.token_urlsafe(LOCAL_SECRET_BYTES)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(secret, encoding="utf-8")
+    try:      # best effort; the private dir is already user-scoped
+        path.chmod(0o600)
+    except OSError:
+        pass
+    return secret
+
+
+def local_write_allowed(supplied: str | None) -> bool:
+    """Constant-time comparison of a supplied local secret."""
+    if not supplied:
+        return False
+    return secrets.compare_digest(str(supplied), local_secret())
+
+
 def is_loopback(address: str) -> bool:
     return str(address) in ("127.0.0.1", "::1", "localhost")
+
+
+def proxied_via_tailscale(headers) -> bool:
+    """Did this request arrive through `tailscale serve`'s local proxy?
+
+    Added 2026-09-03. `tailscale serve` terminates TLS on the tailnet
+    hostname and forwards to the configured backend as a NEW connection
+    FROM THIS MACHINE — so a phone reaching the Core over Tailscale looks,
+    at the socket level, identical to a script sitting at the keyboard:
+    both show client_address 127.0.0.1. Treating both as "loopback" (the
+    Core's original, narrower meaning — HIS machine talking to itself) let
+    every device on the tailnet inherit full local trust with no token, no
+    scope, no revocation.
+
+    The distinguishing signal is real, not inferred: tailscaled itself
+    adds `Tailscale-*` headers to every request it forwards (verified live
+    against this machine's tailscaled — `Tailscale-User-Login`,
+    `Tailscale-Headers-Info`, and others), and nothing else on this
+    machine has a reason to send them. A local process COULD forge one on
+    its own direct request, but that only routes it into the STRICTER
+    branch below (a real minted token, checked in constant time) — forging
+    the header buys an attacker nothing; it cannot manufacture the token.
+    """
+    try:
+        return any(str(name).lower().startswith("tailscale-") for name in headers.keys())
+    except AttributeError:
+        return False
+
+
+def forwarded_address(headers, fallback: str) -> str:
+    """The real originating tailnet IP when tailscale served the request,
+    for rate-limiting and audit that mean something per-device again."""
+    try:
+        forwarded = (headers.get("X-Forwarded-For", "") or "").split(",")[0].strip()
+    except AttributeError:
+        forwarded = ""
+    return forwarded or fallback
+
+
+def is_genuinely_local(address: str, headers) -> bool:
+    """The Core's ORIGINAL loopback trust: this machine talking to itself,
+    not merely a packet that happens to arrive from 127.0.0.1 (which a
+    tailscale-serve-proxied phone request also does)."""
+    return is_loopback(address) and not proxied_via_tailscale(headers)
 
 
 def scope_allows(scope: str, method: str) -> bool:
@@ -243,7 +339,16 @@ def bind_refusal(host: str, tls_cert: str | None, tls_key: str | None,
     return None
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
+    """The CLI contract, separately so it can be CHECKED.
+
+    The phone's System sheet prints the exact command he types when it says
+    "not linked". That string said `python -m aletheia.access mint` and the
+    per-device token work made `label` mandatory, so the one instruction he
+    would follow tonight exits with an argparse error. A dead end printed in
+    a confident voice is worse than no instruction, and a test that parses
+    what the page prints is the only thing that keeps the two together.
+    """
     ap = argparse.ArgumentParser(
         description="Credentials for reaching the Core from off this machine.")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -254,7 +359,11 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("list")
     p_rev = sub.add_parser("revoke")
     p_rev.add_argument("id")
-    args = ap.parse_args(argv)
+    return ap
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     if args.cmd == "mint":
         token, record = mint(args.label, args.scope, args.days)

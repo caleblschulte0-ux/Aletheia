@@ -41,7 +41,7 @@ import re
 import sys
 from pathlib import Path
 
-from aletheia import act, gh, journal, plans, policy, suggestions, tasks
+from aletheia import act, gh, journal, localtime, plans, policy, suggestions, tasks
 from aletheia.fleet import REPO_ROOT, load_fleet
 
 COMMANDS_DIR = REPO_ROOT / "exchange" / "commands"
@@ -68,8 +68,34 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "deny":          ({"id"}, {"because"}),
     "remember":      ({"domain", "key", "value"}, {"memory_kind"}),
     "browse_read":   ({"url"}, set()),
+    "research":      ({"question"}, set()),
+    # she can produce something now, not just say things
+    "file_write":    ({"path", "text"}, {"why"}),
+    # Writing something that has to be WRITTEN, not pasted. See below.
+    "compose":       ({"path", "what"}, {"sources", "why"}),
+    "file_edit":     ({"path", "find", "replace"}, {"why"}),
+    "file_read":     ({"path"}, {"anywhere"}),
+    "file_list":     (set(), {"subdir"}),
+    # Ordinary file operations she did not have a verb for. Both keep a
+    # version first, so both are reversible with `workspace restore`.
+    "file_delete":   ({"path"}, {"why"}),
+    "file_move":     ({"path", "to"}, {"why"}),
+    # Everything up to the submit, which stays his. See aletheia.applications.
+    "apply_prepare": ({"role"}, {"count", "where", "resume"}),
+    # eyes on the desktop, never hands: mutation keeps its own approval
+    "computer_observe": (set(), {"window"}),
+    # video and audio: the source is never touched, output lands in the workspace
+    "media_probe":   ({"source"}, set()),
+    "media_trim":    ({"source", "out"}, {"start", "end", "duration"}),
+    "media_join":    ({"sources", "out"}, set()),
+    "media_audio":   ({"source", "out"}, set()),
+    "media_captions": ({"source", "subtitles", "out"}, set()),
+    "media_convert": ({"source", "out"}, {"height"}),
     "browse_shot":   ({"url"}, set()),
     "email_check":   (set(), set()),
+    # the text of ONE unread message, named by sender or subject; exactly
+    # one match or a question back, never a guess (2026-09-02)
+    "email_read":    ({"which"}, set()),
     "email_draft":   ({"to", "body"}, {"subject"}),
     # personal-OS verbs (2026-08-26): PC-private state, so all LOCAL_KINDS
     "remind_at":       ({"at", "text"}, set()),
@@ -78,6 +104,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "notify_operator": ({"text"}, {"priority"}),
     "notify_check":    (set(), set()),
     "notify_clear":    (set(), set()),
+    "announce_set":    ({"on"}, {"quiet_from", "quiet_until"}),
     "free_time":       ({"day"}, {"tz", "minutes"}),
     "contact_add":     ({"name", "email"}, {"alias"}),
     # The slot for everything that is not a slot (2026-08-27). `text` is
@@ -113,6 +140,76 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # "what do you still need from me?" — read-only; it checks, it configures
     # nothing. Every credential remains the operator's to create.
     "setup_status":     (set(), set()),
+    # ---- 2026-09-02, both operator-authorized in his own words -----------
+    # Desktop HANDS, not just eyes: a typed step list run through
+    # aletheia.computer.act. Any control whose label commits or destroys
+    # (Send, Delete, Pay, Purchase, Confirm, Submit, Format, Uninstall,
+    # Empty Trash ...) is refused there and bounced to the hash-bound
+    # approval in computer.execute — refused, never skipped.
+    "computer_do":      ({"steps"}, {"why"}),
+    # The slot for a request no kind fits: she writes a small program and
+    # runs it in the sandbox (aletheia.script — import whitelist, no
+    # network, no subprocess, fresh environment, source saved first).
+    "do_task":          ({"request"}, {"label"}),
+}
+
+# Argument shapes the bare grammar cannot say. The planner's prompt is
+# generated from KIND_ARGS and these together, so the model learns the
+# shape of a step list from the registry rather than from a guess.
+KIND_NOTES: dict[str, str] = {
+    "apply_prepare": (
+        'Use for "apply to N jobs for me". It finds real postings, reads '
+        'them, and writes a PACKET per job into her workspace — the posting '
+        'as read, a cover letter written against it and his resume, and a '
+        'checklist — then files a task per application. It SUBMITS NOTHING '
+        'and never can: a submitted application is a real message to a real '
+        'employer under his name with no undo, and four separate gates '
+        'refuse it. Do not add a step that tries to submit; say in the '
+        'summary that the last step is his. role is the kind of job ("senior '
+        'backend engineer"), count is at most 10, where is an optional '
+        'location or "remote", resume is a workspace path.'),
+    "compose": (
+        'USE THIS, NOT file_write, whenever the content has to be WRITTEN '
+        'rather than pasted — "write me a note about X", "summarise my '
+        'resume into three bullets", "draft a cover letter". `what` is the '
+        'instruction in one sentence ("a three-bullet summary of his '
+        'resume, plain language"); `sources` is a JSON LIST of file paths '
+        'to read first (at most 3), workspace-relative or absolute; `path` '
+        'is where to save it, relative to her workspace. The prose is '
+        'written when the step RUNS, so the sources are actually read '
+        'first. file_write is only for text you already have verbatim: '
+        'used for authoring it produces a placeholder — "Three-bullet '
+        'summary of resume, generated from the resume content retrieved '
+        'above" is a real thing it wrote into a real file.'),
+    "announce_set": (
+        'on is a boolean: true lets her SPEAK UP unasked in the room when '
+        'something urgent or important is waiting, false goes back to '
+        'answering only when asked. quiet_from/quiet_until are "HH:MM" local '
+        'times she stays silent between. Use it for "tell me when something '
+        'needs me", "stop talking to me unless I ask", "no announcements '
+        'after ten".'),
+    "computer_do": (
+        "steps is a JSON LIST of step objects, each one of: "
+        '{"action":"open_app","app":"notepad.exe","arguments":[]} | '
+        '{"action":"wait_window","window":{"title_re":"Notepad"}} | '
+        '{"action":"focus_window","window":{...}} | '
+        '{"action":"set_text","window":{...},"control":{"control_type":"Edit"},"text":"..."} | '
+        '{"action":"invoke","window":{...},"control":{"title":"Save"}} | '
+        '{"action":"hotkey","window":{...},"keys":"ctrl+s"} (safe keys only: clipboard, '
+        'undo, find, save, navigation, escape, tab — never enter/delete/alt+f4) | '
+        '{"action":"select","window":{...},"control":{"control_type":"ComboBox"},"value":"UTF-8"}. '
+        "Selectors use title, title_re, class_name, auto_id, control_type (a control "
+        "also best_match) — never screen coordinates. A window title_re matches anywhere in the title, ignoring case. A text area is control_type Edit or Document (either finds it). Windows 11 Notepad reopens its last tabs on launch: to write fresh text, send hotkey ctrl+n after wait_window, then set_text. A control labelled Send, "
+        "Delete, Pay, Purchase, Confirm, Submit, Format, Uninstall or Empty Trash "
+        "is refused and needs his approval; do not plan around it."),
+    "do_task": (
+        "request is the ask in plain words. She writes a small Python program "
+        "(standard library only, no network, no subprocess, workspace files only) "
+        "and runs it. Use this ONLY when no other kind does the job."),
+    "email_read": (
+        "which is a sender name/address or a subject fragment; it must match exactly "
+        "one UNREAD message (otherwise she asks which). Use email_check first to see "
+        "what is unread."),
 }
 
 # Kinds that need the operator's PC (a real browser, later the desktop).
@@ -123,13 +220,29 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # command can ever be executed by both sides in a race. A local kind with
 # no receipt is honestly PENDING: the PC hasn't picked it up (Core off or
 # offline), and ChatGPT should say exactly that, not invent an outcome.
-LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_draft",
+LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email_draft",
+               # research only READS pages, but it reads them with the
+               # operator's browser, so it belongs to the PC runner
+               "research",
+               # the workspace is a directory on his PC; Actions cannot see it
+               "file_write", "file_edit", "file_read", "file_list", "compose",
+               "file_delete", "file_move",
+               # reads the open web and writes into her workspace: both PC
+               "apply_prepare",
+               "computer_observe",
+               # ffmpeg and his media files live on the PC
+               "media_probe", "media_trim", "media_join", "media_audio",
+               "media_captions", "media_convert",
                "remind_at", "remind_daily", "watch_email_from", "notify_check",
                "notify_clear", "free_time", "contact_add", "notify_operator",
                "intent", "screen_ask",
                # every private-state verb below lives on the PC
                "meet", "recall", "handle", "travel_time", "shopping_add",
-               "subscriptions", "money", "car", "projects", "authority_status", "setup_status"}
+               "subscriptions", "money", "car", "projects", "authority_status", "setup_status",
+               # the desktop and the sandbox are both on his PC
+               "computer_do", "do_task",
+               # the room that speaks, and the config it reads, are on the PC
+               "announce_set"}
 
 
 # Kinds that only LOOK. Nothing here changes the world, sends anything, or
@@ -139,7 +252,15 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_draft",
 READ_ONLY_KINDS = frozenset({
     "note", "notify_check", "free_time", "brief", "subscriptions", "money",
     "projects", "car", "recall", "travel_time", "browse_read", "browse_shot",
-    "email_check", "screen_ask", "authority_status", "setup_status",
+    # reads public pages and writes a document; commits him to nothing
+    "research",
+    # looking at his own files commits him to nothing
+    "file_read", "file_list",
+    # looking at his own screen commits him to nothing either
+    "computer_observe",
+    # reading what a media file IS changes nothing
+    "media_probe",
+    "email_check", "email_read", "screen_ask", "authority_status", "setup_status",
 })
 
 
@@ -150,7 +271,28 @@ ROUTINE_KINDS = frozenset({
     "task_new", "task_status", "plan_new", "plan_add_step", "plan_step",
     "plan_set", "remind_at", "remind_daily", "notify_operator",
     "notify_clear", "remember", "contact_add", "shopping_add",
+    # reversible by saying the opposite, reaches nobody but him, and its
+    # own default is silence
+    "announce_set",
     "watch_email_from", "handle",
+    # Writing a file in her own workspace is local and REVERSIBLE: every
+    # write keeps the previous version, so an undo always exists. The
+    # boundary that makes this routine rather than world-touching is
+    # aletheia.workspace — she cannot write outside her own directory.
+    "file_write", "file_edit",
+    # Composing is a file_write whose text she writes instead of pastes:
+    # same directory, same version history, same undo. Nothing wider.
+    "compose",
+    # Deleting and moving keep a version FIRST, so both are undoable. A
+    # delete that cannot lose anything is a shelf, not a shredder.
+    "file_delete", "file_move",
+    # Application packets are files and tasks; the one irreversible step in
+    # a job application is deliberately not in this kind at all.
+    "apply_prepare",
+    # Media edits always write a NEW file and never touch the source, so
+    # the worst case is a spare file in her workspace.
+    "media_trim", "media_join", "media_audio", "media_captions",
+    "media_convert",
 })
 
 # Everything else is WORLD-TOUCHING and is never granted away: dispatch and
@@ -185,6 +327,111 @@ def plan_tier(kinds) -> str:
     return TIER_READ
 
 
+class Unavailable(RuntimeError):
+    """The kind is real but this machine cannot do it right now — a tool or
+    backend is missing (no ffmpeg, no pywinauto). Not a refusal: nothing
+    said no; and not an error: nothing broke. Callers report it as such."""
+
+
+def _steps_of(cmd: dict):
+    """computer_do carries a step LIST; a relayed command may carry it as
+    JSON text. Either way it is decoded here, once, before validation."""
+    steps = cmd.get("steps")
+    if isinstance(steps, str):
+        try:
+            steps = json.loads(steps)
+        except json.JSONDecodeError:
+            return None
+    return steps
+
+
+# Kinds the PLANNER is not shown and may not emit.
+#
+# Every one of them is reached by its own direct path in `aletheia.voice`,
+# BEFORE the planner is ever called: "stop everything" and "resume" match
+# their own regexes, and so do "approve" and "deny". So the planner does
+# not need them — and being able to emit them is pure downside, because a
+# compiler that turns English into command names can be led there by a
+# word that merely LOOKS like one.
+#
+# Found by running the sentence, 2026-09-03. "Summarize my resume into
+# three bullets and save it as summary.md" compiled to
+#
+#     [{"kind": "resume"}, {"kind": "file_write", ...}]
+#
+# — a step that LIFTS HER KILL SWITCH, marked EXECUTABLE and validating
+# clean, because the English noun "résumé" and the kind name `resume` are
+# the same six letters. The same door is open on `approve`: a sentence
+# containing "approve" could compile into granting an approval, which is
+# the self-authorization hole every other refusal in this system is built
+# to keep shut.
+#
+# This mirrors `agenda.FORBIDDEN_KINDS` on purpose. An agenda may not run
+# them; the planner may not even name them.
+PLANNER_FORBIDDEN = frozenset({
+    "halt", "resume",      # a kill switch a compiler can trip is decoration
+    "approve", "deny",     # self-authorization, from an ambiguous word
+})
+
+
+# Arguments whose value is a CLOSED SET, and the module that owns it.
+#
+# The grammar the planner is shown is generated from `KIND_ARGS`, which
+# gives argument NAMES and nothing else — so an argument that only accepts
+# four values looked, from the prompt, like free text. It guessed
+# reasonably and wrongly: `remember` with domain "family" (the real ones
+# are identity/preferences/people/organizations) and memory_kind "fact"
+# (the real ones are explicit/inferred/temporary). Both passed
+# `validate_kind_args`, which checked that the ARGUMENT was allowed and
+# never what was in it, so the step was marked EXECUTABLE, approved, and
+# then died at execution with a bare ValueError. "Remember my sister is
+# Mia" — the most ordinary sentence an assistant hears — did nothing.
+#
+# Resolved from the owning module at call time, never copied: a second
+# copy of an enum in a prompt is a copy that disagrees with the validator
+# the day someone adds a value.
+def _enum(module_name: str, attribute: str):
+    def read():
+        import importlib
+        return sorted(getattr(importlib.import_module(module_name), attribute))
+    return read
+
+
+KIND_ENUMS: dict[str, dict[str, object]] = {
+    "remember": {"domain": _enum("aletheia.memory", "DOMAINS"),
+                 "memory_kind": _enum("aletheia.memory", "KINDS")},
+    "task_status": {"state": _enum("aletheia.contracts", "TASK_STATES")},
+    "rule": {"state": _enum("aletheia.suggestions", "VALID_STATES")},
+    "plan_set": {"state": _enum("aletheia.plans", "PLAN_STATES")},
+    "plan_step": {"state": _enum("aletheia.plans", "STEP_STATES")},
+}
+
+
+def allowed_values(kind: str, arg: str) -> list[str] | None:
+    """The closed set for one argument, read from the code that enforces it."""
+    reader = KIND_ENUMS.get(kind, {}).get(arg)
+    if reader is None:
+        return None
+    try:
+        return list(reader())
+    except Exception:
+        return None
+
+
+def _enum_problems(cmd: dict) -> list[str]:
+    out = []
+    for arg, reader in KIND_ENUMS.get(cmd.get("kind"), {}).items():
+        if arg not in cmd:
+            continue
+        allowed = allowed_values(cmd["kind"], arg)
+        if allowed is None:
+            continue
+        if cmd[arg] not in allowed:
+            out.append(f"{cmd['kind']}: {arg}={cmd[arg]!r} is not one of "
+                       f"{allowed}")
+    return out
+
+
 def validate_kind_args(cmd, fleet: dict) -> list[str]:
     """Validate the inner command object (kind + args). Shared with the
     local Core's /api/command — one grammar, every channel."""
@@ -201,6 +448,10 @@ def validate_kind_args(cmd, fleet: dict) -> list[str]:
         problems.append(f"{kind}: missing args {sorted(required - args)}")
     if args - required - optional:
         problems.append(f"{kind}: unexpected args {sorted(args - required - optional)}")
+    # A closed-set argument is checked HERE, where a bad value becomes a
+    # refusal the planner can see and repair, rather than an exception with
+    # an approval already spent on it.
+    problems += _enum_problems(cmd)
     repo = cmd.get("repo")
     if repo is not None and repo != "fleet" and repo not in fleet["repos"]:
         problems.append(f"repo {repo!r} is not 'fleet' or a fleet registry key")
@@ -208,6 +459,23 @@ def validate_kind_args(cmd, fleet: dict) -> list[str]:
     if url is not None and not (isinstance(url, str)
                                 and url.startswith(("http://", "https://"))):
         problems.append(f"{kind}: url must be an http(s) URL")
+    if kind == "computer_do" and "steps" in cmd:
+        # The desktop plan is validated at the grammar gate, not first at
+        # the desktop: a committing control is named here as a refusal the
+        # planner can show, rather than discovered with a window open.
+        from aletheia import computer
+        steps = _steps_of(cmd)
+        if not isinstance(steps, list):
+            problems.append("computer_do: steps must be a JSON list of step objects")
+        else:
+            problems += [f"computer_do: {p}" for p in computer.validate_steps(steps)]
+            if not problems:
+                try:
+                    computer.check_act_plan(steps)
+                except computer.ApprovalRequired as exc:
+                    problems.append(f"computer_do: {exc}")
+    if kind == "do_task" and not str(cmd.get("request") or "").strip():
+        problems.append("do_task: request must be non-empty text")
     return problems
 
 
@@ -291,6 +559,104 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                         source=f"operator via intercom: {quote[:120]}",
                         kind=cmd.get("memory_kind", "explicit"))
         return f"remembered {cmd['domain']}.{cmd['key']}"
+    if kind.startswith("media_"):
+        from aletheia import media
+        ok, why = media.available()
+        if not ok:
+            raise Unavailable(why)
+        if kind == "media_probe":
+            info = media.probe(cmd["source"])
+            return (f"{info['seconds']:.1f}s, {info['bytes']:,} bytes, "
+                    f"video={info['video']}, audio={info['audio']}")
+        if kind == "media_trim":
+            out = media.trim(cmd["source"], cmd["out"], start=cmd.get("start", "0"),
+                             end=cmd.get("end"), duration=cmd.get("duration"))
+        elif kind == "media_join":
+            sources = cmd["sources"]
+            if isinstance(sources, str):
+                sources = [s.strip() for s in sources.split(",") if s.strip()]
+            out = media.join(sources, cmd["out"])
+        elif kind == "media_audio":
+            out = media.extract_audio(cmd["source"], cmd["out"])
+        elif kind == "media_captions":
+            out = media.burn_subtitles(cmd["source"], cmd["subtitles"], cmd["out"])
+        else:
+            height = cmd.get("height")
+            out = media.convert(cmd["source"], cmd["out"],
+                                height=int(height) if height is not None else None)
+        return f"{out['what']} -> {out['path']} ({out['bytes']:,} bytes) — source untouched"
+
+    if kind == "computer_observe":
+        from aletheia import computer
+        ok, why = computer.available()
+        if not ok:
+            raise Unavailable(why)
+        window = cmd.get("window")
+        steps = ([{"action": "inspect_controls", "window": {"title_re": re.escape(window)}}]
+                 if window else [{"action": "list_windows"}])
+        result = computer.observe(steps)
+        found = result["steps"][0]["evidence"]
+        rows = found.get("windows") or found.get("controls") or []
+        names = [r.get("name") for r in rows if r.get("name")]
+        head = (f"{found.get('count', len(rows))} "
+                f"{'controls in ' + repr(window) if window else 'windows'}")
+        return head + (": " + "; ".join(names[:25]) if names else "")
+
+    if kind == "computer_do":
+        from aletheia import computer
+        ok, why = computer.available()
+        if not ok:
+            raise Unavailable(why)
+        steps = _steps_of(cmd)
+        result = computer.act(steps, requested_by=f"intercom: {quote[:80]}" if quote else "intercom")
+        did = ", ".join(str(s.get("action")) for s in steps[:12])
+        return (f"did {result['steps_done']} desktop step(s) [{did}] — run {result['run_id']}"
+                + (f" — {cmd['why'][:120]}" if cmd.get("why") else ""))
+
+    if kind == "apply_prepare":
+        from aletheia import applications
+        out = applications.prepare(
+            cmd["role"], count=int(cmd.get("count", 5)),
+            where=cmd.get("where", ""),
+            resume=cmd.get("resume", "resume.md"))
+        return applications.spoken(out)
+    if kind == "file_delete":
+        from aletheia import workspace
+        out = workspace.remove(cmd["path"], why=cmd.get("why", ""))
+        return (f"deleted {cmd['path']}"
+                + (f" — the previous version is kept as {out['kept']}"
+                   if out.get("kept") else ""))
+    if kind == "file_move":
+        from aletheia import workspace
+        out = workspace.move(cmd["path"], cmd["to"], why=cmd.get("why", ""))
+        return (f"moved {cmd['path']} to {cmd['to']}"
+                + (" — what was there is kept in the version history"
+                   if out.get("replaced") else ""))
+    if kind in ("file_write", "file_edit", "file_read", "file_list"):
+        from aletheia import workspace
+        if kind == "file_write":
+            out = workspace.write(cmd["path"], cmd["text"], why=cmd.get("why", ""))
+            return (f"wrote {out['path']} ({out['chars']:,} chars)"
+                    + ("" if out["created"] else " — previous version kept"))
+        if kind == "file_edit":
+            out = workspace.edit(cmd["path"], cmd["find"], cmd["replace"],
+                                 why=cmd.get("why", ""))
+            return f"edited {out['path']} ({out['replacements']} change)"
+        if kind == "file_read":
+            out = workspace.read(cmd["path"], anywhere=bool(cmd.get("anywhere")))
+            return out["text"][:2000]
+        rows = workspace.listing(cmd.get("subdir", ""))
+        return ", ".join(r["path"] for r in rows[:40]) or "(empty)"
+
+    if kind == "research":
+        from aletheia import research as research_mod
+        report = research_mod.run(cmd["question"])
+        return research_mod.spoken(report)
+
+    if kind == "do_task":
+        from aletheia import script
+        result = script.run(cmd["request"], label=cmd.get("label") or "task")
+        return f"{script.spoken(result)} [program: {result['program']}]"
     if kind == "browse_read":
         from aletheia import browse
         page = browse.read_page(cmd["url"])
@@ -299,6 +665,11 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "email_check":
         from aletheia import mail
         return mail.check_unread()
+    if kind == "email_read":
+        from aletheia import mail
+        message = mail.read_body(cmd["which"])
+        body = " ".join(message["text"].split())[:1500] or "(no readable text)"
+        return f"From {message['from']} — {message['subject']}: {body}"
     if kind == "email_draft":
         from aletheia import mail
         d = mail.draft(cmd["to"], cmd.get("subject", ""), cmd["body"],
@@ -326,7 +697,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         import uuid as _uuid
         sid = "remind-daily-" + _uuid.uuid4().hex[:8]
         scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
-                         kind="daily", timezone=cmd.get("tz", "America/Chicago"),
+                         kind="daily", timezone=cmd.get("tz") or localtime.operator_timezone(),
                          time=cmd["time"])
         return f"daily reminder {sid} set for {cmd['time']} — {cmd['text'][:80]!r}"
     if kind == "notify_operator":
@@ -371,7 +742,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         slug = _re.sub(r"[^a-z0-9]+", "-", cmd["person"].lower()).strip("-")[:30]
         record = scheduling.start(
             f"meet-{slug}-{_dt.date.today().isoformat()}"[:60], cmd["person"],
-            start_day=start, end_day=end, timezone="America/Chicago",
+            start_day=start, end_day=end, timezone=localtime.operator_timezone(),
             duration_minutes=int(cmd.get("minutes", 30)),
             purpose=cmd.get("purpose", ""))
         return scheduling.spoken(record)
@@ -481,6 +852,24 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "authority_status":
         from aletheia import standing
         return standing.spoken()
+    if kind == "compose":
+        from aletheia import compose as composer
+        sources = cmd.get("sources") or []
+        if isinstance(sources, str):
+            sources = [s.strip() for s in sources.split(",") if s.strip()]
+        receipt = composer.compose(cmd["what"], cmd["path"],
+                                   sources=list(sources), why=cmd.get("why", ""))
+        return composer.spoken(receipt)
+    if kind == "announce_set":
+        from aletheia import announce
+        on = cmd["on"]
+        if isinstance(on, str):
+            on = on.strip().lower() in ("true", "yes", "on", "1")
+        announce.set_enabled(bool(on), via="operator-via-intercom")
+        if cmd.get("quiet_from") and cmd.get("quiet_until"):
+            announce.set_quiet_hours(cmd["quiet_from"], cmd["quiet_until"],
+                                     via="operator-via-intercom")
+        return announce.spoken()
     if kind == "notify_clear":
         from aletheia import notifications
         unread = notifications.all_notifications(state="UNREAD")
@@ -490,7 +879,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "free_time":
         import datetime as _dt
         from aletheia import calendar as cal
-        tz = cmd.get("tz", "America/Chicago")
+        tz = cmd.get("tz") or localtime.operator_timezone()
         minutes = int(cmd.get("minutes", 30))
         day = _dt.date.fromisoformat(cmd["day"])
         slots = cal.free_slots(day, duration_minutes=minutes, timezone=tz)
@@ -583,6 +972,9 @@ def run_pending(fleet: dict, request=gh.request, commands_dir: Path | None = Non
                                                    quote=c.get("operator_quote", ""))
             except act.Refused as exc:
                 result["outcome"] = "refused"
+                result["detail"] = str(exc)
+            except Unavailable as exc:
+                result["outcome"] = "unavailable"
                 result["detail"] = str(exc)
             except Exception as exc:
                 result["outcome"] = "error"

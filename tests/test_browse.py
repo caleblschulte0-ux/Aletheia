@@ -78,9 +78,14 @@ class BrowseCase(unittest.TestCase):
             p = mock.patch.object(target, attr, base / attr.lower())
             p.start(); self.addCleanup(p.stop)
 
-    def _approved(self, aid="browse-1"):
-        policy.request(aid, "interact with the test page", "test",
-                       "form is submitted", reversible=True)
+    CLICK = [{"action": "click", "selector": "#go"}]
+
+    def _approved(self, aid="browse-1", steps=None, url=None):
+        """An approval BOUND to exactly this page and plan — what
+        browse.interact has required since the 2026-09-03 fix."""
+        policy.request(aid, browse.approval_action(url or self.url,
+                                                   self.CLICK if steps is None else steps),
+                       "test", "form is submitted", reversible=True)
         policy.decide(aid, "APPROVED", via="test")
         return aid
 
@@ -153,14 +158,13 @@ class TestInteract(BrowseCase):
                             approval_id="anything", profile=self.profile)
 
     def test_approved_interaction_fills_and_submits(self):
-        aid = self._approved()
+        steps = [{"action": "type", "selector": "#q", "value": "aletheia"},
+                 {"action": "select", "selector": "#pick", "value": "b"},
+                 {"action": "click", "selector": "#go"},
+                 {"action": "wait_for", "selector": "h1"}]
+        aid = self._approved(steps=steps)
         result = browse.interact(
-            self.url,
-            [{"action": "type", "selector": "#q", "value": "aletheia"},
-             {"action": "select", "selector": "#pick", "value": "b"},
-             {"action": "click", "selector": "#go"},
-             {"action": "wait_for", "selector": "h1"}],
-            approval_id=aid, profile=self.profile)
+            self.url, steps, approval_id=aid, profile=self.profile)
         self.assertIn("q=aletheia", result["url"])
         self.assertIn("pick=b", result["url"])
         self.assertIn("You made it", result["text"])
@@ -173,6 +177,27 @@ class TestInteract(BrowseCase):
         entry = journal.entries()[-1]
         self.assertEqual(entry["subject"], "browser:interact")
         self.assertIn("browse-3", entry["text"])
+
+    def test_an_approval_for_another_plan_does_not_authorize_this_one(self):
+        """The confused deputy the 2026-09-03 review found: before the fix an
+        approval to click "Next" here authorized "Place order" anywhere."""
+        aid = self._approved("browse-5", steps=[{"action": "click", "selector": "#harmless"}])
+        with self.assertRaises(policy.Halted) as caught:
+            browse.interact(self.url, [{"action": "click", "selector": "#go"}],
+                            approval_id=aid, profile=self.profile)
+        self.assertIn("not bound to this exact page and plan", str(caught.exception))
+
+    def test_the_same_plan_on_another_url_is_refused(self):
+        aid = self._approved("browse-6", url="https://elsewhere.example/")
+        with self.assertRaises(policy.Halted):
+            browse.interact(self.url, self.CLICK, approval_id=aid, profile=self.profile)
+
+    def test_an_unbound_prose_approval_is_refused(self):
+        policy.request("browse-7", "interact with the test page", "t", "c", reversible=True)
+        policy.decide("browse-7", "APPROVED", via="test")
+        with self.assertRaises(policy.Halted):
+            browse.interact(self.url, self.CLICK, approval_id="browse-7",
+                            profile=self.profile)
 
     def test_halt_blocks_even_approved_interaction(self):
         aid = self._approved("browse-4")

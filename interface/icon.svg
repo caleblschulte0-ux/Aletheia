@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Aletheia">
+  <!-- Home-screen icon: the same mark, inset for a maskable crop. -->
+  <!-- THE ALETHEIA MARK.
+       Aletheia is the Greek for unconcealment — truth as something that
+       comes uncovered rather than something asserted. So the A is drawn
+       OPEN at the apex: two strokes that rise toward each other and stop
+       short, with the crossbar sitting under the gap like a held line.
+       It reads as a letter, as an aperture, and as something attending.
+
+       Deliberately not: a glowing orb, a waveform, a circuit trace, a
+       microphone. Those say "AI product". This says her name. -->
+  <rect width="512" height="512" rx="114" fill="#0a0b0e"/>
+  <g transform="translate(256 256) scale(0.78) translate(-256 -256)"
+     fill="none" stroke="#f0ece4" stroke-width="27"
+     stroke-linecap="round" stroke-linejoin="round">
+    <!-- left rise, stopping short of the apex -->
+    <path d="M158 372 L240 176"/>
+    <!-- right rise, mirrored, leaving the gap that gives the mark its name -->
+    <path d="M354 372 L272 176"/>
+    <!-- the held line -->
+    <path d="M196 296 L316 296" stroke="#d8b25f"/>
+  </g>
+</svg>

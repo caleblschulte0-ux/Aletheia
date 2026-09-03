@@ -187,11 +187,17 @@ try {
 
   Write-Host "  Checkout recovered and current main is present." -ForegroundColor Green
 } finally {
-  foreach ($name in $taskNames) {
-    if (Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue) {
-      Start-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
+  if ($env:ALETHEIA_RECOVERY_KEEP_STOPPED -ne "1") {
+    foreach ($name in $taskNames) {
+      if (Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue) {
+        Start-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
+      }
     }
   }
 }
 
-Write-Host "  Aletheia tasks restarted. Future plain pulls are configured to rebase.`n" -ForegroundColor Green
+if ($env:ALETHEIA_RECOVERY_KEEP_STOPPED -eq "1") {
+  Write-Host "  Checkout recovered; tasks remain stopped for the calling repair.`n" -ForegroundColor Green
+} else {
+  Write-Host "  Aletheia tasks restarted. Future plain pulls are configured to rebase.`n" -ForegroundColor Green
+}

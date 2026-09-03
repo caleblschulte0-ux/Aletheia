@@ -245,3 +245,81 @@ class ReachableCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TheThingsTonightActuallyDependsOn(unittest.TestCase):
+    """The checklist checked email, the calendar, the hub, the phone, a
+    local model and a ChatGPT browser session — and did not check the
+    BRAIN, the workspace, the web browser, or whether a reminder can reach
+    his screen. Those four are the chain every ordinary evening runs on."""
+
+    def ids(self):
+        return {step.capability for step in setup.steps()}
+
+    def test_the_brain_is_on_the_list(self):
+        """An expired subscription login does not announce itself: it turns
+        every question into "I could not reach a model" and leaves the rest
+        of the system green."""
+        self.assertIn("reason.infer", self.ids())
+
+    def test_the_brain_is_proved_by_ASKING_it(self):
+        """Presence on PATH is not proof."""
+        from aletheia import reasoner
+        with mock.patch.object(reasoner, "cli_path", return_value="/x/claude"), \
+             mock.patch.object(reasoner, "infer_text", return_value="ready") as asked:
+            state, detail = setup._claude_cli()
+        self.assertEqual(state, setup.OK)
+        asked.assert_called_once()
+
+    def test_a_cli_that_runs_and_says_nothing_is_broken_not_ok(self):
+        from aletheia import reasoner
+        with mock.patch.object(reasoner, "cli_path", return_value="/x/claude"), \
+             mock.patch.object(reasoner, "infer_text", return_value="  "):
+            state, _ = setup._claude_cli()
+        self.assertEqual(state, setup.BROKEN)
+
+    def test_a_missing_cli_is_missing_not_broken(self):
+        from aletheia import reasoner
+        with mock.patch.object(reasoner, "cli_path", return_value=None):
+            state, detail = setup._claude_cli()
+        self.assertEqual(state, setup.MISSING)
+        self.assertIn("PATH", detail)
+
+    def test_the_workspace_is_proved_by_WRITING(self):
+        """Found live 2026-09-02: the default root resolved to this
+        repository, root() refused it, and the first real write failed with
+        everything about the capability reading correct."""
+        self.assertIn("file.author", self.ids())
+        import tempfile
+        from pathlib import Path
+        from aletheia import workspace
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(workspace, "root", return_value=Path(tmp)):
+                state, detail = setup._workspace()
+            self.assertEqual(state, setup.OK)
+            self.assertEqual(list(Path(tmp).iterdir()), [], "the probe is cleaned up")
+
+    def test_an_unwritable_workspace_is_broken(self):
+        """A path under a FILE, not an absent directory: this suite can run
+        as root, where a missing parent is simply created and the probe
+        succeeds — which made the earlier version of this test pass for the
+        wrong reason and then fail once something created the path."""
+        import tempfile
+        from pathlib import Path
+        from aletheia import workspace
+        with tempfile.TemporaryDirectory() as tmp:
+            blocker = Path(tmp) / "a-file"
+            blocker.write_text("not a directory")
+            with mock.patch.object(workspace, "root",
+                                   return_value=blocker / "inside"):
+                state, _ = setup._workspace()
+        self.assertEqual(state, setup.BROKEN)
+
+    def test_the_browser_and_the_toast_are_on_the_list(self):
+        ids = self.ids()
+        self.assertIn("browser.read", ids)
+        self.assertIn("notification.deliver", ids)
+
+
+if __name__ == "__main__":
+    unittest.main()

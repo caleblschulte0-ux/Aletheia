@@ -28,6 +28,9 @@ JOURNAL_PATH = Path(
     or (REPO_ROOT / "state" / "journal" / "journal.jsonl")
 )
 KINDS = {"decision", "event", "alert", "recovery", "action", "brief", "plan", "note", "task"}
+# The in-repo journal directory. A read from HERE also merges the private
+# PC writer; a read from anywhere else is a caller that meant somewhere else.
+REPO_JOURNAL_DIR = REPO_ROOT / "state" / "journal"
 
 # One journal, several writer FILES. The cloud (Actions, CLI) appends to
 # journal.jsonl; the PC Core appends to journal-pc.jsonl. Two machines
@@ -38,15 +41,56 @@ KINDS = {"decision", "event", "alert", "recovery", "action", "brief", "plan", "n
 
 
 def use_pc_journal() -> Path:
-    """Route this PROCESS's appends to the PC writer file (Core/supervisor
-    call this at startup; nothing else should)."""
+    """Route this PROCESS's appends to the PC writer file — which lives in
+    PRIVATE state, not in the repository (2026-09-03).
+
+    The operator: *"is there a reason that that can't live on my personal
+    machine?"* There was not. The repository is public because GitHub Pages
+    needs it to be, and Pages serves the wall, which reads exactly one file:
+    `state/pulse/latest.json`. His journal was never required to be there —
+    it was there because that is where the fleet observatory's journal
+    started, and the personal system grew into the same file.
+
+    What that meant in practice: every action she took on his behalf, in his
+    own words, was committed and pushed to a public repository. `browse_read`
+    excerpts of authenticated pages, recalled memories, subscription and
+    finance totals, inbox metadata — anything a command receipt summarised
+    reached the journal and then GitHub.
+
+    So the PC's journal is now `state/private/journal/journal-pc.jsonl`
+    (gitignored, and the Core no longer commits `state/journal` at all).
+    The in-repo journal remains for the CLOUD writers — Actions runs, pulse,
+    briefs — which are fleet telemetry rather than his life, and `entries()`
+    still reads every writer file as one stream, so nothing that reads the
+    journal notices the difference.
+    """
     global JOURNAL_PATH
-    JOURNAL_PATH = JOURNAL_PATH.with_name("journal-pc.jsonl")
+    from aletheia.stateio import private_dir
+    target = private_dir("journal")
+    target.mkdir(parents=True, exist_ok=True)
+    JOURNAL_PATH = target / "journal-pc.jsonl"
     return JOURNAL_PATH
 
 
 def _writer_files(path: Path) -> list[Path]:
     files = {path} if path.exists() else set()
+    # The PC writer lives in private state now; a reader pointed at the repo
+    # journal must still see it, or `entries()` would silently lose every
+    # local action the moment it moved.
+    #
+    # ONLY for the default repo location. A caller that redirected
+    # JOURNAL_PATH — every test does, and so does isolated tooling — means
+    # exactly where it pointed, and dragging his real private journal into
+    # that read is the cross-contamination `-t .` exists to prevent. It
+    # bit two suites the moment this was written unconditionally.
+    try:
+        if path.parent == REPO_JOURNAL_DIR:
+            from aletheia.stateio import private_dir
+            private = private_dir("journal")
+            if private.is_dir():
+                files.update(f for f in private.glob("journal*.jsonl") if f.is_file())
+    except Exception:
+        pass
     if path.parent.is_dir():
         files |= set(path.parent.glob("journal*.jsonl"))
     return sorted(files)

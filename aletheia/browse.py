@@ -32,6 +32,7 @@ it holds real session cookies).
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -241,17 +242,38 @@ def validate_steps(steps: list[dict]) -> list[str]:
     return problems
 
 
+def plan_digest(url: str, steps: list[dict]) -> str:
+    """sha256 of exactly where and exactly what. Must stay byte-identical to
+    `work_session._digest_browser`, which has produced this shape since the
+    work-session layer landed."""
+    raw = json.dumps({"url": url, "steps": steps}, sort_keys=True,
+                     separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def approval_action(url: str, steps: list[dict]) -> str:
+    """The exact `requested_action` an approval for this plan must carry."""
+    return f"browser.interact:{plan_digest(url, steps)}"
+
+
 def interact(url: str, steps: list[dict], approval_id: str,
              profile: Path | None = None, step_guard=None) -> dict:
-    """ACT on a page — click, type, submit. Requires an APPROVED approval.
+    """ACT on a page — click, type, submit. Requires an approval bound to
+    THIS page and THESE steps.
 
     Separate from read_page on purpose (§61): permission to look at a page is
-    never permission to press its buttons. The approval is checked before the
-    browser opens, and the steps are validated before that.
+    never permission to press its buttons.
+
+    Until 2026-09-03 this checked only that the approval was APPROVED, and a
+    security review found the hole: any approved id authorized any browser
+    action, so an approval issued to click "Next" on one site could be handed
+    to a step list that pressed "Place order" on another. The errand layer did
+    its own hash check and was safe; nothing else was, and a caller that
+    forgets is exactly what a confused-deputy bug is made of. Authorization
+    now lives in the primitive, where it cannot be forgotten (§61, §70).
 
     `step_guard`, when supplied by a stricter caller such as a bounded work
-    session, receives `(page, step)` immediately before each action. The default
-    remains unchanged: ordinary callers still rely on their exact approval.
+    session, receives `(page, step)` immediately before each action.
     """
     problems = validate_steps(steps)
     if problems:
@@ -260,6 +282,14 @@ def interact(url: str, steps: list[dict], approval_id: str,
         raise policy.Halted(
             f"approval {approval_id!r} is not APPROVED — browser interaction acts on "
             "someone else's system and is never self-authorized")
+    try:
+        approval = policy.load(approval_id)
+    except Exception:
+        approval = {}
+    if approval.get("requested_action") != approval_action(url, steps):
+        raise policy.Halted(
+            f"approval {approval_id!r} is not bound to this exact page and plan — "
+            "an approval authorizes one url and one step list, never a substitute")
     _guard("interact with a page")
 
     done = []

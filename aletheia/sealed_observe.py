@@ -55,6 +55,17 @@ class SealedObservationError(RuntimeError):
 
 
 def available() -> tuple[bool, str]:
+    """(usable, reason) — the honest answer to 'can you seal an observation'.
+
+    Catches BaseException on purpose. `cryptography` is a Rust extension:
+    a broken/partial install raises `pyo3_runtime.PanicException`, which
+    derives from BaseException and sails straight through `except
+    Exception`. An availability probe that can itself raise is not a
+    probe — every caller doing the honest-degradation dance would crash
+    instead of degrading, and on the operator's PC that means a sync tick
+    dying rather than reporting "encryption unavailable". Observed in the
+    cloud container 2026-09-01, where the suite failed 6 tests this way.
+    """
     try:
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM  # noqa: F401
         from cryptography.hazmat.primitives.serialization import load_der_public_key  # noqa: F401
@@ -63,6 +74,10 @@ def available() -> tuple[bool, str]:
             "cryptography is not installed "
             "(pip install -r requirements-optional.txt)"
         )
+    except BaseException as exc:  # broken native build, not a missing package
+        return False, (f"cryptography is installed but unusable "
+                       f"({type(exc).__name__}); reinstall it: "
+                       "pip install --force-reinstall cryptography")
     return True, "encrypted observation ready"
 
 

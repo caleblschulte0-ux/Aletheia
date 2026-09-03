@@ -20,6 +20,7 @@ import sys
 from pathlib import Path
 
 from aletheia import journal, policy, stateio
+from aletheia import machine_binding
 
 ACTOR = "aletheia-secret-trust"
 GRANT_PATH = stateio.private_dir("secret-trust") / "grant.json"
@@ -63,9 +64,28 @@ def load() -> dict | None:
     return value if isinstance(value, dict) else None
 
 
+def _binding_fields(grant: dict) -> dict:
+    """Exactly what the machine binding covers — identity, the approval it
+    leans on, expiry, and every limit. Tampering with any of them (or
+    delivering the file from elsewhere) invalidates the signature."""
+    return {
+        "id": grant.get("id"),
+        "approval_id": grant.get("approval_id"),
+        "expires": grant.get("expires"),
+        "max_actions": grant.get("max_actions"),
+    }
+
+
 def active(*, now: dt.datetime | None = None) -> dict | None:
     grant = load()
     if not grant or not grant.get("enabled"):
+        return None
+    # A grant is only valid on the machine that minted it. See
+    # aletheia/machine_binding.py: without this, a grant plus its
+    # (already public) approval could both arrive over git sync.
+    if not machine_binding.verify(grant, _binding_fields(grant)):
+        machine_binding.refuse_unbound(
+            grant, kind="standing secret-fill trust", restore_command="python -m aletheia.secret_trust on")
         return None
     try:
         if _parse_time(grant["expires"]) <= _now(now):
@@ -89,6 +109,13 @@ def enable(*, days: int = DEFAULT_DAYS, max_actions: int = DEFAULT_ACTIONS,
         raise ValueError(f"days must be 1..{MAX_DAYS}")
     if type(max_actions) is not int or not 1 <= max_actions <= MAX_ACTIONS:
         raise ValueError(f"max_actions must be 1..{MAX_ACTIONS}")
+    # HALT is the kill switch, and minting standing authority is the one
+    # thing an installer does that outlives the installer. Three activation
+    # scripts call this unconditionally, so a re-run while halted would have
+    # handed back standing authority the operator had just stopped
+    # (2026-09-01 Windows lifecycle review). Refuse instead: resume first,
+    # deliberately, then enable.
+    policy.ensure_not_halted()
 
     stamp = _now(now)
     grant_id = f"st-{stamp.strftime('%Y%m%d-%H%M')}-{secrets.token_hex(3)}"
@@ -126,6 +153,10 @@ def enable(*, days: int = DEFAULT_DAYS, max_actions: int = DEFAULT_ACTIONS,
             "payment/destructive/revoke/rotate/account-security authority"
         ),
     }
+    # bind to THIS machine before it is written: an identical file
+    # appearing on another machine (or arriving over git) cannot carry a
+    # signature made with this machine's key, so active() refuses it.
+    record["machine_binding"] = machine_binding.sign(_binding_fields(record))
     stateio.write_json_atomic(GRANT_PATH, record)
     journal.append(
         "decision", "secret:trust",

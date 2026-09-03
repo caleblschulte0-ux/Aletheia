@@ -74,6 +74,24 @@ class GitSyncCase(unittest.TestCase):
                              capture_output=True, text=True).stdout
         self.assertIn("operator-scratch.txt", out)
 
+    def test_a_persons_staged_work_is_not_swept_into_a_checkpoint(self):
+        """Observed live 2026-09-02: a session had `git add`ed a day's work
+        and was waiting on the suite; the Core's checkpoint committed the
+        whole index under "core: state checkpoint". Its own paths, and only
+        its own paths, go in the commit — what a person staged stays staged."""
+        (self.pc / "receipt.json").write_text("{}\n")
+        (self.pc / "aletheia_change.py").write_text("print('mine')\n")
+        run(["git", "add", "aletheia_change.py"], self.pc)
+        ok, detail = self.sync.commit(["receipt.json"], "core: state checkpoint")
+        self.assertEqual((ok, detail), (True, "committed"))
+        shown = subprocess.run(["git", "show", "--stat", "--name-only", "HEAD"],
+                               cwd=str(self.pc), capture_output=True, text=True).stdout
+        self.assertIn("receipt.json", shown)
+        self.assertNotIn("aletheia_change.py", shown)
+        staged = subprocess.run(["git", "diff", "--cached", "--name-only"],
+                                cwd=str(self.pc), capture_output=True, text=True).stdout
+        self.assertIn("aletheia_change.py", staged, "still theirs to commit")
+
     def test_nothing_to_commit_is_ok_not_error(self):
         ok, detail = self.sync.commit_push(["seed.txt"], "no-op")
         self.assertTrue(ok)

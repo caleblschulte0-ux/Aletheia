@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#0a0b0e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Thea">
+<link rel="manifest" href="/interface/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/interface/icon.svg">
+<title>Everything · Thea</title>
+<style>
+/* EVERYTHING — the page behind the front door.
+   Only what changes what he should DO. The first pass drifted back toward
+   a dashboard: metric tiles counting things, a raw-ish activity feed, an
+   access token and a heartbeat age sitting in the footer next to HALT.
+   Counting is not deciding. So: what needs him, what she is working on,
+   a short human account of what she has been doing — and everything
+   administrative behind a System sheet. */
+:root{
+  --ink:#0a0b0e; --ink-2:#101217; --line:#1e2027; --line-2:#2b2e36;
+  --warm:#f0ece4; --warm-dim:#9a958c; --warm-faint:#5d5a55;
+  --amber:#d8b25f; --amber-deep:#3a2f14; --alive:#7fc79a; --stop:#e0736d;
+  --safe-t:env(safe-area-inset-top,0px);
+  --safe-b:env(safe-area-inset-bottom,0px);
+  color-scheme:dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--ink);color:var(--warm)}
+body{
+  font:400 16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+  min-height:100dvh;overscroll-behavior-y:none;
+  padding:calc(var(--safe-t) + 12px) 18px calc(var(--safe-b) + 28px);
+  max-width:600px;margin:0 auto;
+}
+button{border:0;background:none;cursor:pointer;font:inherit;color:inherit}
+a{color:inherit;text-decoration:none}
+
+.rail{display:flex;align-items:center;gap:12px;margin-bottom:26px}
+.back{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;
+  color:var(--warm-dim)}
+.back:active{background:var(--ink-2)}
+.back svg{width:19px;height:19px}
+.rail .state{flex:1;font-size:15px;color:var(--warm-dim)}
+.rail .state b{color:var(--warm);font-weight:600}
+.sys{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;
+  color:var(--warm-faint);font-size:17px}
+.sys:active{background:var(--ink-2)}
+
+h2{margin:0 0 12px;font-size:11.5px;font-weight:600;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--warm-faint)}
+section{margin-bottom:30px}
+section[hidden]{display:none!important}
+
+/* Needs you: the reason to be on this page at all. */
+.ask{
+  background:var(--ink-2);border:1px solid var(--amber-deep);
+  border-left:3px solid var(--amber);border-radius:16px;
+  padding:17px 18px;margin-bottom:11px;
+}
+.ask h3{margin:0 0 7px;font-size:16.5px;font-weight:600;line-height:1.35}
+.ask p{margin:0 0 5px;font-size:14px;line-height:1.5;color:var(--warm-dim)}
+.ask .when{font-size:12.5px;color:var(--warm-faint);margin-top:9px}
+.choices{display:flex;gap:10px;margin-top:16px;align-items:center}
+.choices .yes{flex:1;min-height:50px;border-radius:13px;background:var(--warm);
+  color:var(--ink);font-weight:650;font-size:15.5px}
+.choices .yes:active{background:#cdc8bf}
+.choices .later{min-height:50px;padding:0 18px;border-radius:13px;
+  border:1px solid var(--line-2);color:var(--warm-dim);font-size:15px}
+.choices .later:active{background:#181a20}
+.refuse{display:block;margin:12px auto 0;font-size:13px;color:var(--warm-faint);
+  padding:6px 10px}
+.refuse:active{color:var(--stop)}
+
+.note{background:var(--ink-2);border:1px solid var(--line);border-radius:16px;
+  padding:16px 18px;margin-bottom:11px}
+.note h3{margin:0 0 5px;font-size:15.5px;font-weight:550;line-height:1.4}
+.note p{margin:0;font-size:14px;line-height:1.5;color:var(--warm-dim)}
+.note .row{display:flex;align-items:center;justify-content:space-between;
+  gap:12px;margin-top:12px}
+.note .when{font-size:12.5px;color:var(--warm-faint)}
+.note .seen{font-size:13.5px;color:var(--warm-dim);padding:8px 12px;
+  border-radius:10px;border:1px solid var(--line-2)}
+
+.work{background:var(--ink-2);border:1px solid var(--line);border-radius:16px;
+  padding:17px 18px}
+.work h3{margin:0 0 6px;font-size:16px;font-weight:550;line-height:1.4}
+.work p{margin:0;font-size:13.5px;color:var(--warm-dim)}
+.bar{height:4px;border-radius:99px;background:#1a1c22;overflow:hidden;margin-top:14px}
+.bar i{display:block;height:100%;background:var(--amber);border-radius:99px}
+
+.lately{display:flex;flex-direction:column;gap:2px}
+.lately div{display:flex;gap:12px;align-items:baseline;padding:9px 0;
+  border-top:1px solid var(--line)}
+.lately div:first-child{border-top:0}
+.lately em{font-style:normal;font-size:12.5px;color:var(--warm-faint);
+  flex:none;min-width:62px}
+.lately span{flex:1;font-size:14.5px;color:var(--warm-dim);line-height:1.45}
+
+.calm{text-align:center;color:var(--warm-faint);font-size:15px;padding:44px 20px}
+.trouble{text-align:center;color:var(--stop);font-size:14.5px;padding:20px 6px;
+  line-height:1.5}
+
+/* HALT sits alone, below everything, in its own register. It is not
+   another footer button next to Access — it is the thing you reach for
+   when you want it all to stop. */
+.emergency{margin-top:44px;padding-top:26px;border-top:1px solid var(--line)}
+.halt{
+  width:100%;min-height:52px;border-radius:14px;
+  border:1px solid #4a2523;background:#1a1011;color:var(--stop);
+  font-size:15.5px;font-weight:600;letter-spacing:.01em;
+}
+.halt:active{background:#241416}
+.halt.resume{border-color:#22402f;background:#101a15;color:var(--alive)}
+.emergency p{margin:10px 2px 0;font-size:12.5px;color:var(--warm-faint);
+  text-align:center;line-height:1.5}
+
+/* The System sheet: tokens, connection detail, the diagnostics. Present,
+   never in the way. */
+.sheet{position:fixed;inset:0;z-index:30;display:none}
+.sheet[open]{display:block}
+.sheet .veil{position:absolute;inset:0;background:rgba(4,5,7,.72)}
+.sheet .panel{
+  position:absolute;left:0;right:0;bottom:0;background:var(--ink-2);
+  border-top:1px solid var(--line);border-radius:22px 22px 0 0;
+  padding:22px 20px calc(var(--safe-b) + 26px);max-height:82vh;overflow-y:auto;
+}
+.sheet h2{margin-bottom:16px}
+.sheet .item{padding:15px 0;border-top:1px solid var(--line)}
+.sheet .item:first-of-type{border-top:0}
+.sheet .item b{display:block;font-size:14.5px;font-weight:550;margin-bottom:3px}
+.sheet .item span{font-size:13.5px;color:var(--warm-dim);line-height:1.5}
+.sheet .act{margin-top:11px;padding:11px 16px;border-radius:11px;
+  border:1px solid var(--line-2);color:var(--warm);font-size:14.5px}
+.sheet .act:active{background:#181a20}
+.sheet .close{width:100%;margin-top:20px;padding:14px;border-radius:13px;
+  background:var(--warm);color:var(--ink);font-weight:600;font-size:15.5px}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(var(--safe-b) + 26px);z-index:40;
+  background:var(--warm);color:var(--ink);font-size:14.5px;font-weight:600;
+  padding:12px 20px;border-radius:99px;box-shadow:0 10px 34px rgba(0,0,0,.5);
+  opacity:0;pointer-events:none;transition:opacity .18s}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<div class="rail">
+  <a class="back" href="/interface/phone.html" aria-label="Back to Thea">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M15 5l-7 7 7 7"/>
+    </svg>
+  </a>
+  <div id="state" class="state">…</div>
+  <button id="sysBtn" class="sys" aria-label="System">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+         stroke-linecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="2.6"/>
+      <path d="M12 4.2v2M12 17.8v2M4.2 12h2M17.8 12h2M6.5 6.5l1.4 1.4M16.1 16.1l1.4 1.4M17.5 6.5l-1.4 1.4M7.9 16.1l-1.4 1.4"/>
+    </svg>
+  </button>
+</div>
+
+<div id="trouble" class="trouble" hidden></div>
+
+<section id="needsSec" hidden>
+  <h2>Needs you</h2>
+  <div id="needs"></div>
+</section>
+
+<section id="workSec" hidden>
+  <h2>Working on</h2>
+  <div id="work"></div>
+</section>
+
+<section id="latelySec" hidden>
+  <h2>Lately</h2>
+  <div id="lately" class="lately"></div>
+</section>
+
+<div id="calm" class="calm" hidden>Nothing needs you.</div>
+
+<div class="emergency">
+  <button id="haltBtn" class="halt">Stop everything</button>
+  <p id="haltNote">Ends anything running and refuses new work until you resume.</p>
+</div>
+
+<div id="sheet" class="sheet" aria-hidden="true">
+  <div class="veil" id="veil"></div>
+  <div class="panel" role="dialog" aria-label="System">
+    <h2>System</h2>
+    <div class="item">
+      <b>This phone</b>
+      <span id="linkState">…</span>
+      <button id="tokenBtn" class="act">Link this phone</button>
+    </div>
+    <div class="item">
+      <b>Connection</b>
+      <span id="connDetail">…</span>
+    </div>
+    <div class="item">
+      <b>Her workspace</b>
+      <span id="whereShe">…</span>
+    </div>
+    <button id="closeSheet" class="close">Done</button>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+<script src="/interface/thea.js"></script>
+<script src="/interface/console.js"></script>
+</body>
+</html>

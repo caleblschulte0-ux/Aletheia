@@ -29,8 +29,14 @@ class OperatorActivationV2Case(unittest.TestCase):
         self.assertLess(tests, code)
 
     def test_recovery_preserves_local_journal_before_hard_reset(self):
+        import re
         read_local = self.lower.index('get-content $localjournal -raw')
-        reset = self.lower.index('checkout -f -b main origin/main')
+        # the INVOCATION, not the comment above it that explains what the
+        # invocation destroys (added 2026-09-01 with the stop/refuse guards)
+        match = re.search(r"^\s*git .*checkout -f -b main origin/main",
+                          self.lower, re.MULTILINE)
+        self.assertIsNotNone(match, "the hard reset moved or changed shape")
+        reset = match.start()
         append_pc = self.lower.index('appendalltext')
         self.assertLess(read_local, reset)
         self.assertGreater(append_pc, reset)
