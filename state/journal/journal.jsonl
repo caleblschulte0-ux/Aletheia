@@ -336,12 +336,12 @@
 {"ts": "2026-08-27T14:31:49Z", "kind": "decision", "actor": "test", "subject": "approval:ap-buy", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T14:31:49Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-exp", "text": "requested — authorize purchase buy-exp sha256:2ef360e2db590d46037e27e57ad4c960414b2de286372307003115997386e914"}
 {"ts": "2026-08-27T14:31:49Z", "kind": "decision", "actor": "test", "subject": "approval:ap-exp", "text": "APPROVED — operator approved in test"}
-{"ts": "2026-08-27T14:31:50Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
-{"ts": "2026-08-27T14:31:50Z", "kind": "decision", "actor": "test", "subject": "approval:ap-buy", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T14:31:49Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-27T14:31:49Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T14:31:49Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
 {"ts": "2026-08-27T14:31:49Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
+{"ts": "2026-08-27T14:31:50Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
+{"ts": "2026-08-27T14:31:50Z", "kind": "decision", "actor": "test", "subject": "approval:ap-buy", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T14:40:14Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-27T14:40:14Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T14:40:14Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
@@ -633,11 +633,11 @@
 {"ts": "2026-08-27T21:44:22Z", "kind": "decision", "actor": "test", "subject": "approval:ap-exp", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-27T21:44:23Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
 {"ts": "2026-08-27T21:44:23Z", "kind": "decision", "actor": "test", "subject": "approval:ap-buy", "text": "APPROVED — operator approved in test"}
+{"ts": "2026-08-27T22:19:11Z", "kind": "alert", "actor": "aletheia", "subject": "repo:aletheia", "text": "health green -> red"}
+{"ts": "2026-08-27T22:19:12Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue updated — Aletheia, Shorts-pipeline"}
 {"ts": "2026-08-28T15:15:17Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-28T15:15:17Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T15:15:17Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-27T22:19:11Z", "kind": "alert", "actor": "aletheia", "subject": "repo:aletheia", "text": "health green -> red"}
-{"ts": "2026-08-27T22:19:12Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue updated — Aletheia, Shorts-pipeline"}
 {"ts": "2026-08-28T15:15:17Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-28T15:15:17Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T15:15:17Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -668,8 +668,6 @@
 {"ts": "2026-08-28T15:22:10Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-28T15:22:10Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T15:22:10Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-28T15:22:10Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-28T15:22:10Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T15:22:10Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-28T15:22:10Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T15:22:10Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -681,8 +679,6 @@
 {"ts": "2026-08-28T15:49:34Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-28T15:49:34Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T15:49:34Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-28T15:49:34Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-28T15:49:34Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T15:49:34Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-28T15:49:34Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T15:49:34Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -705,8 +701,6 @@
 {"ts": "2026-08-28T16:11:57Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-28T16:11:57Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T16:11:57Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-28T16:11:57Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-28T16:11:57Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T16:11:57Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-28T16:11:57Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T16:11:57Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -718,8 +712,6 @@
 {"ts": "2026-08-28T16:14:39Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-28T16:14:39Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T16:14:39Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-28T16:14:39Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-28T16:14:39Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T16:14:39Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-28T16:14:39Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T16:14:39Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -731,8 +723,6 @@
 {"ts": "2026-08-28T16:20:54Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-28T16:20:54Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T16:20:54Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-28T16:20:54Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-28T16:20:54Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T16:20:54Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-28T16:20:54Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T16:20:54Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -744,7 +734,6 @@
 {"ts": "2026-08-28T16:23:38Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-28T16:23:38Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T16:23:38Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-28T16:23:38Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-28T16:23:39Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T16:23:39Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-28T16:23:39Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
@@ -757,8 +746,6 @@
 {"ts": "2026-08-28T18:48:03Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-28T18:48:03Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T18:48:03Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-28T18:48:03Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-28T18:48:03Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T18:48:03Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-28T18:48:03Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T18:48:03Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -770,8 +757,6 @@
 {"ts": "2026-08-28T18:54:53Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-28T18:54:53Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T18:54:53Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-28T18:54:53Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-28T18:54:53Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T18:54:53Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-28T18:54:53Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-28T18:54:53Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -787,8 +772,6 @@
 {"ts": "2026-08-30T04:56:53Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
 {"ts": "2026-08-30T04:56:53Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-30T04:56:53Z", "kind": "event", "actor": "test", "subject": "policy:halt", "text": "KILL SWITCH ON — test stop"}
-{"ts": "2026-08-30T04:56:53Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-call", "text": "requested — authorize call call-1 sha256:4d2e16042813e34e5419cc7729921199b6fe5ca25997accb5f87230f2ba16a7c"}
-{"ts": "2026-08-30T04:56:53Z", "kind": "decision", "actor": "test", "subject": "approval:ap-call", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-30T04:56:53Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-other", "text": "requested — authorize call other sha256:beef"}
 {"ts": "2026-08-30T04:56:53Z", "kind": "decision", "actor": "test", "subject": "approval:ap-other", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-30T04:56:53Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
@@ -798,7 +781,6 @@
 {"ts": "2026-08-30T04:56:55Z", "kind": "event", "actor": "aletheia", "subject": "approval:ap-buy", "text": "requested — authorize purchase buy-1 sha256:465eb332dd1ea1cd1db60a3fc59b07c061912bdf686505f8997be15dfdb21d2b"}
 {"ts": "2026-08-30T04:56:55Z", "kind": "decision", "actor": "test", "subject": "approval:ap-buy", "text": "APPROVED — operator approved in test"}
 {"ts": "2026-08-30T05:30:07Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:aletheia", "text": "health red -> green"}
-{"ts": "2026-08-30T15:08:08Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-08-30"}
 {"ts": "2026-08-30T13:14:07Z", "kind": "event", "actor": "aletheia", "subject": "approval:wt-20260830-1314-86b7a8-operator", "text": "requested — work.trust:wt-20260830-1314-86b7a8"}
 {"ts": "2026-08-30T13:14:07Z", "kind": "decision", "actor": "operator-local", "subject": "approval:wt-20260830-1314-86b7a8-operator", "text": "APPROVED — operator explicitly enabled standing routine workstation access locally"}
 {"ts": "2026-08-30T13:14:07Z", "kind": "decision", "actor": "aletheia-work-trust", "subject": "work:trust", "text": "ENABLED wt-20260830-1314-86b7a8 until 2026-09-29T13:14:07Z -> 8h/250 action sessions", "refs": ["approval:wt-20260830-1314-86b7a8-operator"]}
@@ -808,6 +790,7 @@
 {"ts": "2026-08-30T13:14:34Z", "kind": "decision", "actor": "aletheia-code-trust", "subject": "code:trust", "text": "CLAIM ct-20260830-1314-cbe85f slot 1 for caleblschulte0-ux/Shorts-pipeline task issue-1", "refs": ["approval:ct-20260830-1314-cbe85f-operator"]}
 {"ts": "2026-08-30T13:45:31Z", "kind": "decision", "actor": "aletheia-code-trust", "subject": "code:trust", "text": "CLAIM ct-20260830-1314-cbe85f slot 2 for caleblschulte0-ux/Aletheia task issue-2", "refs": ["approval:ct-20260830-1314-cbe85f-operator"]}
 {"ts": "2026-08-30T14:15:31Z", "kind": "decision", "actor": "aletheia-code-trust", "subject": "code:trust", "text": "CLAIM ct-20260830-1314-cbe85f slot 3 for caleblschulte0-ux/Aletheia task issue-2", "refs": ["approval:ct-20260830-1314-cbe85f-operator"]}
+{"ts": "2026-08-30T15:08:08Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-08-30"}
 {"ts": "2026-08-30T22:51:51Z", "kind": "event", "actor": "operator-via-intercom", "subject": "policy:halt", "text": "KILL SWITCH ON — Emergency containment: unattended Aletheia reasoning is creating visible ChatGPT browser conversations while the operator is away. Halt until the browser-fallback and false-wake fixes are reviewed and deployed."}
 {"ts": "2026-08-30T22:51:51Z", "kind": "action", "actor": "operator-via-intercom", "subject": "intercom:20260830-halt-chatgpt-leak", "text": "done — KILL SWITCH ON — nothing acts until resume"}
 {"ts": "2026-08-31T14:00:17Z", "kind": "alert", "actor": "aletheia", "subject": "repo:schwab_trader", "text": "health green -> red"}
@@ -829,6 +812,7 @@
 {"ts": "2026-09-02T00:32:01Z", "kind": "task", "actor": "aletheia", "subject": "task:operator-setup", "text": "description corrected — was: Operator: merge, FLEET_TOKEN, Pages, ChatGPT Project, run the Core (docs/SETUP.md)"}
 {"ts": "2026-09-02T00:57:04Z", "kind": "task", "actor": "aletheia", "subject": "task:shorts-daily-authoring-outage", "text": "created — Shorts-pipeline daily.yml + third.yml red since 2026-08-14: nobody authors the day's packages. run_trending_daily refuses with 'validated production manifest is incomplete: found 0/6 packages in state/trending_packages/<date>' — the fail-closed gate working correctly on an upstream authoring outage (the Routine and the ChatGPT takeover are both producing nothing). Zero-upload days have driven the failure counter to 2, its auto-pause threshold. Fix belongs in Shorts-pipeline, on its own branch."}
 {"ts": "2026-09-02T00:57:42Z", "kind": "decision", "actor": "claude-session", "subject": "review:catchup-audit-20260901", "text": "Catch-up audit of the outage-era work (~143 commits since a9ada7c). RATIFIED: the standing-grant design, sealed observation, the code loop's structural refusals, the local-AI critical tier, and PR #70's staging isolation (59 tests, no production reachability). REPAIRED: standing grants are now machine-bound (a grant file plus its already-public approval could both arrive over git sync); the ChatGPT browser lease is dropped at EVERY always-on entry point (the project loop and the voice room run as their own scheduled tasks and inherited it); the code loop gained protection for every authority surface, a pinned base_sha, a genuinely second judge, separation of stranger text from the objective, and a HALT re-check across both model calls; the Windows installers stop the Core before a hard reset and refuse to delete unpushed commits; enable() refuses to mint standing authority while halted; the wall now collects the follow-up answer it promised, and reading an answer no longer consumes it. REGISTRY: 12 live-but-unregistered capabilities added, revision 36. PRs #12/#14/#15/#16/#48/#72/#75/#76 closed with verdicts; #70 design-reviewed and left open as the reference. Suite: 1289 green, 8 honest skips."}
+{"ts": "2026-09-02T14:53:10Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-09-02"}
 {"ts": "2026-09-02T19:15:15Z", "kind": "event", "actor": "aletheia-machine-binding", "subject": "standing code-work trust:refused", "text": "grant ct-20260830-1314-cbe85f refused: no valid machine binding (re-enable locally with `python -m aletheia.code_trust on`)"}
 {"ts": "2026-09-02T19:16:55Z", "kind": "event", "actor": "aletheia-machine-binding", "subject": "standing code-work trust:refused", "text": "grant ct-20260830-1314-cbe85f refused: no valid machine binding (re-enable locally with `python -m aletheia.code_trust on`)"}
 {"ts": "2026-09-02T19:19:28Z", "kind": "event", "actor": "aletheia-machine-binding", "subject": "standing code-work trust:refused", "text": "grant ct-20260830-1314-cbe85f refused: no valid machine binding (re-enable locally with `python -m aletheia.code_trust on`)"}
@@ -981,20 +965,20 @@
 {"ts": "2026-09-03T02:13:10Z", "kind": "event", "actor": "aletheia-ics", "subject": "calendar:refresh", "text": "0 mirrored, 0 stale cancelled, 0 unsupported across 1 feed(s)"}
 {"ts": "2026-09-03T02:13:10Z", "kind": "event", "actor": "aletheia-apply", "subject": "setup:calendar", "text": "secret-ICS feed 'primary' configured; 0 event(s) mirrored"}
 {"ts": "2026-09-03T02:17:20Z", "kind": "event", "actor": "aletheia-ics", "subject": "calendar:refresh", "text": "0 mirrored, 0 stale cancelled, 0 unsupported across 1 feed(s)"}
+{"ts": "2026-09-03T04:38:44Z", "kind": "alert", "actor": "aletheia", "subject": "repo:aletheia", "text": "health green -> red"}
+{"ts": "2026-09-03T04:38:46Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue updated — Aletheia, Shorts-pipeline"}
 {"ts": "2026-09-03T05:33:07Z", "kind": "action", "actor": "aletheia-media", "subject": "media", "text": "trim -> sample_half.mp4 (46,420 bytes)"}
 {"ts": "2026-09-03T05:33:11Z", "kind": "action", "actor": "aletheia-pursue", "subject": "pursue", "text": "Find out how long sample.mp4 in my workspace is, then trim it to just the first half and save that a — DONE, 2/3 step(s) over 2 round(s)"}
 {"ts": "2026-09-03T12:43:29Z", "kind": "event", "actor": "aletheia-mail", "subject": "mail:secret", "text": "the mail app password moved from mail.json into the DPAPI vault"}
 {"ts": "2026-09-03T12:46:53Z", "kind": "alert", "actor": "aletheia-access", "subject": "access", "text": "a local process attempted POST /api/command without the local session secret"}
-{"ts": "2026-09-03T12:46:53Z", "kind": "alert", "actor": "aletheia-access", "subject": "access", "text": "a local process attempted POST /api/command without the local session secret"}
 {"ts": "2026-09-03T12:46:53Z", "kind": "note", "actor": "operator-via-intercom", "subject": "operator", "text": "legitimate"}
 {"ts": "2026-09-03T12:46:53Z", "kind": "action", "actor": "operator-local-core", "subject": "core:note", "text": "done — journaled"}
+{"ts": "2026-09-03T14:50:05Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-09-03"}
 {"ts": "2026-09-03T19:04:18Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume.md (32 bytes)"}
 {"ts": "2026-09-03T19:04:18Z", "kind": "action", "actor": "aletheia-converse", "subject": "converse", "text": "answered a question (62 chars in, 20 out, 1 file(s) read)"}
 {"ts": "2026-09-03T19:04:42Z", "kind": "action", "actor": "aletheia-converse", "subject": "converse", "text": "answered a question (28 chars in, 2 out, 0 file(s) read)"}
 {"ts": "2026-09-03T19:04:42Z", "kind": "action", "actor": "aletheia-converse", "subject": "converse", "text": "answered a question (11 chars in, 2 out, 0 file(s) read)"}
 {"ts": "2026-09-03T19:04:42Z", "kind": "action", "actor": "aletheia-converse", "subject": "converse", "text": "answered a question (35 chars in, 2 out, 0 file(s) read)"}
-{"ts": "2026-09-03T19:18:54Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume.md (41 bytes)"}
-{"ts": "2026-09-03T19:18:54Z", "kind": "action", "actor": "aletheia-converse", "subject": "converse", "text": "answered a question (31 chars in, 27 out, 1 file(s) read)"}
 {"ts": "2026-09-03T19:18:54Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume.md (41 bytes)"}
 {"ts": "2026-09-03T19:18:54Z", "kind": "action", "actor": "aletheia-converse", "subject": "converse", "text": "answered a question (31 chars in, 27 out, 1 file(s) read)"}
 {"ts": "2026-09-03T19:21:49Z", "kind": "decision", "actor": "aletheia-access", "subject": "access", "text": "minted full token tok-79bca43462 for 'iPhone', expires 2027-03-02T19:21:49Z"}
@@ -1040,7 +1024,6 @@
 {"ts": "2026-09-03T22:32:52Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume.pdf (538 bytes)"}
 {"ts": "2026-09-03T22:33:47Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume.pdf (635 bytes)"}
 {"ts": "2026-09-03T22:33:47Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:write", "text": "wrote posting.md (1,570 chars) — the posting as she actually read it [new file]"}
-{"ts": "2026-09-03T22:33:47Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume.pdf (635 bytes)"}
 {"ts": "2026-09-03T22:33:47Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read posting.md (1,572 bytes)"}
 {"ts": "2026-09-03T22:34:42Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:write", "text": "wrote cover-letter.md (615 chars) — cover letter for Senior Media Systems Engineer — Foundry [new file]"}
 {"ts": "2026-09-03T22:34:42Z", "kind": "action", "actor": "aletheia-compose", "subject": "compose", "text": "wrote /tmp/tmpomemnph8/ws/applications/20260903-jobs-example-com-senior-media-systems-enginee-9f00e0/cover-letter.md from 2 source(s) via claude.cli:haiku"}
