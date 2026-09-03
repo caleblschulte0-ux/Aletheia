@@ -387,6 +387,45 @@ def _refresh_calendar(now: dt.datetime) -> list[dict]:
 TICK_BUDGET_S = 25.0
 
 
+# How far ahead a deadline starts being worth saying out loud.
+DUE_SOON_HOURS = 24.0
+
+
+def surface_due_tasks(*, now: dt.datetime | None = None) -> list[dict]:
+    """Nudge once a day, per task, while a deadline is near or past.
+
+    Once a DAY rather than once, because a deadline that spoke once at
+    3 a.m. and never again has not reminded him of anything; and once a day
+    rather than every beat, because a notification every sixty seconds is a
+    notification he turns off. The dedupe key carries HIS local date, so
+    the nudge lands again each morning until the task is done or cancelled
+    — which are the two things that stop it, and both are his to do.
+    """
+    now = now or dt.datetime.now(dt.timezone.utc)
+    try:
+        from aletheia import localtime
+        today = now.astimezone(localtime.operator_tz()).date().isoformat()
+    except Exception:
+        today = now.date().isoformat()
+    out = []
+    for row in tasks.due(now=now, within_hours=DUE_SOON_HOURS):
+        task, when, overdue = row["task"], row["when"], row["overdue"]
+        try:
+            local = when.astimezone(localtime.operator_tz())
+        except Exception:
+            local = when
+        title = ("Overdue: " if overdue else "Due soon: ") + task["description"][:70]
+        body = (("was due " if overdue else "due ")
+                + local.strftime("%a %d %b %H:%M")
+                + f" · task {task['id']}")
+        notifications.publish(
+            title, body, priority="IMPORTANT", source="tasks",
+            dedupe_key=f"task-due:{task['id']}:{today}",
+            related={"task": task["id"]})
+        out.append({"task": task["id"], "overdue": overdue})
+    return out
+
+
 def tick(fleet: dict, *, now: dt.datetime | None = None,
          registry: dict | None = None, request=None,
          budget_s: float = TICK_BUDGET_S) -> dict:
@@ -467,6 +506,11 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # NOWHERE — not on his screen, not audibly, and not on a phone in his
     # pocket that was not polling. Everything upstream was right, which is
     # exactly why nothing caught it.
+    # A deadline he set has to come BACK to him. `tasks.create` stored one
+    # and nothing in the system ever compared it to the clock, so "renew the
+    # registration by Friday" was a sentence in a file — the difference
+    # between a task list and a graveyard.
+    due_tasks = guarded("due", lambda: surface_due_tasks(now=now))
     delivered = guarded("desktop", desktop_notify.deliver_pending)
     return {
         "failures": failures,
@@ -485,5 +529,6 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
         "calendar": calendar_updates,
         "handle_requests": handle_requests,
         "attention": attention_records,
+        "due_tasks": due_tasks,
         "delivered": delivered,
     }

@@ -65,6 +65,55 @@ def all_tasks() -> list[dict]:
     return out
 
 
+def parse_deadline(value) -> "dt.datetime | None":
+    """A deadline as a real instant, or None. Never raises.
+
+    Accepts what a person and a planner actually write: an ISO timestamp
+    with or without an offset, and a bare date (which means the END of that
+    day in HIS timezone — "by Friday" is not "Friday at midnight UTC",
+    which is Thursday evening where he lives).
+    """
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        from aletheia import localtime
+        here = localtime.operator_tz()
+    except Exception:
+        here = dt.timezone.utc
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+        day = dt.date.fromisoformat(text)
+        return dt.datetime.combine(day, dt.time(23, 59), tzinfo=here)
+    try:
+        when = dt.datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return when if when.tzinfo else when.replace(tzinfo=here)
+
+
+def due(*, now: "dt.datetime | None" = None, within_hours: float = 24.0
+        ) -> list[dict]:
+    """Live tasks that are overdue or nearly so.
+
+    A deadline was stored by `create` and READ BY NOTHING — no code in the
+    system compared one to the clock. "Add a task to renew the registration
+    by Friday" was a sentence in a file that would never come back, which
+    is the difference between a task list and a graveyard.
+    """
+    now = now or dt.datetime.now(dt.timezone.utc)
+    soon = now + dt.timedelta(hours=within_hours)
+    out = []
+    for task in all_tasks():
+        if task.get("status") in contracts.TASK_TERMINAL:
+            continue
+        when = parse_deadline(task.get("deadline"))
+        if when is None or when > soon:
+            continue
+        out.append({"task": task, "when": when, "overdue": when < now})
+    out.sort(key=lambda row: row["when"])
+    return out
+
+
 def create(tid: str, description: str, goal: str | None = None,
            dependencies: list[str] | None = None,
            required_capabilities: list[str] | None = None,
@@ -92,6 +141,14 @@ def create(tid: str, description: str, goal: str | None = None,
     if assigned_worker:
         task["assigned_worker"] = assigned_worker
     if deadline:
+        # Validated HERE, where the mistake is. An unparseable deadline was
+        # stored happily and then silently never came due — the failure
+        # showed up as nothing happening, weeks later, with nothing to look
+        # at.
+        if parse_deadline(deadline) is None:
+            raise ValueError(
+                f"deadline {deadline!r} is not a date or timestamp she can "
+                "act on — use 2026-09-12 or 2026-09-12T17:00:00-05:00")
         task["deadline"] = deadline
     save(task)
     journal.append("task", f"task:{tid}", f"created — {description}")

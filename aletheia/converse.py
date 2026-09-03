@@ -451,9 +451,19 @@ def situation() -> dict:
         pass
     try:
         from aletheia import tasks
-        live_tasks = [t["description"] for t in tasks.all_tasks()
-                      if t["status"] not in ("COMPLETED", "CANCELLED",
-                                             "FAILED_TERMINAL")][:6]
+        live_tasks = []
+        for task in tasks.all_tasks():
+            if task["status"] in ("COMPLETED", "CANCELLED", "FAILED_TERMINAL"):
+                continue
+            # WITH its deadline: "what have I got due?" is a different
+            # question from "what am I working on", and without the date
+            # she could only answer the second one.
+            line = task["description"]
+            if task.get("deadline"):
+                line += f" (due {task['deadline']})"
+            live_tasks.append(line)
+            if len(live_tasks) >= 6:
+                break
         if live_tasks:
             facts["open_tasks"] = live_tasks
     except Exception:

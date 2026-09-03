@@ -1,5 +1,5 @@
 {
-  "revision": 60,
+  "revision": 61,
   "providers": [
     {
       "id": "aletheia.local",
@@ -158,7 +158,8 @@
       "approval_policy": "none",
       "caller": "CLI (aletheia.tasks); intercom wiring is the next milestone",
       "verification": "state/tasks/*.json round-trips through contracts.validate_task",
-      "module": "aletheia.tasks"
+      "module": "aletheia.tasks",
+      "notes": "2026-09-03: a deadline is now READ. tasks.create accepted one, stored it, and no code in the system ever compared one to the clock - 'renew the registration by Friday' was a sentence in a file that would never come back, which is the whole difference between a task list and a graveyard. tasks.due() finds what is overdue or within 24h; runtime.surface_due_tasks() nudges once a DAY per task (once, and a 3am notice has reminded him of nothing; every beat, and it is a notification he turns off) via the local date in the dedupe key. A bare date means the END of that day in HIS timezone, because 'by Friday' is not Friday midnight UTC, which is Thursday evening where he lives. An unparseable deadline is now refused at create() - where the mistake is - instead of stored happily and silently never coming due."
     },
     {
       "id": "github.workflow.dispatch",
