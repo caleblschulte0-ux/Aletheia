@@ -72,6 +72,52 @@ def use_pc_journal() -> Path:
     return JOURNAL_PATH
 
 
+# WHICH ENTRIES MAY BE COMMITTED. An allowlist, so a subject nobody
+# thought about goes to the private file — the safe direction.
+#
+# `use_pc_journal` (2026-09-03) already moved the PC Core's appends to
+# private state, and it was right. But it routes by PROCESS, and only
+# three entry points call it: the Core, the supervisor and the voice
+# room. Every `python -m aletheia.webtask`, every `apply_run`, every
+# `profile` command — the ones `docs/SETUP.md` and the capability
+# registry tell him to run — wrote his life into the public journal
+# anyway. That is the same shape as five modules each deciding for
+# themselves whether an approval was approved: a rule one caller applies
+# and another does not is not a rule.
+#
+# So the destination follows the ENTRY. A web task is personal whether it
+# came from the Core or from a terminal.
+PUBLIC_SUBJECTS = frozenset({
+    "fleet", "repo", "sentinel", "plan", "task", "brief", "pulse", "core",
+    "suggestion", "doctor",
+})
+
+
+def is_public_subject(subject: str) -> bool:
+    """Fleet telemetry is the fleet's business. Everything else is his."""
+    return str(subject or "").split(":", 1)[0].strip() in PUBLIC_SUBJECTS
+
+
+def _destination(subject: str, path: Path) -> Path:
+    """Where this entry goes. Personal entries never reach the repository.
+
+    A caller that redirected JOURNAL_PATH means exactly where it pointed
+    — every test does this, and dragging a real private journal into that
+    write is the cross-contamination `-t .` exists to prevent.
+    """
+    if path.parent != REPO_JOURNAL_DIR or is_public_subject(subject):
+        return path
+    try:
+        from aletheia.stateio import private_dir
+        target = private_dir("journal")
+        target.mkdir(parents=True, exist_ok=True)
+        return target / "journal-pc.jsonl"
+    except Exception:
+        # A private store that cannot be written must not silently put his
+        # life in the public one instead.
+        raise
+
+
 def _writer_files(path: Path) -> list[Path]:
     files = {path} if path.exists() else set()
     # The PC writer lives in private state now; a reader pointed at the repo
@@ -121,7 +167,7 @@ def append(kind: str, subject: str, text: str, actor: str = "aletheia",
         entry["redacted"] = hidden
     if refs:
         entry["refs"] = refs
-    path = path or JOURNAL_PATH
+    path = _destination(subject, path or JOURNAL_PATH)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")

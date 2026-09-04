@@ -3,6 +3,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from unittest import mock
+
+from aletheia import pulse as pulse_mod
 from aletheia.fleet import load_fleet
 from aletheia.pulse import briefing, collect, write_pulse
 
@@ -43,6 +46,8 @@ class FakeSource:
 class TestCollect(unittest.TestCase):
     def setUp(self):
         self.fleet = load_fleet()
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
 
     def test_all_healthy_actives_are_green_and_stubs_dormant(self):
         pulse = collect(self.fleet, FakeSource())
@@ -75,12 +80,26 @@ class TestCollect(unittest.TestCase):
 
     def test_vitals_are_evaluated_from_registry_probes(self):
         pulse = collect(self.fleet, FakeSource())
-        vitals = {v["label"]: v for v in pulse["repos"]["schwab_trader"]["vitals"]}
-        self.assertEqual(vitals["open positions"]["value"], 2)
-        self.assertEqual(vitals["realized P&L"]["value"], -40.82)
-        self.assertEqual(vitals["realized P&L"]["unit"], "usd")
         shorts = {v["label"]: v for v in pulse["repos"]["shorts_pipeline"]["vitals"]}
         self.assertEqual(shorts["trending posted"]["value"], 3)
+
+    def test_a_PRIVATE_vital_is_evaluated_but_never_committed(self):
+        """This test used to assert the opposite — that his realized P&L
+        and cash balance were in the collected pulse. They were, and the
+        pulse is committed to a public repository, so ten daily briefs
+        carried his account balance under his name. The probe still runs;
+        the NUMBER goes to private state (2026-09-04, operator's call)."""
+        with mock.patch("aletheia.stateio.private_dir",
+                        lambda name: Path(self.tmp.name) / name):
+            pulse = collect(self.fleet, FakeSource())
+            held = {v["label"]: v for v in
+                    pulse_mod.private_vitals()["schwab_trader"]}
+        self.assertEqual(pulse["repos"]["schwab_trader"]["vitals"], [])
+        self.assertIn("realized P&L", pulse["repos"]["schwab_trader"]["private_vitals"])
+        self.assertNotIn("-40.82", json.dumps(pulse))
+        self.assertEqual(held["realized P&L"]["value"], -40.82)
+        self.assertEqual(held["realized P&L"]["unit"], "usd")
+        self.assertEqual(held["open positions"]["value"], 2)
 
     def test_broken_vital_is_recorded_not_fatal(self):
         class BrokenVitals(FakeSource):

@@ -30,7 +30,7 @@ import sys
 import urllib.error
 from pathlib import Path
 
-from aletheia import gh
+from aletheia import gh, stateio
 from aletheia.fleet import REPO_ROOT, load_fleet
 
 PULSE_DIR = REPO_ROOT / "state" / "pulse"
@@ -146,10 +146,29 @@ def _dig(data, path: str):
     return data
 
 
-def _vitals(repo: dict, source) -> list[dict]:
-    """Evaluate the registry's declared vitals. Each failure is recorded on
-    the vital itself — a broken probe never takes the pulse down."""
-    out = []
+def private_vitals_path() -> Path:
+    """Where the numbers that must not be committed actually live."""
+    return stateio.private_dir("pulse") / "vitals.json"
+
+
+def _vitals(repo: dict, source) -> tuple[list[dict], list[dict]]:
+    """Evaluate the registry's declared vitals, split public from private.
+
+    THE REPOSITORY IS PUBLIC AND HIS ACCOUNT BALANCE IS NOT. Ten daily
+    briefs carried "realized P&L -$40.82 · win rate 14.3% · cash $2.50"
+    under his name, dated, because a vital was a vital and the pulse is
+    committed. A vital marked `private` in the registry is evaluated the
+    same way and kept out of every committed file — the wall reads it
+    from private state on his own machine, where it belongs.
+
+    Which vitals are private is a REGISTRY decision. A collector that
+    hardcodes "the trading repo is the sensitive one" is wrong the day he
+    adds a second one.
+
+    Each failure is recorded on the vital itself — a broken probe never
+    takes the pulse down.
+    """
+    out, held = [], []
     gh, branch = repo["github"], repo["default_branch"]
     cache: dict[str, object] = {}
     for vital in repo.get("vitals", []):
@@ -165,8 +184,8 @@ def _vitals(repo: dict, source) -> list[dict]:
             entry["value"] = len(node) if vital["probe"] == "count" else node
         except Exception as exc:
             entry["error"] = f"{type(exc).__name__}: {exc}"
-        out.append(entry)
-    return out
+        (held if vital.get("private") else out).append(entry)
+    return out, held
 
 
 def _health(record: dict, status: str) -> str:
@@ -198,6 +217,7 @@ def collect(fleet: dict, source) -> dict:
         "source": type(source).__name__,
         "repos": {},
     }
+    private: dict = {}
     for rid, repo in fleet["repos"].items():
         record: dict = {
             "github": repo["github"],
@@ -212,7 +232,13 @@ def collect(fleet: dict, source) -> dict:
         except Exception as exc:  # a dead repo is a finding, not a crash
             record["error"] = f"{type(exc).__name__}: {exc}"
         if "error" not in record:
-            record["vitals"] = _vitals(repo, source)
+            record["vitals"], held = _vitals(repo, source)
+            if held:
+                # Named but never valued: the wall can honestly say "3
+                # figures, on your screen only" instead of pretending the
+                # repo has nothing to report.
+                record["private_vitals"] = [v["label"] for v in held]
+                private[rid] = held
             record["workflows"] = {}
             for wf in repo["watch"]["workflows"]:
                 try:
@@ -227,7 +253,26 @@ def collect(fleet: dict, source) -> dict:
                     record["state_files"][sf] = {"error": f"{type(exc).__name__}: {exc}"}
         record["health"] = _health(record, repo["status"])
         pulse["repos"][rid] = record
+    # The numbers go somewhere gitignored, on whichever machine collected
+    # them. Best effort: a private store that cannot be written must never
+    # stop the pulse, and the committed file is already safe either way.
+    if private:
+        try:
+            path = private_vitals_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            stateio.write_json_atomic(
+                path, {"generated_at": pulse["generated_at"], "repos": private})
+        except Exception:
+            pass
     return pulse
+
+
+def private_vitals() -> dict:
+    """The held-back numbers, for the wall on his own machine."""
+    try:
+        return stateio.read_json(private_vitals_path()).get("repos", {})
+    except Exception:
+        return {}
 
 
 def write_local_block(block: dict, path=None) -> dict:
