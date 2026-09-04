@@ -678,5 +678,41 @@ class TwoQuestionsAtOnceLoseNothing(ConverseCase):
         self.assertEqual(len(turns), 8, "a lost race is a lost exchange")
 
 
+class AFileOnHisDESKTOP(unittest.TestCase):
+    """"the PDF on my desktop called lease.pdf" resolved to `~/lease.pdf`,
+    which is nowhere, and came back as "there is no such file" about a
+    file that was sitting on his desktop. Nobody keeps anything in the
+    root of their home folder."""
+
+    def setUp(self):
+        self.home = tempfile.TemporaryDirectory()
+        self.addCleanup(self.home.cleanup)
+        patch = mock.patch.object(converse.Path, "home",
+                                  staticmethod(lambda: Path(self.home.name)))
+        patch.start(); self.addCleanup(patch.stop)
+
+    def put(self, where, name="lease.md", text="Rent is 1450 a month."):
+        target = Path(self.home.name) / where / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text)
+        return target
+
+    def test_the_places_a_person_actually_keeps_a_file(self):
+        for where in ("Desktop", "Documents", "Downloads",
+                      "OneDrive/Desktop", "OneDrive/Documents"):
+            with self.subTest(where=where):
+                target = self.put(where)
+                try:
+                    got = converse._open_named("lease.md")
+                    self.assertEqual(Path(got["path"]), target)
+                finally:
+                    target.unlink()
+
+    def test_a_file_that_is_nowhere_still_says_so_plainly(self):
+        with self.assertRaises(FileNotFoundError) as caught:
+            converse._open_named("nothing-here.md")
+        self.assertIn("no such file", str(caught.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

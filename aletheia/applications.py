@@ -75,7 +75,26 @@ HIRING_WORDS = ("responsibilities", "qualifications", "requirements",
 # should not have to know a path to use his own document.
 RESUME_NAMES = ("resume", "cv", "curriculum-vitae", "curriculum_vitae")
 RESUME_SUFFIXES = (".pdf", ".docx", ".md", ".txt", ".rtf")
-RESUME_PLACES = ("", "Documents", "Downloads", "Desktop", "Documents/Aletheia")
+# OneDrive is in here because on a normal Windows setup Desktop and
+# Documents ARE the OneDrive ones — `~/Desktop` does not exist at all.
+RESUME_PLACES = ("", "Documents", "Downloads", "Desktop", "Documents/Aletheia",
+                 "OneDrive/Documents", "OneDrive/Downloads", "OneDrive/Desktop",
+                 "OneDrive - Personal/Documents", "OneDrive/Documents/Aletheia")
+
+
+def looks_like_a_resume(name: str) -> bool:
+    """Nobody names it `resume.pdf`.
+
+    His is "Caleb Schulte Resume.pdf" and the exact-name search walked
+    right past it, then said she had looked in Downloads — true, and
+    useless. Matched on WORDS so that "cv" does not catch every file with
+    those two letters in it.
+    """
+    stem, _, suffix = name.rpartition(".")
+    if not stem or f".{suffix.casefold()}" not in RESUME_SUFFIXES:
+        return False
+    words = [w for w in re.split(r"[^a-z0-9]+", stem.casefold()) if w]
+    return bool({"resume", "resumé", "cv"} & set(words)) or "curriculum" in words
 
 
 def find_resume(named: str = "") -> str:
@@ -104,10 +123,30 @@ def find_resume(named: str = "") -> str:
                     seen.append(candidate)
                     if candidate.is_file():
                         return str(candidate)
+    # Then by what it LOOKS like: newest first, because the one he last
+    # touched is the one he means.
+    found = []
+    for place in RESUME_PLACES:
+        for base in (workspace.root(), _Path.home()):
+            folder = base / place if place else base
+            try:
+                entries = list(folder.iterdir())
+            except Exception:
+                continue
+            for entry in entries:
+                if entry.is_file() and looks_like_a_resume(entry.name):
+                    try:
+                        found.append((entry.stat().st_mtime, str(entry)))
+                    except Exception:
+                        continue
+    if found:
+        return max(found)[1]
     raise ApplicationError(
-        "she could not find your resume. She looked for resume/cv as .pdf, "
-        ".docx, .md or .txt in her workspace, your home folder, Documents, "
-        "Downloads and Desktop. Say `apply ... --resume <path>` or drop a "
+        "she could not find your resume. She looked for anything with "
+        "'resume' or 'cv' in its name as .pdf, "
+        ".docx, .md, .txt or .rtf in her workspace, your home folder, "
+        "Documents, Downloads, Desktop and their OneDrive twins. Say "
+        "`apply ... --resume <path>` or drop a "
         "copy in " + str(workspace.root()) + ".")
 
 

@@ -139,6 +139,22 @@ class TwoSurfaces(unittest.TestCase):
         self.assertIn('"approve"', read("console.js"))
         self.assertNotIn('"approve"', read("talk.js"))
 
+    def test_an_approval_asks_in_WORDS_and_not_in_a_hash(self):
+        """`requested_action` is a digest for anything content-bound —
+        "browser.interact:9f3c…", "email.send:1a7b…" — and a phone that
+        asks you to approve a hash is asking you to guess. The words are
+        in `reason`; the digest stays, small, because it is the thing he
+        is actually approving."""
+        console = read("console.js")
+        head = console[console.index('<div class="ask">'):]
+        head = head[:head.index("choices")]
+        self.assertIn("a.reason || a.requested_action", head,
+                      "the heading must prefer the sentence")
+        self.assertIn('class="what"', head,
+                      "the digest is still shown, as small print")
+        self.assertIn(".ask p.what{", read("console.html"),
+                      "and it must be styled as small print, not a heading")
+
     def test_transport_lives_in_one_place_so_they_cannot_drift(self):
         shared = read("thea.js")
         self.assertIn("Bearer", shared)

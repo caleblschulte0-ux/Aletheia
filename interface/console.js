@@ -74,10 +74,14 @@
     const html = [];
     for (const a of approvals) {
       if (deferred.has(a.id)) continue;
+      // WHAT he is being asked, in words. `requested_action` is a digest
+      // for anything content-bound — "browser.interact:9f3c..." — and a
+      // phone that asks you to approve a hash is asking you to guess.
+      // The digest stays, small, because it is what he is approving.
       html.push(
         '<div class="ask">' +
-          "<h3>" + T.esc(a.requested_action || a.id) + "</h3>" +
-          (a.reason ? "<p>" + T.esc(a.reason) + "</p>" : "") +
+          "<h3>" + T.esc(a.reason || a.requested_action || a.id) + "</h3>" +
+          (a.reason ? '<p class="what">' + T.esc(a.requested_action || "") + "</p>" : "") +
           (a.consequence ? "<p>" + T.esc(a.consequence) + "</p>" : "") +
           '<div class="choices">' +
             '<button class="yes" data-approve="' + T.esc(a.id) + '">Approve</button>' +

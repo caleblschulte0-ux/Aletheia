@@ -788,6 +788,27 @@ class WhatHeSaidYesToIsTheROUTE(WebTaskCase):
             webtask.commit(out["id"], presser=lambda r: {})
         self.assertIn("already been used", str(caught.exception))
 
+    def test_two_different_goals_are_two_different_runs(self):
+        """The slug alone collided: the same sentence ending in Stripe and
+        ending in Databricks share their first 28 characters, so the second
+        run overwrote the first one's record and left a pending approval
+        pointing at a route that no longer existed."""
+        one = self.go(self.form("Submit application"),
+                      "Apply for the senior systems engineer job at Stripe",
+                      '{"action": "click", "selector": "#go"}')
+        two = self.go(self.form("Submit application"),
+                      "Apply for the senior systems engineer job at Databricks",
+                      '{"action": "click", "selector": "#go"}')
+        self.assertNotEqual(one["id"], two["id"])
+        self.assertEqual(webtask.load_run(one["id"])["goal"], one["goal"])
+
+    def test_the_same_goal_on_the_same_page_is_the_same_run(self):
+        one = self.go(self.form("Submit application"), "Apply for me",
+                      '{"action": "click", "selector": "#go"}')
+        two = self.go(self.form("Submit application"), "Apply for me",
+                      '{"action": "click", "selector": "#go"}')
+        self.assertEqual(one["id"], two["id"])
+
     def test_navigation_is_part_of_the_route(self):
         """Without the goto in it, the press replays onto the page he was
         given rather than the one she navigated to."""
@@ -804,6 +825,66 @@ class WhatHeSaidYesToIsTheROUTE(WebTaskCase):
         self.assertIn({"action": "goto", "selector": "",
                        "value": "https://x.example/real"}, out["typed"])
         self.assertEqual(out["replay_from"], "https://x.example/form")
+
+
+class HeTapsApproveAndSomethingActuallyHAPPENS(WebTaskCase):
+    """The whole capability used to end in a question nobody could answer.
+
+    She drives the site, stops at the button, says *"confirm it and I will
+    press it"* — and the only thing on earth that could press it was
+    `python -m aletheia.webtask commit` typed at a terminal. He taps
+    Approve on his phone and nothing happens, forever. That is the exact
+    shape of defect this repo calls building a capability and leaving it
+    unwired, hiding inside a feature that otherwise works.
+    """
+
+    def waiting(self):
+        page = FakePage([field("#fn", "First name *", required=True)],
+                        [{"selector": "#go", "text": "Submit application"}])
+        return self.go(page, "Apply for me",
+                       '{"action": "click", "selector": "#go"}')
+
+    def test_an_unapproved_run_is_left_alone_by_the_beat(self):
+        from aletheia import runtime
+        out = self.waiting()
+        with mock.patch.object(webtask, "_press") as press:
+            self.assertEqual(runtime.press_approved_web_tasks(), [])
+        press.assert_not_called()
+        self.assertEqual(policy.load(out["approval"])["state"], "PENDING")
+
+    def test_approving_it_presses_it_on_the_next_beat(self):
+        from aletheia import notifications, runtime
+        out = self.waiting()
+        policy.decide(out["approval"], "APPROVED", via="phone")
+        with mock.patch.object(webtask, "_press",
+                               return_value={"url": "https://x.example/done",
+                                             "evidence": "Thank you"}):
+            pressed = runtime.press_approved_web_tasks()
+        self.assertEqual([p["web_task"] for p in pressed], [out["id"]])
+        self.assertEqual(webtask.load_run(out["id"])["state"], "COMMITTED")
+        self.assertTrue(any("Pressed" in n["title"]
+                            for n in notifications.all_notifications()))
+
+    def test_it_is_pressed_once_however_many_beats_run(self):
+        from aletheia import runtime
+        out = self.waiting()
+        policy.decide(out["approval"], "APPROVED", via="phone")
+        with mock.patch.object(webtask, "_press",
+                               return_value={"url": "x"}) as press:
+            for _ in range(4):
+                runtime.press_approved_web_tasks()
+        self.assertEqual(press.call_count, 1)
+
+    def test_a_failure_tells_him_rather_than_retrying(self):
+        from aletheia import notifications, runtime
+        out = self.waiting()
+        policy.decide(out["approval"], "APPROVED", via="phone")
+        with mock.patch.object(webtask, "_press",
+                               side_effect=RuntimeError("the page went away")):
+            self.assertEqual(runtime.press_approved_web_tasks(), [])
+        self.assertIn("I could not press it",
+                      [n["title"] for n in notifications.all_notifications()])
+        self.assertEqual(webtask.load_run(out["id"])["state"], "FAILED")
 
 
 class HeCanJustSayIt(unittest.TestCase):

@@ -293,6 +293,11 @@ _LOOK = re.compile(
     r"\b(read|reads?|reading|look|looks?|looking|open|opens?|check|checks?|"
     r"review|reviews?|summari[sz]e|attached?|attach|go through|"
     r"in my|from my|my file)\b", re.I)
+# The folders a person means when they say "on my computer" and do not
+# give a path. Order matters only for which refusal he hears first.
+HOME_PLACES = ("", "Desktop", "Documents", "Downloads",
+               "OneDrive/Desktop", "OneDrive/Documents", "OneDrive/Downloads")
+
 _QUOTED = re.compile(r"[\"'`]([^\"'`\n]{1,200})[\"'`]")
 _BARE = re.compile(r"[~A-Za-z0-9_.\-/\\:]{2,200}")
 _TRAILING = "\"'`,;:!?)]}>"
@@ -325,8 +330,15 @@ def _open_named(token: str) -> dict:
     tries = [lambda: workspace.read(token),
              lambda: workspace.read(token, anywhere=True)]
     if not rooted:
-        tries.append(lambda: workspace.read(str(Path.home() / normalized),
-                                            anywhere=True))
+        # Where a person actually keeps a file. "the PDF on my desktop
+        # called lease.pdf" resolved to `~/lease.pdf`, which is nowhere,
+        # and came back as "there is no such file" about a file that was
+        # sitting on his desktop. OneDrive is in here because on his PC
+        # Desktop and Documents are redirected into it.
+        for place in HOME_PLACES:
+            where = Path.home() / place / normalized if place else \
+                Path.home() / normalized
+            tries.append(lambda w=where: workspace.read(str(w), anywhere=True))
     # A MISS and a REFUSAL are different answers and he needs the second one
     # verbatim: "there is no such file" versus "it is 4 MB" or "it is not
     # UTF-8". Reporting the last attempt's error blindly named a path he

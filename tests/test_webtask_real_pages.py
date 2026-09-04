@@ -1,0 +1,301 @@
+"""What a real page does to her — against real Chromium, on loopback.
+
+Everything else in `test_webtask` is a double, and a double agrees with
+whatever I believed when I wrote it. Every failure in this file was found
+by pointing her at a page instead of reasoning about one:
+
+- a form inside an `<iframe>` (what Greenhouse and Lever actually ship)
+- "Apply" as a link that opens a NEW TAB
+- an application spread over three PAGES
+- a form made of DIVS: a typeahead combobox and a custom radio group,
+  where nothing has an id and nothing is a `<select>`
+
+Hermetic: a fixture site on loopback, no network. Browser control is
+optional, so these SKIP where playwright is absent rather than failing
+the suite — the bootstrap gates starting the Core on this suite.
+"""
+import http.server
+import json
+import os
+import tempfile
+import threading
+import unittest
+from pathlib import Path
+from unittest import mock
+
+from aletheia import browse, journal, policy, profile, webtask
+
+BROWSER_OK, BROWSER_WHY = browse.available()
+needs_browser = unittest.skipUnless(BROWSER_OK, f"browser control absent: {BROWSER_WHY}")
+
+EMBED = """<form method="POST" action="/submit">
+<label for="fn">First name *</label><input id="fn" name="first_name" required>
+<label for="em">Email *</label><input id="em" name="email" type="email" required>
+<label for="why">Why do you want this job? *</label>
+<textarea id="why" name="why" required></textarea>
+<button type="submit">Submit application</button></form>"""
+
+WIDGET = """<form method="POST" action="/submit">
+<label for="fn">First name *</label><input id="fn" name="first_name" required>
+<div><span>Location *</span>
+  <input class="ta" name="location" role="combobox" aria-expanded="false"
+         aria-label="Location" autocomplete="off">
+  <ul role="listbox" hidden><li role="option">Austin, TX</li>
+      <li role="option">Boston, MA</li></ul></div>
+<div><span id="wa">Are you legally authorized to work in the US? *</span>
+  <div role="radiogroup" aria-labelledby="wa">
+    <div role="radio" aria-checked="false">Yes</div>
+    <div role="radio" aria-checked="false">No</div></div></div>
+<div><span id="vet">Are you a protected veteran?</span>
+  <div role="radiogroup" aria-labelledby="vet">
+    <div role="radio" aria-checked="false">I am not</div>
+    <div role="radio" aria-checked="false">I am</div></div></div>
+<input type="hidden" name="location_value"><input type="hidden" name="work_auth">
+<button type="submit">Submit application</button></form>
+<script>
+const box=document.querySelector('.ta'),list=document.querySelector('[role=listbox]');
+const hid=document.querySelector('[name=location_value]');
+box.addEventListener('input',()=>{list.hidden=false;
+  for(const li of list.children) li.hidden=!li.innerText.toLowerCase()
+      .includes(box.value.toLowerCase());});
+for(const li of list.children) li.addEventListener('click',()=>{
+  box.value=li.innerText;hid.value=li.innerText;list.hidden=true;});
+for(const r of document.querySelectorAll('[role=radio]')) r.addEventListener('click',()=>{
+  const g=r.closest('[role=radiogroup]');
+  for(const o of g.querySelectorAll('[role=radio]')) o.setAttribute('aria-checked','false');
+  r.setAttribute('aria-checked','true');
+  if(g.getAttribute('aria-labelledby')==='wa')
+    document.querySelector('[name=work_auth]').value=r.innerText;});
+document.querySelector('form').addEventListener('submit',(e)=>{
+  if(!hid.value||!document.querySelector('[name=work_auth]').value) e.preventDefault();});
+</script>"""
+
+W1 = """<form method="POST" action="/w2">
+<label for="fn">First name *</label><input id="fn" name="first_name" required>
+<button type="submit">Next</button></form>"""
+W2 = """<form method="POST" action="/w3">
+<label for="ct">City</label><input id="ct" name="city">
+<button type="submit">Continue</button></form>"""
+W3 = """<form method="POST" action="/submit">
+<label for="why">Anything else? *</label><textarea id="why" name="why" required></textarea>
+<button type="submit">Submit application</button></form>"""
+
+PORTAL = """<form method="POST" action="/session">
+<label for="u">Email</label><input id="u" name="username">
+<label for="p">Password</label><input id="p" name="password" type="password">
+<button type="submit">Sign in</button></form>"""
+
+
+def _site(base: str, got: dict):
+    pages = {"/apply": f'<h1>Job</h1><iframe src="{base}/embed"></iframe>',
+             "/embed": EMBED, "/widget": WIDGET, "/portal": PORTAL,
+             "/": f'<h1>Careers</h1><a href="{base}/apply" target="_blank" '
+                  'rel="noopener">Apply for this job</a>',
+             "/w1": W1, "/w2": W2, "/w3": W3}
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def _send(self, body):
+            raw = body.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+
+        def do_GET(self):
+            self._send(pages.get(self.path, "<h1>404</h1>"))
+
+        def do_POST(self):
+            import urllib.parse
+            size = int(self.headers.get("Content-Length", "0"))
+            form = urllib.parse.parse_qs(self.rfile.read(size).decode())
+            got.update({k: v[0] for k, v in form.items()})
+            got["_last_post"] = self.path
+            self._send({"/w2": W2, "/w3": W3}.get(
+                self.path, "<h1>Thank you</h1><p>Received.</p>"))
+    return H
+
+
+def by_text(page: dict, want: str, kind="buttons"):
+    pools = [kind] if kind != "buttons" else ["buttons", "links"]
+    for pool in pools:
+        for row in page.get(pool) or []:
+            if want.casefold() in (row.get("text") or row.get("label") or "").casefold():
+                if row.get("selector"):
+                    return row
+    return None
+
+
+def script(*steps):
+    """A stand-in for the model that picks by TEXT.
+
+    It is handed exactly what the model is handed, so what it can reach is
+    what she can SEE — not a selector I copied out of the fixture and
+    quietly kept working.
+    """
+    todo = list(steps)
+
+    def think(system, prompt, **kw):
+        page = json.loads(prompt)["page"]
+        if not todo:
+            return '{"action": "done", "value": "finished"}'
+        want = todo[0]
+        if want[0] == "type":
+            row = by_text(page, want[1], "fields")
+            if row is None:
+                return '{"action": "ask", "value": "no field %s"}' % want[1]
+            todo.pop(0)
+            return json.dumps({"action": "type", "selector": row["selector"],
+                               "value": want[2]})
+        row = by_text(page, want[1])
+        if row is None:
+            return '{"action": "ask", "value": "no control %s"}' % want[1]
+        todo.pop(0)
+        return json.dumps({"action": "click", "selector": row["selector"]})
+    return think
+
+
+class RealPageCase(unittest.TestCase):
+    def setUp(self):
+        self.got: dict = {}
+        self.server = http.server.HTTPServer(("127.0.0.1", 0), lambda *a: None)
+        self.server.server_close()
+        port = self.server.server_address[1]
+        self.base = f"http://127.0.0.1:{port}"
+        self.server = http.server.HTTPServer(
+            ("127.0.0.1", port), _site(self.base, self.got))
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.addCleanup(self.server.shutdown)
+
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        d = Path(self.tmp.name)
+        (d / "approvals").mkdir()
+        (d / "webtasks").mkdir()
+        env = mock.patch.dict(os.environ, {"ALETHEIA_PRIVATE_STATE": str(d),
+                                           "ALETHEIA_WORKSPACE": str(d / "ws")})
+        env.start(); self.addCleanup(env.stop)
+        (d / "ws").mkdir()
+        for target, attr, value in (
+                (journal, "JOURNAL_PATH", d / "j.jsonl"),
+                (policy, "APPROVALS_DIR", d / "approvals"),
+                (policy, "HALT_PATH", d / "halt.json"),
+                (profile, "path", lambda: d / "answers.json"),
+                (webtask, "runs_dir", lambda: d / "webtasks"),
+                (browse, "PROFILE_DIR", d / "browser")):
+            patch = mock.patch.object(target, attr, value)
+            patch.start(); self.addCleanup(patch.stop)
+        profile.learn_from_resume(
+            "Caleb Schulte\nAustin, TX\ncaleb@example.com | (512) 555-0134")
+
+    def drive(self, path, goal, *steps, budget=10):
+        return webtask.run(goal, start_url=self.base + path, budget=budget,
+                           think=script(*steps))
+
+    def press(self, record):
+        policy.decide(record["approval"], "APPROVED", via="phone")
+        return webtask.commit(record["id"])
+
+
+@needs_browser
+class AnEmbeddedFormIsReachedAndSubmitted(RealPageCase):
+    """Greenhouse and Lever ship the application as an `<iframe>`, and
+    "Apply" is a link that opens a new tab. Before this she stood on the
+    careers page and said "I don't see any form fields"."""
+
+    def test_careers_page_to_new_tab_to_iframe_to_a_received_application(self):
+        out = self.drive(
+            "/", "Apply for this job with my details. For why I want the job "
+                 "say: I build unattended systems with quality gates.",
+            ("click", "Apply for this job"),
+            ("type", "Why do you want this job", "I build unattended systems "
+                                                 "with quality gates."),
+            ("click", "Submit application"))
+        self.assertEqual(out["state"], webtask.COMMIT, out.get("say"))
+        self.assertTrue(out["button_selector"].startswith("@frame"),
+                        f"the button is inside the frame: {out['button_selector']}")
+        self.assertIn({"action": "new_tab", "selector": ""}, out["typed"])
+        self.press(out)
+        self.assertEqual(self.got.get("_last_post"), "/submit")
+        self.assertEqual(self.got.get("first_name"), "Caleb")
+        self.assertEqual(self.got.get("email"), "caleb@example.com")
+        self.assertEqual(self.got.get("why"),
+                         "I build unattended systems with quality gates.")
+
+
+@needs_browser
+class AThreePageApplicationArrivesWHOLE(RealPageCase):
+    """The press replays the ROUTE. Re-opening the last page instead left
+    two thirds of an application on the server and no way to finish it."""
+
+    def test_every_page_reaches_the_server(self):
+        out = self.drive(
+            "/w1", "Complete this application. For anything else say: I build "
+                   "unattended systems with quality gates.",
+            ("click", "Next"), ("click", "Continue"),
+            ("type", "Anything else", "I build unattended systems with quality gates."),
+            ("click", "Submit application"))
+        self.assertEqual(out["state"], webtask.COMMIT, out.get("say"))
+        self.assertEqual(out["replay_from"], self.base + "/w1")
+        self.press(out)
+        self.assertEqual(self.got.get("_last_post"), "/submit")
+        self.assertEqual(self.got.get("first_name"), "Caleb")
+        self.assertEqual(self.got.get("city"), "Austin")
+        self.assertEqual(self.got.get("why"),
+                         "I build unattended systems with quality gates.")
+
+
+@needs_browser
+class AFormMadeOfDIVS(RealPageCase):
+    """A typeahead and a custom radio group: nothing has an id, nothing is
+    a `<select>`, and the values the form actually posts are hidden inputs
+    the widgets set. She could see the box to type a city into and not one
+    of the cities."""
+
+    def test_she_can_see_the_answers_and_the_question_they_answer(self):
+        with browse._Session() as ctx:
+            page = ctx.new_page()
+            page.goto(self.base + "/widget", wait_until="domcontentloaded")
+            seen = webtask.observe(page)
+        yes = by_text(seen, "Yes")
+        self.assertIsNotNone(yes, "a <div role=radio> is an answer she can click")
+        self.assertEqual(yes["role"], "radio")
+        self.assertEqual(yes["question"],
+                         "Are you legally authorized to work in the US? *")
+        self.assertIs(yes["checked"], False)
+
+    def test_a_typeahead_and_a_div_radio_group_reach_the_server(self):
+        out = self.drive(
+            "/widget", "Fill in this application with my details and submit it.",
+            ("type", "Location", "Austin"),
+            ("click", "Austin, TX"), ("click", "Yes"),
+            ("click", "Submit application"))
+        self.assertEqual(out["state"], webtask.COMMIT, out.get("say"))
+        self.press(out)
+        # The hidden values the widgets set — the proof the CLICKS landed,
+        # not just that something was typed in a box.
+        self.assertEqual(self.got.get("location_value"), "Austin, TX")
+        self.assertEqual(self.got.get("work_auth"), "Yes")
+
+    def test_a_protected_question_is_never_answered_by_a_click_either(self):
+        out = self.drive("/widget", "Fill in this application and submit it.",
+                         ("click", "I am not"))
+        self.assertEqual(out["state"], webtask.ASK)
+        self.assertIn("yours to answer", out["say"])
+        self.assertIn("protected veteran", out["say"])
+
+
+@needs_browser
+class ASignInWallStopsHerBeforeSheTypes(RealPageCase):
+    def test_she_names_the_one_command_and_leaves_nothing_behind(self):
+        out = self.drive("/portal", "Check my account", ("click", "Sign in"))
+        self.assertEqual(out["state"], webtask.SIGN_IN)
+        self.assertIn("python -m aletheia.browse login", out["say"])
+        self.assertEqual(self.got, {})
+
+
+if __name__ == "__main__":
+    unittest.main()

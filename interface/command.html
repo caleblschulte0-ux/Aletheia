@@ -275,8 +275,8 @@ async function refresh() {
     const aps = await api("/api/approvals");
     const pending = aps.filter(a => a.state === "PENDING");
     document.getElementById("approvals").innerHTML = pending.length ? pending.map(a =>
-      `<div class="row"><div><div>${esc(a.requested_action)}</div>
-         <div class="id">${esc(a.id)}</div></div>
+      `<div class="row"><div><div>${esc(a.reason || a.requested_action)}</div>
+         <div class="id">${esc(a.requested_action)} · ${esc(a.id)}</div></div>
        <div style="display:flex;gap:.4rem">
          <button class="good" onclick='post({kind:"approve",id:"${esc(a.id)}"})'>APPROVE</button>
          <button class="danger" onclick='post({kind:"deny",id:"${esc(a.id)}",because:"denied from command center"})'>DENY</button>

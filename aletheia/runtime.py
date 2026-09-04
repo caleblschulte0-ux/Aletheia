@@ -469,6 +469,49 @@ def send_approved_applications() -> list[dict]:
     return sent
 
 
+def press_approved_web_tasks() -> list[dict]:
+    """Press what he confirmed on a web task, once each.
+
+    Without this the whole capability ended in a question nobody could
+    answer: she drives the site, stops at Submit, says "confirm it and I
+    will press it", he taps Approve on his phone — and nothing pressed it,
+    ever, because `webtask.commit` only existed on the command line. The
+    same shape as `send_approved_applications`, and the same rule: a
+    failure is surfaced and never retried, because the failure mode of a
+    retry loop on this particular button is several copies of whatever he
+    was doing.
+    """
+    from aletheia import webtask
+    pressed = []
+    for record in webtask.all_runs(webtask.COMMIT):
+        try:
+            approval = policy.load(record["approval"])
+        except Exception:
+            continue
+        if approval.get("state") != "APPROVED":
+            continue
+        try:
+            done = webtask.commit(record["id"])
+        except Exception as exc:
+            notifications.publish(
+                "I could not press it",
+                f"{record.get('button', '')} on {record.get('url', '')} — "
+                f"{type(exc).__name__}: {exc}"[:400],
+                priority="IMPORTANT", source="webtask",
+                dedupe_key=f"webtask-failed:{record['id']}")
+            continue
+        result = done.get("result", {})
+        notifications.publish(
+            f"Pressed {record.get('button', 'it')!r}",
+            f"{record.get('goal', '')[:120]} — {result.get('evidence', '')[:200]}",
+            priority="IMPORTANT", source="webtask",
+            dedupe_key=f"webtask-pressed:{record['id']}",
+            related={"web_task": record["id"]})
+        pressed.append({"web_task": record["id"], "button": record.get("button"),
+                        "url": result.get("url", record.get("url"))})
+    return pressed
+
+
 def tick(fleet: dict, *, now: dt.datetime | None = None,
          registry: dict | None = None, request=None,
          budget_s: float = TICK_BUDGET_S) -> dict:
@@ -560,6 +603,7 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # build and no second thing to remember. Nothing is sent that is not
     # APPROVED, and each is sent exactly once.
     applications_sent = guarded("applications", send_approved_applications)
+    web_tasks_pressed = guarded("web_tasks", press_approved_web_tasks)
     delivered = guarded("desktop", desktop_notify.deliver_pending)
     return {
         "failures": failures,
@@ -572,6 +616,7 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
         "events_processed": events_processed,
         "capability_gaps": capability_gaps,
         "approved_intents": approved_intents,
+        "web_tasks_pressed": web_tasks_pressed,
         "authorized_errands": authorized_errands,
         "room_devices": room_devices,
         "meetings": meetings_progress,

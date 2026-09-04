@@ -61,6 +61,10 @@ section[hidden]{display:none!important}
 }
 .ask h3{margin:0 0 7px;font-size:16.5px;font-weight:600;line-height:1.35}
 .ask p{margin:0 0 5px;font-size:14px;line-height:1.5;color:var(--warm-dim)}
+/* The digest he is actually approving: present, auditable, and not
+   the headline. A phone that asks you to approve a hash is asking
+   you to guess. */
+.ask p.what{font-size:11.5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;opacity:.55;word-break:break-all}
 .ask .when{font-size:12.5px;color:var(--warm-faint);margin-top:9px}
 .choices{display:flex;gap:10px;margin-top:16px;align-items:center}
 .choices .yes{flex:1;min-height:50px;border-radius:13px;background:var(--warm);

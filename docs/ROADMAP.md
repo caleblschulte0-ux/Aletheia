@@ -339,6 +339,52 @@ a build larger than one session, and none should be forgotten:
 
 Registry revision 48.
 
+## Doing things on websites (2026-09-04) — `web.task`, EXPERIMENTAL
+
+His ruling, and it reframed the whole thing: *"this applying to jobs
+thing is an example — it's an example of something where you need to
+access a document on my computer, do multiple steps on a browser, shit
+like that."* Hand-built verticals were the defect. `apply_run` drives a
+job application and nothing else, and the next request needing six
+clicks would have wanted another module and another week.
+
+`aletheia/webtask.py` is the general thing underneath: look at the page,
+do one step, look again, bounded — his profile and his files available,
+and three refusals that make it safe to point at a live site (a typed
+value must come from his profile or his own sentence, checked in code;
+the first committing button ends the run and becomes ONE approval; money
+stops it with no approval offered at all).
+
+What made it real was pointing it at pages instead of reasoning about
+them. Every one of these was a live failure first:
+
+| what a real site does | what it did before |
+|---|---|
+| the form is three PAGES | the press re-opened the last one and typed page one's fields into it — two thirds of an application left on the server |
+| the form is in an IFRAME | *"I don't see any form fields"*, standing on the page |
+| "Apply" is a LINK that opens a NEW TAB | described the page she was still on |
+| the controls are DIVS, no ids, no `<select>` | saw the box to type a city into and none of the four cities |
+| a SIGN-IN wall | typed his email into the username box, then gave up |
+| a CAPTCHA | burned the budget |
+
+All six are handled and proved end to end against real Chromium
+(`tests/test_webtask_real_pages.py`: careers page → new tab → iframe →
+filled → approved → the server receives every field). The route is the
+unit, not the page; the approval binds to where the route starts and
+carries its digest, so a changed route cannot inherit an old yes; and
+the press is consumed in the journal, so re-running the same goal cannot
+silently apply twice.
+
+And the loop closes: `runtime.press_approved_web_tasks` presses what he
+approved on the next beat. Before that the capability ended in a
+question nobody could answer — she stopped at the button, said "confirm
+it and I will press it", and the only thing on earth that could press it
+was a command line.
+
+EXPERIMENTAL, honestly: every proof is against fixture servers on
+loopback. It becomes AVAILABLE when a real employer's confirmation comes
+back for something he asked for.
+
 ## Next five engineering milestones (priority order, per §137)
 
 The five gaps between Aletheia and the thing she is supposed to be were

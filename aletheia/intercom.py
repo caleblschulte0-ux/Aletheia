@@ -649,7 +649,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "web_task":
         from aletheia import webtask
         record = webtask.run(cmd["goal"], start_url=cmd.get("url", ""),
-                             budget=int(cmd.get("budget", 8)))
+                             budget=int(cmd.get("budget", 16)))
         return webtask.spoken(record)
     if kind == "apply_campaign":
         from aletheia import campaign

@@ -54,7 +54,12 @@ from aletheia import (browse, computer, formfill, journal, policy, profile,
 
 ACTOR = "aletheia-webtask"
 
-MAX_STEPS = 14
+# A real application is three to six PAGES, and each page costs a look and
+# a decision. Eight steps was a number picked before any of them had been
+# driven; the three-page fixture alone spends five, and a run that stops
+# halfway through a form leaves a half-filled form behind and nothing to
+# resume from — the browser context closes with the run.
+MAX_STEPS = 24
 MAX_TEXT = 4_000
 MAX_LINKS = 40
 MAX_FIELDS = 45
@@ -172,18 +177,75 @@ OBSERVE_JS = r"""() => {
     return r.width > 0 && r.height > 0 && s.visibility !== 'hidden'
            && s.display !== 'none';
   };
+  // A modern form's controls are DIVS. Nothing in a Workday or Greenhouse
+  // question has an id or a name: the "Yes" you click is
+  // <div role=radio>, the city you pick is <li role=option>, and neither
+  // is reachable by id, name, or the word "button". Without a path she
+  // could see the box to type a city into and not one of the four cities.
+  const path = (el) => {
+    const bits = [];
+    for (let n = el; n && n.nodeType === 1 && bits.length < 6; n = n.parentElement) {
+      if (n.id) { bits.unshift(`#${CSS.escape(n.id)}`); break; }
+      const tag = n.tagName.toLowerCase();
+      if (tag === 'html' || tag === 'body') break;
+      const kin = n.parentElement
+        ? [...n.parentElement.children].filter(c => c.tagName === n.tagName) : [n];
+      bits.unshift(kin.length > 1
+        ? `${tag}:nth-of-type(${kin.indexOf(n) + 1})` : tag);
+    }
+    const one = bits.join(' > ');
+    try {
+      return one && document.querySelectorAll(one).length === 1 ? one : null;
+    } catch (e) { return null; }
+  };
   const sel = (el) => el.id ? `#${CSS.escape(el.id)}`
     : (el.name ? `${el.tagName.toLowerCase()}[name="${CSS.escape(el.name)}"]`
-               : null);
+               : path(el));
+  const named = (el) => {
+    if (!el) return '';
+    const own = el.getAttribute('aria-label');
+    if (own) return own.trim();
+    const by = el.getAttribute('aria-labelledby');
+    if (by) {
+      const n = document.getElementById(by);
+      if (n && n.innerText.trim()) return n.innerText.trim().slice(0, 90);
+    }
+    return '';
+  };
   const buttons = [];
   for (const el of document.querySelectorAll(
         'button, input[type=submit], input[type=button], a[role=button], [role=button]')) {
     if (!seen(el)) continue;
-    const selector = sel(el) || (el.type === 'submit'
-      ? `${el.tagName.toLowerCase()}[type="submit"]` : null);
+    // Prefer a selector that survives a reload: id, name, then the
+    // semantic one, and only then a positional path. The press replays
+    // the route on a freshly loaded page, so `form > div:nth-of-type(2)`
+    // is a last resort, not a first choice.
+    const selector = (el.id || el.name) ? sel(el)
+      : (el.type === 'submit' ? `${el.tagName.toLowerCase()}[type="submit"]`
+                              : path(el));
     if (!selector) continue;
     buttons.push({selector, text: (el.innerText || el.value || '').trim().slice(0,70)});
     if (buttons.length > 30) break;
+  }
+  // The ARIA widgets: an answer she can click, and the question it answers.
+  for (const el of document.querySelectorAll(
+        '[role=option], [role=radio], [role=checkbox], [role=switch], '
+        + '[role=combobox], [role=menuitem], [role=tab], summary')) {
+    if (!seen(el)) continue;
+    const selector = sel(el);
+    if (!selector) continue;
+    const group = el.closest(
+      '[role=radiogroup], [role=listbox], [role=group], [role=menu], fieldset');
+    const row = {selector, text: (el.innerText || '').trim().slice(0, 70),
+                 role: el.getAttribute('role') || el.tagName.toLowerCase()};
+    const checked = el.getAttribute('aria-checked');
+    if (checked !== null) row.checked = checked === 'true';
+    const open = el.getAttribute('aria-expanded');
+    if (open !== null) row.expanded = open === 'true';
+    const question = named(group) || named(el);
+    if (question) row.question = question;
+    buttons.push(row);
+    if (buttons.length > 60) break;
   }
   const links = [];
   for (const a of document.querySelectorAll('a[href]')) {
@@ -523,7 +585,7 @@ def observe(page) -> dict:
             # ever goes to the model.
             "_raw": fields,
             "fields": trimmed,
-            "buttons": seen["buttons"][:20],
+            "buttons": seen["buttons"][:40],
             "links": seen["links"][:MAX_LINKS]}
 
 
@@ -589,7 +651,7 @@ def _decide(goal: str, page_state: dict, history: list[dict], think) -> dict:
     return step
 
 
-def run(goal: str, *, start_url: str = "", budget: int = 8, think=None,
+def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
         session=None, run_id: str = "") -> dict:
     """Drive a browser toward a goal. Stops at a commit, a question, or the budget."""
     policy.ensure_not_halted()
@@ -606,7 +668,15 @@ def run(goal: str, *, start_url: str = "", budget: int = 8, think=None,
     budget = max(1, min(int(budget), MAX_STEPS))
     think = think or reasoner.subscription_text
     allowed = _permitted_values(goal)
-    run_id = run_id or f"web-{stateio.safe_id(re.sub(r'[^a-z0-9]+', '-', goal.casefold())[:28].strip('-') or 'task')}"
+    # The slug alone collided: "apply for the senior systems engineer job at
+    # Stripe" and the same sentence ending in Databricks share their first
+    # 28 characters, so the second run OVERWROTE the first one's record and
+    # its pending approval pointed at a route that no longer existed. Same
+    # goal on the same page is deliberately the same run; a different one
+    # is a different run.
+    if not run_id:
+        slug = re.sub(r"[^a-z0-9]+", "-", goal.casefold())[:24].strip("-") or "task"
+        run_id = f"web-{stateio.safe_id(slug)}-{_digest(goal + '|' + start_url)[:8]}"
 
     ok, why = browse.available()
     if not ok:
@@ -622,7 +692,11 @@ def run(goal: str, *, start_url: str = "", budget: int = 8, think=None,
     applied: list[dict] = []
     attached: list[dict] = []
     downloaded: list[str] = []
-    outcome = {"state": BUDGET, "say": "Ran out of steps before finishing."}
+    outcome = {"state": BUDGET,
+               "say": ("I ran out of steps before finishing. Nothing was "
+                       "submitted, and I cannot pick this up where I left it "
+                       "— the page goes with the run — so say it again with "
+                       "more room if you want me to try the whole thing.")}
     opener = session or browse._Session
     with opener() as ctx:
         page = ctx.new_page()
@@ -864,6 +938,19 @@ def run(goal: str, *, start_url: str = "", budget: int = 8, think=None,
                                         "result": "refused: no such control"})
                         continue
                     label = label or found
+                asked = ((button or {}).get("question")
+                         or (field or {}).get("question") or "")
+                if asked and formfill.is_never_autofill({"label": asked}):
+                    # The value gate refuses to TYPE an answer to these; a
+                    # question whose answer is a div you click is the same
+                    # question. Gender, race, veteran status, disability, a
+                    # felony declaration — his to answer, never hers.
+                    outcome = {"state": ASK,
+                               "say": (f"{asked[:110]!r} is yours to answer, "
+                                       "not mine. Tell me what to put and I "
+                                       "will put it."),
+                               "questions": [asked[:110]]}
+                    break
                 if MONEY_WORDS.search(label):
                     outcome = {"state": REFUSED,
                                "say": (f"That button says {label[:60]!r}, which "
@@ -1114,7 +1201,7 @@ def main(argv: list[str] | None = None) -> int:
     p_run = sub.add_parser("run")
     p_run.add_argument("goal")
     p_run.add_argument("--url", default="")
-    p_run.add_argument("--budget", type=int, default=8)
+    p_run.add_argument("--budget", type=int, default=16)
     p_go = sub.add_parser("commit"); p_go.add_argument("run_id")
     sub.add_parser("waiting")
     args = ap.parse_args(argv)
