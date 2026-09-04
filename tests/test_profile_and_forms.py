@@ -258,5 +258,71 @@ class ItReadsARealFormInARealBrowser(ProfileCase):
         self.assertTrue(any("Resume/CV" in s["label"] for s in out["skipped"]))
 
 
+def aria(group, question, option, *, required=True, checked=False):
+    """One option of a question made of divs, as `read_all` reports it."""
+    return {"selector": f"#{group}-{option.lower().replace(' ', '-')}",
+            "tag": "aria", "type": "radio", "name": "", "id": "",
+            "group": group, "question": question, "option": option,
+            "label": option, "required": required, "value": "",
+            "checked": checked}
+
+
+class AQuestionMadeOfDIVS(ProfileCase):
+    """On a modern form "Are you legally authorized to work in the US?"
+    is a pair of divs. She had the answer on file the whole time and was
+    handing the question back to him on every single application."""
+
+    def test_an_answer_she_has_on_file_is_given_not_asked(self):
+        profile.set_answer("work_authorization", "Yes", source="operator")
+        out = formfill.plan([
+            aria("g1", "Are you legally authorized to work in the US? *", "Yes"),
+            aria("g1", "Are you legally authorized to work in the US? *", "No")])
+        self.assertEqual([(f["action"], f["value"]) for f in out["fill"]],
+                         [("click", "Yes")])
+        self.assertEqual(out["ask"], [])
+
+    def test_a_first_word_answers_a_wordy_option(self):
+        profile.set_answer("work_authorization", "Yes", source="operator")
+        out = formfill.plan([
+            aria("g1", "Are you legally authorized to work in the US? *",
+                 "Yes, I am authorized to work for any employer"),
+            aria("g1", "Are you legally authorized to work in the US? *",
+                 "No, I will require sponsorship")])
+        self.assertEqual([f["value"] for f in out["fill"]],
+                         ["Yes, I am authorized to work for any employer"])
+
+    def test_NO_does_not_quietly_answer_NORTH_AMERICA(self):
+        """A plain `startswith` did exactly that."""
+        profile.set_answer("needs_sponsorship", "No", source="operator")
+        out = formfill.plan([
+            aria("g2", "Which region do you need sponsorship in? *",
+                 "North America"),
+            aria("g2", "Which region do you need sponsorship in? *", "Europe")])
+        self.assertEqual(out["fill"], [])
+        self.assertEqual([a["label"] for a in out["ask"]],
+                         ["Which region do you need sponsorship in? *"])
+
+    def test_a_protected_question_stays_his_however_it_is_built(self):
+        profile.set_answer("work_authorization", "Yes", source="operator")
+        out = formfill.plan([
+            aria("g3", "Are you a protected veteran? *", "Yes"),
+            aria("g3", "Are you a protected veteran? *", "No")])
+        self.assertEqual(out["fill"], [])
+        self.assertEqual([a["label"] for a in out["ask"]],
+                         ["Are you a protected veteran? *"])
+
+    def test_a_multi_answer_question_is_still_his(self):
+        """"Which countries do you anticipate working in" has no answer
+        on file and guessing one is exactly what she must not do."""
+        rows = [{"selector": f"#c{n}", "tag": "input", "type": "checkbox",
+                 "name": "countries[]", "id": f"c{n}", "group": "countries",
+                 "question": "Which countries? *", "option": name,
+                 "label": name, "required": True, "value": "", "checked": False}
+                for n, name in enumerate(("Australia", "Belgium", "Brazil"))]
+        out = formfill.plan(rows)
+        self.assertEqual(out["fill"], [])
+        self.assertEqual(len(out["ask"]), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

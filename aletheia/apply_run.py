@@ -193,6 +193,35 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
     shot = staged_dir() / f"{run_id}.png"
     filled = (filler or _fill_and_capture)(url, steps, resume, shot)
 
+    # THE PAGE'S OWN VERDICT, not hers. Staging ended at "I typed
+    # everything I could" and called that ready — so on a form whose
+    # work-authorization question is a pair of divs, she produced an
+    # application AWAITING HIS CONFIRMATION that the browser would then
+    # refuse to send: he taps Approve, submit is pressed, nothing arrives,
+    # and the run reports success. Found on a fixture built to look like
+    # the forms an ATS actually serves.
+    stopped = [item for item in (filled.get("blocking") or [])
+               if item.get("label") not in {q.get("label") for q in plan["ask"]}]
+    if stopped:
+        record = {"id": run_id, "state": "NEEDS_YOU", "url": url,
+                  "approval": "", "steps": steps, "resume": resume,
+                  "questions": (plan["ask"] + stopped)[:MAX_QUESTIONS_SHOWN],
+                  "not_filled": (plan["ask"] + stopped)[:MAX_QUESTIONS_SHOWN],
+                  "would_fill": [{"label": f["label"], "value": f["value"]}
+                                 for f in plan["fill"]],
+                  "filled": [], "skipped": plan["skipped"],
+                  "screenshot": str(shot) if shot.exists() else "",
+                  "staged_at": stateio.utcnow(),
+                  "say": ("I filled what I could, and the form still will not "
+                          "go without: "
+                          + "; ".join(i["label"] for i in stopped[:5])
+                          + ". Tell me those and I will finish it.")}
+        stateio.write_json_atomic(_record_path(run_id), record)
+        journal.append("action", "apply",
+                       f"held an application at {url} — the form will not go "
+                       f"yet ({len(stopped)} thing(s) outstanding)", actor=ACTOR)
+        return record
+
     action = browse.approval_action(url, steps)
     approval_id = f"{run_id}-submit"
     policy.request(
@@ -241,7 +270,11 @@ def _apply_steps(page, steps: list[dict]) -> None:
 
 
 def _fill_and_capture(url: str, steps: list[dict], resume: str, shot: Path) -> dict:
-    """Type it all in and photograph it. Presses nothing."""
+    """Type it all in, photograph it, and say what would still stop it.
+
+    Presses nothing — and, since 2026-09-04, does not pretend a form is
+    ready when it is not: `formfill.blocking` asks the page itself.
+    """
     ok, why = browse.available()
     if not ok:
         raise ApplyError(f"she cannot open the application: {why}")
@@ -253,7 +286,8 @@ def _fill_and_capture(url: str, steps: list[dict], resume: str, shot: Path) -> d
         if resume:
             _attach_resume(page, resume)
         page.screenshot(path=str(shot), full_page=True)
-        result = {"title": page.title(), "url": page.url}
+        result = {"title": page.title(), "url": page.url,
+                  "blocking": formfill.blocking(page)}
         page.close()
     return result
 

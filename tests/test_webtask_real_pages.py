@@ -289,6 +289,65 @@ class AFormMadeOfDIVS(RealPageCase):
 
 
 @needs_browser
+class ThePagesOwnVerdictOnWhetherItWillGO(RealPageCase):
+    """Her own reading of "required and empty" missed everything the
+    browser knows and everything a question made of divs is. So a run
+    reported success while the site refused the submit, and an
+    application sat AWAITING HIS CONFIRMATION that could never be sent."""
+
+    def look(self, path="/widget"):
+        with browse._Session() as ctx:
+            page = ctx.new_page()
+            page.goto(self.base + path, wait_until="domcontentloaded")
+            yield page
+
+    def test_a_required_div_question_with_nothing_picked_is_BLOCKING(self):
+        for page in self.look():
+            said = [b["label"] for b in webtask.formfill.blocking(page)]
+        self.assertIn("Are you legally authorized to work in the US? *", said)
+
+    def test_a_half_made_typeahead_choice_is_not_a_choice(self):
+        """Typing "Austin" and never picking "Austin, TX" leaves the value
+        the widget actually posts empty — with the list still open, which
+        is exactly how a person can see it is unfinished."""
+        for page in self.look():
+            page.fill("[name=location]", "Austin")
+            half = [b["label"] for b in webtask.formfill.blocking(page)]
+            page.click("[role=option]")
+            whole = [b["label"] for b in webtask.formfill.blocking(page)]
+        self.assertTrue(any("Location" in label for label in half), half)
+        self.assertFalse(any("Location" in label for label in whole), whole)
+
+    def test_the_application_filler_answers_it_from_his_PROFILE(self):
+        from aletheia import apply_run
+        profile.set_answer("work_authorization", "Yes", source="operator")
+        with mock.patch.object(apply_run, "staged_dir",
+                               lambda: Path(self.tmp.name) / "applications"):
+            (Path(self.tmp.name) / "applications").mkdir(exist_ok=True)
+            record = apply_run.stage(self.base + "/widget")
+        answered = {f["label"]: f["value"]
+                    for f in (record.get("filled")
+                              or record.get("would_fill") or [])}
+        self.assertEqual(
+            answered.get("Are you legally authorized to work in the US? *"),
+            "Yes", record.get("say"))
+
+    def test_it_refuses_to_STAGE_a_form_that_cannot_go(self):
+        """Everything she could answer, answered — and the form still
+        will not go, because the location was never picked. That is a
+        question, not an approval waiting for him."""
+        from aletheia import apply_run
+        profile.set_answer("work_authorization", "Yes", source="operator")
+        with mock.patch.object(apply_run, "staged_dir",
+                               lambda: Path(self.tmp.name) / "applications"):
+            (Path(self.tmp.name) / "applications").mkdir(exist_ok=True)
+            record = apply_run.stage(self.base + "/widget")
+        self.assertEqual(record["state"], "NEEDS_YOU")
+        self.assertEqual(record["approval"], "")
+        self.assertIn("will not go", record["say"])
+
+
+@needs_browser
 class ASignInWallStopsHerBeforeSheTypes(RealPageCase):
     def test_she_names_the_one_command_and_leaves_nothing_behind(self):
         out = self.drive("/portal", "Check my account", ("click", "Sign in"))

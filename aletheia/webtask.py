@@ -348,81 +348,18 @@ def _value_is_his(value: str, allowed: set[str], options: list[str],
     return low in {"yes", "no", "true", "false", "n/a", "none", "0", "1"}
 
 
-FRAME_RE = re.compile(r"^@frame(\d+)\|(.*)$", re.S)
-
-
-def _frames(page) -> list:
-    """The page, and everything embedded in it.
-
-    An application form on a company careers page is very often an
-    `<iframe>` — Greenhouse and Lever both ship one as their embed, and
-    it is what the "Apply" link on a real site drops you onto. Reading
-    only the top document, she stood on such a page and said *"I don't
-    see any form fields"* while the whole form sat one frame away. A page
-    object without `.frames` (a test double, an older shape) behaves
-    exactly as it did before.
-    """
-    got = getattr(page, "frames", None)
-    if not got:
-        return [page]
-    try:
-        return list(got)[:MAX_FRAMES]
-    except TypeError:
-        return [page]
-
-
-def _tag(index: int, selector: str) -> str:
-    """A selector carries the frame it belongs to, or it is ambiguous.
-
-    `#fn` means something different in each frame of a page, and a
-    selector that does not say which one is a coin flip at replay time.
-    """
-    return selector if index == 0 else f"@frame{index}|{selector}"
-
-
-def _holds(frame, css: str) -> bool:
-    """Does this frame actually contain that element right now?"""
-    finder = getattr(frame, "query_selector", None)
-    if finder is None:
-        return True                      # a test double: index is the truth
-    try:
-        return finder(css) is not None
-    except Exception:
-        return False
-
-
-def _resolve(page, selector: str):
-    """(where to do it, what to do it to).
-
-    The frame INDEX is a hint; the element being there is the truth. An
-    `<iframe>` attaches after `domcontentloaded` and then navigates, so
-    right after a page load frame 1 exists and is still blank — the first
-    version typed into it and spent twenty seconds waiting for a field
-    that would never appear in that document. Real sites also reorder and
-    re-attach frames between the run and the press. So: prefer the
-    recorded position, accept any frame that has the element, and wait a
-    bounded time for one to.
-    """
-    match = FRAME_RE.match(str(selector or ""))
-    if not match:
-        return page, selector
-    index, css = int(match.group(1)), match.group(2)
-    wait = getattr(page, "wait_for_timeout", None)
-    for attempt in range(FRAME_WAIT_TRIES if wait else 1):
-        frames = _frames(page)
-        ordered = ([frames[index]] if index < len(frames) else []) + [
-            f for i, f in enumerate(frames) if i != index]
-        for frame in ordered:
-            if _holds(frame, css):
-                return frame, css
-        if wait is None:
-            break
-        try:
-            wait(250)
-        except Exception:
-            break
-    frames = _frames(page)
-    return (frames[index] if index < len(frames) else page), css
+# The frame-aware primitives live in `formfill`, which owns the form
+# reading, so the application filler and this loop cannot drift on what a
+# selector means. Kept under these names because they read better here.
+FRAME_RE = formfill.FRAME_RE
+MAX_FRAMES = formfill.MAX_FRAMES
+FRAME_WAIT_TRIES = formfill.FRAME_WAIT_TRIES
+_frames = formfill.frames
+_tag = formfill.tag
+_holds = formfill.holds
+_resolve = formfill.resolve
+_Hands = formfill.Hands
+read_forms = formfill.read_all
 
 
 def control_text(page, selector: str):
@@ -488,62 +425,6 @@ def follow_new_tab(ctx, page, before: list):
     return fresh
 
 
-class _Hands:
-    """Act on a selector wherever it actually lives.
-
-    Playwright's `page.fill` only reaches the top document; a frame has
-    the same verbs. This is the one place that knows the difference, so
-    the run loop and the press replay cannot disagree about it.
-    """
-
-    def __init__(self, page):
-        self.page = page
-
-    def fill(self, selector, value):
-        target, css = _resolve(self.page, selector)
-        target.fill(css, str(value))
-
-    def select_option(self, selector, value=None, *, label=None):
-        target, css = _resolve(self.page, selector)
-        if label is not None:
-            target.select_option(css, label=label)
-        else:
-            target.select_option(css, value)
-
-    def check(self, selector):
-        target, css = _resolve(self.page, selector)
-        target.check(css)
-
-    def uncheck(self, selector):
-        target, css = _resolve(self.page, selector)
-        target.uncheck(css)
-
-    def set_input_files(self, selector, path):
-        target, css = _resolve(self.page, selector)
-        target.set_input_files(css, path)
-
-    def click(self, selector):
-        target, css = _resolve(self.page, selector)
-        target.click(css)
-
-
-def read_forms(page) -> list[dict]:
-    """Every field on the page, in every frame, each selector frame-tagged."""
-    rows: list[dict] = []
-    for index, frame in enumerate(_frames(page)):
-        try:
-            got = frame.evaluate(formfill.READ_FORM_JS)
-        except Exception:
-            continue
-        for row in got or []:
-            row = dict(row)
-            row["selector"] = _tag(index, row["selector"])
-            rows.append(row)
-        if len(rows) > MAX_FIELDS * 2:
-            break
-    return rows
-
-
 def observe(page) -> dict:
     """What the page shows, small enough to reason about."""
     seen = page.evaluate(OBSERVE_JS)
@@ -579,7 +460,16 @@ def observe(page) -> dict:
         if field.get("option"):
             row["is_option"] = field["option"][:60]
         trimmed.append(row)
+    # WHAT THE PAGE SAYS IS STILL MISSING, in front of the model before it
+    # chooses. She typed a city into a typeahead, never picked one from
+    # its list, and went straight for Submit — the hidden value the widget
+    # sets stayed empty and the form would have bounced. The page knew.
+    try:
+        not_ready = formfill.blocking(page)[:10]
+    except Exception:
+        not_ready = []
     return {"title": seen["title"][:160], "url": seen["url"],
+            "still_missing": not_ready,
             "text": seen["text"][:MAX_TEXT],
             # The unabridged rows, for `formfill` — popped before the page
             # ever goes to the model.
@@ -634,6 +524,7 @@ def _decide(goal: str, page_state: dict, history: list[dict], think) -> dict:
         "facts_about_him": _facts(goal)["about_him"],
         "his_files": list(_facts(goal)["his_files"]),
         "page": page_state,
+        "the_page_says_these_are_missing": page_state.get("still_missing") or [],
         "already_filled": [f["label"] for f in page_state["fields"]
                            if (f.get("value") or "").strip()][:30],
         "steps_so_far": history[-6:],
@@ -729,13 +620,23 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
                 mapped = formfill.plan(raw)
                 filled_now = []
                 for item in mapped["fill"]:
-                    current = next((f.get("value") or "" for f in raw
-                                    if f["selector"] == item["selector"]), "")
-                    if current.strip() == str(item["value"]).strip():
-                        continue
+                    if item["action"] in ("click", "check"):
+                        already = next((f for f in raw
+                                        if f["selector"] == item["selector"]), {})
+                        if already.get("checked"):
+                            continue          # already the chosen answer
+                    else:
+                        current = next((f.get("value") or "" for f in raw
+                                        if f["selector"] == item["selector"]), "")
+                        if current.strip() == str(item["value"]).strip():
+                            continue
                     try:
                         if item["action"] == "select":
                             hands.select_option(item["selector"], item["value"])
+                        elif item["action"] in ("click", "check"):
+                            # An answer she CLICKS: a radio, or the div a
+                            # modern form uses instead of one.
+                            hands.click(item["selector"])
                         else:
                             hands.fill(item["selector"], item["value"])
                     except Exception:
@@ -873,11 +774,22 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
                     history.append({"step": step,
                                     "result": "skipped: already holds that value"})
                     continue
-                if action == "select":
-                    hands.select_option(selector, label=value)
-                else:
-                    hands.fill(selector, value)
-                applied.append({"action": action, "selector": selector,
+                # The FIELD decides the verb, not the word the model
+                # used. It said "select" on a typeahead — an <input> with
+                # role=combobox — and `select_option` threw "Element is
+                # not a <select>", which ended the whole run rather than
+                # one step. What a control is, is not a matter of opinion.
+                real = "select" if field.get("options") else "type"
+                try:
+                    if real == "select":
+                        hands.select_option(selector, label=value)
+                    else:
+                        hands.fill(selector, value)
+                except Exception as exc:
+                    history.append({"step": step,
+                                    "result": f"could not: {type(exc).__name__}"})
+                    continue
+                applied.append({"action": real, "selector": selector,
                                 "value": value})
                 history.append({"step": step, "result": f"filled {field['label'][:50]}"})
                 continue
@@ -959,10 +871,12 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
                     break
                 commits = computer.committing_label(label)
                 if commits:
-                    empty = [f["label"] for f in seen["fields"]
-                             if f.get("required")
-                             and not (f.get("value") or "").strip()
-                             and f.get("type") not in ("file", "hidden", "submit")]
+                    # THE PAGE'S OWN VERDICT, in the one place that knows
+                    # how to ask for it. Her own reading of "required and
+                    # empty" missed everything the browser knows and
+                    # everything a div question is, which is how a run
+                    # reported success while the site refused the submit.
+                    empty = [item["label"] for item in formfill.blocking(page)]
                     if empty:
                         # The browser would refuse this submit and the run
                         # would report success while nothing was sent.
@@ -980,6 +894,14 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
                                          applied, attached, commits,
                                          start_url=start_url)
                     break
+                if applied and applied[-1].get("action") == "click" \
+                        and applied[-1].get("selector") == selector:
+                    # She just clicked this. Doing it again is how a
+                    # question the page can never report as answered turns
+                    # into a loop that spends the whole budget.
+                    history.append({"step": step,
+                                    "result": "skipped: just clicked that"})
+                    continue
                 before = _open_pages(ctx)
                 hands.click(selector)
                 try:

@@ -41,6 +41,23 @@ class FakePage:
         if "buttons" in script and "links" in script:
             return {"title": "A page", "url": self.url, "text": "some text",
                     "buttons": self._buttons, "links": []}
+        if "checkValidity" in script:
+            # The page's own verdict on whether it will go, which is what
+            # `formfill.blocking` asks for.
+            return {"invalid": [{"label": f["label"], "name": f.get("name", ""),
+                                 "why": "required"}
+                                for f in self._fields
+                                if f.get("required")
+                                and not (f.get("value") or "").strip()
+                                and f.get("type") not in ("file", "hidden",
+                                                          "submit")],
+                    "groups": list(getattr(self, "_groups", []))}
+        if "tag: 'aria'" in script:
+            # The ARIA read is a SECOND pass over the same document. A
+            # double that answers both with the same rows reports every
+            # field twice, which is not a bug in the page — it is a bug in
+            # the double, and it cost half an hour of reading a real diff.
+            return list(getattr(self, "_aria", []))
         return self._fields
 
     def _set(self, selector, value):
