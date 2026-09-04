@@ -1072,3 +1072,252 @@
 {"ts": "2026-09-04T23:52:16Z", "kind": "action", "actor": "aletheia-converse", "subject": "converse", "text": "answered a question (35 chars in, 374 out, 1 file(s) read, via claude.cli:sonnet)"}
 {"ts": "2026-09-04T23:53:12Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume-summary.md (1,624 bytes)"}
 {"ts": "2026-09-04T23:53:41Z", "kind": "action", "actor": "aletheia-converse", "subject": "converse", "text": "answered a question (35 chars in, 825 out, 1 file(s) read, via claude.cli:sonnet)"}
+{"ts": "2026-09-03T22:59:29Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "email is on file (from resume)"}
+{"ts": "2026-09-03T22:59:29Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "phone is on file (from resume)"}
+{"ts": "2026-09-03T22:59:29Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume)"}
+{"ts": "2026-09-03T22:59:29Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "github is on file (from resume)"}
+{"ts": "2026-09-03T22:59:29Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume)"}
+{"ts": "2026-09-03T22:59:29Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume)"}
+{"ts": "2026-09-03T22:59:29Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume)"}
+{"ts": "2026-09-03T22:59:29Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume)"}
+{"ts": "2026-09-03T22:59:29Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume)"}
+{"ts": "2026-09-03T22:59:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "email is on file (from resume)"}
+{"ts": "2026-09-03T22:59:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "phone is on file (from resume)"}
+{"ts": "2026-09-03T22:59:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume)"}
+{"ts": "2026-09-03T22:59:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "github is on file (from resume)"}
+{"ts": "2026-09-03T22:59:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume)"}
+{"ts": "2026-09-03T22:59:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume)"}
+{"ts": "2026-09-03T22:59:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume)"}
+{"ts": "2026-09-03T22:59:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume)"}
+{"ts": "2026-09-03T22:59:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume)"}
+{"ts": "2026-09-03T22:59:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "work_authorization is on file (from operator)"}
+{"ts": "2026-09-03T22:59:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "needs_sponsorship is on file (from operator)"}
+{"ts": "2026-09-03T22:59:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "willing_to_relocate is on file (from operator)"}
+{"ts": "2026-09-03T23:00:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "email is on file (from resume)"}
+{"ts": "2026-09-03T23:00:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "phone is on file (from resume)"}
+{"ts": "2026-09-03T23:00:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume)"}
+{"ts": "2026-09-03T23:00:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "github is on file (from resume)"}
+{"ts": "2026-09-03T23:00:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume)"}
+{"ts": "2026-09-03T23:00:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume)"}
+{"ts": "2026-09-03T23:00:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume)"}
+{"ts": "2026-09-03T23:00:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume)"}
+{"ts": "2026-09-03T23:00:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume)"}
+{"ts": "2026-09-03T23:00:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "work_authorization is on file (from operator)"}
+{"ts": "2026-09-03T23:00:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "needs_sponsorship is on file (from operator)"}
+{"ts": "2026-09-03T23:00:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "willing_to_relocate is on file (from operator)"}
+{"ts": "2026-09-03T23:16:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "email is on file (from resume)"}
+{"ts": "2026-09-03T23:16:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "phone is on file (from resume)"}
+{"ts": "2026-09-03T23:16:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume)"}
+{"ts": "2026-09-03T23:16:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "github is on file (from resume)"}
+{"ts": "2026-09-03T23:16:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume)"}
+{"ts": "2026-09-03T23:16:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume)"}
+{"ts": "2026-09-03T23:16:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume)"}
+{"ts": "2026-09-03T23:16:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume)"}
+{"ts": "2026-09-03T23:16:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume)"}
+{"ts": "2026-09-03T23:16:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "work_authorization is on file (from operator)"}
+{"ts": "2026-09-03T23:16:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "needs_sponsorship is on file (from operator)"}
+{"ts": "2026-09-03T23:16:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "willing_to_relocate is on file (from operator)"}
+{"ts": "2026-09-03T23:16:07Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 18 field(s) on http://127.0.0.1:8899/"}
+{"ts": "2026-09-03T23:17:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "email is on file (from resume)"}
+{"ts": "2026-09-03T23:17:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "phone is on file (from resume)"}
+{"ts": "2026-09-03T23:17:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume)"}
+{"ts": "2026-09-03T23:17:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "github is on file (from resume)"}
+{"ts": "2026-09-03T23:17:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume)"}
+{"ts": "2026-09-03T23:17:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume)"}
+{"ts": "2026-09-03T23:17:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume)"}
+{"ts": "2026-09-03T23:17:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume)"}
+{"ts": "2026-09-03T23:17:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume)"}
+{"ts": "2026-09-03T23:17:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "work_authorization is on file (from operator)"}
+{"ts": "2026-09-03T23:17:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "needs_sponsorship is on file (from operator)"}
+{"ts": "2026-09-03T23:17:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "willing_to_relocate is on file (from operator)"}
+{"ts": "2026-09-03T23:17:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "desired_pay is on file (from operator)"}
+{"ts": "2026-09-03T23:17:10Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 18 field(s) on http://127.0.0.1:8899/"}
+{"ts": "2026-09-03T23:17:30Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "email is on file (from resume)"}
+{"ts": "2026-09-03T23:17:30Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "phone is on file (from resume)"}
+{"ts": "2026-09-03T23:17:30Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume)"}
+{"ts": "2026-09-03T23:17:30Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "github is on file (from resume)"}
+{"ts": "2026-09-03T23:17:30Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume)"}
+{"ts": "2026-09-03T23:17:30Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume)"}
+{"ts": "2026-09-03T23:17:30Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume)"}
+{"ts": "2026-09-03T23:17:30Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume)"}
+{"ts": "2026-09-03T23:17:30Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume)"}
+{"ts": "2026-09-03T23:17:30Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "work_authorization is on file (from operator)"}
+{"ts": "2026-09-03T23:17:30Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "needs_sponsorship is on file (from operator)"}
+{"ts": "2026-09-03T23:17:30Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "willing_to_relocate is on file (from operator)"}
+{"ts": "2026-09-03T23:17:30Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "desired_pay is on file (from operator)"}
+{"ts": "2026-09-03T23:17:31Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 18 field(s) on http://127.0.0.1:8899/"}
+{"ts": "2026-09-03T23:17:32Z", "kind": "event", "actor": "aletheia", "subject": "approval:apply-20260903T231731-submit", "text": "requested — browser.interact:a2b54d0f24b0db293a87bb886201b286f0d267d3ec02960ac52d222835610c29"}
+{"ts": "2026-09-03T23:17:56Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "email is on file (from resume)"}
+{"ts": "2026-09-03T23:17:56Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "phone is on file (from resume)"}
+{"ts": "2026-09-03T23:17:56Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume)"}
+{"ts": "2026-09-03T23:17:56Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "github is on file (from resume)"}
+{"ts": "2026-09-03T23:17:56Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume)"}
+{"ts": "2026-09-03T23:17:56Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume)"}
+{"ts": "2026-09-03T23:17:56Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume)"}
+{"ts": "2026-09-03T23:17:56Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume)"}
+{"ts": "2026-09-03T23:17:56Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume)"}
+{"ts": "2026-09-03T23:17:56Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "work_authorization is on file (from operator)"}
+{"ts": "2026-09-03T23:17:56Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "needs_sponsorship is on file (from operator)"}
+{"ts": "2026-09-03T23:17:56Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "willing_to_relocate is on file (from operator)"}
+{"ts": "2026-09-03T23:17:56Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "desired_pay is on file (from operator)"}
+{"ts": "2026-09-03T23:17:57Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 18 field(s) on http://127.0.0.1:8899/"}
+{"ts": "2026-09-03T23:17:58Z", "kind": "event", "actor": "aletheia", "subject": "approval:apply-20260903231757-submit", "text": "requested — browser.interact:a2b54d0f24b0db293a87bb886201b286f0d267d3ec02960ac52d222835610c29"}
+{"ts": "2026-09-03T23:17:58Z", "kind": "action", "actor": "aletheia-apply", "subject": "apply", "text": "staged an application at http://127.0.0.1:8899/ — 15 field(s) filled, awaiting his confirmation"}
+{"ts": "2026-09-03T23:18:08Z", "kind": "decision", "actor": "operator", "subject": "approval:apply-20260903231757-submit", "text": "APPROVED — looks right"}
+{"ts": "2026-09-03T23:18:10Z", "kind": "action", "actor": "aletheia-apply", "subject": "apply", "text": "submitted apply-20260903231757 to http://127.0.0.1:8899/ — confirmed"}
+{"ts": "2026-09-03T23:20:57Z", "kind": "event", "actor": "aletheia", "subject": "approval:x-1", "text": "requested — browser.interact:abc"}
+{"ts": "2026-09-04T00:17:21Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume.pdf (593 bytes)"}
+{"ts": "2026-09-04T00:17:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:17:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "github is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:17:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:17:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:17:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:17:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:17:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:17:32Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 12 field(s) on http://127.0.0.1:8900/apply/1"}
+{"ts": "2026-09-04T00:17:34Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 12 field(s) on http://127.0.0.1:8900/apply/2"}
+{"ts": "2026-09-04T00:17:36Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 12 field(s) on http://127.0.0.1:8900/apply/3"}
+{"ts": "2026-09-04T00:17:36Z", "kind": "action", "actor": "aletheia-campaign", "subject": "campaign", "text": "0 ready, 3 waiting on answers, 0 could not be reached — for 'media systems engineer'; nothing submitted"}
+{"ts": "2026-09-04T00:19:11Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume.pdf (593 bytes)"}
+{"ts": "2026-09-04T00:19:11Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "email is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:19:11Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "phone is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:19:11Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:19:11Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "github is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:19:11Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:19:11Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:19:11Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:19:11Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:19:11Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:19:13Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 12 field(s) on http://127.0.0.1:8900/apply/1"}
+{"ts": "2026-09-04T00:19:15Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 12 field(s) on http://127.0.0.1:8900/apply/2"}
+{"ts": "2026-09-04T00:19:17Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 12 field(s) on http://127.0.0.1:8900/apply/3"}
+{"ts": "2026-09-04T00:19:17Z", "kind": "action", "actor": "aletheia-campaign", "subject": "campaign", "text": "0 ready, 3 waiting on answers, 0 could not be reached — for 'media systems engineer'; nothing submitted"}
+{"ts": "2026-09-04T00:19:33Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 12 field(s) on http://127.0.0.1:8900/apply/2"}
+{"ts": "2026-09-04T00:19:34Z", "kind": "event", "actor": "aletheia", "subject": "approval:apply-84309a98-submit", "text": "requested — browser.interact:94b217335754e194f9a9528bf682369d93127f0d7b20fa2e88923cd20c5f5e9e"}
+{"ts": "2026-09-04T00:19:34Z", "kind": "action", "actor": "aletheia-apply", "subject": "apply", "text": "staged an application at http://127.0.0.1:8900/apply/2 — 11 field(s) filled, awaiting his confirmation"}
+{"ts": "2026-09-04T00:19:35Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 12 field(s) on http://127.0.0.1:8900/apply/3"}
+{"ts": "2026-09-04T00:19:36Z", "kind": "event", "actor": "aletheia", "subject": "approval:apply-9f9c5639-submit", "text": "requested — browser.interact:5db4bb41cb6761036d11a3cd4a9201f9066b4216b01a1de1a35fdf3327aed350"}
+{"ts": "2026-09-04T00:19:36Z", "kind": "action", "actor": "aletheia-apply", "subject": "apply", "text": "staged an application at http://127.0.0.1:8900/apply/3 — 11 field(s) filled, awaiting his confirmation"}
+{"ts": "2026-09-04T00:19:36Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 12 field(s) on http://127.0.0.1:8900/apply/1"}
+{"ts": "2026-09-04T00:19:37Z", "kind": "event", "actor": "aletheia", "subject": "approval:apply-a7a48a6d-submit", "text": "requested — browser.interact:2d36a50ab775f619e92fde74c60d1f54fe973335ca5343df79b0e2b58dc544f3"}
+{"ts": "2026-09-04T00:19:37Z", "kind": "action", "actor": "aletheia-apply", "subject": "apply", "text": "staged an application at http://127.0.0.1:8900/apply/1 — 11 field(s) filled, awaiting his confirmation"}
+{"ts": "2026-09-04T00:19:37Z", "kind": "decision", "actor": "phone", "subject": "approval:apply-84309a98-submit", "text": "APPROVED"}
+{"ts": "2026-09-04T00:19:37Z", "kind": "decision", "actor": "phone", "subject": "approval:apply-9f9c5639-submit", "text": "APPROVED"}
+{"ts": "2026-09-04T00:19:37Z", "kind": "decision", "actor": "phone", "subject": "approval:apply-a7a48a6d-submit", "text": "APPROVED"}
+{"ts": "2026-09-04T00:19:40Z", "kind": "action", "actor": "aletheia-apply", "subject": "apply", "text": "submitted apply-84309a98 to http://127.0.0.1:8900/apply/2 — confirmed"}
+{"ts": "2026-09-04T00:19:43Z", "kind": "action", "actor": "aletheia-apply", "subject": "apply", "text": "submitted apply-9f9c5639 to http://127.0.0.1:8900/apply/3 — confirmed"}
+{"ts": "2026-09-04T00:19:45Z", "kind": "action", "actor": "aletheia-apply", "subject": "apply", "text": "submitted apply-a7a48a6d to http://127.0.0.1:8900/apply/1 — confirmed"}
+{"ts": "2026-09-04T00:43:31Z", "kind": "alert", "actor": "aletheia-research", "subject": "research", "text": "duckduckgo search failed for 'senior python engineer remote jobs': Error"}
+{"ts": "2026-09-04T00:43:44Z", "kind": "alert", "actor": "aletheia-research", "subject": "research", "text": "wikipedia search failed for 'senior python engineer remote jobs': Error"}
+{"ts": "2026-09-04T00:43:57Z", "kind": "alert", "actor": "aletheia-research", "subject": "research", "text": "bing search failed for 'senior python engineer remote jobs': Error"}
+{"ts": "2026-09-04T00:46:20Z", "kind": "action", "actor": "aletheia-jobs", "subject": "jobs", "text": "searched 31 board(s) for 'media systems engineer': 1694 match(es), 11 board(s) failed"}
+{"ts": "2026-09-04T00:46:33Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "email is on file (from resume)"}
+{"ts": "2026-09-04T00:46:33Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "phone is on file (from resume)"}
+{"ts": "2026-09-04T00:46:33Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume)"}
+{"ts": "2026-09-04T00:46:33Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "github is on file (from resume)"}
+{"ts": "2026-09-04T00:46:33Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume)"}
+{"ts": "2026-09-04T00:46:33Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume)"}
+{"ts": "2026-09-04T00:46:33Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume)"}
+{"ts": "2026-09-04T00:46:33Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume)"}
+{"ts": "2026-09-04T00:46:33Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume)"}
+{"ts": "2026-09-04T00:46:33Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "work_authorization is on file (from operator)"}
+{"ts": "2026-09-04T00:46:33Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "needs_sponsorship is on file (from operator)"}
+{"ts": "2026-09-04T00:46:33Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "country is on file (from operator)"}
+{"ts": "2026-09-04T00:47:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "email is on file (from resume)"}
+{"ts": "2026-09-04T00:47:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "phone is on file (from resume)"}
+{"ts": "2026-09-04T00:47:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume)"}
+{"ts": "2026-09-04T00:47:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "github is on file (from resume)"}
+{"ts": "2026-09-04T00:47:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume)"}
+{"ts": "2026-09-04T00:47:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume)"}
+{"ts": "2026-09-04T00:47:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume)"}
+{"ts": "2026-09-04T00:47:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume)"}
+{"ts": "2026-09-04T00:47:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume)"}
+{"ts": "2026-09-04T00:47:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "work_authorization is on file (from operator)"}
+{"ts": "2026-09-04T00:47:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "needs_sponsorship is on file (from operator)"}
+{"ts": "2026-09-04T00:47:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "country is on file (from operator)"}
+{"ts": "2026-09-04T00:47:04Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from operator)"}
+{"ts": "2026-09-04T00:47:17Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 54 field(s) on file:///tmp/gh/stripe.html"}
+{"ts": "2026-09-04T00:48:08Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "email is on file (from resume)"}
+{"ts": "2026-09-04T00:48:08Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "phone is on file (from resume)"}
+{"ts": "2026-09-04T00:48:08Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume)"}
+{"ts": "2026-09-04T00:48:08Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "github is on file (from resume)"}
+{"ts": "2026-09-04T00:48:08Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume)"}
+{"ts": "2026-09-04T00:48:08Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume)"}
+{"ts": "2026-09-04T00:48:08Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume)"}
+{"ts": "2026-09-04T00:48:08Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume)"}
+{"ts": "2026-09-04T00:48:08Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume)"}
+{"ts": "2026-09-04T00:48:08Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "work_authorization is on file (from operator)"}
+{"ts": "2026-09-04T00:48:08Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "needs_sponsorship is on file (from operator)"}
+{"ts": "2026-09-04T00:48:08Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "country is on file (from operator)"}
+{"ts": "2026-09-04T00:48:08Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from operator)"}
+{"ts": "2026-09-04T00:48:21Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 54 field(s) on file:///tmp/gh/stripe.html"}
+{"ts": "2026-09-04T00:48:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "email is on file (from resume)"}
+{"ts": "2026-09-04T00:48:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "phone is on file (from resume)"}
+{"ts": "2026-09-04T00:48:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume)"}
+{"ts": "2026-09-04T00:48:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "github is on file (from resume)"}
+{"ts": "2026-09-04T00:48:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume)"}
+{"ts": "2026-09-04T00:48:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume)"}
+{"ts": "2026-09-04T00:48:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume)"}
+{"ts": "2026-09-04T00:48:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume)"}
+{"ts": "2026-09-04T00:48:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume)"}
+{"ts": "2026-09-04T00:48:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "work_authorization is on file (from operator)"}
+{"ts": "2026-09-04T00:48:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "needs_sponsorship is on file (from operator)"}
+{"ts": "2026-09-04T00:48:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "country is on file (from operator)"}
+{"ts": "2026-09-04T00:48:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from operator)"}
+{"ts": "2026-09-04T00:48:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "willing_to_relocate is on file (from operator)"}
+{"ts": "2026-09-04T00:48:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "current_employer is on file (from operator)"}
+{"ts": "2026-09-04T00:48:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "current_title is on file (from operator)"}
+{"ts": "2026-09-04T00:48:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "school is on file (from operator)"}
+{"ts": "2026-09-04T00:48:48Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "degree is on file (from operator)"}
+{"ts": "2026-09-04T00:49:01Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 54 field(s) on file:///tmp/gh/stripe.html"}
+{"ts": "2026-09-04T00:49:30Z", "kind": "action", "actor": "aletheia-jobs", "subject": "jobs", "text": "searched 24 board(s) for 'software engineer': 1826 match(es), 3 board(s) failed"}
+{"ts": "2026-09-04T00:50:02Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "email is on file (from resume)"}
+{"ts": "2026-09-04T00:50:02Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "phone is on file (from resume)"}
+{"ts": "2026-09-04T00:50:02Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume)"}
+{"ts": "2026-09-04T00:50:02Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume)"}
+{"ts": "2026-09-04T00:50:02Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume)"}
+{"ts": "2026-09-04T00:50:02Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume)"}
+{"ts": "2026-09-04T00:50:02Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume)"}
+{"ts": "2026-09-04T00:50:02Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume)"}
+{"ts": "2026-09-04T00:50:02Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "work_authorization is on file (from operator)"}
+{"ts": "2026-09-04T00:50:02Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "needs_sponsorship is on file (from operator)"}
+{"ts": "2026-09-04T00:50:02Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "country is on file (from operator)"}
+{"ts": "2026-09-04T00:50:02Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from operator)"}
+{"ts": "2026-09-04T00:50:02Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from operator)"}
+{"ts": "2026-09-04T00:50:02Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "willing_to_relocate is on file (from operator)"}
+{"ts": "2026-09-04T00:50:02Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "current_employer is on file (from operator)"}
+{"ts": "2026-09-04T00:50:02Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "current_title is on file (from operator)"}
+{"ts": "2026-09-04T00:50:02Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "school is on file (from operator)"}
+{"ts": "2026-09-04T00:50:02Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "degree is on file (from operator)"}
+{"ts": "2026-09-04T00:50:02Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume.txt (396 bytes)"}
+{"ts": "2026-09-04T00:50:29Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 54 field(s) on file:///tmp/gh/stripe.html"}
+{"ts": "2026-09-04T00:50:56Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 23 field(s) on file:///tmp/gh/vercel.html"}
+{"ts": "2026-09-04T00:51:22Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 23 field(s) on file:///tmp/gh/reddit.html"}
+{"ts": "2026-09-04T00:51:22Z", "kind": "action", "actor": "aletheia-campaign", "subject": "campaign", "text": "0 ready, 3 waiting on answers, 0 could not be reached — for 'software engineer'; nothing submitted"}
+{"ts": "2026-09-04T00:52:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "email is on file (from resume)"}
+{"ts": "2026-09-04T00:52:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "phone is on file (from resume)"}
+{"ts": "2026-09-04T00:52:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume)"}
+{"ts": "2026-09-04T00:52:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "github is on file (from resume)"}
+{"ts": "2026-09-04T00:52:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume)"}
+{"ts": "2026-09-04T00:52:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume)"}
+{"ts": "2026-09-04T00:52:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume)"}
+{"ts": "2026-09-04T00:52:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume)"}
+{"ts": "2026-09-04T00:52:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume)"}
+{"ts": "2026-09-04T00:52:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "work_authorization is on file (from operator)"}
+{"ts": "2026-09-04T00:52:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "needs_sponsorship is on file (from operator)"}
+{"ts": "2026-09-04T00:52:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "country is on file (from operator)"}
+{"ts": "2026-09-04T00:52:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from operator)"}
+{"ts": "2026-09-04T00:52:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from operator)"}
+{"ts": "2026-09-04T00:52:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "willing_to_relocate is on file (from operator)"}
+{"ts": "2026-09-04T00:52:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "current_employer is on file (from operator)"}
+{"ts": "2026-09-04T00:52:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "current_title is on file (from operator)"}
+{"ts": "2026-09-04T00:52:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "school is on file (from operator)"}
+{"ts": "2026-09-04T00:52:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "degree is on file (from operator)"}
+{"ts": "2026-09-04T00:52:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "heard_about is on file (from operator)"}
+{"ts": "2026-09-04T00:52:21Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume.txt (769 bytes)"}
+{"ts": "2026-09-04T00:52:48Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 54 field(s) on file:///tmp/gh/stripe.html"}
+{"ts": "2026-09-04T00:53:14Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 23 field(s) on file:///tmp/gh/vercel.html"}
+{"ts": "2026-09-04T00:53:41Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 23 field(s) on file:///tmp/gh/reddit.html"}
+{"ts": "2026-09-04T00:54:30Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 23 field(s) on file:///tmp/gh/reddit.html"}
+{"ts": "2026-09-04T00:54:30Z", "kind": "action", "actor": "aletheia-campaign", "subject": "campaign", "text": "0 ready, 3 waiting on answers, 0 could not be reached — for 'software engineer'; nothing submitted"}
+{"ts": "2026-09-04T01:00:59Z", "kind": "action", "actor": "aletheia-jobs", "subject": "jobs", "text": "searched 24 board(s) for 'software engineer': 1826 match(es), 3 board(s) failed"}

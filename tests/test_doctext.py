@@ -97,6 +97,27 @@ class ItReadsWhatHeActuallyHAS(DocCase):
         (self.d / "r.txt").write_text("\n".join(LINES))
         self.assertEqual(doctext.extract(self.d / "r.txt")["kind"], doctext.TEXT)
 
+    def test_a_phone_number_in_brackets_survives(self):
+        """PDF strings NEST: parentheses inside one need no escaping as
+        long as they balance. A phone number is written `(512) 555-0134`,
+        so the line `(caleb@x.com | (512) 555-0134) Tj` is one legal string
+        containing another pair — and the regex that used to read these
+        stopped at the inner `(`, failed to match, and DROPPED THE WHOLE
+        LINE. Silently: extraction succeeded, it was just missing his email
+        address and his phone number, which is most of what a form wants
+        from him. Found by watching a campaign learn seven things off a
+        resume and not those two."""
+        make_pdf(self.d / "r.pdf", LINES + [
+            "caleb@example.com | (512) 555-0134"])
+        text = doctext.extract(self.d / "r.pdf")["text"]
+        self.assertIn("caleb@example.com", text)
+        self.assertIn("(512) 555-0134", text)
+
+    def test_deeply_nested_brackets_do_not_swallow_the_rest(self):
+        make_pdf(self.d / "r.pdf", LINES + ["Shipped ((six)) videos a day"])
+        self.assertIn("((six)) videos a day",
+                      doctext.extract(self.d / "r.pdf")["text"])
+
     def test_pdf_escapes_survive(self):
         make_pdf(self.d / "r.pdf", LINES + [
             r"Built (things) with \backslashes and 50% uptime"])
