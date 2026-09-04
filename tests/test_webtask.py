@@ -73,6 +73,21 @@ class FakePage:
     def click(self, selector):
         self.did.append(("click", selector))
 
+    def query_selector(self, css):
+        for row in self._fields + self._buttons:
+            if row["selector"] == css:
+                return FakeEl(row.get("text") or row.get("label") or "")
+        for row in getattr(self, "_links", []):
+            if row.get("selector") == css:
+                return FakeEl(row.get("text", ""))
+        return None
+
+    def is_closed(self):
+        return False
+
+    def wait_for_timeout(self, ms):
+        pass
+
     def wait_for_load_state(self, *a, **kw):
         pass
 
@@ -84,6 +99,30 @@ class FakePage:
 
     def close(self):
         pass
+
+
+class FakeEl:
+    def __init__(self, text):
+        self.text = text
+
+    def inner_text(self):
+        return self.text
+
+    def get_attribute(self, name):
+        return None
+
+
+class FakeFrame(FakePage):
+    """An embedded document: same verbs, different tree."""
+
+
+class FakeFramed(FakePage):
+    """A page with an <iframe> in it — what an ATS embed actually is."""
+
+    def __init__(self, inner, fields=(), buttons=(), url="https://x.example/apply"):
+        super().__init__(fields, buttons, url=url)
+        self.inner = inner
+        self.frames = [self, inner]
 
 
 class FakeSession:
@@ -101,6 +140,10 @@ class FakeSession:
 
     def new_page(self):
         return self.page
+
+    @property
+    def pages(self):
+        return [self.page] + list(getattr(self, "opened", []))
 
 
 def field(selector, label, **kw):
@@ -507,6 +550,260 @@ class AWizardIsWalkedThroughNotJumpedInto(WebTaskCase):
                           "#cert": "checked"})
         self.assertEqual([d for d in wizard.did if d[0] == "goto"],
                          [("goto", "https://x.example/")])
+
+
+class AFormInsideAnIframeIsStillAForm(WebTaskCase):
+    """Greenhouse and Lever both ship their application as an `<iframe>`.
+
+    Pointed at a careers page whose form was one frame away, she read the
+    top document, found no inputs and said *"I don't see any form fields"*
+    — with the entire application sitting right there. Reading only the
+    top document is the same defect as reading only the last page of a
+    wizard: the thing she was sent to do is one level away from where she
+    is standing.
+    """
+
+    def framed(self):
+        inner = FakeFrame(
+            [field("#fn", "First name *", required=True),
+             field("#em", "Email *", required=True),
+             field("#why", "Why do you want this job? *", tag="textarea",
+                   required=True)],
+            [{"selector": "button[type=submit]", "text": "Submit application"}],
+            url="https://x.example/embed")
+        page = FakeFramed(inner, [], [], url="https://x.example/apply")
+        return page, inner
+
+    def run_it(self, *replies, budget=4):
+        page, inner = self.framed()
+        out = webtask.run(
+            "Apply for this job with my details. For why I want the job say: "
+            "I build unattended systems with quality gates.",
+            start_url="https://x.example/apply", budget=budget,
+            think=self.brain(*replies), session=FakeSession(page))
+        return page, inner, out
+
+    def test_the_fields_in_the_frame_are_seen_and_carry_the_frame_with_them(self):
+        _, inner, out = self.run_it(
+            '{"action": "done", "value": "filled"}')
+        page, _ = self.framed()
+        # Read from the top document, this page has no fields at all.
+        self.assertEqual(page.evaluate(webtask.formfill.READ_FORM_JS), [])
+        # Read properly, every field is there and says which frame it is in.
+        self.assertEqual([f["selector"] for f in webtask.read_forms(page)],
+                         ["@frame1|#fn", "@frame1|#em", "@frame1|#why"])
+        # And what she knows goes into the FRAME, not the page.
+        self.assertEqual([d for d in inner.did if d[0] == "fill"][:2],
+                         [("fill", "#fn", "Caleb"),
+                          ("fill", "#em", "caleb@example.com")])
+        self.assertEqual([d for d in out["steps"] if d["step"]["action"] == "known"][0]
+                         ["result"].startswith("filled 2"), True)
+
+    def test_the_submit_button_INSIDE_the_frame_is_the_one_she_stops_at(self):
+        _, _, out = self.run_it(
+            '{"action": "fill", "values": {"@frame1|#why": "I build unattended '
+            'systems with quality gates."}}',
+            '{"action": "click", "selector": "@frame1|button[type=submit]"}')
+        self.assertEqual(out["state"], webtask.COMMIT, out.get("say"))
+        self.assertEqual(out["button"], "Submit application")
+        self.assertEqual(out["button_selector"], "@frame1|button[type=submit]")
+
+    def test_pressing_it_reaches_into_the_frame_not_the_page(self):
+        page, inner, out = self.run_it(
+            '{"action": "fill", "values": {"@frame1|#why": "I build unattended '
+            'systems with quality gates."}}',
+            '{"action": "click", "selector": "@frame1|button[type=submit]"}')
+        policy.decide(out["approval"], "APPROVED", via="phone")
+        page.did, inner.did = [], []
+        with mock.patch.object(webtask.browse, "_Session", FakeSession(page)):
+            webtask.commit(out["id"])
+        self.assertIn(("click", "button[type=submit]"), inner.did)
+        self.assertNotIn(("click", "button[type=submit]"), page.did)
+
+    def test_an_element_is_found_in_whatever_frame_actually_holds_it(self):
+        """The index is a hint; being there is the truth. A frame attaches
+        after `domcontentloaded` and then navigates, so right after a load
+        frame 1 exists and is empty."""
+        page, inner = self.framed()
+        where, css = webtask._resolve(page, "@frame4|#fn")
+        self.assertIs(where, inner)
+        self.assertEqual(css, "#fn")
+
+    def test_a_page_with_no_frames_at_all_behaves_exactly_as_before(self):
+        plain = FakePage([field("#a", "First name")], [])
+        self.assertEqual(webtask._frames(plain), [plain])
+        self.assertEqual(webtask._resolve(plain, "#a"), (plain, "#a"))
+
+
+class AnApplyLinkIsAControlToo(WebTaskCase):
+    """"Apply for this job" is an `<a target="_blank">` on most of the
+    internet. Refusing to click one because it is not a `<button>`, and
+    then not following the tab it opens, together made the first live run
+    stand on the careers page describing it."""
+
+    def test_a_link_is_clicked_not_refused(self):
+        page = FakePage([], [])
+        page._links = [{"selector": "a[href='/apply']", "text": "Apply for this job"}]
+        out = self.go(page, "Apply for this job",
+                      """{"action": "click", "selector": "a[href='/apply']"}""",
+                      '{"action": "done", "value": "clicked"}')
+        self.assertIn(("click", "a[href='/apply']"), page.did)
+        self.assertEqual(out["state"], webtask.DONE)
+
+    def test_a_selector_that_is_on_no_page_at_all_is_still_refused(self):
+        page = FakePage([], [])
+        out = self.go(page, "Apply for this job",
+                      '{"action": "click", "selector": "#nope"}',
+                      '{"action": "done", "value": "gave up on it"}')
+        self.assertNotIn(("click", "#nope"), page.did)
+        self.assertIn("no such control", out["steps"][0]["result"])
+
+    def test_a_click_that_opens_a_new_tab_is_FOLLOWED(self):
+        page = FakePage([], [])
+        page._links = [{"selector": "a#apply", "text": "Apply for this job"}]
+        opened = FakePage([field("#fn", "First name *", required=True)], [],
+                          url="https://x.example/form2")
+        session = FakeSession(page)
+        session.opened = []
+        original = page.click
+
+        def click(selector):
+            original(selector)
+            session.opened.append(opened)      # the popup, a beat later
+        page.click = click
+
+        out = webtask.run(
+            "Apply for this job", start_url="https://x.example/form",
+            budget=3, think=self.brain(
+                '{"action": "click", "selector": "a#apply"}',
+                '{"action": "done", "value": "done"}'),
+            session=session)
+        self.assertIn("opened a new tab", out["steps"][0]["result"])
+        # And she is now working on the tab that opened.
+        self.assertEqual(out["url"], "https://x.example/form2")
+        self.assertIn(("fill", "#fn", "Caleb"), opened.did)
+
+
+class ADoorSheMayNotWalkThrough(WebTaskCase):
+    """Two walls, and they are different in kind: one he can fix once,
+    one nobody should be defeating."""
+
+    def test_a_sign_in_wall_names_the_ONE_command_that_fixes_it_for_good(self):
+        page = FakePage([field("#u", "Email"),
+                         field("#p", "Password", type="password")],
+                        [{"selector": "#go", "text": "Sign in"}],
+                        url="https://portal.example/login")
+        out = self.go(page, "Check my account on the portal",
+                      '{"action": "done", "value": "should not get here"}')
+        self.assertEqual(out["state"], webtask.SIGN_IN)
+        self.assertIn("python -m aletheia.browse login", out["say"])
+        self.assertIn(out["url"], out["say"])
+        self.assertEqual([d for d in page.did if d[0] == "fill"], [])
+
+    def test_she_never_types_a_password_she_was_never_given(self):
+        page = FakePage([field("#p", "Password", type="password")], [])
+        self.go(page, "Sign in for me",
+                '{"action": "type", "selector": "#p", "value": "hunter2"}')
+        self.assertEqual([d for d in page.did if d[0] == "fill"], [])
+
+    def test_a_human_check_is_NAMED_and_never_attempted(self):
+        page = FakePage([], [], url="https://x.example/check")
+        page.evaluate = lambda script: (
+            {"title": "Security check", "url": page.url,
+             "text": "Verify you are human before continuing.",
+             "buttons": [], "links": []} if "buttons" in script else [])
+        out = self.go(page, "Open my account",
+                      '{"action": "done", "value": "should not get here"}')
+        self.assertEqual(out["state"], webtask.HUMAN_CHECK)
+        self.assertIn("cannot answer that one for you", out["say"])
+        self.assertEqual(page.did, [("goto", "https://x.example/form")])
+
+
+class WhatHeSaidYesToIsTheROUTE(WebTaskCase):
+    """`policy.request` is idempotent on the approval id. Keyed on the run
+    alone, a second run of the same goal — a different route, a different
+    button — inherits the yes he gave the first one and presses it."""
+
+    def form(self, label):
+        return FakePage([field("#fn", "First name *", required=True)],
+                        [{"selector": "#go", "text": label}])
+
+    def test_a_different_route_gets_a_different_approval(self):
+        first = self.go(self.form("Submit application"), "Apply for me",
+                        '{"action": "click", "selector": "#go"}')
+        page = self.form("Submit application")
+        page._fields.append(field("#ln", "Last name *", required=True))
+        second = webtask.run(
+            "Apply for me", start_url="https://x.example/form", budget=4,
+            think=self.brain('{"action": "click", "selector": "#go"}'),
+            session=FakeSession(page))
+        self.assertEqual(first["id"], second["id"])
+        self.assertNotEqual(first["approval"], second["approval"])
+
+    def test_a_yes_for_one_route_cannot_press_another(self):
+        out = self.go(self.form("Submit application"), "Apply for me",
+                      '{"action": "click", "selector": "#go"}')
+        policy.decide(out["approval"], "APPROVED", via="phone")
+        record = webtask.load_run(out["id"])
+        record["typed"].append({"action": "type", "selector": "#x",
+                                "value": "something he never saw"})
+        webtask.stateio.write_json_atomic(webtask._record_path(out["id"]), record)
+        with self.assertRaises(webtask.WebTaskError) as caught:
+            webtask.commit(out["id"], presser=lambda r: {})
+        self.assertIn("different route", str(caught.exception))
+
+    def test_the_SAME_route_run_twice_cannot_press_twice_on_one_yes(self):
+        """The digest stops a different route inheriting his yes; it does
+        not stop the same one. A second run overwrites the record with a
+        fresh AWAITING_YOU while the old approval is still APPROVED — and
+        that is a second application to the same job, pressed silently."""
+        first = self.go(self.form("Submit application"), "Apply for me",
+                        '{"action": "click", "selector": "#go"}')
+        policy.decide(first["approval"], "APPROVED", via="phone")
+        webtask.commit(first["id"], presser=lambda r: {"url": "x"})
+        again = self.go(self.form("Submit application"), "Apply for me",
+                        '{"action": "click", "selector": "#go"}')
+        self.assertEqual(again["approval"], first["approval"])   # same route
+        self.assertEqual(policy.load(again["approval"])["state"], "APPROVED")
+        pressed = []
+        with self.assertRaises(webtask.WebTaskError) as caught:
+            webtask.commit(again["id"], presser=lambda r: pressed.append(1))
+        self.assertIn("already been used", str(caught.exception))
+        self.assertEqual(pressed, [])
+
+    def test_a_press_that_FAILED_also_needs_a_fresh_yes(self):
+        """Otherwise a broken press becomes a retry loop nobody agreed to."""
+        out = self.go(self.form("Submit application"), "Apply for me",
+                      '{"action": "click", "selector": "#go"}')
+        policy.decide(out["approval"], "APPROVED", via="phone")
+
+        def boom(record):
+            raise RuntimeError("the site fell over")
+        with self.assertRaises(RuntimeError):
+            webtask.commit(out["id"], presser=boom)
+        record = webtask.load_run(out["id"])
+        record["state"] = webtask.COMMIT
+        webtask.stateio.write_json_atomic(webtask._record_path(out["id"]), record)
+        with self.assertRaises(webtask.WebTaskError) as caught:
+            webtask.commit(out["id"], presser=lambda r: {})
+        self.assertIn("already been used", str(caught.exception))
+
+    def test_navigation_is_part_of_the_route(self):
+        """Without the goto in it, the press replays onto the page he was
+        given rather than the one she navigated to."""
+        page = FakePage([field("#fn", "First name *", required=True)],
+                        [{"selector": "#go", "text": "Submit application"}])
+        out = webtask.run(
+            "Apply on the other page", start_url="https://x.example/form",
+            budget=4,
+            think=self.brain(
+                '{"action": "goto", "value": "https://x.example/real"}',
+                '{"action": "click", "selector": "#go"}'),
+            session=FakeSession(page))
+        self.assertEqual(out["state"], webtask.COMMIT, out.get("say"))
+        self.assertIn({"action": "goto", "selector": "",
+                       "value": "https://x.example/real"}, out["typed"])
+        self.assertEqual(out["replay_from"], "https://x.example/form")
 
 
 class HeCanJustSayIt(unittest.TestCase):

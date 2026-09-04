@@ -58,11 +58,24 @@ MAX_STEPS = 14
 MAX_TEXT = 4_000
 MAX_LINKS = 40
 MAX_FIELDS = 45
+MAX_FRAMES = 12
+FRAME_WAIT_TRIES = 40          # 10s for an iframe to attach
+TAB_WAIT_TRIES = 20            # 3s for a new tab to open
 STEP_TIMEOUT_S = 90.0
 MAX_GOAL_CHARS = 600
 
 DONE, ASK, COMMIT, BUDGET, REFUSED = ("DONE", "NEEDS_YOU", "AWAITING_YOU",
                                       "OUT_OF_STEPS", "REFUSED")
+SIGN_IN = "NEEDS_SIGN_IN"
+HUMAN_CHECK = "NEEDS_YOUR_EYES"
+
+# A "security check" is a wall a person is supposed to pass, and she is not
+# a person. Solving one is also, everywhere, against the site's terms — so
+# she names it and hands it back rather than trying anything clever.
+HUMAN_WORDS = re.compile(
+    r"(i'?m not a robot|verify (?:that )?you(?:'re| are) (?:a )?human|"
+    r"are you a human|complete the captcha|recaptcha|hcaptcha|cloudflare|"
+    r"security check|unusual traffic)", re.I)
 
 # Anything that reads as spending. Not gated — REFUSED. "Confirm you want
 # to spend $400" is a question this system does not ask.
@@ -177,7 +190,13 @@ OBSERVE_JS = r"""() => {
     if (!seen(a)) continue;
     const text = (a.innerText || '').trim();
     if (!text) continue;
-    links.push({href: a.href, text: text.slice(0, 70)});
+    // A link needs a SELECTOR, not just an href: "Apply for this job" is an
+    // <a target=_blank> on most careers sites, and following its href with
+    // goto loses whatever the click itself would have done.
+    const raw = a.getAttribute('href') || '';
+    const one = sel(a) || (raw ? `a[href="${raw.replace(/"/g, '\\"')}"]` : null);
+    links.push({href: a.href, text: text.slice(0, 70),
+                ...(one ? {selector: one} : {})});
     if (links.length > 60) break;
   }
   return {title: document.title, url: location.href,
@@ -267,10 +286,222 @@ def _value_is_his(value: str, allowed: set[str], options: list[str],
     return low in {"yes", "no", "true", "false", "n/a", "none", "0", "1"}
 
 
+FRAME_RE = re.compile(r"^@frame(\d+)\|(.*)$", re.S)
+
+
+def _frames(page) -> list:
+    """The page, and everything embedded in it.
+
+    An application form on a company careers page is very often an
+    `<iframe>` — Greenhouse and Lever both ship one as their embed, and
+    it is what the "Apply" link on a real site drops you onto. Reading
+    only the top document, she stood on such a page and said *"I don't
+    see any form fields"* while the whole form sat one frame away. A page
+    object without `.frames` (a test double, an older shape) behaves
+    exactly as it did before.
+    """
+    got = getattr(page, "frames", None)
+    if not got:
+        return [page]
+    try:
+        return list(got)[:MAX_FRAMES]
+    except TypeError:
+        return [page]
+
+
+def _tag(index: int, selector: str) -> str:
+    """A selector carries the frame it belongs to, or it is ambiguous.
+
+    `#fn` means something different in each frame of a page, and a
+    selector that does not say which one is a coin flip at replay time.
+    """
+    return selector if index == 0 else f"@frame{index}|{selector}"
+
+
+def _holds(frame, css: str) -> bool:
+    """Does this frame actually contain that element right now?"""
+    finder = getattr(frame, "query_selector", None)
+    if finder is None:
+        return True                      # a test double: index is the truth
+    try:
+        return finder(css) is not None
+    except Exception:
+        return False
+
+
+def _resolve(page, selector: str):
+    """(where to do it, what to do it to).
+
+    The frame INDEX is a hint; the element being there is the truth. An
+    `<iframe>` attaches after `domcontentloaded` and then navigates, so
+    right after a page load frame 1 exists and is still blank — the first
+    version typed into it and spent twenty seconds waiting for a field
+    that would never appear in that document. Real sites also reorder and
+    re-attach frames between the run and the press. So: prefer the
+    recorded position, accept any frame that has the element, and wait a
+    bounded time for one to.
+    """
+    match = FRAME_RE.match(str(selector or ""))
+    if not match:
+        return page, selector
+    index, css = int(match.group(1)), match.group(2)
+    wait = getattr(page, "wait_for_timeout", None)
+    for attempt in range(FRAME_WAIT_TRIES if wait else 1):
+        frames = _frames(page)
+        ordered = ([frames[index]] if index < len(frames) else []) + [
+            f for i, f in enumerate(frames) if i != index]
+        for frame in ordered:
+            if _holds(frame, css):
+                return frame, css
+        if wait is None:
+            break
+        try:
+            wait(250)
+        except Exception:
+            break
+    frames = _frames(page)
+    return (frames[index] if index < len(frames) else page), css
+
+
+def control_text(page, selector: str):
+    """What the thing at that selector says, or None if it is not there.
+
+    The buttons list is buttons; the "Apply for this job" on a real
+    careers page is an ordinary link, and refusing to click one because
+    it is not a `<button>` cost a step on the very first live run. What
+    matters is that the element EXISTS and what it SAYS — the label is
+    what the money and commit refusals read.
+    """
+    target, css = _resolve(page, selector)
+    finder = getattr(target, "query_selector", None)
+    if finder is None:
+        return None
+    try:
+        el = finder(css)
+    except Exception:
+        return None
+    if el is None:
+        return None
+    try:
+        return ((el.inner_text() or el.get_attribute("value") or "")
+                .strip()[:70])
+    except Exception:
+        return ""
+
+
+def _open_pages(ctx) -> list:
+    try:
+        return [p for p in (getattr(ctx, "pages", None) or []) if not p.is_closed()]
+    except Exception:
+        return []
+
+
+def follow_new_tab(ctx, page, before: list):
+    """A click that opened a new tab is followed, not lost.
+
+    `target="_blank"` is how half the Apply buttons on the internet work.
+    Without this she clicks, the form opens in a tab she is not looking
+    at, and she reports the page she is still standing on as having no
+    fields.
+    """
+    # A popup does not exist the instant the click returns; the browser
+    # opens it a beat later. Checking once found nothing and she carried
+    # on describing the page she had just left.
+    opened: list = []
+    for _ in range(TAB_WAIT_TRIES):
+        opened = [p for p in _open_pages(ctx) if p not in before]
+        if opened:
+            break
+        try:
+            page.wait_for_timeout(150)
+        except Exception:
+            break
+    if not opened:
+        return page
+    fresh = opened[-1]
+    try:
+        fresh.wait_for_load_state("domcontentloaded")
+    except Exception:
+        pass
+    return fresh
+
+
+class _Hands:
+    """Act on a selector wherever it actually lives.
+
+    Playwright's `page.fill` only reaches the top document; a frame has
+    the same verbs. This is the one place that knows the difference, so
+    the run loop and the press replay cannot disagree about it.
+    """
+
+    def __init__(self, page):
+        self.page = page
+
+    def fill(self, selector, value):
+        target, css = _resolve(self.page, selector)
+        target.fill(css, str(value))
+
+    def select_option(self, selector, value=None, *, label=None):
+        target, css = _resolve(self.page, selector)
+        if label is not None:
+            target.select_option(css, label=label)
+        else:
+            target.select_option(css, value)
+
+    def check(self, selector):
+        target, css = _resolve(self.page, selector)
+        target.check(css)
+
+    def uncheck(self, selector):
+        target, css = _resolve(self.page, selector)
+        target.uncheck(css)
+
+    def set_input_files(self, selector, path):
+        target, css = _resolve(self.page, selector)
+        target.set_input_files(css, path)
+
+    def click(self, selector):
+        target, css = _resolve(self.page, selector)
+        target.click(css)
+
+
+def read_forms(page) -> list[dict]:
+    """Every field on the page, in every frame, each selector frame-tagged."""
+    rows: list[dict] = []
+    for index, frame in enumerate(_frames(page)):
+        try:
+            got = frame.evaluate(formfill.READ_FORM_JS)
+        except Exception:
+            continue
+        for row in got or []:
+            row = dict(row)
+            row["selector"] = _tag(index, row["selector"])
+            rows.append(row)
+        if len(rows) > MAX_FIELDS * 2:
+            break
+    return rows
+
+
 def observe(page) -> dict:
     """What the page shows, small enough to reason about."""
     seen = page.evaluate(OBSERVE_JS)
-    fields = page.evaluate(formfill.READ_FORM_JS)
+    buttons, links = list(seen.get("buttons") or []), list(seen.get("links") or [])
+    for index, frame in enumerate(_frames(page)):
+        if index == 0:
+            continue
+        try:
+            inner = frame.evaluate(OBSERVE_JS)
+        except Exception:
+            continue
+        # The Submit button of an embedded form is INSIDE the frame. Without
+        # this she can fill an iframe form and then find nothing to press.
+        buttons += [{**b, "selector": _tag(index, b["selector"])}
+                    for b in (inner.get("buttons") or [])]
+        links += list(inner.get("links") or [])
+        if inner.get("text"):
+            seen["text"] = (seen.get("text") or "") + "\n" + inner["text"]
+    seen["buttons"], seen["links"] = buttons, links
+    fields = read_forms(page)
     trimmed = []
     for field in fields[:MAX_FIELDS]:
         row = {"selector": field["selector"], "type": field.get("type"),
@@ -288,12 +519,54 @@ def observe(page) -> dict:
         trimmed.append(row)
     return {"title": seen["title"][:160], "url": seen["url"],
             "text": seen["text"][:MAX_TEXT],
+            # The unabridged rows, for `formfill` — popped before the page
+            # ever goes to the model.
+            "_raw": fields,
             "fields": trimmed,
             "buttons": seen["buttons"][:20],
             "links": seen["links"][:MAX_LINKS]}
 
 
+def wall(seen: dict) -> dict | None:
+    """A door she is not allowed to walk through on his behalf.
+
+    Two of them, and they are different in kind:
+
+    A SIGN-IN wall is a thing he can fix once. She never stores his
+    passwords — a password box is refused by the value gate like any
+    other fact she was not given — but the browser profile she drives is
+    persistent, so him signing in once at a real window is permanent.
+    That is `python -m aletheia.browse login <url>`, and saying so is a
+    fix handed over rather than a dead end.
+
+    A HUMAN CHECK is not his to fix and not hers to defeat. She says
+    which page, and stops.
+    """
+    text = f"{seen.get('title', '')}\n{seen.get('text', '')}"
+    if HUMAN_WORDS.search(text[:4000]):
+        return {"state": HUMAN_CHECK,
+                "say": ("This page is asking to check that a human is here, "
+                        f"at {seen.get('url', '')[:90]} — I cannot answer that "
+                        "one for you and I will not try. Open it yourself and "
+                        "then tell me to carry on.")}
+    if any(f.get("type") == "password" for f in seen.get("fields") or []):
+        url = seen.get("url", "")
+        return {"state": SIGN_IN,
+                "say": ("This wants an account before it will go any further, "
+                        f"at {url[:90]}. I do not keep your passwords, so this "
+                        "is the one bit you do: run `python -m aletheia.browse "
+                        f"login {url[:120]}`, sign in in the window that opens, "
+                        "close it, and tell me to carry on — I keep the session "
+                        "after that and you will not have to do it again."),
+                "sign_in_url": url}
+    return None
+
+
 def _decide(goal: str, page_state: dict, history: list[dict], think) -> dict:
+    # Belt: the raw rows ride along in `observe` for `formfill` and are
+    # popped by the loop. Nothing underscored ever reaches the model — a
+    # forgotten pop would silently spend the whole prompt budget.
+    page_state = {k: v for k, v in page_state.items() if not k.startswith("_")}
     prompt = json.dumps({
         "goal": goal,
         "facts_about_him": _facts(goal)["about_him"],
@@ -353,6 +626,7 @@ def run(goal: str, *, start_url: str = "", budget: int = 8, think=None,
     opener = session or browse._Session
     with opener() as ctx:
         page = ctx.new_page()
+        hands = _Hands(page)
         page.goto(start_url or "about:blank", wait_until="domcontentloaded")
         for _ in range(budget):
             policy.ensure_not_halted()
@@ -364,7 +638,19 @@ def run(goal: str, *, start_url: str = "", budget: int = 8, think=None,
             # turns rephrasing one essay and left the rest blank. The model
             # is for judgment — which button, which page, what does this
             # question mean — not for copying his email address into a box.
-            raw = page.evaluate(formfill.READ_FORM_JS)
+            # LOOK BEFORE TYPING. The deterministic pass used to run first,
+            # which meant that on a sign-in page she put his email address
+            # into the username box and only then noticed it was a wall she
+            # was not going to get through — a half-filled login left behind
+            # on a site she then walked away from.
+            seen = observe(page)
+            blocked = wall(seen)
+            if blocked:
+                history.append({"step": {"action": "look"},
+                                "result": blocked["state"]})
+                outcome = blocked
+                break
+            raw = seen.pop("_raw", None) or []
             if raw:
                 mapped = formfill.plan(raw)
                 filled_now = []
@@ -375,9 +661,9 @@ def run(goal: str, *, start_url: str = "", budget: int = 8, think=None,
                         continue
                     try:
                         if item["action"] == "select":
-                            page.select_option(item["selector"], item["value"])
+                            hands.select_option(item["selector"], item["value"])
                         else:
-                            page.fill(item["selector"], item["value"])
+                            hands.fill(item["selector"], item["value"])
                     except Exception:
                         continue
                     applied.append({"action": item["action"],
@@ -389,8 +675,9 @@ def run(goal: str, *, start_url: str = "", budget: int = 8, think=None,
                                     "result": (f"filled {len(filled_now)} from "
                                                "what I know: "
                                                + ", ".join(filled_now[:8]))})
+                    seen = observe(page)      # the values changed
+                    seen.pop("_raw", None)
 
-            seen = observe(page)
             try:
                 step = _decide(goal, seen, history, think)
             except Exception as exc:
@@ -418,6 +705,10 @@ def run(goal: str, *, start_url: str = "", budget: int = 8, think=None,
                     history.append({"step": step, "result": "refused: not a url"})
                     continue
                 page.goto(value, wait_until="domcontentloaded")
+                # Part of the ROUTE, so the press can walk it again. Without
+                # this the replay started on the careers page she was given
+                # and never reached the application she had navigated to.
+                applied.append({"action": "goto", "selector": "", "value": value})
                 history.append({"step": step, "result": f"opened {value[:80]}"})
                 continue
 
@@ -457,13 +748,13 @@ def run(goal: str, *, start_url: str = "", budget: int = 8, think=None,
                             yes = str(val).strip().casefold() in (
                                 "yes", "true", "1", "on", "checked", "i agree",
                                 "agree", "tick", "check")
-                            page.check(sel) if yes else page.uncheck(sel)
+                            hands.check(sel) if yes else hands.uncheck(sel)
                             action_used = "check" if yes else "uncheck"
                         elif target.get("options"):
-                            page.select_option(sel, label=str(val))
+                            hands.select_option(sel, label=str(val))
                             action_used = "select"
                         else:
-                            page.fill(sel, str(val))
+                            hands.fill(sel, str(val))
                             action_used = "type"
                         done_now.append(target["label"][:40])
                         applied.append({"action": action_used,
@@ -509,9 +800,9 @@ def run(goal: str, *, start_url: str = "", budget: int = 8, think=None,
                                     "result": "skipped: already holds that value"})
                     continue
                 if action == "select":
-                    page.select_option(selector, label=value)
+                    hands.select_option(selector, label=value)
                 else:
-                    page.fill(selector, value)
+                    hands.fill(selector, value)
                 applied.append({"action": action, "selector": selector,
                                 "value": value})
                 history.append({"step": step, "result": f"filled {field['label'][:50]}"})
@@ -534,7 +825,7 @@ def run(goal: str, *, start_url: str = "", budget: int = 8, think=None,
                 if field is None:
                     history.append({"step": step, "result": "refused: no such field"})
                     continue
-                page.set_input_files(selector, str(path))
+                hands.set_input_files(selector, str(path))
                 attached.append({"selector": selector, "path": str(path)})
                 history.append({"step": step,
                                 "result": f"attached {Path(path).name}"})
@@ -547,7 +838,7 @@ def run(goal: str, *, start_url: str = "", budget: int = 8, think=None,
                 from aletheia import workspace
                 try:
                     with page.expect_download(timeout=60_000) as caught:
-                        page.click(selector)
+                        hands.click(selector)
                     got = caught.value
                     name = re.sub(r"[^A-Za-z0-9._-]+", "-",
                                   got.suggested_filename or "download")[:80]
@@ -566,6 +857,13 @@ def run(goal: str, *, start_url: str = "", budget: int = 8, think=None,
 
             if action == "click":
                 label = (button or {}).get("text", "") or (field or {}).get("label", "")
+                if button is None and field is None:
+                    found = control_text(page, selector)
+                    if found is None:
+                        history.append({"step": step,
+                                        "result": "refused: no such control"})
+                        continue
+                    label = label or found
                 if MONEY_WORDS.search(label):
                     outcome = {"state": REFUSED,
                                "say": (f"That button says {label[:60]!r}, which "
@@ -595,12 +893,21 @@ def run(goal: str, *, start_url: str = "", budget: int = 8, think=None,
                                          applied, attached, commits,
                                          start_url=start_url)
                     break
-                if button is None and field is None:
-                    history.append({"step": step, "result": "refused: no such control"})
-                    continue
-                page.click(selector)
-                page.wait_for_load_state("domcontentloaded")
+                before = _open_pages(ctx)
+                hands.click(selector)
+                try:
+                    page.wait_for_load_state("domcontentloaded")
+                except Exception:
+                    pass
+                moved = follow_new_tab(ctx, page, before)
                 applied.append({"action": "click", "selector": selector})
+                if moved is not page:
+                    page, hands.page = moved, moved
+                    applied.append({"action": "new_tab", "selector": ""})
+                    history.append({"step": step,
+                                    "result": f"clicked {label[:40]} — it "
+                                              "opened a new tab, following it"})
+                    continue
                 history.append({"step": step, "result": f"clicked {label[:50]}"})
                 continue
 
@@ -624,20 +931,31 @@ def run(goal: str, *, start_url: str = "", budget: int = 8, think=None,
     return record
 
 
+def _digest(action: str) -> str:
+    import hashlib
+    return hashlib.sha256(action.encode("utf-8")).hexdigest()[:12]
+
+
 def _await_him(run_id: str, goal: str, page, label: str, selector: str,
                typed: list[dict], attached: list[dict], commits: str,
                start_url: str = "") -> dict:
     """Everything is filled; the committing click waits for him."""
-    approval_id = f"{run_id}-commit"
     action = browse.approval_action(start_url or page.url, typed + [
         {"action": "click", "selector": selector}])
+    # The approval id carries the ROUTE, not just the run. `policy.request`
+    # is idempotent on the id, so a second run of the same goal — a route
+    # that now fills different fields, or lands on a different button —
+    # would otherwise inherit the yes he gave the first one. Caught by
+    # running the same goal twice against a test site while iterating.
+    approval_id = f"{run_id}-commit-{_digest(action)}"
     policy.request(
         approval_id, action,
         reason=f"{goal} — press {label[:60]!r} on {page.url[:80]}",
         consequence=(f"It presses a button that says {commits!r}. That is not "
                      "something she can undo."),
         reversible=False, capability="web.commit")
-    return {"state": COMMIT, "approval": approval_id, "button": label,
+    return {"state": COMMIT, "approval": approval_id, "action": action,
+            "button": label,
             "button_selector": selector, "typed": typed, "attached": attached,
             # The whole route, not just the last page. A three-page wizard is
             # reached by clicking THROUGH it, and re-opening page three
@@ -662,6 +980,16 @@ def commit(run_id: str, *, presser=None) -> dict:
     if approval.get("state") != "APPROVED":
         raise WebTaskError(f"approval {record['approval']} is "
                            f"{approval.get('state')} — nothing was pressed")
+    # What he said yes to is the ROUTE and the BUTTON, not the run's name.
+    expected = browse.approval_action(
+        record.get("replay_from") or record["url"],
+        record.get("typed", []) + [{"action": "click",
+                                    "selector": record["button_selector"]}])
+    if approval.get("requested_action") != expected:
+        raise WebTaskError(
+            f"approval {record['approval']} was given for a different route "
+            "than the one on file — nothing was pressed")
+    _claim(record)
     record["state"] = "COMMITTING"
     record["committed_at"] = stateio.utcnow()
     stateio.write_json_atomic(_record_path(run_id), record)
@@ -680,6 +1008,32 @@ def commit(run_id: str, *, presser=None) -> dict:
     return record
 
 
+def _claim(record: dict) -> None:
+    """One yes presses one button, once.
+
+    The approval id is the route's digest, which is what stops a DIFFERENT
+    route from inheriting his yes. It does not stop the SAME route being
+    run again: a second `run` of the same goal overwrites the record with
+    a fresh AWAITING_YOU while the old approval is still APPROVED, and the
+    press would go through without asking — a second application to the
+    same job, or a second anything. Consumed here the way a computer run
+    consumes one (`computer._claim_approval`), in the journal, BEFORE the
+    press, so a failed press also needs a fresh yes rather than becoming a
+    retry loop nobody agreed to.
+    """
+    ref = f"approval:{record['approval']}"
+    for entry in journal.entries():
+        if (entry.get("subject") == "webtask:press"
+                and ref in (entry.get("refs") or [])):
+            raise WebTaskError(
+                f"approval {record['approval']} has already been used to press "
+                f"{record.get('button', 'a button')!r} — pressing again needs a "
+                "fresh yes from you")
+    journal.append("action", "webtask:press",
+                   f"PRESSING {record.get('button', '')[:40]!r} for {record['id']}",
+                   actor=ACTOR, refs=[ref, f"run:{record['id']}"])
+
+
 def _press(record: dict) -> dict:
     """Replay the WHOLE route, then press the button he approved.
 
@@ -690,34 +1044,55 @@ def _press(record: dict) -> dict:
     attachments = {a["selector"]: a["path"] for a in record.get("attached", [])}
     with browse._Session() as ctx:
         page = ctx.new_page()
+        hands = _Hands(page)
         page.goto(record.get("replay_from") or record["url"],
                   wait_until="domcontentloaded")
         for step in record.get("typed", []):
-            action, selector = step["action"], step["selector"]
-            if action == "select":
-                page.select_option(selector, label=step["value"])
+            action, selector = step["action"], step.get("selector") or ""
+            if action == "goto":
+                page.goto(str(step.get("value", "")), wait_until="domcontentloaded")
+            elif action == "select":
+                hands.select_option(selector, label=step["value"])
             elif action == "check":
-                page.check(selector)
+                hands.check(selector)
             elif action == "uncheck":
-                page.uncheck(selector)
+                hands.uncheck(selector)
+            elif action == "new_tab":
+                continue                        # handled by the click before it
             elif action == "click":
                 for sel, path in attachments.items():
                     try:
-                        page.set_input_files(sel, path)
+                        hands.set_input_files(sel, path)
                     except Exception:
                         pass
-                page.click(selector)
-                page.wait_for_load_state("domcontentloaded")
+                before = _open_pages(ctx)
+                hands.click(selector)
+                try:
+                    page.wait_for_load_state("domcontentloaded")
+                except Exception:
+                    pass
+                moved = follow_new_tab(ctx, page, before)
+                if moved is not page:
+                    page, hands.page = moved, moved
             else:
-                page.fill(selector, str(step.get("value", "")))
+                hands.fill(selector, str(step.get("value", "")))
         for selector, path in attachments.items():
             try:
-                page.set_input_files(selector, path)
+                hands.set_input_files(selector, path)
             except Exception:
                 pass
-        page.click(record["button_selector"])
+        hands.click(record["button_selector"])
         page.wait_for_load_state("domcontentloaded")
-        body = (page.inner_text("body") or "")[:2000]
+        # The receipt of an EMBEDDED form is inside the frame; the parent
+        # page still says "Application form below" and reads like nothing
+        # happened. The evidence has to be what the form itself now says.
+        parts = [page.inner_text("body") or ""]
+        for frame in _frames(page)[1:]:
+            try:
+                parts.append(frame.inner_text("body") or "")
+            except Exception:
+                continue
+        body = "\n".join(t for t in parts if t.strip())[:2000]
         shot = runs_dir() / f"{record['id']}-after.png"
         try:
             page.screenshot(path=str(shot), full_page=True)
