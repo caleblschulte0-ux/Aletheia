@@ -207,5 +207,45 @@ class TestInteract(BrowseCase):
                             approval_id=aid, profile=self.profile)
 
 
+class ANetworkThatWantsAProxy(unittest.TestCase):
+    """Chromium does not read HTTPS_PROXY on its own.
+
+    On a network that requires one — a corporate network, a managed
+    runner — every page came back ERR_CONNECTION_RESET while `curl` on
+    the same machine was fine, and nothing said why. This only routes the
+    traffic: certificate verification stays exactly as strict, because
+    the answer to a proxy is never to stop checking who you are talking
+    to.
+    """
+
+    def test_no_proxy_configured_means_no_proxy_argument(self):
+        with mock.patch.dict("os.environ", {}, clear=True):
+            self.assertIsNone(browse._proxy_from_environment())
+
+    def test_the_standard_variables_are_honoured(self):
+        for name in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"):
+            with self.subTest(name=name):
+                with mock.patch.dict("os.environ", {name: "http://127.0.0.1:8080"},
+                                     clear=True):
+                    self.assertEqual(browse._proxy_from_environment(),
+                                     {"server": "http://127.0.0.1:8080"})
+
+    def test_https_wins_over_http_and_bypass_is_carried(self):
+        with mock.patch.dict("os.environ",
+                             {"HTTP_PROXY": "http://wrong:1",
+                              "HTTPS_PROXY": "http://right:2",
+                              "NO_PROXY": "localhost,127.0.0.1"}, clear=True):
+            self.assertEqual(browse._proxy_from_environment(),
+                             {"server": "http://right:2",
+                              "bypass": "localhost,127.0.0.1"})
+
+    def test_it_never_touches_certificate_verification(self):
+        source = (Path(browse.__file__)).read_text(encoding="utf-8")
+        for weakening in ("ignore_https_errors", "--ignore-certificate-errors",
+                          "ignoreHTTPSErrors"):
+            self.assertNotIn(weakening, source,
+                             "a proxy is never a reason to stop checking certificates")
+
+
 if __name__ == "__main__":
     unittest.main()

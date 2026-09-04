@@ -140,6 +140,26 @@ def native_login(url: str, profile: Path | None = None) -> int:
     return subprocess.run(cmd, check=False).returncode
 
 
+def _proxy_from_environment() -> dict | None:
+    """Honour HTTPS_PROXY / HTTP_PROXY / NO_PROXY like every other client.
+
+    Chromium does not read them on its own, so on a network that requires
+    a proxy — a corporate one, a managed runner — every page came back
+    ERR_CONNECTION_RESET while `curl` on the same machine was fine. This
+    only routes the traffic; it changes nothing about certificate
+    verification, which stays exactly as strict as it was.
+    """
+    server = (os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
+              or os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy"))
+    if not server:
+        return None
+    proxy = {"server": server.strip()}
+    bypass = (os.environ.get("NO_PROXY") or os.environ.get("no_proxy") or "").strip()
+    if bypass:
+        proxy["bypass"] = bypass
+    return proxy
+
+
 class _Session:
     """A persistent-profile Playwright context. Context manager."""
 
@@ -154,6 +174,9 @@ class _Session:
         self.profile.mkdir(parents=True, exist_ok=True)
         self._pw = sync_playwright().start()
         kwargs = {"headless": not self.headed}
+        proxy = _proxy_from_environment()
+        if proxy:
+            kwargs["proxy"] = proxy
         exe = _browser_executable()
         if exe:
             kwargs["executable_path"] = exe
