@@ -1384,3 +1384,5 @@
 {"ts": "2026-09-04T04:40:33Z", "kind": "plan", "actor": "aletheia", "subject": "plan:light-up-the-wall", "text": "step 2 -> done (Add FLEET_TOKEN secret (fine-grained PAT: contents+actions read on all six repos) — turns NO TELEMETRY into live green/red)"}
 {"ts": "2026-09-04T04:40:33Z", "kind": "plan", "actor": "aletheia", "subject": "plan:light-up-the-wall", "text": "step 3 -> done (Enable GitHub Pages (main, root) and point the projector at /interface/ fullscreen)"}
 {"ts": "2026-09-04T14:41:36Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-09-04"}
+{"ts": "2026-09-04T16:26:36Z", "kind": "alert", "actor": "aletheia", "subject": "repo:aletheia", "text": "health green -> red"}
+{"ts": "2026-09-04T16:26:38Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue updated — Aletheia, Shorts-pipeline"}
