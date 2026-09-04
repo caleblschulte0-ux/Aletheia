@@ -44,6 +44,7 @@ goal, at a question, or at a commit — and says which.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import re
 import sys
@@ -63,15 +64,22 @@ MAX_STEPS = 24
 MAX_TEXT = 4_000
 MAX_LINKS = 40
 MAX_FIELDS = 45
+MAX_HIS_FILES = 40             # of his own documents she will offer to attach
+# What she may UPLOAD. Narrower than what she may read, on purpose: a
+# document is a thing you send somebody, and a .key or a .env is not.
+ATTACHABLE = frozenset({".pdf", ".docx", ".doc", ".txt", ".md", ".rtf",
+                        ".odt", ".pages", ".csv", ".png", ".jpg", ".jpeg"})
 MAX_FRAMES = 12
 FRAME_WAIT_TRIES = 40          # 10s for an iframe to attach
 TAB_WAIT_TRIES = 20            # 3s for a new tab to open
 IDLE_LIMIT = 3                 # rounds that change nothing before she stops
+STALE_AFTER_MIN = 20           # a RUNNING record older than this is a leftover
 STEP_TIMEOUT_S = 90.0
 MAX_GOAL_CHARS = 600
 
 DONE, ASK, COMMIT, BUDGET, REFUSED = ("DONE", "NEEDS_YOU", "AWAITING_YOU",
                                       "OUT_OF_STEPS", "REFUSED")
+RUNNING = "RUNNING"
 SIGN_IN = "NEEDS_SIGN_IN"
 HUMAN_CHECK = "NEEDS_YOUR_EYES"
 
@@ -288,6 +296,33 @@ def documents() -> dict:
             name = Path(row["path"]).name if isinstance(row, dict) else str(row)
             path = row["path"] if isinstance(row, dict) else str(row)
             out.setdefault(name, path)
+    except Exception:
+        pass
+    # AND WHERE HE ACTUALLY KEEPS THINGS. The two halves of her disagreed:
+    # "summarise the lease on my desktop" worked and "attach the lease on
+    # my desktop" came back as "that is not one of your files". Same
+    # folders as the reading half, and only things that are documents —
+    # what she may upload is narrower than what she may read, because
+    # uploading sends it to somebody else.
+    try:
+        from aletheia import converse
+        found = []
+        for place in converse.HOME_PLACES:
+            folder = Path.home() / place if place else Path.home()
+            try:
+                entries = list(folder.iterdir())
+            except Exception:
+                continue
+            for entry in entries:
+                if (entry.is_file()
+                        and entry.suffix.casefold() in ATTACHABLE
+                        and entry.name not in out):
+                    try:
+                        found.append((entry.stat().st_mtime, entry))
+                    except Exception:
+                        continue
+        for _, entry in sorted(found, reverse=True)[:MAX_HIS_FILES]:
+            out.setdefault(entry.name, str(entry))
     except Exception:
         pass
     return out
@@ -761,6 +796,14 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
                     seen = observe(page)      # the values changed
                     seen.pop("_raw", None)
 
+            # CHECKPOINT before the slow part. Deciding is a model call
+            # that takes tens of seconds; everything typed to get here is
+            # on disk before it starts.
+            _checkpoint(run_id, {"id": run_id, "goal": goal, "attempt": attempt,
+                                 "steps": history, "typed": applied,
+                                 "attached": attached, "downloaded": downloaded,
+                                 "replay_from": start_url or page.url,
+                                 "url": page.url, "at": stateio.utcnow()})
             try:
                 step = _decide(goal, seen, history, think,
                                refused_before=refused_before)
@@ -1103,6 +1146,38 @@ def record_url(outcome: dict) -> str:
     return str(outcome.get("url") or "")
 
 
+def _checkpoint(run_id: str, base: dict) -> None:
+    """Write the run down mid-flight, so a crash is not a total loss.
+
+    A run takes minutes and the record was written once, at the end. The
+    Core restarts itself on every code update and its supervisor restarts
+    it on a crash — so a restart in the middle threw away eleven filled
+    fields and two pages of navigation, and the only evidence it had ever
+    happened was a browser that was gone. The route is small JSON; there
+    is no reason it should live only in memory.
+    """
+    try:
+        stateio.write_json_atomic(_record_path(run_id),
+                                  {**base, "state": RUNNING,
+                                   "beat": stateio.utcnow(),
+                                   "say": "I am working on this now."})
+    except Exception:
+        pass                  # a checkpoint that fails must not end the run
+
+
+def _stale(record: dict, *, minutes: int = STALE_AFTER_MIN) -> bool:
+    """Is this RUNNING record a leftover rather than a live run?"""
+    beat = str(record.get("beat") or "")
+    if not beat:
+        return True
+    try:
+        when = dt.datetime.fromisoformat(beat.replace("Z", "+00:00"))
+    except ValueError:
+        return True
+    age = dt.datetime.now(dt.timezone.utc) - when
+    return age > dt.timedelta(minutes=minutes)
+
+
 def _stopped(run_id, goal, attempt, history, downloaded, shot, outcome) -> dict:
     """Write a run down and say what happened. Used where the loop cannot."""
     record = {"id": run_id, "goal": goal, "steps": history, "attempt": attempt,
@@ -1180,7 +1255,10 @@ def _await_him(run_id: str, goal: str, page, label: str, selector: str,
     approval_id = f"{run_id}-commit-{_digest(action)}"
     policy.request(
         approval_id, action,
-        reason=f"{goal} — press {label[:60]!r} on {page.url[:80]}",
+        reason=(f"{goal} — press {label[:60]!r} on {page.url[:80]}"
+                + (" — sending " + ", ".join(Path(a["path"]).name
+                                             for a in attached[:4])
+                   if attached else "")),
         consequence=(f"It presses a button that says {commits!r}. That is not "
                      "something she can undo."),
         reversible=False, capability="web.commit")
@@ -1276,10 +1354,12 @@ def carry_on(run_id: str, *, answers: dict | None = None, budget: int = 16,
     button and still asks him for the same one confirmation.
     """
     record = load_run(run_id)
-    if record.get("state") not in PICKABLE:
+    state = record.get("state")
+    if state == RUNNING and not _stale(record):
+        raise WebTaskError(f"{run_id} is running right now — let it finish")
+    if state not in PICKABLE and state != RUNNING:
         raise WebTaskError(
-            f"{run_id} is {record.get('state')} — there is nothing waiting to "
-            "be carried on")
+            f"{run_id} is {state} — there is nothing waiting to be carried on")
     return run(record["goal"],
                start_url=record.get("replay_from") or record.get("url", ""),
                budget=budget, think=think, session=session,

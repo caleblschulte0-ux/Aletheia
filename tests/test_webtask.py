@@ -263,6 +263,45 @@ class SheDoesTheStepsHerself(WebTaskCase):
                 '{"action":"done","value":"attached"}')
         self.assertTrue(any(d[0] == "attach" and d[1] == "#cv" for d in page.did))
 
+    def test_a_document_where_he_actually_keeps_it(self):
+        """The two halves of her disagreed: "summarise the lease on my
+        desktop" worked and "attach the lease on my desktop" came back as
+        "that is not one of your files"."""
+        home = tempfile.TemporaryDirectory()
+        self.addCleanup(home.cleanup)
+        lease = Path(home.name) / "Desktop" / "lease.pdf"
+        lease.parent.mkdir(parents=True)
+        lease.write_bytes(b"%PDF-1.4")
+        with mock.patch("pathlib.Path.home", staticmethod(lambda: Path(home.name))):
+            held = webtask.documents()
+        self.assertEqual(held.get("lease.pdf"), str(lease))
+
+    def test_what_she_may_UPLOAD_is_narrower_than_what_she_may_read(self):
+        """A document is a thing you send somebody. A .env is not."""
+        home = tempfile.TemporaryDirectory()
+        self.addCleanup(home.cleanup)
+        desk = Path(home.name) / "Desktop"
+        desk.mkdir(parents=True)
+        for name in ("lease.pdf", "secrets.env", "id_rsa", "keys.key"):
+            (desk / name).write_text("x")
+        with mock.patch("pathlib.Path.home", staticmethod(lambda: Path(home.name))):
+            held = webtask.documents()
+        self.assertIn("lease.pdf", held)
+        for name in ("secrets.env", "id_rsa", "keys.key"):
+            self.assertNotIn(name, held)
+
+    def test_the_approval_says_WHAT_IS_BEING_SENT(self):
+        """A file leaving his computer for somebody else's is the part he
+        most needs to see before he says yes."""
+        page = FakePage([field("#cv", "Resume", type="file"),
+                         field("#fn", "First name *", required=True)],
+                        [{"selector": "#go", "text": "Submit application"}])
+        out = self.go(page, "Apply with my resume",
+                      '{"action": "attach", "selector": "#cv", "value": "resume"}',
+                      '{"action": "click", "selector": "#go"}')
+        self.assertEqual(out["state"], webtask.COMMIT, out.get("say"))
+        self.assertIn("sending", policy.load(out["approval"])["reason"])
+
     def test_a_file_she_was_not_given_is_refused(self):
         page = FakePage([field("#cv", "Resume", type="file")])
         out = self.go(page, "attach something",
@@ -1175,6 +1214,58 @@ class SheDoesNotAskHimTheSameThingTwice(WebTaskCase):
             session=FakeSession(page))
         self.assertEqual(more["state"], webtask.ASK)
         self.assertIn("could not put that page back", more["say"])
+
+    def test_a_crash_in_the_middle_is_not_a_total_loss(self):
+        """The record was written once, at the end. The Core restarts
+        itself on every code update and its supervisor restarts it on a
+        crash, so a restart in the middle threw away eleven filled fields
+        and two pages of navigation — and the only evidence it had ever
+        happened was a browser that was gone."""
+        page = self.form()
+
+        def think(system, prompt, **kw):
+            raise KeyboardInterrupt("the Core went down")
+        with self.assertRaises(KeyboardInterrupt):
+            webtask.run("Fill in this application",
+                        start_url="https://x.example/form", budget=4,
+                        think=think, session=FakeSession(page))
+        run_id = [r["id"] for r in webtask.all_runs()][0]
+        mid = webtask.load_run(run_id)
+        self.assertEqual(mid["state"], "RUNNING")
+        # What she had already done, on disk, mid-flight.
+        self.assertEqual([t["selector"] for t in mid["typed"]], ["#fn"])
+
+    def test_a_run_that_is_still_going_is_LEFT_ALONE(self):
+        page = self.form()
+
+        def think(system, prompt, **kw):
+            raise KeyboardInterrupt("the Core went down")
+        with self.assertRaises(KeyboardInterrupt):
+            webtask.run("Fill in this application",
+                        start_url="https://x.example/form", budget=4,
+                        think=think, session=FakeSession(page))
+        run_id = [r["id"] for r in webtask.all_runs()][0]
+        with self.assertRaises(webtask.WebTaskError) as caught:
+            webtask.carry_on(run_id)
+        self.assertIn("running right now", str(caught.exception))
+
+    def test_but_a_LEFTOVER_running_record_is_picked_up(self):
+        page = self.form()
+
+        def think(system, prompt, **kw):
+            raise KeyboardInterrupt("the Core went down")
+        with self.assertRaises(KeyboardInterrupt):
+            webtask.run("Fill in this application",
+                        start_url="https://x.example/form", budget=4,
+                        think=think, session=FakeSession(page))
+        run_id = [r["id"] for r in webtask.all_runs()][0]
+        stale = webtask.load_run(run_id)
+        stale["beat"] = "2020-01-01T00:00:00Z"
+        webtask.stateio.write_json_atomic(webtask._record_path(run_id), stale)
+        more = webtask.carry_on(
+            run_id, think=self.brain('{"action": "done", "value": "ok"}'),
+            session=FakeSession(self.form()))
+        self.assertEqual(more["state"], webtask.DONE)
 
     def test_he_can_just_say_it(self):
         from aletheia import intercom, planner
