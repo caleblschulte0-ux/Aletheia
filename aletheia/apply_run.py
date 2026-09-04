@@ -325,10 +325,9 @@ def accept(run_id: str) -> dict:
     grant are different verbs and now they are different functions.
     """
     record = load_run(run_id)
-    approval = policy.load(record["approval"])
-    if approval.get("state") != "APPROVED":
-        raise ApplyError(f"approval {record['approval']} is "
-                         f"{approval.get('state')}, not APPROVED")
+    ok, why = policy.usable(record["approval"])
+    if not ok:
+        raise ApplyError(why)
     record["state"] = "APPROVED"
     record["confirmed_at"] = stateio.utcnow()
     stateio.write_json_atomic(_record_path(run_id), record)
@@ -358,10 +357,9 @@ def submit(run_id: str, *, submitter=None) -> dict:
     if record["state"] != "APPROVED":
         raise ApplyError(f"{run_id} is {record['state']}; it needs your "
                          "confirmation before anything is sent")
-    approval = policy.load(record["approval"])
-    if approval.get("state") != "APPROVED":
-        raise ApplyError(f"approval {record['approval']} is "
-                         f"{approval.get('state')} — nothing was sent")
+    ok, why = policy.usable(record["approval"])
+    if not ok:
+        raise ApplyError(f"{why} — nothing was sent")
 
     record["state"] = "SUBMITTING"
     record["submitted_at"] = stateio.utcnow()

@@ -300,9 +300,10 @@ def _require_approval(approval_id: str, steps: list[dict]) -> None:
         approval = policy.load(approval_id)
     except (OSError, json.JSONDecodeError, KeyError):
         approval = {}
-    if approval.get("state") != "APPROVED":
+    ok, why = policy.usable(approval_id)
+    if not ok:
         raise ApprovalRequired(
-            f"approval {approval_id!r} is not APPROVED; computer control never self-authorizes")
+            f"{why}; computer control never self-authorizes")
     expected = approval_action(steps)
     if approval.get("requested_action") != expected:
         raise ApprovalRequired(

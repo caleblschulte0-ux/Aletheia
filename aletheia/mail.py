@@ -337,8 +337,9 @@ def send_approved(transport: MailTransport | None = None) -> list[dict]:
         if ap.get("state") == "PENDING":
             continue
         result = {"id": d["id"], "to_name": d.get("to_name", "?"), "subject": d["subject"]}
-        if ap.get("state") != "APPROVED":
-            result["outcome"] = "refused"; result["detail"] = f"approval is {ap.get('state')}"
+        sendable, why = policy.usable(d["id"])
+        if not sendable:
+            result["outcome"] = "refused"; result["detail"] = why
         elif ap.get("requested_action") != f"email.send:{_draft_sha(d)}":
             result["outcome"] = "refused"; result["detail"] = "draft changed after approval — content no longer matches"
         else:

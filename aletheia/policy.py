@@ -190,11 +190,89 @@ def decide(aid: str, decision: str, via: str, because: str = "") -> dict:
     return approval
 
 
-def is_approved(aid: str) -> bool:
+# HOW LONG A YES IS A YES.
+#
+# An approval never went stale. A question he was asked three weeks ago
+# sat PENDING, and answering it today authorised a route recorded three
+# weeks ago against a page that has since been redesigned — the content
+# binding catches a changed ROUTE, not a changed world. And a yes he gave
+# on Monday still pressed a button on Friday, which is not what "yes"
+# meant when he said it: he meant do it now.
+#
+# Asking again is cheap. Doing the wrong irreversible thing is not.
+PENDING_TTL_DAYS = 7           # a question nobody answered has gone cold
+APPROVED_TTL_HOURS = 24        # a yes to an irreversible thing means "now"
+EXPIRED = "EXPIRED"
+
+
+def _age(approval: dict, field: str) -> dt.timedelta | None:
+    stamp = str(approval.get(field) or "")
+    if not stamp:
+        return None
     try:
-        return load(aid)["state"] == "APPROVED"
-    except (OSError, json.JSONDecodeError, KeyError):
-        return False
+        when = dt.datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=dt.timezone.utc)
+    return dt.datetime.now(dt.timezone.utc) - when
+
+
+def stale_reason(approval: dict) -> str:
+    """Why this approval no longer counts, or "" if it still does."""
+    state = approval.get("state")
+    if state == "PENDING":
+        age = _age(approval, "requested_at")
+        if age is not None and age > dt.timedelta(days=PENDING_TTL_DAYS):
+            return (f"nobody answered it for {age.days} days — ask me again "
+                    "and I will put the question back with what is true now")
+        return ""
+    if state != "APPROVED":
+        return ""
+    if approval.get("reversible"):
+        return ""                 # an undoable thing can wait
+    age = _age(approval, "decided_at")
+    if age is not None and age > dt.timedelta(hours=APPROVED_TTL_HOURS):
+        hours = int(age.total_seconds() // 3600)
+        return (f"you said yes {hours} hours ago and this cannot be undone — "
+                "say it again if you still want it")
+    return ""
+
+
+def usable(aid: str) -> tuple[bool, str]:
+    """Is this approval a yes RIGHT NOW? The check every actor should make."""
+    try:
+        approval = load(aid)
+    except (OSError, json.JSONDecodeError, KeyError, ValueError) as exc:
+        return False, f"approval {aid} could not be read: {exc}"
+    if approval.get("state") != "APPROVED":
+        return False, f"approval {aid} is {approval.get('state')}"
+    why = stale_reason(approval)
+    if why:
+        return False, f"approval {aid} has gone stale — {why}"
+    return True, ""
+
+
+def expire_stale() -> list[dict]:
+    """Write the staleness down, so the wall and the phone stop showing it."""
+    gone = []
+    for approval in all_approvals():
+        why = stale_reason(approval)
+        if not why:
+            continue
+        approval["state"] = EXPIRED
+        approval["expired_at"] = _now()
+        approval["expired_because"] = why
+        save(approval)
+        journal.append("decision", f"approval:{approval['id']}",
+                       f"EXPIRED — {why}", actor="aletheia-policy")
+        gone.append(approval)
+    return gone
+
+
+def is_approved(aid: str) -> bool:
+    ok, _why = usable(aid)
+    return ok
 
 
 def publish(aid: str, repo_full: str, request_fn=gh.request) -> None:

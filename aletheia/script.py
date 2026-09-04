@@ -313,11 +313,10 @@ def execute(source: str, *, label: str = "task",
                 "this program removes or moves files ("
                 + ", ".join(takes_away)
                 + ") — that needs your yes, and nothing has been run")
+        ok, why = policy.usable(approval_id)
+        if not ok:
+            raise ScriptRefused(f"{why} — nothing was run")
         approval = policy.load(approval_id)
-        if approval.get("state") != "APPROVED":
-            raise ScriptRefused(
-                f"approval {approval_id} is {approval.get('state')} — nothing "
-                "was run")
         if approval.get("requested_action") != approval_for(source):
             raise ScriptRefused(
                 f"approval {approval_id} was given for a different program — "
@@ -411,10 +410,10 @@ def propose(source: str, *, request: str, label: str = "task") -> dict:
 
 def confirmed(approval_id: str, *, label: str = "task") -> dict:
     """Run the program he approved, once, from the source he approved."""
+    ok, why = policy.usable(approval_id)
+    if not ok:
+        raise ScriptRefused(f"{why} — nothing was run")
     approval = policy.load(approval_id)
-    if approval.get("state") != "APPROVED":
-        raise ScriptRefused(f"approval {approval_id} is "
-                            f"{approval.get('state')} — nothing was run")
     base = workspace.root()
     wanted = str(approval.get("requested_action") or "")
     for path in sorted((base / SCRIPTS_DIR).glob("*.py"), reverse=True):

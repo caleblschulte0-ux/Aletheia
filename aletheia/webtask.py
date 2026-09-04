@@ -1295,10 +1295,10 @@ def commit(run_id: str, *, presser=None) -> dict:
                            f"{record.get('result', {}).get('verdict', 'done')}")
     if record.get("state") != COMMIT:
         raise WebTaskError(f"{run_id} is {record.get('state')}; nothing to press")
+    ok, why = policy.usable(record["approval"])
+    if not ok:
+        raise WebTaskError(f"{why} — nothing was pressed")
     approval = policy.load(record["approval"])
-    if approval.get("state") != "APPROVED":
-        raise WebTaskError(f"approval {record['approval']} is "
-                           f"{approval.get('state')} — nothing was pressed")
     # What he said yes to is the ROUTE and the BUTTON, not the run's name.
     expected = browse.approval_action(
         record.get("replay_from") or record["url"],

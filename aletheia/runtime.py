@@ -653,6 +653,10 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # A subscription is CANCELLED when the merchant says so, not when we
     # pressed a button — and believing otherwise costs him a charge a
     # month for as long as he believes it.
+    # A question nobody answered in a week, and a yes to something
+    # irreversible that has sat unpressed for a day, both stop counting.
+    approvals_expired = guarded(
+        "approvals", lambda: [a["id"] for a in policy.expire_stale()])
     scripts_run = guarded("scripts", run_approved_scripts)
     bookings_settled = guarded(
         "reservations", lambda: [r["id"] for r in reservations.reconcile()])
@@ -674,6 +678,7 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
         "subscriptions_settled": subscriptions_settled,
         "bookings_settled": bookings_settled,
         "scripts_run": scripts_run,
+        "approvals_expired": approvals_expired,
         "authorized_errands": authorized_errands,
         "room_devices": room_devices,
         "meetings": meetings_progress,
