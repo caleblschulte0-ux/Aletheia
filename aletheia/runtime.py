@@ -426,6 +426,49 @@ def surface_due_tasks(*, now: dt.datetime | None = None) -> list[dict]:
     return out
 
 
+def send_approved_applications() -> list[dict]:
+    """Send what he confirmed, once each.
+
+    The whole loop he asked for ends here: she fills the application, it
+    waits as a normal approval, he taps Approve on his phone, and the next
+    beat presses submit. A failure is recorded on the run and surfaced —
+    never retried, because the failure mode of a retry loop on this
+    particular button is several copies of his application in somebody's
+    inbox.
+    """
+    from aletheia import apply_run
+    sent = []
+    for record in apply_run.all_runs("AWAITING_YOU"):
+        try:
+            approval = policy.load(record["approval"])
+        except Exception:
+            continue
+        if approval.get("state") != "APPROVED":
+            continue
+        try:
+            # accept, NOT confirm: he has already decided. `confirm` GRANTS
+            # the approval, which would mean the check for his approval was
+            # the thing granting it.
+            apply_run.accept(record["id"])
+            done = apply_run.submit(record["id"])
+        except Exception as exc:
+            notifications.publish(
+                "An application could not be sent",
+                f"{record['url']} — {type(exc).__name__}: {exc}"[:400],
+                priority="IMPORTANT", source="apply",
+                dedupe_key=f"apply-failed:{record['id']}")
+            continue
+        result = done.get("result", {})
+        notifications.publish(
+            "Application sent", f"{record['url']} — {result.get('note', '')}"[:400],
+            priority="IMPORTANT", source="apply",
+            dedupe_key=f"apply-sent:{record['id']}",
+            related={"application": record["id"]})
+        sent.append({"application": record["id"], "url": record["url"],
+                     "verdict": result.get("verdict")})
+    return sent
+
+
 def tick(fleet: dict, *, now: dt.datetime | None = None,
          registry: dict | None = None, request=None,
          budget_s: float = TICK_BUDGET_S) -> dict:
@@ -511,6 +554,12 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # registration by Friday" was a sentence in a file — the difference
     # between a task list and a graveyard.
     due_tasks = guarded("due", lambda: surface_due_tasks(now=now))
+    # An application he APPROVED gets sent, here, on a later beat. The
+    # approval he taps on his phone is an ordinary policy approval, so the
+    # existing Approve button is the confirm — there is no second UI to
+    # build and no second thing to remember. Nothing is sent that is not
+    # APPROVED, and each is sent exactly once.
+    applications_sent = guarded("applications", send_approved_applications)
     delivered = guarded("desktop", desktop_notify.deliver_pending)
     return {
         "failures": failures,
@@ -530,5 +579,6 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
         "handle_requests": handle_requests,
         "attention": attention_records,
         "due_tasks": due_tasks,
+        "applications_sent": applications_sent,
         "delivered": delivered,
     }
