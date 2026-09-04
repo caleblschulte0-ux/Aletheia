@@ -92,6 +92,27 @@ class StateCase(unittest.TestCase):
         self.assertIn("<this-machine>", tailscale.cert_command(self.state(NEEDS_LOGIN)))
 
 
+class ServeProxiesCase(unittest.TestCase):
+    STATUS = ('{"TCP": {"443": {"HTTPS": true}}, "Web": {"laptop.tail.ts.net:443": '
+              '{"Handlers": {"/": {"Proxy": "http://127.0.0.1:8777"}, '
+              '"/thea-preview": {"Proxy": "http://127.0.0.1:8899"}}}}}')
+
+    def test_every_mount_and_its_backend_are_reported(self):
+        with mock.patch.object(tailscale, "binary", return_value="ts.exe"):
+            out = tailscale.serve_proxies(runner=runner(self.STATUS))
+        self.assertEqual(out, {"/": "http://127.0.0.1:8777",
+                               "/thea-preview": "http://127.0.0.1:8899"})
+
+    def test_no_serve_config_is_an_empty_map_not_an_error(self):
+        with mock.patch.object(tailscale, "binary", return_value="ts.exe"):
+            self.assertEqual(tailscale.serve_proxies(runner=runner("{}")), {})
+            self.assertEqual(tailscale.serve_proxies(runner=runner("not json")), {})
+
+    def test_not_installed_is_an_empty_map(self):
+        with mock.patch.object(tailscale, "binary", return_value=None):
+            self.assertEqual(tailscale.serve_proxies(), {})
+
+
 class ChecklistCase(unittest.TestCase):
     def how(self, state):
         with mock.patch.object(tailscale, "state", return_value=state):

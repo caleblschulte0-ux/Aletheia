@@ -79,7 +79,7 @@ class ResearchCase(unittest.TestCase):
 
 class ItAnswersWithSources(ResearchCase):
     def test_a_run_produces_sourced_findings(self):
-        report = research.run("what is the answer", reader=reader,
+        report = research.run("what is the answer", http=None, reader=reader,
                               think=self.think())
         self.assertEqual(report["answer"], "Forty two.")
         self.assertEqual(len(report["findings"]), 1)
@@ -88,24 +88,24 @@ class ItAnswersWithSources(ResearchCase):
 
     def test_one_page_per_site(self):
         """Five views of one outlet is one source wearing five hats."""
-        report = research.run("q", reader=reader, think=self.think())
+        report = research.run("q", reader=reader, http=None, think=self.think())
         hosts = [research._host(s["url"]) for s in report["sources"]]
         self.assertEqual(len(hosts), len(set(hosts)))
 
     def test_search_engines_and_video_sites_are_not_read_as_sources(self):
-        report = research.run("q", reader=reader, think=self.think())
+        report = research.run("q", reader=reader, http=None, think=self.think())
         for source in report["sources"]:
             self.assertNotIn(research._host(source["url"]), research.SKIP_HOSTS)
 
     def test_the_report_is_stored_and_he_is_told(self):
-        research.run("what is the answer", reader=reader, think=self.think())
+        research.run("what is the answer", reader=reader, http=None, think=self.think())
         self.assertTrue(documents.search("forty two") or documents.search("answer"),
                         "an answer that exists only in a log is one he never gets")
         self.assertTrue(list(notifications.NOTICES_DIR.glob("*.json")))
 
     def test_the_same_question_twice_in_a_day_stores_two_reports(self):
-        research.run("what is the answer", reader=reader, think=self.think())
-        research.run("what is the answer", reader=reader, think=self.think())
+        research.run("what is the answer", reader=reader, http=None, think=self.think())
+        research.run("what is the answer", reader=reader, http=None, think=self.think())
         stored = list(documents.DOCS_DIR.glob("research-*.json"))
         self.assertEqual(len(stored), 2, [p.name for p in stored])
         alerts = [line for line in journal.JOURNAL_PATH.read_text(encoding="utf-8").splitlines()
@@ -118,7 +118,7 @@ class AnInventedCitationDoesNotSurvive(ResearchCase):
     because a model that invents a citation is not caught by asking it not to."""
 
     def test_a_finding_citing_an_unread_page_is_dropped(self):
-        report = research.run("q", reader=reader, think=self.think(findings=[
+        report = research.run("q", reader=reader, http=None, think=self.think(findings=[
             {"claim": "real", "url": "https://example.org/a"},
             {"claim": "invented", "url": "https://nowhere.invalid/made-up"},
         ]))
@@ -128,7 +128,7 @@ class AnInventedCitationDoesNotSurvive(ResearchCase):
         self.assertEqual(report["unsourced_dropped"], 1)
 
     def test_dropping_is_said_out_loud_not_hidden(self):
-        report = research.run("q", reader=reader, think=self.think(findings=[
+        report = research.run("q", reader=reader, http=None, think=self.think(findings=[
             {"claim": "invented", "url": "https://nowhere.invalid/x"}]))
         self.assertTrue(any("dropped" in g for g in report["gaps"]),
                         "a silent drop leaves him reading a thinner answer "
@@ -151,7 +151,7 @@ class FailuresAreSurvivableAndHonest(ResearchCase):
             if "duckduckgo" in url:
                 raise RuntimeError("markup changed")
             return PAGES.get(url, {"url": url, "title": "", "text": "", "links": []})
-        self.assertEqual(research.find_sources("q", reader=angry), [],
+        self.assertEqual(research.find_sources("q", reader=angry, http=None), [],
                          "a search engine changing its markup costs the query, "
                          "not the question")
 
@@ -160,14 +160,14 @@ class FailuresAreSurvivableAndHonest(ResearchCase):
             if url == "https://other.test/c":
                 raise RuntimeError("403")
             return reader(url)
-        report = research.run("q", reader=flaky, think=self.think())
+        report = research.run("q", http=None, reader=flaky, think=self.think())
         self.assertTrue(report["unreadable"])
         self.assertEqual(report["unreadable"][0]["reason"], "RuntimeError")
 
     def test_no_sources_is_an_honest_refusal_not_an_invented_answer(self):
         empty = {"url": "u", "title": "", "text": "", "links": []}
         with self.assertRaises(research.ResearchError):
-            research.run("q", reader=lambda *a, **k: empty, think=self.think())
+            research.run("q", http=None, reader=lambda *a, **k: empty, think=self.think())
 
     def test_a_thin_page_is_not_treated_as_a_source(self):
         sources, failed = research.read_sources(
@@ -194,7 +194,7 @@ class NoBrowserIsSaidPlainly(ResearchCase):
                                return_value=(False, "playwright is not "
                                              "installed (pip install playwright)")):
             with self.assertRaises(research.ResearchError) as caught:
-                research.run("what is the tallest building in Chicago?")
+                research.run("what is the tallest building in Chicago?", http=None)
         said = str(caught.exception)
         self.assertIn("playwright", said)
         self.assertNotIn("does not answer", said,
@@ -205,7 +205,7 @@ class NoBrowserIsSaidPlainly(ResearchCase):
         thought = []
         with mock.patch.object(browse, "available", return_value=(False, "no")):
             with self.assertRaises(research.ResearchError):
-                research.run("anything", think=lambda *a, **k: thought.append(1))
+                research.run("anything", http=None, think=lambda *a, **k: thought.append(1))
         self.assertEqual(thought, [], "no model call for a run that cannot run")
 
 
@@ -214,7 +214,7 @@ class ItReadsNothingItShouldNot(ResearchCase):
         policy.halt("stop", via="test")
         pages = []
         with self.assertRaises(policy.Halted):
-            research.run("q", reader=lambda u, *a, **k: pages.append(u) or reader(u),
+            research.run("q", http=None, reader=lambda u, *a, **k: pages.append(u) or reader(u),
                          think=self.think())
         self.assertEqual(pages, [], "halted before the browser opened")
 
@@ -222,7 +222,7 @@ class ItReadsNothingItShouldNot(ResearchCase):
         for bad in ("", "   ", "x" * 5000):
             with self.subTest(bad=bad[:20]):
                 with self.assertRaises(ValueError):
-                    research.run(bad, reader=reader, think=self.think())
+                    research.run(bad, reader=reader, http=None, think=self.think())
 
     def test_research_never_interacts_with_a_page(self):
         """It reads. Anything that clicks or types needs an approval and is a

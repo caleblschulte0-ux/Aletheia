@@ -1,5 +1,5 @@
 {
-  "revision": 65,
+  "revision": 67,
   "providers": [
     {
       "id": "aletheia.local",
@@ -910,13 +910,13 @@
       "id": "access.remote",
       "description": "Authenticated, TLS-only access to the Core from off this machine: scoped bearer tokens, rate limited, journaled",
       "provider": "aletheia.local",
-      "status": "NEEDS_CONFIGURATION",
+      "status": "AVAILABLE",
       "risk_class": "high",
       "approval_policy": "operator_always",
       "caller": "python -m aletheia.access mint|list|revoke; aletheia.core.Handler.authorized() gates every remote request; aletheia.core.make_server refuses the bind without both conditions",
       "module": "aletheia.access",
-      "notes": "The transport §92 called a ticket. Off-loopback listening needs BOTH a minted token and a TLS certificate, and refuses without either - port 8777 is never simply exposed. Tokens are stored as sha256 only, expire, carry a scope (read answers GET and nothing else), and lock an address out after 5 wrong guesses. Loopback is deliberately unchanged and unauthenticated: same trust boundary the Core has always had. NEEDS_CONFIGURATION because the operator has minted no token and supplied no certificate - `tailscale cert` is the recommended route, since it also solves reaching home without opening a port.",
-      "verification": "tests/test_access.py: 29 tests, most asserting something does NOT happen - no token means no bind, no TLS means no bind, a read token cannot POST, a revoked token dies without a restart"
+      "notes": "The transport §92 called a ticket. Off-loopback listening needs BOTH a minted token and a TLS certificate, and refuses without either - port 8777 is never simply exposed. Tokens are stored as sha256 only, expire, carry a scope (read answers GET and nothing else), and lock an address out after 5 wrong guesses. Loopback is deliberately unchanged and unauthenticated: same trust boundary the Core has always had. NEEDS_CONFIGURATION because the operator has minted no token and supplied no certificate - `tailscale cert` is the recommended route, since it also solves reaching home without opening a port. 2026-09-04: promoted on the live phone round-trip above. The registry had kept saying NEEDS_CONFIGURATION for a certificate file the working topology does not use.",
+      "verification": "Live 2026-09-03/04 on the operator's PC and phone. Topology: the Core stays bound to 127.0.0.1; `tailscale serve` terminates TLS on laptop-i09f9sc8.tail094da3.ts.net (certificate renewed by Tailscale, tailnet-only, not Funnel) and proxies / to 127.0.0.1:8777. Because a proxied request arrives from 127.0.0.1, core.authorized() distinguishes it by the Tailscale-* headers tailscaled adds (verified against this machine's daemon) and routes it to access.verify(): a minted full token (tok-79bca43462, 'iPhone') read /api/state and POSTed /api/command over the tailnet URL -> 200; the same calls with no token -> 401; a read token -> 403 on POST; a revoked token dies at once; the operator used it from his phone (last_used 2026-09-03T19:44Z). tests/test_remote_token_auth.py (20) and tests/test_access.py (29). The direct-bind topology (ALETHEIA_TLS_CERT + --host) remains supported and untested live; setup's checklist now recognises either."
     },
     {
       "id": "policy.delegate.consume",
@@ -1325,25 +1325,25 @@
       "id": "interface.phone",
       "description": "Thea on the phone: a front door that only talks, and everything in one spot a tap behind it",
       "provider": "aletheia.local",
-      "status": "EXPERIMENTAL",
+      "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "none",
       "caller": "the Core serves interface/phone.html (talk) and interface/console.html (everything) under /interface/; reachable over the operator's tailnet",
       "module": "aletheia.core",
       "notes": "TWO SURFACES, because they are two different moments: walking and wanting to say a thing, versus sitting down and wanting to see everything. A page that serves both serves neither, so phone.html is a state rail, one big talk button and her answer - nothing else - and console.html behind it carries approvals, the running mission, tiles and recent activity. Each reaches the other in one tap, and the front door's badge only appears when something actually needs him, so the second tap is always earned. Neither duplicates the other: only the front door asks, only the console decides. Transport, token and the follow-up dance live once in thea.js, because two copies drift and the drift shows up as one page working and the other quietly not. The big button does something real on a browser with no SpeechRecognition - iOS Safari has none - by focusing the text field instead of sitting dead in the middle of the screen. Replaces interface/mobile.html, a five-tab dashboard with a 'paste JSON arguments' box and a banner saying remote access did not exist, which stopped being true when he set up Tailscale. Installable: a manifest with a shortcut straight to the console, a maskable vector icon, and a service worker that caches the SHELL but never an API response - a phone showing yesterday's approvals as pending is worse than one showing nothing. Every URL is relative so it behaves the same on loopback, a tailnet name and a `tailscale cert` hostname; off-loopback it carries an aletheia.access bearer token kept on the device. The security boundary is untouched: make_server still refuses to bind off-loopback without a token AND a certificate. EXPERIMENTAL until he has opened it on his phone.",
-      "verification": "tests/test_phone_interface.py: 29 tests - the two surfaces reach each other and never duplicate (only talk.js asks, only console.js approves, and neither has its own fetch), the manifest is valid and every file it names exists, the Core serves webmanifest and svg as themselves, no host is hard-coded, API responses are never cached, status is never colour-alone, an answer is shown before it is acknowledged, the big button works without speech recognition, an empty console says so, and off-loopback binding still needs a token and TLS"
+      "verification": "Live 2026-09-03 from the operator's iPhone over Tailscale: phone.html and console.html load, the minted token pairs from a one-tap link (?token=, then scrubbed from the address bar), /api/voice answers ('what's going on?' -> '2 fleet alerts. 3 live tasks.'; 'what is the capital of France?' -> thinking -> follow-up READY 'Paris.'), and the token's last_used advanced from his device. Verified again 2026-09-04 before first real use. tests/test_phone_interface.py (29)."
     },
     {
       "id": "converse.answer",
       "description": "Answer a question in conversation, reading any file he names in it — the second half of her, alongside the half that executes",
       "provider": "claude.cli",
-      "status": "EXPERIMENTAL",
+      "status": "AVAILABLE",
       "risk_class": "read",
       "approval_policy": "none",
       "caller": "aletheia.intents when the planner's intent is 'answer' (so voice, the phone, POST /api/ask and the intercom all reach it); python -m aletheia.converse",
       "module": "aletheia.converse",
       "notes": "The gap that decided whether she could be used instead of a chat assistant. EVERY ask went through planner.compile(), which turns English into COMMAND STEPS - right for 'remind me Tuesday', wrong for 'explain this' or 'which should I pick'. For those the planner returned intent 'answer' with nothing executable, the record was retired, and spoken() fell through to plan.summary: a one-line restatement of the question. She was an executor with no mouth. Now a question gets a real answer from the same subscription everything else uses, and carries what a chat assistant elsewhere cannot know - what she is working on, what is waiting for him, his open tasks, whether she is halted - plus the last few exchanges so a follow-up resolves. It ANSWERS AND DOES NOT ACT: the module reaches no executor, and a test asserts it. `clarify` is deliberately NOT routed here (a clarifying question is already the right thing to say; sending it through made it a paragraph about ambiguity). His questions and her answers are not journaled - only that a conversation happened. EXPERIMENTAL until he has used it as his assistant for a day. 2026-09-03: she now READS a file he names in the question ('look at resume.md and tell me what's weak'), through the read half of aletheia.workspace, which adds no authority - reading is already wider than writing there. At most 2 files and 30,000 characters; a file she could not read is NAMED in the prompt with an instruction not to answer as though she had opened it, because a confident paragraph about a document she never saw is the worst thing she can produce. A passing mention of a filename is not a complaint. The thread is bounded by SIZE (12,000 chars) as well as turn count, and the model call gets 180s rather than the 90s sized for classifying a sentence. 2026-09-03 (second pass): the prompt is now BUDGETED against brain.MAX_TEXT (16,000), which reasoner.validate_input enforces before the CLI starts - a 20 KB document did not give a worse answer, it gave NO answer and a message that read as 'I could not reach a model'. Context is cut by dropping whole facts, least urgent first, so a halt is never what a spreadsheet squeezed out. She also now carries his LOCAL clock (not UTC), everything in aletheia.memory, and today's calendar; and a file she just read stays open for 30 minutes so 'make the second bullet stronger' is still about the resume. 2026-09-03 (third pass): it goes through reasoner.subscription_text - the Claude CLI first, the ChatGPT browser session behind it - not the bare infer_text. infer_json has had two paths since it was written and infer_text had one, which was harmless while the only text caller was a code generator and stopped being harmless the moment conversation became one: an expired Claude login would have left planning, reminders, filing and research working normally while every question he actually asked came back 'I could not reach a model'. The answer carries which provider spoke. 2026-09-03 (fourth pass): converse.recent() is public because the PLANNER needs it - situational.snapshot() now carries recent_conversation, so 'do that', 'yes go ahead' and 'the second one' resolve against what she just said instead of coming back as a clarifying question about something he had just told her. Untrusted like everything else in the snapshot: half of it is her own model output, which may be quoting a page. Remembering a turn is now under a lock - the Core is a ThreadingHTTPServer and the phone and the room can ask at once.",
-      "verification": "tests/test_converse.py: 21 tests - a question gets prose rather than a plan, she is told who she is and to say when she does not know, open work and pending approvals travel with the question, a broken store thins the answer rather than killing it, the thread is bounded and forgettable, an unreachable model says which half broke, the module reaches no executor, the journal records that it happened and not what was said, and clarify keeps its own wording"
+      "verification": "Live 2026-09-04 through the running Core over the phone path: a question ('what is the capital of France?') became a follow-up slot and the answer landed ('Paris.') from the operator's own Claude subscription via the reasoner, no API key. Reads named files: the journal shows real reads of resume.md by converse on 2026-09-03. tests/test_converse.py (21)."
     },
     {
       "id": "notification.deliver",
@@ -1421,6 +1421,16 @@
       "caller": "aletheia.workspace.read for any .pdf/.docx (so converse attachments, compose sources and application packets all inherit it); python -m aletheia.doctext <path>",
       "module": "aletheia.doctext",
       "notes": "His resume is a PDF and nothing in this system could open it. Everything built on 'read his resume' was reading a .md file that existed only because a test wrote one: workspace.read refuses a suffix it cannot author, and aletheia.documents says in its own docstring that it does not pretend to parse PDFs without the corresponding parser. There was no parser. The most important input in the system was the one input she could not open. STDLIB ONLY on purpose - .docx is a zip of XML and zipfile is stdlib, a PDF's text lives in content streams and zlib is stdlib - because 'pip install pypdf on his PC' makes a feature work on the machine of whoever remembered to run it, which is the same shape as a capability that says AVAILABLE and is not. pypdf is used FIRST when importable and needed never. It refuses honestly: a scan is a picture of words and the refusal names the fix (export a .docx) rather than returning forty characters of ligature soup that would become a cover letter about nobody."
+    },
+    {
+      "id": "media.play",
+      "description": "Play music or a video on the PC: start the player, choose what plays, pause and resume",
+      "provider": "aletheia.local",
+      "status": "NOT_BUILT",
+      "risk_class": "medium",
+      "approval_policy": "none",
+      "caller": "ticket — the Spotify desktop app is on this PC (a window titled 'Spotify Premium' was open 2026-09-02); computer.act can open it and press Play/Pause by their accessible names, and audio.route can pick the output. A media.play kind would compose those; nothing composes them yet",
+      "notes": "Registered 2026-09-04 because 'play some music' compiled into a sandboxed program, which can play nothing — the planner named audio.route (routing, not playing) and the unmatched-ask rule offered a program for the remainder. medium risk: it changes what the room is doing and is reversible by pausing."
     }
   ]
 }

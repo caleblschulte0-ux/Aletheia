@@ -447,7 +447,7 @@ class ResearchSurvivesACaptcha(Isolated):
             if "wikipedia" in url:
                 return WIKI_SEARCH
             return {"url": url, "title": "", "text": "", "links": []}
-        found = research.find_sources("tallest building", reader=reader)
+        found = research.find_sources("tallest building", reader=reader, http=None)
         self.assertEqual([s["url"] for s in found],
                          ["https://en.wikipedia.org/wiki/Willis_Tower",
                           "https://en.wikipedia.org/wiki/Aon_Center_(Chicago)"])

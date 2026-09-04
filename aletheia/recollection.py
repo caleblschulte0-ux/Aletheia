@@ -70,7 +70,18 @@ _PAST = re.compile(
     r"\b(did you|have you|had you|were you|was that|what did you|"
     r"when did|why did|what happened|what have you|what were you|"
     r"what did we|did we|last time|so far today|"
-    r"what are you working on|what have you been|already)\b", re.I)
+    r"what are you working on|what have you been|already|"
+    # 2026-09-04: "what did I ask you to do yesterday?" matched nothing here,
+    # so she answered "I have no record of yesterday" with the record
+    # sitting in the journal. What HE asked her is her past too.
+    r"what did i (ask|tell|say|have)|what i asked|"
+    r"yesterday|last night|last week|this week|earlier)\b", re.I)
+
+# A span he named. "yesterday" is the last two days because his day and the
+# journal's UTC day do not line up, and the rows carry their own dates.
+SPAN_HOURS = {"yesterday": 48.0, "last night": 48.0, "this week": 24.0 * 7,
+              "last week": 24.0 * 14, "earlier": 24.0}
+_SPAN = re.compile(r"\b(yesterday|last night|this week|last week|earlier)\b", re.I)
 
 # He is asking about the day, not about a subject.
 _TODAY = re.compile(r"\b(today|so far|this morning|this afternoon|tonight|"
@@ -110,17 +121,62 @@ def _recent(hours: float) -> list[dict]:
         return []          # a journal she cannot read makes her say so
 
 
-def day(hours: float = TODAY_HOURS, *, limit: int = MAX_ROWS) -> list[dict]:
+DID_KINDS = ("action", "decision", "recovery")
+# What HE said to her is journaled as a note by an operator-* actor; a span
+# question ("what did I ask you yesterday?") wants those rows too.
+SAID_KINDS = DID_KINDS + ("note",)
+
+
+def day(hours: float = TODAY_HOURS, *, limit: int = MAX_ROWS,
+        kinds: tuple = DID_KINDS) -> list[dict]:
     """What she has been doing, newest last. For "what did you do today?".
 
     Her own actions and decisions only: the journal also carries events and
     notes that are things happening TO her, and a list padded with those
-    reads like activity she did not perform.
+    reads like activity she did not perform. `kinds` widens that for a
+    span question, where his own asks (notes) are the point.
     """
     rows = [e for e in _recent(hours)
-            if e.get("kind") in ("action", "decision", "recovery")
+            if e.get("kind") in kinds
             and any(e.get("actor", "").startswith(a) for a in HERS)]
     return [_row(e) for e in rows[-limit:]]
+
+
+def _local_date(ts: str) -> str:
+    """The operator's calendar date for a UTC stamp — the grouping key for
+    "yesterday". `_local()` renders "Thu 14:04" for people, which is not a
+    key: every minute became its own day and Friday sorted before Thursday."""
+    try:
+        from aletheia import localtime
+        return localtime.parse_utc(ts).astimezone(localtime.operator_tz()).date().isoformat()
+    except Exception:
+        return str(ts)[:10]
+
+
+def per_day(hours: float, *, per_day: int = MAX_ROWS,
+            kinds: tuple = SAID_KINDS) -> list[dict]:
+    """Up to `per_day` rows from EACH local day in the window, oldest day
+    first. `day()` keeps the newest N rows of the whole window, which is
+    right for "today" and wrong for "yesterday": one busy afternoon pushes
+    the day he asked about out of the list entirely (2026-09-04 — the
+    48-hour window held yesterday's rows and she reported it empty)."""
+    kept: dict[str, list[dict]] = {}
+    for entry in _recent(hours):
+        if entry.get("kind") not in kinds:
+            continue
+        if not any(entry.get("actor", "").startswith(a) for a in HERS):
+            continue
+        day_key = _local_date(entry.get("ts", ""))
+        kept.setdefault(day_key, []).append(entry)
+    out: list[dict] = []
+    for day_key in sorted(kept):
+        rows = kept[day_key]
+        # keep the first and the last of a busy day rather than only its tail
+        if len(rows) > per_day:
+            half = per_day // 2
+            rows = rows[:half] + rows[-(per_day - half):]
+        out.extend(_row(e) for e in rows)
+    return out
 
 
 def about(question: str, *, hours: float = DEFAULT_HOURS,
@@ -160,6 +216,22 @@ def for_question(question: str) -> dict:
                 "note": ("This is the journal, which every action writes to. "
                          "If it is empty she has done nothing recorded in that "
                          "window — say so; do not fill it in.")}
+    span = _SPAN.search(text)
+    if span:
+        # A question shaped by a DAY, not a subject: "what did I ask you
+        # yesterday?" has no topic word for `about()` to match, so it found
+        # nothing and she said the journal was empty while the day's rows sat
+        # there (2026-09-04). A span gets the whole window, unfiltered, with
+        # the older entries first so "yesterday" reads in order.
+        hours = SPAN_HOURS[span.group(1).casefold()]
+        rows = per_day(hours, kinds=SAID_KINDS)
+        return {"asked_about": f"the last {int(hours)} hours", "hours": hours,
+                "journal": rows,
+                "note": ("This is the journal for that span, oldest first, her "
+                         "actions and his asks. If it is empty, nothing was "
+                         "recorded — say so; do not fill it in. Each row carries "
+                         "its own timestamp; read the dates before answering "
+                         "which day a thing happened on.")}
     rows = about(text)
     return {"asked_about": "her past", "hours": DEFAULT_HOURS, "journal": rows,
             "note": ("Only say she did something if a line above says she did. "

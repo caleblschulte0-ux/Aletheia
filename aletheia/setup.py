@@ -125,15 +125,30 @@ def _room() -> tuple[str, str]:
 
 
 def _remote() -> tuple[str, str]:
-    from aletheia import access
+    """Two topologies reach the phone, and the check must know both.
+
+    Either the Core binds off-loopback itself with a certificate file
+    (ALETHEIA_TLS_CERT), or — what is actually running since 2026-09-03 —
+    `tailscale serve` terminates TLS on the tailnet name and proxies to the
+    loopback Core, which then requires a minted token from anything that
+    arrives that way. Until this was written the second topology, the one
+    his phone uses, reported BROKEN for lacking a certificate it does not
+    need.
+    """
+    from aletheia import access, tailscale
     if not access.enabled():
         return MISSING, "no access token has been minted"
     live = access.live_tokens()
-    cert = os.environ.get("ALETHEIA_TLS_CERT", "")
-    if not cert:
-        return (BROKEN, f"{len(live)} token(s) exist but no TLS certificate is "
-                        "configured, so the Core still refuses to listen off-loopback")
-    return OK, f"{len(live)} live token(s) and a certificate"
+    if os.environ.get("ALETHEIA_TLS_CERT", ""):
+        return OK, f"{len(live)} live token(s) and a certificate (direct bind)"
+    proxies = tailscale.serve_proxies()
+    core_mounts = [m for m, target in proxies.items() if target.rstrip("/").endswith(":8777")]
+    if core_mounts:
+        return OK, (f"{len(live)} live token(s); tailscale serve proxies "
+                    f"{', '.join(sorted(core_mounts))} to the Core over the tailnet")
+    return (BROKEN, f"{len(live)} token(s) exist but nothing reaches the Core: "
+                    "no certificate for a direct bind and no `tailscale serve` "
+                    "mapping to 127.0.0.1:8777")
 
 
 def _remote_how() -> list[str]:

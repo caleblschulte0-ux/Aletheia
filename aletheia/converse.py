@@ -303,8 +303,43 @@ def _suffix(token: str) -> str:
     return ("." + tail.casefold()) if dot and head else ""
 
 
+# "my resume", "the cover letter" — documents a person names by KIND, not by
+# filename. When the question names no file but names one of these, the
+# workspace is searched for a file whose name carries the word. Bounded to
+# this list on purpose: "my notes" could mean anything; "my resume" cannot.
+_KIND_WORDS = {
+    "resume": ("resume", "résumé", "cv"),
+    "cover": ("cover letter", "cover-letter"),
+}
+
+
+def _by_kind(question: str) -> list[str]:
+    low = question.casefold()
+    wanted = [stem for stem, words in _KIND_WORDS.items()
+              if any(w in low for w in words)]
+    if not wanted:
+        return []
+    try:
+        files = sorted(workspace.root().iterdir(), key=lambda p: p.stat().st_mtime,
+                       reverse=True)
+    except Exception:
+        return []
+    out = []
+    for stem in wanted:
+        for path in files:
+            if (path.is_file() and stem in path.name.casefold()
+                    and path.suffix.casefold() in READABLE_SUFFIXES):
+                out.append(path.name)
+                break          # the newest one of each kind
+    return out
+
+
 def _candidates(question: str) -> list[str]:
-    """Every token in the question that is shaped like a readable file."""
+    """Every token in the question that is shaped like a readable file —
+    and, when there is none, the workspace file a kind-word points at
+    ("my resume" -> resume.docx). Found 2026-09-04: "summarize the resume in
+    my workspace" attached nothing and she answered that no file had come
+    through, with resume.docx and resume.pdf sitting in the workspace."""
     seen: list[str] = []
     raw = [m.group(1) for m in _QUOTED.finditer(question)]
     raw += [m.group(0) for m in _BARE.finditer(question)]
@@ -312,6 +347,8 @@ def _candidates(question: str) -> list[str]:
         token = token.strip().rstrip(_TRAILING).strip()
         if token and _suffix(token) in READABLE_SUFFIXES and token not in seen:
             seen.append(token)
+    if not seen:
+        seen.extend(_by_kind(question))
     return seen
 
 

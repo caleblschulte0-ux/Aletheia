@@ -224,13 +224,123 @@ def _results(engine: str, page: dict, limit: int) -> list[dict]:
     return out
 
 
+HTTP_SEARCH_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/128.0 Safari/537.36")
+HTTP_SEARCH_TIMEOUT_S = 15
+# Plain-HTTP engines, in the order measured to answer on the operator's PC
+# (2026-09-04). Bing's RSS is a machine format — no markup to scrape, and it
+# answered every request; DuckDuckGo's HTML endpoint answered the first
+# request and then served its challenge page (HTTP 202) to the same address
+# for a while, so it is second. Both are the page anyone gets with curl:
+# no key, no cookie, nothing reverse engineered (§6).
+BING_RSS_URL = "https://www.bing.com/search?q={}&format=rss"
+DDG_HTML_URL = "https://html.duckduckgo.com/html/?q={}"
+_RSS_ITEM = re.compile(r"<item>(.*?)</item>", re.S)
+_RSS_FIELD = {name: re.compile(rf"<{name}>(.*?)</{name}>", re.S)
+              for name in ("title", "link", "description")}
+_RESULT_LINK = re.compile(r'class="result__a"\s+href="([^"]+)"[^>]*>(.*?)</a>', re.S)
+_RESULT_SNIPPET = re.compile(r'class="result__snippet"[^>]*>(.*?)</a>', re.S)
+_TAGS = re.compile(r"<[^>]+>")
+_CDATA = re.compile(r"<!\[CDATA\[(.*?)\]\]>", re.S)
+
+
+def _fetch(url: str, opener=None) -> tuple[int, str]:
+    import urllib.request
+    req = urllib.request.Request(url, headers={
+        "User-Agent": HTTP_SEARCH_UA,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9"})
+    open_ = opener or urllib.request.urlopen
+    with open_(req, timeout=HTTP_SEARCH_TIMEOUT_S) as resp:
+        return int(getattr(resp, "status", 200) or 200), resp.read(2_000_000).decode("utf-8", "replace")
+
+
+def _clean(fragment: str) -> str:
+    fragment = _CDATA.sub(r"\1", fragment)
+    return " ".join(_TAGS.sub(" ", fragment).replace("&amp;", "&").split())
+
+
+def _parse_bing_rss(xml: str) -> list[dict]:
+    links = []
+    for item in _RSS_ITEM.findall(xml):
+        fields = {k: (rx.search(item).group(1) if rx.search(item) else "")
+                  for k, rx in _RSS_FIELD.items()}
+        href = _clean(fields["link"])
+        if not href.startswith(("http://", "https://")):
+            continue
+        links.append({"href": href, "text": _clean(fields["title"])[:160],
+                      "snippet": _clean(fields["description"])[:300]})
+    return links
+
+
+def _parse_ddg_html(html: str) -> list[dict]:
+    links = []
+    snippets = [_clean(x) for x in _RESULT_SNIPPET.findall(html)]
+    for i, (href, inner) in enumerate(_RESULT_LINK.findall(html)):
+        href = href.replace("&amp;", "&")
+        if href.startswith("//"):
+            href = "https:" + href
+        links.append({"href": href, "text": _clean(inner)[:160],
+                      "snippet": snippets[i] if i < len(snippets) else ""})
+    return links
+
+
+def http_search(query: str, *, opener=None) -> dict:
+    """The search-results page fetched as a plain document, not driven.
+
+    Live on the operator's PC, 2026-09-04, hours before first real use:
+    "how much is a 2019 Civic worth" came back "I don't have reliable
+    pricing data — the sources are Wikipedia articles about the Accord",
+    because every engine the HEADLESS BROWSER visited answered it with a
+    challenge or an unrendered shell, and the Wikipedia fallback cannot
+    price a car. One ordinary HTTP request to Bing's RSS endpoint returned
+    KBB, Edmunds and J.D. Power. The challenge is aimed at automation that
+    renders; a document fetch is not that.
+
+    Returns the same shape `browse.read_page` does, so `_results` needs no
+    special case, and never raises: an engine that refuses costs this
+    attempt, not the question. `error` names the last refusal.
+    """
+    encoded = quote_plus(query)
+    last_error = ""
+    for engine, url, parse in (("bing-rss", BING_RSS_URL.format(encoded), _parse_bing_rss),
+                               ("duckduckgo-html", DDG_HTML_URL.format(encoded), _parse_ddg_html)):
+        try:
+            status, body = _fetch(url, opener)
+        except Exception as exc:
+            last_error = f"{engine}: {type(exc).__name__}"
+            continue
+        links = parse(body)
+        if status != 200 or not links:
+            last_error = f"{engine}: HTTP {status}, {len(links)} link(s)"
+            continue
+        # `_results` treats a page with almost no text as a challenge; the
+        # titles and snippets are the text a person would see.
+        text = "\n".join(f"{l['text']} — {l['snippet']}" for l in links)
+        return {"url": url, "title": f"{engine} results", "text": text,
+                "links": links, "engine": engine}
+    return {"url": "", "title": "", "text": "", "links": [], "error": last_error}
+
+
 def find_sources(query: str, *, limit: int = MAX_SOURCES,
-                 reader=browse.read_page) -> list[dict]:
+                 reader=browse.read_page, http=http_search) -> list[dict]:
     """Search the way a person does — no API key, per §6.
 
     Failure here is survivable and must not end a run: a search engine that
     changes its markup should cost this query, not the whole question.
+
+    Plain HTTP first (see `http_search`), the driven engines after: the
+    order is "what answers on this machine", measured, not a preference.
     """
+    if http is not None:
+        page = http(query)
+        found = _results(page.get("engine") or "http", page, limit)
+        if found:
+            return found
+        journal.append("event", "research",
+                       f"http search gave no usable results for {query!r}"
+                       + (f" ({page['error']})" if page.get("error") else "")
+                       + "; trying the driven engines", actor=ACTOR)
     for engine, template in SEARCH_ENGINES:
         try:
             page = reader(template.format(quote_plus(query)))
@@ -316,7 +426,8 @@ def _verified(report: dict, sources: list[dict]) -> dict:
     return report
 
 
-def run(question: str, *, reader=browse.read_page, think=None) -> dict:
+def run(question: str, *, reader=browse.read_page, think=None,
+        http=http_search) -> dict:
     """One research question, end to end, with sources."""
     question = str(question or "").strip()
     if not question or len(question) > MAX_QUESTION_CHARS:
@@ -343,7 +454,7 @@ def run(question: str, *, reader=browse.read_page, think=None) -> dict:
     candidates, seen_hosts = [], set()
     for query in plan["queries"]:
         policy.ensure_not_halted()
-        for source in find_sources(query, reader=reader):
+        for source in find_sources(query, reader=reader, http=http):
             host = _host(source["url"])
             if host in seen_hosts and not source.get("library"):
                 continue

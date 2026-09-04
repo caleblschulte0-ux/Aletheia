@@ -148,3 +148,60 @@ class ItRunsInsideEveryQuestion(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SpanCase(unittest.TestCase):
+    """A question shaped by a day gets the day, not a keyword search."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        p = mock.patch.object(journal, "JOURNAL_PATH", Path(self.tmp.name) / "j.jsonl")
+        p.start(); self.addCleanup(p.stop)
+
+    def test_yesterday_returns_the_two_day_window_unfiltered(self):
+        journal.append("action", "converse", "answered a question about the weather",
+                       actor="aletheia-converse")
+        journal.append("note", "operator", "remind me to call the dentist",
+                       actor="operator-via-intercom")
+        out = recollection.for_question("What did I ask you to do yesterday?")
+        self.assertEqual(out["hours"], 48.0)
+        texts = [r["what"] for r in out["journal"]]
+        self.assertTrue(any("dentist" in t for t in texts), texts)
+        self.assertTrue(any("weather" in t for t in texts), texts)
+
+    def test_what_did_i_ask_you_counts_as_her_past(self):
+        self.assertTrue(recollection._PAST.search("what did I ask you to do"))
+        self.assertTrue(recollection._PAST.search("what did i tell you last night"))
+
+    def test_last_week_is_a_wider_window(self):
+        out = recollection.for_question("what did you do last week?")
+        self.assertEqual(out["hours"], 24.0 * 14)
+
+
+class PerDayCase(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        p = mock.patch.object(journal, "JOURNAL_PATH", Path(self.tmp.name) / "j.jsonl")
+        p.start(); self.addCleanup(p.stop)
+
+    def test_a_busy_today_does_not_push_yesterday_out(self):
+        import json
+        yesterday = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        with open(journal.JOURNAL_PATH, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"ts": yesterday, "kind": "note", "actor": "operator-via-intercom",
+                                 "subject": "operator", "text": "book the dentist"}) + "\n")
+        for i in range(60):
+            journal.append("action", "converse", f"answered question {i}", actor="aletheia-converse")
+        rows = recollection.per_day(48.0)
+        texts = [r["what"] for r in rows]
+        self.assertTrue(any("dentist" in t for t in texts), "yesterday's row was lost")
+        self.assertLessEqual(len(rows), recollection.MAX_ROWS * 2)
+        self.assertIn("dentist", texts[0], "oldest day comes first")
+
+    def test_the_span_question_uses_per_day(self):
+        with mock.patch.object(recollection, "per_day", return_value=[{"what": "x"}]) as pd:
+            out = recollection.for_question("what did you do yesterday")
+        pd.assert_called_once()
+        self.assertEqual(out["journal"], [{"what": "x"}])

@@ -386,11 +386,30 @@ def launch_followup(followup_id: str, core_url: str, say,
     return thread
 
 
+def _local_headers() -> dict:
+    """The room listener is a process on the Core's own machine, and since
+    2026-09-03 a local WRITE must prove that: 127.0.0.1 proves origin, not
+    authorization (a stray local process could otherwise approve or halt).
+    It reads the same per-machine secret the Core injects into the pages
+    it serves. Found 2026-09-04, hours before first real use: every
+    "Thea, ..." said in the room was being answered 401, because this
+    request carried no secret at all."""
+    headers = {"Content-Type": "application/json"}
+    try:
+        from aletheia import access
+        secret = access.local_secret()
+        if secret:
+            headers["X-Aletheia-Local"] = secret
+    except Exception:
+        pass   # the Core will refuse and the failure will be visible, not silent
+    return headers
+
+
 def ask_core(transcript: str, core_url: str = CORE_URL) -> dict:
     req = urllib.request.Request(
         f"{core_url}/api/voice",
         data=json.dumps({"transcript": transcript}).encode("utf-8"),
-        headers={"Content-Type": "application/json"}, method="POST",
+        headers=_local_headers(), method="POST",
     )
     with urllib.request.urlopen(req, timeout=30) as response:
         payload = json.loads(response.read().decode("utf-8"))

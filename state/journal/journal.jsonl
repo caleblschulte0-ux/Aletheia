@@ -1030,3 +1030,45 @@
 {"ts": "2026-09-03T22:34:42Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:write", "text": "wrote checklist.md (736 chars) — what is still his to do [new file]"}
 {"ts": "2026-09-03T22:34:42Z", "kind": "task", "actor": "aletheia", "subject": "task:apply-senior-media-systems-engin-9f00e0", "text": "created — Apply: Senior Media Systems Engineer — Foundry — https://jobs.example.com/1"}
 {"ts": "2026-09-03T22:34:42Z", "kind": "action", "actor": "aletheia-applications", "subject": "applications", "text": "prepared 1 application packet(s) for 'senior media systems engineer' — submitted none"}
+{"ts": "2026-09-03T23:15:50Z", "kind": "event", "actor": "aletheia-code-worker", "subject": "code:choose", "text": "file choice unavailable (ReasonerUnavailable); reading in ranked order"}
+{"ts": "2026-09-03T23:45:36Z", "kind": "event", "actor": "aletheia-code-worker", "subject": "code:choose", "text": "file choice unavailable (ReasonerUnavailable); reading in ranked order"}
+{"ts": "2026-09-04T02:15:57Z", "kind": "event", "actor": "aletheia-code-worker", "subject": "code:choose", "text": "file choice unavailable (ReasonerUnavailable); reading in ranked order"}
+{"ts": "2026-09-04T09:45:37Z", "kind": "event", "actor": "aletheia-code-worker", "subject": "code:choose", "text": "file choice unavailable (ReasonerUnavailable); reading in ranked order"}
+{"ts": "2026-09-04T16:15:39Z", "kind": "event", "actor": "aletheia-code-worker", "subject": "code:choose", "text": "file choice unavailable (ReasonerUnavailable); reading in ranked order"}
+{"ts": "2026-09-04T23:19:43Z", "kind": "event", "actor": "aletheia-ics", "subject": "calendar:refresh", "text": "0 mirrored, 0 stale cancelled, 0 unsupported across 1 feed(s)"}
+{"ts": "2026-09-04T23:28:24Z", "kind": "note", "actor": "aletheia", "subject": "memory:identity.full_name", "text": "set identity.full_name = \"Caleb Schulte\" (inferred)"}
+{"ts": "2026-09-04T23:28:24Z", "kind": "note", "actor": "aletheia", "subject": "memory:identity.home_city", "text": "set identity.home_city = \"Hartford, SD 57033\" (inferred)"}
+{"ts": "2026-09-04T23:28:24Z", "kind": "note", "actor": "aletheia", "subject": "memory:identity.resume", "text": "set identity.resume = \"resume.docx and resume.pdf in her workspace (Documents/Aletheia); newest origin (inferred)"}
+{"ts": "2026-09-04T23:28:24Z", "kind": "note", "actor": "aletheia", "subject": "memory:identity.timezone", "text": "set identity.timezone = \"America/Chicago\" (inferred)"}
+{"ts": "2026-09-04T23:35:32Z", "kind": "action", "actor": "aletheia-mail", "subject": "mail:check", "text": "5 unread reported"}
+{"ts": "2026-09-04T23:35:32Z", "kind": "action", "actor": "aletheia-agenda", "subject": "agenda", "text": "Check my email and tell me if anything needs a reply — 1 done, 0 failed, 0 refused"}
+{"ts": "2026-09-04T23:36:01Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://html.duckduckgo.com/html/?q=Kelley+Blue+Book+2019+Honda+Civic+value — DuckDuckGo"}
+{"ts": "2026-09-04T23:36:01Z", "kind": "event", "actor": "aletheia-research", "subject": "research", "text": "duckduckgo gave no usable results for 'Kelley Blue Book 2019 Honda Civic value' — a challenge page or changed markup; trying the next engine"}
+{"ts": "2026-09-04T23:36:08Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://en.wikipedia.org/w/index.php?search=Kelley+Blue+Book+2019+Honda+Civic+value&ns0=1&fulltext=1 — Kelley Blue Book 2019 Honda Civic value - Search results - Wikipedia"}
+{"ts": "2026-09-04T23:36:18Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://en.wikipedia.org/wiki/Honda_Accord — Honda Accord - Wikipedia"}
+{"ts": "2026-09-04T23:36:25Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://en.wikipedia.org/wiki/Honda_Ridgeline — Honda Ridgeline - Wikipedia"}
+{"ts": "2026-09-04T23:36:33Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://en.wikipedia.org/wiki/Honda_Ridgeline_(second_generation) — Honda Ridgeline (second generation) - Wikipedia"}
+{"ts": "2026-09-04T23:36:42Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://en.wikipedia.org/wiki/Green_vehicle — Green vehicle - Wikipedia"}
+{"ts": "2026-09-04T23:36:49Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://en.wikipedia.org/wiki/List_of_Fast_%26_Furious_characters — List of Fast & Furious characters - Wikipedia"}
+{"ts": "2026-09-04T23:37:00Z", "kind": "action", "actor": "aletheia-research", "subject": "research", "text": "How much is a 2019 Honda Civic with 60,000 miles worth right now? — 0 sourced finding(s) from 5 page(s)"}
+{"ts": "2026-09-04T23:37:00Z", "kind": "action", "actor": "aletheia-agenda", "subject": "agenda", "text": "Look up how much a 2019 Honda Civic with 60k miles is worth — 1 done, 0 failed, 0 refused"}
+{"ts": "2026-09-04T23:37:23Z", "kind": "action", "actor": "aletheia-converse", "subject": "converse", "text": "answered a question (36 chars in, 470 out, 0 file(s) read, via claude.cli:sonnet)"}
+{"ts": "2026-09-04T23:37:45Z", "kind": "action", "actor": "aletheia-converse", "subject": "converse", "text": "answered a question (35 chars in, 396 out, 0 file(s) read, via claude.cli:sonnet)"}
+{"ts": "2026-09-04T23:39:42Z", "kind": "event", "actor": "aletheia-research", "subject": "research", "text": "http search gave no usable results for '2019 honda civic 60k miles value'; trying the driven engines"}
+{"ts": "2026-09-04T23:39:48Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://html.duckduckgo.com/html/?q=2019+honda+civic+60k+miles+value — DuckDuckGo"}
+{"ts": "2026-09-04T23:39:48Z", "kind": "event", "actor": "aletheia-research", "subject": "research", "text": "duckduckgo gave no usable results for '2019 honda civic 60k miles value' — a challenge page or changed markup; trying the next engine"}
+{"ts": "2026-09-04T23:39:54Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://en.wikipedia.org/w/index.php?search=2019+honda+civic+60k+miles+value&ns0=1&fulltext=1 — 2019 honda civic 60k miles value - Search results - Wikipedia"}
+{"ts": "2026-09-04T23:39:54Z", "kind": "event", "actor": "aletheia-research", "subject": "research", "text": "wikipedia gave no usable results for '2019 honda civic 60k miles value' — a challenge page or changed markup; trying the next engine"}
+{"ts": "2026-09-04T23:40:02Z", "kind": "action", "actor": "aletheia", "subject": "browser:read", "text": "read https://www.bing.com/search?q=2019+honda+civic+60k+miles+value — 2019 honda civic 60k miles value - Search"}
+{"ts": "2026-09-04T23:40:02Z", "kind": "event", "actor": "aletheia-research", "subject": "research", "text": "bing gave no usable results for '2019 honda civic 60k miles value' — a challenge page or changed markup; trying the next engine"}
+{"ts": "2026-09-04T23:47:25Z", "kind": "decision", "actor": "grant:standing-routine-2026-08-28", "subject": "approval:intent-2f7224ac0c", "text": "APPROVED by standing grant standing-routine-2026-08-28 — run 1 step(s): compose"}
+{"ts": "2026-09-04T23:47:25Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-2f7224ac0c: 1 executable, 0 blocked — Summarize resume.pdf into a new file"}
+{"ts": "2026-09-04T23:47:39Z", "kind": "action", "actor": "aletheia-converse", "subject": "converse", "text": "answered a question (35 chars in, 190 out, 0 file(s) read, via claude.cli:sonnet)"}
+{"ts": "2026-09-04T23:50:19Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume-summary.md (1,624 bytes)"}
+{"ts": "2026-09-04T23:50:30Z", "kind": "action", "actor": "aletheia-converse", "subject": "converse", "text": "answered a question (36 chars in, 1073 out, 1 file(s) read, via claude.cli:sonnet)"}
+{"ts": "2026-09-04T23:50:38Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume-summary.md (1,624 bytes)"}
+{"ts": "2026-09-04T23:50:47Z", "kind": "action", "actor": "aletheia-converse", "subject": "converse", "text": "answered a question (35 chars in, 362 out, 1 file(s) read, via claude.cli:sonnet)"}
+{"ts": "2026-09-04T23:52:07Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume-summary.md (1,624 bytes)"}
+{"ts": "2026-09-04T23:52:16Z", "kind": "action", "actor": "aletheia-converse", "subject": "converse", "text": "answered a question (35 chars in, 374 out, 1 file(s) read, via claude.cli:sonnet)"}
+{"ts": "2026-09-04T23:53:12Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume-summary.md (1,624 bytes)"}
+{"ts": "2026-09-04T23:53:41Z", "kind": "action", "actor": "aletheia-converse", "subject": "converse", "text": "answered a question (35 chars in, 825 out, 1 file(s) read, via claude.cli:sonnet)"}

@@ -136,14 +136,40 @@ class VerifierCase(unittest.TestCase):
         self.assertEqual(state, setup.MISSING)
         self.assertIn("no call has been placed", detail)
 
-    def test_remote_access_needs_both_a_token_and_a_certificate(self):
-        from aletheia import access
+    def test_remote_access_needs_a_token_and_a_way_in(self):
+        """A token alone is not a phone that can reach her: either a
+        certificate for a direct bind, or a `tailscale serve` mapping that
+        proxies the tailnet name to the loopback Core (the topology actually
+        in use since 2026-09-03). Neither present is BROKEN, and it says so."""
+        from aletheia import access, tailscale
         with mock.patch.object(access, "enabled", return_value=True), \
              mock.patch.object(access, "live_tokens", return_value=[{"id": "t"}]), \
-             mock.patch.dict("os.environ", {"ALETHEIA_TLS_CERT": ""}):
+             mock.patch.dict("os.environ", {"ALETHEIA_TLS_CERT": ""}), \
+             mock.patch.object(tailscale, "serve_proxies", return_value={}):
             state, detail = setup._remote()
         self.assertEqual(state, setup.BROKEN)
-        self.assertIn("no TLS certificate", detail)
+        self.assertIn("nothing reaches the Core", detail)
+
+    def test_a_tailscale_serve_mapping_to_the_core_counts_as_a_way_in(self):
+        from aletheia import access, tailscale
+        with mock.patch.object(access, "enabled", return_value=True), \
+             mock.patch.object(access, "live_tokens", return_value=[{"id": "t"}]), \
+             mock.patch.dict("os.environ", {"ALETHEIA_TLS_CERT": ""}), \
+             mock.patch.object(tailscale, "serve_proxies",
+                               return_value={"/": "http://127.0.0.1:8777"}):
+            state, detail = setup._remote()
+        self.assertEqual(state, setup.OK)
+        self.assertIn("tailscale serve proxies /", detail)
+
+    def test_a_serve_mapping_to_something_else_is_not_a_way_in(self):
+        from aletheia import access, tailscale
+        with mock.patch.object(access, "enabled", return_value=True), \
+             mock.patch.object(access, "live_tokens", return_value=[{"id": "t"}]), \
+             mock.patch.dict("os.environ", {"ALETHEIA_TLS_CERT": ""}), \
+             mock.patch.object(tailscale, "serve_proxies",
+                               return_value={"/other": "http://127.0.0.1:9999"}):
+            state, _ = setup._remote()
+        self.assertEqual(state, setup.BROKEN)
 
     def test_a_configured_but_refusing_mailbox_is_broken_not_missing(self):
         from aletheia import mail

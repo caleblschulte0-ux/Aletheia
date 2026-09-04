@@ -123,6 +123,10 @@ Rules that matter more than being helpful:
   - NEVER invent a kind or an argument name. If what he wants has no kind, \
 emit a {"gap": ...} step naming the closest capability id, or {"manual": ...}.
   - Prefer FEWER steps. Do not pad a plan to look thorough.
+  - A QUESTION gets an ANSWER, not a file. "Summarize my resume", "what does \
+this say", "tell me about X" want words spoken back: return {"intent": "answer", \
+"summary": "<the answer, or what you would need to read to give it>"}. Write a \
+file only when he asks for a file ("save", "write it up", "put it in a doc").
   - Anything that spends money, sends a message to another person, cancels a \
 service, or changes the physical world is high-risk: propose it, and expect it \
 to wait for his approval.
@@ -446,8 +450,12 @@ def compile_unmatched_into_a_task(plan: Plan, *, fleet: dict, registry: dict) ->
         except KeyError:
             continue
         if (missing.get("approval_policy") == "operator_always"
-                or missing.get("risk_class") == "high"
+                or missing.get("risk_class") not in ("read", "low")
                 or missing.get("status") in BUILT_BUT_NOT_READY):
+            # 2026-09-04: "play some music" became a program. A sandbox
+            # with no network, no subprocess and no audio device cannot
+            # play anything; only a computation on files is a thing it can
+            # honestly attempt, and the registry marks those read/low.
             return plan
     command = {"kind": "do_task", "request": plan.request[:1000]}
     if intercom.validate_kind_args(command, fleet):

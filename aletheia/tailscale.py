@@ -96,6 +96,36 @@ def state(runner=None) -> State:
                  else f"installed; backend is {backend or 'unknown'}")
 
 
+def serve_proxies(runner=None) -> dict[str, str]:
+    """{mount path: backend URL} for every `tailscale serve` handler on this
+    machine, or {} when there are none or the CLI cannot say.
+
+    `tailscale serve` is how the phone reaches the Core (2026-09-03): it
+    terminates TLS on the tailnet name with a certificate Tailscale renews
+    itself and forwards to 127.0.0.1:8777, so the Core never binds
+    off-loopback and never needs a certificate file of its own. The
+    checklist's remote-access check was still asking for ALETHEIA_TLS_CERT
+    and reporting the working phone as BROKEN.
+    """
+    path = binary()
+    if not path:
+        return {}
+    runner = runner or run
+    try:
+        proc = runner([path, "serve", "status", "--json"], capture_output=True,
+                      text=True, timeout=TIMEOUT_S)
+        payload = json.loads((getattr(proc, "stdout", "") or "").strip() or "{}")
+    except Exception:
+        return {}
+    out: dict[str, str] = {}
+    for _host, site in (payload.get("Web") or {}).items():
+        for mount, handler in (site.get("Handlers") or {}).items():
+            target = handler.get("Proxy") or handler.get("Path") or ""
+            if mount and target:
+                out[str(mount)] = str(target)
+    return out
+
+
 def cert_command(current: State | None = None) -> str:
     """The `tailscale cert` line to run, with his real machine name when
     it is knowable and an honest placeholder when it is not."""
