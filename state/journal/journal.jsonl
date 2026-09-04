@@ -1380,3 +1380,6 @@
 {"ts": "2026-09-04T02:19:28Z", "kind": "action", "actor": "aletheia-webtask", "subject": "webtask", "text": "AWAITING_YOU after 3 step(s): Fill in the job application on this page with my details and attach my resume. For 'why do"}
 {"ts": "2026-09-04T02:19:28Z", "kind": "decision", "actor": "phone", "subject": "approval:web-fill-in-the-job-application-commit", "text": "APPROVED"}
 {"ts": "2026-09-04T02:19:29Z", "kind": "action", "actor": "aletheia-webtask", "subject": "webtask", "text": "pressed 'Submit application' for web-fill-in-the-job-application"}
+{"ts": "2026-09-04T04:40:32Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:aletheia", "text": "health red -> green"}
+{"ts": "2026-09-04T04:40:33Z", "kind": "plan", "actor": "aletheia", "subject": "plan:light-up-the-wall", "text": "step 2 -> done (Add FLEET_TOKEN secret (fine-grained PAT: contents+actions read on all six repos) — turns NO TELEMETRY into live green/red)"}
+{"ts": "2026-09-04T04:40:33Z", "kind": "plan", "actor": "aletheia", "subject": "plan:light-up-the-wall", "text": "step 3 -> done (Enable GitHub Pages (main, root) and point the projector at /interface/ fullscreen)"}
