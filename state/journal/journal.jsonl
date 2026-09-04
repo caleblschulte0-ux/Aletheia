@@ -1124,3 +1124,44 @@
 {"ts": "2026-09-03T23:18:08Z", "kind": "decision", "actor": "operator", "subject": "approval:apply-20260903231757-submit", "text": "APPROVED — looks right"}
 {"ts": "2026-09-03T23:18:10Z", "kind": "action", "actor": "aletheia-apply", "subject": "apply", "text": "submitted apply-20260903231757 to http://127.0.0.1:8899/ — confirmed"}
 {"ts": "2026-09-03T23:20:57Z", "kind": "event", "actor": "aletheia", "subject": "approval:x-1", "text": "requested — browser.interact:abc"}
+{"ts": "2026-09-04T00:17:21Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume.pdf (593 bytes)"}
+{"ts": "2026-09-04T00:17:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:17:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "github is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:17:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:17:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:17:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:17:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:17:21Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:17:32Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 12 field(s) on http://127.0.0.1:8900/apply/1"}
+{"ts": "2026-09-04T00:17:34Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 12 field(s) on http://127.0.0.1:8900/apply/2"}
+{"ts": "2026-09-04T00:17:36Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 12 field(s) on http://127.0.0.1:8900/apply/3"}
+{"ts": "2026-09-04T00:17:36Z", "kind": "action", "actor": "aletheia-campaign", "subject": "campaign", "text": "0 ready, 3 waiting on answers, 0 could not be reached — for 'media systems engineer'; nothing submitted"}
+{"ts": "2026-09-04T00:19:11Z", "kind": "action", "actor": "aletheia-workspace", "subject": "workspace:read", "text": "read resume.pdf (593 bytes)"}
+{"ts": "2026-09-04T00:19:11Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "email is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:19:11Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "phone is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:19:11Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:19:11Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "github is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:19:11Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:19:11Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:19:11Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:19:11Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:19:11Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume:/root/Downloads/resume.pdf)"}
+{"ts": "2026-09-04T00:19:13Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 12 field(s) on http://127.0.0.1:8900/apply/1"}
+{"ts": "2026-09-04T00:19:15Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 12 field(s) on http://127.0.0.1:8900/apply/2"}
+{"ts": "2026-09-04T00:19:17Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 12 field(s) on http://127.0.0.1:8900/apply/3"}
+{"ts": "2026-09-04T00:19:17Z", "kind": "action", "actor": "aletheia-campaign", "subject": "campaign", "text": "0 ready, 3 waiting on answers, 0 could not be reached — for 'media systems engineer'; nothing submitted"}
+{"ts": "2026-09-04T00:19:33Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 12 field(s) on http://127.0.0.1:8900/apply/2"}
+{"ts": "2026-09-04T00:19:34Z", "kind": "event", "actor": "aletheia", "subject": "approval:apply-84309a98-submit", "text": "requested — browser.interact:94b217335754e194f9a9528bf682369d93127f0d7b20fa2e88923cd20c5f5e9e"}
+{"ts": "2026-09-04T00:19:34Z", "kind": "action", "actor": "aletheia-apply", "subject": "apply", "text": "staged an application at http://127.0.0.1:8900/apply/2 — 11 field(s) filled, awaiting his confirmation"}
+{"ts": "2026-09-04T00:19:35Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 12 field(s) on http://127.0.0.1:8900/apply/3"}
+{"ts": "2026-09-04T00:19:36Z", "kind": "event", "actor": "aletheia", "subject": "approval:apply-9f9c5639-submit", "text": "requested — browser.interact:5db4bb41cb6761036d11a3cd4a9201f9066b4216b01a1de1a35fdf3327aed350"}
+{"ts": "2026-09-04T00:19:36Z", "kind": "action", "actor": "aletheia-apply", "subject": "apply", "text": "staged an application at http://127.0.0.1:8900/apply/3 — 11 field(s) filled, awaiting his confirmation"}
+{"ts": "2026-09-04T00:19:36Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 12 field(s) on http://127.0.0.1:8900/apply/1"}
+{"ts": "2026-09-04T00:19:37Z", "kind": "event", "actor": "aletheia", "subject": "approval:apply-a7a48a6d-submit", "text": "requested — browser.interact:2d36a50ab775f619e92fde74c60d1f54fe973335ca5343df79b0e2b58dc544f3"}
+{"ts": "2026-09-04T00:19:37Z", "kind": "action", "actor": "aletheia-apply", "subject": "apply", "text": "staged an application at http://127.0.0.1:8900/apply/1 — 11 field(s) filled, awaiting his confirmation"}
+{"ts": "2026-09-04T00:19:37Z", "kind": "decision", "actor": "phone", "subject": "approval:apply-84309a98-submit", "text": "APPROVED"}
+{"ts": "2026-09-04T00:19:37Z", "kind": "decision", "actor": "phone", "subject": "approval:apply-9f9c5639-submit", "text": "APPROVED"}
+{"ts": "2026-09-04T00:19:37Z", "kind": "decision", "actor": "phone", "subject": "approval:apply-a7a48a6d-submit", "text": "APPROVED"}
+{"ts": "2026-09-04T00:19:40Z", "kind": "action", "actor": "aletheia-apply", "subject": "apply", "text": "submitted apply-84309a98 to http://127.0.0.1:8900/apply/2 — confirmed"}
+{"ts": "2026-09-04T00:19:43Z", "kind": "action", "actor": "aletheia-apply", "subject": "apply", "text": "submitted apply-9f9c5639 to http://127.0.0.1:8900/apply/3 — confirmed"}
+{"ts": "2026-09-04T00:19:45Z", "kind": "action", "actor": "aletheia-apply", "subject": "apply", "text": "submitted apply-a7a48a6d to http://127.0.0.1:8900/apply/1 — confirmed"}

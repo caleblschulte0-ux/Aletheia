@@ -125,6 +125,14 @@ BUTTONS_JS = r"""() => {
 }"""
 
 
+def _tag(url: str) -> str:
+    """A short, stable mark for one application, so re-staging the same form
+    after he answers its questions REPLACES it rather than leaving a second
+    copy waiting for the same confirmation."""
+    import hashlib
+    return hashlib.sha1(str(url).encode("utf-8")).hexdigest()[:8]
+
+
 def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = None,
           reader=None, filler=None) -> dict:
     """Fill the application and bring him one decision. Submits nothing.
@@ -152,6 +160,7 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
         else:
             per_form[str(field)] = value
 
+    run_id = f"apply-{_tag(url)}"
     fields = formfill.read_form(url, reader=reader)
     plan = formfill.plan(fields)
     answered = formfill.apply_answers(plan, fields, per_form)
@@ -159,21 +168,28 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
 
     blocking = [a for a in plan["ask"] if a["required"]]
     if blocking:
-        # Refused, not "filled as far as possible". A form submitted with a
+        # Refused, not "filled as far as possible": a form submitted with a
         # blank where a "no" was expected is worse than one not submitted.
-        return {"state": "NEEDS_YOU", "url": url,
-                "questions": plan["ask"][:MAX_QUESTIONS_SHOWN],
-                "would_fill": [{"label": f["label"], "value": f["value"]}
-                               for f in plan["fill"]],
-                "say": (f"{len(blocking)} thing(s) on that form only you can "
-                        "answer. Tell me those and I will fill the rest and "
-                        "bring it back to you to confirm.")}
+        #
+        # SAVED, though, and that was the bug. The first version returned
+        # this and wrote nothing, so ten applications each waiting on the
+        # same three questions left no trace to collect the questions from
+        # — "apply to ten jobs" asked him nothing and produced nothing. A
+        # blocked application is a real thing that is waiting.
+        record = {"id": run_id, "state": "NEEDS_YOU", "url": url,
+                  "approval": "", "steps": [], "resume": resume,
+                  "questions": plan["ask"][:MAX_QUESTIONS_SHOWN],
+                  "not_filled": plan["ask"][:MAX_QUESTIONS_SHOWN],
+                  "would_fill": [{"label": f["label"], "value": f["value"]}
+                                 for f in plan["fill"]],
+                  "filled": [], "skipped": plan["skipped"],
+                  "staged_at": stateio.utcnow(),
+                  "say": (f"{len(blocking)} thing(s) on that form only you can "
+                          "answer. Tell me those and I will fill the rest and "
+                          "bring it back to you to confirm.")}
+        stateio.write_json_atomic(_record_path(run_id), record)
+        return record
 
-    # Lowercase and punctuation-free: `stateio.safe_id` is what keeps an id
-    # from becoming a path, and it refuses the "T" and the "Z" an ISO
-    # timestamp carries. Caught on the first real staging run.
-    stamp = re.sub(r"[^0-9]", "", stateio.utcnow())[:14]
-    run_id = f"apply-{stamp}"
     shot = staged_dir() / f"{run_id}.png"
     filled = (filler or _fill_and_capture)(url, steps, resume, shot)
 

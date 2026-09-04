@@ -82,6 +82,8 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "file_move":     ({"path", "to"}, {"why"}),
     # Everything up to the submit, which stays his. See aletheia.applications.
     "apply_prepare": ({"role"}, {"count", "where", "resume"}),
+    # "apply to ten jobs with this resume" — the whole thing, one call.
+    "apply_campaign": ({"role"}, {"count", "where", "resume"}),
     # eyes on the desktop, never hands: mutation keeps its own approval
     "computer_observe": (set(), {"window"}),
     # video and audio: the source is never touched, output lands in the workspace
@@ -157,6 +159,18 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # generated from KIND_ARGS and these together, so the model learns the
 # shape of a step list from the registry rather than from a guess.
 KIND_NOTES: dict[str, str] = {
+    "apply_campaign": (
+        'THE ONE TO USE for "apply to N jobs" / "apply to these jobs with my '
+        'resume". It reads the resume he named (or finds it), learns his '
+        'details from it, finds real openings, FOLLOWS EACH POSTING TO ITS '
+        'APPLICATION FORM, fills every form, attaches the resume, and holds '
+        'each one for his confirmation — asking the questions only he can '
+        'answer ONCE across all of them rather than once per job. It submits '
+        'nothing: each application waits as an ordinary approval he taps. '
+        'role is the kind of job, count at most 10, where an optional '
+        'location or "remote", resume a path (omit and she finds it). Prefer '
+        'this over apply_prepare, which only writes a packet and does not '
+        'touch the form.'),
     "apply_prepare": (
         'Use for "apply to N jobs for me". It finds real postings, reads '
         'them, and writes a PACKET per job into her workspace — the posting '
@@ -228,7 +242,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email
                "file_write", "file_edit", "file_read", "file_list", "compose",
                "file_delete", "file_move",
                # reads the open web and writes into her workspace: both PC
-               "apply_prepare",
+               "apply_prepare", "apply_campaign",
                "computer_observe",
                # ffmpeg and his media files live on the PC
                "media_probe", "media_trim", "media_join", "media_audio",
@@ -289,6 +303,9 @@ ROUTINE_KINDS = frozenset({
     # Application packets are files and tasks; the one irreversible step in
     # a job application is deliberately not in this kind at all.
     "apply_prepare",
+    # Filling forms and staging approvals. It sends nothing on its own:
+    # every application still waits for the approval he taps, per job.
+    "apply_campaign",
     # Media edits always write a NEW file and never touch the source, so
     # the worst case is a spare file in her workspace.
     "media_trim", "media_join", "media_audio", "media_captions",
@@ -613,6 +630,16 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return (f"did {result['steps_done']} desktop step(s) [{did}] — run {result['run_id']}"
                 + (f" — {cmd['why'][:120]}" if cmd.get("why") else ""))
 
+    if kind == "apply_campaign":
+        from aletheia import campaign
+        out = campaign.run(cmd["role"], count=int(cmd.get("count", 5)),
+                           where=cmd.get("where", ""),
+                           resume=cmd.get("resume", ""))
+        said = campaign.spoken(out)
+        if out["questions"]:
+            said += " I need: " + "; ".join(
+                q["label"] for q in out["questions"][:6])
+        return said
     if kind == "apply_prepare":
         from aletheia import applications
         out = applications.prepare(

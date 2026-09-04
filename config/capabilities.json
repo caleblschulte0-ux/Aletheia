@@ -1,5 +1,5 @@
 {
-  "revision": 67,
+  "revision": 68,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1454,6 +1454,17 @@
       "caller": "python -m aletheia.apply_run stage|confirm|submit; aletheia.runtime.send_approved_applications sends anything he approved on his phone, on the next beat",
       "module": "aletheia.apply_run",
       "notes": "His specification, in his words: 'if all this is is, it comes to me and it says confirm you wanna apply to this job, that's fine - that should be the goal'. She fills what she knows, asks about what she does not, attaches his resume (set_input_files - the upload was on the 'yours to do' list and did not need to be), photographs the filled form, and brings ONE decision. EXPERIMENTAL because it has been proved against a local form, not a real employer's. Three things make it safe: a required question only he can answer REFUSES the whole staging rather than submitting a blank where a 'no' was expected; the approval carries a sha256 of the page and the exact step list, which browse.interact re-checks itself; and the approval is spent once, because the failure mode of a retry loop on this button is several copies of his application in somebody's inbox. It never claims 'applied' without evidence - a click that produced no confirmation is reported as a click. Not yet handled and said plainly: account creation, logins (he signs in once via browse.login and the session is reused), CAPTCHAs, and multi-page wizards, where it reports where it stopped instead of clicking hopefully."
+    },
+    {
+      "id": "application.campaign",
+      "description": "\"Apply to ten jobs with this resume\" — find the openings, follow each to its real form, fill them all, ask the shared questions once, hold each for one confirmation",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "caller": "intercom kind 'apply_campaign' (voice and phone); python -m aletheia.campaign run|questions|answer",
+      "module": "aletheia.campaign",
+      "notes": "His words: 'if I say apply to ten jobs with this resume I provided you, I need to be able to do that'. Every piece existed and none were joined. THE TWO STEPS NOBODY WAS DOING: a posting is a description with an Apply link on it, so it follows that link to the page that actually takes the application; and ten applications ask the same three or four unanswerable things, so the questions are gathered across all of them, keyed on what they ASK rather than on a selector, answered once, and applied everywhere. Nothing is sent: each application ends as its own approval bound to its own page and its own filled values, and the Approve button already on his phone is the confirm. Proved end to end against a local three-job board: one call found the PDF resume in Downloads, learned nine facts from it, followed three Apply links, filled three forms, collected five questions once, and after five answers submitted three real applications with the resume file attached."
     }
   ]
 }

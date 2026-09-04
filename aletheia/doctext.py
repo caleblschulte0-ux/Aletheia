@@ -103,72 +103,121 @@ def _docx_text(data: bytes) -> str:
 # ---- pdf: content streams, and zlib is stdlib ----------------------------
 
 _STREAM = re.compile(rb"stream\r?\n(.*?)\r?\nendstream", re.S)
-_SHOW = re.compile(rb"\((?:\\.|[^\\()])*\)\s*(?:Tj|TJ|'|\")|"
-                   rb"\[(?:[^\[\]\\]|\\.)*\]\s*TJ|"
-                   rb"(?:Td|TD|T\*|ET)")
-_PIECE = re.compile(rb"\((?:\\.|[^\\()])*\)")
-_KERN = re.compile(rb"(-?\d+(?:\.\d+)?)")
 
 _ESCAPES = {b"n": "\n", b"r": "\n", b"t": "\t", b"b": "", b"f": "",
             b"(": "(", b")": ")", b"\\": "\\"}
 
 
-def _pdf_string(raw: bytes) -> str:
-    """One PDF literal string, with its escapes resolved."""
-    body = raw[1:-1]
-    out, i = [], 0
-    while i < len(body):
+def _read_string(body: bytes, i: int) -> tuple[str, int]:
+    """One PDF literal string starting at `body[i] == '('`.
+
+    A SCANNER, not a regex, because PDF strings nest: parentheses inside a
+    string need no escaping as long as they balance. A phone number is
+    written `(512) 555-0134`, so a resume line reading
+    `(caleb@example.com | (512) 555-0134) Tj` is one perfectly legal
+    string containing another pair — and the regex that had been doing
+    this stopped at the inner `(`, failed to match, and DROPPED THE WHOLE
+    LINE. Silently: the extraction succeeded, it was just missing his
+    email address and his phone number, which is most of what a form wants
+    from him. Found 2026-09-03 by watching a campaign learn seven things
+    off a resume and not those two.
+    """
+    out = []
+    depth = 1
+    i += 1
+    while i < len(body) and depth:
         char = body[i:i + 1]
-        if char != b"\\":
-            out.append(char.decode("latin-1"))
-            i += 1
+        if char == b"\\":
+            nxt = body[i + 1:i + 2]
+            if nxt in _ESCAPES:
+                out.append(_ESCAPES[nxt]); i += 2
+            elif nxt.isdigit():
+                octal = b""
+                j = i + 1
+                while j < len(body) and len(octal) < 3 and body[j:j + 1].isdigit():
+                    octal += body[j:j + 1]; j += 1
+                try:
+                    out.append(chr(int(octal, 8)))
+                except ValueError:
+                    pass
+                i = j
+            elif nxt == b"\n":
+                i += 2                       # a line continuation
+            else:
+                out.append(nxt.decode("latin-1")); i += 2
             continue
-        nxt = body[i + 1:i + 2]
-        if nxt in _ESCAPES:
-            out.append(_ESCAPES[nxt])
-            i += 2
-        elif nxt.isdigit():
-            octal = body[i + 1:i + 4]
-            while octal and not octal.isdigit():
-                octal = octal[:-1]
-            try:
-                out.append(chr(int(octal, 8)))
-            except ValueError:
-                pass
-            i += 1 + len(octal)
-        elif nxt == b"\n":
-            i += 2                      # a line continuation inside a string
+        if char == b"(":
+            depth += 1
+            out.append("(")
+        elif char == b")":
+            depth -= 1
+            if depth:
+                out.append(")")
         else:
-            out.append(nxt.decode("latin-1"))
-            i += 2
-    return "".join(out)
+            out.append(char.decode("latin-1"))
+        i += 1
+    return "".join(out), i
 
 
 def _pdf_stream_text(content: bytes) -> str:
+    """Walk a content stream, keeping the text and the line breaks.
+
+    Also a scanner rather than a pattern, for the same reason: the show
+    operators carry strings, and the strings are what the regex could not
+    read.
+    """
     out = []
-    for match in _SHOW.finditer(content):
-        token = match.group(0)
-        if token in (b"Td", b"TD", b"T*", b"ET"):
-            out.append("\n")            # a new line is positioned, not typed
+    i, n = 0, len(content)
+    pending: list[str] = []            # strings seen since the last operator
+    while i < n:
+        char = content[i:i + 1]
+        if char == b"(":
+            text, i = _read_string(content, i)
+            pending.append(text)
             continue
-        if token.startswith(b"["):
-            # A TJ array: strings interleaved with kerning numbers. A big
+        if char == b"[":
+            # A TJ array: strings with kerning numbers between them. A big
             # negative number is how a PDF spells a space.
-            for piece in re.finditer(rb"\((?:\\.|[^\\()])*\)|-?\d+(?:\.\d+)?",
-                                     token):
-                chunk = piece.group(0)
-                if chunk.startswith(b"("):
-                    out.append(_pdf_string(chunk))
-                else:
+            depth, j, parts = 1, i + 1, []
+            while j < n and depth:
+                c = content[j:j + 1]
+                if c == b"(":
+                    text, j = _read_string(content, j)
+                    parts.append(text)
+                    continue
+                if c == b"[":
+                    depth += 1
+                elif c == b"]":
+                    depth -= 1
+                elif c in b"-0123456789":
+                    number = c
+                    j += 1
+                    while j < n and content[j:j + 1] in b"-.0123456789":
+                        number += content[j:j + 1]; j += 1
                     try:
-                        if float(chunk) <= -120:
-                            out.append(" ")
+                        if float(number) <= -120:
+                            parts.append(" ")
                     except ValueError:
                         pass
+                    continue
+                j += 1
+            pending.append("".join(parts))
+            i = j
             continue
-        found = _PIECE.search(token)
-        if found:
-            out.append(_pdf_string(found.group(0)))
+        if char.isalpha() or char == b"'" or char == b'"':
+            word = b""
+            while i < n and (content[i:i + 1].isalpha() or
+                             content[i:i + 1] in b"*'\""):
+                word += content[i:i + 1]; i += 1
+            if word in (b"Tj", b"TJ", b"'", b'"'):
+                out.extend(pending)
+            elif word in (b"Td", b"TD", b"T*", b"ET"):
+                out.extend(pending)
+                out.append("\n")
+            pending = []
+            continue
+        i += 1
+    out.extend(pending)
     return "".join(out)
 
 
