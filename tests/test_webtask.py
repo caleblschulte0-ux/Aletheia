@@ -1051,6 +1051,137 @@ class GoingRoundInCirclesIsNotThinking(WebTaskCase):
         self.assertLess(len(out["steps"]), 8)
 
 
+class SheDoesNotAskHimTheSameThingTwice(WebTaskCase):
+    """The two ways a run stops short — "I ran out of steps" and "only you
+    can answer this" — ended the same way: the page closed with the run
+    and everything already typed went with it. Starting again meant
+    watching her fill the same eleven fields and ask the same three
+    questions. Every real application has questions only he can answer,
+    so that was not an edge case, it was the normal path."""
+
+    def form(self, values=()):
+        page = FakePage([field("#fn", "First name *", required=True),
+                         field("#sal", "Desired annual salary in USD *",
+                               required=True),
+                         field("#how", "How did you hear about us? *",
+                               required=True)],
+                        [{"selector": "#go", "text": "Submit application"}])
+        for selector, value in values:
+            page._set(selector, value)
+        return page
+
+    def stops(self, page=None):
+        return self.go(page or self.form(), "Fill in this application",
+                       '{"action": "ask", "value": "What salary, and how did '
+                       'you hear about us?"}')
+
+    def test_a_run_that_stops_to_ASK_keeps_what_it_had_already_done(self):
+        out = self.stops()
+        self.assertEqual(out["state"], webtask.ASK)
+        self.assertEqual([(t["action"], t["selector"]) for t in out["typed"]],
+                         [("type", "#fn")])
+        self.assertEqual(out["replay_from"], "https://x.example/form")
+
+    def test_his_answers_are_typed_in_and_she_carries_on(self):
+        out = self.stops()
+        page = self.form()
+        more = webtask.carry_on(
+            out["id"],
+            answers={"salary": "120000", "hear about us": "A friend"},
+            think=self.brain('{"action": "click", "selector": "#go"}'),
+            session=FakeSession(page))
+        self.assertEqual(more["state"], webtask.COMMIT, more.get("say"))
+        self.assertIn(("fill", "#sal", "120000"), page.did)
+        self.assertIn(("fill", "#how", "A friend"), page.did)
+
+    def test_it_puts_the_page_BACK_before_carrying_on(self):
+        """Not starting again: the route is replayed first, which is what
+        makes a two-page form survive being stopped on page two."""
+        out = self.stops()
+        page = self.form()
+        webtask.carry_on(out["id"], answers={"salary": "120000"},
+                         think=self.brain('{"action": "done", "value": "ok"}'),
+                         session=FakeSession(page))
+        self.assertEqual(page.did[:2],
+                         [("goto", "https://x.example/form"),
+                          ("fill", "#fn", "Caleb")])
+
+    def test_an_answer_HE_gave_passes_the_gate_that_stops_invention(self):
+        """The gate exists to stop a model inventing a fact about him, not
+        to stop him supplying one. "120000" is on no profile anywhere."""
+        out = self.stops()
+        page = self.form()
+        more = webtask.carry_on(
+            out["id"], answers={"salary": "120000"},
+            think=self.brain(
+                '{"action": "fill", "values": {"#how": "120000"}}',
+                '{"action": "done", "value": "ok"}'),
+            session=FakeSession(page))
+        self.assertEqual(more["state"], webtask.DONE, more.get("say"))
+        self.assertIn(("fill", "#how", "120000"), page.did)
+
+    def test_a_question_that_matches_no_field_is_SAID_not_swallowed(self):
+        out = self.stops()
+        more = webtask.carry_on(
+            out["id"], answers={"your favourite colour": "blue"},
+            think=self.brain('{"action": "done", "value": "ok"}'),
+            session=FakeSession(self.form()))
+        self.assertTrue(any("no field for" in step["result"]
+                            for step in more["steps"]), more["steps"])
+
+    def test_running_out_of_steps_is_picked_up_too(self):
+        page = self.form()
+        out = self.go(page, "Fill in this application",
+                      *['{"action": "fill", "values": {}}'] * 2, budget=2)
+        self.assertEqual(out["state"], webtask.BUDGET)
+        self.assertIn("carry on", out["say"])
+        more = webtask.carry_on(
+            out["id"], think=self.brain('{"action": "done", "value": "ok"}'),
+            session=FakeSession(self.form()))
+        self.assertEqual(more["state"], webtask.DONE)
+
+    def test_it_is_the_SAME_run_not_a_new_one(self):
+        out = self.stops()
+        more = webtask.carry_on(
+            out["id"], think=self.brain('{"action": "done", "value": "ok"}'),
+            session=FakeSession(self.form()))
+        self.assertEqual(more["id"], out["id"])
+
+    def test_there_is_nothing_to_carry_on_from_a_finished_run(self):
+        page = self.form([("#sal", "1"), ("#how", "x")])
+        out = self.go(page, "Fill in this application",
+                      '{"action": "click", "selector": "#go"}')
+        self.assertEqual(out["state"], webtask.COMMIT)
+        with self.assertRaises(webtask.WebTaskError) as caught:
+            webtask.carry_on(out["id"])
+        self.assertIn("nothing waiting", str(caught.exception))
+
+    def test_carrying_on_still_stops_at_the_button(self):
+        """It is not a bypass: the same loop, the same button, the same one
+        confirmation."""
+        out = self.stops()
+        more = webtask.carry_on(
+            out["id"], answers={"salary": "1", "hear about us": "x"},
+            think=self.brain('{"action": "click", "selector": "#go"}'),
+            session=FakeSession(self.form()))
+        self.assertEqual(more["state"], webtask.COMMIT)
+        self.assertEqual(policy.load(more["approval"])["state"], "PENDING")
+
+    def test_a_page_that_moved_on_is_said_not_crashed(self):
+        out = self.stops()
+        page = FakePage([], [])          # the fields are gone
+        more = webtask.carry_on(
+            out["id"], think=self.brain('{"action": "done", "value": "ok"}'),
+            session=FakeSession(page))
+        self.assertEqual(more["state"], webtask.ASK)
+        self.assertIn("could not put that page back", more["say"])
+
+    def test_he_can_just_say_it(self):
+        from aletheia import intercom, planner
+        self.assertIn("web_task_answer", intercom.KIND_ARGS)
+        self.assertIn("web_task_answer", planner.grammar_brief())
+
+
 class HeCanJustSayIt(unittest.TestCase):
     def test_the_kind_exists_and_the_planner_can_see_it(self):
         from aletheia import intercom, planner

@@ -577,7 +577,7 @@ def _decide(goal: str, page_state: dict, history: list[dict], think,
 
 
 def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
-        refused_before: str = "", attempt: int = 1,
+        refused_before: str = "", attempt: int = 1, pick_up: dict | None = None,
         session=None, run_id: str = "") -> dict:
     """Drive a browser toward a goal. Stops at a commit, a question, or the budget."""
     policy.ensure_not_halted()
@@ -594,6 +594,11 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
     budget = max(1, min(int(budget), MAX_STEPS))
     think = think or reasoner.subscription_text
     allowed = _permitted_values(goal)
+    # HIS ANSWERS ARE HIS. When he answers the questions she asked, those
+    # words are as much his as anything on his profile — the gate exists
+    # to stop a model inventing a fact, not to stop him supplying one.
+    answers = dict((pick_up or {}).get("answers") or {})
+    allowed |= {str(v).strip().casefold() for v in answers.values() if str(v).strip()}
     # The slug alone collided: "apply for the senior systems engineer job at
     # Stripe" and the same sentence ending in Databricks share their first
     # 28 characters, so the second run OVERWROTE the first one's record and
@@ -622,15 +627,69 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
     idle = 0
     outcome = {"state": BUDGET,
                "say": ("I ran out of steps before finishing. Nothing was "
-                       "submitted, and I cannot pick this up where I left it "
-                       "— the page goes with the run — so say it again with "
-                       "more room if you want me to try the whole thing.")}
+                       "submitted — say 'carry on' and I will pick it up "
+                       "from where I stopped.")}
     opener = session or browse._Session
     with opener() as ctx:
         page = ctx.new_page()
         hands = _Hands(page)
         page.goto(start_url or "about:blank", wait_until="domcontentloaded")
         settle(page)
+        if pick_up:
+            # PUT THE PAGE BACK. Everything she had already typed, and every
+            # click that carried her between pages, replayed before the
+            # first new step — so picking a run back up is continuing it,
+            # not starting it again and asking him the same three questions.
+            applied = [dict(s) for s in pick_up.get("typed") or []]
+            attached = [dict(a) for a in pick_up.get("attached") or []]
+            writes = {s["selector"]: 1 for s in applied if s.get("selector")}
+            history = list(pick_up.get("steps") or [])[-4:]
+            try:
+                page = walk(ctx, page, hands,
+                            applied, {a["selector"]: a["path"] for a in attached})
+            except Exception as exc:
+                # The page moved on under her. Honest, and not a crash.
+                return _stopped(run_id, goal, attempt, history, [], "",
+                                {"state": ASK,
+                                 "say": ("I could not put that page back the "
+                                         f"way I left it ({type(exc).__name__}). "
+                                         "Start it again and I will do the "
+                                         "whole thing.")})
+            history.append({"step": {"action": "resume"},
+                            "result": (f"put back {len(applied)} thing(s) I had "
+                                       "already done")})
+            if answers:
+                # And his answers to what she asked, typed in before she
+                # looks again — so the same questions are not asked twice.
+                seen_now = observe(page)
+                seen_now.pop("_raw", None)
+                for label, value in answers.items():
+                    field = next((f for f in seen_now["fields"]
+                                  if label.casefold() in
+                                  (f.get("label") or "").casefold()), None)
+                    if field is None:
+                        history.append({"step": {"action": "answer"},
+                                        "result": f"no field for {label[:40]!r}"})
+                        continue
+                    try:
+                        if field.get("type") in ("checkbox", "radio"):
+                            hands.check(field["selector"])
+                            used = "check"
+                        elif field.get("options"):
+                            hands.select_option(field["selector"], label=str(value))
+                            used = "select"
+                        else:
+                            hands.fill(field["selector"], str(value))
+                            used = "type"
+                    except Exception as exc:
+                        history.append({"step": {"action": "answer"},
+                                        "result": f"could not: {type(exc).__name__}"})
+                        continue
+                    writes[field["selector"]] = writes.get(field["selector"], 0) + 1
+                    applied.append({"action": used, "selector": field["selector"],
+                                    "value": str(value)})
+                    history.append({"step": {"action": "answer"},
+                                    "result": f"your answer for {label[:44]}"})
         for _ in range(budget):
             policy.ensure_not_halted()
 
@@ -1025,6 +1084,12 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
 
     record = {"id": run_id, "goal": goal, "steps": history,
               "attempt": attempt, "downloaded": downloaded,
+              # THE ROUTE, on every ending and not only on a commit. It was
+              # written down only when she reached a button, so a run that
+              # stopped to ask him a question threw away everything it had
+              # already done and he had to watch it be asked again.
+              "typed": applied, "attached": attached,
+              "replay_from": start_url or record_url(outcome),
               "screenshot": str(shot) if shot else "", "at": stateio.utcnow(),
               **outcome}
     stateio.write_json_atomic(_record_path(run_id), record)
@@ -1032,6 +1097,68 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
                    f"{record['state']} after {len(history)} step(s): {goal[:90]}",
                    actor=ACTOR)
     return record
+
+
+def record_url(outcome: dict) -> str:
+    return str(outcome.get("url") or "")
+
+
+def _stopped(run_id, goal, attempt, history, downloaded, shot, outcome) -> dict:
+    """Write a run down and say what happened. Used where the loop cannot."""
+    record = {"id": run_id, "goal": goal, "steps": history, "attempt": attempt,
+              "downloaded": downloaded, "typed": [], "attached": [],
+              "screenshot": shot, "at": stateio.utcnow(), **outcome}
+    stateio.write_json_atomic(_record_path(run_id), record)
+    journal.append("action", "webtask",
+                   f"{record['state']}: {goal[:90]}", actor=ACTOR)
+    return record
+
+
+def walk(ctx, page, hands, route: list[dict], attachments: dict) -> object:
+    """Put the page back the way she left it.
+
+    The route is the unit — every value AND every navigation click — so
+    replaying it is how a page that closed with the run comes back. The
+    press has always done this; picking a run back up is the same walk
+    without the final button, and two copies of it would drift.
+    """
+    for step in route:
+        action, selector = step["action"], step.get("selector") or ""
+        if action == "goto":
+            page.goto(str(step.get("value", "")), wait_until="domcontentloaded")
+            settle(page)
+        elif action == "new_tab":
+            continue                        # handled by the click before it
+        elif action == "select":
+            hands.select_option(selector, label=step["value"])
+        elif action == "check":
+            hands.check(selector)
+        elif action == "uncheck":
+            hands.uncheck(selector)
+        elif action == "click":
+            for sel, path in attachments.items():
+                try:
+                    hands.set_input_files(sel, path)
+                except Exception:
+                    pass
+            before = _open_pages(ctx)
+            hands.click(selector)
+            try:
+                page.wait_for_load_state("domcontentloaded")
+            except Exception:
+                pass
+            moved = follow_new_tab(ctx, page, before)
+            settle(moved)
+            if moved is not page:
+                page, hands.page = moved, moved
+        else:
+            hands.fill(selector, str(step.get("value", "")))
+    for selector, path in attachments.items():
+        try:
+            hands.set_input_files(selector, path)
+        except Exception:
+            pass
+    return page
 
 
 def _digest(action: str) -> str:
@@ -1130,6 +1257,39 @@ def commit(run_id: str, *, presser=None) -> dict:
     return record
 
 
+PICKABLE = (BUDGET, ASK)
+
+
+def carry_on(run_id: str, *, answers: dict | None = None, budget: int = 16,
+             think=None, session=None) -> dict:
+    """Pick a run back up — with his answers, if she asked for any.
+
+    The two ways a run stops short are "I ran out of steps" and "only you
+    can answer this", and both ended the same way: the page closed with
+    the run and everything already typed went with it. Starting again
+    meant watching her fill the same eleven fields and ask him the same
+    three questions. Every real application has questions only he can
+    answer, so that was not an edge case, it was the normal path.
+
+    It is not a bypass. Picking it back up replays what she had done and
+    then carries on into the same loop, which still stops at the same
+    button and still asks him for the same one confirmation.
+    """
+    record = load_run(run_id)
+    if record.get("state") not in PICKABLE:
+        raise WebTaskError(
+            f"{run_id} is {record.get('state')} — there is nothing waiting to "
+            "be carried on")
+    return run(record["goal"],
+               start_url=record.get("replay_from") or record.get("url", ""),
+               budget=budget, think=think, session=session,
+               attempt=int(record.get("attempt", 1)), run_id=run_id,
+               pick_up={"typed": record.get("typed") or [],
+                        "attached": record.get("attached") or [],
+                        "steps": record.get("steps") or [],
+                        "answers": dict(answers or {})})
+
+
 def retry(run_id: str, *, budget: int = 16, think=None, session=None) -> dict:
     """The site refused it. Read what it said, fix it, and ask him again.
 
@@ -1195,42 +1355,7 @@ def _press(record: dict) -> dict:
         page.goto(record.get("replay_from") or record["url"],
                   wait_until="domcontentloaded")
         settle(page)
-        for step in record.get("typed", []):
-            action, selector = step["action"], step.get("selector") or ""
-            if action == "goto":
-                page.goto(str(step.get("value", "")), wait_until="domcontentloaded")
-                settle(page)
-            elif action == "select":
-                hands.select_option(selector, label=step["value"])
-            elif action == "check":
-                hands.check(selector)
-            elif action == "uncheck":
-                hands.uncheck(selector)
-            elif action == "new_tab":
-                continue                        # handled by the click before it
-            elif action == "click":
-                for sel, path in attachments.items():
-                    try:
-                        hands.set_input_files(sel, path)
-                    except Exception:
-                        pass
-                before = _open_pages(ctx)
-                hands.click(selector)
-                try:
-                    page.wait_for_load_state("domcontentloaded")
-                except Exception:
-                    pass
-                moved = follow_new_tab(ctx, page, before)
-                settle(moved)
-                if moved is not page:
-                    page, hands.page = moved, moved
-            else:
-                hands.fill(selector, str(step.get("value", "")))
-        for selector, path in attachments.items():
-            try:
-                hands.set_input_files(selector, path)
-            except Exception:
-                pass
+        page = walk(ctx, page, hands, record.get("typed", []), attachments)
         hands.click(record["button_selector"])
         page.wait_for_load_state("domcontentloaded")
         # The receipt of an EMBEDDED form is inside the frame; the parent
@@ -1277,6 +1402,11 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--budget", type=int, default=16)
     p_go = sub.add_parser("commit"); p_go.add_argument("run_id")
     p_again = sub.add_parser("retry"); p_again.add_argument("run_id")
+    p_on = sub.add_parser("carry-on")
+    p_on.add_argument("run_id")
+    p_on.add_argument("--answer", action="append", default=[],
+                      metavar="LABEL=VALUE",
+                      help="an answer to one of the questions she asked")
     sub.add_parser("waiting")
     args = ap.parse_args(argv)
     try:
@@ -1284,6 +1414,12 @@ def main(argv: list[str] | None = None) -> int:
             record = run(args.goal, start_url=args.url, budget=args.budget)
             print(spoken(record))
             for entry in record["steps"]:
+                print(f"  {entry['step'].get('action'):7} {entry['result'][:70]}")
+        elif args.cmd == "carry-on":
+            given = dict(pair.split("=", 1) for pair in args.answer if "=" in pair)
+            more = carry_on(args.run_id, answers=given)
+            print(spoken(more))
+            for entry in more["steps"]:
                 print(f"  {entry['step'].get('action'):7} {entry['result'][:70]}")
         elif args.cmd == "retry":
             again = retry(args.run_id)

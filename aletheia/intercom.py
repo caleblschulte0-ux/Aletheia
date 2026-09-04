@@ -97,7 +97,19 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
         'drives to the button and waits for his confirmation like any other '
         'irreversible thing, and the subscription is only marked CANCELLED '
         'when the merchant itself says so.'),
+    "web_task_answer": (
+        'Use this when he ANSWERS something she asked while doing a web '
+        'task — "the salary one, put 120000", "tell them I heard about it '
+        'from a friend". answers is a mapping from the question she asked '
+        '(any distinctive part of its label) to his answer, and run_id is '
+        'optional: with none she takes the run that is waiting. She puts '
+        'the page back the way she left it, types his answers, and carries '
+        'on to the same button and the same one confirmation. Use it for '
+        '"carry on" with no answers too, when she simply ran out of steps.'),
     "web_task_retry": (set(), {"run_id"}),
+    # "here are the answers, carry on" — she picks the run back up rather
+    # than starting the form again and asking the same questions.
+    "web_task_answer": (set(), {"run_id", "answers"}),
     # "cancel my gym membership" — she goes to the page it is managed on,
     # gets as far as the button, and waits for him like anything else.
     "subscription_cancel": ({"subscription"}, {"url"}),
@@ -281,7 +293,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email
                "file_delete", "file_move",
                # reads the open web and writes into her workspace: both PC
                "apply_prepare", "apply_campaign", "web_task", "web_task_retry",
-               "subscription_cancel",
+               "subscription_cancel", "web_task_answer",
                "computer_observe",
                # ffmpeg and his media files live on the PC
                "media_probe", "media_trim", "media_join", "media_audio",
@@ -685,6 +697,19 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             return webtask.spoken(webtask.load_run(row["web_task"]))
         except Exception:
             return f"{row['merchant']}: {row.get('cancel_state', 'started')}"
+    if kind == "web_task_answer":
+        from aletheia import webtask
+        run_id = cmd.get("run_id") or ""
+        if not run_id:
+            waiting = [r for r in webtask.all_runs()
+                       if r.get("state") in webtask.PICKABLE]
+            if not waiting:
+                return "nothing of mine is waiting on you"
+            run_id = waiting[-1]["id"]
+        given = cmd.get("answers") or {}
+        if not isinstance(given, dict):
+            return "answers must be a mapping of question to answer"
+        return webtask.spoken(webtask.carry_on(run_id, answers=given))
     if kind == "web_task_retry":
         # The site refused it. "Try that again" now means something: she
         # reads what it said, fixes it, and brings him a NEW confirmation.

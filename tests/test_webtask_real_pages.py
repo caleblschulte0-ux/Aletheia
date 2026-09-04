@@ -100,6 +100,15 @@ ACCOUNT = """<h1>Your account</h1><p>Membership: Gold.</p>
 <form method="POST" action="/cancel">
 <button type="submit">Cancel my membership</button></form>"""
 
+A1 = """<h2>Step 1 of 2</h2><form method="POST" action="/a2">
+<label for="fn">First name *</label><input id="fn" name="first_name" required>
+<label for="em">Email *</label><input id="em" name="email" type="email" required>
+<button type="submit">Next</button></form>"""
+A2 = """<h2>Step 2 of 2</h2><form method="POST" action="/submit">
+<label for="sal">Desired annual salary in USD *</label><input id="sal" name="salary" required>
+<label for="how">How did you hear about us? *</label><input id="how" name="heard" required>
+<button type="submit">Submit application</button></form>"""
+
 W1 = """<form method="POST" action="/w2">
 <label for="fn">First name *</label><input id="fn" name="first_name" required>
 <button type="submit">Next</button></form>"""
@@ -122,7 +131,7 @@ def _site(base: str, got: dict):
              "/": f'<h1>Careers</h1><a href="{base}/apply" target="_blank" '
                   'rel="noopener">Apply for this job</a>',
              "/w1": W1, "/w2": W2, "/w3": W3, "/late": LATE,
-             "/account": ACCOUNT}
+             "/account": ACCOUNT, "/a1": A1, "/a2": A2}
 
     class H(http.server.BaseHTTPRequestHandler):
         def log_message(self, *a):
@@ -163,7 +172,7 @@ def _site(base: str, got: dict):
                 if digits != got.get("phone", "") or len(digits) != 10:
                     return self._send(REFUSAL % (got.get("first_name", ""),
                                                  got.get("phone", "")))
-            self._send({"/w2": W2, "/w3": W3}.get(
+            self._send({"/w2": W2, "/w3": W3, "/a2": A2}.get(
                 self.path, "<h1>Thank you</h1><p>Received.</p>"))
     return H
 
@@ -192,6 +201,9 @@ def script(*steps):
         if not todo:
             return '{"action": "done", "value": "finished"}'
         want = todo[0]
+        if want[0] == "ask":
+            todo.pop(0)
+            return json.dumps({"action": "ask", "value": want[1]})
         if want[0] == "download":
             row = by_text(page, want[1])
             if row is None:
@@ -498,6 +510,39 @@ class NotEveryTaskIsAFORM(RealPageCase):
                          ("click", "Cancel my membership"))
         self.press(out)
         self.assertEqual(self.got.get("_last_post"), "/cancel")
+
+
+@needs_browser
+class SheDoesNotAskTheSameThingTwice(RealPageCase):
+    """Every real application has a question no profile can answer — a
+    salary, a start date, how you heard about them. She would ask, the
+    run would end, the page would close with it, and answering meant
+    watching the whole form be filled again from the top."""
+
+    def test_the_route_survives_the_question_and_his_answers_finish_it(self):
+        stopped = self.drive(
+            "/a1", "Fill in this application with my details.",
+            ("click", "Next"),
+            ("ask", "What salary, and how did you hear about us?"))
+        self.assertEqual(stopped["state"], webtask.ASK, stopped.get("say"))
+        # Page one is written down, click included, or page two is
+        # unreachable on the way back.
+        self.assertEqual([(t["action"], t["selector"]) for t in stopped["typed"]],
+                         [("type", "#fn"), ("type", "#em"),
+                          ("click", 'button[type="submit"]')])
+
+        done = webtask.carry_on(
+            stopped["id"],
+            answers={"salary": "120000", "hear about us": "A friend"},
+            think=script(("click", "Submit application")))
+        self.assertEqual(done["state"], webtask.COMMIT, done.get("say"))
+        # She did NOT ask again, and did not re-fill page one from scratch.
+        self.assertEqual([s["step"]["action"] for s in done["steps"]][:4],
+                         ["known", "click", "resume", "answer"])
+        self.press(done)
+        self.assertEqual(self.got.get("first_name"), "Caleb")
+        self.assertEqual(self.got.get("salary"), "120000")
+        self.assertEqual(self.got.get("heard"), "A friend")
 
 
 @needs_browser
