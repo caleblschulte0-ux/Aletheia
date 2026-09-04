@@ -1,5 +1,5 @@
 {
-  "revision": 81,
+  "revision": 82,
   "providers": [
     {
       "id": "aletheia.local",
@@ -128,6 +128,17 @@
       "approval_policy": "none",
       "caller": "every capability that acts; CLI for operator notes",
       "module": "aletheia.journal"
+    },
+    {
+      "id": "privacy.redact",
+      "description": "Keep secret-shaped text out of the files that get committed — the journal and the intercom receipts both land in a public repository",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "aletheia.journal.append (every entry, every writer) and aletheia.intercom._write_receipt_and_journal. It is a library in the write path, not a command: there is nothing to run by hand and nothing that can be forgotten at a call site.",
+      "module": "aletheia.sensitivity",
+      "notes": "docs/ROADMAP.md names information-flow labels as the review's best idea and the correct answer to 'I don't want it blackmailing me'. This is the first slice, aimed at the outbound channel nobody thinks of: state/journal/ and exchange/ are COMMITTED TO A PUBLIC REPOSITORY, CLAUDE.md says 'no secrets in committed files', and every enforcement of that was a person remembering. Meanwhile the journal records his own words — a web task journals its goal, and 'log into my bank, the password is hunter2' is a sentence a person says to an assistant. Deliberately blunt: it redacts by SHAPE, so a sixteen-digit order id is redacted too, which in prose costs nothing while the alternative costs a card number in a public repo. It never throws (a scrubber that can fail gets wrapped in a try/except and skipped) and it reports WHAT it hid rather than the value. It is NOT a boundary on what she may DO with a value: typing his password into his own bank's login box is the whole point of secret.fill, governed by its own host binding. This is about what gets written down where other people can read it. Ordinary sentences are left completely alone, because a scrubber that mangles normal text is one somebody turns off."
     },
     {
       "id": "journal.search",

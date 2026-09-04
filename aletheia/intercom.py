@@ -88,24 +88,6 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "web_task":      ({"goal"}, {"url", "budget"}),
     # "try that again" after a site refused one — the ONLY case where
     # running it again is safe, because a refusal means nothing was taken.
-    "subscription_cancel": (
-        'Cancel a recurring charge she is tracking. subscription is its id '
-        '(python -m aletheia.assistant subscriptions lists them), url is the '
-        'page it is managed on and is REQUIRED the first time — she will not '
-        'guess a cancellation URL, because guessing one is how you end up on '
-        'a page wearing his bank\'s colours that somebody else owns. She '
-        'drives to the button and waits for his confirmation like any other '
-        'irreversible thing, and the subscription is only marked CANCELLED '
-        'when the merchant itself says so.'),
-    "web_task_answer": (
-        'Use this when he ANSWERS something she asked while doing a web '
-        'task — "the salary one, put 120000", "tell them I heard about it '
-        'from a friend". answers is a mapping from the question she asked '
-        '(any distinctive part of its label) to his answer, and run_id is '
-        'optional: with none she takes the run that is waiting. She puts '
-        'the page back the way she left it, types his answers, and carries '
-        'on to the same button and the same one confirmation. Use it for '
-        '"carry on" with no answers too, when she simply ran out of steps.'),
     "web_task_retry": (set(), {"run_id"}),
     # "here are the answers, carry on" — she picks the run back up rather
     # than starting the form again and asking the same questions.
@@ -188,6 +170,24 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # generated from KIND_ARGS and these together, so the model learns the
 # shape of a step list from the registry rather than from a guess.
 KIND_NOTES: dict[str, str] = {
+    "subscription_cancel": (
+        'Cancel a recurring charge she is tracking. subscription is its id '
+        '(python -m aletheia.assistant subscriptions lists them), url is the '
+        'page it is managed on and is REQUIRED the first time — she will not '
+        'guess a cancellation URL, because guessing one is how you end up on '
+        'a page wearing his bank\'s colours that somebody else owns. She '
+        'drives to the button and waits for his confirmation like any other '
+        'irreversible thing, and the subscription is only marked CANCELLED '
+        'when the merchant itself says so.'),
+    "web_task_answer": (
+        'Use this when he ANSWERS something she asked while doing a web '
+        'task — "the salary one, put 120000", "tell them I heard about it '
+        'from a friend". answers is a mapping from the question she asked '
+        '(any distinctive part of its label) to his answer, and run_id is '
+        'optional: with none she takes the run that is waiting. She puts '
+        'the page back the way she left it, types his answers, and carries '
+        'on to the same button and the same one confirmation. Use it for '
+        '"carry on" with no answers too, when she simply ran out of steps.'),
     "web_task_retry": (
         'Use this when he says "try that again" about something a website '
         'REFUSED — a form handed back with "phone must be 10 digits", a '
@@ -1107,6 +1107,16 @@ def run_pending(fleet: dict, request=gh.request, commands_dir: Path | None = Non
 
 
 def _write_receipt_and_journal(path: Path, result: dict) -> None:
+    # A RECEIPT IS COMMITTED, and its `detail` is whatever the capability
+    # said — which for a web task is text read off a page, and for an
+    # error is an exception message carrying whatever was being handled.
+    # `sensitivity` is the same scrubber the journal uses, at the other
+    # place his words reach a public repository.
+    from aletheia import sensitivity
+    detail, hidden = sensitivity.scrub(str(result.get("detail", "")))
+    result = {**result, "detail": detail}
+    if hidden:
+        result["redacted"] = hidden
     _result_path(path).write_text(
         json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     journal.append("action", f"intercom:{path.stem}",

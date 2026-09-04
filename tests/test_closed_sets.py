@@ -14,7 +14,10 @@ survived approval, and died at execution with a bare ValueError.
 "Remember my sister is Mia" — the most ordinary sentence an assistant
 ever hears — compiled cleanly and did nothing.
 """
+import ast
+import os
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from aletheia import contracts, intercom, memory, planner
@@ -184,6 +187,72 @@ class OtherClosedSetsAreCoveredToo(unittest.TestCase):
                          sorted(plans.PLAN_STATES))
         self.assertEqual(intercom.allowed_values("plan_step", "state"),
                          sorted(plans.STEP_STATES))
+
+
+class ARegistryDictWithTwoOfTheSAME_KEY(unittest.TestCase):
+    """Python takes the last one and says nothing.
+
+    These modules are registries written as dict literals — kinds and
+    their arguments, kinds and their notes. Editing one by hand put a
+    `subscription_cancel` entry in `KIND_ARGS` twice within five minutes,
+    once with prose where a tuple belongs; the later entry won, the
+    earlier vanished, everything imported, every test passed, and the
+    note it was carrying was simply gone. A registry that can lose an
+    entry silently is not a source of truth.
+    """
+
+    REGISTRIES = ("intercom", "planner", "mission", "computer", "formfill",
+                  "webtask", "policy", "contracts")
+
+    def duplicates(self, module_name):
+        source = (Path("aletheia") / f"{module_name}.py").read_text(encoding="utf-8")
+        found = []
+        for node in ast.walk(ast.parse(source)):
+            if not isinstance(node, ast.Dict):
+                continue
+            seen = set()
+            for key in node.keys:
+                if not isinstance(key, ast.Constant) or not isinstance(key.value, str):
+                    continue
+                if key.value in seen:
+                    found.append((module_name, key.lineno, key.value))
+                seen.add(key.value)
+        return found
+
+    def test_no_module_has_one(self):
+        for name in self.REGISTRIES:
+            with self.subTest(module=name):
+                self.assertEqual(
+                    self.duplicates(name), [],
+                    f"aletheia/{name}.py has a repeated key — Python keeps the "
+                    "last and drops the first without a word")
+
+    def test_the_check_can_actually_see_one(self):
+        """A test that cannot fail is a comment."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as root:
+            fake = Path(root) / "aletheia"
+            fake.mkdir()
+            (fake / "toy.py").write_text('X = {"a": 1, "b": 2, "a": 3}\n')
+            here = Path.cwd()
+            try:
+                os.chdir(root)
+                self.assertEqual([row[2] for row in self.duplicates("toy")], ["a"])
+            finally:
+                os.chdir(here)
+
+    def test_every_kind_has_the_shape_a_kind_has(self):
+        """The prose that landed in KIND_ARGS was a two-element tuple of
+        strings, which is exactly what an argument spec looks like from a
+        distance."""
+        for kind, spec in intercom.KIND_ARGS.items():
+            with self.subTest(kind=kind):
+                self.assertIsInstance(spec, tuple)
+                self.assertEqual(len(spec), 2)
+                for half in spec:
+                    self.assertIsInstance(half, set, f"{kind} carries prose")
+                    for name in half:
+                        self.assertIsInstance(name, str)
 
 
 if __name__ == "__main__":

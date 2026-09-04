@@ -100,6 +100,14 @@ def append(kind: str, subject: str, text: str, actor: str = "aletheia",
            refs: list[str] | None = None, path: Path | None = None) -> dict:
     if kind not in KINDS:
         raise ValueError(f"kind {kind!r} not in {sorted(KINDS)}")
+    # THE JOURNAL IS COMMITTED TO A PUBLIC REPOSITORY. `CLAUDE.md` says
+    # "no secrets in committed files" and nothing enforced it — every
+    # enforcement was somebody remembering. Meanwhile this records his
+    # own words: a web task journals its goal, and "log into my bank, the
+    # password is hunter2" is a sentence a person says to an assistant.
+    # Scrubbed here because here is where everything passes through.
+    from aletheia import sensitivity
+    text, hidden = sensitivity.scrub(str(text))
     entry = {
         "ts": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "kind": kind,
@@ -107,6 +115,10 @@ def append(kind: str, subject: str, text: str, actor: str = "aletheia",
         "subject": subject,
         "text": text,
     }
+    if hidden:
+        # WHAT was hidden, never the value: a note that says what it hid
+        # by quoting it has hidden nothing.
+        entry["redacted"] = hidden
     if refs:
         entry["refs"] = refs
     path = path or JOURNAL_PATH
