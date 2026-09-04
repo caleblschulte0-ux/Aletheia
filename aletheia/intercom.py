@@ -84,6 +84,8 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "apply_prepare": ({"role"}, {"count", "where", "resume"}),
     # "apply to ten jobs with this resume" — the whole thing, one call.
     "apply_campaign": ({"role"}, {"count", "where", "resume"}),
+    # The catch-all for "go do this on a website" — any number of steps.
+    "web_task":      ({"goal"}, {"url", "budget"}),
     # eyes on the desktop, never hands: mutation keeps its own approval
     "computer_observe": (set(), {"window"}),
     # video and audio: the source is never touched, output lands in the workspace
@@ -159,6 +161,20 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # generated from KIND_ARGS and these together, so the model learns the
 # shape of a step list from the registry rather than from a guess.
 KIND_NOTES: dict[str, str] = {
+    "web_task": (
+        'THE CATCH-ALL for anything that means "go do this on a website" and '
+        'has no kind of its own: fill in this form, renew this thing, '
+        'download that statement, book the slot, update the address. goal is '
+        'his request in his own words (they matter: a value she types must '
+        'come from his profile or from his sentence, and anything else is '
+        'refused in code, not discouraged in a prompt), url is where to '
+        'start. She looks at the page, does one step, looks again, up to a '
+        'budget. She attaches his own files when a form wants one. She stops '
+        'at the first button that submits, sends, confirms or deletes and '
+        'hands him ONE approval carrying that exact page, that exact button '
+        'and everything typed to get there. Anything that spends money stops '
+        'the run with no approval offered. Use this rather than inventing a '
+        'gap when the request is a website he could do himself with a mouse.'),
     "apply_campaign": (
         'THE ONE TO USE for "apply to N jobs" / "apply to these jobs with my '
         'resume". It reads the resume he named (or finds it), learns his '
@@ -242,7 +258,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email
                "file_write", "file_edit", "file_read", "file_list", "compose",
                "file_delete", "file_move",
                # reads the open web and writes into her workspace: both PC
-               "apply_prepare", "apply_campaign",
+               "apply_prepare", "apply_campaign", "web_task",
                "computer_observe",
                # ffmpeg and his media files live on the PC
                "media_probe", "media_trim", "media_join", "media_audio",
@@ -630,6 +646,11 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return (f"did {result['steps_done']} desktop step(s) [{did}] — run {result['run_id']}"
                 + (f" — {cmd['why'][:120]}" if cmd.get("why") else ""))
 
+    if kind == "web_task":
+        from aletheia import webtask
+        record = webtask.run(cmd["goal"], start_url=cmd.get("url", ""),
+                             budget=int(cmd.get("budget", 8)))
+        return webtask.spoken(record)
     if kind == "apply_campaign":
         from aletheia import campaign
         out = campaign.run(cmd["role"], count=int(cmd.get("count", 5)),

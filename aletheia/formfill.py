@@ -122,6 +122,12 @@ READ_FORM_JS = r"""() => {
       value: (el.value || '').slice(0, 200),
     };
     if (type === 'checkbox' || type === 'radio') {
+      // A checkbox's `value` is "on" whether or not it is ticked, so a
+      // required certification box READ AS FILLED, the browser refused the
+      // submit, and the run reported success while the employer received
+      // nothing. Its real state is `checked`.
+      row.checked = !!el.checked;
+      row.value = el.checked ? 'checked' : '';
       row.option = row.label;
       row.question = questionFor(el);
       // Radios share a name; Greenhouse's checkbox groups do too.

@@ -1279,3 +1279,104 @@
 {"ts": "2026-09-04T00:54:30Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 23 field(s) on file:///tmp/gh/reddit.html"}
 {"ts": "2026-09-04T00:54:30Z", "kind": "action", "actor": "aletheia-campaign", "subject": "campaign", "text": "0 ready, 3 waiting on answers, 0 could not be reached — for 'software engineer'; nothing submitted"}
 {"ts": "2026-09-04T01:00:59Z", "kind": "action", "actor": "aletheia-jobs", "subject": "jobs", "text": "searched 24 board(s) for 'software engineer': 1826 match(es), 3 board(s) failed"}
+{"ts": "2026-09-04T02:00:57Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "email is on file (from resume)"}
+{"ts": "2026-09-04T02:00:57Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "phone is on file (from resume)"}
+{"ts": "2026-09-04T02:00:57Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume)"}
+{"ts": "2026-09-04T02:00:57Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume)"}
+{"ts": "2026-09-04T02:00:57Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume)"}
+{"ts": "2026-09-04T02:00:57Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume)"}
+{"ts": "2026-09-04T02:00:57Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume)"}
+{"ts": "2026-09-04T02:00:57Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume)"}
+{"ts": "2026-09-04T02:00:57Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "work_authorization is on file (from operator)"}
+{"ts": "2026-09-04T02:00:57Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "needs_sponsorship is on file (from operator)"}
+{"ts": "2026-09-04T02:02:45Z", "kind": "action", "actor": "aletheia-webtask", "subject": "webtask", "text": "OUT_OF_STEPS after 10 step(s): Fill in the job application on this page with my details. For 'why do you want to work her"}
+{"ts": "2026-09-04T02:03:30Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "email is on file (from resume)"}
+{"ts": "2026-09-04T02:03:30Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "phone is on file (from resume)"}
+{"ts": "2026-09-04T02:03:30Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume)"}
+{"ts": "2026-09-04T02:03:30Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume)"}
+{"ts": "2026-09-04T02:03:30Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume)"}
+{"ts": "2026-09-04T02:03:30Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume)"}
+{"ts": "2026-09-04T02:03:30Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume)"}
+{"ts": "2026-09-04T02:03:30Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume)"}
+{"ts": "2026-09-04T02:03:30Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "work_authorization is on file (from operator)"}
+{"ts": "2026-09-04T02:03:30Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "needs_sponsorship is on file (from operator)"}
+{"ts": "2026-09-04T02:03:47Z", "kind": "action", "actor": "aletheia-webtask", "subject": "webtask", "text": "NEEDS_YOU after 1 step(s): Fill in the job application on this page with my details. For 'why do you want to work her"}
+{"ts": "2026-09-04T02:04:27Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "email is on file (from resume)"}
+{"ts": "2026-09-04T02:04:27Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "phone is on file (from resume)"}
+{"ts": "2026-09-04T02:04:27Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume)"}
+{"ts": "2026-09-04T02:04:27Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume)"}
+{"ts": "2026-09-04T02:04:27Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume)"}
+{"ts": "2026-09-04T02:04:27Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume)"}
+{"ts": "2026-09-04T02:04:27Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume)"}
+{"ts": "2026-09-04T02:04:27Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume)"}
+{"ts": "2026-09-04T02:04:27Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "work_authorization is on file (from operator)"}
+{"ts": "2026-09-04T02:04:27Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "needs_sponsorship is on file (from operator)"}
+{"ts": "2026-09-04T02:04:44Z", "kind": "action", "actor": "aletheia-webtask", "subject": "webtask", "text": "NEEDS_YOU after 0 step(s): Fill in the job application on this page with my details. For 'why do you want to work her"}
+{"ts": "2026-09-04T02:05:14Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "email is on file (from resume)"}
+{"ts": "2026-09-04T02:05:14Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "phone is on file (from resume)"}
+{"ts": "2026-09-04T02:05:14Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume)"}
+{"ts": "2026-09-04T02:05:14Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume)"}
+{"ts": "2026-09-04T02:05:14Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume)"}
+{"ts": "2026-09-04T02:05:14Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume)"}
+{"ts": "2026-09-04T02:05:14Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume)"}
+{"ts": "2026-09-04T02:05:14Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume)"}
+{"ts": "2026-09-04T02:05:14Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "work_authorization is on file (from operator)"}
+{"ts": "2026-09-04T02:05:14Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "needs_sponsorship is on file (from operator)"}
+{"ts": "2026-09-04T02:09:24Z", "kind": "event", "actor": "aletheia", "subject": "approval:web-fill-in-the-job-application-commit", "text": "requested — browser.interact:1a99824ce22c38e1d348de82dc46dc5d4ef6df97b8530f1d227b4e3ee42beae9"}
+{"ts": "2026-09-04T02:09:24Z", "kind": "action", "actor": "aletheia-webtask", "subject": "webtask", "text": "AWAITING_YOU after 5 step(s): Fill in the job application on this page with my details and attach my resume. For 'why do"}
+{"ts": "2026-09-04T02:10:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "email is on file (from resume)"}
+{"ts": "2026-09-04T02:10:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "phone is on file (from resume)"}
+{"ts": "2026-09-04T02:10:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume)"}
+{"ts": "2026-09-04T02:10:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume)"}
+{"ts": "2026-09-04T02:10:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume)"}
+{"ts": "2026-09-04T02:10:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume)"}
+{"ts": "2026-09-04T02:10:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume)"}
+{"ts": "2026-09-04T02:10:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume)"}
+{"ts": "2026-09-04T02:10:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "work_authorization is on file (from operator)"}
+{"ts": "2026-09-04T02:10:09Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "needs_sponsorship is on file (from operator)"}
+{"ts": "2026-09-04T02:13:53Z", "kind": "event", "actor": "aletheia", "subject": "approval:web-fill-in-the-job-application-commit", "text": "requested — browser.interact:82c6777a20cebac75c59d2e2889de87e88dbf58e2c12399b927a4242c86669fd"}
+{"ts": "2026-09-04T02:13:54Z", "kind": "action", "actor": "aletheia-webtask", "subject": "webtask", "text": "AWAITING_YOU after 8 step(s): Fill in the job application on this page with my details and attach my resume. For 'why do"}
+{"ts": "2026-09-04T02:13:54Z", "kind": "decision", "actor": "phone", "subject": "approval:web-fill-in-the-job-application-commit", "text": "APPROVED"}
+{"ts": "2026-09-04T02:13:55Z", "kind": "action", "actor": "aletheia-webtask", "subject": "webtask", "text": "pressed 'Submit application' for web-fill-in-the-job-application"}
+{"ts": "2026-09-04T02:14:32Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "email is on file (from resume)"}
+{"ts": "2026-09-04T02:14:32Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "phone is on file (from resume)"}
+{"ts": "2026-09-04T02:14:32Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume)"}
+{"ts": "2026-09-04T02:14:32Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume)"}
+{"ts": "2026-09-04T02:14:32Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume)"}
+{"ts": "2026-09-04T02:14:32Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume)"}
+{"ts": "2026-09-04T02:14:32Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume)"}
+{"ts": "2026-09-04T02:14:32Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume)"}
+{"ts": "2026-09-04T02:14:32Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "work_authorization is on file (from operator)"}
+{"ts": "2026-09-04T02:14:32Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "needs_sponsorship is on file (from operator)"}
+{"ts": "2026-09-04T02:16:38Z", "kind": "event", "actor": "aletheia", "subject": "approval:web-fill-in-the-job-application-commit", "text": "requested — browser.interact:82c6777a20cebac75c59d2e2889de87e88dbf58e2c12399b927a4242c86669fd"}
+{"ts": "2026-09-04T02:16:38Z", "kind": "action", "actor": "aletheia-webtask", "subject": "webtask", "text": "AWAITING_YOU after 5 step(s): Fill in the job application on this page with my details and attach my resume. For 'why do"}
+{"ts": "2026-09-04T02:16:38Z", "kind": "decision", "actor": "phone", "subject": "approval:web-fill-in-the-job-application-commit", "text": "APPROVED"}
+{"ts": "2026-09-04T02:16:39Z", "kind": "action", "actor": "aletheia-webtask", "subject": "webtask", "text": "pressed 'Submit application' for web-fill-in-the-job-application"}
+{"ts": "2026-09-04T02:17:12Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "email is on file (from resume)"}
+{"ts": "2026-09-04T02:17:12Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "phone is on file (from resume)"}
+{"ts": "2026-09-04T02:17:12Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume)"}
+{"ts": "2026-09-04T02:17:12Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume)"}
+{"ts": "2026-09-04T02:17:12Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume)"}
+{"ts": "2026-09-04T02:17:12Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume)"}
+{"ts": "2026-09-04T02:17:12Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume)"}
+{"ts": "2026-09-04T02:17:12Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume)"}
+{"ts": "2026-09-04T02:17:12Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "work_authorization is on file (from operator)"}
+{"ts": "2026-09-04T02:17:12Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "needs_sponsorship is on file (from operator)"}
+{"ts": "2026-09-04T02:17:45Z", "kind": "event", "actor": "aletheia", "subject": "approval:web-fill-in-the-job-application-commit", "text": "requested — browser.interact:bbef2fc718f0bf1327288a888d0df878acfd4eb8240bdbdd3dab1fa6af89f397"}
+{"ts": "2026-09-04T02:17:45Z", "kind": "action", "actor": "aletheia-webtask", "subject": "webtask", "text": "AWAITING_YOU after 3 step(s): Fill in the job application on this page with my details and attach my resume. For 'why do"}
+{"ts": "2026-09-04T02:17:45Z", "kind": "decision", "actor": "phone", "subject": "approval:web-fill-in-the-job-application-commit", "text": "APPROVED"}
+{"ts": "2026-09-04T02:17:46Z", "kind": "action", "actor": "aletheia-webtask", "subject": "webtask", "text": "pressed 'Submit application' for web-fill-in-the-job-application"}
+{"ts": "2026-09-04T02:18:13Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "email is on file (from resume)"}
+{"ts": "2026-09-04T02:18:13Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "phone is on file (from resume)"}
+{"ts": "2026-09-04T02:18:13Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "linkedin is on file (from resume)"}
+{"ts": "2026-09-04T02:18:13Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "city is on file (from resume)"}
+{"ts": "2026-09-04T02:18:13Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "state is on file (from resume)"}
+{"ts": "2026-09-04T02:18:13Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "legal_name is on file (from resume)"}
+{"ts": "2026-09-04T02:18:13Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "first_name is on file (from resume)"}
+{"ts": "2026-09-04T02:18:13Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "last_name is on file (from resume)"}
+{"ts": "2026-09-04T02:18:13Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "work_authorization is on file (from operator)"}
+{"ts": "2026-09-04T02:18:13Z", "kind": "note", "actor": "aletheia-profile", "subject": "profile", "text": "needs_sponsorship is on file (from operator)"}
+{"ts": "2026-09-04T02:19:28Z", "kind": "event", "actor": "aletheia", "subject": "approval:web-fill-in-the-job-application-commit", "text": "requested — browser.interact:a09bf6b78f7e90f14b30ddc7877a5a308e042a619feb9fe7162d4015c1778785"}
+{"ts": "2026-09-04T02:19:28Z", "kind": "action", "actor": "aletheia-webtask", "subject": "webtask", "text": "AWAITING_YOU after 3 step(s): Fill in the job application on this page with my details and attach my resume. For 'why do"}
+{"ts": "2026-09-04T02:19:28Z", "kind": "decision", "actor": "phone", "subject": "approval:web-fill-in-the-job-application-commit", "text": "APPROVED"}
+{"ts": "2026-09-04T02:19:29Z", "kind": "action", "actor": "aletheia-webtask", "subject": "webtask", "text": "pressed 'Submit application' for web-fill-in-the-job-application"}
