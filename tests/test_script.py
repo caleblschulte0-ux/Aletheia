@@ -290,5 +290,72 @@ class TakingAFileAwayIsNotTheSameAsWritingOne(ScriptCase):
         self.assertIn("script.destructive:", source)
 
 
+class OverwritingIsNotDeleting_BUT_IT_IS_NOT_NOTHING(ScriptCase):
+    """I gated DELETING and did nothing about overwriting, and said so.
+    A program that rewrites his notes with garbage is not obviously
+    better than one that removes them — and `file.author` next door keeps
+    every version it replaces, which a generated program bypassed
+    entirely. The answer here is not another gate, it is an undo."""
+
+    def test_the_original_is_kept_before_anything_runs(self):
+        (self.root / "notes.txt").write_text("the original")
+        out = script.execute(
+            "open('notes.txt', 'w').write('clobbered')\nprint('done')\n")
+        self.assertEqual((self.root / "notes.txt").read_text(), "clobbered")
+        self.assertEqual(
+            (self.root / out["backup"] / "notes.txt").read_text(),
+            "the original")
+
+    def test_the_receipt_is_what_it_DID_not_what_it_SAID(self):
+        """The receipt used to be the program's own stdout, which is
+        whatever the program felt like saying about itself."""
+        (self.root / "keep.txt").write_text("a")
+        out = script.execute(
+            "open('new.txt', 'w').write('x')\n"
+            "open('keep.txt', 'w').write('b')\n"
+            "print('I did absolutely nothing')\n")
+        self.assertEqual(out["created"], ["new.txt"])
+        self.assertEqual(out["changed"], ["keep.txt"])
+        self.assertEqual(out["removed"], [])
+        said = script.spoken(out)
+        self.assertIn("created new.txt", said)
+        self.assertIn("changed keep.txt", said)
+
+    def test_a_program_that_changes_nothing_says_so(self):
+        out = script.execute("print(sum([1, 2]))\n")
+        self.assertIn("changed no files", script.spoken(out))
+
+    def test_a_deletion_he_approved_is_still_recoverable(self):
+        (self.root / "old.tmp").write_text("wanted after all")
+        source = ("from pathlib import Path\n"
+                  "for p in Path('.').glob('*.tmp'):\n"
+                  "    p.unlink()\n"
+                  "print('tidied')\n")
+        held = script.run("tidy", think=self.thinks(source))
+        policy.decide(held["approval"], "APPROVED", via="phone")
+        out = script.confirmed(held["approval"])
+        self.assertEqual(out["removed"], ["old.tmp"])
+        self.assertEqual(
+            (self.root / out["backup"] / "old.tmp").read_text(),
+            "wanted after all")
+
+    def test_it_NEVER_implies_an_undo_it_does_not_have(self):
+        """A workspace too big to copy is a real thing; pretending
+        otherwise is how somebody loses a file believing it is kept."""
+        (self.root / "huge.bin").write_bytes(b"x" * 32)
+        with mock.patch.object(script, "MAX_BACKUP_BYTES", 8):
+            out = script.execute("open('n.txt','w').write('x')\nprint('ok')\n")
+        self.assertEqual(out["backup"], "")
+        self.assertIn("huge.bin", out["no_backup_because"])
+        self.assertIn("cannot be undone", script.spoken(out))
+
+    def test_the_copies_are_not_themselves_reported_as_changes(self):
+        (self.root / "a.txt").write_text("a")
+        script.execute("open('a.txt','w').write('b')\nprint('ok')\n")
+        out = script.execute("print('again')\n")
+        self.assertEqual(out["created"], [])
+        self.assertEqual(out["changed"], [])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -54,6 +54,7 @@ import ast
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -288,6 +289,64 @@ def _environment() -> dict:
     return keep
 
 
+# HOW MUCH SHE WILL COPY BEFORE LETTING A PROGRAM LOOSE. `file.author`
+# keeps every version it replaces; a generated program writing directly
+# bypasses that entirely, and I gated DELETING without doing anything
+# about overwriting — a program that rewrites his notes with garbage is
+# not obviously better than one that deletes them. So: copy first, within
+# a bound, and when the bound is exceeded SAY SO rather than implying an
+# undo that does not exist.
+MAX_BACKUP_FILES = 400
+MAX_BACKUP_BYTES = 4 * 1024 * 1024      # per file
+BACKUPS = ".before-scripts"
+
+
+def _manifest(base: Path) -> dict:
+    """What is in the workspace right now, so a run can say what it did."""
+    out = {}
+    for path in base.rglob("*"):
+        if not path.is_file():
+            continue
+        parts = path.relative_to(base).parts
+        if parts and parts[0] in (workspace.VERSIONS, BACKUPS, SCRIPTS_DIR):
+            continue
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+        out[str(path.relative_to(base))] = (stat.st_size, int(stat.st_mtime_ns))
+    return out
+
+
+def _back_up(base: Path, stamp: str) -> tuple[str, str]:
+    """Copy the workspace aside. Returns (where, why-not)."""
+    folder = base / BACKUPS / stamp
+    kept = 0
+    for name in _manifest(base):
+        source = base / name
+        try:
+            if source.stat().st_size > MAX_BACKUP_BYTES:
+                return "", f"{name} is larger than {MAX_BACKUP_BYTES // 1024}KB"
+            if kept >= MAX_BACKUP_FILES:
+                return "", f"there are more than {MAX_BACKUP_FILES} files here"
+            target = folder / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+            kept += 1
+        except OSError as exc:
+            return "", f"{name} could not be copied ({exc.__class__.__name__})"
+    return (str(folder.relative_to(base)) if kept else ""), ""
+
+
+def _changes(before: dict, after: dict) -> dict:
+    return {
+        "created": sorted(set(after) - set(before)),
+        "changed": sorted(n for n in set(after) & set(before)
+                          if after[n] != before[n]),
+        "removed": sorted(set(before) - set(after)),
+    }
+
+
 def source_digest(source: str) -> str:
     return hashlib.sha256(source.encode("utf-8")).hexdigest()
 
@@ -329,6 +388,8 @@ def execute(source: str, *, label: str = "task",
     # Saved BEFORE it runs: a generated program nobody can read afterwards
     # is a black box, and this one touches his files.
     saved.write_text(source, encoding="utf-8")
+    before = _manifest(base)
+    kept_at, no_backup = _back_up(base, stamp)
     journal.append("action", "script:run",
                    f"running generated program {saved.name} ({len(source):,} chars)",
                    actor=ACTOR)
@@ -352,8 +413,13 @@ def execute(source: str, *, label: str = "task",
     journal.append("action", "script:run",
                    f"{saved.name} finished — {len(out):,} chars of output",
                    actor=ACTOR)
+    # WHAT IT ACTUALLY DID TO HIS FILES. The receipt used to be the
+    # program's own stdout, which is whatever the program felt like
+    # saying about itself.
+    changes = _changes(before, _manifest(base))
     return {"program": str(saved.relative_to(base)), "output": out,
-            "stderr": err.strip(), "chars": len(out)}
+            "stderr": err.strip(), "chars": len(out), **changes,
+            "backup": kept_at, "no_backup_because": no_backup}
 
 
 def run(request: str, *, think=None, label: str = "task",
@@ -427,12 +493,33 @@ def confirmed(approval_id: str, *, label: str = "task") -> dict:
 
 
 def spoken(result: dict) -> str:
-    """The printed output IS the receipt — a silent program is a failed one."""
+    """What it said, and what it DID.
+
+    The receipt used to be the program's own stdout, which is whatever
+    the program felt like saying about itself. What his files did is
+    observed, not reported.
+    """
+    if result.get("state") == "AWAITING_YOU":
+        return str(result.get("say", "It needs your yes."))
     out = (result.get("output") or "").strip()
-    if not out:
-        return "It ran, but printed nothing, so I cannot tell you what it did."
-    first = [line for line in out.splitlines() if line.strip()][:3]
-    return " ".join(first)[:400]
+    said = (" ".join([line for line in out.splitlines() if line.strip()][:3])[:400]
+            if out else "It ran and printed nothing")
+    touched = []
+    for verb in ("created", "changed", "removed"):
+        names = result.get(verb) or []
+        if names:
+            touched.append(f"{verb} " + ", ".join(names[:4])
+                           + (f" and {len(names) - 4} more" if len(names) > 4 else ""))
+    if not touched:
+        return said + " — it changed no files."
+    tail = "; ".join(touched)
+    if result.get("backup"):
+        tail += f". The originals are in {result['backup']} if that was wrong"
+    elif result.get("no_backup_because"):
+        # NEVER imply an undo that does not exist.
+        tail += (f". I could not keep copies first ({result['no_backup_because']}),"
+                 " so this one cannot be undone")
+    return f"{said} — {tail}."
 
 
 def main(argv: list[str] | None = None) -> int:
