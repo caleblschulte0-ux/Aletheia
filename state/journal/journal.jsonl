@@ -1278,3 +1278,4 @@
 {"ts": "2026-09-04T00:53:41Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 23 field(s) on file:///tmp/gh/reddit.html"}
 {"ts": "2026-09-04T00:54:30Z", "kind": "action", "actor": "aletheia-formfill", "subject": "formfill", "text": "read 23 field(s) on file:///tmp/gh/reddit.html"}
 {"ts": "2026-09-04T00:54:30Z", "kind": "action", "actor": "aletheia-campaign", "subject": "campaign", "text": "0 ready, 3 waiting on answers, 0 could not be reached — for 'software engineer'; nothing submitted"}
+{"ts": "2026-09-04T01:00:59Z", "kind": "action", "actor": "aletheia-jobs", "subject": "jobs", "text": "searched 24 board(s) for 'software engineer': 1826 match(es), 3 board(s) failed"}
