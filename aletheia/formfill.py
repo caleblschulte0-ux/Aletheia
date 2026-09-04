@@ -538,6 +538,54 @@ class Hands:
         target.click(css)
 
 
+SETTLE_TRIES = 34              # ~10s for a single-page application to render
+SETTLE_MS = 8_000              # and how long to wait for the network to go quiet
+NO_FORM_AFTER = 13             # ~4s before 'this page has no form' is believed
+
+
+def settle(page, *, extra=None, tries: int = SETTLE_TRIES) -> None:
+    """Wait for the page to actually BE there.
+
+    `domcontentloaded` fires before a React application has rendered
+    anything, and every real applicant tracking system is one. She looked
+    at a careers page before its form existed, saw an empty document, and
+    the only reason she did not give up was that the model happened to be
+    slower than the page — a coincidence, not a design.
+
+    The signal is FIELDS, not "something is on screen". The first version
+    returned as soon as the page had any control at all, which a cookie
+    banner satisfies on its own: it declared a still-loading page ready
+    while the form was two seconds away. A page that genuinely has no
+    form — a careers landing page with an Apply link — is let through
+    once it has had a fair chance to render one and has stopped changing.
+    """
+    try:
+        page.wait_for_load_state("networkidle", timeout=SETTLE_MS)
+    except Exception:
+        pass
+    wait = getattr(page, "wait_for_timeout", None)
+    last, stable = object(), 0
+    for round_number in range(tries):
+        try:
+            if read_all(page):
+                return
+            mark = page.evaluate(
+                "() => (document.body ? document.body.innerHTML.length : 0)")
+        except Exception:
+            return
+        stable = stable + 1 if mark == last else 0
+        last = mark
+        if (round_number >= NO_FORM_AFTER and stable >= 2
+                and (extra is None or extra(page))):
+            return
+        if wait is None:
+            return
+        try:
+            wait(300)
+        except Exception:
+            return
+
+
 def read_all(page) -> list[dict]:
     """Every field on the page, in every frame, each selector frame-tagged."""
     rows: list[dict] = []
@@ -568,6 +616,7 @@ def read_form(url: str, *, reader=None) -> list[dict]:
     with browse._Session() as ctx:          # same authorized profile as read_page
         page = ctx.new_page()
         page.goto(url, wait_until="domcontentloaded")
+        settle(page)
         found = read_all(page)
         page.close()
     journal.append("action", "formfill", f"read {len(found)} field(s) on {url}",

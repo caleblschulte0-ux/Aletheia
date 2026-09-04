@@ -247,6 +247,56 @@ def screenshot(url: str, out_path: str | Path, full_page: bool = True,
     return out
 
 
+# What a page says AFTER she pressed the button. One list, because two
+# copies of "did that work?" drift, and the honest answer matters more
+# here than anywhere else in the system.
+CONFIRMED_WORDS = ("thank you", "application received", "we have received",
+                   "successfully submitted", "your application has been",
+                   "thanks for applying", "we've received", "submission received",
+                   "your submission", "all set", "you're all set")
+
+# A site that REFUSED usually says so in the plainest possible words, and
+# hands the form straight back. She pressed Submit on a form whose phone
+# number the site did not like, got "there was a problem with your
+# application" back, and reported it as done — the exact thing §30 forbids:
+# never report "command executed" as "goal achieved".
+REJECTED_WORDS = ("there was a problem", "there were problems", "went wrong",
+                  "please correct", "please fix", "could not be submitted",
+                  "was not submitted", "failed to submit", "is invalid",
+                  "are invalid", "not valid", "must be", "is required",
+                  "are required", "required field", "try again",
+                  "error", "errors below", "check the following")
+
+
+def read_outcome(body: str, *, form_still_there: bool = False) -> dict:
+    """CONFIRMED, REJECTED or UNCONFIRMED — never just "pressed".
+
+    A press is an action; whether it worked is a different question, and
+    the only honest source for it is what the page says next. Confirmation
+    wins over refusal words, because a thank-you page that happens to
+    contain the word "error" in a footer is still a thank-you page.
+    """
+    text = (body or "").casefold()
+    if any(word in text for word in CONFIRMED_WORDS):
+        return {"verdict": "confirmed",
+                "note": "The page said it received it."}
+    hit = next((word for word in REJECTED_WORDS if word in text), "")
+    if hit:
+        return {"verdict": "rejected",
+                "note": ("The site handed the form back rather than accepting "
+                         f"it — it says {hit!r}. Nothing was accepted; read "
+                         "what it wants and I will fix it and try again.")}
+    if form_still_there:
+        return {"verdict": "rejected",
+                "note": ("The form is still on screen after the press, which "
+                         "is what a site does when it refuses. Nothing was "
+                         "accepted.")}
+    return {"verdict": "submitted, unconfirmed",
+            "note": ("The button was pressed and the page did not say it was "
+                     "received. Check the screenshot — it may be a further "
+                     "step, or it may have failed.")}
+
+
 def validate_steps(steps: list[dict]) -> list[str]:
     """Refuse a malformed plan BEFORE opening a browser."""
     problems = []

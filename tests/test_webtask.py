@@ -11,13 +11,15 @@ general thing underneath all of them: look at the page, do one step, look
 again — with his profile and his files available, and three refusals that
 make it safe to point at a live site.
 """
+import json
 import os
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
-from aletheia import computer, journal, policy, profile, webtask
+from aletheia import (computer, journal, notifications, policy, profile,
+                      webtask)
 
 
 class FakePage:
@@ -187,6 +189,11 @@ class WebTaskCase(unittest.TestCase):
                 (policy, "APPROVALS_DIR", d / "approvals"),
                 (policy, "HALT_PATH", d / "halt.json"),
                 (profile, "path", lambda: d / "answers.json"),
+                # Its directory is bound at import, so without this every
+                # test in the run shares one notification store — and a
+                # dedupe key from another test silently swallows the
+                # notification this one is asserting on.
+                (notifications, "NOTICES_DIR", d / "notices"),
                 (webtask, "runs_dir", lambda: d / "webtasks")):
             p = mock.patch.object(target, attr, value)
             p.start(); self.addCleanup(p.stop)
@@ -902,6 +909,146 @@ class HeTapsApproveAndSomethingActuallyHAPPENS(WebTaskCase):
         self.assertIn("I could not press it",
                       [n["title"] for n in notifications.all_notifications()])
         self.assertEqual(webtask.load_run(out["id"])["state"], "FAILED")
+
+
+class ARefusalIsNotADeadEnd(WebTaskCase):
+    """The site handed the form back saying "phone must be 10 digits with
+    no punctuation". She reported it as done, and when that was fixed she
+    said *"read what it wants and I will fix it and try again"* — with
+    nothing behind it, which is a promise, not a capability. Three
+    separate defects stood between her and keeping it."""
+
+    def waiting(self, extra=()):
+        page = FakePage([field("#fn", "First name *", required=True),
+                         field("#ph", "Phone *", required=True), *extra],
+                        [{"selector": "#go", "text": "Submit application"}])
+        out = self.go(page, "Apply for me",
+                      '{"action": "click", "selector": "#go"}')
+        return page, out
+
+    def refuse(self, out, said="There was a problem with your application. "
+                              "Phone number must be 10 digits."):
+        policy.decide(out["approval"], "APPROVED", via="phone")
+        return webtask.commit(out["id"], presser=lambda r: {
+            "url": "https://x.example/form", "evidence": said,
+            **webtask.browse.read_outcome(said)})
+
+    def test_a_refused_press_is_its_own_state_not_COMMITTED(self):
+        _, out = self.waiting()
+        done = self.refuse(out)
+        self.assertEqual(done["state"], "REJECTED")
+        self.assertEqual(done["result"]["verdict"], "rejected")
+        self.assertIn("handed the form back", done["say"])
+
+    def test_the_beat_says_it_would_not_go_through(self):
+        from aletheia import notifications, runtime
+        _, out = self.waiting()
+        policy.decide(out["approval"], "APPROVED", via="phone")
+        said = "There was a problem with your application."
+        with mock.patch.object(webtask, "_press", return_value={
+                "url": "x", "evidence": said,
+                **webtask.browse.read_outcome(said)}):
+            pressed = runtime.press_approved_web_tasks()
+        self.assertEqual([p["verdict"] for p in pressed], ["rejected"])
+        titles = [n["title"] for n in notifications.all_notifications()]
+        self.assertTrue(any("would not go through" in t for t in titles), titles)
+        self.assertFalse(any(t.startswith("Done") for t in titles), titles)
+
+    def test_only_a_REFUSED_run_may_be_tried_again(self):
+        """A refusal means nothing was accepted, so nothing can be
+        duplicated. Anything else could be a second application."""
+        _, out = self.waiting()
+        with self.assertRaises(webtask.WebTaskError) as caught:
+            webtask.retry(out["id"])
+        self.assertIn("only a run the site refused", str(caught.exception))
+
+    def test_the_retry_carries_what_the_site_SAID(self):
+        """Without it a retry is the same attempt again, which is not a
+        retry, it is a loop with extra steps."""
+        _, out = self.waiting()
+        self.refuse(out)
+        seen = {}
+
+        def think(system, prompt, **kw):
+            seen.update(json.loads(prompt))
+            return '{"action": "done", "value": "ok"}'
+        page = FakePage([field("#fn", "First name *", required=True)],
+                        [{"selector": "#go", "text": "Submit application"}])
+        again = webtask.retry(out["id"], think=think, session=FakeSession(page))
+        self.assertIn("Phone number must be 10 digits",
+                      seen["the_site_REFUSED_this_last_time_and_said"])
+        self.assertNotEqual(again["id"], out["id"])
+        self.assertEqual(again["attempt"], 2)
+
+    def test_a_retry_still_needs_a_FRESH_yes(self):
+        _, out = self.waiting()
+        self.refuse(out)
+        page = FakePage([field("#fn", "First name *", required=True, value="x"),
+                         field("#ph", "Phone *", required=True, value="x")],
+                        [{"selector": "#go", "text": "Submit application"}])
+        again = webtask.run(out["goal"], start_url="https://x.example/form",
+                            budget=3, run_id=out["id"] + "--try2", attempt=2,
+                            think=self.brain(
+                                '{"action": "click", "selector": "#go"}'),
+                            session=FakeSession(page))
+        self.assertEqual(again["state"], webtask.COMMIT)
+        self.assertEqual(policy.load(again["approval"])["state"], "PENDING")
+
+
+class TheSameFactPunctuatedTheirWay(WebTaskCase):
+    """"10 digits, no punctuation" is asking for his phone number, not for
+    a new one — and the gate refused it, so a rejection he could have
+    fixed came back as a question he had already answered."""
+
+    def test_his_number_without_its_punctuation_is_still_his(self):
+        allowed = {"(512) 555-0134"}
+        for shape in ("5125550134", "512-555-0134", "512.555.0134"):
+            with self.subTest(shape=shape):
+                self.assertTrue(webtask._value_is_his(shape, allowed, []))
+
+    def test_a_DIFFERENT_number_is_still_refused(self):
+        self.assertFalse(
+            webtask._value_is_his("5125550135", {"(512) 555-0134"}, []))
+
+    def test_what_she_knows_fills_blanks_and_does_not_argue(self):
+        """The site said reformat it, the model obeyed, and the
+        deterministic pass put his punctuated number straight back on the
+        next round — the two of them overwrote each other until the
+        budget ran out."""
+        page = FakePage([field("#ph", "Phone", required=True)],
+                        [{"selector": "#go", "text": "Next"}])
+        out = self.go(page, "Apply for me",
+                      '{"action": "fill", "values": {"#ph": "5125550134"}}',
+                      '{"action": "done", "value": "ok"}', budget=4)
+        self.assertEqual(out["state"], webtask.DONE, out.get("say"))
+        typed = [d for d in page.did if d[0] == "fill"]
+        self.assertEqual(typed[0], ("fill", "#ph", "(512) 555-0134"))
+        self.assertEqual(typed[-1], ("fill", "#ph", "5125550134"))
+        self.assertEqual(len(typed), 2, "and then it stops arguing")
+
+    def test_a_third_write_to_one_field_is_refused(self):
+        """The guard is still there: a model that rephrases its own essay
+        three times burns the budget and changes nothing."""
+        page = FakePage([field("#why", "Why? *", tag="textarea", required=True)],
+                        [])
+        out = self.go(page, "Apply for me. For why say: I build systems.",
+                      '{"action": "fill", "values": {"#why": "I build systems."}}',
+                      '{"action": "fill", "values": {"#why": "I build systems"}}',
+                      '{"action": "fill", "values": {"#why": "I build systems!"}}',
+                      '{"action": "done", "value": "ok"}', budget=6)
+        self.assertEqual(len([d for d in page.did if d[0] == "fill"]), 2)
+
+
+class GoingRoundInCirclesIsNotThinking(WebTaskCase):
+    def test_rounds_that_change_nothing_end_the_run_with_a_question(self):
+        """Eleven rounds of "nothing left to fill" and a run that reported
+        OUT_OF_STEPS with no idea why."""
+        page = FakePage([field("#fn", "First name", value="Caleb")], [])
+        out = self.go(page, "Do the thing",
+                      *['{"action": "fill", "values": {}}'] * 8, budget=8)
+        self.assertEqual(out["state"], webtask.ASK)
+        self.assertIn("round in circles", out["say"])
+        self.assertLess(len(out["steps"]), 8)
 
 
 class HeCanJustSayIt(unittest.TestCase):

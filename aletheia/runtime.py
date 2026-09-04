@@ -501,13 +501,20 @@ def press_approved_web_tasks() -> list[dict]:
                 dedupe_key=f"webtask-failed:{record['id']}")
             continue
         result = done.get("result", {})
+        verdict = str(result.get("verdict") or "submitted, unconfirmed")
+        # WHAT THE SITE SAID, in the title. "Pressed 'Submit application'"
+        # read as success on a run the site had refused outright.
+        title = {"confirmed": "Done",
+                 "rejected": "It would not go through"}.get(verdict, "Pressed it")
         notifications.publish(
-            f"Pressed {record.get('button', 'it')!r}",
-            f"{record.get('goal', '')[:120]} — {result.get('evidence', '')[:200]}",
+            f"{title}: {record.get('button', 'it')}",
+            (f"{record.get('goal', '')[:120]} — {result.get('note', '')} "
+             f"{result.get('evidence', '')[:160]}").strip(),
             priority="IMPORTANT", source="webtask",
             dedupe_key=f"webtask-pressed:{record['id']}",
             related={"web_task": record["id"]})
         pressed.append({"web_task": record["id"], "button": record.get("button"),
+                        "verdict": verdict,
                         "url": result.get("url", record.get("url"))})
     return pressed
 

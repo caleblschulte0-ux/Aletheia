@@ -56,9 +56,9 @@ MAX_QUESTIONS_SHOWN = 12
 # the visible text of buttons on the page, most specific first.
 SUBMIT_WORDS = ("submit application", "submit your application", "apply now",
                 "submit", "send application", "finish", "apply")
-CONFIRMED_WORDS = ("thank you", "application received", "we have received",
-                   "successfully submitted", "your application has been",
-                   "thanks for applying")
+# The words live in `browse` now, with their refusal counterparts. Kept
+# here as a name because tests and readers reach for it.
+CONFIRMED_WORDS = browse.CONFIRMED_WORDS
 
 
 class ApplyError(RuntimeError):
@@ -282,6 +282,7 @@ def _fill_and_capture(url: str, steps: list[dict], resume: str, shot: Path) -> d
     with browse._Session() as ctx:
         page = ctx.new_page()
         page.goto(url, wait_until="domcontentloaded")
+        formfill.settle(page)
         _apply_steps(page, steps)
         if resume:
             _attach_resume(page, resume)
@@ -401,6 +402,7 @@ def _refill_and_submit(record: dict) -> dict:
     with browse._Session() as ctx:
         page = ctx.new_page()
         page.goto(record["url"], wait_until="domcontentloaded")
+        formfill.settle(page)
         _apply_steps(page, record["steps"])
         if record.get("resume"):
             _attach_resume(page, record["resume"])
@@ -421,17 +423,14 @@ def _refill_and_submit(record: dict) -> dict:
         landed = page.url
         title = page.title()
         page.close()
-    looks_done = any(word in body.casefold() for word in CONFIRMED_WORDS)
+    # Never "done" without something that says so. A click that produced
+    # no confirmation is a click, not an application — and a page that
+    # handed the form back is a REFUSAL, which used to read the same as
+    # silence. `browse.read_outcome` is the one place that knows the
+    # difference, so this and the general web loop cannot drift on it.
     return {"url": landed, "title": title,
-            "verdict": "confirmed" if looks_done else "submitted, unconfirmed",
             "evidence": body[:600], "screenshot": str(shot),
-            # Never "done" without something that says so. A click that
-            # produced no confirmation is a click, not an application.
-            "note": ("The page said it received the application."
-                     if looks_done else
-                     "The button was pressed and the page did not say it was "
-                     "received. Check the screenshot — it may be a further "
-                     "step, or it may have failed.")}
+            **browse.read_outcome(body)}
 
 
 def spoken(record: dict) -> str:

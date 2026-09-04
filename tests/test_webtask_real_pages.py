@@ -70,6 +70,30 @@ document.querySelector('form').addEventListener('submit',(e)=>{
   if(!hid.value||!document.querySelector('[name=work_auth]').value) e.preventDefault();});
 </script>"""
 
+LATE = """<style>#cookies{position:fixed;inset:0;background:rgba(0,0,0,.6);
+  z-index:9999;display:flex;align-items:center;justify-content:center}
+#cookies .card{background:#fff;padding:24px}</style>
+<div id="cookies"><div class="card"><h3>We value your privacy</h3>
+<button id="accept">Accept all</button></div></div>
+<h1>Careers</h1><div id="app">Loading application…</div>
+<script>
+document.getElementById('accept').addEventListener('click',
+  () => document.getElementById('cookies').remove());
+// The form does not exist yet. It is a React app, in spirit.
+setTimeout(() => { document.getElementById('app').innerHTML = `
+  <form method="POST" action="/strict">
+    <label for="fn">First name *</label><input id="fn" name="first_name" required>
+    <label for="ph">Phone *</label><input id="ph" name="phone" required>
+    <button type="submit">Submit application</button></form>`; }, 1800);
+</script>"""
+
+REFUSAL = """<h1>Careers</h1><form method="POST" action="/strict">
+<p>There was a problem with your application.</p>
+<label for="fn">First name *</label><input id="fn" name="first_name" value="%s" required>
+<label for="ph">Phone *</label><input id="ph" name="phone" value="%s" required>
+<p>Phone number must be 10 digits with no punctuation.</p>
+<button type="submit">Submit application</button></form>"""
+
 W1 = """<form method="POST" action="/w2">
 <label for="fn">First name *</label><input id="fn" name="first_name" required>
 <button type="submit">Next</button></form>"""
@@ -91,7 +115,7 @@ def _site(base: str, got: dict):
              "/embed": EMBED, "/widget": WIDGET, "/portal": PORTAL,
              "/": f'<h1>Careers</h1><a href="{base}/apply" target="_blank" '
                   'rel="noopener">Apply for this job</a>',
-             "/w1": W1, "/w2": W2, "/w3": W3}
+             "/w1": W1, "/w2": W2, "/w3": W3, "/late": LATE}
 
     class H(http.server.BaseHTTPRequestHandler):
         def log_message(self, *a):
@@ -114,6 +138,12 @@ def _site(base: str, got: dict):
             form = urllib.parse.parse_qs(self.rfile.read(size).decode())
             got.update({k: v[0] for k, v in form.items()})
             got["_last_post"] = self.path
+            if self.path == "/strict":
+                # A site that wants his number ITS way, and says so.
+                digits = "".join(c for c in got.get("phone", "") if c.isdigit())
+                if digits != got.get("phone", "") or len(digits) != 10:
+                    return self._send(REFUSAL % (got.get("first_name", ""),
+                                                 got.get("phone", "")))
             self._send({"/w2": W2, "/w3": W3}.get(
                 self.path, "<h1>Thank you</h1><p>Received.</p>"))
     return H
@@ -345,6 +375,64 @@ class ThePagesOwnVerdictOnWhetherItWillGO(RealPageCase):
         self.assertEqual(record["state"], "NEEDS_YOU")
         self.assertEqual(record["approval"], "")
         self.assertIn("will not go", record["say"])
+
+
+@needs_browser
+class APageThatIsNotThereYet(RealPageCase):
+    """`domcontentloaded` fires before a React application has rendered
+    anything, and every real applicant tracking system is one. She looked
+    at a careers page before its form existed and the only reason she did
+    not give up was that the model happened to be slower than the page —
+    a coincidence, not a design."""
+
+    def test_she_waits_for_the_form_to_actually_exist(self):
+        with browse._Session() as ctx:
+            page = ctx.new_page()
+            page.goto(self.base + "/late", wait_until="domcontentloaded")
+            straight_away = webtask.formfill.read_all(page)
+            webtask.settle(page)
+            after = [f["selector"] for f in webtask.formfill.read_all(page)]
+        self.assertEqual(straight_away, [], "the form really is not there yet")
+        self.assertEqual(after, ["#fn", "#ph"])
+
+
+@needs_browser
+class ARefusalIsNotADeadEndEither(RealPageCase):
+    """The whole loop, against a site that refuses: she applies, it hands
+    the form back, she says so honestly, and "try that again" reads what
+    it said, fixes it, and brings him a new confirmation."""
+
+    def apply(self, run_id=""):
+        return webtask.run(
+            "Apply for this job with my details.", start_url=self.base + "/late",
+            budget=8, run_id=run_id,
+            think=script(("click", "Accept all"), ("click", "Submit application")))
+
+    def test_a_refused_application_is_reported_as_refused_and_then_FIXED(self):
+        first = self.apply()
+        self.assertEqual(first["state"], webtask.COMMIT, first.get("say"))
+        done = self.press(first)
+        # 1. It really was refused, and she says so rather than "done".
+        self.assertEqual(done["state"], "REJECTED")
+        self.assertEqual(done["result"]["verdict"], "rejected")
+        self.assertEqual(self.got.get("phone"), "(512) 555-0134")
+        self.assertIn("handed the form back", done["say"])
+
+        # 2. "Try that again" reads what the site said and corrects it —
+        #    the same fact, punctuated the way the site wants.
+        again = webtask.retry(done["id"], think=script(
+            ("click", "Accept all"),
+            ("type", "Phone", "5125550134"),
+            ("click", "Submit application")))
+        self.assertEqual(again["state"], webtask.COMMIT, again.get("say"))
+        self.assertIn({"action": "type", "selector": "#ph",
+                       "value": "5125550134"}, again["typed"])
+
+        # 3. And it needed a fresh yes, then it went through.
+        self.assertEqual(policy.load(again["approval"])["state"], "PENDING")
+        landed = self.press(again)
+        self.assertEqual(landed["result"]["verdict"], "confirmed")
+        self.assertEqual(self.got.get("phone"), "5125550134")
 
 
 @needs_browser

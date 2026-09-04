@@ -66,6 +66,7 @@ MAX_FIELDS = 45
 MAX_FRAMES = 12
 FRAME_WAIT_TRIES = 40          # 10s for an iframe to attach
 TAB_WAIT_TRIES = 20            # 3s for a new tab to open
+IDLE_LIMIT = 3                 # rounds that change nothing before she stops
 STEP_TIMEOUT_S = 90.0
 MAX_GOAL_CHARS = 600
 
@@ -322,6 +323,13 @@ def _normal(text: str) -> str:
     return re.sub(r"[^a-z0-9 ]+", " ", str(text).casefold())
 
 
+def _bare(text: str) -> str:
+    """Only the letters and digits — how a fact reads with the formatting
+    taken off. "(512) 555-0134", "512-555-0134" and "5125550134" are one
+    phone number."""
+    return re.sub(r"[^a-z0-9]+", "", str(text).casefold())
+
+
 def _value_is_his(value: str, allowed: set[str], options: list[str],
                   goal: str = "") -> bool:
     text = str(value).strip()
@@ -340,6 +348,17 @@ def _value_is_his(value: str, allowed: set[str], options: list[str],
         needle = " ".join(_normal(text).split())
         if needle and needle in haystack:
             return True
+    # THE SAME FACT, PUNCTUATED THE WAY THE SITE WANTS. A form that says
+    # "10 digits, no punctuation" is asking for his phone number, not for
+    # a new one — and the gate refused "5125550134" because his profile
+    # says "(512) 555-0134", so a rejection he could have fixed came back
+    # as a question he had already answered. Same characters, ignoring
+    # everything that is not a letter or a digit, is the same fact.
+    bare = _bare(low)
+    if bare and any(bare == _bare(a) for a in allowed):
+        return True
+    if bare and any(bare == _bare(o) for o in options):
+        return True
     # A composed value ("Austin, TX") is fine when every piece of it is his.
     pieces = [p.strip().casefold() for p in re.split(r"[,;|]| - ", text) if p.strip()]
     if pieces and all(p in allowed for p in pieces):
@@ -360,6 +379,15 @@ _holds = formfill.holds
 _resolve = formfill.resolve
 _Hands = formfill.Hands
 read_forms = formfill.read_all
+
+
+def settle(page) -> None:
+    """`formfill.settle`, plus the controls this loop can also act on — a
+    landing page with an Apply link and no form at all is settled too."""
+    def has_controls(target) -> bool:
+        seen = target.evaluate(OBSERVE_JS)
+        return bool(seen.get("buttons") or seen.get("links"))
+    formfill.settle(page, extra=has_controls)
 
 
 def control_text(page, selector: str):
@@ -514,7 +542,8 @@ def wall(seen: dict) -> dict | None:
     return None
 
 
-def _decide(goal: str, page_state: dict, history: list[dict], think) -> dict:
+def _decide(goal: str, page_state: dict, history: list[dict], think,
+            refused_before: str = "") -> dict:
     # Belt: the raw rows ride along in `observe` for `formfill` and are
     # popped by the loop. Nothing underscored ever reaches the model — a
     # forgotten pop would silently spend the whole prompt budget.
@@ -528,6 +557,11 @@ def _decide(goal: str, page_state: dict, history: list[dict], think) -> dict:
         "already_filled": [f["label"] for f in page_state["fields"]
                            if (f.get("value") or "").strip()][:30],
         "steps_so_far": history[-6:],
+        # What the site said when it refused this exact thing last time.
+        # Without it a retry is the same attempt again, which is not a
+        # retry, it is a loop with extra steps.
+        **({"the_site_REFUSED_this_last_time_and_said": refused_before[:600]}
+           if refused_before else {}),
     }, ensure_ascii=False)[:14_000]
     said = think(SYSTEM, prompt, timeout_s=STEP_TIMEOUT_S)
     if isinstance(said, tuple):
@@ -543,6 +577,7 @@ def _decide(goal: str, page_state: dict, history: list[dict], think) -> dict:
 
 
 def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
+        refused_before: str = "", attempt: int = 1,
         session=None, run_id: str = "") -> dict:
     """Drive a browser toward a goal. Stops at a commit, a question, or the budget."""
     policy.ensure_not_halted()
@@ -581,8 +616,10 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
     # would have re-opened a blank form and sent it. Caught on the first
     # run that reached a submit button.
     applied: list[dict] = []
+    writes: dict[str, int] = {}
     attached: list[dict] = []
     downloaded: list[str] = []
+    idle = 0
     outcome = {"state": BUDGET,
                "say": ("I ran out of steps before finishing. Nothing was "
                        "submitted, and I cannot pick this up where I left it "
@@ -593,6 +630,7 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
         page = ctx.new_page()
         hands = _Hands(page)
         page.goto(start_url or "about:blank", wait_until="domcontentloaded")
+        settle(page)
         for _ in range(budget):
             policy.ensure_not_halted()
 
@@ -620,6 +658,16 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
                 mapped = formfill.plan(raw)
                 filled_now = []
                 for item in mapped["fill"]:
+                    if item["selector"] in writes:
+                        # WHAT SHE KNOWS FILLS BLANKS. It does not argue
+                        # with a decision made later in the same run: the
+                        # site said "10 digits, no punctuation", the model
+                        # obeyed, and this pass put his punctuated number
+                        # straight back on the next round — the two of
+                        # them overwrote each other until the budget ran
+                        # out, which is how a retry that was working
+                        # looked exactly like one that was not.
+                        continue
                     if item["action"] in ("click", "check"):
                         already = next((f for f in raw
                                         if f["selector"] == item["selector"]), {})
@@ -641,6 +689,7 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
                             hands.fill(item["selector"], item["value"])
                     except Exception:
                         continue
+                    writes[item["selector"]] = writes.get(item["selector"], 0) + 1
                     applied.append({"action": item["action"],
                                     "selector": item["selector"],
                                     "value": item["value"]})
@@ -654,7 +703,8 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
                     seen.pop("_raw", None)
 
             try:
-                step = _decide(goal, seen, history, think)
+                step = _decide(goal, seen, history, think,
+                               refused_before=refused_before)
             except Exception as exc:
                 outcome = {"state": ASK, "say": f"I got stuck: {exc}"[:300]}
                 break
@@ -680,6 +730,7 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
                     history.append({"step": step, "result": "refused: not a url"})
                     continue
                 page.goto(value, wait_until="domcontentloaded")
+                settle(page)
                 # Part of the ROUTE, so the press can walk it again. Without
                 # this the replay started on the careers page she was given
                 # and never reached the application she had navigated to.
@@ -704,10 +755,16 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
                     current = (target.get("value") or "").strip()
                     if current == str(val).strip():
                         continue                      # already right
-                    if current and any(a["selector"] == sel for a in applied):
-                        # She already answered this one. A model that
-                        # rephrases its own essay three times burns the
-                        # budget and changes nothing he approved.
+                    if writes.get(sel, 0) >= 2:
+                        # She has answered this one and corrected it once.
+                        # The guard exists because a model that rephrases
+                        # its own essay three times burns the budget and
+                        # changes nothing. But the first version skipped
+                        # ANY second write, which meant a site that said
+                        # "phone must be 10 digits" could never be obeyed:
+                        # the deterministic pass had already typed his
+                        # punctuated number and the correction was
+                        # silently dropped, every time, forever.
                         continue
                     if not _value_is_his(str(val), allowed,
                                          target.get("options") or [], goal):
@@ -732,6 +789,7 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
                             hands.fill(sel, str(val))
                             action_used = "type"
                         done_now.append(target["label"][:40])
+                        writes[sel] = writes.get(sel, 0) + 1
                         applied.append({"action": action_used,
                                         "selector": sel, "value": str(val)})
                     except Exception as exc:
@@ -749,8 +807,23 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
                                "questions": needed}
                     break
                 if not done_now and not refused_now:
+                    idle += 1
                     history.append({"step": {"action": "fill"},
                                     "result": "nothing left to fill"})
+                    if idle >= IDLE_LIMIT:
+                        # Spending the whole budget doing nothing is not
+                        # thinking, it is a loop. It happened the first
+                        # time a retry could not correct a value: eleven
+                        # rounds of "nothing left to fill" and a run that
+                        # reported OUT_OF_STEPS with no idea why.
+                        outcome = {"state": ASK,
+                                   "say": ("I am going round in circles on "
+                                           "this page — I have nothing left "
+                                           "I can change. Tell me what to put "
+                                           "and where.")}
+                        break
+                else:
+                    idle = 0
                 continue
 
             if action in ("type", "select"):
@@ -789,6 +862,7 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
                     history.append({"step": step,
                                     "result": f"could not: {type(exc).__name__}"})
                     continue
+                writes[selector] = writes.get(selector, 0) + 1
                 applied.append({"action": real, "selector": selector,
                                 "value": value})
                 history.append({"step": step, "result": f"filled {field['label'][:50]}"})
@@ -903,13 +977,30 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
                                     "result": "skipped: just clicked that"})
                     continue
                 before = _open_pages(ctx)
-                hands.click(selector)
+                try:
+                    hands.click(selector)
+                except Exception as exc:
+                    # A COOKIE BANNER, a modal, a chat bubble. Playwright
+                    # says "intercepts pointer events" and times out; the
+                    # first version let that end the whole run with a
+                    # stack trace about a locator. It is a thing sitting
+                    # on top of the page, she can see it in the buttons,
+                    # and saying so is what lets the next step deal with it.
+                    covered = "intercepts pointer events" in str(exc)
+                    history.append({
+                        "step": step,
+                        "result": ("could not click it: something is covering "
+                                   "the page — dismiss that first"
+                                   if covered else
+                                   f"could not click it: {type(exc).__name__}")})
+                    continue
                 try:
                     page.wait_for_load_state("domcontentloaded")
                 except Exception:
                     pass
                 moved = follow_new_tab(ctx, page, before)
                 applied.append({"action": "click", "selector": selector})
+                settle(moved)
                 if moved is not page:
                     page, hands.page = moved, moved
                     applied.append({"action": "new_tab", "selector": ""})
@@ -930,7 +1021,7 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
         page.close()
 
     record = {"id": run_id, "goal": goal, "steps": history,
-              "downloaded": downloaded,
+              "attempt": attempt, "downloaded": downloaded,
               "screenshot": str(shot) if shot else "", "at": stateio.utcnow(),
               **outcome}
     stateio.write_json_atomic(_record_path(run_id), record)
@@ -981,8 +1072,10 @@ def commit(run_id: str, *, presser=None) -> dict:
     """He confirmed. Re-open, re-fill exactly what he saw, press it once."""
     policy.ensure_not_halted()
     record = load_run(run_id)
-    if record.get("state") == "COMMITTED":
-        raise WebTaskError(f"{run_id} was already done at {record.get('committed_at')}")
+    if record.get("state") in ("COMMITTED", "REJECTED"):
+        raise WebTaskError(f"{run_id} was already pressed at "
+                           f"{record.get('committed_at')} — "
+                           f"{record.get('result', {}).get('verdict', 'done')}")
     if record.get("state") != COMMIT:
         raise WebTaskError(f"{run_id} is {record.get('state')}; nothing to press")
     approval = policy.load(record["approval"])
@@ -1009,12 +1102,45 @@ def commit(run_id: str, *, presser=None) -> dict:
                        "failure": f"{type(exc).__name__}: {exc}"[:300]})
         stateio.write_json_atomic(_record_path(run_id), record)
         raise
-    record.update({"state": "COMMITTED", "result": result})
+    # PRESSED is not ACCEPTED. A site that hands the form back has refused
+    # it, and calling that COMMITTED is the same lie as reporting "command
+    # executed" as "goal achieved" (§30). Its own state, so a second press
+    # needs a fresh yes and nothing counts it as done.
+    verdict = str(result.get("verdict") or "submitted, unconfirmed")
+    record.update({"state": "REJECTED" if verdict == "rejected" else "COMMITTED",
+                   "result": result,
+                   "say": (f"I pressed {record.get('button', 'it')!r}. "
+                           + str(result.get("note", "")))[:400]})
     stateio.write_json_atomic(_record_path(run_id), record)
     journal.append("action", "webtask",
-                   f"pressed {record.get('button', '')[:40]!r} for {run_id}",
-                   actor=ACTOR)
+                   f"pressed {record.get('button', '')[:40]!r} for {run_id} — "
+                   f"{verdict}", actor=ACTOR)
     return record
+
+
+def retry(run_id: str, *, budget: int = 16, think=None, session=None) -> dict:
+    """The site refused it. Read what it said, fix it, and ask him again.
+
+    She was already saying *"read what it wants and I will fix it and try
+    again"* with nothing behind it, which is a promise, not a capability.
+    A REJECTED press is the one case where running it again is safe:
+    the site did not accept anything, so there is nothing to duplicate.
+
+    It is not a bypass. A retry is a new route, so it produces a NEW
+    approval and waits for him exactly like the first one did.
+    """
+    record = load_run(run_id)
+    if record.get("state") != "REJECTED":
+        raise WebTaskError(
+            f"{run_id} is {record.get('state')} — only a run the site refused "
+            "can be tried again, because only then is nothing submitted")
+    said = str(record.get("result", {}).get("evidence") or "")
+    attempt = int(record.get("attempt", 1)) + 1
+    fresh = f"{str(record['id']).split('--try')[0]}--try{attempt}"
+    return run(record["goal"],
+               start_url=record.get("replay_from") or record.get("url", ""),
+               budget=budget, think=think, session=session,
+               refused_before=said, run_id=fresh, attempt=attempt)
 
 
 def _claim(record: dict) -> None:
@@ -1056,10 +1182,12 @@ def _press(record: dict) -> dict:
         hands = _Hands(page)
         page.goto(record.get("replay_from") or record["url"],
                   wait_until="domcontentloaded")
+        settle(page)
         for step in record.get("typed", []):
             action, selector = step["action"], step.get("selector") or ""
             if action == "goto":
                 page.goto(str(step.get("value", "")), wait_until="domcontentloaded")
+                settle(page)
             elif action == "select":
                 hands.select_option(selector, label=step["value"])
             elif action == "check":
@@ -1081,6 +1209,7 @@ def _press(record: dict) -> dict:
                 except Exception:
                     pass
                 moved = follow_new_tab(ctx, page, before)
+                settle(moved)
                 if moved is not page:
                     page, hands.page = moved, moved
             else:
@@ -1102,13 +1231,22 @@ def _press(record: dict) -> dict:
             except Exception:
                 continue
         body = "\n".join(t for t in parts if t.strip())[:2000]
+        # DID IT WORK? A press is an action; whether the site accepted it is
+        # a different question, and the only honest source is what the page
+        # says next. She pressed Submit on a form whose phone number the
+        # site refused, got "there was a problem with your application"
+        # back, and reported it as done.
+        still_there = bool(formfill.blocking(page)) or bool(
+            [f for f in formfill.read_all(page)
+             if f.get("type") not in ("hidden", "submit", "button")])
+        outcome = browse.read_outcome(body, form_still_there=still_there)
         shot = runs_dir() / f"{record['id']}-after.png"
         try:
             page.screenshot(path=str(shot), full_page=True)
         except Exception:
             shot = ""
         out = {"url": page.url, "title": page.title(), "evidence": body[:600],
-               "screenshot": str(shot)}
+               "screenshot": str(shot), **outcome}
         page.close()
     return out
 
@@ -1125,6 +1263,7 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--url", default="")
     p_run.add_argument("--budget", type=int, default=16)
     p_go = sub.add_parser("commit"); p_go.add_argument("run_id")
+    p_again = sub.add_parser("retry"); p_again.add_argument("run_id")
     sub.add_parser("waiting")
     args = ap.parse_args(argv)
     try:
@@ -1132,6 +1271,11 @@ def main(argv: list[str] | None = None) -> int:
             record = run(args.goal, start_url=args.url, budget=args.budget)
             print(spoken(record))
             for entry in record["steps"]:
+                print(f"  {entry['step'].get('action'):7} {entry['result'][:70]}")
+        elif args.cmd == "retry":
+            again = retry(args.run_id)
+            print(spoken(again))
+            for entry in again["steps"]:
                 print(f"  {entry['step'].get('action'):7} {entry['result'][:70]}")
         elif args.cmd == "waiting":
             for record in all_runs(COMMIT):

@@ -247,5 +247,55 @@ class ANetworkThatWantsAProxy(unittest.TestCase):
                              "a proxy is never a reason to stop checking certificates")
 
 
+class DidThatActuallyWork(unittest.TestCase):
+    """A press is an action; whether the site accepted it is a different
+    question, and the only honest source is what the page says next.
+
+    She pressed Submit on a form whose phone number the site did not
+    like, got "There was a problem with your application" back, and
+    reported it as done — "command executed" as "goal achieved", which is
+    the one thing the playbook names outright (§30)."""
+
+    def test_a_thank_you_is_a_confirmation(self):
+        self.assertEqual(
+            browse.read_outcome("Thank you. Your application has been received."
+                                )["verdict"], "confirmed")
+
+    def test_a_form_handed_back_is_a_REFUSAL_not_silence(self):
+        out = browse.read_outcome(
+            "There was a problem with your application.\n"
+            "Phone number must be 10 digits with no punctuation.")
+        self.assertEqual(out["verdict"], "rejected")
+        self.assertIn("Nothing was accepted", out["note"])
+
+    def test_the_form_still_being_there_is_a_refusal_on_its_own(self):
+        """Some sites say nothing at all and simply do not move."""
+        self.assertEqual(
+            browse.read_outcome("Apply now", form_still_there=True)["verdict"],
+            "rejected")
+
+    def test_a_page_that_says_neither_is_UNCONFIRMED_never_done(self):
+        out = browse.read_outcome("Step 2 of 3")
+        self.assertEqual(out["verdict"], "submitted, unconfirmed")
+        self.assertIn("did not say it was received", out["note"])
+
+    def test_a_confirmation_wins_over_a_stray_refusal_word(self):
+        """A thank-you page with the word "error" in its footer is still a
+        thank-you page."""
+        self.assertEqual(
+            browse.read_outcome("Thanks for applying. Report an error here."
+                                )["verdict"], "confirmed")
+
+    def test_both_engines_read_it_from_HERE(self):
+        """Two copies of "did that work?" drift, and this is the answer
+        that matters most in the system."""
+        from aletheia import apply_run, webtask
+        self.assertIs(apply_run.CONFIRMED_WORDS, browse.CONFIRMED_WORDS)
+        for module in (apply_run, webtask):
+            source = Path(module.__file__).read_text(encoding="utf-8")
+            self.assertIn("read_outcome", source)
+            self.assertNotIn("CONFIRMED_WORDS = (", source)
+
+
 if __name__ == "__main__":
     unittest.main()

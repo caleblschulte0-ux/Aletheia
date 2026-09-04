@@ -86,6 +86,9 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "apply_campaign": ({"role"}, {"count", "where", "resume"}),
     # The catch-all for "go do this on a website" — any number of steps.
     "web_task":      ({"goal"}, {"url", "budget"}),
+    # "try that again" after a site refused one — the ONLY case where
+    # running it again is safe, because a refusal means nothing was taken.
+    "web_task_retry": (set(), {"run_id"}),
     # eyes on the desktop, never hands: mutation keeps its own approval
     "computer_observe": (set(), {"window"}),
     # video and audio: the source is never touched, output lands in the workspace
@@ -161,6 +164,13 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # generated from KIND_ARGS and these together, so the model learns the
 # shape of a step list from the registry rather than from a guess.
 KIND_NOTES: dict[str, str] = {
+    "web_task_retry": (
+        'Use this when he says "try that again" about something a website '
+        'REFUSED — a form handed back with "phone must be 10 digits", a '
+        'submission that bounced. She re-reads what the site said, fixes it, '
+        'and brings him a NEW confirmation; it is never a way to press '
+        'something twice, because a refusal means nothing was accepted. '
+        'run_id is optional: with none she takes the most recent refusal.'),
     "web_task": (
         'THE CATCH-ALL for anything that means "go do this on a website" and '
         'has no kind of its own: fill in this form, renew this thing, '
@@ -258,7 +268,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email
                "file_write", "file_edit", "file_read", "file_list", "compose",
                "file_delete", "file_move",
                # reads the open web and writes into her workspace: both PC
-               "apply_prepare", "apply_campaign", "web_task",
+               "apply_prepare", "apply_campaign", "web_task", "web_task_retry",
                "computer_observe",
                # ffmpeg and his media files live on the PC
                "media_probe", "media_trim", "media_join", "media_audio",
@@ -650,6 +660,18 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         from aletheia import webtask
         record = webtask.run(cmd["goal"], start_url=cmd.get("url", ""),
                              budget=int(cmd.get("budget", 16)))
+        return webtask.spoken(record)
+    if kind == "web_task_retry":
+        # The site refused it. "Try that again" now means something: she
+        # reads what it said, fixes it, and brings him a NEW confirmation.
+        from aletheia import webtask
+        if cmd.get("run_id"):
+            record = webtask.retry(cmd["run_id"])
+        else:
+            refused = webtask.all_runs("REJECTED")
+            if not refused:
+                return "nothing was refused — there is nothing to try again"
+            record = webtask.retry(refused[-1]["id"])
         return webtask.spoken(record)
     if kind == "apply_campaign":
         from aletheia import campaign
