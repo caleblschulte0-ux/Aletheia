@@ -909,7 +909,25 @@ ACT_ACTIONS = frozenset({"open_app", "wait_window", "focus_window", "set_text", 
 COMMITTING_PATTERN = re.compile(
     r"\b(?:send|delete|pay|purchase|buy|confirm|submit|format|uninstall|"
     r"empty\s+(?:the\s+)?(?:trash|recycle\s+bin)|check\s*out|place\s+order|"
-    r"sign|post|publish|remove|erase|wipe|reset|share|transfer|order)\b",
+    r"sign|post|publish|remove|erase|wipe|reset|share|transfer|order|"
+    # ENDING something is as irreversible as starting it, and "cancel my
+    # Planet Fitness membership" is one of the exact things he asks for.
+    # None of these were here: she would have clicked "Cancel my
+    # membership" without asking anybody.
+    r"cancel\s+(?:my|the|your|this)\s+\S+|"
+    r"cancel(?:l?ing)?\s+(?:membership|subscription|plan|order|account|"
+    r"booking|reservation|appointment)|"
+    r"end\s+(?:my\s+|the\s+|your\s+)?(?:membership|subscription|plan)|"
+    r"close\s+(?:my\s+|the\s+|your\s+)?account|"
+    r"unsubscribe|deactivate|terminate|withdraw|opt\s*[-\s]?out|"
+    # A binding agreement is operator_always whatever it costs (§56 L4):
+    # committing him to be somewhere is not reversible by pressing back.
+    r"book|reserve|rsvp|"
+    # "Accept" only where it binds. NOT the bare word: "Accept all" on a
+    # cookie banner is on every page on the internet, and stopping there
+    # would make her useless without making him safer.
+    r"accept\s+(?:the\s+)?(?:offer|terms|agreement|contract|quote|invitation))"
+    r"\b",
     re.IGNORECASE)
 
 class CommittingControl(ApprovalRequired):

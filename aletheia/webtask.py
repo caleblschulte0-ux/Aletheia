@@ -713,8 +713,11 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
             if action == "done":
                 said = str(step.get("value", "done"))[:400]
                 if downloaded:
-                    said += (" Saved: "
-                             + ", ".join(Path(d).name for d in downloaded[:4]))
+                    # WHERE, not just what. "Saved: 2026-06.pdf" is a file
+                    # he now has to go and find.
+                    said += (" Saved into " + str(Path(downloaded[0]).parent)
+                             + ": " + ", ".join(Path(d).name
+                                                for d in downloaded[:6]))
                 outcome = {"state": DONE, "say": said}
                 break
             if action in ("ask", "give_up"):
@@ -1064,8 +1067,17 @@ def _await_him(run_id: str, goal: str, page, label: str, selector: str,
             # "waiting for locator #fn", with the site having received the
             # first two pages and never the third.
             "replay_from": start_url or page.url,
-            "say": (f"Everything is filled in. The last step is a button that "
-                    f"says {label[:50]!r} — confirm it and I will press it.")}
+            "say": (
+                (f"Everything is filled in. The last step is a button that "
+                 f"says {label[:50]!r} — confirm it and I will press it.")
+                if typed else
+                # NOTHING WAS FILLED, because not every commit is a form.
+                # "Everything is filled in. The last step is a button that
+                # says 'Cancel my membership'" is a strange thing to read
+                # about a page she typed nothing into.
+                (f"On {page.url[:70]} the one thing left is a button that "
+                 f"says {label[:50]!r}. That is not something I can undo — "
+                 "confirm it and I will press it."))}
 
 
 def commit(run_id: str, *, presser=None) -> dict:

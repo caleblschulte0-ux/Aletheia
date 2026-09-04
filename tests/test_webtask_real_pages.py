@@ -94,6 +94,12 @@ REFUSAL = """<h1>Careers</h1><form method="POST" action="/strict">
 <p>Phone number must be 10 digits with no punctuation.</p>
 <button type="submit">Submit application</button></form>"""
 
+ACCOUNT = """<h1>Your account</h1><p>Membership: Gold.</p>
+<ul><li><a href="/statement/2026-07.pdf" download>July statement</a></li>
+<li><a href="/statement/2026-08.pdf" download>August statement</a></li></ul>
+<form method="POST" action="/cancel">
+<button type="submit">Cancel my membership</button></form>"""
+
 W1 = """<form method="POST" action="/w2">
 <label for="fn">First name *</label><input id="fn" name="first_name" required>
 <button type="submit">Next</button></form>"""
@@ -115,7 +121,8 @@ def _site(base: str, got: dict):
              "/embed": EMBED, "/widget": WIDGET, "/portal": PORTAL,
              "/": f'<h1>Careers</h1><a href="{base}/apply" target="_blank" '
                   'rel="noopener">Apply for this job</a>',
-             "/w1": W1, "/w2": W2, "/w3": W3, "/late": LATE}
+             "/w1": W1, "/w2": W2, "/w3": W3, "/late": LATE,
+             "/account": ACCOUNT}
 
     class H(http.server.BaseHTTPRequestHandler):
         def log_message(self, *a):
@@ -130,6 +137,16 @@ def _site(base: str, got: dict):
             self.wfile.write(raw)
 
         def do_GET(self):
+            if self.path.startswith("/statement/"):
+                body = b"%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF\n"
+                self.send_response(200)
+                self.send_header("Content-Type", "application/pdf")
+                self.send_header("Content-Disposition", 'attachment; filename="'
+                                 + self.path.rsplit("/", 1)[-1] + '"')
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
             self._send(pages.get(self.path, "<h1>404</h1>"))
 
         def do_POST(self):
@@ -138,6 +155,8 @@ def _site(base: str, got: dict):
             form = urllib.parse.parse_qs(self.rfile.read(size).decode())
             got.update({k: v[0] for k, v in form.items()})
             got["_last_post"] = self.path
+            if self.path == "/cancel":
+                return self._send("<h1>Your membership has been cancelled.</h1>")
             if self.path == "/strict":
                 # A site that wants his number ITS way, and says so.
                 digits = "".join(c for c in got.get("phone", "") if c.isdigit())
@@ -173,6 +192,12 @@ def script(*steps):
         if not todo:
             return '{"action": "done", "value": "finished"}'
         want = todo[0]
+        if want[0] == "download":
+            row = by_text(page, want[1])
+            if row is None:
+                return '{"action": "ask", "value": "no link %s"}' % want[1]
+            todo.pop(0)
+            return json.dumps({"action": "download", "selector": row["selector"]})
         if want[0] == "type":
             row = by_text(page, want[1], "fields")
             if row is None:
@@ -433,6 +458,46 @@ class ARefusalIsNotADeadEndEither(RealPageCase):
         landed = self.press(again)
         self.assertEqual(landed["result"]["verdict"], "confirmed")
         self.assertEqual(self.got.get("phone"), "5125550134")
+
+
+@needs_browser
+class NotEveryTaskIsAFORM(RealPageCase):
+    """"Download last month's statement and put it in my workspace" and
+    "cancel my gym membership" are the other two shapes he named, and
+    neither of them types anything into anything."""
+
+    def test_files_the_page_offers_land_in_HER_workspace_and_she_says_where(self):
+        out = self.drive(
+            "/account", "Download my statements into my workspace.",
+            ("download", "July statement"), ("download", "August statement"))
+        self.assertEqual(out["state"], webtask.DONE, out.get("say"))
+        self.assertEqual([Path(d).name for d in out["downloaded"]],
+                         ["2026-07.pdf", "2026-08.pdf"])
+        for path in out["downloaded"]:
+            self.assertTrue(Path(path).is_file())
+            self.assertTrue(Path(path).read_bytes().startswith(b"%PDF"))
+        # WHERE, not just what: "Saved: 2026-07.pdf" is a file he then has
+        # to go and find.
+        self.assertIn(str(Path(out["downloaded"][0]).parent), out["say"])
+
+    def test_ENDING_something_waits_for_him_like_anything_else(self):
+        """The list of irreversible words only had words for CREATING an
+        obligation, so "Cancel my membership" was a button she would have
+        pressed on her own."""
+        out = self.drive("/account", "Cancel my gym membership.",
+                         ("click", "Cancel my membership"))
+        self.assertEqual(out["state"], webtask.COMMIT, out.get("say"))
+        self.assertEqual(out["button"], "Cancel my membership")
+        self.assertEqual(self.got, {}, "and nothing was cancelled")
+        # It typed nothing, so it must not claim it filled anything in.
+        self.assertNotIn("Everything is filled in", out["say"])
+        self.assertIn("not something I can undo", out["say"])
+
+    def test_and_it_only_happens_once_he_says_so(self):
+        out = self.drive("/account", "Cancel my gym membership.",
+                         ("click", "Cancel my membership"))
+        self.press(out)
+        self.assertEqual(self.got.get("_last_post"), "/cancel")
 
 
 @needs_browser
