@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "note": "Company boards she can search AND apply to. Greenhouse and Lever publish their jobs as public JSON and host the real application form at a public URL with no login. Add a company by adding one line: find its board token in the careers-page URL (boards.greenhouse.io/<token> or jobs.lever.co/<token>).",
+  "boards": [
+    {
+      "provider": "greenhouse",
+      "token": "stripe",
+      "company": "Stripe"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "databricks",
+      "company": "Databricks"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "cloudflare",
+      "company": "Cloudflare"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "brex",
+      "company": "Brex"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "samsara",
+      "company": "Samsara"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "gitlab",
+      "company": "GitLab"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "scaleai",
+      "company": "Scale AI"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "affirm",
+      "company": "Affirm"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "coinbase",
+      "company": "Coinbase"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "flexport",
+      "company": "Flexport"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "figma",
+      "company": "Figma"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "reddit",
+      "company": "Reddit"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "robinhood",
+      "company": "Robinhood"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "asana",
+      "company": "Asana"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "instacart",
+      "company": "Instacart"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "vercel",
+      "company": "Vercel"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "chime",
+      "company": "Chime"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "airtable",
+      "company": "Airtable"
+    },
+    {
+      "provider": "lever",
+      "token": "spotify",
+      "company": "Spotify"
+    },
+    {
+      "provider": "lever",
+      "token": "matchgroup",
+      "company": "Match Group"
+    },
+    {
+      "provider": "lever",
+      "token": "palantir",
+      "company": "Palantir"
+    },
+    {
+      "provider": "lever",
+      "token": "attentive",
+      "company": "Attentive"
+    },
+    {
+      "provider": "lever",
+      "token": "fireblocks",
+      "company": "Fireblocks"
+    },
+    {
+      "provider": "lever",
+      "token": "brave",
+      "company": "Brave"
+    }
+  ]
+}

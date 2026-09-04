@@ -1,5 +1,5 @@
 {
-  "revision": 68,
+  "revision": 69,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1442,7 +1442,7 @@
       "approval_policy": "none",
       "caller": "python -m aletheia.formfill <url>; produces the step list aletheia.browse.interact takes under an approval bound to that exact page and plan",
       "module": "aletheia.formfill",
-      "notes": "Reads the form the way a PERSON sees it - label-for, wrapping labels, aria-label, placeholders, legends - because 'q_31415926' is what a Workday calls 'Are you legally authorized to work?'. THE SAFETY MODEL IS ONE RULE WITH NO OFF SWITCH: a field she does not know is a QUESTION, never a guess. A wrong phone number is an annoyance; a guessed 'no' on 'have you ever been convicted of a felony' is a lie submitted under his name to a company that keeps it. Protected characteristics, legal declarations, certifications, salary history and signatures are refused even when the profile holds an answer. A dropdown answer is matched to that dropdown's real options - selecting one that does not exist silently does nothing in some browsers and throws in others, and either way the form is submitted empty. It presses NOTHING: it produces a plan, and the plan still needs an approval. Verified against a Workday-shaped form rendered in real Chromium: 18 fields, 11 filled, 6 returned to him, the resume upload left alone."
+      "notes": "Reads the form the way a PERSON sees it - label-for, wrapping labels, aria-label, placeholders, legends - because 'q_31415926' is what a Workday calls 'Are you legally authorized to work?'. THE SAFETY MODEL IS ONE RULE WITH NO OFF SWITCH: a field she does not know is a QUESTION, never a guess. A wrong phone number is an annoyance; a guessed 'no' on 'have you ever been convicted of a felony' is a lie submitted under his name to a company that keeps it. Protected characteristics, legal declarations, certifications, salary history and signatures are refused even when the profile holds an answer. A dropdown answer is matched to that dropdown's real options - selecting one that does not exist silently does nothing in some browsers and throws in others, and either way the form is submitted empty. It presses NOTHING: it produces a plan, and the plan still needs an approval. Verified against a Workday-shaped form rendered in real Chromium: 18 fields, 11 filled, 6 returned to him, the resume upload left alone. 2026-09-03, against a LIVE Stripe application on Greenhouse: a checkbox or radio is an OPTION, not a question - its own label says 'Australia' while the question ('which countries do you anticipate working in?') lives on the group. Read one at a time, one question became 30 required unanswerable ones that buried the handful he really had to answer. Grouped by name/description now: 43 questions became 14, and with employer/title/school/degree on file she fills 15 of the 23 answerable fields with 4 required questions left, every one genuinely his."
     },
     {
       "id": "application.submit",
@@ -1465,6 +1465,17 @@
       "caller": "intercom kind 'apply_campaign' (voice and phone); python -m aletheia.campaign run|questions|answer",
       "module": "aletheia.campaign",
       "notes": "His words: 'if I say apply to ten jobs with this resume I provided you, I need to be able to do that'. Every piece existed and none were joined. THE TWO STEPS NOBODY WAS DOING: a posting is a description with an Apply link on it, so it follows that link to the page that actually takes the application; and ten applications ask the same three or four unanswerable things, so the questions are gathered across all of them, keyed on what they ASK rather than on a selector, answered once, and applied everywhere. Nothing is sent: each application ends as its own approval bound to its own page and its own filled values, and the Approve button already on his phone is the confirm. Proved end to end against a local three-job board: one call found the PDF resume in Downloads, learned nine facts from it, followed three Apply links, filled three forms, collected five questions once, and after five answers submitted three real applications with the resume file attached."
+    },
+    {
+      "id": "jobs.search",
+      "description": "Real open jobs from the systems that publish them — Greenhouse and Lever public boards — each with an application form that needs no login",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.campaign.run; python -m aletheia.jobs <role>",
+      "module": "aletheia.jobs",
+      "notes": "The campaign was proved against a job board I wrote myself, and on the real internet it found NOTHING: research.find_sources drives a headless browser at a search engine, and a search engine answers a headless browser with a challenge page. Zero openings, everything downstream theatre. That is the difference between a demo and a thing that works. Greenhouse and Lever publish their boards as public JSON with no key and host the real application form at a public URL with no login - which is what makes them the right source rather than merely a working one, because a posting she can find but not apply to is a link he could have found himself. 24 company boards in config/job_boards.json (data he can add to), ~4,300 live openings measured 2026-09-03. A board that did not answer is reported FAILED per board: 'no jobs matched' and 'the network refused me' are different answers."
     }
   ]
 }

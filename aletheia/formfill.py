@@ -89,6 +89,25 @@ READ_FORM_JS = r"""() => {
     if (el.name) return `${el.tagName.toLowerCase()}[name="${CSS.escape(el.name)}"]`;
     return null;
   };
+  // A checkbox or radio is an OPTION, not a question. Its own label says
+  // "Australia"; the QUESTION — "which countries do you anticipate working
+  // in?" — lives on the group. Reading only the label turned one question
+  // into 26 unanswerable ones on a real Stripe application.
+  const questionFor = (el) => {
+    const described = el.getAttribute('description');
+    if (described) return described.trim();
+    const group = el.closest('fieldset, [role="group"], [role="radiogroup"]');
+    if (group) {
+      const legend = group.querySelector('legend, .label, [class*="label"]');
+      if (legend && legend.innerText.trim()) return legend.innerText.trim();
+    }
+    const by = el.getAttribute('aria-describedby');
+    if (by) {
+      const n = document.getElementById(by);
+      if (n && n.innerText.trim()) return n.innerText.trim();
+    }
+    return '';
+  };
   const out = [];
   for (const el of document.querySelectorAll('input, select, textarea')) {
     const tag = el.tagName.toLowerCase();
@@ -102,6 +121,12 @@ READ_FORM_JS = r"""() => {
       required: !!(el.required || el.getAttribute('aria-required') === 'true'),
       value: (el.value || '').slice(0, 200),
     };
+    if (type === 'checkbox' || type === 'radio') {
+      row.option = row.label;
+      row.question = questionFor(el);
+      // Radios share a name; Greenhouse's checkbox groups do too.
+      row.group = (el.name || '').replace(/\[\]$/, '') || row.question;
+    }
     if (tag === 'select') {
       row.options = Array.from(el.options)
         .map(o => ({value: o.value, text: (o.text || '').trim()}))
@@ -167,10 +192,55 @@ def _option_for(field: dict, value) -> str | None:
     return None
 
 
+def _group_choices(fields: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Fold a group of checkboxes or radios into ONE question with options.
+
+    A real Stripe application asks "which countries do you anticipate
+    working in?" as twenty-six checkboxes. Read one at a time they became
+    twenty-six required questions labelled Australia, Belgium, Brazil —
+    every one of them unanswerable, and between them they buried the eight
+    questions he actually had to answer.
+    """
+    groups: dict[str, dict] = {}
+    rest = []
+    for field in fields:
+        if field.get("type") not in ("checkbox", "radio") or not field.get("group"):
+            rest.append(field)
+            continue
+        held = groups.setdefault(field["group"], {
+            "kind": "choice", "type": field["type"], "group": field["group"],
+            "label": field.get("question") or field.get("option") or field["group"],
+            "required": False, "options": [], "selector": field["selector"]})
+        held["required"] = held["required"] or bool(field.get("required"))
+        held["options"].append({"label": field.get("option") or "",
+                                "selector": field["selector"]})
+    # A "group" of one is just a checkbox — the certification tickbox, say —
+    # and reads better as itself than as a question with a single option.
+    singles = [g for g in groups.values() if len(g["options"]) == 1]
+    for single in singles:
+        groups.pop(single["group"], None)
+        rest.append({"selector": single["options"][0]["selector"],
+                     "label": single["label"], "name": "", "id": "",
+                     "tag": "input", "type": single["type"],
+                     "required": single["required"], "value": ""})
+    return rest, list(groups.values())
+
+
 def plan(fields: list[dict], *, answers: dict | None = None) -> dict:
     """Split a form into what she can fill and what he has to answer."""
     answers = known = (answers if answers is not None else profile.known())
+    fields, choices = _group_choices(list(fields)[:MAX_FIELDS])
     fill, ask, skipped = [], [], []
+    for group in choices:
+        # A multiple-choice question is his: which countries, which
+        # locations, which of these apply to you. She has no fact on file
+        # that answers it and guessing one is exactly what she must not do.
+        ask.append({"selector": group["selector"], "label": group["label"],
+                    "required": group["required"], "type": group["type"],
+                    "choices": [o["label"] for o in group["options"] if o["label"]],
+                    "option_selectors": {o["label"]: o["selector"]
+                                         for o in group["options"] if o["label"]},
+                    "why": "a multiple-choice question only you can answer"})
     for field in fields[:MAX_FIELDS]:
         label = (field.get("label") or field.get("name") or
                  field.get("id") or field["selector"])[:MAX_LABEL_CHARS]
@@ -243,6 +313,32 @@ def apply_answers(out: dict, fields: list[dict], answers: dict) -> dict:
         field = by_selector.get(selector, {})
         value = answers[selector]
         label = row["label"]
+        if row.get("option_selectors"):
+            # A multiple-choice question: his answer names one or more of
+            # its options, and each named option is ticked. An option that
+            # is not on the list is refused rather than approximated —
+            # "United States" is not "United Kingdom".
+            wanted = ([str(v) for v in value] if isinstance(value, (list, tuple))
+                      else [p.strip() for p in str(value).split(",")])
+            picked, missing = [], []
+            for want in [w for w in wanted if w]:
+                match = next((opt for opt in row["option_selectors"]
+                              if opt.strip().casefold() == want.casefold()), None)
+                if match is None:
+                    match = next((opt for opt in row["option_selectors"]
+                                  if want.casefold() in opt.casefold()), None)
+                (picked.append(match) if match else missing.append(want))
+            if missing or not picked:
+                row = dict(row, why=(f"{', '.join(missing) or value!r} is not "
+                                     "one of its options"))
+                refused.append(row)
+                still_asked.append(row)
+                continue
+            for option in picked:
+                steps_out.append({"action": "click",
+                                  "selector": row["option_selectors"][option]})
+            filled.append({"label": label, "value": ", ".join(picked)})
+            continue
         if field.get("tag") == "select":
             option = _option_for(field, value)
             if option is None:

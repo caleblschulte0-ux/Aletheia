@@ -45,7 +45,7 @@ import sys
 from urllib.parse import urljoin
 
 from aletheia import (applications, apply_run, browse, doctext, formfill,
-                      journal, policy, profile, workspace)
+                      journal, jobs, policy, profile, workspace)
 
 ACTOR = "aletheia-campaign"
 
@@ -150,7 +150,8 @@ def open_questions() -> list[dict]:
 
 
 def run(role: str, *, count: int = 5, resume: str = "", where: str = "",
-        finder=None, reader=None, opener=None, stager=None) -> dict:
+        finder=None, reader=None, opener=None, stager=None, writer=None,
+        draft_essays_too: bool = True) -> dict:
     """Apply to `count` jobs with `resume`. Stages them all; sends nothing."""
     policy.ensure_not_halted()
     role = " ".join(str(role or "").split())
@@ -167,24 +168,54 @@ def run(role: str, *, count: int = 5, resume: str = "", where: str = "",
         raise CampaignError(f"she could not read {resume_path}: {exc}")
     learned = profile.learn_from_resume(text, source=f"resume:{resume_path}")
 
-    # 2 + 3. Real postings, then the page that really takes the application.
-    finder = finder or applications.research.find_sources
-    reader = reader or applications.research.read_sources
-    candidates = finder(f"{role} job openings{(' ' + where) if where else ''}",
-                        limit=count * CANDIDATE_FACTOR)
-    if not candidates:
-        raise CampaignError(f"no openings found for {role!r}")
-    pages, _unreadable = reader(candidates[:count * CANDIDATE_FACTOR])
+    # 2. REAL openings, from the systems that publish them.
+    #
+    # This used to go through `research.find_sources`, which drives a
+    # headless browser at a search engine — and a search engine answers a
+    # headless browser with a challenge page. On the real internet it
+    # returned ZERO jobs, so everything downstream of it was theatre. That
+    # is the difference between a demo and a thing that works.
+    #
+    # `aletheia.jobs` reads Greenhouse and Lever, which publish their
+    # boards as public JSON and host the real application form at a public
+    # URL with no login. A posting she can find but not apply to is a link
+    # he could have found himself.
+    if finder is None:
+        hits = jobs.search(role, where=where, limit=count * 2)
+        pages = [{"url": j["apply_url"], "title": f"{j['title']} — {j['company']}",
+                  "posting": j.get("posting_url") or j["apply_url"],
+                  "direct": True} for j in hits["matches"]]
+        if not pages:
+            raise CampaignError(
+                f"no openings matched {role!r} across {hits['searched']} "
+                "board(s). Try different words, or add companies to "
+                "config/job_boards.json.")
+    else:
+        reader = reader or applications.research.read_sources
+        candidates = finder(f"{role} job openings{(' ' + where) if where else ''}",
+                            limit=count * CANDIDATE_FACTOR)
+        if not candidates:
+            raise CampaignError(f"no openings found for {role!r}")
+        found, _unreadable = reader(candidates[:count * CANDIDATE_FACTOR])
+        pages = [{"url": p["url"], "title": p.get("title", ""),
+                  "posting": p["url"], "direct": False} for p in found]
 
     staged, needs_you, failed = [], [], []
     for page in pages:
         if len(staged) + len(needs_you) >= count:
             break
-        try:
-            form_url, _fields = _application_url(page["url"], opener=opener)
-        except Exception as exc:
-            failed.append({"url": page["url"], "why": f"{type(exc).__name__}: {exc}"[:160]})
-            continue
+        if page.get("direct"):
+            # An ATS apply link IS the form; there is no posting page to
+            # walk through, and pretending otherwise costs a page load per
+            # job for nothing.
+            form_url = page["url"]
+        else:
+            try:
+                form_url, _fields = _application_url(page["url"], opener=opener)
+            except Exception as exc:
+                failed.append({"url": page["url"],
+                               "why": f"{type(exc).__name__}: {exc}"[:160]})
+                continue
         if not form_url:
             failed.append({"url": page["url"],
                            "why": "no application form found on it"})
@@ -192,13 +223,27 @@ def run(role: str, *, count: int = 5, resume: str = "", where: str = "",
         try:
             record = (stager or apply_run.stage)(
                 form_url, resume=resume_path,
-                note=f"Apply: {page.get('title') or role} — {page['url']}")
+                note=f"Apply: {page.get('title') or role} — {page.get('posting') or page['url']}")
         except Exception as exc:
             failed.append({"url": form_url,
                            "why": f"{type(exc).__name__}: {exc}"[:160]})
             continue
         record["job_title"] = page.get("title", "")
-        record["posting"] = page["url"]
+        record["posting"] = page.get("posting") or page["url"]
+        # Long-answer questions are written, not handed back. Every draft
+        # shows up in the confirmation, so nothing goes out unread.
+        if record["state"] == "NEEDS_YOU" and draft_essays_too:
+            drafts = draft_essays(record, text, think=writer)
+            if drafts:
+                try:
+                    record = (stager or apply_run.stage)(
+                        form_url, resume=resume_path, extra=drafts,
+                        note=f"Apply: {page.get('title') or role}")
+                    record["job_title"] = page.get("title", "")
+                    record["posting"] = page.get("posting") or page["url"]
+                    record["drafted"] = len(drafts)
+                except Exception:
+                    pass
         (needs_you if record["state"] == "NEEDS_YOU" else staged).append(record)
 
     journal.append("action", "campaign",
@@ -209,6 +254,53 @@ def run(role: str, *, count: int = 5, resume: str = "", where: str = "",
             "ready": staged, "blocked": needs_you, "failed": failed,
             "questions": open_questions(),
             "submitted": 0}
+
+
+ESSAY_BRIEF = (
+    "Answer this question on a job application, in the applicant's own "
+    "voice, using ONLY what his resume below actually says. Two to four "
+    "sentences, concrete, no filler, no 'I am passionate about'. Name real "
+    "things he built. If his resume does not support an answer, reply with "
+    "exactly CANNOT WRITE and nothing else — a made-up answer on a job "
+    "application is worse than a blank one.\n\nTHE JOB: {job}\n\n"
+    "THE QUESTION: {question}")
+
+MAX_DRAFTS_PER_JOB = 4
+
+
+def draft_essays(record: dict, resume_text: str, *, think=None) -> dict:
+    """Write the long-answer questions instead of handing them back.
+
+    "Briefly describe your experience with conversion modeling" is not a
+    fact she can look up and it is not a thing he should type ten times.
+    It is a question his resume already answers, so she answers it — and
+    every draft is visible in the confirmation, because a drafted answer he
+    has not read is exactly the thing this whole system refuses to send.
+
+    CANNOT WRITE is a real outcome. A question his resume does not support
+    comes back to him blank rather than filled with something plausible.
+    """
+    from aletheia import reasoner
+    think = think or reasoner.subscription_text
+    drafted = {}
+    for question in record.get("questions") or []:
+        if len(drafted) >= MAX_DRAFTS_PER_JOB:
+            break
+        if question.get("type") != "textarea" or question.get("choices"):
+            continue
+        prompt = ESSAY_BRIEF.format(job=record.get("job_title") or record["url"],
+                                    question=question["label"])
+        try:
+            said = think(prompt, resume_text[:8000], timeout_s=120.0)
+            if isinstance(said, tuple):
+                said = said[0]
+        except Exception:
+            continue
+        body = str(said or "").strip()
+        if not body or body.upper().startswith("CANNOT WRITE"):
+            continue
+        drafted[question["selector"]] = body[:2000]
+    return drafted
 
 
 def answer_all(answers: dict, *, resume: str = "", stager=None) -> dict:
