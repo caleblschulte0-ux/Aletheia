@@ -27,7 +27,16 @@ from pathlib import Path
 from aletheia import journal
 from aletheia.fleet import REPO_ROOT
 
-MEMORY_DIR = REPO_ROOT / "memory"
+# PRIVATE state since 2026-09-04. The four domains held his identity,
+# preferences, people and organizations in a directory the repository
+# tracked - and the repository is public. The night before first real use
+# a session recorded his home address here from his own resume and caught
+# it in `git status` before it was committed. Playbook §38-45 calls these
+# memory domains; CLAUDE.md says his words are never committed. This is
+# the file that makes that true. `MEMORY_DIR` keeps its name because every
+# test patches it; only the default moved.
+from aletheia.stateio import private_dir
+MEMORY_DIR = private_dir("memory")
 DOMAINS = {"identity", "preferences", "people", "organizations"}
 KINDS = {"explicit", "inferred", "temporary"}
 
