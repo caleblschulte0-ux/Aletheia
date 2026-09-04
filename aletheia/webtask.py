@@ -71,8 +71,8 @@ MONEY_WORDS = re.compile(
     r"add\s+to\s+cart|billing|credit\s+card|card\s+number|cvv|subscribe|"
     r"upgrade\s+plan|donate|tip|deposit|withdraw|transfer\s+funds)\b", re.I)
 
-ACTIONS = ("fill", "type", "select", "click", "attach", "goto", "done",
-           "ask", "give_up")
+ACTIONS = ("fill", "type", "select", "click", "attach", "download", "goto",
+           "done", "ask", "give_up")
 
 SYSTEM = """You are driving a web browser for Caleb, one step at a time, to
 finish the goal he gave you. You see what the page currently shows. You
@@ -85,6 +85,7 @@ Reply with a single JSON object and nothing else:
   {"action": "select", "selector": "#country", "value": "<an exact option>"}
   {"action": "click",  "selector": "#next"}
   {"action": "attach", "selector": "#resume", "value": "<a name from HIS FILES>"}
+  {"action": "download", "selector": "#statement-link"}
   {"action": "goto",   "value": "https://..."}
   {"action": "ask",    "value": "<the one question only he can answer>"}
   {"action": "done",   "value": "<what was accomplished>"}
@@ -98,6 +99,8 @@ RULES THAT ARE NOT SUGGESTIONS:
   something that is not there, use "ask" — never a plausible-looking
   value. A made-up answer on a real form is the worst thing you can do
   here, and it is checked: an invented value is refused and wasted.
+- To SAVE a file the page offers, click it with "download" instead of
+  "click": the file lands in his workspace and the run can say where.
 - A file upload is filled with "attach", and "value" must be one of the
   names under HIS FILES. You cannot invent a path; a path he does not own
   is refused.
@@ -345,6 +348,7 @@ def run(goal: str, *, start_url: str = "", budget: int = 8, think=None,
     # run that reached a submit button.
     applied: list[dict] = []
     attached: list[dict] = []
+    downloaded: list[str] = []
     outcome = {"state": BUDGET, "say": "Ran out of steps before finishing."}
     opener = session or browse._Session
     with opener() as ctx:
@@ -395,7 +399,11 @@ def run(goal: str, *, start_url: str = "", budget: int = 8, think=None,
             action = step["action"]
 
             if action == "done":
-                outcome = {"state": DONE, "say": str(step.get("value", "done"))[:400]}
+                said = str(step.get("value", "done"))[:400]
+                if downloaded:
+                    said += (" Saved: "
+                             + ", ".join(Path(d).name for d in downloaded[:4]))
+                outcome = {"state": DONE, "say": said}
                 break
             if action in ("ask", "give_up"):
                 outcome = {"state": ASK,
@@ -532,6 +540,30 @@ def run(goal: str, *, start_url: str = "", budget: int = 8, think=None,
                                 "result": f"attached {Path(path).name}"})
                 continue
 
+            if action == "download":
+                # Saving a file the page offers. It lands in HER WORKSPACE,
+                # which is the one directory she may write — a download is
+                # not permission to put a file anywhere on his disk.
+                from aletheia import workspace
+                try:
+                    with page.expect_download(timeout=60_000) as caught:
+                        page.click(selector)
+                    got = caught.value
+                    name = re.sub(r"[^A-Za-z0-9._-]+", "-",
+                                  got.suggested_filename or "download")[:80]
+                    target = workspace.root() / "downloads" / name
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    got.save_as(str(target))
+                except Exception as exc:
+                    history.append({"step": step,
+                                    "result": f"download failed: {type(exc).__name__}"})
+                    continue
+                downloaded.append(str(target))
+                journal.append("action", "webtask",
+                               f"saved {name} into the workspace", actor=ACTOR)
+                history.append({"step": step, "result": f"saved {name}"})
+                continue
+
             if action == "click":
                 label = (button or {}).get("text", "") or (field or {}).get("label", "")
                 if MONEY_WORDS.search(label):
@@ -580,6 +612,7 @@ def run(goal: str, *, start_url: str = "", budget: int = 8, think=None,
         page.close()
 
     record = {"id": run_id, "goal": goal, "steps": history,
+              "downloaded": downloaded,
               "screenshot": str(shot) if shot else "", "at": stateio.utcnow(),
               **outcome}
     stateio.write_json_atomic(_record_path(run_id), record)

@@ -349,6 +349,45 @@ class ItCannotRunAway(WebTaskCase):
         self.assertEqual(out["state"], webtask.ASK)
 
 
+class SheCanSAVEAFileToo(WebTaskCase):
+    def test_a_download_lands_in_her_workspace(self):
+        """A download is not permission to put a file anywhere on his disk."""
+        saved = {}
+
+        class Caught:
+            value = type("D", (), {
+                "suggested_filename": "statement.pdf",
+                "save_as": lambda self, path: saved.update(path=path)})()
+
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+
+        page = FakePage([field("#a", "Note")],
+                        [{"selector": "#dl", "text": "Download statement"}])
+        page.expect_download = lambda **kw: Caught()
+        out = self.go(page, "download my statement",
+                      '{"action":"download","selector":"#dl"}',
+                      '{"action":"done","value":"got it"}')
+        self.assertIn("statement.pdf", saved["path"])
+        self.assertIn(str(self.ws), saved["path"])
+        self.assertEqual(out["state"], webtask.DONE)
+        self.assertIn("statement.pdf", out["say"])
+
+    def test_a_failed_download_is_a_step_not_a_crash(self):
+        page = FakePage([field("#a", "Note")],
+                        [{"selector": "#dl", "text": "Download"}])
+
+        def boom(**kw):
+            raise RuntimeError("no download started")
+        page.expect_download = boom
+        out = self.go(page, "download it",
+                      '{"action":"download","selector":"#dl"}',
+                      '{"action":"done","value":"nothing to get"}')
+        self.assertEqual(out["state"], webtask.DONE)
+        self.assertTrue(any("download failed" in e["result"]
+                            for e in out["steps"]))
+
+
 class HeCanJustSayIt(unittest.TestCase):
     def test_the_kind_exists_and_the_planner_can_see_it(self):
         from aletheia import intercom, planner
@@ -361,6 +400,17 @@ class HeCanJustSayIt(unittest.TestCase):
         note = intercom.KIND_NOTES["web_task"]
         self.assertIn("CATCH-ALL", note)
         self.assertIn("rather than inventing a gap", note)
+
+    def test_the_prompt_itself_says_a_website_is_never_a_gap(self):
+        """A kind note is guidance; this is the rule, in the header, because
+        emitting a gap for something a website does is the most common way
+        this system says "I can't" about something it can do."""
+        from aletheia import planner
+        flat = " ".join(planner.PROMPT_HEADER.split())
+        self.assertIn("BROWSER AND A MOUSE", flat)
+        self.assertIn("NEVER A GAP", flat)
+        self.assertIn("Only name a gap when no website could do it at all",
+                      flat)
 
 
 if __name__ == "__main__":

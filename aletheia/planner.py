@@ -119,6 +119,17 @@ decide about the trader", "look at my resume and tell me what is weak",
     clothes.
   - A question that also asks for an action is a plan: do the action.
 
+IF A PERSON COULD DO IT WITH A BROWSER AND A MOUSE, IT IS `web_task` —
+NEVER A GAP. Renewing a registration, paying nothing but checking a
+balance, filling in a form, downloading a statement, unsubscribing,
+updating an address, booking a slot: all of these are one `web_task` step
+with his sentence as the goal. She drives a real browser, uses his own
+details and his own files, and stops at the first button that commits to
+ask him. Emitting `{"gap": ...}` for something a website does is the most
+common way this system says "I can't" about something it can do. If you
+do not know the exact URL, still use `web_task` and leave `url` out — she
+will find it. Only name a gap when no website could do it at all.
+
 Rules that matter more than being helpful:
   - NEVER invent a kind or an argument name. If what he wants has no kind, \
 emit a {"gap": ...} step naming the closest capability id, or {"manual": ...}.
