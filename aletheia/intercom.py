@@ -775,6 +775,9 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "do_task":
         from aletheia import script
         result = script.run(cmd["request"], label=cmd.get("label") or "task")
+        if result.get("state") == "AWAITING_YOU":
+            # It wrote a program that DELETES. Saved, readable, run nothing.
+            return result["say"]
         return f"{script.spoken(result)} [program: {result['program']}]"
     if kind == "browse_read":
         from aletheia import browse

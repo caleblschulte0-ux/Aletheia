@@ -519,6 +519,44 @@ def press_approved_web_tasks() -> list[dict]:
     return pressed
 
 
+def run_approved_scripts() -> list[dict]:
+    """Run the file-deleting programs he confirmed, once each.
+
+    Same shape as everything else that waits on him: he taps Approve on
+    his phone and the next beat does it. A failure is surfaced and never
+    retried — a delete that half-happened is not a thing to attempt twice
+    on its own initiative.
+    """
+    from aletheia import script
+    done = []
+    for approval in policy.all_approvals():
+        if approval.get("state") != "APPROVED":
+            continue
+        if not str(approval.get("requested_action", "")).startswith(
+                "script.destructive:"):
+            continue
+        try:
+            result = script.confirmed(approval["id"])
+        except script.ScriptRefused:
+            continue                     # already run, or its source is gone
+        except Exception as exc:
+            notifications.publish(
+                "That program would not run",
+                f"{approval.get('reason', '')[:160]} — "
+                f"{type(exc).__name__}: {exc}"[:400],
+                priority="IMPORTANT", source="script",
+                dedupe_key=f"script-failed:{approval['id']}")
+            continue
+        notifications.publish(
+            "Done", f"{approval.get('reason', '')[:160]} — "
+                    f"{result.get('output', '')[:200]}",
+            priority="IMPORTANT", source="script",
+            dedupe_key=f"script-ran:{approval['id']}")
+        done.append({"approval": approval["id"],
+                     "program": result.get("program", "")})
+    return done
+
+
 def tick(fleet: dict, *, now: dt.datetime | None = None,
          registry: dict | None = None, request=None,
          budget_s: float = TICK_BUDGET_S) -> dict:
@@ -614,6 +652,7 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # A subscription is CANCELLED when the merchant says so, not when we
     # pressed a button — and believing otherwise costs him a charge a
     # month for as long as he believes it.
+    scripts_run = guarded("scripts", run_approved_scripts)
     subscriptions_settled = guarded(
         "subscriptions", lambda: [s["id"] for s in subscriptions.reconcile()])
     delivered = guarded("desktop", desktop_notify.deliver_pending)
@@ -630,6 +669,7 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
         "approved_intents": approved_intents,
         "web_tasks_pressed": web_tasks_pressed,
         "subscriptions_settled": subscriptions_settled,
+        "scripts_run": scripts_run,
         "authorized_errands": authorized_errands,
         "room_devices": room_devices,
         "meetings": meetings_progress,
