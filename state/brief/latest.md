@@ -10,7 +10,7 @@
 - last commit `74809c2c13c7`: doctor: evidence pack + backlog 2026-09-04 [skip ci]
 
 ## schwab-trader — OPERATIONAL
-- realized P&L -$40.82 · win rate 14.3% · closed trades 14 · open positions 13 · cash $2.50
+- figures withheld (private vitals — on his own screen, not in a public repository)
 - last commit `0630ca109475`: sell-brain: update exit decisions [skip ci]
 
 ## Plans in motion

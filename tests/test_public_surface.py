@@ -18,6 +18,7 @@ and both fail closed: an unrecognised journal subject is private, and a
 vital is only public if the registry says so.
 """
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -161,6 +162,67 @@ class ARegistryDecidesWhichNumbersAreHis(unittest.TestCase):
         registry["repos"]["schwab_trader"]["vitals"][0]["private"] = "sort of"
         with self.assertRaises(fleet.FleetError):
             fleet.validate(registry)
+
+
+class NOTHING_PRIVATE_IS_IN_THE_TRACKED_TREE(unittest.TestCase):
+    """The durable half. The routing above stops NEW private data from
+    reaching the repository; this fails the moment any lands anyway —
+    a bad merge, a hand-edit, a capability that journals under a public
+    subject because that read better at the time.
+
+    It reads the working tree, so it is the same check whether it runs
+    here or in CI.
+    """
+
+    def tracked(self):
+        import subprocess
+        out = subprocess.run(["git", "ls-files"], capture_output=True, text=True)
+        for name in out.stdout.splitlines():
+            path = Path(name)
+            if path.is_file() and path.suffix in (".md", ".json", ".jsonl", ".txt"):
+                yield path
+
+    def private_labels(self):
+        registry = fleet.load_fleet()
+        return [v["label"] for repo in registry["repos"].values()
+                for v in repo.get("vitals", []) if v.get("private")]
+
+    def test_no_committed_file_carries_a_private_vital(self):
+        """Ten daily briefs carried his account balance under his name."""
+        labels = self.private_labels()
+        self.assertTrue(labels, "the registry must actually mark some private")
+        offenders = []
+        for path in self.tracked():
+            if path.parts[:2] == ("config", ) or path.name == "fleet.json":
+                continue          # the registry DECLARES the labels
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            for label in labels:
+                # The label plus a number after it — the label alone is
+                # fine (the pulse names what it is holding back).
+                if re.search(re.escape(label) + r"[^\n]{0,4}[-+$\d]", text):
+                    offenders.append(f"{path}: {label}")
+        self.assertEqual(offenders, [], "private figures in tracked files")
+
+    def test_the_committed_journal_holds_only_fleet_telemetry(self):
+        path = Path("state/journal/journal.jsonl")
+        if not path.is_file():
+            self.skipTest("no in-repo journal here")
+        strays = []
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            subject = json.loads(line).get("subject", "")
+            if not journal.is_public_subject(subject):
+                strays.append(subject)
+        self.assertEqual(sorted(set(strays)), [],
+                         "personal subjects in the public journal")
+
+    def test_the_check_can_actually_see_one(self):
+        """A test that cannot fail is a comment."""
+        self.assertRegex("- realized P&L -$40.82 · cash $2.50",
+                         re.escape("realized P&L") + r"[^\n]{0,4}[-+$\d]")
+        self.assertNotRegex("- figures withheld (private vitals)",
+                            re.escape("realized P&L") + r"[^\n]{0,4}[-+$\d]")
 
 
 if __name__ == "__main__":

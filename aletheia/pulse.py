@@ -416,6 +416,13 @@ def briefing(pulse: dict) -> str:
                     else:
                         parts.append(f"{v['label']}: {val}")
             lines.append("Vitals — " + " · ".join(parts))
+        held = r.get("private_vitals") or []
+        if held:
+            # NAMED, never valued. Saying nothing would read as a repo
+            # with nothing to report; saying the numbers is what put his
+            # account balance in ten committed briefs.
+            lines.append(f"Vitals withheld ({len(held)}, on his own screen): "
+                         + ", ".join(held))
         wf_lines = []
         for name, w in r.get("workflows", {}).items():
             if "error" in w:

@@ -36,7 +36,7 @@ Guardrailed paper-trading system. The SELL brain and executor watchdog are activ
 
 Last commit `ca28b767144c` at 2026-09-04T18:37:00Z: sell-brain: update exit decisions [skip ci]
 
-Vitals — realized P&L: $-40.82 · win rate: 14.3% · closed trades: 14 · open positions: 13 · cash: $2.50
+Vitals withheld (5, on his own screen): realized P&L, win rate, closed trades, open positions, cash
 
 Watched workflows:
 - `sell-brain.yml`: success at 2026-09-04T18:37:06Z
