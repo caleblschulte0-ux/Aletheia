@@ -592,13 +592,15 @@ def run(goal: str, *, start_url: str = "", budget: int = 8, think=None,
                     # becomes one approval carrying the page, the button and
                     # every value typed to get there.
                     outcome = _await_him(run_id, goal, page, label, selector,
-                                         applied, attached, commits)
+                                         applied, attached, commits,
+                                         start_url=start_url)
                     break
                 if button is None and field is None:
                     history.append({"step": step, "result": "refused: no such control"})
                     continue
                 page.click(selector)
                 page.wait_for_load_state("domcontentloaded")
+                applied.append({"action": "click", "selector": selector})
                 history.append({"step": step, "result": f"clicked {label[:50]}"})
                 continue
 
@@ -623,10 +625,11 @@ def run(goal: str, *, start_url: str = "", budget: int = 8, think=None,
 
 
 def _await_him(run_id: str, goal: str, page, label: str, selector: str,
-               typed: list[dict], attached: list[dict], commits: str) -> dict:
+               typed: list[dict], attached: list[dict], commits: str,
+               start_url: str = "") -> dict:
     """Everything is filled; the committing click waits for him."""
     approval_id = f"{run_id}-commit"
-    action = browse.approval_action(page.url, typed + [
+    action = browse.approval_action(start_url or page.url, typed + [
         {"action": "click", "selector": selector}])
     policy.request(
         approval_id, action,
@@ -636,6 +639,13 @@ def _await_him(run_id: str, goal: str, page, label: str, selector: str,
         reversible=False, capability="web.commit")
     return {"state": COMMIT, "approval": approval_id, "button": label,
             "button_selector": selector, "typed": typed, "attached": attached,
+            # The whole route, not just the last page. A three-page wizard is
+            # reached by clicking THROUGH it, and re-opening page three
+            # directly loses what pages one and two established — the first
+            # version replayed page one's fills onto page three and died on
+            # "waiting for locator #fn", with the site having received the
+            # first two pages and never the third.
+            "replay_from": start_url or page.url,
             "say": (f"Everything is filled in. The last step is a button that "
                     f"says {label[:50]!r} — confirm it and I will press it.")}
 
@@ -671,20 +681,40 @@ def commit(run_id: str, *, presser=None) -> dict:
 
 
 def _press(record: dict) -> dict:
+    """Replay the WHOLE route, then press the button he approved.
+
+    Not just the last page: a wizard is reached by clicking through it, so
+    re-opening the final step directly loses everything the earlier pages
+    established.
+    """
+    attachments = {a["selector"]: a["path"] for a in record.get("attached", [])}
     with browse._Session() as ctx:
         page = ctx.new_page()
-        page.goto(record["url"], wait_until="domcontentloaded")
+        page.goto(record.get("replay_from") or record["url"],
+                  wait_until="domcontentloaded")
         for step in record.get("typed", []):
-            if step["action"] == "select":
-                page.select_option(step["selector"], label=step["value"])
-            elif step["action"] == "check":
-                page.check(step["selector"])
-            elif step["action"] == "uncheck":
-                page.uncheck(step["selector"])
+            action, selector = step["action"], step["selector"]
+            if action == "select":
+                page.select_option(selector, label=step["value"])
+            elif action == "check":
+                page.check(selector)
+            elif action == "uncheck":
+                page.uncheck(selector)
+            elif action == "click":
+                for sel, path in attachments.items():
+                    try:
+                        page.set_input_files(sel, path)
+                    except Exception:
+                        pass
+                page.click(selector)
+                page.wait_for_load_state("domcontentloaded")
             else:
-                page.fill(step["selector"], str(step.get("value", "")))
-        for item in record.get("attached", []):
-            page.set_input_files(item["selector"], item["path"])
+                page.fill(selector, str(step.get("value", "")))
+        for selector, path in attachments.items():
+            try:
+                page.set_input_files(selector, path)
+            except Exception:
+                pass
         page.click(record["button_selector"])
         page.wait_for_load_state("domcontentloaded")
         body = (page.inner_text("body") or "")[:2000]

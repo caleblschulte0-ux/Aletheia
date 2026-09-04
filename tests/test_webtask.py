@@ -388,6 +388,127 @@ class SheCanSAVEAFileToo(WebTaskCase):
                             for e in out["steps"]))
 
 
+class FakeWizard(FakePage):
+    """Three pages, the shape Workday actually is: each button REPLACES
+    the whole form, so page three cannot be reached by opening its URL."""
+
+    def __init__(self, pages, base="https://x.example"):
+        self.pages = pages
+        self.base = base
+        self.received = {}
+        self.submitted = None
+        self.did = []
+        self._open(0)
+
+    def _url_for(self, index):
+        return f"{self.base}/" if index == 0 else f"{self.base}/step{index + 1}"
+
+    def _open(self, index):
+        self.index = index
+        fields, buttons = self.pages[index]
+        self._fields = [dict(f) for f in fields]
+        self._buttons = [dict(b) for b in buttons]
+        self.url = self._url_for(index)
+
+    def goto(self, url, **kw):
+        self.did.append(("goto", url))
+        for i in range(len(self.pages)):
+            if self._url_for(i) == url:
+                return self._open(i)
+        raise AssertionError(f"no page at {url}")
+
+    def click(self, selector):
+        self.did.append(("click", selector))
+        if not any(b["selector"] == selector for b in self._buttons):
+            raise AssertionError(f"no button {selector} on {self.url}")
+        for row in self._fields:
+            if (row.get("value") or ""):
+                self.received[row["selector"]] = row["value"]
+        if self.index + 1 < len(self.pages):
+            self._open(self.index + 1)
+        else:
+            self.submitted = dict(self.received)
+
+
+class AWizardIsWalkedThroughNotJumpedInto(WebTaskCase):
+    """Three pages, and the commit replays the WHOLE route.
+
+    The first version bound the approval to the page it happened to be
+    standing on and re-opened that page to press the button. Against the
+    real three-page server it filled two pages, waited for him, and then
+    died on `waiting for locator "#fn"` — page one's field, typed onto
+    page three. The employer received the first two pages and never the
+    third, and the run reported the press as a failure only after the
+    site already had half an application. The route is the unit, not the
+    page.
+    """
+
+    PAGES = [
+        ([field("#fn", "First name *", required=True),
+          field("#ln", "Last name *", required=True)],
+         [{"selector": "button[type=submit]", "text": "Next"}]),
+        ([field("#ph", "Phone")],
+         [{"selector": "button[type=submit]", "text": "Continue"}]),
+        ([field("#why", "Anything else? *", tag="textarea", required=True),
+          field("#cert", "I certify this is true.", type="checkbox",
+                required=True, checked=False)],
+         [{"selector": "button[type=submit]", "text": "Submit application"}]),
+    ]
+    GOAL = ("Fill in this three page application with my details. For "
+            "anything else say: I build unattended systems with quality "
+            "gates. Tick the certification box and submit it.")
+
+    def walk(self):
+        wizard = FakeWizard(self.PAGES)
+        out = webtask.run(
+            self.GOAL, start_url="https://x.example/", budget=6,
+            think=self.brain(
+                '{"action": "click", "selector": "button[type=submit]"}',
+                '{"action": "click", "selector": "button[type=submit]"}',
+                '{"action": "fill", "values": {"#why": "I build unattended '
+                'systems with quality gates.", "#cert": "yes"}}',
+                '{"action": "click", "selector": "button[type=submit]"}'),
+            session=FakeSession(wizard))
+        return wizard, out
+
+    def test_the_route_is_recorded_not_just_the_last_page(self):
+        _, out = self.walk()
+        self.assertEqual(out["state"], webtask.COMMIT, out.get("say"))
+        self.assertEqual(out["replay_from"], "https://x.example/")
+        self.assertEqual(out["url"], "https://x.example/step3")
+        # Every page's values AND the clicks that carried her between them.
+        self.assertEqual(
+            [(s["action"], s["selector"]) for s in out["typed"]],
+            [("type", "#fn"), ("type", "#ln"), ("click", "button[type=submit]"),
+             ("type", "#ph"), ("click", "button[type=submit]"),
+             ("type", "#why"), ("check", "#cert")])
+
+    def test_the_approval_is_bound_to_where_the_route_STARTS(self):
+        """Otherwise the press replays a route onto the wrong page."""
+        _, out = self.walk()
+        approval = policy.load(out["approval"])
+        self.assertEqual(approval["requested_action"],
+                         webtask.browse.approval_action(
+                             "https://x.example/",
+                             out["typed"] + [{"action": "click",
+                                              "selector": "button[type=submit]"}]))
+
+    def test_pressing_it_walks_all_three_pages_and_the_site_gets_ALL_of_it(self):
+        wizard, out = self.walk()
+        policy.decide(out["approval"], "APPROVED", via="phone")
+        wizard.received, wizard.submitted, wizard.did = {}, None, []
+        with mock.patch.object(webtask.browse, "_Session", FakeSession(wizard)):
+            done = webtask.commit(out["id"])
+        self.assertEqual(done["state"], "COMMITTED")
+        self.assertEqual(wizard.submitted,
+                         {"#fn": "Caleb", "#ln": "Schulte",
+                          "#ph": "(512) 555-0134",
+                          "#why": "I build unattended systems with quality gates.",
+                          "#cert": "checked"})
+        self.assertEqual([d for d in wizard.did if d[0] == "goto"],
+                         [("goto", "https://x.example/")])
+
+
 class HeCanJustSayIt(unittest.TestCase):
     def test_the_kind_exists_and_the_planner_can_see_it(self):
         from aletheia import intercom, planner
