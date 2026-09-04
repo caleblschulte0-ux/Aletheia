@@ -15,6 +15,7 @@ teeth — never hallucinate a capability, never fake one.
 import importlib
 import re
 import unittest
+from pathlib import Path
 
 from aletheia import capabilities, intercom
 
@@ -92,6 +93,58 @@ class EveryNamedMissionKindExists(unittest.TestCase):
                     with self.subTest(capability=cap, kind=kind):
                         self.assertIn(kind, mission.KINDS,
                                       f"{cap} names mission kind {kind!r}")
+
+
+class NoPROPOSAL_POINTS_AT_A_DEAD_END(unittest.TestCase):
+    """Twice now a module has recorded a proposal naming a capability
+    that nothing could actually run — `subscription.cancel` and
+    `reservation.book`, both reachable only by hand-typing a JSON list of
+    browser selectors at a command line. The record said WAITING forever,
+    nothing carried it out, and nothing said what was stopping it.
+
+    A proposal may only name a capability that either RUNS or is
+    deliberately refused. Those are the two honest answers; "written down
+    and unreachable" is not one of them."""
+
+    # `purchase.execute` is refused on purpose — his standing rule is that
+    # this system does not spend money, and a capability that exists to be
+    # refused is honest. It is listed so that adding a new one is a
+    # decision somebody makes, not a thing that happens.
+    DELIBERATELY_REFUSED = {"purchase.execute"}
+
+    def proposals(self):
+        found = []
+        for path in sorted(Path("aletheia").glob("*.py")):
+            text = path.read_text(encoding="utf-8")
+            for match in re.finditer(
+                    r'"required_capability":\s*"([a-z_.]+)"', text):
+                found.append((path.name, match.group(1)))
+        return found
+
+    def test_there_are_proposals_to_check(self):
+        self.assertTrue(self.proposals(), "the check must have something to do")
+
+    def test_each_one_names_something_that_can_actually_HAPPEN(self):
+        registry = {c["id"]: c for c in capabilities.load_registry()["capabilities"]}
+        for module, capability in self.proposals():
+            with self.subTest(module=module, capability=capability):
+                self.assertIn(capability, registry,
+                              f"{module} proposes {capability}, which is not "
+                              "in the registry at all")
+                if capability in self.DELIBERATELY_REFUSED:
+                    continue
+                entry = registry[capability]
+                self.assertNotEqual(
+                    entry["status"], "NOT_BUILT",
+                    f"{module} proposes {capability}, which is NOT_BUILT — the "
+                    "record will say WAITING forever")
+                caller = entry.get("caller", "")
+                self.assertTrue(
+                    CLI.search(caller) or KINDS.search(caller)
+                    or "runtime.tick" in caller,
+                    f"{module} proposes {capability}, whose caller "
+                    f"({caller[:80]!r}) is not a command, an intercom kind or "
+                    "the beat — so nothing he says or does can reach it")
 
 
 class TheCheckItselfHasTeeth(unittest.TestCase):

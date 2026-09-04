@@ -18,7 +18,8 @@ from pathlib import Path
 
 from aletheia import (act, attention, communications, desktop_notify, events, gaps,
                       handler, intercom, mail, notifications, policy, proactive,
-                      scheduler, subscriptions, tasks, verification)
+                      reservations, scheduler, subscriptions, tasks,
+                      verification)
 from aletheia.pulse import PULSE_DIR
 from aletheia.stateio import private_dir, read_json, write_json_atomic
 
@@ -653,6 +654,8 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # pressed a button — and believing otherwise costs him a charge a
     # month for as long as he believes it.
     scripts_run = guarded("scripts", run_approved_scripts)
+    bookings_settled = guarded(
+        "reservations", lambda: [r["id"] for r in reservations.reconcile()])
     subscriptions_settled = guarded(
         "subscriptions", lambda: [s["id"] for s in subscriptions.reconcile()])
     delivered = guarded("desktop", desktop_notify.deliver_pending)
@@ -669,6 +672,7 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
         "approved_intents": approved_intents,
         "web_tasks_pressed": web_tasks_pressed,
         "subscriptions_settled": subscriptions_settled,
+        "bookings_settled": bookings_settled,
         "scripts_run": scripts_run,
         "authorized_errands": authorized_errands,
         "room_devices": room_devices,
