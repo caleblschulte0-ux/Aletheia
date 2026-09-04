@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-04T04:40:22Z",
+  "generated_at": "2026-09-04T11:25:12Z",
   "fleet_revision": 4,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -10,6 +10,11 @@
       "status": "active",
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
+        {
+          "sha": "30cdaa652e4b",
+          "date": "2026-09-04T04:40:33Z",
+          "message": "pulse: 2026-09-04T04:40Z"
+        },
         {
           "sha": "11e78134b965",
           "date": "2026-09-04T03:47:45Z",
@@ -29,25 +34,20 @@
           "sha": "f8196a33f8ee",
           "date": "2026-09-04T03:02:20Z",
           "message": "What a real website actually is: frames, tabs, links, walls"
-        },
-        {
-          "sha": "f8164b452ba1",
-          "date": "2026-09-04T02:44:50Z",
-          "message": "A wizard is walked through, not jumped into"
         }
       ],
       "commit": {
-        "sha": "11e78134b965",
-        "date": "2026-09-04T03:47:45Z",
-        "message": "The job filler was staging applications that could never be sent"
+        "sha": "30cdaa652e4b",
+        "date": "2026-09-04T04:40:33Z",
+        "message": "pulse: 2026-09-04T04:40Z"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-09-04T04:40:19Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/33837664548"
+          "updated_at": "2026-09-04T11:25:08Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/33867845108"
         },
         "ci.yml": {
           "status": "completed",
@@ -59,7 +59,7 @@
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 13384
+          "bytes": 12612
         }
       },
       "health": "green"
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "3f84c55e9ca8",
-          "date": "2026-09-04T02:44:56Z",
-          "message": "watch the video, then fix what the video shows"
+          "sha": "74809c2c13c7",
+          "date": "2026-09-04T09:34:59Z",
+          "message": "doctor: evidence pack + backlog 2026-09-04 [skip ci]"
         },
         {
-          "sha": "ff626844f7bb",
-          "date": "2026-09-04T01:02:14Z",
-          "message": "hold shot length as an invariant, and stop the arm pump"
+          "sha": "f261ab75a920",
+          "date": "2026-09-04T09:32:44Z",
+          "message": "exchange: phase A bundle for 20260904 [skip ci]"
         },
         {
-          "sha": "cda00636569c",
-          "date": "2026-09-04T00:53:02Z",
-          "message": "cut the beat into shots: an edit, not more motion"
+          "sha": "d8beb25b7f55",
+          "date": "2026-09-04T09:32:07Z",
+          "message": "daily packages 2026-09-04 (#328)"
         },
         {
-          "sha": "8fa6feb6717d",
-          "date": "2026-09-03T22:50:40Z",
-          "message": "explainer: update posted log + analytics [skip ci]"
+          "sha": "3a7004d35bb2",
+          "date": "2026-09-04T05:14:58Z",
+          "message": "exchange: phase A bundle for 20260904 [skip ci]"
         },
         {
-          "sha": "bbdab300faa3",
-          "date": "2026-09-03T19:58:59Z",
-          "message": "explainer: update posted log + analytics [skip ci]"
+          "sha": "29bf6d4fe718",
+          "date": "2026-09-04T05:14:44Z",
+          "message": "judge_policy: unanimous or single required-judge rejection now fails closed (#326)"
         }
       ],
       "commit": {
-        "sha": "3f84c55e9ca8",
-        "date": "2026-09-04T02:44:56Z",
-        "message": "watch the video, then fix what the video shows"
+        "sha": "74809c2c13c7",
+        "date": "2026-09-04T09:34:59Z",
+        "message": "doctor: evidence pack + backlog 2026-09-04 [skip ci]"
       },
       "vitals": [
         {
@@ -129,8 +129,8 @@
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-03T13:51:35Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33763430789"
+          "updated_at": "2026-09-04T09:32:49Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33858829924"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
@@ -141,8 +141,8 @@
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-03T19:57:22Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33799242891"
+          "updated_at": "2026-09-04T09:45:31Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33859724655"
         },
         "third.yml": {
           "status": "completed",
@@ -153,8 +153,8 @@
         "explainer.yml": {
           "status": "completed",
           "conclusion": "failure",
-          "updated_at": "2026-09-03T22:50:45Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33798561081"
+          "updated_at": "2026-09-04T09:44:57Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33858840896"
         },
         "retro.yml": {
           "status": "completed",
@@ -165,8 +165,8 @@
         "doctor.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-03T09:43:15Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33740379582"
+          "updated_at": "2026-09-04T09:35:03Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33859050005"
         }
       },
       "state_files": {
@@ -346,14 +346,7 @@
       "health": "dormant"
     }
   },
-  "transitions": [
-    {
-      "repo": "aletheia",
-      "github": "Aletheia",
-      "from": "red",
-      "to": "green"
-    }
-  ],
+  "transitions": [],
   "alerts": [
     {
       "repo": "shorts_pipeline",
@@ -371,7 +364,7 @@
       {
         "slug": "light-up-the-wall",
         "title": "Light up the wall",
-        "done": 1,
+        "done": 3,
         "total": 4
       }
     ]
