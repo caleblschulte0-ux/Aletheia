@@ -938,7 +938,7 @@ class ARefusalIsNotADeadEnd(WebTaskCase):
         done = self.refuse(out)
         self.assertEqual(done["state"], "REJECTED")
         self.assertEqual(done["result"]["verdict"], "rejected")
-        self.assertIn("handed the form back", done["say"])
+        self.assertIn("handed it back", done["say"])
 
     def test_the_beat_says_it_would_not_go_through(self):
         from aletheia import notifications, runtime

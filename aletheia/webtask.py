@@ -1251,7 +1251,8 @@ def _press(record: dict) -> dict:
         still_there = bool(formfill.blocking(page)) or bool(
             [f for f in formfill.read_all(page)
              if f.get("type") not in ("hidden", "submit", "button")])
-        outcome = browse.read_outcome(body, form_still_there=still_there)
+        outcome = browse.read_outcome(body, did=record.get("button", ""),
+                                      form_still_there=still_there)
         shot = runs_dir() / f"{record['id']}-after.png"
         try:
             page.screenshot(path=str(shot), full_page=True)

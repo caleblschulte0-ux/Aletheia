@@ -18,7 +18,7 @@ from pathlib import Path
 
 from aletheia import (act, attention, communications, desktop_notify, events, gaps,
                       handler, intercom, mail, notifications, policy, proactive,
-                      scheduler, tasks, verification)
+                      scheduler, subscriptions, tasks, verification)
 from aletheia.pulse import PULSE_DIR
 from aletheia.stateio import private_dir, read_json, write_json_atomic
 
@@ -611,6 +611,11 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # APPROVED, and each is sent exactly once.
     applications_sent = guarded("applications", send_approved_applications)
     web_tasks_pressed = guarded("web_tasks", press_approved_web_tasks)
+    # A subscription is CANCELLED when the merchant says so, not when we
+    # pressed a button — and believing otherwise costs him a charge a
+    # month for as long as he believes it.
+    subscriptions_settled = guarded(
+        "subscriptions", lambda: [s["id"] for s in subscriptions.reconcile()])
     delivered = guarded("desktop", desktop_notify.deliver_pending)
     return {
         "failures": failures,
@@ -624,6 +629,7 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
         "capability_gaps": capability_gaps,
         "approved_intents": approved_intents,
         "web_tasks_pressed": web_tasks_pressed,
+        "subscriptions_settled": subscriptions_settled,
         "authorized_errands": authorized_errands,
         "room_devices": room_devices,
         "meetings": meetings_progress,

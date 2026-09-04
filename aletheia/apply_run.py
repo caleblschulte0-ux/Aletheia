@@ -430,7 +430,7 @@ def _refill_and_submit(record: dict) -> dict:
     # difference, so this and the general web loop cannot drift on it.
     return {"url": landed, "title": title,
             "evidence": body[:600], "screenshot": str(shot),
-            **browse.read_outcome(body)}
+            **browse.read_outcome(body, did=record.get("button", "submit"))}
 
 
 def spoken(record: dict) -> str:

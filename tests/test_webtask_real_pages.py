@@ -441,7 +441,7 @@ class ARefusalIsNotADeadEndEither(RealPageCase):
         self.assertEqual(done["state"], "REJECTED")
         self.assertEqual(done["result"]["verdict"], "rejected")
         self.assertEqual(self.got.get("phone"), "(512) 555-0134")
-        self.assertIn("handed the form back", done["say"])
+        self.assertIn("handed it back", done["say"])
 
         # 2. "Try that again" reads what the site said and corrects it —
         #    the same fact, punctuated the way the site wants.

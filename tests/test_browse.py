@@ -261,6 +261,35 @@ class DidThatActuallyWork(unittest.TestCase):
             browse.read_outcome("Thank you. Your application has been received."
                                 )["verdict"], "confirmed")
 
+    def test_the_PAST_TENSE_of_the_button_he_pressed_is_a_confirmation(self):
+        """A cancellation does not confirm itself with "thank you for
+        applying". It says "your membership has been cancelled", and the
+        first version could not believe that sentence — so a subscription
+        that really was cancelled stayed marked CANCEL_REQUESTED with a
+        note saying the merchant had not confirmed."""
+        for body, did in (("Your membership has been cancelled.",
+                           "Cancel my membership"),
+                          ("You have been unsubscribed.", "Unsubscribe"),
+                          ("Your booking is confirmed.", "Book appointment"),
+                          ("Your account is closed.", "Close my account")):
+            with self.subTest(did=did):
+                self.assertEqual(browse.read_outcome(body, did=did)["verdict"],
+                                 "confirmed", body)
+
+    def test_that_signal_YIELDS_to_a_refusal(self):
+        """"Your cancellation could not be completed" contains the word
+        and is the opposite of a cancellation."""
+        self.assertEqual(
+            browse.read_outcome("Your cancellation could not be completed.",
+                                did="Cancel my membership")["verdict"],
+            "rejected")
+
+    def test_the_wrong_past_tense_proves_nothing(self):
+        self.assertEqual(
+            browse.read_outcome("Your booking is confirmed.",
+                                did="Submit application")["verdict"],
+            "submitted, unconfirmed")
+
     def test_a_form_handed_back_is_a_REFUSAL_not_silence(self):
         out = browse.read_outcome(
             "There was a problem with your application.\n"

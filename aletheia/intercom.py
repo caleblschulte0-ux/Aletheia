@@ -88,7 +88,19 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "web_task":      ({"goal"}, {"url", "budget"}),
     # "try that again" after a site refused one — the ONLY case where
     # running it again is safe, because a refusal means nothing was taken.
+    "subscription_cancel": (
+        'Cancel a recurring charge she is tracking. subscription is its id '
+        '(python -m aletheia.assistant subscriptions lists them), url is the '
+        'page it is managed on and is REQUIRED the first time — she will not '
+        'guess a cancellation URL, because guessing one is how you end up on '
+        'a page wearing his bank\'s colours that somebody else owns. She '
+        'drives to the button and waits for his confirmation like any other '
+        'irreversible thing, and the subscription is only marked CANCELLED '
+        'when the merchant itself says so.'),
     "web_task_retry": (set(), {"run_id"}),
+    # "cancel my gym membership" — she goes to the page it is managed on,
+    # gets as far as the button, and waits for him like anything else.
+    "subscription_cancel": ({"subscription"}, {"url"}),
     # eyes on the desktop, never hands: mutation keeps its own approval
     "computer_observe": (set(), {"window"}),
     # video and audio: the source is never touched, output lands in the workspace
@@ -269,6 +281,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email
                "file_delete", "file_move",
                # reads the open web and writes into her workspace: both PC
                "apply_prepare", "apply_campaign", "web_task", "web_task_retry",
+               "subscription_cancel",
                "computer_observe",
                # ffmpeg and his media files live on the PC
                "media_probe", "media_trim", "media_join", "media_audio",
@@ -661,6 +674,17 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         record = webtask.run(cmd["goal"], start_url=cmd.get("url", ""),
                              budget=int(cmd.get("budget", 16)))
         return webtask.spoken(record)
+    if kind == "subscription_cancel":
+        from aletheia import subscriptions, webtask
+        if cmd.get("url"):
+            subscriptions.set_url(cmd["subscription"], cmd["url"])
+        row = subscriptions.start_cancellation(cmd["subscription"])
+        if row.get("blocked_on"):
+            return row["blocked_on"]
+        try:
+            return webtask.spoken(webtask.load_run(row["web_task"]))
+        except Exception:
+            return f"{row['merchant']}: {row.get('cancel_state', 'started')}"
     if kind == "web_task_retry":
         # The site refused it. "Try that again" now means something: she
         # reads what it said, fixes it, and brings him a NEW confirmation.
