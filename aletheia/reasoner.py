@@ -39,7 +39,7 @@ def review_model(proposal_model: str) -> str:
     """
     candidate = REVIEW_MODEL.strip()
     return candidate if candidate and candidate != proposal_model else proposal_model
-TIMEOUT_S = 90.0
+TIMEOUT_S = 180.0   # matches reasoning_gateway.STANDARD_TOTAL_TIMEOUT_S (2026-09-04)
 MAX_OUTPUT_BYTES = 256 * 1024
 MAX_CONTEXT_BYTES = 8 * 1024
 CLI = "claude"

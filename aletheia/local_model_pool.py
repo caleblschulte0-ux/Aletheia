@@ -135,6 +135,48 @@ def auto_json(system_prompt: str, text: str, *, context: dict | None = None,
             raise LocalPoolUnavailable("both local reasoning roles are unavailable") from None
 
 
+# Reachability, cached: the answer changes when he starts or stops
+# Ollama, not between two asks a second apart. A refusal is remembered too,
+# so a dead daemon costs one 1.5 s probe a minute, not a 15 s timeout per
+# ask (2026-09-04: every routine ask waited on a configured-but-stopped
+# Ollama before the subscription got its turn, and a long plan lost the
+# subscription's 45 s slice entirely).
+REACH_CACHE_S = 60.0
+REACH_TIMEOUT_S = 1.5
+_REACH: dict[str, Any] = {"at": 0.0, "ok": False}
+
+
+def reachable(*, now: float | None = None, probe=None) -> bool:
+    """Is an Ollama actually answering at the configured address right now
+    (within the last REACH_CACHE_S)? Never raises."""
+    import time
+    import urllib.request
+    now = time.monotonic() if now is None else now
+    if now - _REACH["at"] < REACH_CACHE_S:
+        return bool(_REACH["ok"])
+    ok = False
+    try:
+        base = local_brain.DEFAULT_BASE_URL
+        try:
+            base = local_brain.base_url()          # honours any configured address
+        except Exception:
+            pass
+        if probe is not None:
+            ok = bool(probe(base))
+        else:
+            with urllib.request.urlopen(f"{base.rstrip('/')}/api/tags",
+                                        timeout=REACH_TIMEOUT_S) as resp:
+                ok = 200 <= int(getattr(resp, "status", 200) or 200) < 300
+    except Exception:
+        ok = False
+    _REACH.update({"at": now, "ok": ok})
+    return ok
+
+
+def forget_reachability() -> None:
+    _REACH.update({"at": 0.0, "ok": False})
+
+
 def smoke() -> dict[str, Any]:
     """Prove the required fast route responds and both configured tags exist."""
     results = {}

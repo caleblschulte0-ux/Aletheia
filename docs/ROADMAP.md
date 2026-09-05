@@ -339,6 +339,70 @@ a build larger than one session, and none should be forgotten:
 
 Registry revision 48.
 
+### The night before first real use (2026-09-04)
+
+The operator: *"I'm probably gonna use Aletheia for real for the first
+time tonight. Find any potential blockers that would stop it from doing
+anything I asked it to do except spend money — every little thing."* And,
+mid-audit: *"don't hard code that this needs to be able to take anything,
+any rant, and make actionable plans and have the ability to execute all
+the way through."* Twenty realistic asks compiled through the planner,
+six run live through the real front doors, one rant-shaped ask, and every
+surface he might use tonight checked live. Fixed, each with tests:
+
+- **Real-world search did not work.** Every engine the headless browser
+  visited answered a challenge or an unrendered shell; "how much is a 2019
+  Civic worth" was answered from Wikipedia articles about the Accord. One
+  plain HTTP request to Bing's RSS endpoint (then DuckDuckGo's HTML)
+  returns real sources; the driven engines are the fallback now. Live:
+  KBB, Edmunds, CarMax.
+- **Room voice was answered 401** since the loopback-write fix: the room
+  listener never sent the local secret. It does; the stale listener
+  process was relaunched onto the fixed code.
+- **"What did I ask you to do yesterday?"** was not recognised as a
+  question about her past; then a keyword search with no keyword; then a
+  48-hour window truncated to today's tail; then grouped by a key that was
+  not a date. Span questions get rows per local calendar day, oldest first,
+  his own asks included. Live: she named the days correctly.
+- **"Summarize the resume in my workspace"** attached nothing because no
+  filename was spoken; kind-words (resume, cover letter) resolve to the
+  newest matching workspace file. His resume (docx and PDF) is staged in
+  the workspace and she reads both.
+- **A question got a file.** The planner wrote "summary.md" for
+  "summarize my resume"; a question gets an answer unless he asks for a
+  file.
+- **"Play some music" became a sandboxed program** that can play nothing.
+  A program is offered only for read/low-risk computations now;
+  `media.play` is registered NOT_BUILT with its ticket (Spotify is on the
+  PC; the hands can drive it).
+- **A rant-shaped ask timed out.** A planner call carries a 15 KB grammar
+  and a 5 KB situational context; the real call took 81 s on this PC and
+  the brain's budget was 90 s split with a local model that could not have
+  answered in its share anyway. Budget 180 s, subscription gets all but the
+  last 15 s, and a configured-but-stopped Ollama is detected in 1.5 s
+  (cached a minute) instead of costing every routine ask a 15 s wait.
+  Live: the rant became a five-step plan that used his home town.
+- **She was told where he lives**, from his own resume, with provenance,
+  marked inferred — and that finding surfaced that the memory directory
+  was TRACKED in a public repository. Memory moved to private state.
+- **The phone check reported BROKEN** for lacking a certificate the
+  working topology (tailscale serve → loopback Core) does not use; it
+  recognises that topology. `access.remote`, `interface.phone` and
+  `converse.answer` promoted on live evidence.
+- **The job-application branch merged** (jobs.search, application.campaign,
+  application.submit, form.fill_plan, profile.answers): "find N jobs and
+  apply" now runs to one confirm per submission instead of stopping at
+  "review each packet". Live: 1,835 openings across 24 boards from this
+  PC. Its ten Windows test failures were a test writing a resume without
+  an encoding; the product's strict UTF-8 read was right.
+
+What still needs him and cannot be built around: a calendar feed with
+his actual schedule (the one connected is empty, so "am I free?" is
+always yes), the people he will name (nobody is in memory yet), and the
+iPhone paired to Phone Link for texting. Everything that acts on the
+world beyond his own workspace — sending, submitting, the desktop — still
+files an approval he taps on the phone, by his own rule.
+
 ## Next five engineering milestones (priority order, per §137)
 
 The five gaps between Aletheia and the thing she is supposed to be were

@@ -24,8 +24,20 @@ from aletheia import (
 POLICIES = {"routine", "standard", "critical"}
 ROUTINE_TOTAL_TIMEOUT_S = 45.0
 ROUTINE_LOCAL_TIMEOUT_S = 15.0
-STANDARD_TOTAL_TIMEOUT_S = 90.0
-STANDARD_SUBSCRIPTION_SLICE_S = 45.0
+# 180, not 90 (2026-09-04): a planner call carries a 15 KB grammar and a
+# 5 KB situational context, and a rant-shaped ask took 81 s on the
+# operator's PC under load — past a 90 s cap split with the local model.
+# The phone and the room already wait up to 300 s for a follow-up; the
+# brain's own ceiling was the thing that gave up first.
+STANDARD_TOTAL_TIMEOUT_S = 180.0
+# The subscription gets almost all of the standard budget. It used to get
+# half (45 s) so a local model could have the other half — but a local deep
+# model that needs more than 15 s to plan a long ask cannot use 45 s
+# either, and a rant-shaped plan the subscription answers in ~26 s was
+# dying at the cap (2026-09-04). Local keeps the last 15 s: enough when
+# the subscription fails FAST (a limit, an auth error), which is the case
+# it exists for.
+STANDARD_SUBSCRIPTION_SLICE_S = STANDARD_TOTAL_TIMEOUT_S - ROUTINE_LOCAL_TIMEOUT_S
 
 
 @dataclass(frozen=True)
@@ -80,7 +92,12 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
     def remaining() -> float:
         return max(0.0, total_budget - (time.monotonic() - started))
 
-    local_enabled = model_pool_config.enabled()
+    # Configured is not running. With Ollama configured but stopped, the
+    # subscription was capped to a 45 s slice "to leave room" for a model
+    # that would never answer, and a long plan for a rant-shaped ask died at
+    # the cap while a direct call took 26 s (2026-09-04, the night before
+    # first real use). Routine asks also waited 15 s on it every time.
+    local_enabled = model_pool_config.enabled() and local_model_pool.reachable()
 
     if policy == "routine":
         local_exc = None
