@@ -25,17 +25,6 @@
 Rule with `python -m aletheia.suggestions list --state new`.
 
 ## Last 24h in the journal
-- `02:13` [decision] approval:web-fill-in-the-job-application-commit: APPROVED
-- `02:13` [action] webtask: pressed 'Submit application' for web-fill-in-the-job-application
-- `02:16` [action] webtask: AWAITING_YOU after 5 step(s): Fill in the job application on this page with my details and attach my resume. For 'why do
-- `02:16` [decision] approval:web-fill-in-the-job-application-commit: APPROVED
-- `02:16` [action] webtask: pressed 'Submit application' for web-fill-in-the-job-application
-- `02:17` [action] webtask: AWAITING_YOU after 3 step(s): Fill in the job application on this page with my details and attach my resume. For 'why do
-- `02:17` [decision] approval:web-fill-in-the-job-application-commit: APPROVED
-- `02:17` [action] webtask: pressed 'Submit application' for web-fill-in-the-job-application
-- `02:19` [action] webtask: AWAITING_YOU after 3 step(s): Fill in the job application on this page with my details and attach my resume. For 'why do
-- `02:19` [decision] approval:web-fill-in-the-job-application-commit: APPROVED
-- `02:19` [action] webtask: pressed 'Submit application' for web-fill-in-the-job-application
 - `04:40` [recovery] repo:aletheia: health red -> green
 
 ---

@@ -217,6 +217,42 @@ class NOTHING_PRIVATE_IS_IN_THE_TRACKED_TREE(unittest.TestCase):
         self.assertEqual(sorted(set(strays)), [],
                          "personal subjects in the public journal")
 
+    def test_no_committed_file_quotes_a_personal_journal_entry(self):
+        """The guard's first version checked the JOURNAL and missed the
+        BRIEF, which renders the last 24 hours of it into a committed
+        markdown file — so "webtask: Fill in the job application on this
+        page with my details" was published while the journal it came
+        from had already been made private."""
+        line = re.compile(r"^- `\d\d:\d\d` \[\w+\] ([\w:.\-]+):", re.M)
+        offenders = []
+        for path in self.tracked():
+            if path.suffix != ".md":
+                continue
+            for subject in line.findall(path.read_text(encoding="utf-8",
+                                                       errors="ignore")):
+                if not journal.is_public_subject(subject):
+                    offenders.append(f"{path}: {subject}")
+        self.assertEqual(sorted(set(offenders)), [])
+
+    def test_the_composer_filters_rather_than_trusting_WHERE_it_runs(self):
+        """`journal.since()` merges every writer including the private
+        one, so a brief composed on his own machine would quote his life
+        into the repository."""
+        from aletheia import brief
+        entries = [
+            {"kind": "action", "subject": "repo:aletheia", "ts": "2026-09-04T01:00:00Z",
+             "text": "health red -> green"},
+            {"kind": "action", "subject": "webtask", "ts": "2026-09-04T01:01:00Z",
+             "text": "applying for a job at Northwind"},
+        ]
+        text = brief.compose({"repos": {}, "generated_at": "2026-09-04T02:00:00Z",
+                              "fleet_revision": 4, "owner": "x", "source": "t",
+                              "transitions": [], "alerts": [], "plans": [],
+                              "tasks": {"live": 0, "by_status": {}, "items": []}},
+                             None, entries, new_suggestions=0)
+        self.assertIn("health red -> green", text)
+        self.assertNotIn("Northwind", text)
+
     def test_the_check_can_actually_see_one(self):
         """A test that cannot fail is a comment."""
         self.assertRegex("- realized P&L -$40.82 · cash $2.50",

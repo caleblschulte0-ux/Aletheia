@@ -126,8 +126,17 @@ def compose(pulse: dict, prev: dict | None, journal_entries: list[dict],
         lines.append("Rule with `python -m aletheia.suggestions list --state new`.")
         lines.append("")
 
+    # THE BRIEF IS A COMMITTED FILE. `journal.since()` merges every writer,
+    # including the private one, so a brief composed on his own machine
+    # would quote his web tasks and applications straight into the
+    # repository — which is exactly what it did: "webtask: AWAITING_YOU …
+    # Fill in the job application on this page with my details" was in
+    # `state/brief/latest.md`, published, while the journal it came from
+    # had already been made private. Filtered HERE rather than trusting
+    # the composer to be running somewhere the private file is absent.
     notable = [e for e in journal_entries
-               if e["kind"] in ("decision", "action", "alert", "recovery")]
+               if e["kind"] in ("decision", "action", "alert", "recovery")
+               and journal.is_public_subject(e.get("subject", ""))]
     if notable:
         lines.append("## Last 24h in the journal")
         for e in notable[-12:]:
