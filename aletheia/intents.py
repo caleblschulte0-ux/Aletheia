@@ -245,9 +245,16 @@ def spoken(record: dict) -> str:
         return record.get("summary") or "Nothing to do."
     parts = []
     if runnable:
+        # Voice may approve only the routine tier (2026-09-03: the room
+        # microphone is an input device, not an authentication device).
+        # Telling him "say approve" for a desktop or world-touching plan sent
+        # him into a refusal; the phone's console and the keyboard are where
+        # those get decided (found 2026-09-04, the night before first use).
+        how = ("Say approve to run it" if record.get("tier") == "routine"
+               else "Approve it on your phone or at the keyboard to run it")
         parts.append(f"{len(runnable)} step{'s' if len(runnable) != 1 else ''} ready — "
                      + ", ".join(s["command"]["kind"] for s in runnable)
-                     + f". Say approve to run it ({record['approval']}).")
+                     + f". {how} ({record['approval']}).")
     if gaps_named:
         parts.append("I can't do "
                      + ", ".join(s["capability"] or "?" for s in gaps_named)

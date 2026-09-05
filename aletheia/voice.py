@@ -106,7 +106,8 @@ def _status_say() -> str:
     pending = s["approvals_pending"]
     if pending:
         parts.append(f"{len(pending)} approval{'s' if len(pending) != 1 else ''} "
-                     "waiting on you — say approve to grant the first one.")
+                     "waiting on you — approve them on your phone; the routine "
+                     "ones I can take by voice.")
     if not s["halted"] and not alerts and not pending:
         parts.append("All quiet.")
     return " ".join(parts)
@@ -531,7 +532,8 @@ def _offer_choice(pending: list[dict]) -> str:
     more = "" if len(pending) <= 4 else f", and {len(pending) - 4} more"
     return (f"{speech.count_phrase(len(pending), 'thing')} waiting: "
             + speech.and_list(labels) + more
-            + ". Which one — say approve the first, or name it.")
+            + ". Which one — name it; routine ones I can approve by voice, "
+              "the rest you approve on your phone.")
 
 
 def spoken_reply(kind: str, outcome: str, detail: str) -> str:

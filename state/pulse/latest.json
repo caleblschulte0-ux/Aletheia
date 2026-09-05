@@ -425,26 +425,50 @@
     ]
   },
   "now": {
-    "generated_at": "2026-09-05T00:18:26Z",
+    "generated_at": "2026-09-05T00:23:00Z",
     "halted": false,
-    "heartbeat_age_s": 0.0,
+    "heartbeat_age_s": 2.0,
     "waiting_on_you": [],
     "waiting_count": 0,
     "notifications": [
       {
-        "title": "Application sent",
+        "title": "Aletheia finished thinking",
         "priority": "IMPORTANT",
-        "at": "2026-09-05T00:16:03Z"
+        "at": "2026-09-05T00:21:02Z"
       },
       {
-        "title": "An application could not be sent",
+        "title": "Looked into: How much is a 2019 Honda Civic with 60,000 miles worth right now?",
+        "priority": "NORMAL",
+        "at": "2026-09-04T23:37:00Z"
+      },
+      {
+        "title": "Did: Look up how much a 2019 Honda Civic with 60k miles is worth",
+        "priority": "NORMAL",
+        "at": "2026-09-04T23:37:00Z"
+      },
+      {
+        "title": "Did: Check my email and tell me if anything needs a reply",
+        "priority": "NORMAL",
+        "at": "2026-09-04T23:35:32Z"
+      },
+      {
+        "title": "Reminder",
         "priority": "IMPORTANT",
-        "at": "2026-09-05T00:16:02Z"
+        "at": "2026-09-03T15:11:15Z"
       }
     ],
     "meetings": [],
-    "working": [],
+    "working": [
+      {
+        "what": "plan waiting on you",
+        "detail": "Answering directly: highlighting Aletheia capabilities beyond a normal chat AI ("
+      },
+      {
+        "what": "plan waiting on you",
+        "detail": "Open Notepad and type 'hello there'"
+      }
+    ],
     "next_appointment": null,
-    "headline": "Application sent"
+    "headline": "Aletheia finished thinking"
   }
 }
