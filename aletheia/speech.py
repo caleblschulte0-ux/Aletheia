@@ -40,7 +40,16 @@ import datetime as dt
 import re
 
 # state/private ids: mail-a1e1957d0f, intent-0a06bbb663, errand-…, remind-…
-ID_TOKEN = re.compile(r"\b([a-z][a-z0-9]*-[0-9a-f]{6,})\b")
+ID_TOKEN = re.compile(
+    r"\b([a-z][a-z0-9]*-[0-9a-f]{6,})\b"
+    # `browser.interact:193cc7235619…` — a content-bound approval names
+    # itself with a sha256, and this only knew about the HYPHENATED shape,
+    # so the wall's headline read "4 decisions waiting:
+    # browser.interact:193cc723561941c0…". Found 2026-09-05 while making
+    # the same sentence answerable without a model call.
+    r"|\b([a-z][a-z0-9_.]*:[0-9a-f]{8,})\b"
+    # and a bare digest on its own
+    r"|\b([0-9a-f]{16,})\b")
 # slugs used as task/plan ids: water-the-plants, light-up-the-wall-s2
 SLUG_TOKEN = re.compile(r"\b([a-z0-9]+(?:-[a-z0-9]+){1,6})\b")
 ISO_TIME = re.compile(
@@ -189,3 +198,34 @@ def and_list(items: list[str]) -> str:
 def count_phrase(count: int, singular: str, plural: str | None = None) -> str:
     plural = plural or singular + "s"
     return f"{count} {singular if count == 1 else plural}"
+
+
+# ---------------------------------------------------------------- acknowledging
+# A person who is thinking says so. Aletheia did not: an ordinary ask went
+# quiet for the whole round trip — measured 2026-09-05 at ~3.6s minimum for
+# a `claude -p` call, and much longer for anything with real steps in it —
+# and silence from something that is supposed to be listening is
+# indistinguishable from silence from something that is broken. He said it
+# exactly: "even if it's just telling me that you have to think a little
+# harder."
+#
+# `quick` removed the wait for the sentences she can answer from a file.
+# This is the other half: for everything else, say something true while she
+# works. Both lines are true no matter how the request ends — she IS
+# looking, she IS working on it — which matters, because the answer that
+# follows may well be "that needs your approval" or "I can't".
+LOOKING_UP = re.compile(
+    r"^(?:what|who|when|where|why|how|which|is|are|was|were|do|does|did|"
+    r"can|could|should|will|would|have|has|any|tell me|show me|remind me "
+    r"what)\b")
+ACK_QUESTION = "Let me look."
+ACK_ACTION = "Working on it."
+ACK_STILL = "Still on it — I'll tell you when it's done."
+
+
+def ack_line(command: str) -> str:
+    """What to say while she thinks. Deterministic, no model, no latency."""
+    text = " ".join(str(command or "").split()).casefold()
+    if not text:
+        return ACK_ACTION
+    return ACK_QUESTION if LOOKING_UP.match(text) else ACK_ACTION

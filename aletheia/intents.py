@@ -29,7 +29,7 @@ import json
 import sys
 import threading
 
-from aletheia import intercom, journal, planner, policy, stateio
+from aletheia import intercom, journal, planner, policy, quick, stateio
 from aletheia.fleet import load_fleet
 
 ACTOR = "aletheia-intent"
@@ -112,6 +112,23 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
     from aletheia import work_direct
     if work_direct.is_direct(request):
         return work_direct.execute(request, quote=quote)
+
+    # AN ANSWER SHE ALREADY HAS COSTS A FILE READ. Measured 2026-09-05: a
+    # `claude -p` round trip is ~3.6s whether the answer is one word or
+    # nine thousand characters, and "are you halted?" was paying it TWICE
+    # — once for the planner to decide it was a question, once for
+    # `converse` to answer it. Seven seconds for a boolean on the same
+    # disk. `quick` reads the same stores the wall does and returns None
+    # for anything it is not certain about, so this only ever removes
+    # latency; it can never remove an answer.
+    fast = quick.answer(request)
+    if fast:
+        return {"id": f"intent-quick-{hashlib.sha256(request.encode()).hexdigest()[:8]}",
+                "state": RETIRED, "request": request,
+                "operator_quote": quote or request,
+                "summary": fast, "intent": "answer", "spoken": fast,
+                "read_only": True, "fast_path": True, "steps": [],
+                "proposed_at": stateio.utcnow()}
 
     fleet = fleet if fleet is not None else load_fleet()
     plan = planner.compile(request, fleet=fleet, **compile_kw)

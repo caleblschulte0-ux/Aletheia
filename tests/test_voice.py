@@ -214,6 +214,30 @@ class VoiceEndpointCase(unittest.TestCase):
         self.assertIn(slot["state"], (followups.READY, followups.FAILED))
         self.assertTrue(slot["say"])
 
+    def test_a_question_she_can_answer_never_becomes_a_followup(self):
+        """The fast lane has to reach the ROOM, not just `intents.propose`.
+
+        `intent` is in SLOW_KINDS, so before this every "are you halted?"
+        came back as "Working on that." plus a followup id — the room said
+        one sentence, polled, and said the real answer a moment later. Two
+        spoken lines and a round trip for a boolean sitting in a file on
+        the same disk.
+        """
+        started = time.monotonic()
+        res = self.post_voice("Thea, are you halted?")
+        elapsed = time.monotonic() - started
+        self.assertEqual(res["outcome"], "answered")
+        self.assertNotIn("followup_id", res,
+                         "a stored answer must not be delivered by polling")
+        self.assertTrue(res["say"].startswith(("No, I'm running", "Yes, I'm halted")))
+        self.assertLess(elapsed, 1.0, "a file read should not take a second")
+
+    def test_real_work_still_goes_to_the_planner(self):
+        """The shortcut may only ever remove latency, never an answer."""
+        res = self.post_voice("Thea, make me a sandwich")
+        self.assertEqual(res["outcome"], "thinking")
+        self.assertTrue(res["followup_id"])
+
     def test_voice_pages_carry_the_ears(self):
         from aletheia.fleet import REPO_ROOT
         for page in ("index.html", "command.html"):

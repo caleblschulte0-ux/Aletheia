@@ -87,9 +87,16 @@ class IntentCase(unittest.TestCase):
         # turns it into "report current operational status", and that filed a
         # durable intent AND an operator_always approval. Eight accumulated
         # in a day.
+        #
+        # The sentence here is deliberately one `aletheia.quick` does NOT
+        # claim. "What is going on" is now answered from her own stores
+        # without a plan at all, which is a stronger version of the same
+        # guarantee — and would have quietly stopped this test exercising
+        # the read-only PLAN path it was written for.
         seen = []
+        asked = "tell me the current operational status"
         record = intents.propose(
-            "what is going on", quote="what is going on", fleet=FLEET,
+            asked, quote=asked, fleet=FLEET,
             materialize=False, registry=REGISTRY,
             provider=provider({"intent": "plan", "summary": "report status",
                                "steps": [{"kind": "notify_check"}]}))

@@ -451,6 +451,14 @@ def approval_label(approval: dict) -> str:
         return speech.tidy(speech.strip_ids(action)) or "the errand"
     if capability == "agent.delegate" or action.startswith("delegate"):
         return "the work order"
+    # THE REASON FIRST. `requested_action` is a digest for anything
+    # content-bound, and a wall that says "browser.interact:193cc7235…" is
+    # asking him to recognise a hash. The reason is a sentence somebody
+    # wrote for him to read — the same correction the phone got on
+    # 2026-09-04, in the surface that shows it across a room.
+    reason = speech.tidy(speech.strip_ids(str(approval.get("reason", ""))))
+    if reason:
+        return reason[:80]
     return speech.tidy(speech.strip_ids(action))[:60] or "the pending one"
 
 

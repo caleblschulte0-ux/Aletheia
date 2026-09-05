@@ -30,7 +30,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-from aletheia import voice_quality
+from aletheia import speech, voice_quality
 from aletheia.proc import run as proc_run
 from aletheia.voice import WAKE_WORDS
 
@@ -59,6 +59,24 @@ FOLLOWUP_FAILURE = "I couldn't finish that answer. Please ask me again."
 BARE_WAKE_WINDOW_S = 8.0
 OUTPUT_TAIL_S = 0.55
 REPEAT_FAILURE_WINDOW_S = 20.0
+# How long she may be silent before saying she is thinking. Deliberately
+# measured rather than guessed: the acknowledgement fires because the reply
+# IS late, not because a classifier decided the request looked hard. So a
+# question `quick` answers from a file (~10ms) is never preceded by "let me
+# look", and nothing has to know in advance which asks are slow.
+ACK_AFTER_S = 1.2
+STILL_AFTER_S = 12.0
+# How often the waiter re-checks. Small enough that the acknowledgement
+# lands on time, large enough to cost nothing.
+ACK_WAIT_TICK_S = 0.1
+# The three lines that only ever mean "still working". The room says one
+# when the Core is slow to answer AND the Core sends one back when it hands
+# the work to a followup — so both can land, and "Let me look. Let me look."
+# is exactly how a thing sounds when it is stuck. Only these are
+# de-duplicated: a real ANSWER repeated is him asking twice and deserving
+# an answer twice.
+ACK_LINES = frozenset({speech.ACK_QUESTION, speech.ACK_ACTION, speech.ACK_STILL})
+REPEAT_ACK_WINDOW_S = 30.0
 
 _OUTPUT_ACTIVE = threading.Event()
 _OUTPUT_LOCK = threading.Lock()
@@ -415,6 +433,54 @@ def _is_failure_line(text: str) -> bool:
     return low.startswith(("i couldn't", "i could not", "i can't", "that failed", "couldn't"))
 
 
+def _ask_with_acknowledgement(command: str, core_url: str, say,
+                              monotonic=time.monotonic) -> dict:
+    """Ask the Core, and say she is thinking if it takes a human moment.
+
+    He described the missing thing precisely: "if I give you an answer, like,
+    right away, you're doing stuff — even if it's just telling me that you
+    have to think a little harder." Silence from something that is supposed
+    to be listening is indistinguishable from silence from something that is
+    broken, and every ask paid at least one ~3.6s model round trip.
+
+    The trigger is ELAPSED TIME, not a guess about the sentence. A request
+    the fast lane answers out of a file comes back in milliseconds and
+    nothing is said; one that is genuinely thinking says so; one still going
+    twelve seconds later says that too. There is no classifier to be wrong,
+    and no case where she claims to be working on something she is not.
+
+    A failure inside the acknowledgement must never cost him the answer, so
+    the ask runs to completion regardless.
+    """
+    result: dict = {}
+    done = threading.Event()
+
+    def work():
+        try:
+            result.update(ask_core(f"thea {command}", core_url))
+        except Exception as exc:
+            result.update({"say": f"I couldn't reach my Core: {type(exc).__name__}",
+                           "followup_id": None})
+        finally:
+            done.set()
+
+    worker = threading.Thread(target=work, daemon=True)
+    worker.start()
+    started = monotonic()
+    said_ack = said_still = False
+    while not done.wait(ACK_WAIT_TICK_S):
+        waited = monotonic() - started
+        # Each line at most once. A voice that narrates its own waiting
+        # every twelve seconds is worse than one that waits quietly.
+        if not said_ack and waited >= ACK_AFTER_S:
+            said_ack = True
+            say(speech.ack_line(command))
+        elif said_ack and not said_still and waited >= STILL_AFTER_S:
+            said_still = True
+            say(speech.ACK_STILL)
+    return result or {"say": "done", "followup_id": None}
+
+
 def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
                    max_utterances: int | None = None, on_heard=None,
                    monotonic=time.monotonic) -> int:
@@ -436,12 +502,14 @@ def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
     awaiting_since: float | None = None
     last_failure = ""
     last_failure_at = -1e9
+    last_line = ""
+    last_line_at = -1e9
     last_announced = -1e9
     followup_threads: list[threading.Thread] = []
     say_lock = threading.Lock()
 
     def say(line: str | None) -> None:
-        nonlocal last_failure, last_failure_at
+        nonlocal last_failure, last_failure_at, last_line, last_line_at
         with say_lock:
             if not line:
                 return
@@ -450,7 +518,11 @@ def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
             if (_is_failure_line(normalized) and normalized == last_failure
                     and now - last_failure_at < REPEAT_FAILURE_WINDOW_S):
                 return
+            if (normalized in ACK_LINES and normalized == last_line
+                    and now - last_line_at < REPEAT_ACK_WINDOW_S):
+                return
             speaker(normalized)
+            last_line, last_line_at = normalized, now
             if _is_failure_line(normalized):
                 last_failure, last_failure_at = normalized, now
 
@@ -512,13 +584,10 @@ def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
                 awaiting_since = monotonic()
                 continue
 
-        try:
-            answer = ask_core(f"thea {command}", core_url)
-            reply = answer["say"]
-            followup_id = answer.get("followup_id")
-        except Exception as exc:
-            reply = f"I couldn't reach my Core: {type(exc).__name__}"
-            followup_id = None
+        answer = _ask_with_acknowledgement(command, core_url, say,
+                                           monotonic=monotonic)
+        reply = answer["say"]
+        followup_id = answer.get("followup_id")
         say(reply)
         if followup_id:
             followup_threads = [t for t in followup_threads if t.is_alive()]

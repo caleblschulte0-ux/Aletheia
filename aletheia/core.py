@@ -71,6 +71,7 @@ from urllib.parse import parse_qs, urlparse
 from aletheia import access, act, capabilities, computer, followups, intercom, journal
 from aletheia import closed, liveness, policy, tasks
 from aletheia import current_state, events, notifications, runtime, scheduler
+from aletheia import speech
 from aletheia.fleet import REPO_ROOT, load_fleet
 from aletheia.pulse import PULSE_DIR
 from aletheia.sync import GitSync
@@ -157,6 +158,32 @@ RESTART_EXIT_CODE = 42  # tells the supervisor: relaunch me, this is not a crash
 # request to the hub, a PowerShell probe — so it belongs here too. Measured
 # live: 20.9s. The room gets an acknowledgement and the answer when it lands.
 SLOW_KINDS = {"intent", "screen_ask", "setup_status"}
+
+
+def answered_now(cmd: dict) -> str | None:
+    """An `intent` she can answer out of her own stores, answered here.
+
+    `intent` is in SLOW_KINDS because reasoning takes ten to thirty
+    seconds. Since `aletheia.quick`, some intents are a file read — and
+    routing those through the followup path is actively worse than the
+    problem it solves: the room hears "Working on that.", polls, and gets
+    the real answer a tenth of a second later. Two spoken lines and a
+    round trip for something that was already done.
+
+    So the followup path is for what is actually slow. This returns the
+    sentence when there is one and None otherwise, and asking `quick` for
+    the ANSWER rather than for a pattern match is deliberate: "can you fly
+    a helicopter" matches the shape and has no stored answer, and running
+    that inline would block the room on the planner for the whole round
+    trip. Never raises.
+    """
+    if cmd.get("kind") != "intent":
+        return None
+    try:
+        from aletheia import quick
+        return quick.answer(str(cmd.get("text") or ""))
+    except Exception:
+        return None
 
 
 def stale_code_files(started_at: float | None = None,
@@ -660,6 +687,18 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"outcome": "invalid", "detail": detail}, code=400)
             fleet = self.fleet
             asked = text.strip()[:8000]
+            # The typed surface gets the same fast lane as the room: a
+            # question she can answer from her own stores should not come
+            # back as "Working on that." and a poll.
+            fast = answered_now({"kind": "intent", "text": asked})
+            if fast:
+                try:
+                    journal.append("event", "quick", f"answered from her own "
+                                   f"stores: {asked[:120]}", actor="aletheia-core")
+                except Exception:
+                    pass
+                return self._json({"outcome": "answered", "say": fast,
+                                   "detail": fast})
             try:
                 slot = followups.start(
                     lambda: run_command(
@@ -667,7 +706,11 @@ class Handler(BaseHTTPRequestHandler):
                          "operator_quote":
                              f"typed into the command center: {asked[:200]}"},
                         fleet)["detail"],
-                    acknowledgement="Working on that.", durable=True)
+                    # The same line the room says while she thinks, chosen
+                    # by the shape of what he asked: "let me look" for a
+                    # question, "working on it" for an instruction. Both
+                    # stay true whatever the answer turns out to be.
+                    acknowledgement=speech.ack_line(asked), durable=True)
             except Exception as exc:
                 try:
                     journal.append("alert", "followup",
@@ -716,6 +759,15 @@ class Handler(BaseHTTPRequestHandler):
             cmd = dict(intent["command"])
             kind = cmd.get("kind")
             quote = f"spoken to the wall: {transcript[:200]}"
+            fast = answered_now(cmd)
+            if fast:
+                try:
+                    journal.append("event", "quick", f"answered from her own "
+                                   f"stores: {transcript[:120]}",
+                                   actor="aletheia-core")
+                except Exception:
+                    pass
+                return self._json({"outcome": "answered", "say": fast})
             if kind in SLOW_KINDS:
                 # Reasoning takes ten to thirty seconds; a person in a room
                 # waits about two. Answer now, think in the background, and
@@ -725,7 +777,8 @@ class Handler(BaseHTTPRequestHandler):
                     slot = followups.start(
                         lambda: run_command(
                             {**cmd, "operator_quote": quote}, fleet)["detail"],
-                        acknowledgement="Working on that.", durable=True)
+                        acknowledgement=speech.ack_line(
+                            cmd.get("text") or transcript), durable=True)
                 except Exception as exc:
                     try:
                         journal.append(

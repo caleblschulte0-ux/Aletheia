@@ -189,6 +189,41 @@ proof of priority — a thing asked once in anger may matter more than a
 thing asked weekly out of habit. Read it, then decide. His words live in
 private state and are never committed.
 
+## Speed is a feature, and the cost is the round trip
+
+Measured 2026-09-05 on the operator's own subscription: a `claude -p`
+call costs **~3.6 seconds** whether the answer is one word or nine
+thousand characters. Haiku is not faster than Sonnet. The CLI binary
+starts in 0.01s. The cost is the ROUND TRIP, not local compute — so a
+faster computer buys nothing here, and the only way to be fast is to not
+make the call.
+
+Two things hold that, and they are separate on purpose:
+
+- **`aletheia/quick.py` answers what she already knows, from her stores,
+  with no model at all.** "Are you halted?" used to pay the round trip
+  TWICE — once for the planner to decide it was a question, once for
+  `converse` to answer it. It is wired in front of the planner in
+  `intents.propose` AND in `core.answered_now`, because `intent` is in
+  `SLOW_KINDS`: without the second one, a stored answer still came back
+  as "Working on that." plus a poll. It returns `None` for anything it is
+  not certain about, and that is the whole safety argument — **it may only
+  ever remove latency, never an answer.** Decide on the ANSWER, never on
+  the pattern: "can you fly a helicopter" matches the shape, has no stored
+  answer, and running it inline would block the room on the planner.
+  A "can you...?" it answers with anything but yes still feeds the demand
+  ledger, the way `converse` does; a shortcut that stops feeding it makes
+  the thing he asks for most often look like the thing he stopped asking
+  for.
+- **`speech.ack_line` + the waiter in `voice_room` say she is thinking**
+  when the reply is genuinely late. His words: *"even if it's just telling
+  me that you have to think a little harder."* The trigger is ELAPSED TIME
+  (`ACK_AFTER_S`), never a classifier guessing which asks are slow — so a
+  fast-lane answer is never preceded by "let me look", and there is no case
+  where she claims to be working on something she is not. Both lines stay
+  true whatever the answer turns out to be, because it may well be "that
+  needs your approval".
+
 ## The standing assignment
 
 Every session acts on the playbook rather than re-describing it (§156):
