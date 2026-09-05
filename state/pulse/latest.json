@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-05T10:41:55Z",
+  "generated_at": "2026-09-05T15:18:47Z",
   "fleet_revision": 4,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -10,6 +10,16 @@
       "status": "active",
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
+        {
+          "sha": "5f0a70a0a8d2",
+          "date": "2026-09-05T13:38:05Z",
+          "message": "brief: 2026-09-05"
+        },
+        {
+          "sha": "75c6f29dd849",
+          "date": "2026-09-05T10:42:03Z",
+          "message": "pulse: 2026-09-05T10:42Z"
+        },
         {
           "sha": "85a11ce7584c",
           "date": "2026-09-05T04:36:32Z",
@@ -24,30 +34,20 @@
           "sha": "d0dfbcc70d69",
           "date": "2026-09-05T01:02:27Z",
           "message": "There was no way to close her without killing her"
-        },
-        {
-          "sha": "d35fde6907f9",
-          "date": "2026-09-05T00:09:23Z",
-          "message": "\"core\" as a prefix swallowed a whole namespace"
-        },
-        {
-          "sha": "05be403d5741",
-          "date": "2026-09-05T00:03:08Z",
-          "message": "The brief was quoting the journal I had just made private"
         }
       ],
       "commit": {
-        "sha": "85a11ce7584c",
-        "date": "2026-09-05T04:36:32Z",
-        "message": "pulse: 2026-09-05T04:36Z"
+        "sha": "5f0a70a0a8d2",
+        "date": "2026-09-05T13:38:05Z",
+        "message": "brief: 2026-09-05"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-09-05T10:41:52Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/33961349206"
+          "updated_at": "2026-09-05T15:18:44Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/33974407819"
         },
         "ci.yml": {
           "status": "completed",
@@ -59,7 +59,7 @@
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 12443
+          "bytes": 12201
         }
       },
       "health": "red"
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "aaf4632dc07c",
-          "date": "2026-09-05T09:32:07Z",
-          "message": "exchange: phase A bundle for 20260905 [skip ci]"
+          "sha": "d6fd50c1181e",
+          "date": "2026-09-05T15:11:22Z",
+          "message": "watchdog: chatgpt task verdicts 20260905 [skip ci]"
         },
         {
-          "sha": "e4dd44e857a9",
-          "date": "2026-09-05T09:31:36Z",
-          "message": "daily packages 2026-09-05 (#331)"
+          "sha": "5ec14a9c6f32",
+          "date": "2026-09-05T15:06:29Z",
+          "message": "third: analytics [skip ci]"
         },
         {
-          "sha": "36823ac3f9ad",
-          "date": "2026-09-05T09:00:20Z",
-          "message": "doctor: evidence pack + backlog 2026-09-05 [skip ci]"
+          "sha": "9a33d52a43dd",
+          "date": "2026-09-05T15:06:22Z",
+          "message": "third: update posted log + analytics [skip ci]"
         },
         {
-          "sha": "e9d4e00830e4",
-          "date": "2026-09-05T05:22:20Z",
-          "message": "daily.yml: fail closed when auto-pause state does not persist (#330)"
+          "sha": "abfe67aa56bf",
+          "date": "2026-09-05T15:03:07Z",
+          "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
         },
         {
-          "sha": "0ea4f1e60b5c",
-          "date": "2026-09-05T05:16:32Z",
-          "message": "exchange: phase A bundle for 20260905 [skip ci]"
+          "sha": "3df95787616e",
+          "date": "2026-09-05T14:58:41Z",
+          "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
         }
       ],
       "commit": {
-        "sha": "aaf4632dc07c",
-        "date": "2026-09-05T09:32:07Z",
-        "message": "exchange: phase A bundle for 20260905 [skip ci]"
+        "sha": "d6fd50c1181e",
+        "date": "2026-09-05T15:11:22Z",
+        "message": "watchdog: chatgpt task verdicts 20260905 [skip ci]"
       },
       "vitals": [
         {
@@ -108,11 +108,11 @@
         },
         {
           "label": "explainer posted",
-          "value": 229
+          "value": 231
         },
         {
           "label": "third posted",
-          "value": 428
+          "value": 436
         },
         {
           "label": "curiosity posted",
@@ -129,8 +129,8 @@
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-05T09:32:14Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33958227349"
+          "updated_at": "2026-09-05T13:02:31Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33967700448"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
@@ -147,13 +147,13 @@
         "third.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-04T16:12:34Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33886379773"
+          "updated_at": "2026-09-05T15:06:38Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33970012321"
         },
         "explainer.yml": {
-          "status": "in_progress",
-          "conclusion": null,
-          "updated_at": "2026-09-05T09:31:59Z",
+          "status": "completed",
+          "conclusion": "success",
+          "updated_at": "2026-09-05T11:14:20Z",
           "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33958231406"
         },
         "retro.yml": {
@@ -176,11 +176,11 @@
         },
         "state/explainer_posted_log.json": {
           "exists": true,
-          "bytes": 55985
+          "bytes": 57343
         },
         "state/third_posted_log.json": {
           "exists": true,
-          "bytes": 229246
+          "bytes": 233972
         },
         "state/curiosity_posted_log.json": {
           "exists": true,
@@ -188,7 +188,7 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 492355
+          "bytes": 500681
         },
         "config/channel_registry.json": {
           "exists": true,
