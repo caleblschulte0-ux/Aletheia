@@ -1,0 +1,99 @@
+# Claude review handoff — Jarvis gap staging
+
+This is **non-production ChatGPT-authored code** on
+`chatgpt/jarvis-gap-build-20260830`. Per `CLAUDE.md`, it requires Claude
+line-by-line review before anything is considered for integration.
+
+## Review scope
+
+Review only `staging/jarvis_gap/` and `staging/__init__.py`. The branch should
+contain no production wiring at all.
+
+Files with behavior:
+
+- `mobile_sensors.py` — ephemeral camera/location contracts;
+- `sensor_requests.py` — opaque expiring one-shot request binding;
+- `vision.py` — provider-neutral read-only image reasoning contract;
+- `ollama_vision.py` — concrete loopback-only local VISION backend with no default model;
+- `camera_question.py` — isolated "What is this?" vertical slice;
+- `desktop_context.py` — read-only Windows foreground/clipboard sensor;
+- `visual_fallback.py` — proposal-only screenshot target locator;
+- `texting.py` — exact recipient/body text-message proposal; no sender;
+- `phonelink_messages_probe.py` — read-only privacy-safe Phone Link messaging feasibility probe;
+- `tests/test_staging_gap.py` + `tests/test_texting.py` — hermetic contract tests.
+
+## Invariants Claude should try to break
+
+1. **No production reachability.** Nothing under `aletheia/`, `interface/`,
+   `config/`, `scripts/`, Core routes, intercom kinds, or registries imports or
+   calls this staging package.
+2. **No image persistence.** Camera/screenshot bytes are not written, journaled,
+   serialized in metadata, or exposed by repr.
+3. **No sensor cross-talk.** One request cannot consume another request's camera
+   frame/location; token replay fails after consumption/expiry, and captures
+   outside the request's time window are refused.
+4. **No ambient precise location.** Diagnostic metadata omits lat/lon. Exact
+   coordinates only enter the one reasoning call for a request that asked for
+   location.
+5. **No ambient clipboard disclosure.** Diagnostics hash it. Text reaches a
+   reasoning context only through `include_clipboard=True`.
+6. **VISION cannot act.** Its accepted output is only answer/confidence/basis.
+   The concrete Ollama provider independently re-validates that shape so direct
+   use fails closed too. Visual target output is a proposal with
+   `execution_authority: false`.
+7. **Visual fallback cannot bypass UIA.** There is no connection to
+   `computer.execute`; any future connection must be separately policy-reviewed.
+8. **No new auth surface.** Sensor tickets are request correlation, not remote
+   authentication. Future endpoints must sit behind existing `aletheia.access`.
+9. **No fake iOS notification capability.** The audit explicitly leaves generic
+   cross-app notification reading unbuilt.
+10. **Texting has no send path.** `texting.py` produces an exact hash-bound
+    proposal only. Diagnostics/repr must never include the body or full number,
+    multiple saved numbers require an explicit choice, and an explicit number
+    must already belong to that contact.
+11. **The Phone Link messaging probe cannot read correspondence or act.** It may
+    only `list_windows` / `inspect_controls`, must omit arbitrary labels/contact
+    names/message previews, and must refuse window ambiguity rather than inspect
+    a random process.
+
+## Local staging evidence before handoff
+
+Run from repository root:
+
+```text
+python -m unittest discover -s staging/jarvis_gap/tests -t . -v
+python -m compileall -q staging
+```
+
+ChatGPT's isolated run after the texting/red-team pass: **41 tests passed** plus
+compileall. This is not a substitute for the repository's normal full suite, a
+Windows live test of `WindowsContextBackend`, or a supervised read-only Phone
+Link messaging probe on the operator's machine.
+
+Note: the repository's normal CI currently discovers `tests/`, not this
+`staging/jarvis_gap/tests/` directory. A green PR CI therefore proves production
+regression safety, not these staging contracts; run the command above explicitly
+when reviewing this package.
+
+## Decisions still required before integration
+
+- Which provider(s) advertise `VISION`? A concrete Ollama backend is staged, but
+  no model is selected by default and no current fast/deep text model is presumed
+  multimodal. Prefer local/subscription-backed options consistent with Playbook
+  §6; do not make one vendor architectural.
+- Is camera a one-question/one-frame interaction only, or may an explicitly
+  started session stream several frames? This staging code intentionally chooses
+  the smaller one-shot authority surface.
+- Which remote-access scope is allowed to upload sensor data? Existing `read`
+  and `full` may be too broad; if a `sensor` scope is proposed, review it as an
+  auth-policy change rather than sneaking it in with camera wiring.
+- Does the real Phone Link/iPhone pairing expose a stable enough messaging UIA
+  surface to justify a provider? Do not design a sender until the read-only probe
+  answers that on Windows. Any eventual send remains world-touching and needs an
+  exact recipient/body approval + post-send verification.
+- How should current browser tab / selected file be resolved without fragile
+  title parsing? Keep those gaps named until a real provider exists.
+
+Do not merge the staging directory as a feature merely because tests are green.
+First ratify the contracts, then port the approved pieces into production in
+small vertical slices with registry truth and live evidence.
