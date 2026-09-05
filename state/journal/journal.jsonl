@@ -49,9 +49,6 @@
 {"ts": "2026-08-26T11:23:18Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-08-26"}
 {"ts": "2026-08-26T12:44:18Z", "kind": "task", "actor": "aletheia", "subject": "task:email-vertical-slice", "text": "QUEUED -> COMPLETED — Built: aletheia/mail.py - draft/approve/send/verify with approval bound to sha256 of exact content, sent exactly once, unknown recipient refused, drafts gitignored (public repo). 15 tests. NEEDS_CONFIGURATION: mail credentials on the PC."}
 {"ts": "2026-08-27T09:56:21Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:schwab_trader", "text": "health red -> green"}
-{"ts": "2026-08-27T14:51:55Z", "kind": "action", "actor": "operator-local-core", "subject": "core:notify_check", "text": "done — 2 notifications. Mail polling failed: TimeoutError: The read operation timed out — Mail polling failed: abort: socket error: EOF occurred in violation of protocol (_ssl.c:2427)"}
-{"ts": "2026-08-27T14:52:07Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — Do you want me to pull together your open tasks/notifications/email for a priority list, or do you already have specific items in mind you want ranked?"}
-{"ts": "2026-08-27T21:43:34Z", "kind": "event", "actor": "claude-session", "subject": "core:runtime:mail", "text": "stale failure notifications acknowledged after a verified live IMAP connect; test debris from before the suite was isolated removed"}
 {"ts": "2026-08-27T22:19:11Z", "kind": "alert", "actor": "aletheia", "subject": "repo:aletheia", "text": "health green -> red"}
 {"ts": "2026-08-27T22:19:12Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue updated — Aletheia, Shorts-pipeline"}
 {"ts": "2026-08-28T21:18:42Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-08-28"}
@@ -75,7 +72,6 @@
 {"ts": "2026-09-02T14:53:10Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-09-02"}
 {"ts": "2026-09-03T04:38:44Z", "kind": "alert", "actor": "aletheia", "subject": "repo:aletheia", "text": "health green -> red"}
 {"ts": "2026-09-03T04:38:46Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue updated — Aletheia, Shorts-pipeline"}
-{"ts": "2026-09-03T12:46:53Z", "kind": "action", "actor": "operator-local-core", "subject": "core:note", "text": "done — journaled"}
 {"ts": "2026-09-03T14:50:05Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-09-03"}
 {"ts": "2026-09-03T22:21:30Z", "kind": "task", "actor": "aletheia", "subject": "task:apply-senior-backend-engineer-foundr-20260903", "text": "created — Apply: Senior Backend Engineer — Foundry 0 — https://jobs.example.com/0"}
 {"ts": "2026-09-03T22:22:46Z", "kind": "task", "actor": "aletheia", "subject": "task:apply-senior-backend-engineer-fo-f4dd2c", "text": "created — Apply: Senior Backend Engineer — Foundry 0 — https://jobs.example.com/0"}

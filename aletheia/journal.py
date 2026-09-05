@@ -87,15 +87,26 @@ def use_pc_journal() -> Path:
 #
 # So the destination follows the ENTRY. A web task is personal whether it
 # came from the Core or from a terminal.
+# Matched on the WHOLE subject, or on a prefix that is fleet-scoped by
+# construction (`repo:<id>`, `plan:<slug>`, `task:<id>`).
+#
+# `core` was in here as a bare prefix and that was too broad: it also
+# admitted `core:intent` ("1 step ready — subscriptions") and
+# `core:runtime:mail`, which are the Core doing HIS work rather than the
+# Core reporting on itself. A prefix that swallows a whole namespace is
+# how an allowlist stops being one.
 PUBLIC_SUBJECTS = frozenset({
-    "fleet", "repo", "sentinel", "plan", "task", "brief", "pulse", "core",
-    "suggestion", "doctor",
+    "fleet", "sentinel", "brief", "pulse", "doctor", "suggestion",
+    "core", "core:liveness", "core:autostart", "core:update",
 })
+PUBLIC_PREFIXES = ("repo:", "plan:", "task:")
 
 
 def is_public_subject(subject: str) -> bool:
     """Fleet telemetry is the fleet's business. Everything else is his."""
-    return str(subject or "").split(":", 1)[0].strip() in PUBLIC_SUBJECTS
+    subject = str(subject or "").strip()
+    return (subject in PUBLIC_SUBJECTS
+            or subject.startswith(PUBLIC_PREFIXES))
 
 
 def _destination(subject: str, path: Path) -> Path:
