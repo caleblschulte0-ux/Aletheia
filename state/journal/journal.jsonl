@@ -85,3 +85,4 @@
 {"ts": "2026-09-04T16:26:38Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue updated — Aletheia, Shorts-pipeline"}
 {"ts": "2026-09-04T20:49:13Z", "kind": "alert", "actor": "aletheia", "subject": "repo:schwab_trader", "text": "health green -> red"}
 {"ts": "2026-09-04T20:49:15Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue updated — Aletheia, Shorts-pipeline, schwab-trader"}
+{"ts": "2026-09-05T04:36:30Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:schwab_trader", "text": "health red -> green"}

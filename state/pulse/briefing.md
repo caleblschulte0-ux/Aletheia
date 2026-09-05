@@ -1,16 +1,16 @@
 # Fleet briefing
 
-Generated 2026-09-04T20:48:52Z from fleet registry rev 4 via GitHubSource.
+Generated 2026-09-05T04:36:17Z from fleet registry rev 4 via GitHubSource.
 
 ## 🔴 `Aletheia` — hub (active)
 
 The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.
 
-Last commit `d2cc5f88f9d9` at 2026-09-04T18:22:43Z: The journal is committed to a public repo, and it records his own words
+Last commit `504c372b1c64` at 2026-09-05T01:27:22Z: The ledger heard about failures to plan and never failures to do
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-09-04T20:48:49Z
-- `ci.yml`: failure at 2026-09-04T18:26:25Z
+- `pulse.yml`: in_progress at 2026-09-05T04:36:14Z
+- `ci.yml`: failure at 2026-09-05T01:30:58Z
 
 ## 🔴 `Shorts-pipeline` — youtube-automation (active)
 
@@ -27,22 +27,19 @@ Watched workflows:
 - `story_forge.yml`: success at 2026-09-04T19:42:49Z
 - `third.yml`: success at 2026-09-04T16:12:34Z
 - `explainer.yml`: success at 2026-09-04T20:03:11Z
-- `retro.yml`: success at 2026-09-04T04:37:50Z
+- `retro.yml`: success at 2026-09-05T04:33:31Z
 - `doctor.yml`: success at 2026-09-04T09:35:03Z
 
-## 🔴 `schwab-trader` — trading-bot (active)
+## 🟢 `schwab-trader` — trading-bot (active)
 
 Guardrailed paper-trading system. The SELL brain and executor watchdog are active; the subscription-backed BUY brain and trade executor are intentionally paused until the operator resumes them.
 
 Last commit `ca28b767144c` at 2026-09-04T18:37:00Z: sell-brain: update exit decisions [skip ci]
-
 Vitals withheld (5, on his own screen): realized P&L, win rate, closed trades, open positions, cash
 
 Watched workflows:
 - `sell-brain.yml`: success at 2026-09-04T18:37:06Z
-- `watchdog.yml`: success at 2026-09-04T19:07:52Z
-
-**Missing watched state files:** `signals/paper_account.json`
+- `watchdog.yml`: success at 2026-09-04T23:08:06Z
 
 ## 💤 `Money_Machine` — unbuilt (stub)
 
