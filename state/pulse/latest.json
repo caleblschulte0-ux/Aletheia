@@ -425,46 +425,26 @@
     ]
   },
   "now": {
-    "generated_at": "2026-09-05T00:16:10Z",
+    "generated_at": "2026-09-05T00:18:26Z",
     "halted": false,
     "heartbeat_age_s": 0.0,
     "waiting_on_you": [],
     "waiting_count": 0,
     "notifications": [
       {
-        "title": "Aletheia finished thinking",
+        "title": "Application sent",
         "priority": "IMPORTANT",
-        "at": "2026-09-05T00:12:37Z"
+        "at": "2026-09-05T00:16:03Z"
       },
       {
-        "title": "Looked into: How much is a 2019 Honda Civic with 60,000 miles worth right now?",
-        "priority": "NORMAL",
-        "at": "2026-09-04T23:37:00Z"
-      },
-      {
-        "title": "Did: Look up how much a 2019 Honda Civic with 60k miles is worth",
-        "priority": "NORMAL",
-        "at": "2026-09-04T23:37:00Z"
-      },
-      {
-        "title": "Did: Check my email and tell me if anything needs a reply",
-        "priority": "NORMAL",
-        "at": "2026-09-04T23:35:32Z"
-      },
-      {
-        "title": "Reminder",
+        "title": "An application could not be sent",
         "priority": "IMPORTANT",
-        "at": "2026-09-03T15:11:15Z"
+        "at": "2026-09-05T00:16:02Z"
       }
     ],
     "meetings": [],
-    "working": [
-      {
-        "what": "plan waiting on you",
-        "detail": "Answering directly: highlighting Aletheia capabilities beyond a normal chat AI ("
-      }
-    ],
+    "working": [],
     "next_appointment": null,
-    "headline": "Aletheia finished thinking"
+    "headline": "Application sent"
   }
 }

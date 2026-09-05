@@ -369,8 +369,12 @@ def interpret(transcript: str) -> dict:
         url = _spoken_url(m.group(1))
         if url:
             return {"command": {"kind": "browse_read", "url": url}, "say": None}
-        return {"command": None,
-                "say": f"I need a web address to read — I heard {m.group(1)!r}."}
+        # Not a web address. "Open Notepad and type hello" is a desktop ask,
+        # "check the fridge list" is a file ask, "look at my resume" is a
+        # question — every one of them died here as "I need a web address to
+        # read" until 2026-09-04, the night before first real use, because
+        # this verb assumed the web. Anything that is not a URL falls
+        # through to the planner, which knows the hands and the workspace.
 
     m = re.match(r"screenshot\s+(.+)", low)
     if m and _spoken_url(m.group(1)):

@@ -45,10 +45,12 @@ class InterpretCase(unittest.TestCase):
         out = voice.interpret("thea check hacker news dot com")
         self.assertEqual(out["command"]["url"], "https://hackernews.com")
 
-    def test_read_without_a_domain_asks_instead_of_guessing(self):
+    def test_read_without_a_domain_goes_to_the_planner_not_a_dead_end(self):
+        # It used to answer "I need a web address to read" and stop. The
+        # planner knows research, the workspace and the hands; a verb that
+        # is not followed by a URL is its ask (2026-09-04).
         out = voice.interpret("Thea, read the news")
-        self.assertIsNone(out["command"])
-        self.assertIn("web address", out["say"])
+        self.assertEqual(out["command"], {"kind": "intent", "text": "read the news"})
 
     def test_approve_with_exactly_one_pending(self):
         policy.request("ap-1", "do thing", "why", "consequence", True,
@@ -348,3 +350,18 @@ class ReadingTheAnswerDoesNotConsumeIt(unittest.TestCase):
         ack = body.index("await acknowledge(answer.id)")
         self.assertLess(speak, ack, "acknowledging before speaking loses the answer "
                                     "if speech fails")
+
+
+class SpokenOpenIsNotAlwaysTheWebCase(unittest.TestCase):
+    """"open notepad and type hello" died as "I need a web address" until
+    2026-09-04. A spoken 'open' that is not a URL is the planner's."""
+
+    def test_open_an_app_reaches_the_planner(self):
+        out = voice.interpret("Thea, open notepad and type hello there")
+        self.assertIsNotNone(out["command"])
+        self.assertEqual(out["command"]["kind"], "intent")
+        self.assertIn("notepad", out["command"]["text"].lower())
+
+    def test_open_a_web_address_still_browses(self):
+        out = voice.interpret("Thea, open example.com")
+        self.assertEqual(out["command"]["kind"], "browse_read")
