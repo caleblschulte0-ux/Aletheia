@@ -69,7 +69,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from aletheia import access, act, capabilities, computer, followups, intercom, journal
-from aletheia import liveness, policy, tasks
+from aletheia import closed, liveness, policy, tasks
 from aletheia import current_state, events, notifications, runtime, scheduler
 from aletheia.fleet import REPO_ROOT, load_fleet
 from aletheia.pulse import PULSE_DIR
@@ -895,6 +895,20 @@ def main(argv: list[str] | None = None) -> int:
     if not args.no_sync:
         start_sync_loop(load_fleet(), interval_s=args.sync_interval,
                         on_code_update=on_code_update)
+
+    # CLOSING HER, the way a window closes. The only stop she had was
+    # Ctrl+C, and she runs as a hidden scheduled task where nobody can
+    # press it — so the only available stop was terminating the task.
+    # This watches for the marker and shuts the server down the same way
+    # a code update does: finish what is in flight, exit 0, journal it.
+    def watch_for_close():
+        while not restarting.is_set():
+            if closed.is_closed():
+                journal.append("event", "core", "closing — asked to")
+                threading.Thread(target=server.shutdown, daemon=True).start()
+                return
+            time.sleep(CLOSE_POLL_S)
+    threading.Thread(target=watch_for_close, daemon=True).start()
     journal.append("event", "core", f"local Core up on {args.host}:{args.port}")
     print(f"Aletheia Core: http://{args.host}:{args.port}  "
           f"(wall at /, command center at /command.html) — Ctrl+C stops")
@@ -902,6 +916,9 @@ def main(argv: list[str] | None = None) -> int:
         server.serve_forever()
     except KeyboardInterrupt:
         journal.append("event", "core", "local Core stopped")
+        return 0
+    if closed.is_closed():
+        journal.append("event", "core", "closed")
         return 0
     if restarting.is_set():
         if os.environ.get("ALETHEIA_SUPERVISED") == "1":

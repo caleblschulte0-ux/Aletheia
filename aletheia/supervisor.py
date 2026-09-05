@@ -26,7 +26,7 @@ import time
 import urllib.request
 from pathlib import Path
 
-from aletheia import autostart, journal, liveness
+from aletheia import autostart, closed, journal, liveness
 from aletheia.core import DEFAULT_PORT, RESTART_EXIT_CODE
 from aletheia.fleet import REPO_ROOT
 from aletheia.proc import run as proc_run
@@ -88,6 +88,14 @@ def run_forever(core_args: list[str] | None = None, launch=None,
                  "another Aletheia is already serving — this one exits")
         print("Aletheia is already running at http://127.0.0.1:8777/ — nothing to do.")
         return 0
+    # A CLOSED WINDOW STAYS CLOSED. The watchdog trigger fires every five
+    # minutes whatever else is true, so without this check "close her"
+    # would mean "she is gone for up to five minutes" — which is not what
+    # closing something means.
+    if closed.is_closed():
+        _journal("event", "supervisor", "closed — not starting")
+        print("Aletheia is closed. `python -m aletheia.closed open` to change that.")
+        return 0
     cmd = [sys.executable, "-m", "aletheia.core", *(core_args or [])]
     # proc: visible-by-design — the Core INHERITS this console on purpose.
     # Under the hidden logon task the parent is pythonw, so there is no
@@ -119,6 +127,11 @@ def run_forever(core_args: list[str] | None = None, launch=None,
             backoff = min(backoff * 2, BACKOFF_MAX_S)
             continue
         alive_s = time.monotonic() - started
+        if closed.is_closed():
+            # She was asked to close while running. Her exit is the answer,
+            # not a crash to recover from.
+            _journal("event", "supervisor", "closed by operator")
+            return 0
         if code == 0:
             _journal("event", "supervisor", "Core exited cleanly — done")
             return 0
