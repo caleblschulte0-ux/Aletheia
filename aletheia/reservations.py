@@ -150,6 +150,17 @@ def start_booking(reservation_id: str, *, runner=None) -> dict:
     return value
 
 
+def _wanted(value: dict, capability: str) -> None:
+    """He asked for this and did not get it. Counted in his own words."""
+    try:
+        from aletheia import demand
+        demand.record_attempt(capability,
+                              str(value.get("description") or value.get("id") or ""),
+                              "NEEDS_YOU", source="reservations")
+    except Exception:
+        pass
+
+
 def reconcile(*, loader=None) -> list[dict]:
     """CONFIRMED when the provider says so, never when we pressed.
 
@@ -181,6 +192,7 @@ def reconcile(*, loader=None) -> list[dict]:
                 "recorded_at": utcnow()}
             value.pop("blocked_on", None)
         elif state in ("REJECTED", "COMMITTED"):
+            _wanted(value, "reservation.book")
             value["blocked_on"] = (
                 f"I pressed it and {_chosen(value).get('place', 'the site')} "
                 "did not confirm. "

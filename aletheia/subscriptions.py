@@ -148,6 +148,17 @@ def start_cancellation(subscription_id: str, *, runner=None) -> dict:
     return value
 
 
+def _wanted(value: dict, capability: str) -> None:
+    """He asked for this and did not get it. Counted in his own words."""
+    try:
+        from aletheia import demand
+        demand.record_attempt(capability,
+                              str(value.get("merchant") or value.get("id") or ""),
+                              "NEEDS_YOU", source="subscriptions")
+    except Exception:
+        pass
+
+
 def reconcile(*, loader=None) -> list[dict]:
     """Mark it CANCELLED when the SITE says so, never when we pressed.
 
@@ -180,6 +191,7 @@ def reconcile(*, loader=None) -> list[dict]:
                 record.get("result", {}).get("evidence", ""))[:400]
             value.pop("blocked_on", None)
         elif state in ("REJECTED", "COMMITTED"):
+            _wanted(value, "subscription.cancel")
             value["blocked_on"] = (
                 f"I pressed it and {value['merchant']} did not confirm. "
                 + str(record.get("result", {}).get("note", ""))[:200])

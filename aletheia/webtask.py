@@ -1139,6 +1139,15 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
     journal.append("action", "webtask",
                    f"{record['state']} after {len(history)} step(s): {goal[:90]}",
                    actor=ACTOR)
+    # WHAT HE TRIED AND COULD NOT HAVE, in his own words. The ledger only
+    # ever heard about failures to PLAN; a run that went to the site and
+    # stopped at a sign-in wall is a better fact than any guess about what
+    # to build next, because he had already committed to the thing.
+    try:
+        from aletheia import demand
+        demand.record_attempt("web.task", goal, record["state"], source="webtask")
+    except Exception:
+        pass
     return record
 
 

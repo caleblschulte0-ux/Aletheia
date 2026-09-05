@@ -1,5 +1,5 @@
 {
-  "revision": 83,
+  "revision": 84,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1408,9 +1408,9 @@
       "status": "AVAILABLE",
       "risk_class": "read",
       "approval_policy": "none",
-      "caller": "aletheia.intents.propose records every GAP step of a compiled plan; aletheia.converse records a 'can you...?' whose best match is not AVAILABLE; converse.situation() carries the notable ones so she can be asked; python -m aletheia.demand",
+      "caller": "aletheia.intents.propose records every GAP step of a compiled plan; aletheia.converse records a 'can you...?' whose best match is not AVAILABLE; converse.situation() carries the notable ones so she can be asked; python -m aletheia.demand; every doing path records a real attempt that stopped short (aletheia.webtask, apply_run, script, subscriptions, reservations -> demand.record_attempt)",
       "module": "aletheia.demand",
-      "notes": "Rule zero works inside one session and dissolves between them. A gap named on Tuesday and the same gap on Friday were indistinguishable: gaps.materialize files a build task the first time and then quietly does nothing, so a capability asked for eleven times and one mentioned once looked identical on the task list forever. This counts, with HIS OWN WORDS, because 'he asked for this eleven times' is an argument and 'he asked for message.send eleven times' is a statistic. It counts, it does not conclude - frequency is evidence of demand, not proof of priority - and it forgets after 90 days, because an ask from four months ago is history. His words live in private state (gitignored), never the repo. Appended and pruned, not rewritten per ask: the first version was quadratic in how much he asks, which is the wrong direction for a file whose whole point is that he keeps asking."
+      "notes": "Rule zero works inside one session and dissolves between them. A gap named on Tuesday and the same gap on Friday were indistinguishable: gaps.materialize files a build task the first time and then quietly does nothing, so a capability asked for eleven times and one mentioned once looked identical on the task list forever. This counts, with HIS OWN WORDS, because 'he asked for this eleven times' is an argument and 'he asked for message.send eleven times' is a statistic. It counts, it does not conclude - frequency is evidence of demand, not proof of priority - and it forgets after 90 days, because an ask from four months ago is history. His words live in private state (gitignored), never the repo. Appended and pruned, not rewritten per ask: the first version was quadratic in how much he asks, which is the wrong direction for a file whose whole point is that he keeps asking. 2026-09-05: it only ever heard about failures to PLAN — a 'can you…?' with no AVAILABLE match, a compiled plan with a GAP step. It never heard about failures to DO, which is the better signal: 'she has no verb for this' is a guess about what to build, while 'she went to the site, filled the form, and it wanted an account' is a fact about what he could not have, recorded at the moment he had already committed to it. Every doing path reports now, because a ledger one caller feeds and another does not just ranks whichever capability happened to be wired. And it counts WHY as well as how often: 'web.task, eleven times' is a number, 'seven wanted a sign-in and four ran out of steps' is two different things to build and only one of them is a budget."
     },
     {
       "id": "document.compose",

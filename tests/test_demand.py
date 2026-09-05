@@ -160,5 +160,111 @@ class ItRanksAndDoesNotConclude(DemandCase):
                       demand.spoken())
 
 
+class FAILING_TO_DO_IT_COUNTS_TOO(unittest.TestCase):
+    """The ledger only ever heard about failures to PLAN — a "can you…?"
+    with no AVAILABLE match, a compiled plan with a GAP step. It never
+    heard about failures to DO.
+
+    That is the signal that matters most. "She has no verb for this" is a
+    guess about what to build; "she went to the site, filled the form,
+    and it wanted an account" is a fact about what he could not have, and
+    he had already committed to the thing when it failed.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        patch = mock.patch.object(demand, "path",
+                                  lambda: Path(self.tmp.name) / "demand.jsonl")
+        patch.start(); self.addCleanup(patch.stop)
+
+    def test_every_way_a_real_attempt_stops_short(self):
+        for state in ("NEEDS_YOU", "OUT_OF_STEPS", "NEEDS_SIGN_IN",
+                      "NEEDS_YOUR_EYES", "REFUSED"):
+            with self.subTest(state=state):
+                row = demand.record_attempt("web.task", "renew my registration",
+                                            state)
+                self.assertIsNotNone(row, state)
+                self.assertEqual(row["status"], state)
+
+    def test_finishing_is_not_a_failure(self):
+        self.assertIsNone(demand.record_attempt("web.task", "x", "DONE"))
+        self.assertIsNone(demand.record_attempt("web.task", "x", "AWAITING_YOU"))
+
+    def test_it_keeps_HIS_words(self):
+        demand.record_attempt("web.task", "cancel my gym membership",
+                              "NEEDS_SIGN_IN")
+        self.assertEqual(demand.ranked()[0]["in_his_words"],
+                         ["cancel my gym membership"])
+
+    def test_asking_repeatedly_is_what_the_ledger_is_FOR(self):
+        for _ in range(3):
+            demand.record_attempt("web.task", "book me a haircut", "NEEDS_SIGN_IN")
+        top = demand.ranked()[0]
+        self.assertEqual(top["capability"], "web.task")
+        self.assertEqual(top["times"], 3)
+
+    def test_it_says_WHY_not_just_how_often(self):
+        """"web.task, eleven times" is a number. "Seven wanted a sign-in
+        and four ran out of steps" is two different things to build, and
+        only one of them is a budget."""
+        for _ in range(7):
+            demand.record_attempt("web.task", "renew my registration",
+                                  "NEEDS_SIGN_IN")
+        for _ in range(4):
+            demand.record_attempt("web.task", "apply to jobs", "OUT_OF_STEPS")
+        top = demand.ranked()[0]
+        self.assertEqual(top["times"], 11)
+        self.assertEqual(top["reasons"],
+                         {"NEEDS_SIGN_IN": 7, "OUT_OF_STEPS": 4})
+        self.assertEqual(demand.why(top),
+                         "7 wanted a sign-in, 4 ran out of steps")
+        self.assertIn("wanted a sign-in", demand.spoken())
+
+    def test_it_is_said_in_english_not_in_state_names(self):
+        """The ledger is read to decide what to build."""
+        demand.record_attempt("web.task", "x", "NEEDS_YOUR_EYES")
+        self.assertEqual(demand.why(demand.ranked()[0]), "1 hit a human check")
+
+    def test_a_capability_with_no_recorded_reason_says_nothing(self):
+        demand.record("web.task", "x")
+        self.assertEqual(demand.why(demand.ranked()[0]), "")
+
+    def test_a_broken_ledger_never_breaks_the_thing_he_asked_for(self):
+        with mock.patch.object(demand, "path", side_effect=OSError("gone")):
+            self.assertIsNone(demand.record_attempt("web.task", "x", "REFUSED"))
+
+
+class EveryDOING_PATH_REPORTS_TO_IT(unittest.TestCase):
+    """A ledger one caller feeds and another does not is a ledger that
+    ranks whichever capability happened to be wired."""
+
+    PATHS = {
+        "webtask": "web.task",
+        "apply_run": "application.submit",
+        "script": "task.script",
+        "subscriptions": "subscription.cancel",
+        "reservations": "reservation.book",
+    }
+
+    def test_they_all_record_an_attempt(self):
+        for module, capability in self.PATHS.items():
+            with self.subTest(module=module):
+                source = (Path("aletheia") / f"{module}.py").read_text(
+                    encoding="utf-8")
+                self.assertIn("record_attempt", source)
+                self.assertIn(capability, source)
+
+    def test_the_ledger_is_the_first_thing_a_session_reads(self):
+        """`CLAUDE.md` says so, which only means anything if the ledger
+        knows about the failures that actually happen."""
+        text = " ".join(Path("CLAUDE.md").read_text(encoding="utf-8").split())
+        self.assertTrue("aletheia.demand" in text)
+        self.assertTrue("what he actually tried to do and could not" in text)
+        # And it must say that a real ATTEMPT counts, not only a plan.
+        self.assertTrue("tried and could not finish" in text.casefold(),
+                        "CLAUDE.md still describes a plan-only ledger")
+
+
 if __name__ == "__main__":
     unittest.main()

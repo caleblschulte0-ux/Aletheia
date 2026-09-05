@@ -220,6 +220,12 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
         journal.append("action", "apply",
                        f"held an application at {url} — the form will not go "
                        f"yet ({len(stopped)} thing(s) outstanding)", actor=ACTOR)
+        try:
+            from aletheia import demand
+            demand.record_attempt("application.submit", note or url,
+                                  "NEEDS_YOU", source="apply")
+        except Exception:
+            pass
         return record
 
     action = browse.approval_action(url, steps)

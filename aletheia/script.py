@@ -434,7 +434,17 @@ def run(request: str, *, think=None, label: str = "task",
     if not request:
         raise ValueError("a request is required")
     policy.ensure_not_halted()
-    source = write_program(request, think=think)
+    try:
+        source = write_program(request, think=think)
+    except ScriptRefused:
+        # The box said no. That is a thing he asked for and did not get.
+        try:
+            from aletheia import demand
+            demand.record_attempt("task.script", request, "REFUSED",
+                                  source="script")
+        except Exception:
+            pass
+        raise
     takes_away = destructive_calls(source)
     if takes_away and not approval_id:
         held = propose(source, request=request, label=label)

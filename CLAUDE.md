@@ -164,9 +164,17 @@ and push there; no auto-merge here — merges to `main` are deliberate.
 ## What to build next is not a guess — ask the demand ledger
 
 `python -m aletheia.demand` is the first thing to read when deciding what
-to build. Every plan that came back with a GAP step, and every "can
-you...?" whose best match was not AVAILABLE, is counted there with the
-operator's own words. Ranked, that is a roadmap nobody wrote: not what an
+to build. Every plan that came back with a GAP step, every "can you...?"
+whose best match was not AVAILABLE, and — since 2026-09-05 — every real
+attempt she TRIED AND COULD NOT FINISH is counted there with the
+operator's own words. That last one is the signal that matters most: for
+a long time the ledger only heard about failures to PLAN, and "she has
+no verb for this" is a guess about what to build, while "she went to the
+site, filled the form, and it wanted an account" is a fact about what he
+could not have — recorded at the moment he had already committed to it.
+Every doing path reports (`webtask`, `apply_run`, `script`,
+`subscriptions`, `reservations`); a ledger one caller feeds and another
+does not just ranks whichever capability happened to be wired. Ranked, that is a roadmap nobody wrote: not what an
 agent guessed would be useful, not what a plan file said in July — what
 he actually tried to do and could not.
 
