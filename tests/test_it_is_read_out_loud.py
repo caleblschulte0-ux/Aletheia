@@ -29,6 +29,9 @@ SPOKEN_MODULES = (
     "pursue", "work_direct", "campaign", "formfill", "apply_run",
     "scheduling", "policy", "jobs", "hass", "research", "applications",
     "webtask", "converse",
+    # `planner` journals what a plan did, and `recollection` reads that
+    # line back out loud — "executed 1/1 step(s) of ..." was one of them.
+    "planner", "intercom",
 )
 
 # Files whose PROSE quotes the defect on purpose — the docstrings above

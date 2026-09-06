@@ -28,6 +28,19 @@ is only sound because the journal is append-only and every action writes
 to it: absence is evidence. If it is not there, it did not happen — or it
 happened without being recorded, which is itself worth saying out loud.
 
+**That corollary holds for the WHOLE journal and not for a search of
+it**, and conflating the two produced the worst answer this system has
+given. `about()` scores lines against the words of the question, so "did
+you save that" — which names nothing searchable — matched none of them,
+and the note attached to that empty list told the model an empty list
+meant it had not happened. He had said "remember my landlord is Mr
+Okafor"; she saved it; she recalled it correctly one turn later; and then
+she said "No — the journal's empty, nothing was saved."
+
+A false premise handed to a model comes back as a confident lie, so the
+two situations are now told apart and labelled differently: nothing
+MATCHED (here is what she has been doing instead) versus nothing THERE.
+
 Retrieval, like `self_knowledge`: no model call, no network, offline, in
 the prompt-building path of every question.
 """
@@ -110,6 +123,17 @@ def _local(ts: str) -> str:
 # turned back into the sentence a person would have said.
 RECEIPT_SUBJECTS = ("core:", "intercom:")
 
+# Subjects that name their own kind rather than carrying it in the tail.
+# Without these, "what did you do today" answered
+# "memory:people.landlord: set people.landlord = "Mr Okafor" (explicit)".
+SUBJECT_KINDS = {"memory": "remember", "task": "task_new"}
+
+# Subjects whose text is already a finished sentence. Prefixing those with
+# the subject gives "planner: Did it: Remember the landlord's name" — a
+# label on something that did not need one. `repo:aletheia` DOES need its
+# prefix, which is why this is a list rather than a rule.
+SPEAKS_FOR_ITSELF = ("planner", "intent", "scheduling", "applications")
+
 
 def _row(entry: dict) -> dict:
     """One journal line as something she could say out loud.
@@ -123,38 +147,120 @@ def _row(entry: dict) -> dict:
     from aletheia import speech
     subject = str(entry.get("subject", ""))
     text = str(entry.get("text", ""))
-    if subject.startswith(RECEIPT_SUBJECTS):
+    head = subject.split(":")[0]
+    if head in SUBJECT_KINDS:
+        said = speech.spoken_receipt(SUBJECT_KINDS[head], text)
+        what = said if said != text else speech.tidy(speech.strip_ids(text))
+    elif subject.startswith(RECEIPT_SUBJECTS):
         # `core.run_command` journals "<outcome> — <detail>". "Done" adds
         # nothing to a list of things she did; "refused" or "error" is the
         # whole point of the line, so only the success word is dropped.
         body = text[len("done — "):] if text.startswith("done — ") else text
         what = speech.spoken_receipt(subject.split(":")[-1], body)
     else:
-        what = f"{subject}: {speech.tidy(speech.strip_ids(text))}" if subject else text
+        said = speech.tidy(speech.strip_ids(text))
+        what = (said if not subject or head in SPEAKS_FOR_ITSELF
+                else f"{subject}: {said}")
     return {"at": _local(entry.get("ts", "")),
             "kind": entry.get("kind", ""),
             "who": entry.get("actor", ""),
             "what": what[:TEXT_CHARS]}
 
 
-def _recent(hours: float) -> list[dict]:
+def _read_journal(hours: float) -> tuple[list[dict], bool]:
+    """(entries, readable). A journal she CANNOT READ is not an empty one.
+
+    `_recent` swallowed the exception and returned [], so an unreadable
+    journal and a genuinely quiet week produced the same answer — "she has
+    done nothing". Those are different facts and only one of them is about
+    him.
+    """
     try:
-        return journal.since(hours)
+        return journal.since(hours), True
     except Exception:
-        return []          # a journal she cannot read makes her say so
+        return [], False
+
+
+def _recent(hours: float) -> list[dict]:
+    return _read_journal(hours)[0]
+
+
+# Journal kinds that are HER doing something, as opposed to something
+# happening to her.
+#
+# This was ("action", "decision", "recovery") — and `memory.remember`
+# journals as "note" while `tasks.create` journals as "task", so the two
+# things she does most often on his instruction were both invisible.
+# Found 2026-09-06: he said "remember my landlord is Mr Okafor", she saved
+# it, recalled it correctly one turn later, and then answered "did you
+# save that?" with "No — the journal's empty. Nothing I did shows as
+# saved."
+#
+# `alert` and `event` stay out because they really are things that
+# happened TO her. `brief` stays out because it is a scheduled artefact
+# rather than work he asked for, and it would head the list every single
+# day.
+HER_DOING = ("action", "decision", "recovery", "note", "task", "plan")
+
+
+# Talking is not doing. `converse` journals every answer it gives, so
+# once "note" counted as work, "what did you do today?" started listing
+# her own previous replies back at him — including the text of the answer
+# to the question before this one.
+NOT_DOING_SUBJECTS = ("converse",)
+
+# Exact subjects that record what she SAID rather than what she did.
+# `core.run_command` journals "<outcome> — <detail>", and for an `intent`
+# the detail IS the spoken reply — so "what did you do today" listed her
+# own previous answers back at him, including the answer to the question
+# before this one. Anything the intent really executed is journaled by
+# `planner` under its own subject, so nothing is lost here.
+SAID_NOT_DID = ("core:intent", "core:screen_ask", "core:brief",
+                # One act, two writers. The task store journals
+                # "created — call the plumber" and the command path
+                # journals "task t1 queued"; the store's line names the
+                # thing, the command's line names its id, and she was
+                # saying both — "Added a task: call the plumber; Added a
+                # task: t1". Same for memory, whose own line reads
+                # "Noted: landlord is Mr Okafor".
+                "core:task_new", "core:task_status", "core:remember")
+
+
+def _something_she_did(entry: dict) -> bool:
+    subject = str(entry.get("subject", ""))
+    return (entry.get("kind") in HER_DOING
+            and subject.split(":")[0] not in NOT_DOING_SUBJECTS
+            and subject not in SAID_NOT_DID
+            and any(str(entry.get("actor", "")).startswith(a) for a in HERS))
+
+
+# One act, journaled by two writers, is still one act. "Add a task to call
+# the plumber" writes `task:<id>` from the task store AND `core:task_new`
+# from the command path, and both render to the same sentence — so she
+# answered "2 things today: added a task; added a task."
+#
+# Adjacent AND same rendered minute, because two genuinely separate
+# identical actions later in the day are two things he did ask for.
+
+
+def _once_each(rows: list[dict]) -> list[dict]:
+    out: list[dict] = []
+    for row in rows:
+        if out and out[-1]["what"] == row["what"] and out[-1]["at"] == row["at"]:
+            continue
+        out.append(row)
+    return out
 
 
 def day(hours: float = TODAY_HOURS, *, limit: int = MAX_ROWS) -> list[dict]:
     """What she has been doing, newest last. For "what did you do today?".
 
-    Her own actions and decisions only: the journal also carries events and
-    notes that are things happening TO her, and a list padded with those
-    reads like activity she did not perform.
+    Filtered by KIND and by ACTOR: the journal also carries events and
+    alerts, which are things happening TO her, and a list padded with
+    those reads like activity she did not perform.
     """
-    rows = [e for e in _recent(hours)
-            if e.get("kind") in ("action", "decision", "recovery")
-            and any(e.get("actor", "").startswith(a) for a in HERS)]
-    return [_row(e) for e in rows[-limit:]]
+    rows = [e for e in _read_journal(hours)[0] if _something_she_did(e)]
+    return _once_each([_row(e) for e in rows])[-limit:]
 
 
 def about(question: str, *, hours: float = DEFAULT_HOURS,
@@ -181,6 +287,30 @@ def about(question: str, *, hours: float = DEFAULT_HOURS,
     return [_row(e) for e in chosen]
 
 
+MATCHED = ("These journal lines match the question. Only say she did "
+           "something if a line says she did. Never invent a time, a "
+           "recipient or an outcome.")
+
+UNMATCHED = ("NOTHING IN THE JOURNAL MATCHED THE WORDS OF THE QUESTION, so "
+             "this is simply what she has done recently — it is not an "
+             "answer to the question by itself. Do NOT say the journal is "
+             "empty or that nothing happened: it is not empty, it just does "
+             "not mention those words. Read the lines and see whether one of "
+             "them is what he means; if none is, say you cannot find a record "
+             "of that specific thing.")
+
+NOTHING_AT_ALL = (
+    "The journal really is empty for this window. It is append-only and "
+    "every action writes to it, so this means it did not happen — or it "
+    "happened without being recorded, which is worth saying plainly. Say "
+    "so; do not fill it in. Never invent a time, a recipient or an outcome.")
+
+UNREADABLE = (
+    "The journal could not be READ — this is not an empty journal and it is "
+    "not evidence that nothing happened. Say that you cannot check right "
+    "now. Never invent a time, a recipient or an outcome.")
+
+
 def for_question(question: str) -> dict:
     """What should travel with THIS question. Empty when it is not about her
     past — and empty-with-a-statement when it is and nothing is there."""
@@ -189,18 +319,39 @@ def for_question(question: str) -> dict:
         return {}
     if _TODAY.search(text):
         rows = day()
+        readable = _read_journal(TODAY_HOURS)[1]
         return {"asked_about": "her day", "hours": TODAY_HOURS,
-                "journal": rows,
-                "note": ("This is the journal, which every action writes to. "
-                         "If it is empty she has done nothing recorded in that "
-                         "window — say so; do not fill it in.")}
+                "journal": rows, "readable": readable,
+                "note": (("This is the journal, which every action writes to. "
+                          "If it is empty she has done nothing recorded in "
+                          "that window — say so; do not fill it in. Never "
+                          "invent a time, a recipient or an outcome.")
+                         if readable else UNREADABLE)}
     rows = about(text)
+    if rows:
+        return {"asked_about": "her past", "hours": DEFAULT_HOURS,
+                "journal": rows, "matched": True, "note": MATCHED}
+    # NOTHING MATCHED IS NOT NOTHING HAPPENED.
+    #
+    # `about` scores journal lines against the WORDS of the question, so
+    # "did you save that" — which names nothing — matched no lines, and the
+    # note below then told the model that an empty list meant it did not
+    # happen. He said "remember my landlord is Mr Okafor", she saved it,
+    # recalled it correctly one turn later, and answered "did you save
+    # that?" with "No — the journal's empty. Nothing was saved."
+    #
+    # A false premise handed to a model comes back as a confident lie. So a
+    # question that matches nothing gets what she has actually been doing,
+    # and a note that says which of the two situations this is.
+    entries, readable = _read_journal(DEFAULT_HOURS)
+    recent = [r for r in entries if _something_she_did(r)]
+    rows = _once_each([_row(e) for e in recent])[-MAX_ROWS:]
+    if rows:
+        note = UNMATCHED
+    else:
+        note = NOTHING_AT_ALL if readable else UNREADABLE
     return {"asked_about": "her past", "hours": DEFAULT_HOURS, "journal": rows,
-            "note": ("Only say she did something if a line above says she did. "
-                     "The journal is append-only and every action writes to it, "
-                     "so nothing here means it did not happen — or happened "
-                     "without being recorded, which is worth saying plainly. "
-                     "Never invent a time, a recipient or an outcome.")}
+            "matched": False, "readable": readable, "note": note}
 
 
 def main(argv: list[str] | None = None) -> int:

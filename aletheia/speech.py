@@ -189,6 +189,19 @@ def spoken_receipt(kind: str, detail: str, *,
         slug = re.search(r"task ([a-z0-9-]+) queued", text)
         if slug:
             return f"Added a task: {deslug(slug.group(1))}."
+        # The journal writes it differently from the receipt: "created —
+        # call the plumber". Same event, and it is the one `recollection`
+        # reads back when he asks what she did.
+        made = re.match(r"created\s*[—-]\s*(.+)", text)
+        if made:
+            return f"Added a task: {made.group(1).strip()}."
+    if kind == "remember":
+        # 'set people.landlord = "Mr Okafor" (explicit)'
+        noted = re.match(r"set\s+\S*?([\w-]+)\s*=\s*\"?(.+?)\"?\s*(?:\(.*\))?$",
+                         text)
+        if noted:
+            return (f"Noted: {deslug(noted.group(1))} is "
+                    f"{noted.group(2).strip()}.")
     if kind == "task_status":
         moved = re.search(r"task ([a-z0-9-]+) -> ([A-Z_]+)", text)
         if moved:
@@ -202,6 +215,10 @@ def spoken_receipt(kind: str, detail: str, *,
             if subject:
                 said += f", subject {subject.group(1)}"
             return said + ". Say approve and it goes."
+    if kind in ("approve", "deny"):
+        decided = re.match(r"(approved|denied)\s*[—-]\s*(.+)", text)
+        if decided:
+            return f"{decided.group(1).capitalize()}: {decided.group(2).strip()}."
     if kind == "note":
         return "Noted."
     if kind == "notify_clear":

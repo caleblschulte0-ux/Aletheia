@@ -293,6 +293,38 @@ approval. Every phrasing for those four verbs belongs in `voice.py`, and
 anything that is plainly an order about her own switch and does not match
 exactly must ASK for the one word rather than let the planner near it.
 
+## Absence is evidence for the WHOLE journal, never for a search of it
+
+She saved his landlord's name, recalled it correctly one turn later, and
+then answered *"did you save that?"* with **"No — the journal's empty.
+Nothing I did shows as saved."** A flat contradiction, one turn apart,
+and the failure mode this system exists to prevent.
+
+Three defects stacked:
+
+- `recollection.day` filtered on kind in (action, decision, recovery).
+  `memory.remember` journals as **note** and `tasks.create` as **task** —
+  the two things she does most often on his instruction, both invisible
+  to her own memory. `HER_DOING` is the list now.
+- `about()` scores journal lines against the WORDS of the question, and
+  "did you save that" names nothing searchable, so it matched none.
+- The note attached to that empty list said *"nothing here means it did
+  not happen"*. **A false premise handed to a model comes back as a
+  confident lie.** `for_question` now tells the two situations apart:
+  nothing MATCHED (here is what she has been doing instead, and do not
+  call the journal empty) versus nothing THERE.
+
+Two smaller rules fell out of the same run, and both are about her memory
+being a thing she READS OUT:
+
+- **Talking is not doing.** `converse` journals every answer, and
+  `core:intent` receipts carry the spoken reply, so once notes counted
+  she began listing her own previous answers back at him.
+- **One act journaled by two writers is one act.** A task writes
+  `task:<id>` from the store and `core:task_new` from the command path;
+  the store's line names the thing and the command's names its id, so she
+  said "Added a task: call the plumber; Added a task: t1."
+
 ## The one permanent rule, answered at the door
 
 *"no spending money."* It is the only line he has called permanent, and

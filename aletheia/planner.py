@@ -51,7 +51,7 @@ import sys
 from dataclasses import dataclass, field, asdict
 
 from aletheia import (brain, capabilities, gaps, intercom, journal, localtime,
-                      policy, reasoner)
+                      policy, reasoner, speech)
 from aletheia.fleet import load_fleet
 
 ACTOR = "aletheia-planner"
@@ -535,9 +535,16 @@ def execute(plan: Plan, fleet: dict | None = None, quote: str = "",
             after_step(step, receipt, tuple(receipts))
         if receipt["outcome"] != "done":
             break
+    # `recollection` reads this line back out loud when he asks what she
+    # did, so it is a sentence, not a ratio with a parenthesised plural.
+    from aletheia import speech
+    done_all = len(receipts) == len(plan.executable)
+    how_far = ("" if done_all else
+               f" ({len(receipts)} of "
+               f"{speech.count_phrase(len(plan.executable), 'step')})")
     journal.append("plan", "planner",
-                   f"executed {len(receipts)}/{len(plan.executable)} step(s) of "
-                   f"{plan.summary or plan.request!r}", actor=ACTOR)
+                   f"Did it{how_far}: {plan.summary or plan.request}",
+                   actor=ACTOR)
     return receipts
 
 
@@ -562,7 +569,8 @@ def main(argv: list[str] | None = None) -> int:
         print(plan.render())
     if args.materialize:
         made = materialize_gaps(plan)
-        print(f"\nmaterialized {len(made)} gap task(s): {', '.join(made) or '-'}")
+        print(f"\nmaterialized {speech.count_phrase(len(made), 'gap task')}: "
+              f"{', '.join(made) or '-'}")
     if args.run:
         for receipt in execute(plan, quote=f"planner --run: {args.request}"):
             print(f"  step {receipt['n']}: {receipt['outcome']} — {receipt['detail']}")
