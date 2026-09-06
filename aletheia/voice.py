@@ -33,6 +33,30 @@ def strip_wake_word(text: str) -> str:
     return t
 
 
+# What people put in front of a sentence without meaning anything by it.
+# Every pattern below is anchored at the start, so a single emoji or an
+# "uh" decided whether "remind me at 4 to celebrate" was the instant
+# deterministic verb or a five-second planner round trip that then asked
+# for an approval the direct path would not have needed. A decoration
+# should not change what she does.
+FILLER = re.compile(
+    r"^(?:[^\w\s]+\s*)*"                    # leading emoji or punctuation
+    r"(?:(?:uh+|um+|er+|hmm+|ok|okay|so|well|hey|yo|please|right|"
+    r"i mean|like)\b[,\s]*)*",
+    re.UNICODE)
+
+
+def _without_preamble(low: str) -> str:
+    """Drop leading filler and decoration — never anything that carries meaning.
+
+    Conservative on purpose: if stripping would leave nothing, the sentence
+    WAS the filler ("uh", "ok") and is handed back untouched so the
+    ordinary "I didn't get that" path still sees it.
+    """
+    stripped = FILLER.sub("", low, count=1).lstrip(" ,.!?:;-").strip()
+    return stripped or low
+
+
 def _spoken_url(tail: str) -> str | None:
     """'example dot com' -> https://example.com; 'github.com' passes through."""
     t = tail.strip().rstrip(".?!").lower()
@@ -256,7 +280,7 @@ def _attention_say() -> str:
 def interpret(transcript: str) -> dict:
     """One spoken sentence -> a command to gate-check, or words to say."""
     text = strip_wake_word(transcript)
-    low = text.lower().strip().rstrip(".?!")
+    low = _without_preamble(text.lower().strip().rstrip(".?!"))
     if not low:
         return {"command": None, "say": "I'm listening."}
 

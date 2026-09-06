@@ -35,7 +35,20 @@ MAX_QUESTION = 200
 
 
 def _tidy(text: str) -> str:
-    return " ".join(str(text or "").split()).strip().rstrip("?.! ").casefold()
+    """Normalise for matching — including the filler nobody means anything by.
+
+    Every pattern here is anchored, so "so what did you do today" and "uh
+    are you halted" missed the fast lane entirely and paid a full planner
+    round trip. `voice._without_preamble` is the same rule at the other
+    door; both use it so the two doors cannot disagree about what counts
+    as filler.
+    """
+    text = " ".join(str(text or "").split()).strip().rstrip("?.! ").casefold()
+    try:
+        from aletheia.voice import _without_preamble
+        return _without_preamble(text)
+    except Exception:
+        return text
 
 
 # Each is (name, pattern). Anchored, because "tell me about the halt
