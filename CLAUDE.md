@@ -361,6 +361,43 @@ three came back "1 step ready — say approve to run it". Bias the list
 toward refusing: a false positive costs him one rephrase and a sentence
 explaining why; a false negative spends his money.
 
+## Say it OUT LOUD before you believe the receipt
+
+`speech.count_phrase`, `speech.and_list`, `speech.or_list` and
+`speech.spoken_receipt` exist because a receipt is not a sentence, and
+the whole system reads its own receipts back to him — `recollection`
+speaks journal lines, `quick` speaks store rows, `intents.spoken` speaks
+plans. Three rules that keep costing a bug each when they are forgotten:
+
+- **A choice takes "or".** "Which one — call the dentist and call the
+  plumber?" reads as one thing made of two.
+- **Commas collide.** `and_list` already uses them, so an item that
+  contains one ("renew my passport, due Friday") makes the whole list
+  unparseable by ear.
+- **A category is not a notice.** Every reminder is titled "Reminder";
+  the thing he wants is the body. `presence` deduplicated unread notices
+  BY TITLE, so two reminders that both fired became one line and the
+  second silently vanished.
+
+And `intents.spoken` is the last thing between a record and the room, so
+it uses `.get` throughout: a KeyError there is silence where a sentence
+should be, and every branch that returns model prose runs it through
+`strip_ids` first — a clarifying question about her own state says
+"a pending approval (intent-7aed1b5dcd) is waiting on you" otherwise.
+
+## A kind in the grammar with no branch behind it
+
+`intercom.KIND_ARGS` gates what may be relayed, what the planner may
+compile, and what the Core accepts — and nothing checked that
+`execute_command` could carry any of it out. The media block ended in a
+bare `else` that ran `media.convert`, so any future `media_*` kind would
+have silently transcoded and reported success.
+`tests/test_every_kind_has_a_handler.py` holds both directions now, plus
+the grammar's own shape: no duplicate keys (Python keeps the last one
+silently), no required/optional overlap, and no kind that is both
+READ_ONLY and ROUTINE — being in both makes `tier()` depend on the order
+the checks happen to be written in.
+
 ## The standing assignment
 
 Every session acts on the playbook rather than re-describing it (§156):
