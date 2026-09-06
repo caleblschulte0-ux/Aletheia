@@ -51,6 +51,68 @@ from pathlib import Path
 FOLLOWUP_TIMEOUT_S = 120.0
 POLL_S = 0.5
 
+# EVERY store that lives in the repository rather than in private state,
+# and that a conversation can write to. Private state moves with
+# ALETHEIA_PRIVATE_STATE; these do not, and each one missed here is a
+# real thing an audit leaves behind on his actual machine.
+#
+# This list has been wrong twice. The first version redirected only
+# private state and left three build tasks and a journal line in the
+# repo. The second still missed `policy.HALT_PATH` — so asking her
+# "halt" in a sandbox HALTED THE REAL ALETHEIA and left her halted, with
+# every subsequent question answered "only a resume command executes".
+# A kill switch is exactly the thing a test must not be able to reach.
+#
+# `tests/test_talk_sandbox.py` holds this against the modules, so the
+# next store anchored at REPO_ROOT fails the suite instead of the audit.
+SANDBOX_STORES = (
+    ("aletheia.policy", "HALT_PATH", "policy/halt.json"),
+    ("aletheia.policy", "APPROVALS_DIR", "policy/approvals"),
+    ("aletheia.tasks", "TASKS_DIR", "tasks"),
+    ("aletheia.plans", "PLANS_DIR", "plans"),
+    ("aletheia.brief", "BRIEF_DIR", "brief"),
+    ("aletheia.pulse", "PULSE_DIR", "pulse"),
+    ("aletheia.mail", "MAIL_DIR", "mail"),
+    ("aletheia.journal", "REPO_JOURNAL_DIR", "journal"),
+    # "remember person bob bob@example.com" writes a real file here.
+    ("aletheia.memory", "MEMORY_DIR", "memory"),
+    ("aletheia.suggestions", "SUGGESTIONS_DIR", "exchange/suggestions"),
+    ("aletheia.suggestions", "VERDICTS_PATH", "exchange/verdicts.json"),
+    ("aletheia.intercom", "COMMANDS_DIR", "exchange/commands"),
+    ("aletheia.sealed_observe", "SEALED_DIR", "exchange/commands/sealed"),
+    # cache/, so gitignored — but still files on his machine, and a
+    # browser profile is his real signed-in session.
+    ("aletheia.computer", "CAPTURE_DIR", "cache/computer-captures"),
+    ("aletheia.browse", "PROFILE_DIR", "cache/browser-profile"),
+)
+
+# Repo paths a conversation can only READ. Each is here on purpose: an
+# audit that redirected these would be testing an empty registry rather
+# than the real one.
+SANDBOX_READ_ONLY = {
+    ("aletheia.jobs", "BOARDS_PATH"),
+    ("aletheia.fleet", "DEFAULT_PATH"),
+    ("aletheia.capabilities", "DEFAULT_PATH"),
+    ("aletheia.core", "INTERFACE_DIR"),
+}
+
+
+def _redirect_repo_stores(room: Path) -> list[str]:
+    """Point every repo-anchored store at the throwaway room.
+
+    Done by attribute rather than by environment because these bind at
+    import time; the import has already happened by now.
+    """
+    import importlib
+    moved = []
+    for module_name, attribute, relative in SANDBOX_STORES:
+        module = importlib.import_module(module_name)
+        target = room / relative
+        (target.parent if target.suffix else target).mkdir(parents=True, exist_ok=True)
+        setattr(module, attribute, target)
+        moved.append(f"{module_name}.{attribute}")
+    return moved
+
 
 def _post(base: str, path: str, payload: dict, secret: str) -> dict:
     request = urllib.request.Request(
@@ -118,13 +180,7 @@ def main(argv: list[str] | None = None) -> int:
 
     from aletheia import access, core
     if args.sandbox:
-        # `tasks` and `plans` bind REPO paths at import time, so they are
-        # redirected after the import rather than by an environment
-        # variable. Anything she files during an audit lands here.
-        from aletheia import plans, tasks
-        room = Path(os.environ["ALETHEIA_JOURNAL_PATH"]).parent
-        tasks.TASKS_DIR = room / "tasks"
-        plans.PLANS_DIR = room / "plans"
+        _redirect_repo_stores(Path(os.environ["ALETHEIA_JOURNAL_PATH"]).parent)
 
     server = None
     base = args.url
