@@ -238,6 +238,44 @@ Two things hold that, and they are separate on purpose:
   true whatever the answer turns out to be, because it may well be "that
   needs your approval".
 
+## Talk to her. It is the only audit that finds this class of defect
+
+`python -m aletheia.talk --sandbox "am I free tomorrow afternoon"` says a
+sentence through the real voice door and prints what the room would hear.
+Twenty minutes of that on 2026-09-06 found five defects with 2,340 tests
+green, because every one of them was **correct data in a sentence that
+fails him** — which is precisely what a unit test cannot see, since a
+unit test asserts what its author already believed:
+
+- *"remind me at 3 to call the dentist"* was scheduled for **03:00
+  tomorrow** and confirmed back as "tomorrow at 8 am". Two bugs, and the
+  second hid the first: a bare hour was read literally (nobody means
+  three in the morning), and the confirmation was rendered in the
+  PROCESS's timezone rather than his, so an eighteen-hour error came out
+  sounding plausible. A confirmation exists so he can catch a mistake in
+  one syllable; in the wrong zone it cannot do that job.
+- *"am I free tomorrow afternoon"* answered with nine o'clock in the
+  morning. The word **afternoon was silently dropped**, and answering a
+  different question than the one asked is the failure he cannot detect.
+- *"turn off the kitchen lights"* → "I can't do room.scene yet; filed 1
+  build task(s)." An identifier and a parenthesised plural, out loud.
+- She set two reminders and then said **"Nothing yet today."**
+  `recollection.HERS` matches actor PREFIXES and contained "core", but
+  the Core journals as `operator-local-core` — a substring is not a
+  prefix — so everything he asks for out loud was invisible to her own
+  memory.
+
+Three existing tests had to be UPDATED for these, not just added to:
+they asserted the machine wording (the approval hash in the sentence, the
+capability id, `free on 2026-08-27 at 09:00`). A test that freezes what
+the code does is not a regression test; check what the assertion is
+protecting before treating a red one as a bug in the fix.
+
+`--sandbox` redirects private state, the journal AND the repo task/plan
+stores. The first version redirected only private state and left three
+build tasks and a journal line in the repo — a "leaves no trace" promise
+that did not.
+
 ## The standing assignment
 
 Every session acts on the playbook rather than re-describing it (§156):
