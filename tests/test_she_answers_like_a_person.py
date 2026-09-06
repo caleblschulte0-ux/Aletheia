@@ -16,7 +16,11 @@ import unittest
 from unittest import mock
 from zoneinfo import ZoneInfo
 
-from aletheia import calendar as cal, intents, intercom, planner, voice
+import tempfile
+from pathlib import Path
+
+from aletheia import (calendar as cal, intents, intercom, planner,
+                      policy, speech, voice)
 
 CHICAGO = ZoneInfo("America/Chicago")
 
@@ -196,6 +200,226 @@ class TheApprovalIdCase(unittest.TestCase):
         said = intents.spoken(record)
         self.assertNotIn("0a06bbb663", said)
         self.assertIn("Say approve", said)
+
+class TheKillSwitchIsNotGuessedAtCase(unittest.TestCase):
+    """"Resume yourself" reached the planner, which is FORBIDDEN from
+    emitting `resume` — so its only remaining move was to compile
+    something else. It compiled `brief`, ran it, and answered "Resume
+    normal operation and surface current state" while resuming nothing.
+
+    A silent substitution is bad anywhere. On the kill switch it is the
+    difference between an emergency control that works and one that
+    reports success.
+    """
+
+    def command(self, sentence):
+        return voice.interpret(f"thea {sentence}")
+
+    def test_the_reflexive_phrasings_really_resume(self):
+        for sentence in ("resume yourself", "unhalt yourself", "un-halt thea",
+                         "lift the halt", "turn yourself back on",
+                         "resume aletheia please", "resume now"):
+            with self.subTest(sentence=sentence):
+                got = self.command(sentence)["command"]
+                self.assertEqual(got, {"kind": "resume"}, sentence)
+
+    def test_an_order_about_her_switch_that_does_not_match_asks_for_the_word(self):
+        """One syllable is the honest answer; a substituted action is not."""
+        said = self.command("resume it for me")
+        self.assertIsNone(said["command"])
+        self.assertIn("resume", said["say"])
+
+    def test_it_never_reaches_the_planner(self):
+        for sentence in ("resume yourself", "unhalt aletheia", "resume it now"):
+            with self.subTest(sentence=sentence):
+                got = self.command(sentence)["command"]
+                self.assertNotEqual((got or {}).get("kind"), "intent", sentence)
+
+    def test_an_ordinary_sentence_that_starts_with_the_same_verb_is_untouched(self):
+        """"Resume the download" and "stop the music" are not the kill
+        switch, and swallowing them would trade one silent substitution
+        for another."""
+        for sentence in ("resume the download when you can", "stop the music",
+                         "read my resume"):
+            with self.subTest(sentence=sentence):
+                got = self.command(sentence)["command"] or {}
+                self.assertNotIn(got.get("kind"), ("resume", "halt"), sentence)
+
+    def test_the_resume_noun_still_does_not_unhalt_her(self):
+        """The English noun is the same six letters as the kind that lifts
+        the kill switch — the reason this pattern is a fullmatch."""
+        got = self.command("read my resume")["command"] or {}
+        self.assertNotEqual(got.get("kind"), "resume")
+
+
+class ReadingIsNotOnlyTheWebCase(unittest.TestCase):
+    """"Read my resume" answered "I need a web address to read".
+
+    `read|open|check|look at` assumed a URL and dead-ended on anything
+    else — including a FILE she can genuinely read, and one of the
+    sentences he is most likely to say.
+    """
+
+    def test_a_file_reaches_the_planner_instead_of_being_refused(self):
+        got = voice.interpret("thea read my resume")
+        self.assertEqual((got["command"] or {}).get("kind"), "intent")
+        self.assertNotIn("web address", str(got["say"]))
+
+    def test_a_real_url_still_goes_straight_to_the_browser(self):
+        for sentence in ("read example.com", "browse reddit.com",
+                         "read https://example.com"):
+            with self.subTest(sentence=sentence):
+                got = voice.interpret(f"thea {sentence}")["command"]
+                self.assertEqual(got["kind"], "browse_read")
+
+
+class LookingForWorkCase(unittest.TestCase):
+    """"How many jobs are open at Anthropic" spent 94 seconds driving a
+    browser at the open web and failed. `jobs.search` answers from the
+    boards' own APIs in three — the planner simply had no verb for it."""
+
+    JOBS = [
+        {"company": "Anthropic", "title": "Software Engineer",
+         "location": "Austin, TX", "apply_url": "u", "id": "1",
+         "provider": "greenhouse", "url": "u"},
+        {"company": "Stripe", "title": "Software Engineer",
+         "location": "Toronto", "apply_url": "u", "id": "2",
+         "provider": "greenhouse", "url": "u"},
+    ]
+
+    def found(self, matches=None, failed=()):
+        return {"matches": self.JOBS if matches is None else matches,
+                "searched": 36, "matched": 2, "failed": list(failed),
+                "role": "software engineer", "where": ""}
+
+    def test_a_place_he_named_is_a_filter_not_a_preference(self):
+        """`search` only PENALISES a location mismatch, so "react jobs in
+        Austin" came back led by Toronto. Naming a city he did not ask for
+        is the same defect as dropping "afternoon"."""
+        with mock.patch("aletheia.jobs.search", return_value=self.found()):
+            said = intercom._jobs_answer(
+                {"role": "software engineer", "where": "austin"})
+        self.assertIn("Anthropic", said)
+        self.assertNotIn("Toronto", said)
+
+    def test_remote_counts_as_anywhere(self):
+        remote = [dict(self.JOBS[1], location="Remote - US")]
+        with mock.patch("aletheia.jobs.search", return_value=self.found(remote)):
+            said = intercom._jobs_answer(
+                {"role": "software engineer", "where": "austin"})
+        self.assertIn("Stripe", said)
+
+    def test_nothing_in_that_city_says_so_rather_than_offering_elsewhere(self):
+        with mock.patch("aletheia.jobs.search",
+                        return_value=self.found([self.JOBS[1]])):
+            said = intercom._jobs_answer(
+                {"role": "software engineer", "where": "austin"})
+        self.assertIn("Nothing open", said)
+        self.assertIn("austin", said)
+
+    def test_a_company_count_needs_no_role_at_all(self):
+        """Demanding a role is exactly why the planner could not use this
+        for "how many jobs are open at Anthropic"."""
+        board = {"provider": "greenhouse", "token": "anthropic",
+                 "company": "Anthropic"}
+        with mock.patch("aletheia.jobs.boards", return_value=[board]), \
+             mock.patch.dict("aletheia.jobs.PROVIDERS",
+                             {"greenhouse": lambda b: self.JOBS}):
+            said = intercom._jobs_answer({"company": "anthropic"})
+        self.assertIn("Anthropic", said)
+        self.assertIn("2 open", said)
+
+    def test_a_company_she_does_not_follow_says_where_the_list_lives(self):
+        with mock.patch("aletheia.jobs.boards", return_value=[]):
+            said = intercom._jobs_answer({"company": "acme"})
+        self.assertIn("job_boards.json", said)
+
+    def test_no_role_and_no_company_asks_rather_than_guessing(self):
+        said = intercom._jobs_answer({})
+        self.assertIn("What kind of role", said)
+
+    def test_a_board_that_did_not_answer_is_mentioned(self):
+        """Fewer companies searched than the file claims is worth saying."""
+        with mock.patch("aletheia.jobs.search",
+                        return_value=self.found(failed=[{"board": "x",
+                                                         "company": "X"}])):
+            said = intercom._jobs_answer({"role": "software engineer"})
+        self.assertIn("didn't answer", said)
+
+    def test_looking_for_work_needs_no_approval(self):
+        self.assertIn("jobs", intercom.READ_ONLY_KINDS)
+
+class SayingNoCase(unittest.TestCase):
+    """"Cancel that" asked for an approval in order to cancel an approval.
+
+    The deny pattern was "deny/denied/no to" only, so every natural way of
+    saying no fell to the planner — which is forbidden from emitting
+    `deny`, so it compiled something else and offered THAT: "1 step ready
+    — Cancel the pending approval waiting on his decision. Say approve to
+    run it."
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        d = Path(self.tmp.name)
+        for target, attr in ((policy, "APPROVALS_DIR"), (policy, "HALT_PATH")):
+            p = mock.patch.object(target, attr, d / attr.lower())
+            p.start(); self.addCleanup(p.stop)
+
+    def test_the_words_he_would_actually_use_deny_the_pending_one(self):
+        sentences = ("cancel that", "cancel it", "never mind", "nevermind",
+                     "forget it", "forget that", "drop it", "scrap that",
+                     "call it off", "don't do that", "deny")
+        for n, sentence in enumerate(sentences):
+            with self.subTest(sentence=sentence):
+                aid = f"ap-{n}"   # exactly one PENDING at a time
+                policy.request(aid, "a", "r", "c", True,
+                               capability="journal.append")
+                got = voice.interpret(f"thea {sentence}")["command"]
+                self.assertIsNotNone(got, sentence)
+                self.assertEqual(got["kind"], "deny", sentence)
+                self.assertEqual(got["id"], aid, sentence)
+                policy.decide(aid, "DENIED", via="test")
+
+    def test_cancelling_a_real_thing_is_not_a_denial(self):
+        """"Cancel my gym membership" must still reach the capability that
+        really cancels things."""
+        got = voice.interpret("thea cancel my gym membership")["command"]
+        self.assertEqual(got["kind"], "intent")
+
+    def test_with_several_waiting_it_asks_in_HIS_verb(self):
+        """Answering "never mind" with "say approve the first" tells him to
+        do the opposite of what he just asked for."""
+        policy.request("ap-1", "a", "r", "c", True)
+        policy.request("ap-2", "b", "r", "c", True)
+        said = voice.interpret("thea never mind")["say"]
+        self.assertIn("say deny the first", said)
+        self.assertNotIn("say approve", said)
+        self.assertNotIn("Command Center", said)
+
+    def test_nothing_waiting_says_so(self):
+        self.assertIn("Nothing is waiting",
+                      voice.interpret("thea forget it")["say"])
+
+
+class ConverseIsSpeechTooCase(unittest.TestCase):
+    """`converse` reads her stores, so its answers carry the ids in them —
+    "there are two pending approvals (intent-1b32747ddb, intent-a3d2ad3434)"
+    — read out loud, in a room. It goes through the same sieve now."""
+
+    def test_ids_in_a_conversational_answer_are_stripped(self):
+        said = speech.tidy(speech.strip_ids(
+            "two pending approvals (intent-1b32747ddb, intent-a3d2ad3434) "
+            "and 2 unread notifications"))
+        self.assertNotIn("1b32747ddb", said)
+        self.assertNotIn("(", said)
+        self.assertIn("two pending approvals", said)
+
+    def test_parentheses_with_real_words_survive(self):
+        self.assertEqual(speech.tidy("a note (see below) stays"),
+                         "a note (see below) stays")
+
 
 
 if __name__ == "__main__":

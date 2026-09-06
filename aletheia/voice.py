@@ -285,10 +285,43 @@ def interpret(transcript: str) -> dict:
     # "résumé" is the same six letters as the kind that lifts the kill
     # switch. A `search` here would turn "read my resume" into un-halting
     # her. Only whole sentences that can mean nothing else.
+    # The reflexive forms are safe to add and were NOT here: "resume
+    # yourself" reached the planner, which is forbidden from emitting
+    # `resume` — so it quietly compiled something else instead and she
+    # answered "Resume normal operation and surface current state" while
+    # resuming nothing. Him telling her to resume is the ordinary path;
+    # the rule is that a MODEL may not decide to lift the halt.
     if re.fullmatch(r"(resume|resume everything|start again|back on|carry on|"
                     r"un-?halt|you can (resume|start again|carry on)|"
-                    r"(go ahead and )?resume now)", low):
+                    r"(go ahead and )?resume now|"
+                    r"resume (yourself|aletheia|thea)( please| now)?|"
+                    r"un-?halt (yourself|aletheia|thea)( please| now)?|"
+                    r"(lift|cancel|clear) the halt|"
+                    r"turn yourself back on)", low):
         return {"command": {"kind": "resume"}, "say": None}
+    # SELF-AUTHORITY, NOT EXACTLY MATCHED. Everything above is a whole
+    # sentence that can mean nothing else. Anything that is plainly an
+    # order about her own kill switch and did NOT match must stop here,
+    # because the planner cannot emit these kinds and its only remaining
+    # move is to substitute a different action — which it did, silently,
+    # and then described the substitute as if it had resumed.
+    #
+    # Asking him for the one word is the honest answer: it is one
+    # syllable, and it is the difference between an emergency stop that
+    # works and one that reports success.
+    # Only when the rest of the sentence is about HER. "Resume the
+    # download when you can" and "stop the music" are ordinary requests
+    # that happen to start with the same verb, and swallowing those would
+    # trade one silent substitution for another.
+    m = re.match(r"^(resume|un-?halt|halt)\s+"
+                 r"((?:yourself|aletheia|thea|it|everything|all|again|now|"
+                 r"please|for me|ok|okay)(?:\s+\w+){0,2})\s*$", low)
+    if m:
+        word = "resume" if m.group(1).startswith(("resume", "unhalt", "un-halt")) \
+            else "halt"
+        return {"command": None,
+                "say": f"Say just \u201c{word}\u201d and I'll do it — I won't "
+                       "guess at anything else for the kill switch."}
 
     # Apostrophes optional: speech-to-text drops them far more often than it
     # keeps them, and "whats going on" was falling past the instant local
@@ -476,13 +509,18 @@ def interpret(transcript: str) -> dict:
             return {"command": {"kind": "research", "question": question},
                     "say": None}   # the receipt speaks, not a canned line
 
+    # A URL, or nothing — this branch used to answer "I need a web address
+    # to read" to anything else, including "read my resume", which is a
+    # FILE she can genuinely read (document.read_any is AVAILABLE) and one
+    # of the sentences he is most likely to say. Dead-ending a real
+    # capability behind a wrong assumption is worse than being slow: the
+    # planner can compose a file read, and "read my resume and tell me
+    # what I'm bad at" needs it to.
     m = re.match(r"(?:read|open|check|look at|go to|browse)\s+(.+)", low)
     if m:
         url = _spoken_url(m.group(1))
         if url:
             return {"command": {"kind": "browse_read", "url": url}, "say": None}
-        return {"command": None,
-                "say": f"I need a web address to read — I heard {m.group(1)!r}."}
 
     m = re.match(r"screenshot\s+(.+)", low)
     if m and _spoken_url(m.group(1)):
@@ -506,7 +544,20 @@ def interpret(transcript: str) -> dict:
         # right; sending him to a browser is not. Read them out so he can
         # say which, in the same breath.
         return {"command": None, "say": _offer_choice(pending)}
-    m = re.match(r"(?:deny|denied|no to)(?:\s+(?:that|it|the pending one))?$", low)
+    # THE WORDS HE ACTUALLY USES TO SAY NO. This was "deny/denied/no to"
+    # only, so "cancel that" and "never mind" fell to the planner — which
+    # is forbidden from emitting `deny` and therefore compiled something
+    # else and offered THAT for approval: "1 step ready — Cancel the
+    # pending approval waiting on his decision. Say approve to run it."
+    # Asking for an approval in order to cancel an approval.
+    #
+    # Each is anchored to the whole sentence, so "cancel my gym
+    # membership" is untouched and still reaches the capability that
+    # really cancels things.
+    m = (re.match(r"(?:deny|denied|no to|cancel|scrap|drop)"
+                  r"(?:\s+(?:that|it|the pending one))?$", low)
+         or re.match(r"(?:never ?mind|forget (?:it|that)|call it off|"
+                     r"don'?t do (?:it|that))$", low))
     if m:
         pending = [a for a in policy.all_approvals() if a["state"] == "PENDING"]
         if len(pending) == 1:
@@ -514,9 +565,10 @@ def interpret(transcript: str) -> dict:
                                 "because": "denied by voice"}, "say": None}
         if not pending:
             return {"command": None, "say": "Nothing is waiting for approval."}
-        return {"command": None,
-                "say": f"{len(pending)} approvals are pending — I won't guess. "
-                       "Use the Command Center to pick."}
+        # Read them out, the way `approve` does. "Use the Command Center"
+        # is an instruction to go somewhere else, said to someone who is
+        # standing in a room talking.
+        return {"command": None, "say": _offer_choice(pending, verb="deny")}
 
     m = re.match(r"(?:add a task|new task|task)\s*(?:to|:)?\s+(.+)", low)
     if m:
@@ -641,13 +693,18 @@ def _pick_approval(pending: list[dict], ordinal: str | None,
     return matches[0] if len(matches) == 1 else None
 
 
-def _offer_choice(pending: list[dict]) -> str:
+def _offer_choice(pending: list[dict], verb: str = "approve") -> str:
+    """Read out what is waiting, and ask which one — in HIS verb.
+
+    Answering "never mind" with "say approve the first" is telling him to
+    do the opposite of what he just asked for.
+    """
     from aletheia import speech
     labels = [approval_label(a) for a in pending[:4]]
     more = "" if len(pending) <= 4 else f", and {len(pending) - 4} more"
     return (f"{speech.count_phrase(len(pending), 'thing')} waiting: "
             + speech.and_list(labels) + more
-            + ". Which one — say approve the first, or name it.")
+            + f". Which one — say {verb} the first, or name it.")
 
 
 def spoken_reply(kind: str, outcome: str, detail: str) -> str:

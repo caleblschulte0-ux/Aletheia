@@ -271,10 +271,63 @@ capability id, `free on 2026-08-27 at 09:00`). A test that freezes what
 the code does is not a regression test; check what the assertion is
 protecting before treating a red one as a bug in the fix.
 
-`--sandbox` redirects private state, the journal AND the repo task/plan
-stores. The first version redirected only private state and left three
-build tasks and a journal line in the repo — a "leaves no trace" promise
-that did not.
+`--sandbox` has to redirect EVERY repo-anchored store, and it has been
+wrong twice. v1 moved only private state and left three build tasks and a
+journal line in the repo. v2 added tasks and plans and still missed
+`policy.HALT_PATH` — so saying "halt" to a sandbox **halted the real
+Aletheia** and left her halted, answering every later question with "only
+a resume command executes". A kill switch is the one thing an audit must
+not be able to reach. `talk.SANDBOX_STORES` is the list now, and
+`tests/test_talk_sandbox.py` walks the AST for every `NAME = REPO_ROOT /
+...` in `aletheia/` and fails if one is neither redirected nor explicitly
+marked read-only.
+
+A second lesson from the same run: a forbidden verb gets SUBSTITUTED, not
+refused. The planner may not emit `resume`, `halt`, `approve` or `deny`
+(`intercom.PLANNER_FORBIDDEN`) — so when a sentence asks for one and the
+deterministic layer misses it, the model's only remaining move is to
+compile something else. "Resume yourself" ran `brief` and answered
+"Resume normal operation and surface current state" while resuming
+nothing; "cancel that" offered an approval in order to cancel an
+approval. Every phrasing for those four verbs belongs in `voice.py`, and
+anything that is plainly an order about her own switch and does not match
+exactly must ASK for the one word rather than let the planner near it.
+
+## The one permanent rule, answered at the door
+
+*"no spending money."* It is the only line he has called permanent, and
+it is now enforced in three places that cannot disagree, because they
+share one predicate — `webtask.would_spend`:
+
+1. **At the door** (`intents._asks_to_spend`): an INSTRUCTION that
+   commits money is refused before the planner runs, in half a second.
+   This exists because the step-level check missed "my wife says it's
+   fine to buy the monitor so do it", which came back as a clarifying
+   question — *which monitor, what budget?* — asked in order to buy it.
+   A refusal that arrives after a round of questions arrives too late and
+   reads as consent in the meantime.
+2. **At plan time** (`planner.SPENDING_KINDS`): a compiled `web_task` or
+   `errand` with a spending goal is REFUSED, and a plan carrying such a
+   step is refused WHOLE — running the rest is not a smaller version of
+   what he asked for, it is a different thing offered under the summary
+   of the thing that was refused. No approval object is created, so
+   there is nothing pending he could later walk past and approve.
+3. **At run time** (`webtask.walk`): unchanged, and now the last line
+   rather than the only one.
+
+A QUESTION about money is not an instruction to spend it — "how much
+would a monitor cost", "can you buy things", "what do I pay for Netflix"
+are all answerable and all contain the words. The door lets questions
+through; only instructions stop there. The check fails CLOSED: the sole
+realistic failure is webtask being unimportable, and if that is true
+nothing can spend anyway.
+
+The word list names the ACT of paying AND the ordinary errands that
+commit money without saying so. "Order me a pizza", "book me a flight to
+Tokyo", "get me an uber" contain no word from the original list, and all
+three came back "1 step ready — say approve to run it". Bias the list
+toward refusing: a false positive costs him one rephrase and a sentence
+explaining why; a false negative spends his money.
 
 ## The standing assignment
 

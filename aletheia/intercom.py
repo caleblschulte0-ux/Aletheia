@@ -80,6 +80,12 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # version first, so both are reversible with `workspace restore`.
     "file_delete":   ({"path"}, {"why"}),
     "file_move":     ({"path", "to"}, {"why"}),
+    # "How many jobs are open at Anthropic" / "find me react jobs in
+    # Austin" — LOOKING, with nothing prepared and nothing sent. The
+    # planner had no verb for this, so it reached for `research`, which
+    # drives a browser at the open web: 94 seconds to fail at a question
+    # `jobs.search` answers from the boards' own APIs in three.
+    "jobs":          (set(), {"role", "where", "count", "company"}),
     # Everything up to the submit, which stays his. See aletheia.applications.
     "apply_prepare": ({"role"}, {"count", "where", "resume"}),
     # "apply to ten jobs with this resume" — the whole thing, one call.
@@ -318,6 +324,8 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email
 # queue becomes noise he stops reading.
 READ_ONLY_KINDS = frozenset({
     "note", "notify_check", "free_time", "brief", "subscriptions", "money",
+    # Reads public job boards. Prepares nothing, sends nothing.
+    "jobs",
     "projects", "car", "recall", "travel_time", "browse_read", "browse_shot",
     # reads public pages and writes a document; commits him to nothing
     "research",
@@ -580,6 +588,76 @@ def validate_command(path: Path, fleet: dict) -> list[str]:
 # loud only when the answer is empty BECAUSE he asked about hours she
 # never sees — "nothing free this evening" is misleading on its own.
 WORK_HOURS_NOTE = "I only look at your working hours, nine to five"
+
+
+def _jobs_answer(cmd: dict) -> str:
+    """"How many jobs are open at Anthropic" / "find me react jobs in Austin".
+
+    Both used to reach `research`, which drives a browser at the open web:
+    ninety-four seconds to fail at a question the boards' own APIs answer in
+    three. A role, a company, or neither — a bare company count needs no
+    role at all, and demanding one is why the planner could not use this.
+    """
+    from aletheia import jobs as jobs_mod, speech
+    role = str(cmd.get("role") or "").strip()
+    company = str(cmd.get("company") or "").strip()
+    where = str(cmd.get("where") or "").strip()
+    count = max(1, min(int(cmd.get("count", 5)), 20))
+
+    if company and not role:
+        # A count for one employer: no search terms involved at all.
+        wanted = [b for b in jobs_mod.boards()
+                  if company.casefold() in str(b.get("company", "")).casefold()
+                  or company.casefold() == str(b.get("token", "")).casefold()]
+        if not wanted:
+            return (f"I don't follow a board for {company} — "
+                    f"{jobs_mod.BOARDS_PATH.name} is where they're listed, "
+                    "and adding one is a line.")
+        rows = []
+        for board in wanted:
+            try:
+                provider = jobs_mod.PROVIDERS[board["provider"]]
+                rows.append((board.get("company", board["token"]),
+                             len(provider(board))))
+            except Exception as exc:
+                rows.append((board.get("company", board["token"]),
+                             f"({type(exc).__name__})"))
+        return speech.and_list(
+            [f"{name}: {n} open" if isinstance(n, int) else f"{name}: {n}"
+             for name, n in rows]) + "."
+
+    if not role:
+        return ("What kind of role? I search 36 company boards, so "
+                "\"software engineer\" or \"designer\" narrows it.")
+
+    found = jobs_mod.search(role, where=where, limit=count * 4)
+    matches = found["matches"]
+    if company:
+        matches = [j for j in matches
+                   if company.casefold() in j["company"].casefold()]
+    if where:
+        # HE NAMED A PLACE. `search` only PENALISES a mismatch, so "react
+        # jobs in Austin" came back led by Toronto and San Francisco. A
+        # ranking is not a filter, and naming a city he did not ask for is
+        # the same defect as dropping "afternoon".
+        place = where.casefold()
+        matches = [j for j in matches
+                   if place in j["location"].casefold()
+                   or "remote" in j["location"].casefold()]
+    if not matches:
+        somewhere = f" in {where}" if where else ""
+        at = f" at {company}" if company else ""
+        return (f"Nothing open for {role}{at}{somewhere} on the "
+                f"{found['searched']} boards I can apply to.")
+    lines = [f"{j['company']}: {j['title']} ({j['location'][:60]})"
+             for j in matches[:count]]
+    where_said = f" in {where}" if where else ""
+    head = (f"{speech.count_phrase(len(matches), 'match', 'matches')} for "
+            f"{role}{where_said}.")
+    failed = [f.get("company") or f["board"] for f in found["failed"]]
+    tail = (f" ({speech.count_phrase(len(failed), 'board')} didn't answer.)"
+            if failed else "")
+    return f"{head} {'; '.join(lines)}.{tail}"
 
 
 def _free_sentence(ranges: list, day, part: str) -> str:
@@ -1038,6 +1116,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         for n in unread:
             notifications.set_state(n["id"], "ACKNOWLEDGED")
         return f"cleared {len(unread)} notification{'s' if len(unread) != 1 else ''}"
+    if kind == "jobs":
+        return _jobs_answer(cmd)
     if kind == "free_time":
         import datetime as _dt
         from aletheia import calendar as cal

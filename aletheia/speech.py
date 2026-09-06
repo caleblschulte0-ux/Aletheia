@@ -136,7 +136,9 @@ def strip_ids(text: str) -> str:
 
 def tidy(text: str) -> str:
     """Collapse the punctuation left behind by removing things."""
-    out = re.sub(r"\s*\(\s*\)", "", str(text or ""))
+    # Parens left holding nothing but the punctuation that separated the
+    # ids that were just removed: "(intent-1b32, intent-a3d2)" -> "(, )".
+    out = re.sub(r"\s*\([\s,;:.&/·—–-]*\)", "", str(text or ""))
     # Only a single trailing mark. "Domain :: excerpt" is a separator,
     # not a comma, and squeezing it reads as a typo.
     out = re.sub(r"\s+([,.;!?])(?!\1)", r"\1", out)

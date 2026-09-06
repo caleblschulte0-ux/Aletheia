@@ -45,10 +45,20 @@ class InterpretCase(unittest.TestCase):
         out = voice.interpret("thea check hacker news dot com")
         self.assertEqual(out["command"]["url"], "https://hackernews.com")
 
-    def test_read_without_a_domain_asks_instead_of_guessing(self):
+    def test_read_without_a_domain_is_not_dead_ended_on_the_web(self):
+        """This used to answer "I need a web address to read" to anything
+        that was not a URL — including "read my resume", a FILE she can
+        genuinely read, and one of the sentences he is most likely to say.
+        Assuming the web was the only thing readable turned a capability
+        she has into a refusal. It goes to the planner now, which can
+        compose a file read or a research step.
+        """
         out = voice.interpret("Thea, read the news")
-        self.assertIsNone(out["command"])
-        self.assertIn("web address", out["say"])
+        self.assertEqual(out["command"]["kind"], "intent")
+        self.assertNotIn("web address", str(out["say"]))
+        # and a real address still goes straight to the browser
+        self.assertEqual(voice.interpret("Thea, read example.com")["command"],
+                         {"kind": "browse_read", "url": "https://example.com"})
 
     def test_approve_with_exactly_one_pending(self):
         policy.request("ap-1", "do thing", "why", "consequence", True,
