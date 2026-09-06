@@ -57,6 +57,9 @@ from aletheia.fleet import load_fleet
 ACTOR = "aletheia-planner"
 
 EXECUTABLE, GAP, MANUAL, REFUSED = "EXECUTABLE", "GAP", "MANUAL", "REFUSED"
+# Kinds whose whole job is to go and do something out in the world, and
+# which therefore could be pointed at a checkout page.
+SPENDING_KINDS = frozenset({"web_task", "errand", "subscription_cancel"})
 
 PROMPT_HEADER = """You are the planning half of Aletheia, a personal operating \
 system belonging to one operator. You translate what he said into a plan \
@@ -298,6 +301,20 @@ def _classify(step: dict, fleet: dict, registry: dict, n: int) -> PlannedStep:
             f"{command['kind']} is not a step a plan may take — it is reached "
             "by saying it directly, never by compiling a sentence into it",
             command=command)
+    # MONEY IS REFUSED AT PLAN TIME, not only when the browser opens.
+    # `webtask.walk` has always refused a spending goal — but only once
+    # the run started, so "buy the cheapest 4K monitor and use my saved
+    # card" came back as "1 step ready — Find and purchase the cheapest
+    # 4K monitor on Amazon using saved card. Say approve to run it." She
+    # offered it, took an approval for it, and refused it afterwards.
+    # That teaches him she will do it, and surprises him later. His one
+    # permanent rule deserves to be answered in the first sentence.
+    if command.get("kind") in SPENDING_KINDS:
+        from aletheia import webtask
+        errand = str(command.get("goal") or command.get("what") or "")
+        if webtask.would_spend(errand):
+            return PlannedStep(n, REFUSED, webtask.SPENDING_REFUSAL,
+                               command=command)
     problems = intercom.validate_kind_args(command, fleet)
     if problems:
         # A model that proposed a kind that does not exist has found a real

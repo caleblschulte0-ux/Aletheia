@@ -101,6 +101,42 @@ MONEY_WORDS = re.compile(
 ACTIONS = ("fill", "type", "select", "click", "attach", "download", "goto",
            "done", "ask", "give_up")
 
+# The refusal he set as permanent: "no spending money." Kept as ONE
+# predicate so the plan and the run cannot disagree about what counts.
+SPENDING_REFUSAL = ("That asks me to spend money, and I do not do that — "
+                    "not with an approval, not with a confirmation.")
+
+
+# MONEY_WORDS above names the ACT of paying. These name the ordinary
+# errands that commit money without ever saying so: "order me a pizza"
+# and "book me a flight to Tokyo" contain no word on that list, and both
+# came back "1 step ready — say approve to run it."
+#
+# Deliberately biased toward refusing. A false positive costs him one
+# rephrase and a sentence explaining why; a false negative spends his
+# money, and "no spending money" is the one rule he set as permanent.
+SPENDS_BY_VERB = re.compile(
+    # "order me a pizza", "order a taxi" — but not "in order to"
+    r"\border\s+(?:me\s+)?(?:a|an|the|some|\d+)\b"
+    # "book a flight/hotel/room/car/ticket/ride" — a table is not a charge
+    r"|\bbook\s+(?:me\s+)?(?:a|an|the|\d+)?\s*"
+    r"(?:flight|hotel|room|car|ticket|seat|ride|cab|taxi|train|airbnb)\b"
+    r"|\b(?:rent|hire|lease)\s+(?:me\s+)?(?:a|an|the)\b"
+    r"|\bget\s+me\s+(?:an?\s+)?(?:uber|lyft|taxi|cab|ride)\b"
+    r"|\btop\s*[- ]?up\b"
+    r"|\brenew\s+(?:my\s+)?(?:\w+\s+)?(?:subscription|membership|plan|policy)\b",
+    re.I)
+
+
+def would_spend(goal: str) -> bool:
+    """Does this ask commit money, by the same reading the runner uses?
+
+    One predicate, used by the planner AND by the run, so the sentence he
+    hears and the thing that actually happens cannot disagree.
+    """
+    text = str(goal or "")
+    return bool(MONEY_WORDS.search(text) or SPENDS_BY_VERB.search(text))
+
 SYSTEM = """You are driving a web browser for Caleb, one step at a time, to
 finish the goal he gave you. You see what the page currently shows. You
 reply with ONE step.
@@ -621,11 +657,9 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
         raise ValueError("say what to do")
     if len(goal) > MAX_GOAL_CHARS:
         raise ValueError(f"the goal must be under {MAX_GOAL_CHARS} characters")
-    if MONEY_WORDS.search(goal):
+    if would_spend(goal):
         return {"state": REFUSED, "goal": goal, "steps": [],
-                "say": ("That asks me to spend money, and I do not do that — "
-                        "not with an approval, not with a confirmation. "
-                        "Nothing was opened.")}
+                "say": SPENDING_REFUSAL + " Nothing was opened."}
     budget = max(1, min(int(budget), MAX_STEPS))
     think = think or reasoner.subscription_text
     allowed = _permitted_values(goal)
