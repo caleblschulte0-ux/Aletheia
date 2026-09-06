@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-06T04:46:16Z",
+  "generated_at": "2026-09-06T11:03:27Z",
   "fleet_revision": 4,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -10,6 +10,11 @@
       "status": "active",
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
+        {
+          "sha": "f087c9f0aa80",
+          "date": "2026-09-06T04:46:30Z",
+          "message": "pulse: 2026-09-06T04:46Z"
+        },
         {
           "sha": "e787b2f1236c",
           "date": "2026-09-06T01:38:30Z",
@@ -29,25 +34,20 @@
           "sha": "4bb144ec01a0",
           "date": "2026-09-05T17:25:36Z",
           "message": "The suite rewrote the committed pulse file"
-        },
-        {
-          "sha": "433ac47edba0",
-          "date": "2026-09-05T17:25:36Z",
-          "message": "Seven seconds of silence for a boolean on the same disk"
         }
       ],
       "commit": {
-        "sha": "e787b2f1236c",
-        "date": "2026-09-06T01:38:30Z",
-        "message": "The setup audit called a browser that cannot load a page \"ready\""
+        "sha": "f087c9f0aa80",
+        "date": "2026-09-06T04:46:30Z",
+        "message": "pulse: 2026-09-06T04:46Z"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-09-06T04:46:13Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/34012337887"
+          "updated_at": "2026-09-06T11:03:24Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/34029127220"
         },
         "ci.yml": {
           "status": "completed",
@@ -59,7 +59,7 @@
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 12156
+          "bytes": 12283
         }
       },
       "health": "red"
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
+          "sha": "6cbf19619f61",
+          "date": "2026-09-06T10:37:23Z",
+          "message": "explainer: update posted log + analytics [skip ci]"
+        },
+        {
+          "sha": "ba2d91917395",
+          "date": "2026-09-06T09:23:56Z",
+          "message": "exchange: phase A bundle for 20260906 [skip ci]"
+        },
+        {
+          "sha": "37191f90df57",
+          "date": "2026-09-06T09:23:13Z",
+          "message": "doctor: evidence pack + backlog 2026-09-06 [skip ci]"
+        },
+        {
+          "sha": "0b6c3870f34d",
+          "date": "2026-09-06T09:23:02Z",
+          "message": "daily packages 2026-09-06 (#333)"
+        },
+        {
           "sha": "350987a823db",
           "date": "2026-09-06T01:36:51Z",
           "message": "Mascot: arms behind the head, and stop the flailing"
-        },
-        {
-          "sha": "a6786c068bde",
-          "date": "2026-09-06T01:06:14Z",
-          "message": "Merge branch 'claude/shorts-pipeline-data-handoff-ea2zmb'"
-        },
-        {
-          "sha": "af2255001901",
-          "date": "2026-09-06T01:06:03Z",
-          "message": "Mascot: hands off his face, and he stops sliding around the screen"
-        },
-        {
-          "sha": "573c2d04b5ff",
-          "date": "2026-09-05T19:29:06Z",
-          "message": "explainer: update posted log + analytics [skip ci]"
-        },
-        {
-          "sha": "16143059fb01",
-          "date": "2026-09-05T17:30:19Z",
-          "message": "explainer: update posted log + analytics [skip ci]"
         }
       ],
       "commit": {
-        "sha": "350987a823db",
-        "date": "2026-09-06T01:36:51Z",
-        "message": "Mascot: arms behind the head, and stop the flailing"
+        "sha": "6cbf19619f61",
+        "date": "2026-09-06T10:37:23Z",
+        "message": "explainer: update posted log + analytics [skip ci]"
       },
       "vitals": [
         {
@@ -129,8 +129,8 @@
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-05T13:02:31Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33967700448"
+          "updated_at": "2026-09-06T09:24:02Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34024501156"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
@@ -141,8 +141,8 @@
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-05T19:07:57Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33986079177"
+          "updated_at": "2026-09-06T09:32:01Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34024829858"
         },
         "third.yml": {
           "status": "completed",
@@ -153,8 +153,8 @@
         "explainer.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-05T19:29:13Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33985808645"
+          "updated_at": "2026-09-06T10:37:29Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34024503343"
         },
         "retro.yml": {
           "status": "completed",
@@ -165,8 +165,8 @@
         "doctor.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-05T09:00:24Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33956781831"
+          "updated_at": "2026-09-06T09:23:17Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34024500476"
         }
       },
       "state_files": {
@@ -188,7 +188,7 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 517746
+          "bytes": 520938
         },
         "config/channel_registry.json": {
           "exists": true,
