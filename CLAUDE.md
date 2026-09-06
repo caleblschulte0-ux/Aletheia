@@ -361,6 +361,28 @@ three came back "1 step ready — say approve to run it". Bias the list
 toward refusing: a false positive costs him one rephrase and a sentence
 explaining why; a false negative spends his money.
 
+## A sandbox that moves the files does not stop the email
+
+`talk --sandbox` redirected every store and still ran the world. On his
+machine, with mail configured, auditing her would have SENT things — a
+real email, a real GitHub issue, a real browser pressing Submit. It sets
+`ALETHEIA_REHEARSAL` now, and `intercom.execute_command` refuses the
+world-touching tier while every local step still runs for real, so the
+rehearsal exercises the real planner, the real gates and the real
+stores.
+
+An ENVIRONMENT VARIABLE, not an argument, because the refusal has to hold
+for every path underneath — the Core's beat, an approved intent running
+on a later tick, a plan step — and not just the sentence that started it.
+
+`intercom.CONTAINERS` is the exemption: `intent` and `handle` are
+world-tier because their STEPS can be, and each step comes back through
+the same function to be checked on its own. Refusing the container would
+leave a rehearsal able to exercise only the sentences that happen to have
+a deterministic verb. I first wrote that set as
+`{"intent", "handle", "agenda", "mission"}`; the last two are modules,
+not intercom kinds, and the test caught it.
+
 ## Say it OUT LOUD before you believe the receipt
 
 `speech.count_phrase`, `speech.and_list`, `speech.or_list` and

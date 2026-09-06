@@ -720,31 +720,35 @@ def approval_label(approval: dict) -> str:
     action = str(approval.get("requested_action", ""))
     capability = str(approval.get("capability", ""))
     if capability == "email.send" or action.startswith("email.send"):
+        # The recipient is the thing he needs, and it is in the reason
+        # rather than the summary.
         reason = str(approval.get("reason", ""))
         who = re.search(r"\bto ([A-Za-z][^.]*?)\s*(?:$|\.)", reason)
         return f"the email{' to ' + who.group(1) if who else ''}"
-    if capability == "calendar.write" or action.startswith("calendar.write"):
-        return "the calendar booking"
-    if capability == "intent.execute":
-        return "the plan"
     if capability == "errand.run":
         return speech.tidy(speech.strip_ids(action)) or "the errand"
     if capability == "agent.delegate" or action.startswith("delegate"):
         return "the work order"
-    # THE REASON FIRST. `requested_action` is a digest for anything
-    # content-bound, and a wall that says "browser.interact:193cc7235…" is
-    # asking him to recognise a hash. The reason is a sentence somebody
-    # wrote for him to read — the same correction the phone got on
-    # 2026-09-04, in the surface that shows it across a room.
-    # WHAT WILL HAPPEN beats WHY it was asked for. The reason on an intent
-    # approval is `operator said: "spoken to the wall: thea remember that
-    # my landlord is called Mr Okafor"` — a quote inside a quote inside a
-    # transport label, truncated mid-word when it is read out. The
+
+    # WHAT WILL HAPPEN beats both the reason and a category. The
     # consequence is the plan's own summary of what it will do, which is
-    # the thing he is actually deciding about.
+    # the thing he is deciding about; the reason on an intent approval is
+    # `operator said: "spoken to the wall: thea remember that my landlord
+    # is called Mr Okafor"` — a quote inside a quote inside a transport
+    # label, truncated mid-word when it is read out.
+    #
+    # This check used to sit BELOW `if capability == "intent.execute":
+    # return "the plan"`, so every world-touching plan was labelled "the
+    # plan" while the routine ones got a real description. He heard "2
+    # things waiting: the plan and Remember that landlord is Mr Okafor" —
+    # the consequential one was the nameless one.
     said = speech.tidy(speech.strip_ids(str(approval.get("consequence", ""))))
     if said and said.lower() not in ("see the plan", "unknown"):
         return said[:80]
+    if capability == "calendar.write" or action.startswith("calendar.write"):
+        return "the calendar booking"
+    if capability.startswith("intent.execute"):
+        return "the plan"
     reason = speech.tidy(speech.strip_ids(_unwrap(str(approval.get("reason", "")))))
     if reason:
         return reason[:80]

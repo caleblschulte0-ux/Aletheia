@@ -209,6 +209,12 @@ def main(argv: list[str] | None = None) -> int:
         # about REPO_ROOT.
         os.environ["ALETHEIA_WORKSPACE"] = str(room / "workspace")
         (room / "workspace").mkdir(parents=True, exist_ok=True)
+        # AND THE WORLD. Moving a store does not stop an email leaving or
+        # a browser pressing Submit on a real site — so on his machine,
+        # with mail configured, auditing her would have SENT things.
+        # `intercom.rehearsing()` refuses the world-touching tier while
+        # every local step still runs for real.
+        os.environ["ALETHEIA_REHEARSAL"] = "1"
 
     from aletheia import access, core
     if args.sandbox:

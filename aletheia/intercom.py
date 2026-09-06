@@ -807,10 +807,47 @@ def _free_sentence(ranges: list, day, part: str) -> str:
     return f"Free {when} {said}{more}."
 
 
+# A REHEARSAL, not a run. `talk --sandbox` moves every store somewhere
+# throwaway — and moving a store does not stop an email leaving, a
+# workflow dispatching, or a browser pressing Submit on a real site.
+# Auditing her on his own machine would have SENT things, and the word
+# "sandbox" says otherwise.
+#
+# An environment variable rather than an argument, because the refusal
+# has to hold for every path underneath — the Core's beat, an approved
+# intent running later, a plan step — not just the sentence that started
+# it.
+REHEARSAL = "ALETHEIA_REHEARSAL"
+
+# Kinds that do not touch the world THEMSELVES — they compile a plan and
+# run its steps back through this same function, where each one is
+# checked on its own. Refusing the container would refuse the planner
+# entirely, and then a rehearsal could only exercise the handful of
+# sentences that happen to have a deterministic verb.
+# `intent` compiles a plan and runs its steps back through here.
+# `handle` only PERSISTS a request; the Core executes its candidate
+# commands later, through this same function. Neither reaches the world
+# itself. (`agenda` and `mission` are modules, not intercom kinds — the
+# test below is what caught me listing them.)
+CONTAINERS = frozenset({"intent", "handle"})
+
+
+def rehearsing() -> bool:
+    import os
+    return os.environ.get(REHEARSAL, "").strip().lower() in ("1", "true", "yes")
+
+
 def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "") -> str:
     """Run one validated command. Returns a human-readable detail line.
     Raises act.Refused / ValueError / KeyError — the caller records them."""
     kind = cmd["kind"]
+    if rehearsing() and tier(kind) == TIER_WORLD and kind not in CONTAINERS:
+        # Everything local still runs, so the rehearsal exercises the real
+        # planner, the real gates and the real stores. Only the last inch
+        # into the world is withheld.
+        raise act.Refused(
+            f"this is a rehearsal — {kind} reaches the world, so it was not "
+            "run. Everything local happened for real.")
     if kind == "note":
         journal.append("note", "operator", cmd["text"], actor=ACTOR)
         return "journaled"
