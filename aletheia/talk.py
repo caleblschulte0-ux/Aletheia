@@ -84,7 +84,32 @@ SANDBOX_STORES = (
     # browser profile is his real signed-in session.
     ("aletheia.computer", "CAPTURE_DIR", "cache/computer-captures"),
     ("aletheia.browse", "PROFILE_DIR", "cache/browser-profile"),
+    # ---- anchored at his HOME, not the repo ---------------------------
+    # Same problem, different root, and the AST check below scans for both
+    # now. Only the ones a CONVERSATION can write to are moved: "turn
+    # announcements on" writes announce.json, and asking for standing
+    # authority mints a machine key.
+    ("aletheia.announce", "CONFIG_FILE", "home/announce.json"),
+    ("aletheia.advisor", "CONFIG_FILE", "home/advisor.json"),
+    ("aletheia.machine_binding", "KEY_PATH", "home/machine.key"),
 )
+
+# Home-anchored paths a conversation can only READ. Redirecting these
+# would make the sandbox test a DIFFERENT system — one where his mail and
+# calendar are unconfigured — which is worse than useless for an audit.
+# Nothing here is written without an explicit setup command.
+SANDBOX_READ_ONLY_HOME = {
+    ("aletheia.mail", "CONFIG_FILE"),
+    ("aletheia.ics", "CONFIG_FILE"),
+    ("aletheia.calendar_live", "CONFIG_FILE"),
+    ("aletheia.apply", "HOME_CONFIG"),
+    ("aletheia.voice_quality", "MODEL_ROOT"),
+    ("aletheia.voice_room", "MODEL_DIR"),
+    ("aletheia.voice_room", "VOICE_LOCK"),
+    # The workspace moves by environment variable instead, because
+    # `workspace.root()` reads ALETHEIA_WORKSPACE at call time.
+    ("aletheia.workspace", "DEFAULT_ROOT"),
+}
 
 # Repo paths a conversation can only READ. Each is here on purpose: an
 # audit that redirected these would be testing an empty registry rather
@@ -177,6 +202,13 @@ def main(argv: list[str] | None = None) -> int:
         room = Path(tempfile.mkdtemp(prefix="talk-"))
         os.environ["ALETHEIA_PRIVATE_STATE"] = str(room / "private")
         os.environ["ALETHEIA_JOURNAL_PATH"] = str(room / "journal.jsonl")
+        # HER WORKSPACE IS REAL FILES IN HIS DOCUMENTS FOLDER. The third
+        # miss: "write a file called notes.md" in a sandbox put
+        # ~/Documents/Aletheia/notes.md on the actual disk, because the
+        # workspace is anchored at Path.home() and the AST check only knew
+        # about REPO_ROOT.
+        os.environ["ALETHEIA_WORKSPACE"] = str(room / "workspace")
+        (room / "workspace").mkdir(parents=True, exist_ok=True)
 
     from aletheia import access, core
     if args.sandbox:

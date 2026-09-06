@@ -27,8 +27,16 @@ from aletheia import talk
 AXIOM = Path(__file__).resolve().parent.parent / "aletheia"
 
 
-def repo_anchored() -> set[tuple[str, str]]:
-    """Every module-level NAME = REPO_ROOT / ... under aletheia/."""
+# A store is anchored somewhere real if it starts at the repository OR at
+# his home directory. The first version only knew about REPO_ROOT, and
+# `workspace.DEFAULT_ROOT = Path.home() / "Documents" / "Aletheia"` slipped
+# through it: "write a file called notes.md" in a sandbox put a real file
+# in his real Documents folder.
+ANCHORS = re.compile(r"^(?:REPO_ROOT\b|Path\.home\(\))")
+
+
+def anchored_somewhere_real() -> set[tuple[str, str]]:
+    """Every module-level NAME = REPO_ROOT / ... or Path.home() / ..."""
     found = set()
     for path in sorted(AXIOM.glob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -38,8 +46,7 @@ def repo_anchored() -> set[tuple[str, str]]:
             target = node.targets[0]
             if not isinstance(target, ast.Name):
                 continue
-            source = ast.unparse(node.value)
-            if re.match(r"^REPO_ROOT\b", source):
+            if ANCHORS.match(ast.unparse(node.value)):
                 found.add((f"aletheia.{path.stem}", target.id))
     return found
 
@@ -49,12 +56,34 @@ class EveryRepoStoreIsAccountedForCase(unittest.TestCase):
         """Redirected, or explicitly read-only. There is no third option —
         an unclassified store is one an audit writes to his real repo."""
         classified = {(m, a) for m, a, _rel in talk.SANDBOX_STORES}
-        classified |= talk.SANDBOX_READ_ONLY
-        self.assertEqual(repo_anchored() - classified, set())
+        classified |= talk.SANDBOX_READ_ONLY | talk.SANDBOX_READ_ONLY_HOME
+        self.assertEqual(anchored_somewhere_real() - classified, set())
 
     def test_the_scan_actually_finds_things(self):
         """A regex that stopped matching would make the check vacuous."""
-        self.assertGreater(len(repo_anchored()), 10)
+        self.assertGreater(len(anchored_somewhere_real()), 15)
+
+    def test_the_workspace_does_not_write_into_his_documents(self):
+        """"Write a file called notes.md" in a sandbox put a real
+        ~/Documents/Aletheia/notes.md on disk. The workspace moves by
+        environment variable, because `workspace.root()` reads it at call
+        time — so it is classified read-only here and redirected there."""
+        import os
+        from aletheia import workspace
+        room = Path(tempfile.mkdtemp())
+        before = os.environ.get("ALETHEIA_WORKSPACE")
+        os.environ["ALETHEIA_WORKSPACE"] = str(room / "workspace")
+        try:
+            self.assertTrue(str(workspace.root()).startswith(str(room)))
+        finally:
+            if before is None:
+                os.environ.pop("ALETHEIA_WORKSPACE", None)
+            else:
+                os.environ["ALETHEIA_WORKSPACE"] = before
+
+    def test_sandbox_sets_that_variable(self):
+        body = (Path(talk.__file__)).read_text(encoding="utf-8")
+        self.assertIn("ALETHEIA_WORKSPACE", body)
 
     def test_the_kill_switch_is_redirected(self):
         """Named on its own because this is the one that bit."""
