@@ -138,7 +138,9 @@ def _today() -> str:
     rows = recollection.day()
     if not rows:
         return "Nothing yet today."
-    lines = [str(r.get("what") or "")[:90] for r in rows[-3:]]
+    # Each line is already a finished sentence; joining them with "; "
+    # after a full stop gives "call the dentist.; email dana."
+    lines = [str(r.get("what") or "").strip().rstrip(".")[:90] for r in rows[-3:]]
     return (f"{speech.count_phrase(len(rows), 'thing')} today. Most recent: "
             + "; ".join(lines))
 

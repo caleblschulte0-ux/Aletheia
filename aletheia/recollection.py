@@ -52,7 +52,17 @@ FLOOR = 1.0
 
 # The actors that are HER doing something, as opposed to the operator or
 # CI writing a note. "Did you..." is a question about these.
-HERS = ("aletheia", "operator-via", "core", "converse", "desktop", "workspace")
+#
+# Matched as PREFIXES, which is where this went wrong: the Core journals
+# every command it runs as "operator-local-core", and "core" is in this
+# list but "operator-local-core" does not START with it. So every single
+# thing she did by voice — the most-used path in the whole system — was
+# missing from "what did you do today?". She set a reminder and then said
+# "Nothing yet today." Found 2026-09-06 by asking her.
+# `tests/test_she_remembers_her_own_actions.py` now holds this list
+# against the ACTOR constants that actually exist.
+HERS = ("aletheia", "operator-via", "operator-local", "core", "converse",
+        "desktop", "workspace")
 
 STOP = frozenset("""
 a an and are as at be by can could did do does for from get give go had has
@@ -96,11 +106,35 @@ def _local(ts: str) -> str:
         return str(ts)[:16]
 
 
+# Journal subjects whose tail is an intercom KIND, so the receipt can be
+# turned back into the sentence a person would have said.
+RECEIPT_SUBJECTS = ("core:", "intercom:")
+
+
 def _row(entry: dict) -> dict:
+    """One journal line as something she could say out loud.
+
+    It used to be `f"{subject}: {text}"`, which answered "what did you do
+    today?" with "core:remind_at: done — reminder remind-386c2036 set for
+    2026-09-06T15:00:00-05:00 — 'call the dentist'". Every part of that
+    is true and none of it is speech; `speech.spoken_receipt` exists for
+    exactly this and was not being asked.
+    """
+    from aletheia import speech
+    subject = str(entry.get("subject", ""))
+    text = str(entry.get("text", ""))
+    if subject.startswith(RECEIPT_SUBJECTS):
+        # `core.run_command` journals "<outcome> — <detail>". "Done" adds
+        # nothing to a list of things she did; "refused" or "error" is the
+        # whole point of the line, so only the success word is dropped.
+        body = text[len("done — "):] if text.startswith("done — ") else text
+        what = speech.spoken_receipt(subject.split(":")[-1], body)
+    else:
+        what = f"{subject}: {speech.tidy(speech.strip_ids(text))}" if subject else text
     return {"at": _local(entry.get("ts", "")),
             "kind": entry.get("kind", ""),
             "who": entry.get("actor", ""),
-            "what": f"{entry.get('subject', '')}: {entry.get('text', '')}"[:TEXT_CHARS]}
+            "what": what[:TEXT_CHARS]}
 
 
 def _recent(hours: float) -> list[dict]:
