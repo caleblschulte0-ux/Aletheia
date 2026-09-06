@@ -60,6 +60,20 @@ WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
             "Saturday", "Sunday")
 
 
+def _operator_zone():
+    """His timezone, or None to leave the instant where it is.
+
+    Deliberately soft: this module is the last step before something is
+    SPOKEN, and a missing tzdata entry must degrade to a slightly odd
+    hour, never to an exception in the middle of a sentence.
+    """
+    try:
+        from aletheia import localtime
+        return localtime.operator_tz()
+    except Exception:
+        return None
+
+
 def short_id(value: str) -> str:
     """The last few characters of an id, for when he truly needs one."""
     tail = str(value or "").rstrip()[-4:]
@@ -78,11 +92,23 @@ def humanize_time(stamp: str, now: dt.datetime | None = None) -> str:
     except (TypeError, ValueError):
         return str(stamp)
     if parsed.tzinfo is not None:
-        parsed = parsed.astimezone()
+        # HIS zone, not this process's. `astimezone()` with no argument
+        # uses whatever the machine is set to, and the two are the same
+        # only by luck. A reminder set for 03:00 America/Chicago was read
+        # back as "tomorrow at 8 am" — correct arithmetic, useless
+        # sentence, and it MASKED a separate bug that saying the real time
+        # would have exposed in one syllable. The confirmation exists so
+        # he can catch a mistake; rendered in the wrong zone it cannot do
+        # that job.
+        parsed = parsed.astimezone(_operator_zone() or None)
     now = now or dt.datetime.now(parsed.tzinfo) if parsed.tzinfo else (
         now or dt.datetime.now())
     if now.tzinfo is not None and parsed.tzinfo is None:
         now = now.replace(tzinfo=None)
+    if parsed.tzinfo is not None and now.tzinfo is not None:
+        # "today"/"tomorrow" is a comparison of CALENDAR DAYS, and two
+        # dates in different zones are not comparable.
+        now = now.astimezone(parsed.tzinfo)
 
     clock = parsed.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ")
     clock = clock.replace(" AM", " am").replace(" PM", " pm")

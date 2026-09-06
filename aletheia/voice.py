@@ -48,6 +48,12 @@ def _spoken_url(tail: str) -> str | None:
     return "https://" + t
 
 
+def _is_bare_hour(text: str) -> bool:
+    """Did he give an hour with no am/pm — "at 3" rather than "at 3 pm"?"""
+    return re.fullmatch(r"\s*\d{1,2}\s*",
+                        str(text or "").lower().replace(".", "")) is not None
+
+
 def _spoken_time(text: str) -> str | None:
     """'8 am' / '8:30 pm' / '20:15' -> 'HH:MM', else None."""
     t = text.strip().lower().replace(".", "")
@@ -64,32 +70,128 @@ def _spoken_time(text: str) -> str | None:
     return f"{hour:02d}:{minute:02d}"
 
 
+WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday",
+            "saturday", "sunday")
+
+
 def _spoken_day(text: str) -> str | None:
-    """'today' / 'tomorrow' / '2026-08-27' -> ISO date, else None."""
+    """'today' / 'tomorrow' / 'friday' / '2026-08-27' -> ISO date, else None.
+
+    Weekday names are how people name days out loud, and every one of
+    them used to come back "I couldn't parse the day". "Next friday" is
+    deliberately NOT handled here: in English it means this coming Friday
+    to some people and the one after to others, and quietly picking one
+    is the same class of mistake as dropping "afternoon" — so
+    `interpret` asks instead.
+    """
     import datetime as dt
     t = text.strip().lower().rstrip(".?!")
+    t = t[5:].strip() if t.startswith("this ") else t
     today = dt.date.today()
     if t in ("today", ""):
         return today.isoformat()
     if t == "tomorrow":
         return (today + dt.timedelta(days=1)).isoformat()
+    if t in WEEKDAYS:
+        ahead = (WEEKDAYS.index(t) - today.weekday()) % 7
+        return (today + dt.timedelta(days=ahead)).isoformat()
     try:
         return dt.date.fromisoformat(t).isoformat()
     except ValueError:
         return None
 
 
-def _next_occurrence_iso(hhmm: str) -> str:
-    """The next future moment today/tomorrow at HH:MM, operator-local."""
+# Nobody means three in the morning. A bare hour with no am/pm is the
+# most common way a person says a time out loud, and resolving it
+# literally put "remind me at 3", said at a quarter to nine in the
+# morning, at 03:00 TOMORROW — eighteen hours late and in the middle of
+# the night. So a bare hour never lands before this hour of the morning;
+# an explicit "3 am" still does, because then he said it.
+EARLIEST_BARE_HOUR = 6
+
+
+# The words he actually uses for a stretch of a day.
+DAY_PARTS = ("morning", "afternoon", "evening", "tonight")
+
+
+def _spoken_when(text: str) -> tuple[str | None, str | None]:
+    """"tomorrow afternoon" -> (that date, "afternoon"). Either may be None.
+
+    A day and a part of it arrive in one breath and were being parsed as
+    if only the day existed, so "am I free tomorrow afternoon" was
+    answered with nine o'clock in the morning.
+    """
+    words = str(text or "").strip().lower().rstrip(".?!").split()
+    part = None
+    if words and words[-1] in DAY_PARTS:
+        part = words.pop()
+        if part == "tonight":
+            words = words or ["today"]
+    day = _spoken_day(" ".join(words) if words else "today")
+    return day, part
+
+
+def _ordinal(day: int) -> str:
+    """1 -> '1st'. Said out loud, so "the 1th" is not an option."""
+    if 11 <= day % 100 <= 13:
+        return f"{day}th"
+    return f"{day}{ {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th') }".replace(" ", "")
+
+
+def _ambiguous_next_weekday(text: str) -> str | None:
+    """The one phrase worth asking about rather than guessing.
+
+    "Next Friday" means the coming Friday to half the people who say it
+    and the one after to the other half. Picking silently is how she
+    confirms the wrong thing confidently, which is the failure that costs
+    trust fastest.
+    """
+    import datetime as dt
+    words = str(text or "").strip().lower().rstrip(".?!").split()
+    if len(words) < 2 or words[0] != "next" or words[1] not in WEEKDAYS:
+        return None
+    today = dt.date.today()
+    ahead = (WEEKDAYS.index(words[1]) - today.weekday()) % 7 or 7
+    soon = today + dt.timedelta(days=ahead)
+    later = soon + dt.timedelta(days=7)
+    name = words[1].capitalize()
+    return (f"Which {name} — the {_ordinal(soon.day)}, "
+            f"or the week after on the {_ordinal(later.day)}?")
+
+
+def _next_occurrence_iso(hhmm: str, *, bare_hour: bool = False,
+                         now: "dt.datetime | None" = None) -> str:
+    """The next moment he plausibly meant by HH:MM, operator-local.
+
+    `bare_hour` says he gave an hour with no am/pm. Then both readings are
+    live — 3 could be 03:00 or 15:00 — and the answer is the earliest
+    future one that a person could have meant, which is never the small
+    hours. "At 3" at 08:45 is this afternoon; at 16:00 it is tomorrow
+    afternoon, not tomorrow before dawn.
+    """
     import datetime as dt
     from aletheia import localtime
     tz = localtime.operator_tz()
-    now = dt.datetime.now(tz)
+    now = now.astimezone(tz) if now is not None else dt.datetime.now(tz)
     hour, minute = map(int, hhmm.split(":"))
-    candidate = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-    if candidate <= now:
-        candidate += dt.timedelta(days=1)
-    return candidate.isoformat()
+
+    def at(day_offset: int, h: int) -> "dt.datetime":
+        return (now + dt.timedelta(days=day_offset)).replace(
+            hour=h, minute=minute, second=0, microsecond=0)
+
+    hours = [hour]
+    if bare_hour and 1 <= hour <= 11:
+        hours.append(hour + 12)
+    candidates = sorted(at(day, h) for day in (0, 1) for h in hours)
+    for candidate in candidates:
+        if candidate <= now:
+            continue
+        if bare_hour and candidate.hour < EARLIEST_BARE_HOUR:
+            continue
+        return candidate.isoformat()
+    # Only reachable if every reading is in the past or the small hours;
+    # the literal next occurrence is still better than no reminder.
+    return next(c for c in candidates if c > now).isoformat()
 
 
 def _status_say() -> str:
@@ -216,7 +318,7 @@ def interpret(transcript: str) -> dict:
             if not hhmm:
                 return {"command": None,
                         "say": f"I couldn't parse the time {m.group(1)!r} — say it like '8 am' or '14:30'."}
-            at = _next_occurrence_iso(hhmm)
+            at = _next_occurrence_iso(hhmm, bare_hour=_is_bare_hour(m.group(1)))
         else:
             import datetime as dt
             amount = int(m.group(2))
@@ -241,15 +343,25 @@ def interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:clear|dismiss|acknowledge) (?:my |the )?notifications?", low):
         return {"command": {"kind": "notify_clear"}, "say": None}
 
-    # free time
-    m = re.fullmatch(r"(?:when am i free|what's my availability|any free time)"
-                     r"(?:\s+(?:on\s+)?(.+))?", low)
+    # free time. "Am I free tomorrow afternoon" is how a person asks this
+    # and it matched none of these, so it fell through to the planner: six
+    # and a half seconds, and the word "afternoon" thrown away on the way.
+    m = re.fullmatch(r"(?:when am i free|am i free|are we free|"
+                     r"what'?s my availability|any free time|do i have time)"
+                     r"(?:\s+(?:on\s+|this\s+)?(.+?))?\s*\??", low)
     if m:
-        day = _spoken_day(m.group(1) or "today")
+        asked = _ambiguous_next_weekday(m.group(1) or "")
+        if asked:
+            return {"command": None, "say": asked}
+        day, part = _spoken_when(m.group(1) or "")
         if day:
-            return {"command": {"kind": "free_time", "day": day}, "say": None}
+            command = {"kind": "free_time", "day": day}
+            if part:
+                command["part"] = part
+            return {"command": command, "say": None}
         return {"command": None,
-                "say": f"I couldn't parse the day {m.group(1)!r} — say today, tomorrow, or a date."}
+                "say": f"I couldn't parse {m.group(1)!r} — say today, tomorrow, "
+                       "a date, or something like 'tomorrow afternoon'."}
 
     # private contact: "remember person bob smith bob at gmail dot com"
     m = re.match(r"remember (?:person|contact)\s+(.+?)\s+((?:\S+\s+at\s+\S.*|\S+@\S+))$", low)
