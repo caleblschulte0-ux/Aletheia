@@ -47,6 +47,13 @@ def _approvals() -> list[dict]:
             for a in pending[:MAX_ITEMS]]
 
 
+# Titles that say what KIND of notice it is and nothing about this one.
+# Every reminder is titled "Reminder"; the thing he actually wants is in
+# the body.
+GENERIC_TITLES = frozenset({"reminder", "notification", "notice", "alert",
+                            "update", "aletheia"})
+
+
 def _notifications() -> list[dict]:
     """Unread notices, deduplicated by the words on screen.
 
@@ -54,15 +61,34 @@ def _notifications() -> list[dict]:
     same subsystem failing twice, say — and the wall then shows the same
     sentence twice, which reads as a bug in the wall rather than as two
     events.
+
+    DEDUPED ON TITLE AND BODY, because every reminder is titled
+    "Reminder": "call the dentist" and "pick up the kids" both fired,
+    both were real, and the second one silently vanished from the only
+    surface he looks at.
+
+    And `says` is what to READ OUT. A generic title is the category, not
+    the notice — "1 thing I wanted to tell you about" is the answer to
+    "how many", and he asked what.
     """
     from aletheia import notifications, speech
     seen, out = set(), []
     for notice in notifications.all_notifications(state="UNREAD", limit=30):
         title = speech.tidy(speech.strip_ids(str(notice.get("title", ""))))
-        if not title or title.casefold() in seen:
+        body = speech.tidy(speech.strip_ids(str(notice.get("body", ""))))
+        if not title:
             continue
-        seen.add(title.casefold())
-        out.append({"title": title, "priority": notice.get("priority", "NORMAL"),
+        key = (title.casefold(), body.casefold())
+        if key in seen:
+            continue
+        seen.add(key)
+        says = title
+        if body and title.casefold().rstrip(":") in GENERIC_TITLES:
+            says = body
+        elif body and body.casefold() not in title.casefold():
+            says = f"{title}: {body}"
+        out.append({"title": title, "body": body, "says": says[:140],
+                    "priority": notice.get("priority", "NORMAL"),
                     "at": notice.get("created_at")})
         if len(out) >= MAX_ITEMS:
             break
@@ -172,7 +198,7 @@ def _headline(halted, approvals: list[dict], notices: list[dict],
                 + speech.and_list([a["label"] for a in approvals[:3]]))
     urgent = [n for n in notices if n.get("priority") in ("URGENT", "IMPORTANT")]
     if urgent:
-        return urgent[0]["title"]
+        return urgent[0].get("says") or urgent[0]["title"]
     if working:
         return speech.and_list([w["what"] for w in working[:3]])
     return "All quiet"
