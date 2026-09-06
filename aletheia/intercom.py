@@ -62,6 +62,14 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "plan_set":      ({"slug", "state"}, {"because"}),
     "task_new":      ({"id", "description"}, {"goal", "worker", "deadline"}),
     "task_status":   ({"id", "state"}, {"note"}),
+    # She could CREATE a task by voice and change its status, and had no
+    # verb for "what are my tasks" — so the commonest question about the
+    # store went to the planner every time: 8.5 seconds, and markdown
+    # bullets read out loud.
+    "tasks":         (set(), {"which"}),
+    # "mark the passport one done" — by what he CALLS it, because he does
+    # not know its id and should never have to.
+    "task_done":     ({"which"}, set()),
     "halt":          (set(), {"reason"}),
     "resume":        (set(), set()),
     "approve":       ({"id"}, set()),
@@ -325,7 +333,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email
 READ_ONLY_KINDS = frozenset({
     "note", "notify_check", "free_time", "brief", "subscriptions", "money",
     # Reads public job boards. Prepares nothing, sends nothing.
-    "jobs",
+    "jobs", "tasks",
     "projects", "car", "recall", "travel_time", "browse_read", "browse_shot",
     # reads public pages and writes a document; commits him to nothing
     "research",
@@ -590,6 +598,101 @@ def validate_command(path: Path, fleet: dict) -> list[str]:
 WORK_HOURS_NOTE = "I only look at your working hours, nine to five"
 
 
+# What "open" means when he asks what is on his list.
+# Words that carry no signal when he points at a task: "the passport ONE",
+# "the dentist TASK". Matching on these makes every task a candidate.
+TASK_STOP = frozenset("""the one task thing item that this those these my me
+mine your a an and or of to for it its please just now""".split())
+
+OPEN_TASK_STATES = ("QUEUED", "READY", "RUNNING", "BLOCKED",
+                    "WAITING_OPERATOR", "WAITING_EXTERNAL",
+                    "WAITING_DEPENDENCY", "RETRY_SCHEDULED")
+
+
+def _open_tasks() -> list[dict]:
+    from aletheia import tasks as tasks_mod
+    return [t for t in tasks_mod.all_tasks()
+            if str(t.get("status", "")).upper() in OPEN_TASK_STATES]
+
+
+def _tasks_answer(which: str = "") -> str:
+    """"What are my tasks" — a sentence, from the store, with no model.
+
+    It used to reach the planner and come back as markdown bullets with
+    the sentences run together: "Two open: - Call the dentist\n- Renew
+    your passport No due dates attached to either."
+    """
+    from aletheia import speech
+    rows = _open_tasks()
+    if which:
+        needle = which.casefold()
+        rows = [t for t in rows
+                if needle in str(t.get("description", "")).casefold()
+                or needle in str(t.get("id", "")).casefold()]
+        if not rows:
+            return f"Nothing open matching {which!r}."
+    if not rows:
+        return "Nothing on your list."
+    said = speech.and_list([_task_words(t) for t in rows[:5]])
+    more = f", and {len(rows) - 5} more" if len(rows) > 5 else ""
+    return f"{speech.count_phrase(len(rows), 'thing')} on your list: {said}{more}."
+
+
+def _task_words(task: dict) -> str:
+    """One task, with its deadline if it has one.
+
+    Splitting "by Friday" out of the description made the deadline REAL —
+    `tasks.due` can surface it on the beat now — and would have made it
+    inaudible if the list did not say it back.
+    """
+    from aletheia import speech, tasks as tasks_mod
+    words = str(task.get("description") or task["id"])[:70]
+    when = tasks_mod.parse_deadline(task.get("deadline"))
+    if not when:
+        return words
+    said = speech.humanize_time(when.isoformat())
+    # "due Friday at 11:59 pm" is the end-of-day default, not a time he set.
+    if said.endswith(" at 11:59 pm"):
+        said = said[: -len(" at 11:59 pm")]
+    # No comma: `and_list` already uses commas, and "renew my passport,
+    # due Friday and submit the form, due tomorrow" is unparseable by ear.
+    return f"{words} due {said}"
+
+
+def _one_task(which: str):
+    """(task, why-not) — exactly one open task he could mean, or a question.
+
+    Refusing to guess between two is right; refusing to look one up by the
+    words he used is not, and "mark the passport one done" is how anybody
+    says it.
+    """
+    from aletheia import speech
+    needle = " ".join(str(which or "").split()).casefold()
+    rows = _open_tasks()
+    hits = [t for t in rows
+            if needle and (needle in str(t.get("description", "")).casefold()
+                           or needle in str(t.get("id", "")).casefold())]
+    if not hits:
+        # One word of his is enough to find it — "the passport one". Score
+        # by how many of his CONTENT words a task contains and take the
+        # best, because "the passport one" also contains "the" and "one",
+        # and matching on those makes every task a candidate.
+        words = [w for w in re.split(r"[^a-z0-9]+", needle)
+                 if len(w) > 2 and w not in TASK_STOP]
+        scored = [(sum(1 for w in words
+                       if w in str(t.get("description", "")).casefold()), t)
+                  for t in rows]
+        best = max((n for n, _t in scored), default=0)
+        hits = [t for n, t in scored if n == best and n > 0]
+    if not hits:
+        return None, f"Nothing open matching {which!r}."
+    if len(hits) > 1:
+        return None, ("Which one — "
+                      + speech.or_list([str(t.get("description") or t["id"])[:50]
+                                        for t in hits[:4]]) + "?")
+    return hits[0], ""
+
+
 def _jobs_answer(cmd: dict) -> str:
     """"How many jobs are open at Anthropic" / "find me react jobs in Austin".
 
@@ -732,10 +835,24 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "plan_set":
         plans.set_plan(cmd["slug"], cmd["state"], cmd.get("because", ""))
         return f"plan {cmd['slug']} -> {cmd['state']}"
+    if kind == "tasks":
+        return _tasks_answer(cmd.get("which", ""))
+    if kind == "task_done":
+        from aletheia import tasks as tasks_mod
+        found, why = _one_task(cmd["which"])
+        if found is None:
+            return why
+        tasks_mod.set_status(found["id"], "COMPLETED",
+                             note=f"marked done: {quote[:120]}")
+        return f"marked done — {found.get('description') or found['id']}"
     if kind == "task_new":
-        tasks.create(cmd["id"], cmd["description"], goal=cmd.get("goal"),
-                     assigned_worker=cmd.get("worker"), deadline=cmd.get("deadline"))
-        return f"task {cmd['id']} queued"
+        made = tasks.create(cmd["id"], cmd["description"], goal=cmd.get("goal"),
+                            assigned_worker=cmd.get("worker"),
+                            deadline=cmd.get("deadline"))
+        # The DEADLINE in the confirmation, because he just said one and
+        # the whole point of a confirmation is that he can catch it being
+        # wrong in one syllable.
+        return f"task {cmd['id']} queued — {_task_words(made)}"
     if kind == "task_status":
         t = tasks.set_status(cmd["id"], cmd["state"], cmd.get("note", ""))
         return f"task {cmd['id']} -> {t['status']}"
@@ -782,11 +899,18 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             out = media.extract_audio(cmd["source"], cmd["out"])
         elif kind == "media_captions":
             out = media.burn_subtitles(cmd["source"], cmd["subtitles"], cmd["out"])
-        else:
+        elif kind == "media_convert":
             height = cmd.get("height")
             out = media.convert(cmd["source"], cmd["out"],
                                 height=int(height) if height is not None else None)
-        return f"{out['what']} -> {out['path']} ({out['bytes']:,} bytes) — source untouched"
+        else:
+            # A bare `else` meant every future media kind landed in
+            # `convert`: add "media_speed" to the grammar and she would
+            # silently transcode instead, with a receipt saying she had
+            # done it. Naming the last branch makes the drift a failure.
+            raise ValueError(f"no handler for media kind {kind!r}")
+        return (f"{out['what']} -> {out['path']} ({out['bytes']:,} bytes) "
+                "— source untouched")
 
     if kind == "computer_observe":
         from aletheia import computer
@@ -1023,6 +1147,11 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         import json as _json
         latest = _p.PULSE_DIR / "latest.json"
         current = _json.loads(latest.read_text(encoding="utf-8")) if latest.exists() else {}
+        if not current.get("repos"):
+            # An unpulsed machine. It used to reach `compose` and raise a
+            # bare KeyError, which he heard as "I couldn't: 'generated_at'".
+            return ("I haven't collected a pulse yet, so there is no brief to "
+                    "give you. `python -m aletheia.pulse` builds one.")
         return brief.compose(current, brief.previous_pulse(current),
                              _j.since(24), 0)
     if kind == "handle":

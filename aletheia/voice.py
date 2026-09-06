@@ -177,6 +177,35 @@ def _spoken_when(text: str) -> tuple[str | None, str | None]:
     return day, part
 
 
+def _split_deadline(text: str) -> tuple[str, str]:
+    """"renew my passport by friday" -> ("renew my passport", "2026-09-11").
+
+    He said a deadline and it became prose. `task_new` has always taken
+    one, and `tasks.due` surfaces it on the beat — so "renew the
+    registration by Friday" WAS just a sentence in a file, which is the
+    exact difference between a task list and a graveyard.
+
+    Returns the description unchanged when there is no deadline in it, and
+    when the words after "by" are not a day — "sort the photos by date"
+    must not acquire one.
+    """
+    m = re.search(r"^(.*?)[,\s]+(?:by|before|due(?: on)?)\s+(.+)$", text)
+    if not m:
+        return text, ""
+    rest, when = m.group(1).strip(), m.group(2).strip()
+    if not rest:
+        return text, ""
+    at = re.search(r"^(.*?)\s+at\s+(.+)$", when)
+    day = _spoken_day(at.group(1) if at else when)
+    if not day:
+        return text, ""
+    if at:
+        hhmm = _spoken_time(at.group(2))
+        if hhmm:
+            return rest, f"{day}T{hhmm}:00"
+    return rest, day
+
+
 def _ordinal(day: int) -> str:
     """1 -> '1st'. Said out loud, so "the 1th" is not an option."""
     if 11 <= day % 100 <= 13:
@@ -415,6 +444,35 @@ def interpret(transcript: str) -> dict:
         return {"command": {"kind": "watch_email_from",
                             "who": m.group(1).strip()}, "say": None}
 
+    # "What are my tasks" is a store read and it was costing 8.5 seconds
+    # through the planner, coming back as markdown bullets. She could
+    # CREATE a task by voice and had no verb for reading the list.
+    if re.fullmatch(r"(?:what (?:are|r) my tasks|what'?s? on my (?:list|plate)|"
+                    r"my tasks|list (?:my )?tasks|what do i have to do|"
+                    r"what(?:'s| is|s)? left to do|todo list|"
+                    r"what am i supposed to be doing)", low):
+        return {"command": {"kind": "tasks"}, "say": None}
+
+    # "Mark the passport one done" — by what he CALLS it. This went to the
+    # planner and came back asking for approval to change a local status,
+    # while "add a task to renew my passport" ran instantly.
+    # "did you do the dishes" is a QUESTION about her, not an instruction
+    # to tick something off, so a bare "did" may not start this — only
+    # "I did". The past-tense statements ("finished the passport one")
+    # stand on their own because nobody asks a question that way.
+    m = (re.fullmatch(r"(?:mark|tick|check|cross) (?:off )?(?:the )?(.+?)"
+                      r"(?: one| task)? (?:as )?(?:done|complete[d]?|finished)",
+                      low)
+         or re.fullmatch(r"(?:tick|check|cross) off (?:the )?(.+?)"
+                         r"(?: one| task)?", low)
+         or re.fullmatch(r"(?:i(?:'ve)? )?(?:finished|completed) (?:the )?(.+?)"
+                         r"(?: one| task)?", low)
+         or re.fullmatch(r"i (?:did|have done) (?:the )?(.+?)(?: one| task)?", low))
+    if m:
+        which = (m.group(1) or "").strip()
+        if which and which not in ("it", "that", "them", "everything"):
+            return {"command": {"kind": "task_done", "which": which}, "say": None}
+
     # "what files do you have" reached the planner, which sometimes
     # compiled `file_list` and sometimes let `converse` answer — and
     # `converse` does not know she can list a directory, so it replied
@@ -628,12 +686,14 @@ def interpret(transcript: str) -> dict:
 
     m = re.match(r"(?:add a task|new task|task)\s*(?:to|:)?\s+(.+)", low)
     if m:
-        desc = m.group(1).strip()
+        desc, deadline = _split_deadline(m.group(1).strip())
         slug = re.sub(r"[^a-z0-9]+", "-", desc.lower()).strip("-")[:40] or "voice-task"
         if any(t["id"] == slug for t in tasks.all_tasks()):
             slug = f"{slug}-2"
-        return {"command": {"kind": "task_new", "id": slug, "description": desc},
-                "say": None}
+        command = {"kind": "task_new", "id": slug, "description": desc}
+        if deadline:
+            command["deadline"] = deadline
+        return {"command": command, "say": None}
 
     m = re.match(r"(?:note|note that|write down|log)\s+(.+)", low)
     if m:

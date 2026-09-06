@@ -186,6 +186,10 @@ def spoken_receipt(kind: str, detail: str, *,
             return (f"Every day at {when.group(1)} I'll remind you: "
                     f"{_quoted(what.group(1))}.")
     if kind == "task_new":
+        # "task renew-my-passport queued — renew my passport due Friday"
+        named = re.search(r"task [a-z0-9-]+ queued\s*[—-]\s*(.+)", text)
+        if named:
+            return f"Added a task: {named.group(1).strip()}."
         slug = re.search(r"task ([a-z0-9-]+) queued", text)
         if slug:
             return f"Added a task: {deslug(slug.group(1))}."
@@ -202,6 +206,10 @@ def spoken_receipt(kind: str, detail: str, *,
         if noted:
             return (f"Noted: {deslug(noted.group(1))} is "
                     f"{noted.group(2).strip()}.")
+    if kind == "task_done":
+        marked = re.match(r"marked done\s*[—-]\s*(.+)", text)
+        if marked:
+            return f"Done: {marked.group(1).strip()}."
     if kind == "task_status":
         moved = re.search(r"task ([a-z0-9-]+) -> ([A-Z_]+)", text)
         if moved:
@@ -238,6 +246,20 @@ def and_list(items: list[str]) -> str:
     if len(items) == 1:
         return items[0]
     return ", ".join(items[:-1]) + " and " + items[-1]
+
+
+def or_list(items: list[str]) -> str:
+    """['a','b','c'] -> 'a, b or c'. For a CHOICE, where "and" is wrong.
+
+    "Which one — call the dentist and call the plumber?" reads as one
+    thing made of two; the question is asking him to pick.
+    """
+    items = [str(i).strip() for i in items if str(i).strip()]
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    return ", ".join(items[:-1]) + " or " + items[-1]
 
 
 def count_phrase(count: int, singular: str, plural: str | None = None) -> str:
