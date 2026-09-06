@@ -171,6 +171,43 @@ def free_slots(day: dt.date, *, duration_minutes: int, timezone: str,
     return slots
 
 
+# What a person means by a part of the day. Local hours, half-open.
+DAY_PARTS = {"morning": (6, 12), "afternoon": (12, 17), "evening": (17, 22),
+             "tonight": (17, 22)}
+
+
+def in_part(slots: list[tuple[str, str]], part: str) -> list[tuple[str, str]]:
+    """Only the slots that start inside a named part of the day.
+
+    He said "tomorrow AFTERNOON" and got a list beginning at nine in the
+    morning, because the qualifier was simply dropped on the way through.
+    Answering a different question than the one asked is worse than
+    refusing: he has no way to tell it happened.
+    """
+    window = DAY_PARTS.get(str(part or "").strip().lower())
+    if not window:
+        return list(slots)
+    low, high = window
+    return [s for s in slots
+            if low <= dt.datetime.fromisoformat(s[0]).hour < high]
+
+
+def merge_slots(slots: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """Overlapping candidate slots as the stretches of free time they are.
+
+    `free_slots` steps every fifteen minutes, so an empty afternoon comes
+    back as two dozen overlapping windows. "Free at 1:00, 1:15, 1:30,
+    1:45, 2:00..." is data; "free from 1 to 5" is the answer.
+    """
+    merged: list[list[str]] = []
+    for start, end in sorted(slots):
+        if merged and start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    return [(a, b) for a, b in merged]
+
+
 def find_slots(start_day: dt.date, end_day: dt.date, *, duration_minutes: int,
                timezone: str, work_start: dt.time = dt.time(9, 0),
                work_end: dt.time = dt.time(17, 0), events: list[dict] | None = None,

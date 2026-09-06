@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 import threading
 
@@ -260,23 +261,119 @@ def spoken(record: dict) -> str:
         if answers:
             return " ".join(answers)[:600]
         return record.get("summary") or "Nothing to do."
+    from aletheia import speech
     parts = []
     if runnable:
-        parts.append(f"{len(runnable)} step{'s' if len(runnable) != 1 else ''} ready — "
-                     + ", ".join(s["command"]["kind"] for s in runnable)
-                     + f". Say approve to run it ({record['approval']}).")
+        # THE SUMMARY, not the kinds. An executable step carries no
+        # capability id (only gaps do), so naming the steps could only
+        # ever read back the intercom vocabulary — "1 step ready —
+        # task_new". The planner's own summary is the plain sentence for
+        # what is about to happen, which is what somebody deciding
+        # whether to say "approve" actually needs.
+        #
+        # And no approval id: §145, he approves by saying "approve", and
+        # a hex string read out loud is a handle he cannot hold in his
+        # head — while the sentence went on to tell him to say it back.
+        ready = speech.count_phrase(len(runnable), "step") + " ready"
+        summary = speech.tidy(speech.strip_ids(str(record.get("summary") or "")))
+        parts.append((f"{ready} — {summary}." if summary else f"{ready}.")
+                     + " Say approve to run it.")
     if gaps_named:
-        parts.append("I can't do "
-                     + ", ".join(s["capability"] or "?" for s in gaps_named)
-                     + " yet"
-                     + (f"; filed {len(record.get('gap_tasks') or [])} build task(s)."
-                        if record.get("gap_tasks") else "."))
+        parts.append(_cannot_yet(gaps_named, record))
     if manual:
-        parts.append(f"{len(manual)} step{'s' if len(manual) != 1 else ''} only you can do.")
+        parts.append(f"{speech.count_phrase(len(manual), 'step')} only you can do.")
     if refused:
-        parts.append(f"{len(refused)} proposed step{'s' if len(refused) != 1 else ''} "
+        parts.append(f"{speech.count_phrase(len(refused), 'proposed step')} "
                      "did not survive validation.")
     return " ".join(parts) or "Nothing to do."
+
+
+def _in_english(capability: str | None) -> str:
+    """What a capability IS, in the registry's own words.
+
+    She was saying "I can't do room.scene yet" and "1 step ready —
+    free_time" out loud. Those are identifiers: correct, unsayable, and
+    §145 is explicit that implementation details never reach speech
+    unless they are useful to him. The registry already carries a human
+    sentence for every capability; this is that sentence.
+    """
+    from aletheia import speech
+    name = str(capability or "").strip()
+    try:
+        from aletheia import capabilities
+        entry = capabilities.get(name) if name else None
+        said = str((entry or {}).get("description") or "").strip()
+        if said:
+            # One clause. The registry descriptions are a sentence plus a
+            # qualification, and only the first half is the answer.
+            first = re.split(r"\s+[-—:(]\s*|\.\s", said)[0].strip(" .")
+            return first[0].lower() + first[1:] if first else said
+    except Exception:
+        pass
+    return speech.deslug(name) or "that"
+
+
+def _cannot_yet(gaps_named: list[dict], record: dict) -> str:
+    """"Not yet" — and the one thing that would change it.
+
+    A capability waiting on HIM (a hub to connect, an account to link) and
+    one that does not exist yet are completely different answers, and both
+    used to come out as the same sentence with an identifier in the middle
+    of it: "I can't do room.scene yet; filed 1 build task(s)."
+
+    The two paths are phrased separately on purpose. A capability with a
+    setup step is one command away, and that command is the whole answer;
+    one without a step has only the registry's description, which is a
+    noun phrase and reads correctly after "I can't".
+    """
+    from aletheia import speech
+    wanted = [s.get("capability") for s in gaps_named]
+    step = _setup_step(wanted)
+    if step is not None:
+        # Deliberately NOT the step's `why`. That field is written for the
+        # checklist screen and talks about her in the third person —
+        # "without it SHE cannot answer 'am I free'" — which is a strange
+        # thing to hear her say about herself, and long. He just asked for
+        # the thing, so he knows what it is; the command is the part he
+        # can act on.
+        command = _how_command(step)
+        said = "Not yet — that one needs setting up first"
+        return f"{said}: {command}" if command else f"{said}."
+    said = "I can't " + speech.and_list([_in_english(c) for c in wanted]) + " yet"
+    if record.get("gap_tasks"):
+        return f"{said}. I've put it on the build list."
+    return f"{said}."
+
+
+def _setup_step(capabilities_wanted: list):
+    """The setup checklist entry for the first gap that has one, or None."""
+    try:
+        from aletheia import setup
+        wanted = {str(c) for c in capabilities_wanted if c}
+        for step in setup.steps():
+            if step.capability in wanted:
+                return step
+    except Exception:
+        pass
+    return None
+
+
+def _how_command(step) -> str:
+    """The runnable line out of a step's instructions.
+
+    The instructions are a block written for a screen — "Only if you
+    already run Home Assistant:", an indented menu path, then the command.
+    Reading the first line out loud gives him a fragment ending in a
+    colon; the command is the part he can act on.
+    """
+    try:
+        for line in step.instructions():
+            text = str(line).strip()
+            if text.startswith("python -m") or text.startswith("$ python -m"):
+                return text.lstrip("$ ")
+    except Exception:
+        pass
+    return ""
 
 
 def run_approved(fleet: dict | None = None, executor=None) -> list[dict]:

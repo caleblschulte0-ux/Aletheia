@@ -118,7 +118,9 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "notify_check":    (set(), set()),
     "notify_clear":    (set(), set()),
     "announce_set":    ({"on"}, {"quiet_from", "quiet_until"}),
-    "free_time":       ({"day"}, {"tz", "minutes"}),
+    # `part` is morning/afternoon/evening. He says it constantly and it
+    # used to be dropped in silence — see `_free_sentence`.
+    "free_time":       ({"day"}, {"tz", "minutes", "part"}),
     "contact_add":     ({"name", "email"}, {"alias"}),
     # The slot for everything that is not a slot (2026-08-27). `text` is
     # whatever the operator actually said; aletheia.planner compiles it
@@ -574,6 +576,44 @@ def validate_command(path: Path, fleet: dict) -> list[str]:
     return problems + validate_kind_args(c.get("command"), fleet)
 
 
+# 9-to-5, which is the window `calendar.free_slots` looks at. Said out
+# loud only when the answer is empty BECAUSE he asked about hours she
+# never sees — "nothing free this evening" is misleading on its own.
+WORK_HOURS_NOTE = "I only look at your working hours, nine to five"
+
+
+def _free_sentence(ranges: list, day, part: str) -> str:
+    """Availability as a person would say it.
+
+    It used to answer "free on 2026-09-07 at 09:00, 09:15, 09:30, 09:45
+    and more": a date nobody says out loud, followed by the first four
+    fifteen-minute steps of the search that produced it. The stretches of
+    free time are the answer; the steps are how they were computed. And
+    when he asked about the AFTERNOON, the nine o'clock in that sentence
+    was the giveaway that his qualifier had been dropped entirely.
+    """
+    import datetime as _dt
+    from aletheia import speech
+
+    def clock(stamp: str) -> str:
+        moment = _dt.datetime.fromisoformat(stamp)
+        text = moment.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ")
+        return text.replace(" AM", " am").replace(" PM", " pm")
+
+    when = speech.humanize_time(f"{day.isoformat()}T12:00:00").split(" at ")[0]
+    if part:
+        # "today evening" is not English. Today takes "this"; every other
+        # day keeps its name ("tomorrow afternoon", "Friday morning").
+        when = f"this {part}" if when == "today" else f"{when} {part}"
+    if not ranges:
+        if part in ("evening", "tonight"):
+            return f"Nothing free {when} — {WORK_HOURS_NOTE}."
+        return f"Nothing free {when}."
+    said = speech.and_list([f"{clock(a)} to {clock(b)}" for a, b in ranges[:3]])
+    more = ", and a couple more" if len(ranges) > 3 else ""
+    return f"Free {when} {said}{more}."
+
+
 def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "") -> str:
     """Run one validated command. Returns a human-readable detail line.
     Raises act.Refused / ValueError / KeyError — the caller records them."""
@@ -1004,11 +1044,14 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         tz = cmd.get("tz") or localtime.operator_timezone()
         minutes = int(cmd.get("minutes", 30))
         day = _dt.date.fromisoformat(cmd["day"])
+        part = str(cmd.get("part") or "").strip().lower()
         slots = cal.free_slots(day, duration_minutes=minutes, timezone=tz)
-        if not slots:
-            return f"no free {minutes}-minute slot on {cmd['day']} inside work hours"
-        spoken = ", ".join(s0[0][11:16] for s0 in slots[:4])
-        return f"free on {cmd['day']} at {spoken}" + (" and more" if len(slots) > 4 else "")
+        # HE SAID "AFTERNOON". Dropping the qualifier and answering about
+        # the whole day answers a different question than the one asked,
+        # and he has no way to tell that it happened.
+        if part:
+            slots = cal.in_part(slots, part)
+        return _free_sentence(cal.merge_slots(slots), day, part)
     if kind == "contact_add":
         from aletheia import contacts, mail as mail_mod
         import re as _re
