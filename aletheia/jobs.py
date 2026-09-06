@@ -73,10 +73,28 @@ def boards() -> list[dict]:
     return [r for r in (rows or []) if isinstance(r, dict) and r.get("token")]
 
 
+class BoardGone(JobsError):
+    """The provider says this board does not exist.
+
+    Different in kind from a timeout, and the difference is the whole
+    point: a board that times out is worth retrying, a board that 404s is
+    a company that renamed or left the provider and will 404 forever.
+    Three of them sat dead in `config/job_boards.json` — reported per
+    search, in a journal line nobody reads, while every search quietly
+    covered fewer companies than the file claimed.
+    """
+
+
 def _fetch(url: str) -> object:
     request = urllib.request.Request(url, headers={"User-Agent": UA})
-    with urllib.request.urlopen(request, timeout=TIMEOUT_S) as response:
-        return json.loads(response.read(MAX_BYTES).decode("utf-8", "replace"))
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT_S) as response:
+            return json.loads(response.read(MAX_BYTES).decode("utf-8", "replace"))
+    except urllib.error.HTTPError as exc:
+        if exc.code in (404, 410):
+            raise BoardGone(f"the provider says this board does not exist "
+                            f"(HTTP {exc.code})") from exc
+        raise
 
 
 def _greenhouse(board: dict) -> list[dict]:
@@ -161,6 +179,10 @@ def search(role: str, *, where: str = "", limit: int = 10,
             return board, [], f"unknown provider {board.get('provider')!r}"
         try:
             return board, (fetcher or provider)(board), ""
+        except BoardGone as exc:
+            # Permanently gone, not merely unreachable. Marked so the
+            # caller can say so out loud exactly once.
+            return board, [], f"GONE: {exc}"[:120]
         except Exception as exc:
             # A board that did not answer is FAILED, not empty. "No jobs
             # matched" and "the network refused me" are different answers.
@@ -170,7 +192,11 @@ def search(role: str, *, where: str = "", limit: int = 10,
     with ThreadPoolExecutor(MAX_WORKERS) as pool:
         for board, jobs, problem in pool.map(one, rows):
             if problem:
-                failures.append({"board": board.get("token"), "why": problem})
+                failures.append({"board": board.get("token"),
+                                 "company": board.get("company", ""),
+                                 "provider": board.get("provider", ""),
+                                 "gone": problem.startswith("GONE:"),
+                                 "why": problem})
                 continue
             for job in jobs:
                 value = _score(job, terms, where)
@@ -182,8 +208,71 @@ def search(role: str, *, where: str = "", limit: int = 10,
                    f"searched {len(rows)} board(s) for {role!r}: "
                    f"{len(found)} match(es), {len(failures)} board(s) failed",
                    actor=ACTOR)
+    _say_a_board_is_gone([f for f in failures if f["gone"]])
     return {"role": role, "where": where, "matches": matches,
             "searched": len(rows), "matched": len(found), "failed": failures}
+
+
+def _say_a_board_is_gone(gone: list[dict]) -> None:
+    """A dead board is fewer companies searched, silently. Say it once.
+
+    The journal already recorded "3 board(s) failed" every single time,
+    and a line in an append-only file is not somebody being told. The
+    notification is deduped on the board token, so it appears once and
+    stays put until he acknowledges it — a board that is gone today is
+    gone tomorrow, and nagging about it daily would train him to ignore
+    the one that matters.
+
+    Never raises: a search must not fail because it could not complain.
+    """
+    for failure in gone:
+        try:
+            from aletheia import notifications
+            company = failure.get("company") or failure["board"]
+            provider = failure.get("provider") or "?"
+            notifications.publish(
+                f"Job board gone: {company}",
+                f"{company} no longer publishes a {provider} board at "
+                f"'{failure['board']}' — every search since has covered one "
+                f"company fewer than {BOARDS_PATH.name} claims. Fix the token "
+                f"or remove the line; `python -m aletheia.jobs --check` "
+                f"re-proves the whole file.",
+                priority="INFO", source="jobs",
+                # PROVIDER AND TOKEN. A token is unique only within a
+                # provider — the same company can hold `acme` on Greenhouse
+                # and `acme` on Lever, and keying on the token alone
+                # silently collapsed two dead boards into one notice.
+                dedupe_key=f"jobs:board-gone:{provider}:{failure['board']}")
+        except Exception:
+            pass
+
+
+def check() -> dict:
+    """Prove every configured board against its provider, right now.
+
+    The board file rots on its own: companies rename, get acquired, or
+    move off the provider, and nothing in a search tells you the file has
+    quietly shrunk. This is the command that answers "is this list still
+    true?".
+    """
+    rows = boards()
+
+    def one(board):
+        provider = PROVIDERS.get(board.get("provider"))
+        if provider is None:
+            return {**board, "live": False, "count": 0,
+                    "why": f"unknown provider {board.get('provider')!r}"}
+        try:
+            return {**board, "live": True, "count": len(provider(board)), "why": ""}
+        except Exception as exc:
+            return {**board, "live": False, "count": 0,
+                    "why": f"{type(exc).__name__}: {exc}"[:120]}
+
+    with ThreadPoolExecutor(MAX_WORKERS) as pool:
+        results = list(pool.map(one, rows))
+    live = [r for r in results if r["live"]]
+    return {"boards": results, "live": len(live), "dead": len(results) - len(live),
+            "openings": sum(r["count"] for r in live)}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -192,7 +281,18 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--where", default="")
     ap.add_argument("--limit", type=int, default=10)
     ap.add_argument("--boards", action="store_true", help="list the boards")
+    ap.add_argument("--check", action="store_true",
+                    help="prove every board against its provider right now")
     args = ap.parse_args(argv)
+    if args.check:
+        out = check()
+        for row in sorted(out["boards"], key=lambda r: (r["live"], r["count"])):
+            mark = f"{row['count']:>5} open" if row["live"] else "  DEAD    "
+            print(f"{mark}  {row.get('provider','?'):11} {row['token']:16} "
+                  f"{row.get('company','')}{'  — ' + row['why'] if row['why'] else ''}")
+        print(f"\n{out['live']} live, {out['dead']} dead, "
+              f"{out['openings']} openings", file=sys.stderr)
+        return 1 if out["dead"] else 0
     if args.boards or not args.role:
         for board in boards():
             print(f"{board.get('provider','?'):11} {board['token']:16} "
