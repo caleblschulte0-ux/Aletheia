@@ -459,6 +459,41 @@ class ApprovingSaysWhatWasApprovedCase(unittest.TestCase):
         self.assertEqual(said, "Approved: Remember the landlord's name.")
         self.assertNotIn("->", said)
 
+class EveryPathThroughHerMouthCase(unittest.TestCase):
+    """`spoken()` is the last thing between a record and the room. Three of
+    its branches returned model prose straight through — and model prose
+    about her own state carries her ids in it:
+
+        "the only open item I see is a pending approval
+         (intent-7aed1b5dcd) waiting on you"
+    """
+
+    def test_a_clarifying_question_is_stripped(self):
+        said = intents.spoken({
+            "intent": "clarify",
+            "summary": "Which one? A pending approval (intent-7aed1b5dcd) "
+                       "is waiting on you."})
+        self.assertNotIn("7aed1b5dcd", said)
+        self.assertIn("Which one", said)
+
+    def test_a_read_only_answer_is_stripped(self):
+        said = intents.spoken({
+            "intent": "answer", "read_only": True,
+            "receipts": [{"outcome": "done",
+                          "detail": "run-a1b2c3d4e5f6 finished"}]})
+        self.assertNotIn("a1b2c3d4e5f6", said)
+
+    def test_a_direct_work_answer_is_stripped(self):
+        said = intents.spoken({
+            "direct_work": True,
+            "spoken": "did it — session work-9f8e7d6c5b4a3210"})
+        self.assertNotIn("9f8e7d6c5b4a3210", said)
+
+    def test_a_record_missing_its_steps_still_produces_a_sentence(self):
+        """A KeyError here is silence where a sentence should be."""
+        self.assertTrue(intents.spoken({}).strip())
+        self.assertTrue(intents.spoken({"intent": "plan"}).strip())
+
 
 
 if __name__ == "__main__":

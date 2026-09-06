@@ -292,16 +292,27 @@ def spoken(record: dict) -> str:
     if record.get("intent") == "answer" and record.get("spoken"):
         return str(record["spoken"])
     if record.get("direct_work"):
-        return str(record.get("spoken") or record.get("summary") or "Work action completed.")[:600]
+        return speech.tidy(speech.strip_ids(
+            str(record.get("spoken") or record.get("summary")
+                or "Work action completed.")))[:600]
 
-    runnable = [s for s in record["steps"] if s["status"] == planner.EXECUTABLE]
-    gaps_named = [s for s in record["steps"] if s["status"] == planner.GAP]
-    manual = [s for s in record["steps"] if s["status"] == planner.MANUAL]
-    refused = [s for s in record["steps"] if s["status"] == planner.REFUSED]
+    # `.get`, not `[...]`: this function is the last thing between a
+    # record and the room, and a KeyError here is silence where a sentence
+    # should be.
+    steps = record.get("steps") or []
+    runnable = [s for s in steps if s.get("status") == planner.EXECUTABLE]
+    gaps_named = [s for s in steps if s.get("status") == planner.GAP]
+    manual = [s for s in steps if s.get("status") == planner.MANUAL]
+    refused = [s for s in steps if s.get("status") == planner.REFUSED]
     if record.get("degraded") and not runnable:
         return f"I could not plan that: {record['degraded'][:160]}"
     if record.get("intent") == "clarify":
-        return record.get("summary") or "I need one thing cleared up before I plan that."
+        # Through the sieve like everything else she says. A clarifying
+        # question is model prose about her own state, so it carries the
+        # ids in it: "the only open item I see is a pending approval
+        # (intent-7aed1b5dcd) waiting on you". §145.
+        asked = speech.tidy(speech.strip_ids(str(record.get("summary") or "")))
+        return asked or "I need one thing cleared up before I plan that."
     if record.get("read_only"):
         receipts = record.get("receipts") or []
         answers = [str(r.get("detail", "")).strip() for r in receipts
@@ -323,7 +334,7 @@ def spoken(record: dict) -> str:
         trouble = [_plainly(r) for r in receipts
                    if r.get("outcome") not in ("done", None) and r.get("detail")]
         if answers and not trouble:
-            return " ".join(answers)[:600]
+            return speech.tidy(speech.strip_ids(" ".join(answers)))[:600]
         if answers:
             # The answers are finished sentences; ". — but" is two marks.
             return (" ".join(answers)[:480].rstrip(" .") + " — but "
@@ -516,8 +527,14 @@ def _plainly(receipt: dict) -> str:
     # both subscription reasoning paths are unavailable` sailed straight
     # through it into the room. The shape is what identifies it: one
     # CamelCase word, no spaces, then a colon.
-    detail = re.sub(r"^[A-Z][A-Za-z0-9_]{2,}:\s+", "", detail)
-    return speech.tidy(speech.strip_ids(detail))[:220] or "it didn't work"
+    stripped = re.sub(r"^[A-Z][A-Za-z0-9_]{2,}:\s+", "", detail)
+    # KEEP THE CLASS when the message cannot stand without it. A bare
+    # KeyError says only `'generated_at'`, and "I couldn't: 'generated_at'"
+    # tells him nothing at all — where "KeyError: 'generated_at'" is at
+    # least a thing he can report.
+    if stripped is not detail and len(stripped.split()) < 2:
+        stripped = detail
+    return speech.tidy(speech.strip_ids(stripped))[:220] or "it didn't work"
 
 
 def _in_english(capability: str | None) -> str:
