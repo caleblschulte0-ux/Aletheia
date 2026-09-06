@@ -644,7 +644,16 @@ def approval_label(approval: dict) -> str:
     # asking him to recognise a hash. The reason is a sentence somebody
     # wrote for him to read — the same correction the phone got on
     # 2026-09-04, in the surface that shows it across a room.
-    reason = speech.tidy(speech.strip_ids(str(approval.get("reason", ""))))
+    # WHAT WILL HAPPEN beats WHY it was asked for. The reason on an intent
+    # approval is `operator said: "spoken to the wall: thea remember that
+    # my landlord is called Mr Okafor"` — a quote inside a quote inside a
+    # transport label, truncated mid-word when it is read out. The
+    # consequence is the plan's own summary of what it will do, which is
+    # the thing he is actually deciding about.
+    said = speech.tidy(speech.strip_ids(str(approval.get("consequence", ""))))
+    if said and said.lower() not in ("see the plan", "unknown"):
+        return said[:80]
+    reason = speech.tidy(speech.strip_ids(_unwrap(str(approval.get("reason", "")))))
     if reason:
         return reason[:80]
     return speech.tidy(speech.strip_ids(action))[:60] or "the pending one"
@@ -715,6 +724,25 @@ def _pick_approval(pending: list[dict], ordinal: str | None,
         return None
     matches = [a for a in pending if words in approval_label(a).lower()]
     return matches[0] if len(matches) == 1 else None
+
+
+# How a quote reaches an approval's `reason`: the surface labels it, then
+# `intents` wraps it again. Both are true and neither is speech.
+_WRAPPERS = re.compile(
+    r'^\s*operator said:\s*"?|^\s*(?:spoken to the wall|typed into the '
+    r'command center|relayed by chatgpt):\s*|^\s*thea[,: ]\s*|"\s*$',
+    re.I)
+
+
+def _unwrap(reason: str) -> str:
+    """Peel the transport labels off his actual words."""
+    said = str(reason or "").strip()
+    for _ in range(4):
+        shorter = _WRAPPERS.sub("", said).strip()
+        if shorter == said:
+            break
+        said = shorter
+    return said
 
 
 def _offer_choice(pending: list[dict], verb: str = "approve") -> str:

@@ -420,6 +420,45 @@ class ConverseIsSpeechTooCase(unittest.TestCase):
         self.assertEqual(speech.tidy("a note (see below) stays"),
                          "a note (see below) stays")
 
+class ApprovingSaysWhatWasApprovedCase(unittest.TestCase):
+    """"approval intent-0a06bbb663 -> APPROVED" was the receipt, and once
+    the id was stripped the room heard "approval -> APPROVED": an arrow,
+    out loud, saying nothing about what he had just authorised."""
+
+    def test_the_label_is_what_will_happen(self):
+        """The reason on an intent approval is `operator said: "spoken to
+        the wall: thea remember that my landlord is called Mr Okafor"` — a
+        quote inside a quote inside a transport label, truncated mid-word
+        when read out. The consequence is the plan's own summary."""
+        said = voice.approval_label({
+            "capability": "intent.execute.routine",
+            "requested_action": "run 1 step(s): remember",
+            "reason": 'operator said: "spoken to the wall: thea remember '
+                      'that my landlord is called Mr Okafor"',
+            "consequence": "Remember the landlord's name is Mr Okafor"})
+        self.assertEqual(said, "Remember the landlord's name is Mr Okafor")
+
+    def test_a_placeholder_consequence_falls_back_to_his_words(self):
+        said = voice.approval_label({
+            "capability": "x", "requested_action": "a",
+            "reason": 'operator said: "spoken to the wall: thea book a table"',
+            "consequence": "see the plan"})
+        self.assertEqual(said, "book a table")
+
+    def test_the_transport_labels_are_peeled_off(self):
+        for wrapped in ('operator said: "spoken to the wall: thea do the thing"',
+                        'typed into the command center: do the thing',
+                        'operator said: "do the thing"'):
+            with self.subTest(reason=wrapped):
+                self.assertEqual(voice._unwrap(wrapped).rstrip('"'),
+                                 "do the thing")
+
+    def test_the_spoken_receipt_names_it(self):
+        said = speech.spoken_receipt(
+            "approve", "approved — Remember the landlord's name")
+        self.assertEqual(said, "Approved: Remember the landlord's name.")
+        self.assertNotIn("->", said)
+
 
 
 if __name__ == "__main__":

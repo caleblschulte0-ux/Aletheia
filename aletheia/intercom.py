@@ -660,6 +660,18 @@ def _jobs_answer(cmd: dict) -> str:
     return f"{head} {'; '.join(lines)}.{tail}"
 
 
+def _approval_words(approval, fallback_id: str) -> str:
+    """What he just said yes to, in words rather than a hex id."""
+    try:
+        from aletheia import voice
+        said = voice.approval_label(approval or {})
+        if said:
+            return said
+    except Exception:
+        pass
+    return "the pending one"
+
+
 def _free_sentence(ranges: list, day, part: str) -> str:
     """Availability as a person would say it.
 
@@ -734,11 +746,15 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         policy.resume(via=ACTOR)
         return "resumed"
     if kind == "approve":
-        policy.decide(cmd["id"], "APPROVED", via=ACTOR)
-        return f"approval {cmd['id']} -> APPROVED"
+        # "approval intent-0a06bbb663 -> APPROVED" was the receipt, and the
+        # room heard "approval -> APPROVED" once the id was stripped: an
+        # arrow, out loud, saying nothing about WHAT he just authorised.
+        decided = policy.decide(cmd["id"], "APPROVED", via=ACTOR)
+        return f"approved — {_approval_words(decided, cmd['id'])}"
     if kind == "deny":
-        policy.decide(cmd["id"], "DENIED", via=ACTOR, because=cmd.get("because", ""))
-        return f"approval {cmd['id']} -> DENIED"
+        decided = policy.decide(cmd["id"], "DENIED", via=ACTOR,
+                                because=cmd.get("because", ""))
+        return f"denied — {_approval_words(decided, cmd['id'])}"
     if kind == "remember":
         from aletheia import memory
         memory.remember(cmd["domain"], cmd["key"], cmd["value"],
