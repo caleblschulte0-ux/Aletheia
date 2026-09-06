@@ -54,6 +54,20 @@ entry names its real caller; a NOT_BUILT entry names its ticket. No
 Jarvis theater: the wall and every report render only what the pulse and
 stores actually contain.
 
+**INSTALLED is not WORKING, and a readiness check that confuses them is
+the worst kind of lie** — it is wrong precisely where he is trusting it.
+`browse.available()` returned True from an import and a file on disk, and
+`setup.audit`, whose whole promise is "checked live rather than assumed",
+reported a browser as ready that could not load a single page (a proxy
+that drops browser tunnels; equally, a corporate network or no internet).
+Everything downstream would have failed on his first real ask with the
+audit still green. `browse.reachable()` loads a page and is what the
+audit asks now. Where a verifier can make the real attempt, it must —
+and where the real attempt is expensive, cache it rather than skip it.
+The mirror of that rule is that TESTS must not pay for it: stub the
+verifiers and keep the aggregation under test, or the suite becomes a
+live-network test that answers differently on a train.
+
 ## Authority: authorized vs. unauthorized — not observe vs. act
 
 The playbook replaces the old "observes but doesn't act" line (§55).

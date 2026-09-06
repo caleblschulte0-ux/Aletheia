@@ -92,9 +92,12 @@ class BrowseCase(unittest.TestCase):
 
 @needs_browser
 class TestAvailability(BrowseCase):
-    def test_reports_ready(self):
+    def test_reports_installed(self):
+        """INSTALLED, not ready — `available()` proves an import and a file
+        on disk. Whether the browser can reach anything is `reachable()`."""
         ok, reason = browse.available()
         self.assertTrue(ok, reason)
+        self.assertEqual(reason, "installed")
 
     def test_degrades_honestly_without_playwright(self):
         import builtins
@@ -324,6 +327,99 @@ class DidThatActuallyWork(unittest.TestCase):
             source = Path(module.__file__).read_text(encoding="utf-8")
             self.assertIn("read_outcome", source)
             self.assertNotIn("CONFIRMED_WORDS = (", source)
+
+
+
+
+class InstalledIsNotWorkingCase(unittest.TestCase):
+    """`available()` proves an import and a file on disk. That is not an
+    answer to "can the browser reach a page", and it was being read as one.
+
+    Found live 2026-09-06: in a sandbox whose proxy drops browser tunnels,
+    Chromium launches perfectly and every `goto` dies with
+    ERR_CONNECTION_RESET — while `setup.audit`, whose whole promise is
+    "checked live rather than assumed", reported the browser as ready.
+    Everything downstream would then have failed on the first real ask
+    with the audit still saying it was fine.
+    """
+
+    def setUp(self):
+        browse._REACHABLE_CACHE.clear()
+        self.addCleanup(browse._REACHABLE_CACHE.clear)
+
+    def session(self, goto):
+        """A stand-in browser whose `goto` does whatever the test wants."""
+        page = mock.MagicMock()
+        page.goto.side_effect = goto
+        page.title.return_value = "Example Domain"
+        ctx = mock.MagicMock()
+        ctx.new_page.return_value = page
+        ctx.__enter__ = lambda self_: ctx
+        ctx.__exit__ = lambda self_, *a: False
+        return mock.patch.object(browse, "_Session", lambda *a, **k: ctx)
+
+    def test_available_no_longer_claims_readiness_it_cannot_know(self):
+        ok, why = browse.available()
+        if ok:
+            self.assertEqual(why, "installed")
+            self.assertNotIn("ready", why)
+
+    def test_a_browser_that_cannot_load_a_page_is_reported_as_such(self):
+        with mock.patch.object(browse, "available", lambda: (True, "installed")), \
+             self.session(goto=RuntimeError(
+                 "Page.goto: net::ERR_CONNECTION_RESET at https://example.com/")):
+            ok, why = browse.reachable()
+        self.assertFalse(ok)
+        # The real network error, because ERR_CONNECTION_RESET, a proxy
+        # failure and a timeout have three different fixes and a class
+        # name has none.
+        self.assertIn("ERR_CONNECTION_RESET", why)
+
+    def test_a_working_browser_says_what_it_loaded(self):
+        with mock.patch.object(browse, "available", lambda: (True, "installed")), \
+             self.session(goto=None):
+            ok, why = browse.reachable()
+        self.assertTrue(ok)
+        self.assertIn("example.com", why)
+
+    def test_no_browser_at_all_is_not_dressed_up_as_a_network_problem(self):
+        with mock.patch.object(browse, "available",
+                               lambda: (False, "playwright is not installed")):
+            ok, why = browse.reachable()
+        self.assertFalse(ok)
+        self.assertIn("playwright", why)
+
+    def test_the_proof_is_cached_because_it_costs_a_browser_launch(self):
+        calls = []
+
+        def counted(*a, **k):
+            calls.append(1)
+            raise RuntimeError("boom")
+
+        with mock.patch.object(browse, "available", lambda: (True, "installed")), \
+             mock.patch.object(browse, "_Session", counted):
+            browse.reachable()
+            browse.reachable()
+        self.assertEqual(len(calls), 1)
+        with mock.patch.object(browse, "available", lambda: (True, "installed")), \
+             mock.patch.object(browse, "_Session", counted):
+            browse.reachable(fresh=True)
+        self.assertEqual(len(calls), 2, "fresh=True must re-prove it")
+
+    def test_the_setup_audit_asks_the_proving_question(self):
+        """The audit is what tells him what is ready. It must not be the
+        thing that says a dead browser is fine."""
+        from aletheia import setup
+        with mock.patch.object(browse, "reachable",
+                               lambda *a, **k: (False, "could not load")), \
+             mock.patch.object(browse, "available", lambda: (True, "installed")):
+            state, detail = setup._browser_pages()
+        self.assertNotEqual(state, setup.OK)
+        self.assertIn("could not load", detail)
+        with mock.patch.object(browse, "reachable",
+                               lambda *a, **k: (True, "loaded https://example.com")):
+            state, _detail = setup._browser_pages()
+        self.assertEqual(state, setup.OK)
 
 
 if __name__ == "__main__":

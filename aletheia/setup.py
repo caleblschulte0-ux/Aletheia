@@ -316,10 +316,20 @@ def _workspace() -> tuple[str, str]:
 
 
 def _browser_pages() -> tuple[str, str]:
-    """Research really opens the pages it cites, so it needs a browser."""
+    """Research really opens the pages it cites, so it needs a browser.
+
+    PROVED, not assumed. This asked `browse.available()`, which returns
+    True from an import and a file on disk — so a Chromium that launches
+    perfectly and cannot load a single page (a proxy that drops browser
+    tunnels; a corporate network; no internet) was reported here as
+    ready. Everything downstream of a browser then failed on his first
+    real ask, with the audit still saying it was fine. This audit's whole
+    promise is "checked live rather than assumed", so it loads a page.
+    """
     from aletheia import browse
-    ok, why = browse.available()
-    return (OK, why) if ok else (MISSING, why[:160])
+    ok, why = browse.reachable()
+    return (OK, why) if ok else (BROKEN if browse.available()[0] else MISSING,
+                                 why[:160])
 
 
 def _desktop_toasts() -> tuple[str, str]:

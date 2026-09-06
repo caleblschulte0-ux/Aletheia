@@ -35,6 +35,7 @@ import argparse
 import hashlib
 import json
 import os
+import time
 import shutil
 import subprocess
 import sys
@@ -94,7 +95,13 @@ def _browser_executable() -> str | None:
 
 
 def available() -> tuple[bool, str]:
-    """(usable, reason) — the honest answer to 'can you drive a browser'."""
+    """(installed, reason) — is there a browser here to drive at all.
+
+    INSTALLED, not WORKING. It proves an import and a file on disk and
+    nothing else, which is the right gate in front of every call in this
+    module — but it is not an answer to "will the browser reach a page",
+    and it was being read as one. See `reachable()`.
+    """
     try:
         from playwright.sync_api import sync_playwright  # noqa: F401
     except ImportError:
@@ -102,7 +109,56 @@ def available() -> tuple[bool, str]:
     exe = _browser_executable()
     if exe and not Path(exe).exists():
         return False, f"browser executable not found at {exe}"
-    return True, "ready"
+    return True, "installed"
+
+
+# Where "can you actually load a page" is proved. Small, stable, and
+# nobody's product: the answer must be about HIS network, not about
+# whether some company is having an outage.
+PROOF_URL = "https://example.com"
+PROOF_TIMEOUT_MS = 20_000
+_REACHABLE_CACHE: dict[str, object] = {}
+REACHABLE_TTL_S = 300.0
+
+
+def reachable(url: str = PROOF_URL, *, fresh: bool = False) -> tuple[bool, str]:
+    """(works, reason) — can this browser really load a live page.
+
+    `available()` returns "installed" from an import and a path, and that
+    is genuinely all it knows. In a sandbox whose proxy drops browser
+    tunnels, Chromium launches perfectly and every single `goto` dies with
+    ERR_CONNECTION_RESET — so the setup audit, whose whole promise is
+    "checked live rather than assumed", was reporting a browser that
+    cannot reach the internet as ready. That is §106 exactly: never fake a
+    capability. The audit tells him what is ready, and a wrong answer
+    there is the difference between "she'll work" and finding out on the
+    first thing he asks for.
+
+    Cached for five minutes, because it costs a real browser launch, and
+    never raises: the reason string is the finding.
+    """
+    now = time.monotonic()
+    hit = _REACHABLE_CACHE.get(url)
+    if not fresh and isinstance(hit, tuple) and now - hit[0] < REACHABLE_TTL_S:
+        return hit[1], hit[2]
+    ok, why = available()
+    if not ok:
+        return False, why
+    try:
+        with _Session() as ctx:
+            page = ctx.new_page()
+            page.goto(url, timeout=PROOF_TIMEOUT_MS, wait_until="domcontentloaded")
+            title = (page.title() or "").strip()
+            page.close()
+        result = (True, f"loaded {url} — {title[:60]}" if title else f"loaded {url}")
+    except Exception as exc:
+        # The message carries the actual network error (ERR_CONNECTION_RESET,
+        # ERR_PROXY_CONNECTION_FAILED, a timeout) because those have
+        # different fixes and a class name has none.
+        detail = " ".join(str(exc).split())[:180]
+        result = (False, f"the browser launched but could not load {url}: {detail}")
+    _REACHABLE_CACHE[url] = (now, result[0], result[1])
+    return result
 
 
 def _closed_browser_error(exc: BaseException) -> bool:
