@@ -383,6 +383,29 @@ a deterministic verb. I first wrote that set as
 `{"intent", "handle", "agenda", "mission"}`; the last two are modules,
 not intercom kinds, and the test caught it.
 
+## Both interfaces are rendered in the suite now
+
+`tests/test_the_wall_renders_the_pulse.py` and
+`tests/test_the_command_center_renders.py` drive real Chromium against a
+real pulse and a real in-process Core. On a page that is a pure view of
+one JSON file, "do the words come out" is the only thing worth asserting
+— and it immediately found the two surfaces DISAGREEING about the same
+approval. The wall renders `voice.approval_label`, which prefers the
+plan's own summary; the Command Center rendered `reason` raw and showed
+`operator said: "spoken to the wall: thea remember my landlord"` above a
+hex id, with an APPROVE button beside it. The API carries the label now,
+because smarts belong in the collector and never in the page (§88).
+
+Both skip cleanly without a browser, and both use one launch per class:
+an optional dependency's absence must never fail the suite, and fifteen
+seconds per test is how a suite stops being run.
+
+If you write one of these, RESTORE what you redirect in `tearDownClass`.
+`talk._redirect_repo_stores` sets module attributes, so a render test
+that forgets leaves every later test pointing at its temp directory —
+the exact cross-contamination `-t .` exists to prevent, reintroduced by
+a test about isolation.
+
 ## Say it OUT LOUD before you believe the receipt
 
 `speech.count_phrase`, `speech.and_list`, `speech.or_list` and

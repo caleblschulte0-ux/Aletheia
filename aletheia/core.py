@@ -599,7 +599,20 @@ class Handler(BaseHTTPRequestHandler):
         if url.path == "/api/tasks":
             return self._json(tasks.all_tasks())
         if url.path == "/api/approvals":
-            return self._json(policy.all_approvals())
+            # WITH THE LABEL. The wall renders `voice.approval_label`, which
+            # prefers the plan's own summary; the Command Center rendered
+            # `reason` raw and showed `operator said: "x"` above a hex id.
+            # Two surfaces disagreeing about the same approval, and the one
+            # with the buttons on it had the worse text.
+            from aletheia import voice as _voice
+            rows = []
+            for approval in policy.all_approvals():
+                try:
+                    label = _voice.approval_label(approval)
+                except Exception:
+                    label = ""
+                rows.append({**approval, "label": label})
+            return self._json(rows)
         if url.path == "/api/capabilities":
             return self._json(capabilities.load_registry())
         if url.path == "/api/computer/status":
