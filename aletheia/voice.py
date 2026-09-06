@@ -57,8 +57,27 @@ def _without_preamble(low: str) -> str:
     return stripped or low
 
 
+# A dot does not make a web address. "read notes.md" was compiled into
+# `browse_read https://notes.md/` and came back
+# "net::ERR_TUNNEL_CONNECTION_FAILED" — she tried to visit his file.
+#
+# Whitelisting the endings that really are top-level domains is the safe
+# direction: an unusual one falls through to the planner, which is slower
+# and can still do the right thing. Blacklisting file extensions is not,
+# because `.md` `.sh` `.it` `.co` `.io` `.me` `.tv` are all both.
+TLDS = frozenset("""
+com org net edu gov mil int io ai dev app co uk us ca au de fr es it nl se
+no fi dk pl ru jp cn in br mx za ch at be pt gr ie nz cz hu ro tv me sh gg
+xyz online site tech store blog cloud page live news info biz eu tel
+""".split())
+
+
 def _spoken_url(tail: str) -> str | None:
-    """'example dot com' -> https://example.com; 'github.com' passes through."""
+    """'example dot com' -> https://example.com; 'github.com' passes through.
+
+    Returns None for anything that is not recognisably a web address, so
+    the caller can let the planner have it.
+    """
     t = tail.strip().rstrip(".?!").lower()
     if not t:
         return None
@@ -69,6 +88,9 @@ def _spoken_url(tail: str) -> str | None:
     t = t.replace(" ", "")
     if t.startswith(("http://", "https://")):
         return t
+    host = t.split("/", 1)[0].split(":", 1)[0].split("?", 1)[0]
+    if "." not in host or host.rsplit(".", 1)[-1] not in TLDS:
+        return None
     return "https://" + t
 
 
@@ -392,6 +414,16 @@ def interpret(transcript: str) -> dict:
     if m:
         return {"command": {"kind": "watch_email_from",
                             "who": m.group(1).strip()}, "say": None}
+
+    # "what files do you have" reached the planner, which sometimes
+    # compiled `file_list` and sometimes let `converse` answer — and
+    # `converse` does not know she can list a directory, so it replied
+    # "no FILE HE NAMED was passed with this question".
+    if re.fullmatch(r"(?:what|which) files (?:do you have|are there|"
+                    r"have you got)|list (?:my |your )?files|"
+                    r"what(?:'s| is|s)? in (?:my |your )?workspace|"
+                    r"show me (?:my |your )?files", low):
+        return {"command": {"kind": "file_list"}, "say": None}
 
     # notifications
     if re.fullmatch(r"(?:check (?:my )?notifications?|any notifications?|"
