@@ -355,6 +355,21 @@ def run(question: str, *, reader=browse.read_page, think=None) -> dict:
             break
     candidates = candidates[:MAX_SOURCES]
     if not candidates:
+        # BEFORE blaming the question, prove the browser can reach anything
+        # at all. `available()` above is installed-not-working (CLAUDE.md),
+        # and a browser that launches and then dies on every `goto` produces
+        # exactly this state: a plan, some queries, and zero results. Saying
+        # "the open web does not answer that" to a man whose network is down
+        # is the expensive kind of false — he rephrases the question forever
+        # and never fixes the thing that is actually broken. The live check
+        # costs a browser launch, so it runs HERE, on the failure path only.
+        if reader is browse.read_page:
+            usable, why = browse.reachable()
+            if not usable:
+                raise ResearchError(
+                    f"I could not reach the web at all: {why}. That is my "
+                    "connection, not your question — nothing to research "
+                    "until a page will load.")
         raise ResearchError(
             "no readable sources were found for that question — say it "
             "differently, or it may be something the open web does not answer")

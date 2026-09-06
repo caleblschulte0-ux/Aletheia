@@ -208,8 +208,14 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
         record["state"] = EXECUTED
         record["receipts"] = receipts
         record["read_only"] = True
-        journal.append("action", "intent",
-                       f"answered on the spot (read-only): {plan.summary[:120]}",
+        # An EVENT, not an action. `planner.execute` already journals what
+        # the steps did, so this was a second line for the same act — and
+        # answering a question on the spot is talking, which "what did you
+        # do today" should not list. It read: "Did it: Check how many
+        # unread emails he has; answered on the spot (read-only): Check how
+        # many unread emails he has".
+        journal.append("event", "intent",
+                       f"answered on the spot: {plan.summary[:120]}",
                        actor=ACTOR)
         return record
     if not plan.executable and plan.intent in ("answer", "clarify"):
@@ -340,7 +346,9 @@ def spoken(record: dict) -> str:
             return (" ".join(answers)[:480].rstrip(" .") + " — but "
                     + speech.and_list(trouble)[:200].rstrip(" .") + ".")
         if trouble:
-            return "I couldn't: " + speech.and_list(trouble)[:500] + "."
+            # The reasons are finished sentences; ". ." is two marks.
+            return ("I couldn't: "
+                    + speech.and_list(trouble)[:500].rstrip(" .") + ".")
         return "I did that, and it produced nothing to tell you."
     # A PLAN THAT WAS PARTLY REFUSED FOR SPENDING IS REFUSED.
     #
@@ -573,8 +581,13 @@ def _cannot_yet(gaps_named: list[dict], record: dict) -> str:
         # the thing, so he knows what it is; the command is the part he
         # can act on.
         command = _how_command(step)
+        prereq = _setup_prereq(step)
         said = "Not yet — that one needs setting up first"
-        return f"{said}: {command}." if command else f"{said}."
+        if command and prereq:
+            return f"{said}. {prereq} Then: {command}."
+        if command:
+            return f"{said}: {command}."
+        return f"{said}."
     said = "I can't " + speech.and_list([_in_english(c) for c in wanted]) + " yet"
     if record.get("gap_tasks"):
         return f"{said}. I've put it on the build list."
@@ -612,6 +625,59 @@ def _how_command(step) -> str:
             # (should say True)". Read out, that is the command plus a
             # sentence fragment. The runnable part is what he needs.
             return re.sub(r"\s*\(.*$", "", text).strip()
+    except Exception:
+        pass
+    return ""
+
+
+_COMMAND_WORDS = frozenset({"python", "pip", "winget", "npm", "npx", "git",
+                            "curl", "choco", "docker", "node", "ollama", "$"})
+
+
+def _setup_prereq(step) -> str:
+    """The thing HE has to go and fetch, in English — or "".
+
+    A command with a placeholder in it does not answer its own question.
+    "what's on my calendar this week" came back as `python -m aletheia.apply
+    calendar "<paste the URL>"` and nothing else: that says what to type and
+    not WHICH URL, and the line that answers it was sitting directly above
+    the command in the checklist all along. Out loud it was worse — a shell
+    command and an angle-bracket placeholder, with no hint the thing comes
+    out of Google Calendar's settings.
+
+    Headings are skipped: they end in a colon because a screen puts the
+    substance underneath them, and read aloud they are a fragment. The
+    exception is a CONDITIONAL heading, which is kept and prefixed —
+    "Only if you already run Home Assistant:" is the entire difference
+    between a five-minute task and installing a home automation platform.
+    Arrows become commas for the same reason — nobody hears "dash greater
+    than".
+    """
+    condition = ""
+    try:
+        for line in step.instructions():
+            text = " ".join(str(line).split()).lstrip("$ ")
+            if not text or text.split()[0].lower().rstrip(":") in _COMMAND_WORDS:
+                continue
+            # A line that opens with "(" is an aside belonging to the command
+            # above it — "(then ask her anything — this step proves it by
+            # asking)" is not an instruction he can start from.
+            if text.endswith(":"):
+                # A heading is a fragment on its own — except a CONDITIONAL
+                # one, which is the most important thing in the block.
+                # "Only if you already run Home Assistant:" is the whole
+                # difference between a five-minute task and installing a
+                # home automation platform, and dropping it left her
+                # cheerfully reciting a menu path he has no menu for.
+                if text.lower().startswith("only if"):
+                    condition = text
+                continue
+            if text.startswith("(") or len(text.split()) < 4:
+                continue
+            text = (condition + " " + text) if condition else text
+            text = text.replace("->", ",").replace("  ", " ")
+            text = " ".join(text.replace(" ,", ",").split())
+            return text if text.endswith(".") else text + "."
     except Exception:
         pass
     return ""

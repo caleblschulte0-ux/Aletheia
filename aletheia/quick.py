@@ -72,7 +72,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("today", re.compile(
         r"^what (?:did|have) (?:you|u) (?:do|done)(?: today)?$"
         r"|^what have (?:you|u) been doing$"
-        r"|^what did (?:you|u) get done(?: today)?$")),
+        r"|^what did (?:you|u) get done(?: today)?$"
+        # "Show me the journal" went to the planner, which compiled
+        # `recall` and answered "I don't have anything remembered about
+        # 'journal entries'" — a lookup in the wrong store.
+        r"|^(?:show me |read me )?(?:the |your )?journal$"
+        r"|^what(?:'s| is|s)? in (?:the |your )?journal$")),
     ("can_you", re.compile(
         r"^(?:can|could) (?:you|u) (?P<what>.{3,120})$"
         r"|^(?:are|r) (?:you|u) able to (?P<what2>.{3,120})$"

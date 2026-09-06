@@ -38,6 +38,7 @@ class RehearsalCase(unittest.TestCase):
                     intercom.execute_command({"kind": kind, **cmd}, {"repos": {}},
                                              quote="q")
                 self.assertIn("rehearsal", str(caught.exception))
+                self.assertIn("world-touching", str(caught.exception))
 
     def test_local_work_still_really_happens(self):
         """A rehearsal that refuses everything tests nothing."""

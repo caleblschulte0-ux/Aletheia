@@ -537,14 +537,22 @@ def execute(plan: Plan, fleet: dict | None = None, quote: str = "",
             break
     # `recollection` reads this line back out loud when he asks what she
     # did, so it is a sentence, not a ratio with a parenthesised plural.
+    #
+    # And it counts what SUCCEEDED. Counting receipts made a plan whose
+    # only step failed report "Did it" — the loop stops at the first
+    # non-done receipt, so one failure produced one receipt for one step
+    # and looked complete.
     from aletheia import speech
-    done_all = len(receipts) == len(plan.executable)
-    how_far = ("" if done_all else
-               f" ({len(receipts)} of "
-               f"{speech.count_phrase(len(plan.executable), 'step')})")
-    journal.append("plan", "planner",
-                   f"Did it{how_far}: {plan.summary or plan.request}",
-                   actor=ACTOR)
+    worked = [r for r in receipts if r.get("outcome") == "done"]
+    if len(worked) == len(plan.executable):
+        said = f"Did it: {plan.summary or plan.request}"
+    elif worked:
+        said = (f"Got {len(worked)} of "
+                f"{speech.count_phrase(len(plan.executable), 'step')} done: "
+                f"{plan.summary or plan.request}")
+    else:
+        said = f"Could not: {plan.summary or plan.request}"
+    journal.append("plan", "planner", said, actor=ACTOR)
     return receipts
 
 

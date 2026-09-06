@@ -845,9 +845,16 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         # Everything local still runs, so the rehearsal exercises the real
         # planner, the real gates and the real stores. Only the last inch
         # into the world is withheld.
+        # "reaches the world" was a claim about the KIND, and it is not
+        # true of all of them: `email_draft` and `meet` are world-TIER
+        # because of what they lead to, and themselves only write a local
+        # file and stage an approval. The refusal says what it actually
+        # knows — the tier — rather than asserting a mechanism it has not
+        # checked. Whether those two belong in a lower tier is a registry
+        # decision, not one to take inside a refusal.
         raise act.Refused(
-            f"this is a rehearsal — {kind} reaches the world, so it was not "
-            "run. Everything local happened for real.")
+            f"this is a rehearsal — {kind} is gated as world-touching, so it "
+            "was not run. Everything local happened for real.")
     if kind == "note":
         journal.append("note", "operator", cmd["text"], actor=ACTOR)
         return "journaled"
