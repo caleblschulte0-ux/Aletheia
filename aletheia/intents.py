@@ -30,10 +30,16 @@ import re
 import sys
 import threading
 
-from aletheia import intercom, journal, planner, policy, quick, stateio
+from aletheia import intercom, journal, planner, policy, quick, speech, stateio
 from aletheia.fleet import load_fleet
 
 ACTOR = "aletheia-intent"
+# Read once at import so `spoken` never pays a webtask import to answer.
+try:
+    from aletheia.webtask import SPENDING_REFUSAL as _SPENDING_REFUSAL
+except Exception:      # webtask is optional-heavy; the rule is not
+    _SPENDING_REFUSAL = ("That asks me to spend money, and I do not do that — "
+                         "not with an approval, not with a confirmation.")
 PROPOSED, RUNNING, EXECUTED, RETIRED, FAILED, INTERRUPTED = (
     "PROPOSED", "RUNNING", "EXECUTED", "RETIRED", "FAILED", "INTERRUPTED")
 _RUN_LOCK = threading.Lock()
@@ -131,6 +137,29 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
                 "read_only": True, "fast_path": True, "steps": [],
                 "proposed_at": stateio.utcnow()}
 
+    # THE MONEY RULE IS ANSWERED AT THE DOOR.
+    #
+    # Refusing a compiled spending STEP covers the case where the planner
+    # produces one. It does not cover "my wife says it's fine to buy the
+    # monitor so do it", which came back as a clarifying question — "which
+    # monitor, and what's the budget?" — asked in order to buy it. The
+    # refusal arriving after a round of questions is the refusal arriving
+    # too late, and it reads as consent in the meantime.
+    #
+    # A QUESTION about money is not an instruction to spend it: "how much
+    # would a monitor cost" and "can you buy things" are both answerable,
+    # and both contain the words. So only an instruction stops here.
+    if _asks_to_spend(request):
+        journal.append("decision", "intent",
+                       f"refused at the door: asks to spend money — {request[:120]}",
+                       actor=ACTOR)
+        return {"id": "intent-refused-spending", "state": RETIRED,
+                "request": request, "operator_quote": quote or request,
+                "summary": _SPENDING_REFUSAL, "intent": "answer",
+                "spoken": _SPENDING_REFUSAL + " Nothing is queued.",
+                "read_only": True, "refused_spending": True, "steps": [],
+                "proposed_at": stateio.utcnow()}
+
     fleet = fleet if fleet is not None else load_fleet()
     plan = planner.compile(request, fleet=fleet, **compile_kw)
     digest = plan_hash(plan)
@@ -200,7 +229,12 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
             return record
         from aletheia import converse
         try:
-            record["spoken"] = converse.answer(request)["answer"]
+            # Through the same sieve as everything else she says. `converse`
+            # reads her stores, so its answers carry the ids in them: "there
+            # are two pending approvals (intent-1b32747ddb,
+            # intent-a3d2ad3434)" — read out loud, in a room. §145.
+            record["spoken"] = speech.tidy(
+                speech.strip_ids(converse.answer(request)["answer"]))
         except converse.ConverseError as exc:
             # Its message already names the real reason and the fix ("Claude
             # CLI is not on PATH"). Rewriting that into a class name is how
@@ -214,6 +248,20 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
                 f"I couldn't reach a model to answer that ({type(exc).__name__}). "
                 "Everything else still works.")
         return record
+    # NOTHING IS QUEUED FOR A PLAN THAT ASKS TO SPEND. `spoken()` already
+    # answers with the refusal, but without this an approval object was
+    # still created and left pending — a thing he could walk past later
+    # and say "approve" to, for the ask she had just refused out loud.
+    if any(s.status == planner.REFUSED
+           and str(s.detail or "").startswith(_SPENDING_REFUSAL)
+           for s in plan.steps):
+        record["state"] = RETIRED
+        record["refused_spending"] = True
+        journal.append("decision", "intent",
+                       f"refused: asks to spend money — {request[:120]}",
+                       actor=ACTOR)
+        return record
+
     stateio.write_json_atomic(_record_path(intent_id), record)
 
     if plan.executable and not read_only(plan):
@@ -255,13 +303,50 @@ def spoken(record: dict) -> str:
     if record.get("intent") == "clarify":
         return record.get("summary") or "I need one thing cleared up before I plan that."
     if record.get("read_only"):
-        answers = [str(r.get("detail", "")).strip()
-                   for r in (record.get("receipts") or [])
+        receipts = record.get("receipts") or []
+        answers = [str(r.get("detail", "")).strip() for r in receipts
                    if r.get("outcome") == "done" and str(r.get("detail", "")).strip()]
-        if answers:
+        # A FAILURE IS NOT AN ANSWER, AND THE SUMMARY IS NOT ONE EITHER.
+        #
+        # This filtered failures out — correctly, an error is not an answer
+        # — and then fell back to `record["summary"]`, which is the
+        # planner's restatement of what he ASKED for. So "read my resume"
+        # came back "Read the operator's resume file" while the receipt
+        # said `WorkspaceError: resume is not a file`, and "how many jobs
+        # are open at Anthropic" came back "Find how many jobs are
+        # currently open at Anthropic" while research had found nothing.
+        #
+        # Both sound like answers. Both are the question, reflected. That
+        # is §30 in its worst shape: not "command executed" reported as
+        # "goal achieved", but a FAILURE reported as the goal, in the
+        # confident voice of having done it.
+        trouble = [_plainly(r) for r in receipts
+                   if r.get("outcome") not in ("done", None) and r.get("detail")]
+        if answers and not trouble:
             return " ".join(answers)[:600]
-        return record.get("summary") or "Nothing to do."
-    from aletheia import speech
+        if answers:
+            # The answers are finished sentences; ". — but" is two marks.
+            return (" ".join(answers)[:480].rstrip(" .") + " — but "
+                    + speech.and_list(trouble)[:200].rstrip(" .") + ".")
+        if trouble:
+            return "I couldn't: " + speech.and_list(trouble)[:500] + "."
+        return "I did that, and it produced nothing to tell you."
+    # A PLAN THAT WAS PARTLY REFUSED FOR SPENDING IS REFUSED.
+    #
+    # "Buy the cheapest 4K monitor and use my saved card" compiled into a
+    # step that was refused for spending AND a step that was not, so she
+    # said: "1 step ready — Find cheapest 4K monitor and buy using saved
+    # card. Say approve to run it. That asks me to spend money, and I do
+    # not do that." One sentence offering and refusing the same thing.
+    #
+    # Running the rest is not a smaller version of what he asked for; it
+    # is a different thing, offered under the summary of the thing that
+    # was refused. So the refusal is the answer.
+    money = [s for s in refused
+             if str(s.get("detail", "")).startswith(_SPENDING_REFUSAL)]
+    if money:
+        return _SPENDING_REFUSAL + " Nothing is queued."
+
     parts = []
     if runnable:
         # THE SUMMARY, not the kinds. An executable step carries no
@@ -283,9 +368,56 @@ def spoken(record: dict) -> str:
     if manual:
         parts.append(f"{speech.count_phrase(len(manual), 'step')} only you can do.")
     if refused:
-        parts.append(f"{speech.count_phrase(len(refused), 'proposed step')} "
+        # SAY WHY. "1 proposed step did not survive validation" is a
+        # sentence about the validator, not about his request — and when
+        # the reason is "I do not spend money", that is the whole answer
+        # and he should hear it rather than a count.
+        why = [speech.tidy(speech.strip_ids(str(s.get("detail") or "")))
+               for s in refused]
+        why = [w for w in why if w][:2]
+        parts.append(speech.and_list(why) if why else
+                     f"{speech.count_phrase(len(refused), 'proposed step')} "
                      "did not survive validation.")
     return " ".join(parts) or "Nothing to do."
+
+
+# A question ABOUT money is not an instruction to spend it.
+_A_QUESTION = re.compile(
+    r"^\s*(?:how|what|which|who|when|where|why|is|are|was|were|do|does|did|"
+    r"can|could|should|would|will|have|has|am|tell me|show me)\b", re.I)
+
+
+def _asks_to_spend(request: str) -> bool:
+    """Is this an instruction that commits his money? Never raises."""
+    text = " ".join(str(request or "").split())
+    if not text or text.rstrip().endswith("?") or _A_QUESTION.match(text):
+        return False
+    try:
+        from aletheia import webtask
+        return webtask.would_spend(text)
+    except Exception:
+        # FAIL CLOSED. The only realistic failure here is webtask being
+        # unimportable, and if that is true then nothing can spend anyway
+        # — so refusing costs him nothing and guessing the other way is
+        # the one mistake this rule exists to prevent.
+        return True
+
+
+def _plainly(receipt: dict) -> str:
+    """One failed step, as a reason rather than a traceback.
+
+    The messages underneath are already good — "resume is not a file", "no
+    readable sources were found for that question" — they were simply never
+    reaching him. Only the exception CLASS is dropped: `WorkspaceError` tells
+    him nothing he can act on, and the sentence after the colon tells him
+    everything.
+    """
+    detail = str(receipt.get("detail", "")).strip()
+    # The optional prefix matters: a bare "Refused:" is as much a class
+    # name as "WorkspaceError:" and was surviving into the sentence.
+    detail = re.sub(r"^[A-Za-z_][A-Za-z0-9_]*?(?:Error|Exception|Refused):\s*"
+                    r"|^(?:Error|Exception|Refused):\s*", "", detail)
+    return speech.tidy(speech.strip_ids(detail))[:220] or "it didn't work"
 
 
 def _in_english(capability: str | None) -> str:
