@@ -47,7 +47,7 @@ import re
 import sys
 from pathlib import Path
 
-from aletheia import browse, formfill, journal, policy, profile, stateio
+from aletheia import browse, formfill, journal, policy, profile, speech, stateio
 
 ACTOR = "aletheia-apply"
 
@@ -184,7 +184,7 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
                                  for f in plan["fill"]],
                   "filled": [], "skipped": plan["skipped"],
                   "staged_at": stateio.utcnow(),
-                  "say": (f"{len(blocking)} thing(s) on that form only you can "
+                  "say": (f"{speech.count_phrase(len(blocking), 'thing')} on that form only you can "
                           "answer. Tell me those and I will fill the rest and "
                           "bring it back to you to confirm.")}
         stateio.write_json_atomic(_record_path(run_id), record)
@@ -219,7 +219,7 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
         stateio.write_json_atomic(_record_path(run_id), record)
         journal.append("action", "apply",
                        f"held an application at {url} — the form will not go "
-                       f"yet ({len(stopped)} thing(s) outstanding)", actor=ACTOR)
+                       f"yet ({speech.count_phrase(len(stopped), 'thing')} outstanding)", actor=ACTOR)
         try:
             from aletheia import demand
             demand.record_attempt("application.submit", note or url,
@@ -247,7 +247,7 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
               "staged_at": stateio.utcnow()}
     stateio.write_json_atomic(_record_path(run_id), record)
     journal.append("action", "apply",
-                   f"staged an application at {url} — {len(steps)} field(s) "
+                   f"staged an application at {url} — {speech.count_phrase(len(steps), 'field')} "
                    f"filled, awaiting his confirmation", actor=ACTOR)
     return record
 
@@ -443,7 +443,7 @@ def spoken(record: dict) -> str:
     if record.get("state") == "AWAITING_YOU":
         left = len(record.get("not_filled") or [])
         return (f"Application ready at {record['url']}: "
-                f"{len(record['filled'])} field(s) filled"
+                f"{speech.count_phrase(len(record['filled']), 'field')} filled"
                 + (f", {left} left blank that you may want to look at" if left else "")
                 + ". Say confirm to send it, or look at the screenshot first.")
     if record.get("state") == "SUBMITTED":

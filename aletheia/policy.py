@@ -29,7 +29,7 @@ import os
 import sys
 from pathlib import Path
 
-from aletheia import capabilities, contracts, gh, journal
+from aletheia import capabilities, contracts, gh, journal, speech
 from aletheia.fleet import REPO_ROOT
 
 def _approvals_dir() -> Path:
@@ -332,7 +332,7 @@ def main(argv: list[str] | None = None) -> int:
         h = halted()
         print(f"HALTED — {h['reason']}" if h else "running")
         pending = [a for a in all_approvals() if a["state"] == "PENDING"]
-        print(f"{len(pending)} approval(s) pending")
+        print(f"{speech.count_phrase(len(pending), 'approval')} pending")
         return 0
     if args.cmd == "halt":
         halt(args.reason, via="operator-cli"); print("halted")

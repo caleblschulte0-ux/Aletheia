@@ -49,7 +49,7 @@ import json
 import re
 import sys
 
-from aletheia import browse, compose, journal, policy, research, tasks, workspace
+from aletheia import browse, compose, journal, policy, research, speech, tasks, workspace
 
 ACTOR = "aletheia-applications"
 
@@ -338,13 +338,14 @@ def prepare(role: str, *, count: int = 5, resume: str = "",
 
     if not packets:
         raise ApplicationError(
-            f"found {len(pages)} page(s) for {role!r} and none of them read "
+            f"found {speech.count_phrase(len(pages), 'page')} for {role!r} and none of them read "
             "like an actual job posting. Nothing was written — a cover letter "
             "for a page she could not read is worse than no cover letter.")
 
     journal.append("action", "applications",
-                   f"prepared {len(packets)} application packet(s) for {role!r} "
-                   f"— submitted none", actor=ACTOR)
+                   "prepared "
+                   + speech.count_phrase(len(packets), "application packet")
+                   + f" for {role!r} — submitted none", actor=ACTOR)
     return {"role": role, "resume": resume_path,
             "prepared": packets, "skipped": skipped,
             "unreadable": unreadable, "submitted": 0,

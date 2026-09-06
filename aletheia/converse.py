@@ -47,7 +47,7 @@ import sys
 import threading
 from pathlib import Path
 
-from aletheia import journal, policy, reasoner, stateio, workspace
+from aletheia import journal, policy, reasoner, speech, stateio, workspace
 
 ACTOR = "aletheia-converse"
 
@@ -703,7 +703,7 @@ def answer(question: str, *, think=None, include_thread: bool = True,
     # opened — not what he asked and not what she said.
     journal.append("action", "converse",
                    f"answered a question ({len(question)} chars in, "
-                   f"{len(said)} out, {len(files)} file(s) read"
+                   f"{len(said)} out, {speech.count_phrase(len(files), 'file')} read"
                    + (f", via {provider}" if provider else "") + ")",
                    actor=ACTOR)
     return {"question": question, "answer": said, "at": stateio.utcnow(),

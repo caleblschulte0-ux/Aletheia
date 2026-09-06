@@ -40,6 +40,8 @@ the same claim-before-acting pattern `phone_v0` uses for dialling.
 """
 from __future__ import annotations
 
+from aletheia import speech
+
 import argparse
 import datetime as dt
 import json
@@ -199,7 +201,7 @@ def start(negotiation_id: str, person: str, *, start_day: str, end_day: str,
     _save(record)
     return _transition(
         record, OFFERING,
-        f"{len(slots)} slot(s) offered to {name}; approve {draft['id']} to send")
+        f"{speech.count_phrase(len(slots), 'slot')} offered to {name}; approve {draft['id']} to send")
 
 
 def _offer_stale(record: dict, now: dt.datetime) -> bool:
@@ -231,7 +233,7 @@ def _mark_sent(record: dict) -> dict:
         communications.record_message(
             message_id, thread_id=thread_id, direction="OUTBOUND", channel="email",
             participant=participant,
-            summary=f"offered {len(record['slots'])} slot(s)")
+            summary=f"offered {speech.count_phrase(len(record['slots']), 'slot')}")
     except FileExistsError:
         pass
     deadline = (dt.datetime.now(dt.timezone.utc)
@@ -551,7 +553,7 @@ def main(argv: list[str] | None = None) -> int:
         rows = all_negotiations(state=args.state)
         for record in rows:
             print(f"{record['id']:24} {record['state']:15} {record.get('person', '')}")
-        print(f"{len(rows)} negotiation(s)", file=sys.stderr)
+        print(f"{speech.count_phrase(len(rows), 'negotiation')}", file=sys.stderr)
         return 0
     except Exception as exc:
         print(f"{type(exc).__name__}: {exc}", file=sys.stderr)

@@ -41,7 +41,7 @@ import re
 import sys
 from pathlib import Path
 
-from aletheia import act, gh, journal, localtime, plans, policy, suggestions, tasks
+from aletheia import act, gh, journal, localtime, plans, policy, speech, suggestions, tasks
 from aletheia.fleet import REPO_ROOT, load_fleet
 
 COMMANDS_DIR = REPO_ROOT / "exchange" / "commands"
@@ -796,7 +796,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         steps = _steps_of(cmd)
         result = computer.act(steps, requested_by=f"intercom: {quote[:80]}" if quote else "intercom")
         did = ", ".join(str(s.get("action")) for s in steps[:12])
-        return (f"did {result['steps_done']} desktop step(s) [{did}] — run {result['run_id']}"
+        return (f"did {speech.count_phrase(result['steps_done'], 'desktop step')} "
+                f"[{did}] — run {result['run_id']}"
                 + (f" — {cmd['why'][:120]}" if cmd.get("why") else ""))
 
     if kind == "web_task":
@@ -1052,10 +1053,13 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         from aletheia import finance
         worth = finance.net_worth()
         pending = finance.handoffs()
+        from aletheia import speech as _speech
         said = (f"Assets {worth['assets']:.2f}, liabilities {worth['liabilities']:.2f}, "
-                f"net {worth['net']:.2f} across {worth['accounts']} account(s).")
+                f"net {worth['net']:.2f} across "
+                f"{_speech.count_phrase(worth['accounts'], 'account')}.")
         if pending:
-            said += f" {len(pending)} payment(s) waiting for you to authorize."
+            said += (f" {_speech.count_phrase(len(pending), 'payment')} "
+                     "waiting for you to authorize.")
         return said
     if kind == "car":
         from aletheia import vehicles
@@ -1269,7 +1273,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"INVALID {path.name}: " + "; ".join(problems))
             else:
                 print(f"ok      {path.name}")
-        print(f"{len(todo)} pending command(s), {bad} invalid")
+        print(f"{speech.count_phrase(len(todo), 'pending command')}, {bad} invalid")
         return 1 if bad else 0
 
     if args.cmd == "list":

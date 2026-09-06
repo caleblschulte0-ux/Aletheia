@@ -284,7 +284,10 @@ class SheReadsTheFileHeNames(ConverseCase):
         (self.ws / "resume.md").write_text("A private line about my health.")
         converse.answer("look at resume.md", think=self.says())
         log = journal.JOURNAL_PATH.read_text(encoding="utf-8")
-        self.assertIn("1 file(s) read", log)
+        # "1 file(s) read" — `recollection` reads journal lines out loud,
+        # so a parenthesised plural in one is a parenthesised plural in
+        # the room. See tests/test_it_is_read_out_loud.py.
+        self.assertIn("1 file read", log)
         self.assertNotIn("private line about my health", log)
 
 

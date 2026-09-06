@@ -36,7 +36,7 @@ import json
 import re
 import sys
 
-from aletheia import journal, policy, profile
+from aletheia import journal, policy, profile, speech
 
 ACTOR = "aletheia-formfill"
 
@@ -619,7 +619,7 @@ def read_form(url: str, *, reader=None) -> list[dict]:
         settle(page)
         found = read_all(page)
         page.close()
-    journal.append("action", "formfill", f"read {len(found)} field(s) on {url}",
+    journal.append("action", "formfill", f"read {speech.count_phrase(len(found), 'field')} on {url}",
                    actor=ACTOR)
     return found
 
@@ -787,7 +787,7 @@ def survey(url: str, *, reader=None) -> dict:
 def spoken(out: dict) -> str:
     fill, ask = len(out["fill"]), len(out["ask"])
     required_asks = sum(1 for a in out["ask"] if a["required"])
-    said = f"{out['fields_found']} field(s) on that form. She can fill {fill}"
+    said = f"{speech.count_phrase(out['fields_found'], 'field')} on that form. She can fill {fill}"
     if ask:
         said += (f" and needs you for {ask}"
                  + (f" ({required_asks} of them required)" if required_asks else ""))

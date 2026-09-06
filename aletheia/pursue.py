@@ -50,6 +50,8 @@ failure is information the next round should act on (§31).
 """
 from __future__ import annotations
 
+from aletheia import speech
+
 import argparse
 import json
 import sys
@@ -246,10 +248,10 @@ def _finish(goal: str, state: str, note: str, answer: str,
         "rounds": history, "steps_run": steps_run, "steps_succeeded": done,
         "at": stateio.utcnow(),
     }
-    mission.note(f"pursue: {goal[:80]} — {state} after {steps_run} step(s)", spent=1)
+    mission.note(f"pursue: {goal[:80]} — {state} after {speech.count_phrase(steps_run, 'step')}", spent=1)
     journal.append("action", "pursue",
-                   f"{goal[:100]} — {state}, {done}/{steps_run} step(s) over "
-                   f"{len(history)} round(s)", actor=ACTOR)
+                   f"{goal[:100]} — {state}, {done}/{speech.count_phrase(steps_run, 'step')} over "
+                   f"{speech.count_phrase(len(history), 'round')}", actor=ACTOR)
     try:
         notifications.publish(
             f"{state}: {goal[:60]}", spoken(record)[:400], priority="NORMAL",
@@ -263,7 +265,9 @@ def spoken(record: dict) -> str:
     """What she says back — the outcome, not the machinery."""
     state = record["state"]
     if state == DONE:
-        return record["answer"] or f"Done — {record['steps_succeeded']} step(s)."
+        from aletheia import speech
+        return record["answer"] or (
+            f"Done — {speech.count_phrase(record['steps_succeeded'], 'step')}.")
     if state == NEEDS_OPERATOR:
         return f"I need one thing from you: {record['note']}"
     if state == BLOCKED:

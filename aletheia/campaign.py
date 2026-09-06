@@ -38,6 +38,8 @@ messages to ten real employers under his name.
 """
 from __future__ import annotations
 
+from aletheia import speech
+
 import argparse
 import json
 import re
@@ -188,7 +190,7 @@ def run(role: str, *, count: int = 5, resume: str = "", where: str = "",
         if not pages:
             raise CampaignError(
                 f"no openings matched {role!r} across {hits['searched']} "
-                "board(s). Try different words, or add companies to "
+                "boards. Try different words, or add companies to "
                 "config/job_boards.json.")
     else:
         reader = reader or applications.research.read_sources
@@ -379,11 +381,11 @@ def main(argv: list[str] | None = None) -> int:
             print(spoken(out))
             for q in out["questions"]:
                 print(f"  {'*' if q['required'] else ' '} {q['label']}  "
-                      f"({len(q['jobs'])} job(s))")
+                      f"({speech.count_phrase(len(q['jobs']), 'job')})")
         elif args.cmd == "questions":
             for q in open_questions():
                 print(f"{'*' if q['required'] else ' '} {q['label']}  "
-                      f"({len(q['jobs'])} job(s))")
+                      f"({speech.count_phrase(len(q['jobs']), 'job')})")
         else:
             answers = dict(p.split("=", 1) for p in args.pairs if "=" in p)
             out = answer_all(answers)

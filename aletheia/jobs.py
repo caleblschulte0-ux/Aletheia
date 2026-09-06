@@ -42,7 +42,7 @@ import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
-from aletheia import journal
+from aletheia import journal, speech
 from aletheia.fleet import REPO_ROOT
 
 ACTOR = "aletheia-jobs"
@@ -205,8 +205,8 @@ def search(role: str, *, where: str = "", limit: int = 10,
     found.sort(key=lambda row: row[0], reverse=True)
     matches = [job for _v, job in found[:max(1, min(int(limit), MAX_RESULTS))]]
     journal.append("action", "jobs",
-                   f"searched {len(rows)} board(s) for {role!r}: "
-                   f"{len(found)} match(es), {len(failures)} board(s) failed",
+                   f"searched {speech.count_phrase(len(rows), 'board')} for {role!r}: "
+                   f"{len(found)} match(es), {speech.count_phrase(len(failures), 'board')} failed",
                    actor=ACTOR)
     _say_a_board_is_gone([f for f in failures if f["gone"]])
     return {"role": role, "where": where, "matches": matches,
@@ -306,7 +306,7 @@ def main(argv: list[str] | None = None) -> int:
     for job in out["matches"]:
         print(f"{job['company']:14} {job['title'][:52]:54} {job['location'][:24]}")
         print(f"               {job['apply_url']}")
-    print(f"\n{out['matched']} match(es) across {out['searched']} board(s)",
+    print(f"\n{out['matched']} match(es) across {speech.count_phrase(out['searched'], 'board')}",
           file=sys.stderr)
     for failure in out["failed"]:
         print(f"  board {failure['board']} failed: {failure['why']}", file=sys.stderr)

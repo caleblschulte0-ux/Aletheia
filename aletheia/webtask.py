@@ -43,6 +43,8 @@ goal, at a question, or at a commit — and says which.
 """
 from __future__ import annotations
 
+from aletheia import speech
+
 import argparse
 import datetime as dt
 import json
@@ -725,7 +727,7 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
                                          "Start it again and I will do the "
                                          "whole thing.")})
             history.append({"step": {"action": "resume"},
-                            "result": (f"put back {len(applied)} thing(s) I had "
+                            "result": (f"put back {speech.count_phrase(len(applied), 'thing')} I had "
                                        "already done")})
             if answers:
                 # And his answers to what she asked, typed in before she
@@ -1171,7 +1173,7 @@ def run(goal: str, *, start_url: str = "", budget: int = 16, think=None,
               **outcome}
     stateio.write_json_atomic(_record_path(run_id), record)
     journal.append("action", "webtask",
-                   f"{record['state']} after {len(history)} step(s): {goal[:90]}",
+                   f"{record['state']} after {speech.count_phrase(len(history), 'step')}: {goal[:90]}",
                    actor=ACTOR)
     # WHAT HE TRIED AND COULD NOT HAVE, in his own words. The ledger only
     # ever heard about failures to PLAN; a run that went to the site and
