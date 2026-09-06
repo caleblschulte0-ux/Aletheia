@@ -443,6 +443,33 @@ silently), no required/optional overlap, and no kind that is both
 READ_ONLY and ROUTINE — being in both makes `tier()` depend on the order
 the checks happen to be written in.
 
+## A red test is a question, not an answer
+
+Five times in one session a change turned an existing test red, and every
+time the test was asserting the WORDING rather than the rule:
+
+| it asserted | the rule it was protecting |
+|---|---|
+| the approval hash appears in the sentence | he can tell what he is approving |
+| `I can't do purchase.execute yet` | she names what she cannot do |
+| `free on 2026-08-27 at 09:00` | she answers when he is free |
+| `1 file(s) read` | the journal line is sayable |
+| `a.reason \|\| a.requested_action` in console.js | the heading prefers the sentence |
+
+A test that freezes what the code does is not a regression test — it is a
+copy of the implementation with an assert around it, and it goes red for
+improvements as readily as for bugs. **Read what the assertion is
+protecting before you treat a red one as a bug in your fix**, then either
+your change is wrong, or the test needs to say the rule instead of the
+string. Both are edits; only one of them is a revert.
+
+And when two paths say the same kind of thing, give them ONE
+implementation. `intents.spoken` and `voice.spoken_reply` both read
+failures out loud and drifted, so "That failed: KeyError: ..." survived
+on the path nobody had fixed; `speech.plainly` is shared now. Same reason
+`webtask.would_spend` is one predicate for three gates, and
+`voice.approval_label` is computed by the API for all three interfaces.
+
 ## The standing assignment
 
 Every session acts on the playbook rather than re-describing it (§156):
