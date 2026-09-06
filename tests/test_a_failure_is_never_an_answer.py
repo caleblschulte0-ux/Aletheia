@@ -24,6 +24,7 @@ the goal itself, and he would have gone on believing his resume had been
 read.
 """
 import unittest
+from unittest import mock
 
 from aletheia import intents
 
@@ -88,6 +89,104 @@ class TheSummaryIsNotAnAnswerCase(unittest.TestCase):
     def test_a_receipt_with_no_detail_still_produces_a_sentence(self):
         said = intents.spoken(record([{"n": 1, "outcome": "failed"}]))
         self.assertTrue(said.strip())
+
+class OnlyHisRefusalsAreSpokenCase(unittest.TestCase):
+    """Making failures audible made the planner's internal corrections
+    audible too.
+
+        "play some music"
+        -> "1 step ready — Play music. Say approve to run it. claimed
+            missing, but the registry has audio.route AVAILABLE — claim
+            ignored; re-ask if a real step was meant here"
+
+    That last clause is the planner telling a model it was wrong. It is
+    the right thing to record and the wrong thing to say, and it carries a
+    capability id into the room on the way out.
+    """
+
+    def plan(self, refused_detail, with_runnable=True):
+        from aletheia import planner
+        steps = []
+        if with_runnable:
+            steps.append({"n": 1, "status": planner.EXECUTABLE,
+                          "capability": None, "command": {"kind": "note"},
+                          "detail": ""})
+        steps.append({"n": 2, "status": planner.REFUSED, "capability": None,
+                      "command": {}, "detail": refused_detail})
+        return {"intent": "plan", "summary": "Play music", "tier": "world",
+                "approval": "intent-x", "steps": steps}
+
+    INTERNAL = ("claimed missing, but the registry has audio.route AVAILABLE "
+                "— claim ignored; re-ask if a real step was meant here")
+
+    def test_an_internal_correction_is_not_spoken(self):
+        said = intents.spoken(self.plan(self.INTERNAL))
+        self.assertNotIn("audio.route", said)
+        self.assertNotIn("claim ignored", said)
+        self.assertIn("1 step ready", said)
+
+    def test_a_refusal_that_is_about_HIM_is_always_spoken(self):
+        from aletheia import webtask
+        said = intents.spoken(self.plan(webtask.SPENDING_REFUSAL))
+        self.assertIn("spend money", said)
+
+    def test_a_forbidden_verb_refusal_is_spoken(self):
+        said = intents.spoken(self.plan(
+            "halt is not a step a plan may take — it is reached by saying it "
+            "directly"))
+        self.assertIn("not a step a plan may take", said)
+
+    def test_a_plan_that_is_ONLY_an_internal_refusal_still_answers(self):
+        """Silence is not an answer either."""
+        said = intents.spoken(self.plan(self.INTERNAL, with_runnable=False))
+        self.assertTrue(said.strip())
+        self.assertNotIn("audio.route", said)
+        self.assertIn("say it again", said.lower())
+
+
+class TheReasonSurvivesAnyClassNameCase(unittest.TestCase):
+    def test_a_class_that_does_not_end_in_error_is_still_stripped(self):
+        """The first version required Error/Exception/Refused, and
+        `ReasonerUnavailable: both subscription reasoning paths are
+        unavailable` went straight into the room."""
+        said = intents.spoken(record(
+            [{"n": 1, "outcome": "failed",
+              "detail": "ReasonerUnavailable: both subscription reasoning "
+                        "paths are unavailable"}]))
+        self.assertNotIn("ReasonerUnavailable", said)
+        self.assertIn("both subscription reasoning paths", said)
+
+    def test_ordinary_prose_with_a_colon_is_not_eaten(self):
+        said = intents.spoken(record(
+            [{"n": 1, "outcome": "failed",
+              "detail": "the page said: try again later"}]))
+        self.assertIn("the page said", said)
+
+
+class TheSetupCommandIsRunnableCase(unittest.TestCase):
+    """"python -m aletheia.phone_cli ready            (should say True)" is
+    a command plus an aside plus a run of spaces, read out loud."""
+
+    def test_an_inline_aside_is_dropped(self):
+        step = mock.Mock()
+        step.instructions.return_value = [
+            "Do this first:",
+            "python -m aletheia.phone_cli ready            (should say True)"]
+        self.assertEqual(intents._how_command(step),
+                         "python -m aletheia.phone_cli ready")
+
+    def test_a_step_with_no_command_says_nothing_rather_than_a_fragment(self):
+        step = mock.Mock()
+        step.instructions.return_value = ["Only if you already run Home Assistant:"]
+        self.assertEqual(intents._how_command(step), "")
+
+    def test_the_sentence_is_punctuated(self):
+        with mock.patch.object(intents, "_setup_step") as found:
+            found.return_value = mock.Mock(
+                instructions=lambda: ["python -m aletheia.apply room <token>"])
+            said = intents._cannot_yet([{"capability": "room.scene"}], {})
+        self.assertTrue(said.endswith("."), said)
+
 
 
 if __name__ == "__main__":

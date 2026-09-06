@@ -361,23 +361,34 @@ def spoken(record: dict) -> str:
         # head — while the sentence went on to tell him to say it back.
         ready = speech.count_phrase(len(runnable), "step") + " ready"
         summary = speech.tidy(speech.strip_ids(str(record.get("summary") or "")))
-        parts.append((f"{ready} — {summary}." if summary else f"{ready}.")
-                     + " Say approve to run it.")
+        said = f"{ready} — {summary}." if summary else f"{ready}."
+        if record.get("approval_state") == "APPROVED":
+            # A standing grant already covered it, so there is nothing for
+            # him to approve — and "say approve to run it" would send him
+            # looking for a decision that has already been made.
+            parts.append(said + " Your standing authority covers it, so it "
+                                "runs on the next beat.")
+        else:
+            parts.append(said + " Say approve to run it." + _why_it_asks(record))
     if gaps_named:
         parts.append(_cannot_yet(gaps_named, record))
     if manual:
         parts.append(f"{speech.count_phrase(len(manual), 'step')} only you can do.")
     if refused:
-        # SAY WHY. "1 proposed step did not survive validation" is a
-        # sentence about the validator, not about his request — and when
-        # the reason is "I do not spend money", that is the whole answer
-        # and he should hear it rather than a count.
-        why = [speech.tidy(speech.strip_ids(str(s.get("detail") or "")))
-               for s in refused]
-        why = [w for w in why if w][:2]
-        parts.append(speech.and_list(why) if why else
-                     f"{speech.count_phrase(len(refused), 'proposed step')} "
-                     "did not survive validation.")
+        # A refusal is worth SAYING only when it is about him. "I do not
+        # spend money" is the whole answer; "claimed missing, but the
+        # registry has audio.route AVAILABLE — claim ignored" is the
+        # planner correcting the model, and he heard it, capability id and
+        # all, appended to "1 step ready — Play music."
+        his = [speech.tidy(speech.strip_ids(str(s.get("detail") or "")))
+               for s in refused
+               if str(s.get("detail", "")).startswith(_HIS_REFUSALS)]
+        if his:
+            parts.append(speech.and_list(his[:2]))
+        elif not parts:
+            # Nothing else to say, so the dropped step IS the answer —
+            # but in his words, not the validator's.
+            parts.append("I couldn't make sense of part of that — say it again?")
     return " ".join(parts) or "Nothing to do."
 
 
@@ -403,6 +414,93 @@ def _asks_to_spend(request: str) -> bool:
         return True
 
 
+# Refusal details written FOR HIM. Everything else in that field is the
+# planner talking to itself about a model's bad step, and belongs in the
+# record rather than in the room.
+_HIS_REFUSALS = (_SPENDING_REFUSAL[:40],
+                 "halt is not a step", "resume is not a step",
+                 "approve is not a step", "deny is not a step")
+
+
+def _why_it_asks(record: dict) -> str:
+    """"Why are you asking me about THAT?" — answered, with the fix.
+
+    "Add a task to renew my registration" runs instantly, because
+    `voice.py` has a pattern for it and a direct command is ungated.
+    "Mark the registration one done" asks for approval, because it went
+    through the planner and the planner path gates the routine tier. Same
+    action, same risk, and the only difference is whether somebody had
+    written a regex for that phrasing.
+
+    The gate is not the thing to change — `aletheia.standing` exists
+    precisely so he can say yes once for the whole routine tier, and it
+    is deliberately not grantable by voice, because the room microphone
+    is unauthenticated. What was missing is that nothing ever told him
+    the command existed at the moment he was being asked.
+
+    Self-limiting: once the grant exists, `policy.request` consumes it and
+    no approval is created, so this line stops appearing.
+    """
+    if record.get("tier") != intercom.TIER_ROUTINE:
+        return ""
+    # NEVER NEXT TO A DELETION. "2 steps ready — Delete all files in your
+    # workspace. Say approve to run it. I ask about small local things
+    # like this until you run `standing on` once." Each delete keeps a
+    # version, so the tier is right — but offering to stop asking, in the
+    # same breath as bulk deletion, reads as "shall I make this
+    # automatic?" and that is not a thing to suggest at that moment.
+    # `.get("command", {})` is not enough: a GAP or MANUAL step carries
+    # the key with the value None, and `None.get` is an AttributeError in
+    # the middle of a sentence.
+    kinds = {str((s.get("command") or {}).get("kind") or "")
+             for s in record.get("steps", [])}
+    if kinds & DESTRUCTIVE_KINDS:
+        return ""
+    try:
+        from aletheia import authority
+        if authority.active_grants():
+            return ""
+    except Exception:
+        pass
+    if not _due_to_mention("standing", NUDGE_EVERY_S):
+        return ""
+    return (" I ask about small local things like this until you run "
+            "`python -m aletheia.standing on` once.")
+
+
+# How often a standing nudge may be repeated. It is one sentence and the
+# fix is one command, but three replies in a row carrying it — read out
+# loud, in a room — is the thing that teaches him to stop listening.
+NUDGE_EVERY_S = 3600.0
+
+# Routine-tier kinds that remove or move something. Reversible, and still
+# not the moment to suggest doing it without being asked.
+DESTRUCTIVE_KINDS = frozenset({"file_delete", "file_move", "notify_clear",
+                               "plan_set", "task_status"})
+
+
+def _due_to_mention(what: str, every_s: float) -> bool:
+    """Has it been long enough to say this again? Never raises.
+
+    A failure to READ the marker says yes (better to repeat useful advice
+    than to lose it); a failure to WRITE it just means it may repeat.
+    """
+    import time
+    try:
+        path = stateio.private_dir("nudges") / f"{stateio.safe_id(what)}.json"
+        now = time.time()
+        try:
+            last = float(stateio.read_json(path).get("at", 0.0))
+        except Exception:
+            last = 0.0
+        if now - last < every_s:
+            return False
+        stateio.write_json_atomic(path, {"at": now})
+        return True
+    except Exception:
+        return True
+
+
 def _plainly(receipt: dict) -> str:
     """One failed step, as a reason rather than a traceback.
 
@@ -413,10 +511,12 @@ def _plainly(receipt: dict) -> str:
     everything.
     """
     detail = str(receipt.get("detail", "")).strip()
-    # The optional prefix matters: a bare "Refused:" is as much a class
-    # name as "WorkspaceError:" and was surviving into the sentence.
-    detail = re.sub(r"^[A-Za-z_][A-Za-z0-9_]*?(?:Error|Exception|Refused):\s*"
-                    r"|^(?:Error|Exception|Refused):\s*", "", detail)
+    # ANY class-shaped prefix, not just the ones ending in "Error". The
+    # first version required Error/Exception/Refused and `ReasonerUnavailable:
+    # both subscription reasoning paths are unavailable` sailed straight
+    # through it into the room. The shape is what identifies it: one
+    # CamelCase word, no spaces, then a colon.
+    detail = re.sub(r"^[A-Z][A-Za-z0-9_]{2,}:\s+", "", detail)
     return speech.tidy(speech.strip_ids(detail))[:220] or "it didn't work"
 
 
@@ -470,7 +570,7 @@ def _cannot_yet(gaps_named: list[dict], record: dict) -> str:
         # can act on.
         command = _how_command(step)
         said = "Not yet — that one needs setting up first"
-        return f"{said}: {command}" if command else f"{said}."
+        return f"{said}: {command}." if command else f"{said}."
     said = "I can't " + speech.and_list([_in_english(c) for c in wanted]) + " yet"
     if record.get("gap_tasks"):
         return f"{said}. I've put it on the build list."
@@ -500,9 +600,14 @@ def _how_command(step) -> str:
     """
     try:
         for line in step.instructions():
-            text = str(line).strip()
-            if text.startswith("python -m") or text.startswith("$ python -m"):
-                return text.lstrip("$ ")
+            text = " ".join(str(line).split()).lstrip("$ ")
+            if not text.startswith("python -m"):
+                continue
+            # The checklist is written for a screen, so a command often
+            # carries an aside: "python -m aletheia.phone_cli ready
+            # (should say True)". Read out, that is the command plus a
+            # sentence fragment. The runnable part is what he needs.
+            return re.sub(r"\s*\(.*$", "", text).strip()
     except Exception:
         pass
     return ""
