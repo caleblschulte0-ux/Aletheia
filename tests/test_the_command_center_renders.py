@@ -61,8 +61,10 @@ class CommandCenterCase(unittest.TestCase):
         cls.body, cls.approvals, cls.errors = cls._render(
             f"http://127.0.0.1:{cls.srv.server_address[1]}/command.html")
 
+    ASKS = "#approvals"
+
     @classmethod
-    def _render(cls, url):
+    def _render(cls, url, asks=None):
         from playwright.sync_api import sync_playwright
         with sync_playwright() as pw:
             kwargs = {"args": ["--no-sandbox"]}
@@ -78,7 +80,8 @@ class CommandCenterCase(unittest.TestCase):
             page.on("pageerror", lambda e: errors.append(str(e)))
             page.goto(url)
             page.wait_for_timeout(2500)
-            body, approvals = page.inner_text("body"), page.inner_text("#approvals")
+            body = page.inner_text("body")
+            approvals = page.inner_text(asks or cls.ASKS)
             browser.close()
         return body, approvals, errors
 
@@ -126,6 +129,50 @@ class CommandCenterCase(unittest.TestCase):
         """Smarts in the collector, never in the page (§88)."""
         from aletheia import core
         self.assertIn('"label": label', Path(core.__file__).read_text(encoding="utf-8"))
+
+
+class ThePhoneConsoleCase(CommandCenterCase):
+    """The third surface, and it had the same defect.
+
+    `console.js` rendered `a.reason` as the headline, so the phone asked
+    him to approve `operator said: "spoken to the wall: thea remember my
+    landlord"`. Three surfaces rendered one object three different ways
+    and two of them were unusable — which is what a shared collector is
+    for.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.body, cls.approvals, cls.errors = cls._render(
+            f"http://127.0.0.1:{cls.srv.server_address[1]}/console.html",
+            asks="#needs")
+
+    def test_an_approval_says_what_it_will_do(self):
+        self.assertIn("Remember the landlord is Mr Okafor", self.approvals)
+
+    def test_it_does_not_show_the_transport_wrapper(self):
+        self.assertNotIn("spoken to the wall", self.approvals)
+        self.assertNotIn("operator said:", self.approvals)
+
+    def test_the_buttons_are_there(self):
+        for word in ("Approve", "Deny"):
+            self.assertIn(word, self.approvals)
+
+    def test_the_other_panels_render(self):
+        self.assertIn("call the dentist", self.body)
+
+    def test_it_loaded_its_data_rather_than_sitting_on_loading(self):
+        self.assertNotIn("loading…", self.body)
+
+    def test_all_three_surfaces_use_the_collector(self):
+        """The wall, the Command Center and the phone all render the label
+        the API computes, so they cannot drift apart again."""
+        here = Path(__file__).resolve().parent.parent / "interface"
+        for page in ("index.html", "command.html", "console.js"):
+            with self.subTest(page=page):
+                body = (here / page).read_text(encoding="utf-8")
+                self.assertRegex(body, r"\bsays\b|\.label\b", page)
 
 
 if __name__ == "__main__":

@@ -142,14 +142,27 @@ class TwoSurfaces(unittest.TestCase):
     def test_an_approval_asks_in_WORDS_and_not_in_a_hash(self):
         """`requested_action` is a digest for anything content-bound —
         "browser.interact:9f3c…", "email.send:1a7b…" — and a phone that
-        asks you to approve a hash is asking you to guess. The words are
-        in `reason`; the digest stays, small, because it is the thing he
-        is actually approving."""
+        asks you to approve a hash is asking you to guess. The digest
+        stays, small, because it is the thing he is actually approving.
+
+        This asserted the literal `a.reason || a.requested_action`, which
+        was one implementation of the rule and not the rule. `reason` on
+        an intent approval reads `operator said: "spoken to the wall:
+        thea remember my landlord"` — a transport wrapper around a nested
+        quote — so all three surfaces now render `label`, which the API
+        computes with `voice.approval_label` and which prefers the plan's
+        own summary of what will happen.
+        """
         console = read("console.js")
-        head = console[console.index('<div class="ask">'):]
+        # The whole function, because the heading's value is computed a
+        # few lines above the markup it lands in.
+        head = console[console.index("function paintNeeds"):]
         head = head[:head.index("choices")]
-        self.assertIn("a.reason || a.requested_action", head,
-                      "the heading must prefer the sentence")
+        self.assertIn("a.label", head,
+                      "the heading must prefer the collector's sentence")
+        self.assertNotRegex(
+            head, r'"<h3>"\s*\+\s*T\.esc\(a\.requested_action',
+            "the heading must not lead with the digest")
         self.assertIn('class="what"', head,
                       "the digest is still shown, as small print")
         self.assertIn(".ask p.what{", read("console.html"),

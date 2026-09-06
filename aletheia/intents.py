@@ -515,26 +515,13 @@ def _due_to_mention(what: str, every_s: float) -> bool:
 def _plainly(receipt: dict) -> str:
     """One failed step, as a reason rather than a traceback.
 
-    The messages underneath are already good — "resume is not a file", "no
-    readable sources were found for that question" — they were simply never
-    reaching him. Only the exception CLASS is dropped: `WorkspaceError` tells
-    him nothing he can act on, and the sentence after the colon tells him
-    everything.
+    `speech.plainly` is the implementation, shared with
+    `voice.spoken_reply` — both say these out loud, and they had drifted
+    into stripping differently, so "That failed: KeyError: \"no place
+    matches 'the airport'\"" came out of one path while the other had
+    already been fixed.
     """
-    detail = str(receipt.get("detail", "")).strip()
-    # ANY class-shaped prefix, not just the ones ending in "Error". The
-    # first version required Error/Exception/Refused and `ReasonerUnavailable:
-    # both subscription reasoning paths are unavailable` sailed straight
-    # through it into the room. The shape is what identifies it: one
-    # CamelCase word, no spaces, then a colon.
-    stripped = re.sub(r"^[A-Z][A-Za-z0-9_]{2,}:\s+", "", detail)
-    # KEEP THE CLASS when the message cannot stand without it. A bare
-    # KeyError says only `'generated_at'`, and "I couldn't: 'generated_at'"
-    # tells him nothing at all — where "KeyError: 'generated_at'" is at
-    # least a thing he can report.
-    if stripped is not detail and len(stripped.split()) < 2:
-        stripped = detail
-    return speech.tidy(speech.strip_ids(stripped))[:220] or "it didn't work"
+    return speech.plainly(receipt.get("detail", ""))[:220] or "it didn't work"
 
 
 def _in_english(capability: str | None) -> str:

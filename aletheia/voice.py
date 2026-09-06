@@ -865,10 +865,15 @@ def spoken_reply(kind: str, outcome: str, detail: str) -> str:
     """
     if outcome == "halted":
         return "I'm halted — only resume works."
+    from aletheia import speech as _speech
     if outcome in ("refused", "invalid"):
-        return f"I can't do that: {detail}"
+        return f"I can't do that: {_speech.plainly(detail)}"
     if outcome == "error":
-        return f"That failed: {detail}"
+        # "That failed: KeyError: "no place matches 'the airport'"" — the
+        # message underneath was fine and arrived with a class name bolted
+        # to the front. Same stripper as `intents.spoken` uses, so the two
+        # paths cannot drift.
+        return f"That failed: {_speech.plainly(detail)}"
     if kind == "halt":
         return "Halted. Nothing acts until you say resume."
     if kind == "resume":

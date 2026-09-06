@@ -238,6 +238,31 @@ def spoken_receipt(kind: str, detail: str, *,
     return tidy(_times_to_words(strip_ids(text), now)) or text
 
 
+# One CamelCase word, no spaces, then a colon: the shape of an exception
+# class, whatever it is called. `KeyError`, `WorkspaceError`,
+# `ReasonerUnavailable`, a bare `Refused` — all of them reached the room.
+_CLASS_PREFIX = re.compile(r"^[A-Z][A-Za-z0-9_]{2,}:\s+")
+
+
+def plainly(detail: str) -> str:
+    """A failure as a reason rather than a traceback.
+
+    The messages underneath are usually good — "resume is not a file", "no
+    place matches 'the airport'" — and were simply arriving with a class
+    name bolted to the front. Only the class is dropped, and only when
+    what is left can stand without it: a bare KeyError says nothing but
+    the key, and "I couldn't: 'generated_at'" is worse than the traceback.
+
+    One implementation, because `intents.spoken` and `voice.spoken_reply`
+    both say these out loud and had drifted into stripping differently.
+    """
+    text = " ".join(str(detail or "").split())
+    stripped = _CLASS_PREFIX.sub("", text)
+    if stripped != text and len(stripped.split()) < 2:
+        stripped = text
+    return tidy(strip_ids(stripped))
+
+
 def and_list(items: list[str]) -> str:
     """['a','b','c'] -> 'a, b and c'. Speech, not a bullet list."""
     items = [str(i).strip() for i in items if str(i).strip()]

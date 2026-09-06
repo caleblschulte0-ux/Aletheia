@@ -189,5 +189,46 @@ class TheSetupCommandIsRunnableCase(unittest.TestCase):
 
 
 
+class OneStripperForEveryMouthCase(unittest.TestCase):
+    """`intents.spoken` and `voice.spoken_reply` both read failures out
+    loud, and had drifted into stripping differently:
+
+        "That failed: KeyError: "no place matches 'the airport'""
+
+    The message underneath was fine and arrived with a class name bolted
+    to the front, on the one path that had not been fixed.
+    """
+
+    def test_the_voice_receipt_path_strips_it_too(self):
+        from aletheia import voice
+        said = voice.spoken_reply(
+            "travel_time", "error",
+            "KeyError: \"no place matches 'the airport'\"")
+        self.assertNotIn("KeyError", said)
+        self.assertIn("no place matches", said)
+
+    def test_a_refusal_through_the_voice_path(self):
+        from aletheia import voice
+        said = voice.spoken_reply("issue", "refused",
+                                  "Refused: no front-door grant for that repo")
+        self.assertNotIn("Refused:", said)
+        self.assertIn("front-door grant", said)
+
+    def test_both_paths_call_the_same_function(self):
+        from pathlib import Path
+        from aletheia import intents, voice
+        for module in (intents, voice):
+            with self.subTest(module=module.__name__):
+                body = Path(module.__file__).read_text(encoding="utf-8")
+                self.assertIn("plainly(", body)
+
+    def test_a_message_that_cannot_stand_alone_still_keeps_its_class(self):
+        from aletheia import speech
+        self.assertEqual(speech.plainly("KeyError: 'generated_at'"),
+                         "KeyError: 'generated_at'")
+        self.assertEqual(speech.plainly("WorkspaceError: resume is not a file"),
+                         "resume is not a file")
+
+
 if __name__ == "__main__":
     unittest.main()
