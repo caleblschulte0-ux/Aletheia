@@ -118,7 +118,14 @@ class HowLongHasSheBeenUpCase(unittest.TestCase):
     def test_a_STALE_heartbeat_says_nothing_about_being_up(self):
         """A stamp from a process that has since died records when it
         started, not that it is still running. Reading uptime off a dead
-        process would be the most confident possible lie about being on."""
+        process would be the most confident possible lie about being on.
+
+        Both sides of this comparison move together now. The first
+        version froze the "long after" time and let `beat` stamp the real
+        clock, so it passed or failed by the hour of the day it ran —
+        CLAUDE.md's bomb with a date on it, built the same day I read the
+        warning about it.
+        """
         liveness.note_start(path=self.path, now="2026-09-07T10:00:00Z")
         long_after = "2026-09-07T18:00:00Z"
         self.assertFalse(liveness.alive(now=long_after, path=self.path))

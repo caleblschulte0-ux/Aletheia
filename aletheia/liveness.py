@@ -58,10 +58,17 @@ _STARTED_AT: str | None = None
 
 
 def beat(actor: str = "core", port: int | None = None,
-         path: Path | None = None) -> dict:
+         path: Path | None = None, now: str | None = None) -> dict:
     """Stamp 'I am alive, now'. Never raises: a heartbeat that could not be
-    written must not take down the process it exists to watch over."""
-    entry = {"ts": stateio.utcnow(), "actor": actor, "pid": os.getpid()}
+    written must not take down the process it exists to watch over.
+
+    `now` so a caller that already knows what time it is can say so.
+    Without it `note_start(now=...)` set the START stamp from its argument
+    and the heartbeat's own timestamp from the real clock — half a
+    comparison frozen and half of it moving, which made a test pass or
+    fail by the hour of the day it ran.
+    """
+    entry = {"ts": now or stateio.utcnow(), "actor": actor, "pid": os.getpid()}
     if port is not None:
         entry["port"] = port
     if _STARTED_AT:
@@ -175,7 +182,7 @@ def note_start(actor: str = "core", port: int | None = None,
     gap = age_seconds(now, path)
     global _STARTED_AT
     _STARTED_AT = now or stateio.utcnow()
-    beat(actor=actor, port=port, path=path)
+    beat(actor=actor, port=port, path=path, now=_STARTED_AT)
     if gap is None or gap < OUTAGE_AFTER_S:
         return None
     pretty = humanize(gap)
