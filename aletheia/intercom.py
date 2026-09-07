@@ -1163,7 +1163,17 @@ REHEARSAL = "ALETHEIA_REHEARSAL"
 # commands later, through this same function. Neither reaches the world
 # itself. (`agenda` and `mission` are modules, not intercom kinds — the
 # test below is what caught me listing them.)
-CONTAINERS = frozenset({"intent", "handle"})
+#
+# `approve` and `deny` are the same shape and were MISSING, which cost the
+# audit its most important path: saying "approve" in a rehearsal answered
+# "this is a rehearsal — approve is gated as world-touching", so the whole
+# approve -> execute -> receipt loop could never be exercised at all, and
+# the next question came back "No — that was a rehearsal, not a real
+# save." Approving is a decision about a plan; the plan's steps then come
+# back through here one at a time and a world-touching one is still
+# refused. Nothing about who may approve changes — `approve` stays in
+# PLANNER_FORBIDDEN, so she still cannot approve her own work.
+CONTAINERS = frozenset({"intent", "handle", "approve", "deny"})
 
 
 def rehearsing() -> bool:

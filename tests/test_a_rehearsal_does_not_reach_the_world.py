@@ -40,6 +40,31 @@ class RehearsalCase(unittest.TestCase):
                 self.assertIn("rehearsal", str(caught.exception))
                 self.assertIn("world-touching", str(caught.exception))
 
+    def test_approving_is_not_itself_reaching_the_world(self):
+        """The audit's most important path, and the gate ate it.
+
+        Saying "approve" in a rehearsal answered "this is a rehearsal —
+        approve is gated as world-touching, so it was not run", so the
+        whole approve -> execute -> receipt loop could never be
+        exercised: the next question came back "No — that was a
+        rehearsal, not a real save." Approving is a DECISION about a
+        plan; its steps come back through `execute_command` one at a
+        time afterwards, and a world-touching one is still refused
+        there. Nothing about who may approve changes.
+        """
+        self.assertIn("approve", intercom.CONTAINERS)
+        self.assertIn("deny", intercom.CONTAINERS)
+        self.assertIn("approve", intercom.PLANNER_FORBIDDEN)
+        self.assertIn("deny", intercom.PLANNER_FORBIDDEN)
+
+    def test_every_container_really_re_enters_this_function(self):
+        # The exemption is only safe because each one hands its steps
+        # back to be checked individually. A kind that DOES something
+        # itself may never be listed here.
+        for kind in intercom.CONTAINERS:
+            self.assertIn(kind, intercom.KIND_ARGS, kind)
+            self.assertEqual(intercom.tier(kind), intercom.TIER_WORLD, kind)
+
     def test_local_work_still_really_happens(self):
         """A rehearsal that refuses everything tests nothing."""
         said = intercom.execute_command({"kind": "note", "text": "a thought"},
