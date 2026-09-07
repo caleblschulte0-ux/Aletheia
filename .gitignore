@@ -7,4 +7,10 @@ state/private/
 .aletheia/
 state/approvals/
 state/journal/journal-pc.jsonl
+# ...and anything derived from it. The pattern above is EXACT, so a
+# `journal-pc.jsonl.bak` written beside it by a migration was not
+# ignored and reached a commit on a PUBLIC repo (caught before push,
+# 2026-09-07).
+state/journal/journal-pc.jsonl.*
+state/journal/*.bak
 memory/
