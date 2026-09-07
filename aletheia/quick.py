@@ -163,6 +163,20 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # this whole session started from: the Core had been up three days on
     # code ninety commits old, every part reported healthy, and nothing
     # anywhere said so.
+    # 55ms spoken against ~25 SECONDS typed, for the same sentence off the
+    # same feed. `quick` declined this on the belief that the calendar was
+    # not connected; it is — an ICS feed, reporting "1 feed(s)
+    # configured" — it is simply EMPTY, and "free all day" from a feed
+    # that really says nothing is a correct answer rather than a guess.
+    #
+    # Only the whole-day forms. "Am I free at 3", "am I free this
+    # afternoon" and "am I free for an hour" all take arguments this
+    # cannot parse, and the planner is better at them than a regex.
+    ("free", re.compile(
+        r"^am i free(?: (?P<free>today|tomorrow))?$"
+        r"|^(?:do i|have i) (?:have|got) (?:anything|any plans|much) on"
+        r"(?: (?P<free2>today|tomorrow))?$"
+        r"|^is my (?P<free3>today|tomorrow) free$")),
     ("version", re.compile(
         r"^what version are (?:you|u) on$|^what version are (?:you|u) running$"
         r"|^what code are (?:you|u) running$|^what(?:'s| is|s)? your version$"
@@ -196,7 +210,8 @@ def match(question: str) -> tuple[str, str] | None:
         if not found:
             continue
         captured = found.groupdict()
-        rest = next((captured[k] for k in ("what", "what2", "what3", "mine")
+        rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
+                                           "free", "free2", "free3")
                      if captured.get(k)), "")
         return name, rest
     return None
@@ -472,6 +487,20 @@ def _shopping() -> str | None:
     return intercom.shopping_answer()
 
 
+def _free(when: str = "") -> str | None:
+    """Whether he is free, from the same code the `free_time` kind uses."""
+    import datetime as dt
+    from aletheia import intercom, localtime
+    day = dt.datetime.now(localtime.operator_tz()).date()
+    if str(when or "").strip().casefold() == "tomorrow":
+        day += dt.timedelta(days=1)
+    try:
+        return intercom.free_time_answer({"kind": "free_time",
+                                          "day": day.isoformat()})
+    except Exception:
+        return None             # no feed, or it could not be read
+
+
 def _version() -> str | None:
     """Which code she is running, and whether the tree has moved past it."""
     from aletheia import running
@@ -545,6 +574,7 @@ ANSWERS = {"halted": lambda rest: _halted(),
            "shopping": lambda rest: _shopping(),
            "uptime": lambda rest: _uptime(),
            "version": lambda rest: _version(),
+           "free": _free,
            "running": lambda rest: _running(),
            "mine": _mine,
            "home": lambda rest: _mine("city")}

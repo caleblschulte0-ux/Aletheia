@@ -432,12 +432,59 @@ class TheWiderLaneCase(unittest.TestCase):
         connected. When in doubt the lane says nothing."""
         for sentence in (
                 "what's on my calendar",
-                "am i free today",
                 "what plans do i have",
                 "what did you do last week"):
             with self.subTest(sentence=sentence):
                 self.assertIsNone(quick.match(sentence),
                                   f"{sentence!r} must reach the planner")
+
+    def test_whether_he_is_free_comes_off_the_real_feed(self):
+        """Declined here on the belief that the calendar was not
+        connected. It is — an ICS feed, "1 feed(s) configured" — it is
+        simply EMPTY, and "free all day" from a feed that really says
+        nothing is a correct answer rather than a guess. 55ms spoken
+        against ~25 SECONDS typed, for the same sentence."""
+        with mock.patch("aletheia.intercom.free_time_answer",
+                        return_value="Free today 9 am to 5 pm.") as asked:
+            said = quick.answer("am i free today")
+        self.assertEqual(said, "Free today 9 am to 5 pm.")
+        asked.assert_called_once()
+
+    def test_tomorrow_is_a_different_day(self):
+        import datetime as dt
+        seen = {}
+        with mock.patch("aletheia.intercom.free_time_answer",
+                        side_effect=lambda cmd: seen.setdefault("day", cmd["day"])):
+            quick.answer("am i free tomorrow")
+        from aletheia import localtime
+        expected = (dt.datetime.now(localtime.operator_tz()).date()
+                    + dt.timedelta(days=1)).isoformat()
+        self.assertEqual(seen["day"], expected)
+
+    def test_a_qualified_question_still_goes_to_the_planner(self):
+        """"Am I free this AFTERNOON" and "am I free at 3" carry arguments
+        a regex cannot parse, and dropping the qualifier would answer a
+        different question than the one asked — which is the failure he
+        cannot detect."""
+        for sentence in ("am i free this afternoon", "am i free at 3",
+                         "am i free for an hour", "am i free on friday"):
+            with self.subTest(sentence=sentence):
+                self.assertIsNone(quick.match(sentence), sentence)
+
+    def test_no_feed_at_all_goes_to_the_planner(self):
+        with mock.patch("aletheia.intercom.free_time_answer",
+                        side_effect=OSError("no feed")):
+            self.assertIsNone(quick.answer("am i free today"))
+
+    def test_both_doors_use_one_implementation(self):
+        """`intercom` builds this sentence for the `free_time` kind and
+        `quick` calls the same function — or the two doors drift into two
+        answers for one question."""
+        import inspect
+        from aletheia import intercom
+        self.assertIn("free_time_answer", inspect.getsource(quick._free))
+        self.assertIn("free_time_answer",
+                      inspect.getsource(intercom.execute_command))
 
     def test_tasks_counts_the_real_store_and_names_the_next(self):
         rows = [{"id": "a", "description": "call the plumber", "status": "QUEUED",

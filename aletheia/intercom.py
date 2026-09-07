@@ -977,6 +977,25 @@ def _shopping_items() -> list[dict]:
             if str(w.get("state", "")).upper() in SHOPPING_OPEN]
 
 
+def free_time_answer(cmd: dict) -> str:
+    """When he is free, as one sentence. Public because `quick` answers
+    the same question from the same feed, and the sentence should be
+    written in exactly one place."""
+    import datetime as _dt
+    from aletheia import calendar as cal
+    tz = cmd.get("tz") or localtime.operator_timezone()
+    minutes = int(cmd.get("minutes", 30))
+    day = _dt.date.fromisoformat(cmd["day"])
+    part = str(cmd.get("part") or "").strip().lower()
+    slots = cal.free_slots(day, duration_minutes=minutes, timezone=tz)
+    # HE SAID "AFTERNOON". Dropping the qualifier and answering about
+    # the whole day answers a different question than the one asked,
+    # and he has no way to tell that it happened.
+    if part:
+        slots = cal.in_part(slots, part)
+    return _free_sentence(cal.merge_slots(slots), day, part)
+
+
 def shopping_answer() -> str:
     """His shopping list as one sentence. Public because `quick` answers
     "what's on my shopping list" from the same store, and the sentence
@@ -1817,19 +1836,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "jobs":
         return _jobs_answer(cmd)
     if kind == "free_time":
-        import datetime as _dt
-        from aletheia import calendar as cal
-        tz = cmd.get("tz") or localtime.operator_timezone()
-        minutes = int(cmd.get("minutes", 30))
-        day = _dt.date.fromisoformat(cmd["day"])
-        part = str(cmd.get("part") or "").strip().lower()
-        slots = cal.free_slots(day, duration_minutes=minutes, timezone=tz)
-        # HE SAID "AFTERNOON". Dropping the qualifier and answering about
-        # the whole day answers a different question than the one asked,
-        # and he has no way to tell that it happened.
-        if part:
-            slots = cal.in_part(slots, part)
-        return _free_sentence(cal.merge_slots(slots), day, part)
+        return free_time_answer(cmd)
     if kind == "contact_add":
         from aletheia import contacts, mail as mail_mod
         import re as _re
