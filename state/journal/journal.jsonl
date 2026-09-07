@@ -90,5 +90,12 @@
 {"ts": "2026-09-06T13:52:56Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-09-06"}
 {"ts": "2026-09-07T01:45:44Z", "kind": "task", "actor": "aletheia", "subject": "task:email-him", "text": "created — email him about the boiler"}
 {"ts": "2026-09-07T01:45:44Z", "kind": "task", "actor": "aletheia", "subject": "task:call-plumber", "text": "created — call the plumber"}
+{"ts": "2026-09-07T12:42:52Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:aletheia", "text": "health red -> green"}
+{"ts": "2026-09-07T12:42:52Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:shorts_pipeline", "text": "health red -> green"}
+{"ts": "2026-09-07T12:42:54Z", "kind": "recovery", "actor": "aletheia", "subject": "sentinel", "text": "fleet recovered — alert issue closed"}
 {"ts": "2026-09-07T14:41:31Z", "kind": "event", "actor": "aletheia-closed", "subject": "core", "text": "closed by operator — by voice: 'Thea, turn yourself off'"}
 {"ts": "2026-09-07T14:42:10Z", "kind": "event", "actor": "aletheia-closed", "subject": "core", "text": "reopened by operator"}
+{"ts": "2026-09-07T16:14:19Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-09-07"}
+{"ts": "2026-09-07T21:34:34Z", "kind": "alert", "actor": "aletheia", "subject": "repo:shorts_pipeline", "text": "health green -> red"}
+{"ts": "2026-09-07T21:34:34Z", "kind": "alert", "actor": "aletheia", "subject": "repo:schwab_trader", "text": "health green -> red"}
+{"ts": "2026-09-07T21:34:35Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue opened — Shorts-pipeline, schwab-trader"}
