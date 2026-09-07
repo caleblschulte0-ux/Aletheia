@@ -451,6 +451,17 @@ def _spoken_minutes(text: str) -> int | None:
     return None
 
 
+def _might_be_several(text: str) -> bool:
+    """Could this be a list of things rather than one thing?
+
+    Deliberately generous: a false positive costs a round trip, a false
+    negative puts "eggs milk and bread" on the shopping list as a single
+    item he then has to find and delete.
+    """
+    t = " ".join(str(text or "").lower().split())
+    return "," in t or " and " in t or " & " in t or " plus " in t
+
+
 def _to_the_planner(text: str) -> dict:
     """Hand the sentence on rather than ending the turn on a parse error.
 
@@ -858,6 +869,13 @@ def _interpret(transcript: str) -> dict:
     # the spending door holds).
     m = re.match(r"(?:add|put|get|stick|throw) (.+?) (?:on|to) (?:the |my )?"
                  r"(?:shopping |grocery )?list$", low)
+    if m and _might_be_several(m.group(1)):
+        # "Add eggs milk and bread to the shopping list" put ONE entry on
+        # it called "eggs milk and bread". Splitting here would have to
+        # guess, and "macaroni and cheese" is one thing — so anything
+        # that might be a list goes to the planner, which can emit a step
+        # per item. A round trip beats a wrong entry.
+        return _to_the_planner(text)
     if m:
         return {"command": {"kind": "shopping_add", "item": m.group(1).strip()},
                 "say": None}

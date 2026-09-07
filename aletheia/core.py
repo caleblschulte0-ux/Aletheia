@@ -288,7 +288,19 @@ _KICK_LOCK = threading.Lock()
 _KICKING = False
 
 
-def kick_approved_work(fleet: dict) -> bool:
+# How long the room waits for the work an approval unblocked before
+# answering. Not a promise that it finished — a chance for the LOCAL
+# steps, which take milliseconds, to be done before the next sentence.
+#
+# "Approve" / "what's on my shopping list" answered "Nothing on your
+# shopping list" one breath after approving three things onto it: the
+# kick runs off-thread and the deterministic answer came back in 0.0s,
+# beating it. An answer that is wrong for a quarter of a second is
+# indistinguishable from an answer that is wrong.
+KICK_WAIT_S = 2.0
+
+
+def kick_approved_work(fleet: dict, wait_s: float = 0.0) -> bool:
     """Run the things an approval just unblocked, immediately.
 
     Off the sync thread on purpose: this is the same work the beat does, and
@@ -296,6 +308,10 @@ def kick_approved_work(fleet: dict) -> bool:
     minute later. One at a time — a second `approve` while the first is
     still running joins it rather than racing it, and every step is
     idempotent by state transition anyway.
+
+    `wait_s` gives the caller a bounded wait: the room uses it so a local
+    step is finished before he can ask about it, and a slow errand still
+    cannot stall anything for longer than that.
     """
     global _KICKING
     with _KICK_LOCK:
@@ -319,7 +335,10 @@ def kick_approved_work(fleet: dict) -> bool:
             with _KICK_LOCK:
                 _KICKING = False
 
-    threading.Thread(target=run, name="aletheia-kick", daemon=True).start()
+    worker = threading.Thread(target=run, name="aletheia-kick", daemon=True)
+    worker.start()
+    if wait_s > 0:
+        worker.join(wait_s)
     return True
 
 
@@ -744,7 +763,7 @@ class Handler(BaseHTTPRequestHandler):
                 # it is the difference between an assistant and a cron job,
                 # so the work he unblocked is kicked NOW — off the sync
                 # thread, so a slow errand still cannot stall the beat.
-                kick_approved_work(self.fleet)
+                kick_approved_work(self.fleet, wait_s=KICK_WAIT_S)
             return self._json(result)
         if path == "/api/voice/followup/ack":
             fid = payload.get("id")
@@ -808,7 +827,9 @@ class Handler(BaseHTTPRequestHandler):
                                    "followup_id": slot["id"]})
             result = run_command({**cmd, "operator_quote": quote}, self.fleet)
             if kind in ("approve", "resume"):
-                kick_approved_work(self.fleet)  # saying yes out loud acts now too
+                # Saying yes out loud acts now too — and the room waits a
+                # moment for it, so the next question tells the truth.
+                kick_approved_work(self.fleet, wait_s=KICK_WAIT_S)
             # a fallback intent carries its own words (e.g. "no command for
             # that, journaled") — those beat the generic receipt phrasing
             say = intent["say"] or voice.spoken_reply(kind, result["outcome"],
