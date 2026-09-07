@@ -95,14 +95,62 @@ def _spoken_url(tail: str) -> str | None:
 
 
 def _is_bare_hour(text: str) -> bool:
-    """Did he give an hour with no am/pm — "at 3" rather than "at 3 pm"?"""
-    return re.fullmatch(r"\s*\d{1,2}\s*",
-                        str(text or "").lower().replace(".", "")) is not None
+    """Did he give an hour with no am/pm — "at 3" rather than "at 3 pm"?
+
+    Both readings are live for anything he says without am or pm, not
+    only for a bare digit: "quarter past eight" at nine in the evening is
+    a quarter past eight TONIGHT to a person, and reading it as tomorrow
+    morning is the same 12-hour error as "at 3" meaning 03:00. Noon and
+    midnight name one hour each and are never ambiguous.
+    """
+    t = " ".join(str(text or "").lower().replace(".", "").split())
+    if not t or t in ("noon", "midday", "midnight"):
+        return False
+    return "am" not in t.split() and "pm" not in t.split()
+
+
+# The hours as people say them out loud, and the two names for a time
+# that carry no number at all. "Remind me at NOON to eat" came back "I
+# couldn't parse the time 'noon'".
+_SPOKEN_HOURS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+                 "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+                 "eleven": 11, "twelve": 12, "midday": 12, "noon": 12,
+                 "midnight": 0}
 
 
 def _spoken_time(text: str) -> str | None:
-    """'8 am' / '8:30 pm' / '20:15' -> 'HH:MM', else None."""
-    t = text.strip().lower().replace(".", "")
+    """'8 am' / '8:30 pm' / '20:15' / 'half past six' / 'noon' -> 'HH:MM'."""
+    t = " ".join(text.strip().lower().replace(".", "").split())
+    if t.startswith("about ") or t.startswith("around "):
+        t = t.split(" ", 1)[1]
+    # "quarter past eight", "half past six", "quarter to nine" — said far
+    # more often than "08:15", and none of them parsed.
+    m = re.fullmatch(r"(quarter|half|\d{1,2}|ten|twenty|five)\s+(past|to)\s+"
+                     r"([a-z]+|\d{1,2})\s*(am|pm)?", t)
+    if m:
+        minutes = {"quarter": 15, "half": 30, "ten": 10, "twenty": 20,
+                   "five": 5}.get(m.group(1))
+        if minutes is None:
+            minutes = int(m.group(1)) if m.group(1).isdigit() else None
+        hour = (int(m.group(3)) if m.group(3).isdigit()
+                else _SPOKEN_HOURS.get(m.group(3)))
+        if minutes is None or hour is None or not (0 <= hour <= 23):
+            return None
+        if m.group(2) == "to":
+            hour, minutes = (hour - 1) % 24, 60 - minutes
+        if m.group(4) == "pm" and hour < 12:
+            hour += 12
+        if m.group(4) == "am" and hour == 12:
+            hour = 0
+        return f"{hour % 24:02d}:{minutes:02d}"
+    named = re.fullmatch(r"([a-z]+)\s*(am|pm)?", t)
+    if named and named.group(1) in _SPOKEN_HOURS:
+        hour = _SPOKEN_HOURS[named.group(1)]
+        if named.group(2) == "pm" and hour < 12:
+            hour += 12
+        if named.group(2) == "am" and hour == 12:
+            hour = 0
+        return f"{hour:02d}:00"
     m = re.fullmatch(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)?", t)
     if not m:
         return None
@@ -343,7 +391,11 @@ DEFAULT_REMINDER_TIME = "09:00"
 # lookup needle or an identifier. Everything here is stored, or read back
 # to him later, so it keeps his capitals.
 HIS_WORDS = ("text", "description", "item", "body", "question", "goal",
-             "need", "note", "topic")
+             "need", "note", "topic",
+             # People's names, which are the thing he is most likely to
+             # notice her re-spelling: "remember person Dana ..." stored a
+             # contact whose display name was "dana".
+             "name", "person", "who", "to", "alias")
 
 
 def _as_he_said(transcript: str, fragment: str) -> str:
@@ -373,6 +425,17 @@ def _his_capitals(transcript: str, decided: dict) -> dict:
         if isinstance(value, str) and value:
             command[field] = _as_he_said(transcript, value)
     return decided
+
+
+def _to_the_planner(text: str) -> dict:
+    """Hand the sentence on rather than ending the turn on a parse error.
+
+    The deterministic layer exists to be FAST, and every dead end it
+    produces ("I couldn't parse the time 'noon'") is it being slower than
+    useless — the planner would have read the sentence. It may remove
+    latency; it may never remove an answer.
+    """
+    return {"command": {"kind": "intent", "text": text}, "say": None}
 
 
 def _known_place(text: str) -> bool:
@@ -539,9 +602,10 @@ def _interpret(transcript: str) -> dict:
     if m:
         hhmm = _spoken_time(m.group(2)) if m.group(2) else DEFAULT_REMINDER_TIME
         if not hhmm:
-            return {"command": None,
-                    "say": f"I couldn't parse the time {m.group(2)!r} — say "
-                           "it like '8 am' or '14:30'."}
+            # The planner reads times this does not, and the confirmation
+            # says the hour back either way. A dead end here is the fast
+            # lane removing an answer, which it may never do.
+            return _to_the_planner(text)
         # "tuesday and thursday", "mon, wed and fri" — a list he says in one
         # breath. The planner's version of this came back as "Weekly
         # reminder Tue/Thu 6pm", which is a calendar entry, not a sentence.
@@ -555,15 +619,13 @@ def _interpret(transcript: str) -> dict:
         if hhmm:
             return {"command": {"kind": "remind_daily", "time": hhmm,
                                 "text": m.group(2).strip()}, "say": None}
-        return {"command": None,
-                "say": f"I couldn't parse the time {m.group(1)!r} — say it like '8 am' or '14:30'."}
+        return _to_the_planner(text)
     m = re.match(r"remind me (?:at ([\w: ]+?)|in (\d+) (minutes?|hours?)) (?:to|that) (.+)", low)
     if m:
         if m.group(1):
             hhmm = _spoken_time(m.group(1))
             if not hhmm:
-                return {"command": None,
-                        "say": f"I couldn't parse the time {m.group(1)!r} — say it like '8 am' or '14:30'."}
+                return _to_the_planner(text)
             at = _next_occurrence_iso(hhmm, bare_hour=_is_bare_hour(m.group(1)))
         else:
             import datetime as dt
@@ -647,9 +709,12 @@ def _interpret(transcript: str) -> dict:
             if part:
                 command["part"] = part
             return {"command": command, "say": None}
-        return {"command": None,
-                "say": f"I couldn't parse {m.group(1)!r} — say today, tomorrow, "
-                       "a date, or something like 'tomorrow afternoon'."}
+        # FALL THROUGH, don't answer with a parse error. "Am I free at 3 on
+        # friday" and "when am I free next week" are ordinary sentences,
+        # and this branch was ending the turn with "I couldn't parse 'next
+        # week'" — the fast lane removing an ANSWER rather than latency,
+        # which is the one thing it may never do. The planner resolves the
+        # date and compiles the same command; it just costs a round trip.
 
     # private contact: "remember person bob smith bob at gmail dot com"
     m = re.match(r"remember (?:person|contact)\s+(.+?)\s+((?:\S+\s+at\s+\S.*|\S+@\S+))$", low)
@@ -697,7 +762,10 @@ def _interpret(transcript: str) -> dict:
                 "say": None}
 
     if re.fullmatch(r"(?:the |my )?(?:morning )?brief(?:ing)?|"
-                    r"catch me up|what did i miss", low):
+                    # The phrasings a person actually uses. "Give me the
+                    # brief" and "brief me" both went to the planner.
+                    r"(?:give me|read me|run) (?:the |my )?brief(?:ing)?|"
+                    r"brief me|catch me up|what did i miss", low):
         return {"command": {"kind": "brief"}, "say": None}
 
     m = re.match(r"handle (?:it|this|that)[,: ]*(.*)$", low)

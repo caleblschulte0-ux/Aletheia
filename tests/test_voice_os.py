@@ -120,7 +120,11 @@ class TestSpokenTimeParsing(unittest.TestCase):
         self.assertEqual(voice._spoken_time("12 am"), "00:00")
         self.assertEqual(voice._spoken_time("12 pm"), "12:00")
         self.assertEqual(voice._spoken_time("14:15"), "14:15")
-        self.assertIsNone(voice._spoken_time("half past nine"))
+        # "Half past nine" used to be unparseable and this asserted the
+        # LIMITATION. The rule underneath is that a time she cannot read
+        # is refused rather than guessed — which the two below still hold.
+        self.assertEqual(voice._spoken_time("half past nine"), "09:30")
+        self.assertIsNone(voice._spoken_time("half past ninish"))
         self.assertIsNone(voice._spoken_time("25:00"))
 
     def test_days(self):

@@ -100,6 +100,49 @@ class ABareHourCase(unittest.TestCase):
         self.assertEqual((got.hour, got.day), (12, 6))
 
 
+class TheWayPeopleSayTimes(unittest.TestCase):
+    """"Remind me at noon to eat" -> "I couldn't parse the time 'noon'"."""
+
+    def test_the_two_times_that_have_no_number(self):
+        self.assertEqual(voice._spoken_time("noon"), "12:00")
+        self.assertEqual(voice._spoken_time("midday"), "12:00")
+        self.assertEqual(voice._spoken_time("midnight"), "00:00")
+
+    def test_past_and_to(self):
+        self.assertEqual(voice._spoken_time("quarter past eight"), "08:15")
+        self.assertEqual(voice._spoken_time("half past six"), "06:30")
+        self.assertEqual(voice._spoken_time("quarter to nine"), "08:45")
+        self.assertEqual(voice._spoken_time("ten past five pm"), "17:10")
+        self.assertEqual(voice._spoken_time("twenty past four"), "04:20")
+
+    def test_the_hedge_people_put_in_front(self):
+        self.assertEqual(voice._spoken_time("about 7"), "07:00")
+        self.assertEqual(voice._spoken_time("around 7:30"), "07:30")
+
+    def test_what_it_still_refuses(self):
+        # It may not invent an hour. These go to the planner instead.
+        for said in ("banana", "25:00", "half past sevenish", "sometime"):
+            self.assertIsNone(voice._spoken_time(said), said)
+
+    def test_a_spoken_hour_with_no_am_or_pm_is_ambiguous_too(self):
+        # "Quarter past eight" at nine in the evening is tonight to a
+        # person. Only a bare DIGIT counted before, so it was read as
+        # tomorrow morning — the same twelve-hour error as "at 3".
+        self.assertTrue(voice._is_bare_hour("quarter past eight"))
+        self.assertTrue(voice._is_bare_hour("8:30"))
+        self.assertFalse(voice._is_bare_hour("8 pm"))
+        self.assertFalse(voice._is_bare_hour("noon"))
+        self.assertFalse(voice._is_bare_hour("midnight"))
+        # Said at seven in the evening, it is tonight — not tomorrow
+        # morning, which is what the digits-only rule gave.
+        got = when("quarter past eight", at_local(19, 0))
+        self.assertEqual((got.hour, got.minute, got.day), (20, 15, 6))
+        # And past both readings, the next one is tomorrow morning, the
+        # same as a bare "8" would give.
+        got = when("quarter past eight", at_local(21, 0))
+        self.assertEqual((got.hour, got.minute, got.day), (8, 15, 7))
+
+
 class TheConfirmationIsInHisTimezoneCase(unittest.TestCase):
     """A confirmation he cannot trust is worse than none: it disguised an
     eighteen-hour error as a plausible time."""
@@ -153,10 +196,18 @@ class EndToEndCase(unittest.TestCase):
         self.assertEqual(got.astimezone(CHICAGO).hour, 15)
         self.assertEqual(intent["command"]["text"], "call the dentist")
 
-    def test_an_unparseable_time_is_refused_rather_than_guessed(self):
+    def test_an_unparseable_time_is_never_guessed(self):
+        # The RULE is that she does not invent an hour. It used to be a
+        # dead end here — "I couldn't parse 'half past sevenish'" — and a
+        # dead end is the fast lane removing an ANSWER rather than
+        # latency. The sentence goes to the planner, which reads times
+        # this layer does not; what may never happen is a reminder set
+        # for a time nobody said.
         intent = voice.interpret("thea remind me at half past sevenish to go")
-        self.assertIsNone(intent["command"])
-        self.assertIn("couldn't parse", intent["say"])
+        command = intent["command"] or {}
+        self.assertNotIn(command.get("kind"),
+                         ("remind_at", "remind_daily", "remind_weekly"))
+        self.assertEqual(command.get("kind"), "intent")
 
 
 if __name__ == "__main__":

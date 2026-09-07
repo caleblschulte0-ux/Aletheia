@@ -67,6 +67,24 @@ class HisCapitalsSurvive(unittest.TestCase):
                          "something else")
         self.assertEqual(voice._as_he_said("", "x"), "x")
 
+    def test_a_persons_name_keeps_its_capital(self):
+        # The one he is most likely to notice: "remember person Dana ..."
+        # saved a contact whose display name was "dana".
+        self.assertEqual(
+            voice.interpret("remember person Dana dana at example.com")["command"]["name"],
+            "Dana")
+        self.assertEqual(
+            voice.interpret("set up a meeting with Dana next week")["command"]["person"],
+            "Dana")
+        self.assertEqual(
+            voice.interpret("tell me when I get an email from Dana")["command"]["who"],
+            "Dana")
+
+    def test_the_brief_is_asked_for_the_way_people_ask(self):
+        for said in ("give me the brief", "brief me", "the brief",
+                     "read me my briefing", "catch me up"):
+            self.assertEqual(voice.interpret(said)["command"], {"kind": "brief"}, said)
+
     def test_the_longest_alternative_wins(self):
         # Python's alternation takes the FIRST that matches, so "note"
         # beat "note that" and the note began with the word "that".
@@ -74,6 +92,36 @@ class HisCapitalsSurvive(unittest.TestCase):
                            ("write down that I paid the rent", "I paid the rent"),
                            ("note the boiler is leaking", "the boiler is leaking")):
             self.assertEqual(voice.interpret(said)["command"]["text"], text, said)
+
+
+class TheFastLaneNeverEndsTheTurn(unittest.TestCase):
+    """It may remove latency. It may never remove an ANSWER.
+
+    "am I free at 3 on friday" and "when am I free next week" both ended
+    on "I couldn't parse 'next week' — say today, tomorrow, a date..." —
+    a dead end produced by the very layer that exists to be helpful
+    faster. Anything it cannot read goes to the planner, which resolves
+    the date and compiles the same command for the price of a round trip.
+    """
+
+    def test_a_day_it_can_read_is_still_instant(self):
+        for said in ("am I free friday", "am I free tomorrow afternoon",
+                     "am I free"):
+            got = voice.interpret(said)
+            self.assertEqual(got["command"]["kind"], "free_time", said)
+
+    def test_a_day_it_cannot_read_goes_to_the_planner(self):
+        for said in ("am I free at 3 on friday", "when am I free next week",
+                     "am I free the week after next"):
+            got = voice.interpret(said)
+            self.assertEqual((got.get("command") or {}).get("kind"), "intent", said)
+            self.assertIsNone(got.get("say"), said)
+
+    def test_a_genuinely_ambiguous_day_still_asks(self):
+        # "Friday" when today IS Friday is a real question, not a parse
+        # failure — that one keeps its sentence.
+        got = voice.interpret("am I free on friday")
+        self.assertTrue(got.get("command") or got.get("say"))
 
 
 if __name__ == "__main__":
