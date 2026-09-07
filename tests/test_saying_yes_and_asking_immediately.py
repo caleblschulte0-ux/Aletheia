@@ -79,7 +79,14 @@ class TheRoomWaitsABeat(unittest.TestCase):
             elapsed = time.monotonic() - began
         release.set()
         self.assertLess(elapsed, 1.0)
-        self.assertGreaterEqual(elapsed, 0.19)
+        # The claim is "it waited a beat rather than returning instantly",
+        # not "it waited 0.2s to the millisecond". Windows' default timer
+        # granularity is ~15.6ms and `Event.wait` can come back marginally
+        # early against `monotonic`: this asserted >= 0.19 for a 0.2s wait
+        # -- a 5% margin -- and failed the whole suite on 0.188s. The floor
+        # is still nowhere near an immediate return, which is what would
+        # actually be a regression.
+        self.assertGreaterEqual(elapsed, 0.15)
         for _ in range(200):
             if not core._KICKING:
                 break
