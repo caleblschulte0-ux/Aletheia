@@ -73,6 +73,11 @@ FORBIDDEN_KINDS = {
     "approve", "deny",
     # a kill switch the agent can lift is decoration
     "halt", "resume",
+    # ...and neither is an off switch it can press. `close` stops the Core,
+    # the room microphone and the project loop; an agenda reaching it
+    # mid-mission would shut her down in the middle of his work and look,
+    # from outside, exactly like a crash.
+    "close", "open",
     # an agenda that files intents that file intents is a loop with a budget
     "intent",
     # standing proactive rules are authority that outlives this mission
@@ -82,6 +87,8 @@ FORBIDDEN_KINDS = {
 }
 
 REFUSAL_REASON = {
+    "close": "an agenda that can close her can close her mid-mission",
+    "open": "opening her again is his, not a mission's",
     "approve": "an agenda that can approve things can approve its own",
     "deny": "an agenda that can decide approvals can decide its own",
     "halt": "she does not get to touch her own off switch",

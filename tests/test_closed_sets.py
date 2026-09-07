@@ -156,9 +156,14 @@ class TheKillSwitchIsNotSomethingASENTENCECanTrip(unittest.TestCase):
         self.assertNotEqual((got or {}).get("kind"), "halt")
 
     def test_the_planner_may_not_name_them(self):
+        """`close` and `open` joined this set on 2026-09-07, for the reason
+        the set exists: "close the browser tab" and "open my resume" are
+        ordinary sentences, and a compiler that turns English into command
+        names can be led from one to the switch that shuts her down."""
         from aletheia import intercom
         self.assertEqual(intercom.PLANNER_FORBIDDEN,
-                         frozenset({"halt", "resume", "approve", "deny"}))
+                         frozenset({"halt", "resume", "approve", "deny",
+                                    "close", "open"}))
 
     def test_the_agenda_refuses_the_same_ones(self):
         """Two lists that disagree is one list that is wrong."""
