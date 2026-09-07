@@ -385,6 +385,60 @@ fix at the source:
   a source sounds like helpfulness, which makes it harder to catch than
   inventing an answer.
 
+## The question she is asked in the negative reaches nothing
+
+`_BROAD` in `self_knowledge` matched every positive phrasing of "what can
+you do" and not one negative one, so **"what can't you do"** — the single
+most important honesty question anybody asks this system — travelled with
+NO capability block and was answered from whatever the model remembered
+of the turn before. It hedged: *"I don't have the exact names of those
+two in front of me right now, so I won't guess."* The names were in the
+registry the whole time.
+
+The same blind spot, one store over: `recollection._PAST` matches "did
+you" and "what happened", and matched none of "what went wrong", "did
+anything fail", "what broke". So when you write a pattern that decides
+WHICH CONTEXT TRAVELS, write the negative and the failure-shaped
+phrasings in the same sitting — the model cannot ask for what it was not
+given, and a confident answer with no context is indistinguishable from a
+grounded one until he checks.
+
+Two smaller rules from the same pass:
+
+- **A unit in a context field is read out loud.** `hours: 168` came back
+  as "the last 168 hours show no alerts". `recollection.window_words`
+  says it the way a person does; the number stays for arithmetic.
+- **A deterministic pattern that swallows too much answers a DIFFERENT
+  question**, which is the failure he cannot detect: `how long (.+)` made
+  every "how long" sentence a journey ("I don't know where until my
+  meeting is"), and `(?:add )?(.+?) to the list` made every sentence
+  ending in "to the list" a write — "why did you add milk to the list"
+  put "why did you add milk" ON the list. A question is never an
+  instruction. And the layer matches on a LOWERCASED sentence, so
+  everything it stores has to have his capitals put back
+  (`voice._as_he_said`): "note that Dana called" saved "that dana called".
+
+## The audit tool must leave exactly what a real client leaves
+
+Two ways `talk --sandbox` diverged from the wall, and both invented bugs
+that do not exist:
+
+- It polled the follow-up slot and never ACKNOWLEDGED it, so every answer
+  stayed an unread notification and "what's waiting on me" came back
+  *"Aletheia finished thinking: 100 out of 128 things fully work..."* —
+  her own replies, read back as things needing his attention.
+- The rehearsal gate refused `approve`, so the whole approve → execute →
+  receipt loop could never be exercised: the turn after read "No — that
+  was a rehearsal, not a real save." `approve` and `deny` are CONTAINERS
+  like `intent` and `handle` — a decision about a plan whose steps come
+  back through `execute_command` one at a time, where a world-touching
+  one is still refused. They stay in `PLANNER_FORBIDDEN`, so she still
+  cannot approve her own work.
+
+Neither is a fix to Aletheia. Both are the audit lying about her, which
+is worse than not auditing: a fake finding costs a session, and a fake
+all-clear costs him.
+
 ## A frozen date next to a moving fixture is a bomb with a date on it
 
 `test_an_offer_whose_slots_have_all_passed_is_abandoned` asserted
