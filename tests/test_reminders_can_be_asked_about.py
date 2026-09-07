@@ -156,3 +156,52 @@ class APlaceSheDoesNotKnow(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ContactsAndWatchesCanBeAskedAbout(unittest.TestCase):
+    """`contact_add` and `watch_email_from` were writers with no reader.
+
+    Found by the same sweep, before either produced a contradiction out
+    loud — which is the point of doing the sweep rather than waiting.
+    """
+
+    def test_the_questions_are_deterministic(self):
+        self.assertEqual(voice.interpret("list my contacts")["command"],
+                         {"kind": "contacts"})
+        self.assertEqual(voice.interpret("what are you watching for")["command"],
+                         {"kind": "watches"})
+
+    def test_his_possessive_is_not_part_of_her_name(self):
+        # "what's MY MUM's number" — a substring match on "my mum" finds a
+        # contact called "Mum" never.
+        got = voice.interpret("what's my mom's number")
+        self.assertEqual(got["command"]["kind"], "contacts")
+        rows = [{"id": "mom", "display_name": "Mom", "phones": ["555-1234"]}]
+        from aletheia import contacts
+        with mock.patch.object(contacts, "all_contacts", return_value=rows):
+            said = intercom.execute_command(got["command"], {})
+        self.assertIn("555-1234", said)
+
+    def test_an_empty_store_does_not_deny_the_store(self):
+        from aletheia import contacts
+        with mock.patch.object(contacts, "all_contacts", return_value=[]):
+            self.assertEqual(intercom.execute_command({"kind": "contacts"}, {}),
+                             "You have no contacts saved with me.")
+
+    def test_a_watch_is_said_as_the_sentence_it_was_created_with(self):
+        from aletheia import events as bus
+        watcher = {"id": "watch-1", "once": True,
+                   "note": "operator asked: tell me when email arrives from Dana"}
+        with mock.patch.object(bus, "list_watchers", return_value=[watcher]), \
+             mock.patch.object(bus, "watcher_state", return_value="ACTIVE"):
+            said = intercom.execute_command({"kind": "watches"}, {})
+        self.assertIn("tell me when email arrives from Dana", said)
+        self.assertNotIn("operator asked", said)
+
+    def test_a_finished_watch_is_not_still_being_watched(self):
+        from aletheia import events as bus
+        watcher = {"id": "watch-1", "once": True, "note": "x: done one"}
+        with mock.patch.object(bus, "list_watchers", return_value=[watcher]), \
+             mock.patch.object(bus, "watcher_state", return_value="TRIGGERED"):
+            said = intercom.execute_command({"kind": "watches"}, {})
+        self.assertIn("not watching for anything", said)

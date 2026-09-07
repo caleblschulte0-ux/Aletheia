@@ -421,6 +421,25 @@ def interpret(transcript: str) -> dict:
                     r"how are things|anything happening|report)", low):
         return {"command": None, "say": _status_say()}
 
+    if re.fullmatch(r"(what|who) (are )?(you|u) watching( for)?"
+                    r"|what emails? (are )?(you|u) watching for"
+                    r"|what are (you|u) waiting (for|on)"
+                    r"|(list )?(my )?watches", low):
+        return {"command": {"kind": "watches"}, "say": None}
+    if re.fullmatch(r"(who|what) (contacts? )?(do i have|have i got)( saved)?"
+                    r"|(list )?(my )?contacts"
+                    r"|who do i have (saved|on file)", low):
+        return {"command": {"kind": "contacts"}, "say": None}
+    m = re.fullmatch(r"what'?s? (?:is )?(.+?)'?s? (?:phone )?(?:number|email|"
+                     r"address|details)", low)
+    if m and len(m.group(1)) < 40:
+        return {"command": {"kind": "contacts", "which": m.group(1).strip()},
+                "say": None}
+    if re.fullmatch(r"(what|which) (jobs?|applications?) have i applied (to|for)"
+                    r"|what have i applied (to|for)"
+                    r"|(what|which) (jobs?|applications?) did (you|u) apply (to|for)"
+                    r"|(list )?(my )?applications", low):
+        return {"command": {"kind": "applications"}, "say": None}
     if re.fullmatch(r"(what'?s?( is)? on )?(my |the )?shopping list"
                     r"|what do i need (to buy|from the (shop|store))"
                     r"|read (me )?(my |the )?shopping list", low):

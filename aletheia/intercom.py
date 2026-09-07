@@ -96,6 +96,17 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "jobs":          (set(), {"role", "where", "count", "company"}),
     # Everything up to the submit, which stays his. See aletheia.applications.
     "apply_prepare": ({"role"}, {"count", "where", "resume"}),
+    # What she has actually applied to. `apply_run` has recorded every
+    # staged and submitted application since it was written, and asking
+    # about them out loud got "I don't have a record of jobs you've
+    # applied to — no application tracker" — false the moment there is
+    # one, and unfalsifiable to him.
+    "applications":  (set(), set()),
+    # "What's my mum's number", "what are you watching for". Both stores
+    # had a writer, a reader in their own module, and no way for him to
+    # ASK — `contact_add` and `watch_email_from` are the writers.
+    "contacts":      (set(), {"which"}),
+    "watches":       (set(), set()),
     # "apply to ten jobs with this resume" — the whole thing, one call.
     "apply_campaign": ({"role"}, {"count", "where", "resume"}),
     # The catch-all for "go do this on a website" — any number of steps.
@@ -205,6 +216,17 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # generated from KIND_ARGS and these together, so the model learns the
 # shape of a step list from the registry rather than from a guess.
 KIND_NOTES: dict[str, str] = {
+    "contacts": (
+        'Who he has saved, and how to reach them. which is optional and '
+        'narrows by name or alias — use it for "what is my mum\'s '
+        'number". `contact_add` is the writer.'),
+    "watches": (
+        'What she is waiting to tell him about — the watchers '
+        '`watch_email_from` creates. Nothing to do with browsing.'),
+    "applications": (
+        'What he has applied to through her — sent, and staged waiting on '
+        'him. Use it for "what have I applied to"; `jobs` is the opposite '
+        'direction, searching boards for new ones.'),
     "shopping_list": (
         'What is on his shopping list, read from the store. Use it for '
         '"what do I need from the shop" as well — it is the same list.'),
@@ -352,7 +374,8 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email
                "file_write", "file_edit", "file_read", "file_list", "compose",
                "file_delete", "file_move",
                # reads the open web and writes into her workspace: both PC
-               "apply_prepare", "apply_campaign", "web_task", "web_task_retry",
+               "apply_prepare", "apply_campaign", "applications",
+               "web_task", "web_task_retry",
                "subscription_cancel", "web_task_answer",
                "computer_observe",
                # ffmpeg and his media files live on the PC
@@ -365,7 +388,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email
                "intent", "screen_ask",
                # every private-state verb below lives on the PC
                "meet", "recall", "handle", "travel_time", "shopping_add",
-               "shopping_list", "shopping_off",
+               "shopping_list", "shopping_off", "contacts", "watches",
                "subscriptions", "money", "car", "projects", "authority_status", "setup_status",
                # the desktop and the sandbox are both on his PC
                "computer_do", "do_task",
@@ -380,7 +403,8 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email
 READ_ONLY_KINDS = frozenset({
     "note", "notify_check", "free_time", "brief", "subscriptions", "money",
     # Reads public job boards. Prepares nothing, sends nothing.
-    "jobs", "tasks", "reminders", "shopping_list",
+    "jobs", "tasks", "reminders", "shopping_list", "applications",
+    "contacts", "watches",
     "projects", "car", "recall", "travel_time", "browse_read", "browse_shot",
     # reads public pages and writes a document; commits him to nothing
     "research",
@@ -792,6 +816,91 @@ def _one_reminder(which: str):
                                             or r["id"])[:50] for r in hits[:4]])
                       + "?")
     return hits[0], ""
+
+
+def _contact_words(contact: dict) -> str:
+    """One contact, with whatever she actually has for them."""
+    from aletheia import speech
+    name = str(contact.get("display_name") or contact["id"])
+    reach = [str(v) for v in (list(contact.get("phones") or [])
+                              + list(contact.get("emails") or []))[:2] if v]
+    return f"{name} — {speech.and_list(reach)}" if reach else name
+
+
+def _contacts_answer(which: str = "") -> str:
+    """"What's my mum's number" / "who have I got saved"."""
+    from aletheia import contacts, speech
+    rows = contacts.all_contacts()
+    if which:
+        # "what's MY MUM's number" — the possessive is his, the name is
+        # hers, and a substring match on "my mum" finds a contact called
+        # "Mum" never.
+        needle = re.sub(r"^(my|our|the)\s+", "", which.casefold().strip())
+
+        def names(contact):
+            return [str(contact.get("display_name", "")).casefold(),
+                    str(contact.get("id", "")).casefold(),
+                    *[str(a).casefold() for a in (contact.get("aliases") or [])]]
+
+        hits = [c for c in rows if any(needle in n for n in names(c) if n)]
+        if not hits:
+            words = [w for w in re.split(r"[^a-z0-9]+", needle)
+                     if len(w) > 2 and w not in TASK_STOP]
+            hits = [c for c in rows
+                    if any(w in n for w in words for n in names(c) if n)]
+        rows = hits
+        if not rows:
+            return f"I have no contact for {which!r}."
+    if not rows:
+        return "You have no contacts saved with me."
+    said = speech.and_list([_contact_words(c) for c in rows[:6]])
+    more = f", and {len(rows) - 6} more" if len(rows) > 6 else ""
+    return f"{speech.count_phrase(len(rows), 'contact')}: {said}{more}."
+
+
+def _watches_answer() -> str:
+    """What she is waiting to tell him about."""
+    from aletheia import events as bus, speech
+    live = []
+    for watcher in bus.list_watchers():
+        try:
+            if bus.watcher_state(watcher) != "ACTIVE":
+                continue
+        except Exception:
+            continue
+        note = str(watcher.get("note") or "").strip()
+        # The note is written as "operator asked: tell me when ..." — the
+        # half after the colon is the sentence.
+        live.append((note.split(":", 1)[-1].strip() or watcher["id"])[:70])
+    if not live:
+        return "I'm not watching for anything at the moment."
+    return (f"{speech.count_phrase(len(live), 'thing')} I'm watching for: "
+            + speech.and_list(live[:5]) + ".")
+
+
+def _applications_answer() -> str:
+    """"What have I applied to" — from the application records."""
+    from aletheia import apply_run, speech
+    rows = apply_run.all_runs()
+    if not rows:
+        return "You haven't applied to anything through me yet."
+    sent = [r for r in rows if r.get("state") == "SUBMITTED"]
+    waiting = [r for r in rows if r.get("state") != "SUBMITTED"]
+
+    def where(record):
+        title = str(record.get("page_title") or "").strip()
+        return (title or speech.tidy(str(record.get("url") or record.get("id"))))[:60]
+
+    parts = []
+    if sent:
+        parts.append(f"{speech.count_phrase(len(sent), 'application')} sent: "
+                     + speech.and_list([where(r) for r in sent[-5:]]))
+    if waiting:
+        lead = ("and " if sent else "") + speech.count_phrase(
+            len(waiting), "application")
+        parts.append(f"{lead} staged and waiting on you: "
+                     + speech.and_list([where(r) for r in waiting[-5:]]))
+    return ". ".join(parts) + "."
 
 
 SHOPPING_OPEN = ("RESEARCHING", "SELECTED", "PURCHASE_PROPOSED")
@@ -1493,6 +1602,12 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         workflow = shopping.create(f"shop-{slug}-{_uuid.uuid4().hex[:4]}"[:60],
                                    need=cmd["item"], budget=budget)
         return f"Added to the shopping list: {workflow['need']}."
+    if kind == "contacts":
+        return _contacts_answer(cmd.get("which", ""))
+    if kind == "watches":
+        return _watches_answer()
+    if kind == "applications":
+        return _applications_answer()
     if kind == "shopping_list":
         return _shopping_answer()
     if kind == "shopping_off":
