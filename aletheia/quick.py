@@ -88,6 +88,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what (?:did|have) (?:you|u) (?:do|done|get done|been doing) yesterday$"
         r"|^what (?:did|have) (?:you|u) (?:do|done) last night$"
         r"|^what happened yesterday$")),
+    # Eight seconds and a round trip for the clock she is holding.
+    ("clock", re.compile(
+        r"^what(?:'s| is|s)? the time$|^what time is it( now)?$"
+        r"|^(?:do you know )?what time is it$|^time$")),
+    ("date", re.compile(
+        r"^what(?:'s| is|s)? (?:the |today'?s? )?date$"
+        r"|^what day is it( today)?$|^what(?:'s| is|s)? today$"
+        r"|^what day of the week is it$")),
     ("can_you", re.compile(
         r"^(?:can|could) (?:you|u) (?P<what>.{3,120})$"
         r"|^(?:are|r) (?:you|u) able to (?P<what2>.{3,120})$"
@@ -201,6 +209,34 @@ def _yesterday() -> str:
     return _listed(rows, "yesterday")
 
 
+def _clock() -> str:
+    """"What time is it" — from the machine's own clock, in HIS zone.
+
+    A model round trip for this is eight seconds to read a clock she is
+    already holding, and it answered in the process's timezone once
+    already (CLAUDE.md, the 03:00 reminder).
+    """
+    import datetime as dt
+    from aletheia import localtime
+    now = dt.datetime.now(localtime.operator_tz())
+    clock = now.strftime("%I:%M %p").lstrip("0").replace(" AM", " am").replace(" PM", " pm")
+    return f"{clock}, {now.strftime('%A')} the {_ordinal(now.day)} of {now.strftime('%B')}."
+
+
+def _date() -> str:
+    """"What day is it" — the day first, because that is what he asked."""
+    import datetime as dt
+    from aletheia import localtime
+    now = dt.datetime.now(localtime.operator_tz())
+    return f"{now.strftime('%A')} the {_ordinal(now.day)} of {now.strftime('%B')}."
+
+
+def _ordinal(day: int) -> str:
+    if 10 <= day % 100 <= 20:
+        return f"{day}th"
+    return f"{day}{ {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th') }"
+
+
 def _can_you(what: str) -> str | None:
     from aletheia import self_knowledge
     found = self_knowledge.for_question(what)
@@ -238,6 +274,8 @@ ANSWERS = {"halted": lambda rest: _halted(),
            "doing": lambda rest: _doing(),
            "today": lambda rest: _today(),
            "yesterday": lambda rest: _yesterday(),
+           "clock": lambda rest: _clock(),
+           "date": lambda rest: _date(),
            "can_you": _can_you}
 
 

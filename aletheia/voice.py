@@ -339,6 +339,20 @@ _DAY_WORDS = ("monday|tuesday|wednesday|thursday|friday|saturday|sunday|"
 DEFAULT_REMINDER_TIME = "09:00"
 
 
+def _known_place(text: str) -> bool:
+    """Is this a place she has actually saved? Never raises.
+
+    The gate on reading a bare "how long to X" as a journey. Without it,
+    "how long to finish the report" is a destination.
+    """
+    try:
+        from aletheia import places
+        places.resolve(text)
+        return True
+    except Exception:
+        return False
+
+
 def interpret(transcript: str) -> dict:
     """One spoken sentence -> a command to gate-check, or words to say."""
     text = strip_wake_word(transcript)
@@ -642,8 +656,22 @@ def interpret(transcript: str) -> dict:
         return {"command": {"kind": "handle", "text": m.group(1).strip()},
                 "say": None}
 
-    m = re.match(r"how long (?:does it take |to get )?(?:to )?(?:get to )?(.+)", low)
+    # "How long ANYTHING" used to be a travel question. "How long until my
+    # meeting" came back "I don't know where until my meeting is" — the
+    # deterministic layer answering a different question, which is the one
+    # failure he cannot see. An explicit travel phrasing is taken as one
+    # whether or not she knows the place (so she can ask for the address);
+    # the bare "how long to X" is only travel when X really is a place.
+    m = (re.match(r"how long (?:does it |will it |would it |should it )?"
+                  r"(?:take )?(?:to )?(?:get|drive|walk|ride|cycle|bike) to (.+)",
+                  low)
+         or re.match(r"how long is the (?:drive|trip|walk|ride|journey|way) "
+                     r"to (.+)", low))
     if m:
+        return {"command": {"kind": "travel_time", "place": m.group(1).strip()},
+                "say": None}
+    m = re.match(r"how (?:long|far) (?:is it )?to (.+)", low)
+    if m and _known_place(m.group(1).strip()):
         return {"command": {"kind": "travel_time", "place": m.group(1).strip()},
                 "say": None}
 
