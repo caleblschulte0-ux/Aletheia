@@ -257,6 +257,44 @@ class VoiceEndpointCase(unittest.TestCase):
             self.assertIn("voice.js", html, page)
 
 
+class HisOwnDetailsAreNotAContactCase(unittest.TestCase):
+    """"What's MY email" captured "my" as a person's name and went looking
+    through his contacts for one — the deterministic-pattern-swallows-too-
+    much failure, and the version of it he cannot detect: it answered a
+    DIFFERENT question than the same sentence typed, which `quick` answers
+    from his profile."""
+
+    def kind_of(self, said):
+        return (voice.interpret("Thea, " + said).get("command") or {}).get("kind")
+
+    def test_his_own_details_are_not_looked_up_in_contacts(self):
+        for said in ("what's my email", "what's my phone number",
+                     "what is my email address", "what's my number"):
+            with self.subTest(said=said):
+                self.assertNotEqual(self.kind_of(said), "contacts", said)
+
+    def test_a_real_person_still_is(self):
+        """The pattern earns its place; only the bare possessive is his."""
+        for said, who in (("what's dana's email", "dana"),
+                          ("what's my wife's number", "my wife"),
+                          ("what's my sister's address", "my sister")):
+            with self.subTest(said=said):
+                got = voice.interpret("Thea, " + said)["command"]
+                self.assertEqual(got["kind"], "contacts", said)
+                self.assertEqual(got["which"], who)
+
+    def test_both_doors_give_the_same_answer(self):
+        """The point of the fix. Spoken and typed must reach the same
+        store, or the same question has two answers depending on how he
+        happened to ask it."""
+        from aletheia import core, quick
+        for said in ("what's my email", "what's my phone number"):
+            with self.subTest(said=said):
+                spoken = voice.interpret("Thea, " + said)["command"]
+                self.assertEqual(core.answered_now(spoken), quick.answer(said))
+
+
+
 if __name__ == "__main__":
     unittest.main()
 

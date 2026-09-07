@@ -402,6 +402,29 @@ HIS_WORDS = ("text", "description", "item", "body", "question", "goal",
              "name", "person", "who", "to", "alias")
 
 
+# The words a detail question is MADE of, so "my email" and "my phone
+# number" read as him rather than as somebody called "my email".
+_FIRST_PERSON = frozenset({"my", "our", "mine"})
+_DETAIL_WORDS = frozenset({"email", "phone", "number", "address", "details",
+                           "cell", "mobile", "e-mail", "telephone"})
+
+
+def _is_about_himself(captured: str) -> bool:
+    """Is this capture HIM, or a person he knows?
+
+    "What's my email" captured "my" and searched his contacts for someone
+    of that name; "what is my email address" captured "my email" the same
+    way. Both are questions about him, answered from his profile. "My
+    wife's number" captures "my wife", who is a real person and really is
+    a contact — so only a possessive followed by nothing but detail words
+    is his.
+    """
+    words = str(captured or "").strip().casefold().split()
+    if not words or words[0] not in _FIRST_PERSON:
+        return False
+    return all(word in _DETAIL_WORDS for word in words[1:])
+
+
 def _as_he_said(transcript: str, fragment: str) -> str:
     """A matched fragment with his capitals put back.
 
@@ -636,7 +659,13 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "contacts"}, "say": None}
     m = re.fullmatch(r"what'?s? (?:is )?(.+?)'?s? (?:phone )?(?:number|email|"
                      r"address|details)", low)
-    if m and len(m.group(1)) < 40:
+    # "What's MY email" is a question about HIM, and this pattern captured
+    # "my" as a person's name and went looking through his contacts for
+    # one — the deterministic-pattern-swallows-too-much failure, giving a
+    # different answer than the same question typed, which `quick` answers
+    # from his profile. Only the bare possessive is his: "my wife's
+    # number" really is a contact, and its capture is "my wife".
+    if m and len(m.group(1)) < 40 and not _is_about_himself(m.group(1)):
         return {"command": {"kind": "contacts", "which": m.group(1).strip()},
                 "say": None}
     if re.fullmatch(r"(what|which) (jobs?|applications?) have i applied (to|for)"

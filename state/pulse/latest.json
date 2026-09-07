@@ -385,9 +385,9 @@
     ]
   },
   "now": {
-    "generated_at": "2026-09-07T14:54:09Z",
+    "generated_at": "2026-09-07T15:14:13Z",
     "halted": false,
-    "heartbeat_age_s": 4.0,
+    "heartbeat_age_s": 3.0,
     "waiting_on_you": [
       {
         "label": "Fully shut down Aletheia / stop her from listening entirely",
@@ -396,6 +396,20 @@
     ],
     "waiting_count": 1,
     "notifications": [
+      {
+        "title": "Aletheia finished thinking",
+        "body": "That didn't come through as a clear request — could you say again what you'd like me to do?",
+        "says": "Aletheia finished thinking: That didn't come through as a clear request — could you say again what you'd like me to do?",
+        "priority": "IMPORTANT",
+        "at": "2026-09-07T15:00:33Z"
+      },
+      {
+        "title": "Aletheia finished thinking",
+        "body": "What would you like me to do — that didn't come through as a clear request?",
+        "says": "Aletheia finished thinking: What would you like me to do — that didn't come through as a clear request?",
+        "priority": "IMPORTANT",
+        "at": "2026-09-07T14:54:32Z"
+      },
       {
         "title": "Aletheia finished thinking",
         "body": "That didn't parse as a clear request — what would you like me to do?",
@@ -423,28 +437,10 @@
         "says": "Aletheia finished thinking: Later.",
         "priority": "IMPORTANT",
         "at": "2026-09-07T13:53:55Z"
-      },
-      {
-        "title": "Aletheia finished thinking",
-        "body": "That doesn't parse into a request I can act on — could you rephrase what you want me to do or answer?",
-        "says": "Aletheia finished thinking: That doesn't parse into a request I can act on — could you rephrase what you want me to do or answer?",
-        "priority": "IMPORTANT",
-        "at": "2026-09-07T13:49:02Z"
-      },
-      {
-        "title": "Aletheia finished thinking",
-        "body": "What is it you're planning to do? The message doesn't specify an action, and recent conversation doesn't contain a clear referent for 'this'.",
-        "says": "Aletheia finished thinking: What is it you're planning to do? The message doesn't specify an action, and recent conversation doesn't contain",
-        "priority": "IMPORTANT",
-        "at": "2026-09-07T13:46:13Z"
       }
     ],
     "meetings": [],
     "working": [
-      {
-        "what": "thinking",
-        "detail": "1 in progress"
-      },
       {
         "what": "plan waiting on you",
         "detail": "Fully shut down Aletheia / stop her from listening entirely"
