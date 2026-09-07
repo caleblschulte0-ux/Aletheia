@@ -72,6 +72,63 @@ def use_pc_journal() -> Path:
     return JOURNAL_PATH
 
 
+# WHICH ENTRIES MAY BE COMMITTED. An allowlist, so a subject nobody
+# thought about goes to the private file — the safe direction.
+#
+# `use_pc_journal` (2026-09-03) already moved the PC Core's appends to
+# private state, and it was right. But it routes by PROCESS, and only
+# three entry points call it: the Core, the supervisor and the voice
+# room. Every `python -m aletheia.webtask`, every `apply_run`, every
+# `profile` command — the ones `docs/SETUP.md` and the capability
+# registry tell him to run — wrote his life into the public journal
+# anyway. That is the same shape as five modules each deciding for
+# themselves whether an approval was approved: a rule one caller applies
+# and another does not is not a rule.
+#
+# So the destination follows the ENTRY. A web task is personal whether it
+# came from the Core or from a terminal.
+# Matched on the WHOLE subject, or on a prefix that is fleet-scoped by
+# construction (`repo:<id>`, `plan:<slug>`, `task:<id>`).
+#
+# `core` was in here as a bare prefix and that was too broad: it also
+# admitted `core:intent` ("1 step ready — subscriptions") and
+# `core:runtime:mail`, which are the Core doing HIS work rather than the
+# Core reporting on itself. A prefix that swallows a whole namespace is
+# how an allowlist stops being one.
+PUBLIC_SUBJECTS = frozenset({
+    "fleet", "sentinel", "brief", "pulse", "doctor", "suggestion",
+    "core", "core:liveness", "core:autostart", "core:update",
+})
+PUBLIC_PREFIXES = ("repo:", "plan:", "task:")
+
+
+def is_public_subject(subject: str) -> bool:
+    """Fleet telemetry is the fleet's business. Everything else is his."""
+    subject = str(subject or "").strip()
+    return (subject in PUBLIC_SUBJECTS
+            or subject.startswith(PUBLIC_PREFIXES))
+
+
+def _destination(subject: str, path: Path) -> Path:
+    """Where this entry goes. Personal entries never reach the repository.
+
+    A caller that redirected JOURNAL_PATH means exactly where it pointed
+    — every test does this, and dragging a real private journal into that
+    write is the cross-contamination `-t .` exists to prevent.
+    """
+    if path.parent != REPO_JOURNAL_DIR or is_public_subject(subject):
+        return path
+    try:
+        from aletheia.stateio import private_dir
+        target = private_dir("journal")
+        target.mkdir(parents=True, exist_ok=True)
+        return target / "journal-pc.jsonl"
+    except Exception:
+        # A private store that cannot be written must not silently put his
+        # life in the public one instead.
+        raise
+
+
 def _writer_files(path: Path) -> list[Path]:
     files = {path} if path.exists() else set()
     # The PC writer lives in private state now; a reader pointed at the repo
@@ -100,6 +157,14 @@ def append(kind: str, subject: str, text: str, actor: str = "aletheia",
            refs: list[str] | None = None, path: Path | None = None) -> dict:
     if kind not in KINDS:
         raise ValueError(f"kind {kind!r} not in {sorted(KINDS)}")
+    # THE JOURNAL IS COMMITTED TO A PUBLIC REPOSITORY. `CLAUDE.md` says
+    # "no secrets in committed files" and nothing enforced it — every
+    # enforcement was somebody remembering. Meanwhile this records his
+    # own words: a web task journals its goal, and "log into my bank, the
+    # password is hunter2" is a sentence a person says to an assistant.
+    # Scrubbed here because here is where everything passes through.
+    from aletheia import sensitivity
+    text, hidden = sensitivity.scrub(str(text))
     entry = {
         "ts": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "kind": kind,
@@ -107,9 +172,13 @@ def append(kind: str, subject: str, text: str, actor: str = "aletheia",
         "subject": subject,
         "text": text,
     }
+    if hidden:
+        # WHAT was hidden, never the value: a note that says what it hid
+        # by quoting it has hidden nothing.
+        entry["redacted"] = hidden
     if refs:
         entry["refs"] = refs
-    path = path or JOURNAL_PATH
+    path = _destination(subject, path or JOURNAL_PATH)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")

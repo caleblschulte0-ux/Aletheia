@@ -45,12 +45,22 @@ class InterpretCase(unittest.TestCase):
         out = voice.interpret("thea check hacker news dot com")
         self.assertEqual(out["command"]["url"], "https://hackernews.com")
 
-    def test_read_without_a_domain_goes_to_the_planner_not_a_dead_end(self):
-        # It used to answer "I need a web address to read" and stop. The
-        # planner knows research, the workspace and the hands; a verb that
-        # is not followed by a URL is its ask (2026-09-04).
+    def test_read_without_a_domain_is_not_dead_ended_on_the_web(self):
+        """This used to answer "I need a web address to read" to anything
+        that was not a URL — including "read my resume", a FILE she can
+        genuinely read, and one of the sentences he is most likely to say.
+        Assuming the web was the only thing readable turned a capability
+        she has into a refusal. It goes to the planner now, which can
+        compose a file read or a research step.
+        """
         out = voice.interpret("Thea, read the news")
+        # The whole command, not just its kind: the TEXT has to survive the
+        # verb, or the planner is handed an empty ask.
         self.assertEqual(out["command"], {"kind": "intent", "text": "read the news"})
+        self.assertNotIn("web address", str(out["say"]))
+        # and a real address still goes straight to the browser
+        self.assertEqual(voice.interpret("Thea, read example.com")["command"],
+                         {"kind": "browse_read", "url": "https://example.com"})
 
     def test_approve_with_exactly_one_pending(self):
         policy.request("ap-1", "do thing", "why", "consequence", True,
@@ -215,6 +225,30 @@ class VoiceEndpointCase(unittest.TestCase):
             time.sleep(0.5)
         self.assertIn(slot["state"], (followups.READY, followups.FAILED))
         self.assertTrue(slot["say"])
+
+    def test_a_question_she_can_answer_never_becomes_a_followup(self):
+        """The fast lane has to reach the ROOM, not just `intents.propose`.
+
+        `intent` is in SLOW_KINDS, so before this every "are you halted?"
+        came back as "Working on that." plus a followup id — the room said
+        one sentence, polled, and said the real answer a moment later. Two
+        spoken lines and a round trip for a boolean sitting in a file on
+        the same disk.
+        """
+        started = time.monotonic()
+        res = self.post_voice("Thea, are you halted?")
+        elapsed = time.monotonic() - started
+        self.assertEqual(res["outcome"], "answered")
+        self.assertNotIn("followup_id", res,
+                         "a stored answer must not be delivered by polling")
+        self.assertTrue(res["say"].startswith(("No, I'm running", "Yes, I'm halted")))
+        self.assertLess(elapsed, 1.0, "a file read should not take a second")
+
+    def test_real_work_still_goes_to_the_planner(self):
+        """The shortcut may only ever remove latency, never an answer."""
+        res = self.post_voice("Thea, make me a sandwich")
+        self.assertEqual(res["outcome"], "thinking")
+        self.assertTrue(res["followup_id"])
 
     def test_voice_pages_carry_the_ears(self):
         from aletheia.fleet import REPO_ROOT

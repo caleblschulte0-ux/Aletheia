@@ -35,6 +35,8 @@ this machine. That is why it can live under a mission budget at all.
 """
 from __future__ import annotations
 
+from aletheia import speech
+
 import argparse
 import base64
 import binascii
@@ -422,7 +424,7 @@ def _verified(report: dict, sources: list[dict]) -> dict:
         # Said out loud in the report itself: a silent drop would leave him
         # reading a thinner answer with no idea why.
         report["gaps"] = report["gaps"] + [
-            f"{dropped} claim(s) were dropped for citing a page that was not read"]
+            f"{speech.count_phrase(dropped, 'claim')} were dropped for citing a page that was not read"]
     return report
 
 
@@ -464,6 +466,22 @@ def run(question: str, *, reader=browse.read_page, think=None,
             break
     candidates = candidates[:MAX_SOURCES]
     if not candidates:
+        # BEFORE blaming the question, prove the browser can reach anything
+        # at all. `available()` above is installed-not-working (CLAUDE.md),
+        # and a browser that launches and then dies on every `goto` produces
+        # exactly this state: a plan, some queries, and zero results. Saying
+        # "the open web does not answer that" to a man whose network is down
+        # is the expensive kind of false — he rephrases the question forever
+        # and never fixes the thing that is actually broken. The live check
+        # costs a browser launch, so it runs HERE, on the failure path only.
+        if reader is browse.read_page:
+            usable, why = browse.reachable()
+            if not usable:
+                raise ResearchError(
+                    f"I could not reach the web at all: "
+                    f"{browse.say_reason(why)}. That is my connection, not "
+                    "your question — nothing to research until a page will "
+                    "load.")
         raise ResearchError(
             "no readable sources were found for that question — say it "
             "differently, or it may be something the open web does not answer")
@@ -471,8 +489,8 @@ def run(question: str, *, reader=browse.read_page, think=None,
     sources, failed = read_sources(candidates, reader=reader)
     if not sources:
         raise ResearchError(
-            f"found {len(candidates)} candidate page(s) and could read none of "
-            "them")
+            "found " + speech.count_phrase(len(candidates), "candidate page")
+            + " and could read none of them")
 
     report = think(
         WRITE_SYSTEM, question,
@@ -541,14 +559,16 @@ def _deliver(report: dict) -> str:
     try:
         notifications.publish(
             f"Looked into: {report['question'][:70]}",
-            report["answer"][:400] + f"\n\n{len(report['sources'])} source(s) read.",
+            report["answer"][:400] + f"\n\n{speech.count_phrase(len(report['sources']), 'source')} read.",
             priority="NORMAL", source="research", dedupe_key=doc_id)
     except Exception:
         pass
     journal.append(
         "action", "research",
-        f"{report['question'][:80]} — {len(report['findings'])} sourced "
-        f"finding(s) from {len(report['sources'])} page(s)", actor=ACTOR)
+        f"{report['question'][:80]} — "
+        + speech.count_phrase(len(report['findings']), 'sourced finding')
+        + f" from {speech.count_phrase(len(report['sources']), 'page')}",
+        actor=ACTOR)
     return doc_id
 
 

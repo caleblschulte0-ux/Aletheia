@@ -32,7 +32,7 @@ import json
 import sys
 from pathlib import Path
 
-from aletheia import journal, notifications, policy, stateio
+from aletheia import journal, notifications, policy, speech, stateio
 
 ACTOR = "aletheia-announce"
 
@@ -281,7 +281,7 @@ def main(argv: list[str] | None = None) -> int:
     lines = [sentence(n) for n in pending(config)]
     for line in lines:
         print(line)
-    print(f"{len(lines)} line(s)", file=sys.stderr)
+    print(f"{speech.count_phrase(len(lines), 'line')}", file=sys.stderr)
     return 0
 
 

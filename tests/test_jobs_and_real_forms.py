@@ -88,6 +88,76 @@ class TheOpeningsAreREAL(JobsCase):
         self.assertEqual(len(out["failed"]), 2)
         self.assertIn("OSError", out["failed"][0]["why"])
 
+    def test_a_board_the_provider_says_is_GONE_is_not_the_same_as_unreachable(self):
+        """A timeout is worth retrying; a 404 is a company that renamed or
+        left the provider and will 404 forever. Three of them sat dead in
+        the shipped file, reported identically to a network blip on every
+        search, so every search covered three companies fewer than the
+        file claimed and nothing ever said so."""
+        import urllib.error
+        gone = urllib.error.HTTPError("u", 404, "Not Found", {}, None)
+        with mock.patch.object(jobs, "notifications", create=True), \
+             mock.patch("aletheia.notifications.publish") as told, \
+             mock.patch.object(jobs.urllib.request, "urlopen", side_effect=gone):
+            out = jobs.search("engineer")
+        self.assertEqual(len(out["failed"]), 2)
+        self.assertTrue(all(f["gone"] for f in out["failed"]))
+        self.assertTrue(told.called, "a dead board must reach him, not just the journal")
+
+    def test_an_unreachable_board_is_not_reported_as_gone(self):
+        """The distinction has to hold in the other direction too, or the
+        first flaky wifi moment tells him a company left the internet."""
+        with mock.patch("aletheia.notifications.publish") as told, \
+             mock.patch.object(jobs, "_fetch", side_effect=OSError("refused")):
+            out = jobs.search("engineer")
+        self.assertTrue(out["failed"])
+        self.assertFalse(any(f["gone"] for f in out["failed"]))
+        self.assertFalse(told.called)
+
+    def test_the_complaint_is_deduped_per_board(self):
+        """A board that is gone today is gone tomorrow. Nagging daily is
+        how he learns to ignore the notice that matters."""
+        import urllib.error
+        gone = urllib.error.HTTPError("u", 410, "Gone", {}, None)
+        with mock.patch("aletheia.notifications.publish") as told, \
+             mock.patch.object(jobs.urllib.request, "urlopen", side_effect=gone):
+            jobs.search("engineer")
+        keys = {c.kwargs["dedupe_key"] for c in told.call_args_list}
+        # One notice per DEAD BOARD, and the fixture is deliberately two
+        # boards sharing the token "acme" on different providers: a token
+        # is unique only within a provider, and keying on it alone
+        # collapsed two dead boards into a single notice.
+        self.assertEqual(len(keys), 2)
+        self.assertEqual(len(keys), len(told.call_args_list))
+        self.assertEqual(keys, {"jobs:board-gone:greenhouse:acme",
+                                "jobs:board-gone:lever:acme"})
+
+    def test_a_search_still_works_when_it_cannot_complain(self):
+        """A search must not fail because the notifier did."""
+        import urllib.error
+        gone = urllib.error.HTTPError("u", 404, "Not Found", {}, None)
+        with mock.patch("aletheia.notifications.publish",
+                        side_effect=RuntimeError("store gone")), \
+             mock.patch.object(jobs.urllib.request, "urlopen", side_effect=gone):
+            out = jobs.search("engineer")
+        self.assertEqual(out["matches"], [])
+
+    def test_check_proves_every_board_and_names_the_dead_ones(self):
+        """The board file rots on its own — companies rename, get acquired,
+        or move provider — and a search never says the list has shrunk."""
+        def half(board):
+            if board["provider"] == "lever":
+                raise jobs.BoardGone("no such board (HTTP 404)")
+            return [{"title": "Engineer", "company": "Acme", "location": "Remote",
+                     "url": "u", "apply_url": "a", "id": "1", "provider": "greenhouse"}]
+        with mock.patch.dict(jobs.PROVIDERS, {"greenhouse": half, "lever": half}):
+            out = jobs.check()
+        self.assertEqual(out["live"], 1)
+        self.assertEqual(out["dead"], 1)
+        self.assertEqual(out["openings"], 1)
+        dead = [b for b in out["boards"] if not b["live"]][0]
+        self.assertIn("404", dead["why"])
+
     def test_no_boards_configured_says_which_file(self):
         with mock.patch.object(jobs, "boards", lambda: []):
             with self.assertRaises(jobs.JobsError) as caught:
@@ -142,7 +212,19 @@ class ARealEmployersForm(unittest.TestCase):
                            ("degree", "Bachelor's Degree")):
             profile.set_answer(key, value, source="operator")
 
+    # ONE browser launch for the whole class. Each of these tests read the
+    # same 124 KB of static markup, and each was launching its own
+    # Chromium to do it: 13 seconds apiece, 67 for the file, for a value
+    # that cannot differ between them. The fixture is a file:// URI and
+    # depends on nothing this class sets up per test.
+    _fields = None
+
     def fields(self):
+        if ARealEmployersForm._fields is None:
+            ARealEmployersForm._fields = self._read_the_form()
+        return ARealEmployersForm._fields
+
+    def _read_the_form(self):
         from playwright.sync_api import sync_playwright
         with sync_playwright() as pw:
             kwargs = {"args": ["--no-sandbox"]}

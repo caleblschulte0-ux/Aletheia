@@ -325,5 +325,57 @@ class HeShouldNotHaveToKnowAPath(ApplicationCase):
         self.assertEqual(applications.find_resume(str(other)), str(other))
 
 
+class NobodyNamesItResumePdf(unittest.TestCase):
+    """His is "Caleb Schulte Resume.pdf" in OneDrive/Documents. The exact
+    -name search walked right past it and then reported that she had
+    looked in Downloads — true, and useless."""
+
+    def setUp(self):
+        self.home = tempfile.TemporaryDirectory()
+        self.addCleanup(self.home.cleanup)
+        self.ws = tempfile.TemporaryDirectory()
+        self.addCleanup(self.ws.cleanup)
+        for target, attr, value in (
+                (applications.workspace, "root", lambda: Path(self.ws.name)),):
+            patch = mock.patch.object(target, attr, value)
+            patch.start(); self.addCleanup(patch.stop)
+        patch = mock.patch("pathlib.Path.home", staticmethod(lambda: Path(self.home.name)))
+        patch.start(); self.addCleanup(patch.stop)
+
+    def put(self, where, name):
+        target = Path(self.home.name) / where / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"%PDF-1.4 ...")
+        return target
+
+    def test_a_name_a_person_would_actually_use(self):
+        target = self.put("OneDrive/Documents", "Caleb Schulte Resume.pdf")
+        self.assertEqual(Path(applications.find_resume()), target)
+
+    def test_the_word_matters_not_the_letters(self):
+        self.assertTrue(applications.looks_like_a_resume("Caleb Schulte Resume.pdf"))
+        self.assertTrue(applications.looks_like_a_resume("caleb-cv-2026.docx"))
+        self.assertTrue(applications.looks_like_a_resume("curriculum vitae.pdf"))
+        # "cv" as two letters inside a word is not a resume, and neither is
+        # a file type she cannot read.
+        self.assertFalse(applications.looks_like_a_resume("cvs-receipt.pdf"))
+        self.assertFalse(applications.looks_like_a_resume("resume.exe"))
+
+    def test_the_newest_one_wins(self):
+        import os, time
+        old = self.put("Downloads", "resume old.pdf")
+        new = self.put("Desktop", "Caleb Resume final.pdf")
+        os.utime(old, (1, 1))
+        os.utime(new, (time.time(), time.time()))
+        self.assertEqual(Path(applications.find_resume()), new)
+
+    def test_finding_nothing_still_names_the_fix(self):
+        with self.assertRaises(applications.ApplicationError) as caught:
+            applications.find_resume()
+        said = str(caught.exception)
+        self.assertIn("--resume", said)
+        self.assertIn("OneDrive", said)
+
+
 if __name__ == "__main__":
     unittest.main()

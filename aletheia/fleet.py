@@ -91,6 +91,12 @@ def validate(fleet: dict) -> None:
                 problems.append(f"{v_where}: probe {vital.get('probe')!r} not in ['count', 'field']")
             if vital.get("probe") == "field" and not vital.get("path"):
                 problems.append(f"{v_where}: a field probe needs a path")
+            # PRIVATE means the NUMBER never reaches a committed file. The
+            # repo is public; his account balance is not, and which vitals
+            # are which is a registry decision rather than something a
+            # collector hardcodes about one repo.
+            if "private" in vital and not isinstance(vital["private"], bool):
+                problems.append(f"{v_where}: private is true or false")
     if problems:
         raise FleetError("fleet registry invalid:\n  " + "\n  ".join(problems))
 

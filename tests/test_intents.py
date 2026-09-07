@@ -78,7 +78,12 @@ class IntentCase(unittest.TestCase):
                                "steps": [{"gap": "purchase.execute", "why": "no"}]})
         with self.assertRaises(Exception):
             policy.load(record["approval"])
-        self.assertIn("purchase.execute", intents.spoken(record))
+        # She names the capability in ENGLISH now, from the registry's own
+        # description. "I can't do purchase.execute yet" is an identifier
+        # read out loud (§145), and it was going straight into the room.
+        said = intents.spoken(record)
+        self.assertNotIn("purchase.execute", said)
+        self.assertIn("purchase with money", said)
 
     # ---- chatter must not become a queue ----------------------------
 
@@ -87,9 +92,16 @@ class IntentCase(unittest.TestCase):
         # turns it into "report current operational status", and that filed a
         # durable intent AND an operator_always approval. Eight accumulated
         # in a day.
+        #
+        # The sentence here is deliberately one `aletheia.quick` does NOT
+        # claim. "What is going on" is now answered from her own stores
+        # without a plan at all, which is a stronger version of the same
+        # guarantee — and would have quietly stopped this test exercising
+        # the read-only PLAN path it was written for.
         seen = []
+        asked = "tell me the current operational status"
         record = intents.propose(
-            "what is going on", quote="what is going on", fleet=FLEET,
+            asked, quote=asked, fleet=FLEET,
             materialize=False, registry=REGISTRY,
             provider=provider({"intent": "plan", "summary": "report status",
                                "steps": [{"kind": "notify_check"}]}))
@@ -269,18 +281,33 @@ class IntentCase(unittest.TestCase):
 
     # ---- what she says back ----------------------------------------
 
-    def test_spoken_names_the_approval_and_the_gap(self):
-        # a world-touching step on purpose: a read-only plan is answered on
-        # the spot and never mentions an approval
-        record = self.propose({"intent": "plan", "summary": "mixed", "steps": [
+    def test_spoken_says_what_will_happen_and_never_reads_out_an_id(self):
+        """This test used to REQUIRE the approval id in the sentence, and
+        the sentence then told him to say it back — a sha-derived handle
+        he cannot hold in his head, which is §145 exactly. It also
+        required the capability id. Both are now said in English: the
+        plan's own summary for what will run, the registry's description
+        for what she cannot do.
+
+        A world-touching step on purpose: a read-only plan is answered on
+        the spot and never mentions an approval at all.
+        """
+        record = self.propose({"intent": "plan", "summary": "file a task",
+                               "steps": [
             {"kind": "task_new", "id": "t", "description": "d"},
             {"gap": "purchase.execute", "why": "cannot buy"},
             {"manual": "sign it"}]})
         said = intents.spoken(record)
         self.assertIn("1 step ready", said)
-        self.assertIn(record["approval"], said)
-        self.assertIn("purchase.execute", said)
+        self.assertIn("file a task", said)
+        self.assertIn("Say approve", said)
+        self.assertNotIn(record["approval"], said)
+        self.assertNotIn("purchase.execute", said)
+        self.assertIn("purchase with money", said)
         self.assertIn("only you can do", said)
+        # and no intercom vocabulary either — an executable step carries no
+        # capability, so naming the steps could only read back a kind
+        self.assertNotIn("task_new", said)
 
     def test_a_read_only_answer_is_reported_not_offered_for_approval(self):
         # Found by using the Command Center: asked "what am I paying for",

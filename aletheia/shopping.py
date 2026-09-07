@@ -37,6 +37,37 @@ def load(workflow_id: str) -> dict:
     return read_json(_path(workflow_id))
 
 
+def all_workflows() -> list[dict]:
+    """Everything on the list, oldest first.
+
+    There was no way to READ this back. She answered "add milk to my
+    shopping list" with "Added to the shopping list: milk." and, one turn
+    later, "I don't have a shopping list stored anywhere I can check" —
+    the same flat contradiction the journal produced before
+    `recollection.HER_DOING` was fixed, in a different store.
+    """
+    if not SHOP_DIR.is_dir():
+        return []
+    out = []
+    for path in sorted(SHOP_DIR.glob("*.json")):
+        try:
+            out.append(load(path.stem))
+        except (ValueError, OSError):
+            continue
+    out.sort(key=lambda w: str(w.get("created_at") or ""))
+    return out
+
+
+def cancel(workflow_id: str) -> dict:
+    """Take something off the list. Kept, not deleted, like every other
+    reversible thing here — "put it back" stays possible."""
+    value = load(workflow_id)
+    value["state"] = "CANCELLED"
+    value["updated_at"] = utcnow()
+    write_json_atomic(_path(workflow_id), value)
+    return value
+
+
 def add_candidate(workflow_id: str, candidate_id: str, *, title: str, price: float | None,
                   source: str, facts: dict | None = None) -> dict:
     value = load(workflow_id)

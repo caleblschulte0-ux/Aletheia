@@ -25,8 +25,10 @@ class ScriptCase(unittest.TestCase):
         self.root.mkdir()
         env = mock.patch.dict(os.environ, {"ALETHEIA_WORKSPACE": str(self.root)})
         env.start(); self.addCleanup(env.stop)
+        (Path(self.tmp.name) / "approvals").mkdir()
         for target, attr, value in (
                 (journal, "JOURNAL_PATH", Path(self.tmp.name) / "j.jsonl"),
+                (policy, "APPROVALS_DIR", Path(self.tmp.name) / "approvals"),
                 (policy, "HALT_PATH", Path(self.tmp.name) / "halt.json")):
             p = mock.patch.object(target, attr, value)
             p.start(); self.addCleanup(p.stop)
@@ -208,6 +210,151 @@ class ItStopsWhenToldTo(ScriptCase):
         policy.halt("stop", via="test")
         with self.assertRaises(policy.Halted):
             script.run("do a thing", think=self.thinks("print('x')\n"))
+
+
+class TakingAFileAwayIsNotTheSameAsWritingOne(ScriptCase):
+    """`os`, `shutil` and `pathlib` are allowed because a program that
+    works with files needs them — and that quietly meant a generated
+    program could `shutil.rmtree` his workspace with no approval, no
+    version history and no receipt, while `file.author` next door keeps
+    every version it replaces. "Delete every file in my workspace older
+    than a month" is a plausible sentence and it routes straight here."""
+
+    DELETES = ("from pathlib import Path\n"
+               "for p in Path('.').glob('*.tmp'):\n"
+               "    p.unlink()\n"
+               "print('tidied')\n")
+
+    def test_it_names_what_a_program_takes_away(self):
+        self.assertEqual(script.destructive_calls(self.DELETES), ["unlink"])
+        self.assertEqual(
+            script.destructive_calls("import shutil\nshutil.rmtree('x')"),
+            ["rmtree"])
+        self.assertEqual(script.destructive_calls("print(sum([1, 2]))"), [])
+
+    def test_a_program_that_only_READS_and_WRITES_still_just_runs(self):
+        """The gate is deletion, not doing anything at all — a check that
+        stops every script is a capability nobody uses."""
+        out = script.run("add it up", think=self.thinks(
+            "open('total.txt', 'w').write('7')\nprint('7')\n"))
+        self.assertEqual(out["state"], "DONE")
+        self.assertEqual((self.root / "total.txt").read_text(), "7")
+
+    def test_a_program_that_deletes_is_SAVED_and_run_is_NOT(self):
+        (self.root / "old.tmp").write_text("x")
+        out = script.run("tidy up", think=self.thinks(self.DELETES))
+        self.assertEqual(out["state"], "AWAITING_YOU")
+        self.assertEqual(out["destructive"], ["unlink"])
+        self.assertTrue((self.root / out["program"]).is_file(),
+                        "he can read exactly what would run")
+        self.assertTrue((self.root / "old.tmp").is_file(), "and nothing ran")
+        self.assertEqual(policy.load(out["approval"])["state"], "PENDING")
+
+    def test_the_approval_is_bound_to_that_EXACT_program(self):
+        out = script.run("tidy up", think=self.thinks(self.DELETES))
+        policy.decide(out["approval"], "APPROVED", via="phone")
+        other = self.DELETES.replace("*.tmp", "*")
+        with self.assertRaises(script.ScriptRefused) as caught:
+            script.execute(other, approval_id=out["approval"])
+        self.assertIn("different program", str(caught.exception))
+
+    def test_his_yes_runs_it(self):
+        (self.root / "old.tmp").write_text("x")
+        out = script.run("tidy up", think=self.thinks(self.DELETES))
+        policy.decide(out["approval"], "APPROVED", via="phone")
+        done = script.confirmed(out["approval"])
+        self.assertEqual(done["state"], "DONE")
+        self.assertIn("tidied", done["output"])
+        self.assertFalse((self.root / "old.tmp").exists())
+
+    def test_without_a_yes_it_refuses_even_if_asked_directly(self):
+        with self.assertRaises(script.ScriptRefused) as caught:
+            script.execute(self.DELETES)
+        self.assertIn("needs your yes", str(caught.exception))
+
+    def test_a_PENDING_approval_is_not_a_yes(self):
+        out = script.run("tidy up", think=self.thinks(self.DELETES))
+        with self.assertRaises(script.ScriptRefused):
+            script.execute(self.DELETES, approval_id=out["approval"])
+
+    def test_moving_a_file_counts_too(self):
+        """A rename leaves as little behind as a delete."""
+        self.assertEqual(
+            script.destructive_calls("import shutil\nshutil.move('a', 'b')"),
+            ["move"])
+
+    def test_the_beat_runs_what_he_confirmed(self):
+        from aletheia import runtime
+        source = Path(runtime.__file__).read_text(encoding="utf-8")
+        self.assertIn("run_approved_scripts", source)
+        self.assertIn("script.destructive:", source)
+
+
+class OverwritingIsNotDeleting_BUT_IT_IS_NOT_NOTHING(ScriptCase):
+    """I gated DELETING and did nothing about overwriting, and said so.
+    A program that rewrites his notes with garbage is not obviously
+    better than one that removes them — and `file.author` next door keeps
+    every version it replaces, which a generated program bypassed
+    entirely. The answer here is not another gate, it is an undo."""
+
+    def test_the_original_is_kept_before_anything_runs(self):
+        (self.root / "notes.txt").write_text("the original")
+        out = script.execute(
+            "open('notes.txt', 'w').write('clobbered')\nprint('done')\n")
+        self.assertEqual((self.root / "notes.txt").read_text(), "clobbered")
+        self.assertEqual(
+            (self.root / out["backup"] / "notes.txt").read_text(),
+            "the original")
+
+    def test_the_receipt_is_what_it_DID_not_what_it_SAID(self):
+        """The receipt used to be the program's own stdout, which is
+        whatever the program felt like saying about itself."""
+        (self.root / "keep.txt").write_text("a")
+        out = script.execute(
+            "open('new.txt', 'w').write('x')\n"
+            "open('keep.txt', 'w').write('b')\n"
+            "print('I did absolutely nothing')\n")
+        self.assertEqual(out["created"], ["new.txt"])
+        self.assertEqual(out["changed"], ["keep.txt"])
+        self.assertEqual(out["removed"], [])
+        said = script.spoken(out)
+        self.assertIn("created new.txt", said)
+        self.assertIn("changed keep.txt", said)
+
+    def test_a_program_that_changes_nothing_says_so(self):
+        out = script.execute("print(sum([1, 2]))\n")
+        self.assertIn("changed no files", script.spoken(out))
+
+    def test_a_deletion_he_approved_is_still_recoverable(self):
+        (self.root / "old.tmp").write_text("wanted after all")
+        source = ("from pathlib import Path\n"
+                  "for p in Path('.').glob('*.tmp'):\n"
+                  "    p.unlink()\n"
+                  "print('tidied')\n")
+        held = script.run("tidy", think=self.thinks(source))
+        policy.decide(held["approval"], "APPROVED", via="phone")
+        out = script.confirmed(held["approval"])
+        self.assertEqual(out["removed"], ["old.tmp"])
+        self.assertEqual(
+            (self.root / out["backup"] / "old.tmp").read_text(),
+            "wanted after all")
+
+    def test_it_NEVER_implies_an_undo_it_does_not_have(self):
+        """A workspace too big to copy is a real thing; pretending
+        otherwise is how somebody loses a file believing it is kept."""
+        (self.root / "huge.bin").write_bytes(b"x" * 32)
+        with mock.patch.object(script, "MAX_BACKUP_BYTES", 8):
+            out = script.execute("open('n.txt','w').write('x')\nprint('ok')\n")
+        self.assertEqual(out["backup"], "")
+        self.assertIn("huge.bin", out["no_backup_because"])
+        self.assertIn("cannot be undone", script.spoken(out))
+
+    def test_the_copies_are_not_themselves_reported_as_changes(self):
+        (self.root / "a.txt").write_text("a")
+        script.execute("open('a.txt','w').write('b')\nprint('ok')\n")
+        out = script.execute("print('again')\n")
+        self.assertEqual(out["created"], [])
+        self.assertEqual(out["changed"], [])
 
 
 if __name__ == "__main__":

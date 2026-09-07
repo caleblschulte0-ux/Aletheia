@@ -47,7 +47,7 @@ import sys
 import threading
 from pathlib import Path
 
-from aletheia import journal, policy, reasoner, stateio, workspace
+from aletheia import journal, policy, reasoner, speech, stateio, workspace
 
 ACTOR = "aletheia-converse"
 
@@ -104,6 +104,18 @@ How you answer:
 - Be as long as the question deserves and no longer. A factual question
   gets a sentence. A judgement call gets the shape of the decision.
 - Plain words. He is smart and busy; he is not asking to be impressed.
+- You are speaking AS yourself: "I", "me". Never "she", never "Aletheia
+  did" — "your last message was a question, which she just answered" was
+  a real reply, and it sounds like a third party describing you.
+- He is usually SPEAKING, not typing — "not sure if you meant to type
+  morning" is the wrong picture of what just happened. Say "you said",
+  never "you typed" or "your message".
+- EVERY WORD OF THIS MAY BE READ OUT LOUD in a room. No markdown — no
+  asterisks, no headings, no bullet symbols, no backticks. An asterisk is
+  silence out loud and a hyphen at the start of a line is the word
+  "minus". Never say an identifier (`computer.observe`, `room.scene`,
+  `intent-7aed1b5dcd`): say what the thing IS. A command he must type is
+  the one exception, and only when typing it is the answer.
 - If you do not know, say so plainly, and say what would settle it. Never
   fill the gap with something that sounds right. He can check, and the
   whole point of you is that he does not have to.
@@ -136,6 +148,12 @@ asked. Every claim about what you can or cannot do comes from that block:
 - If the block does not cover what he asked, say you would have to check
   rather than guessing. You are the one system in his life that is not
   allowed to be plausibly wrong about itself.
+- AN OFFER IS A CLAIM. "Should I pull them from your subscriptions
+  tracker and bank data?" was a real reply, and there is no bank data —
+  the offer invented a source, which is the same lie as inventing an
+  answer and harder to spot, because it sounds like helpfulness. Only
+  offer to use something the block names. Otherwise ask him for what you
+  would need.
 
 WHAT YOU DID IS NOT SOMETHING YOU REMEMBER — IT IS SOMETHING YOU CHECK.
 When he asks about your own past ("did you send it?", "what did you do
@@ -212,6 +230,36 @@ def _remember_turn(question: str, answer: str,
         turns = _thread()
         turns.append(turn)
         stateio.write_json_atomic(THREAD_PATH, {"turns": _trim(turns)})
+
+
+def remember_exchange(said: str, reply: str) -> None:
+    """Record a turn that did NOT go through this module. Never raises.
+
+    Her memory of the conversation lived here, so it only ever held the
+    turns a MODEL answered — and the faster she got, the less she
+    remembered. Four turns in, "actually cancel that" came back "I don't
+    have anything in the recent conversation to know what 'that' refers
+    to — checked the conversation history (empty)", when the two things
+    it could have meant had both been said out loud and answered in
+    0.0 seconds.
+
+    Deduped against the last turn, so `converse`'s own call and the
+    Core's cannot record the same exchange twice.
+    """
+    said, reply = str(said or "").strip(), str(reply or "").strip()
+    if not said or not reply:
+        return
+    try:
+        with _THREAD_LOCK:
+            turns = _thread()
+            if turns and turns[-1].get("you") == said[:600] \
+                    and turns[-1].get("her") == reply[:900]:
+                return
+            turns.append({"at": stateio.utcnow(), "you": said[:600],
+                          "her": reply[:900]})
+            stateio.write_json_atomic(THREAD_PATH, {"turns": _trim(turns)})
+    except Exception:
+        pass
 
 
 def _carried_over(turns: list[dict]) -> list[str]:
@@ -293,6 +341,11 @@ _LOOK = re.compile(
     r"\b(read|reads?|reading|look|looks?|looking|open|opens?|check|checks?|"
     r"review|reviews?|summari[sz]e|attached?|attach|go through|"
     r"in my|from my|my file)\b", re.I)
+# The folders a person means when they say "on my computer" and do not
+# give a path. Order matters only for which refusal he hears first.
+HOME_PLACES = ("", "Desktop", "Documents", "Downloads",
+               "OneDrive/Desktop", "OneDrive/Documents", "OneDrive/Downloads")
+
 _QUOTED = re.compile(r"[\"'`]([^\"'`\n]{1,200})[\"'`]")
 _BARE = re.compile(r"[~A-Za-z0-9_.\-/\\:]{2,200}")
 _TRAILING = "\"'`,;:!?)]}>"
@@ -362,8 +415,15 @@ def _open_named(token: str) -> dict:
     tries = [lambda: workspace.read(token),
              lambda: workspace.read(token, anywhere=True)]
     if not rooted:
-        tries.append(lambda: workspace.read(str(Path.home() / normalized),
-                                            anywhere=True))
+        # Where a person actually keeps a file. "the PDF on my desktop
+        # called lease.pdf" resolved to `~/lease.pdf`, which is nowhere,
+        # and came back as "there is no such file" about a file that was
+        # sitting on his desktop. OneDrive is in here because on his PC
+        # Desktop and Documents are redirected into it.
+        for place in HOME_PLACES:
+            where = Path.home() / place / normalized if place else \
+                Path.home() / normalized
+            tries.append(lambda w=where: workspace.read(str(w), anywhere=True))
     # A MISS and a REFUSAL are different answers and he needs the second one
     # verbatim: "there is no such file" versus "it is 4 MB" or "it is not
     # UTF-8". Reporting the last attempt's error blindly named a path he
@@ -505,10 +565,21 @@ def situation() -> dict:
             live_tasks.append(line)
             if len(live_tasks) >= 6:
                 break
-        if live_tasks:
-            facts["open_tasks"] = live_tasks
+        # AN EMPTY LIST IS NOT A MISSING ONE. With the key simply absent,
+        # "what do I have to do this week" came back "I don't have a
+        # calendar or task list connected right now" — she has a task
+        # store, she had just read it, and it was empty. Denying the
+        # capability is the §104 failure, and it is the one he cannot
+        # check: he would go and add tasks somewhere else.
+        facts["open_tasks"] = live_tasks
+        if not live_tasks:
+            facts["open_tasks_note"] = (
+                "READ AND EMPTY. The task list exists and nothing is open on "
+                "it. Say his list is empty; never say you have no task list.")
     except Exception:
-        pass
+        # Only here does she genuinely not know: the store could not be
+        # read at all, which is different from having nothing on it.
+        facts["open_tasks_note"] = "The task store could not be read just now."
     try:
         facts["today"] = _todays_events()
         if not facts["today"]:
@@ -728,7 +799,7 @@ def answer(question: str, *, think=None, include_thread: bool = True,
     # opened — not what he asked and not what she said.
     journal.append("action", "converse",
                    f"answered a question ({len(question)} chars in, "
-                   f"{len(said)} out, {len(files)} file(s) read"
+                   f"{len(said)} out, {speech.count_phrase(len(files), 'file')} read"
                    + (f", via {provider}" if provider else "") + ")",
                    actor=ACTOR)
     return {"question": question, "answer": said, "at": stateio.utcnow(),

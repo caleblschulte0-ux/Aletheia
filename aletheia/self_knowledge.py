@@ -130,6 +130,15 @@ _BROAD = re.compile(
     r"\b(what (can|could|do) you (do|handle)|what are you (able|capable)|"
     r"your capabilities|what can( you)? help|everything you can|"
     r"what all can you|list (of )?(your )?(capabilities|abilities)|"
+    # THE NEGATIVE FORM MATCHED NOTHING, so "what can't you do" — the
+    # single most important honesty question anybody asks this system —
+    # travelled with NO registry at all and was answered from whatever
+    # the model remembered of the turn before. It hedged: "I don't have
+    # the exact names of those two in front of me right now."
+    r"what (can'?t|cannot|can not|couldn'?t) you( do| handle)?|"
+    r"what are you (un(able|capable)|not (able|capable))|"
+    r"what (don'?t|doesn'?t) you (do|support|handle)|"
+    r"what'?s? (missing|not built|unavailable)|"
     r"what do you do)\b", re.I)
 
 

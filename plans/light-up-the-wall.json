@@ -14,13 +14,13 @@
     {
       "n": 2,
       "text": "Add FLEET_TOKEN secret (fine-grained PAT: contents+actions read on all six repos) — turns NO TELEMETRY into live green/red",
-      "state": "todo",
+      "state": "done",
       "repo": "aletheia"
     },
     {
       "n": 3,
       "text": "Enable GitHub Pages (main, root) and point the projector at /interface/ fullscreen",
-      "state": "todo",
+      "state": "done",
       "repo": "aletheia"
     },
     {

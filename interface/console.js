@@ -74,11 +74,24 @@
     const html = [];
     for (const a of approvals) {
       if (deferred.has(a.id)) continue;
+      // WHAT he is being asked, in words. `requested_action` is a digest
+      // for anything content-bound — "browser.interact:9f3c..." — and a
+      // phone that asks you to approve a hash is asking you to guess.
+      // The digest stays, small, because it is what he is approving.
+      //
+      // `label` comes from the collector (`voice.approval_label`), which
+      // is what the wall renders. This used `a.reason`, so the phone
+      // headline read `operator said: "spoken to the wall: thea remember
+      // my landlord"` — the transport wrapper and a nested quote, above
+      // an Approve button. Three surfaces rendered this one object three
+      // different ways and two of them were unusable.
+      const said = a.label || a.consequence || a.requested_action || a.id;
       html.push(
         '<div class="ask">' +
-          "<h3>" + T.esc(a.requested_action || a.id) + "</h3>" +
-          (a.reason ? "<p>" + T.esc(a.reason) + "</p>" : "") +
-          (a.consequence ? "<p>" + T.esc(a.consequence) + "</p>" : "") +
+          "<h3>" + T.esc(said) + "</h3>" +
+          '<p class="what">' + T.esc(a.requested_action || "") + "</p>" +
+          (a.consequence && a.consequence !== said
+            ? "<p>" + T.esc(a.consequence) + "</p>" : "") +
           '<div class="choices">' +
             '<button class="yes" data-approve="' + T.esc(a.id) + '">Approve</button>' +
             '<button class="later" data-later="' + T.esc(a.id) + '">Not now</button>' +

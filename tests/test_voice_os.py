@@ -97,7 +97,13 @@ class TestSpokenVerbs(VoiceOSCase):
         cmd = intent["command"]
         self.assertEqual(cmd, {"kind": "free_time", "day": "2026-08-27"})
         detail = intercom.execute_command(cmd, self.fleet, quote="test")
-        self.assertIn("free on 2026-08-27", detail)
+        # Was "free on 2026-08-27 at 09:00, 09:15, 09:30, 09:45 and more":
+        # a date nobody says out loud followed by the first four
+        # fifteen-minute steps of the search that produced it.
+        self.assertNotIn("2026-08-27", detail)
+        self.assertNotIn("09:00", detail)
+        self.assertIn("27 August", detail)
+        self.assertIn("9 am to 5 pm", detail)
 
     def test_relative_reminder_lands_in_the_future(self):
         detail = self.run_spoken("Thea, remind me in 20 minutes to take the bread out")
@@ -114,7 +120,11 @@ class TestSpokenTimeParsing(unittest.TestCase):
         self.assertEqual(voice._spoken_time("12 am"), "00:00")
         self.assertEqual(voice._spoken_time("12 pm"), "12:00")
         self.assertEqual(voice._spoken_time("14:15"), "14:15")
-        self.assertIsNone(voice._spoken_time("half past nine"))
+        # "Half past nine" used to be unparseable and this asserted the
+        # LIMITATION. The rule underneath is that a time she cannot read
+        # is refused rather than guessed — which the two below still hold.
+        self.assertEqual(voice._spoken_time("half past nine"), "09:30")
+        self.assertIsNone(voice._spoken_time("half past ninish"))
         self.assertIsNone(voice._spoken_time("25:00"))
 
     def test_days(self):

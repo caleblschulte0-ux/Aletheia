@@ -5,6 +5,7 @@ should work". He would do three and stall on the one with the thinnest
 instructions, and nothing would ever prove the finished ones actually
 worked. Every step here carries a verifier that makes a real attempt.
 """
+import dataclasses
 import unittest
 from unittest import mock
 
@@ -34,7 +35,18 @@ class ChecklistCase(unittest.TestCase):
         # the anti-drift check: this file must not silently omit a
         # NEEDS_CONFIGURATION capability, because an omission would read as
         # a finished step
-        report = setup.audit(fresh=True)
+        #
+        # The VERIFIERS are stubbed. What is under test is the mapping
+        # between this checklist and the registry, and running the real
+        # ones made this a live-network test: an IMAP login, a calendar
+        # fetch, and — since the browser step began proving it can really
+        # load a page — a browser launch and a request to the internet. 30
+        # seconds, and a different answer on a train.
+        real = setup.steps()
+        stubbed = [dataclasses.replace(step, verify=lambda: (setup.OK, "stubbed"))
+                   for step in real]
+        with mock.patch.object(setup, "steps", return_value=stubbed):
+            report = setup.audit(fresh=True)
         self.assertEqual(report["unmapped_needs_configuration"], [],
                          "a capability needs configuration and this checklist "
                          "does not mention it")

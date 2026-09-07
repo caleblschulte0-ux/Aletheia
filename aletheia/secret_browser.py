@@ -14,7 +14,10 @@ refused. The public intercom may carry URLs/selectors/aliases, never plaintext.
 """
 from __future__ import annotations
 
+import argparse
+import json
 import re
+import sys
 from urllib.parse import urlparse
 
 from aletheia import browse, journal, policy, secret_store, secret_trust, stateio
@@ -309,3 +312,52 @@ def fill_alias(*, url: str, selector: str, alias: str) -> dict:
         f"filled alias {alias!r} into API credential field on host {host}", actor=ACTOR,
     )
     return {"outcome": "filled", "alias": alias, "host": host}
+
+
+def main(argv: list[str] | None = None) -> int:
+    """The front door the registry has been naming all along.
+
+    `python -m aletheia.secret_browser` ran and did nothing — silently,
+    exit 0 — while `secret.fill` called it "the front door". A documented
+    command that is a no-op is worse than a missing one: it reads as a
+    capability somebody already built.
+
+    It prints receipts, never plaintext. There is no read/show operation
+    in this module at all, and there is not one here either.
+    """
+    ap = argparse.ArgumentParser(
+        description="Host-bound credential operations. Never prints a secret.")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    p_fill = sub.add_parser(
+        "fill", help="fill a vaulted alias into an API credential field")
+    p_fill.add_argument("alias")
+    p_fill.add_argument("--url", required=True)
+    p_fill.add_argument("--selector", required=True)
+
+    p_new = sub.add_parser(
+        "capture", help="click a create-credential control and vault the result")
+    p_new.add_argument("alias")
+    p_new.add_argument("--url", required=True)
+    p_new.add_argument("--create-selector", required=True)
+    p_new.add_argument("--capture-selector", required=True)
+
+    args = ap.parse_args(argv)
+    try:
+        if args.cmd == "fill":
+            receipt = fill_alias(url=args.url, selector=args.selector,
+                                 alias=args.alias)
+        else:
+            receipt = create_capture(url=args.url,
+                                     create_selector=args.create_selector,
+                                     capture_selector=args.capture_selector,
+                                     alias=args.alias)
+    except (SecretBrowserRefused, SecretBrowserError, ValueError) as exc:
+        print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(receipt, indent=2, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

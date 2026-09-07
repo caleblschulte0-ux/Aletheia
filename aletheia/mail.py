@@ -108,9 +108,13 @@ def _config() -> dict:
 def available() -> tuple[bool, str]:
     c = _config()
     if not c["address"] or not c["password"]:
-        return False, ("mail is not configured: set ALETHEIA_MAIL_ADDRESS and "
-                       "ALETHEIA_MAIL_PASSWORD (an app password), or write "
-                       f"{CONFIG_FILE} — see aletheia/mail.py")
+        # SPOKEN. This reaches the room whenever he asks about email
+        # before it is set up, and it used to answer with an absolute
+        # filesystem path and "see aletheia/mail.py" — a note to whoever
+        # wrote this, read out loud to the person who did not.
+        return False, ("mail isn't set up yet. Set ALETHEIA_MAIL_ADDRESS and "
+                       "ALETHEIA_MAIL_PASSWORD to your address and an app "
+                       "password, and it will work from the next command.")
     return True, f"configured for {c['address']}"
 
 
@@ -337,8 +341,9 @@ def send_approved(transport: MailTransport | None = None) -> list[dict]:
         if ap.get("state") == "PENDING":
             continue
         result = {"id": d["id"], "to_name": d.get("to_name", "?"), "subject": d["subject"]}
-        if ap.get("state") != "APPROVED":
-            result["outcome"] = "refused"; result["detail"] = f"approval is {ap.get('state')}"
+        sendable, why = policy.usable(d["id"])
+        if not sendable:
+            result["outcome"] = "refused"; result["detail"] = why
         elif ap.get("requested_action") != f"email.send:{_draft_sha(d)}":
             result["outcome"] = "refused"; result["detail"] = "draft changed after approval — content no longer matches"
         else:

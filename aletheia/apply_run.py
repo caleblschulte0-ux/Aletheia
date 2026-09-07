@@ -47,7 +47,7 @@ import re
 import sys
 from pathlib import Path
 
-from aletheia import browse, formfill, journal, policy, profile, stateio
+from aletheia import browse, formfill, journal, policy, profile, speech, stateio
 
 ACTOR = "aletheia-apply"
 
@@ -56,9 +56,9 @@ MAX_QUESTIONS_SHOWN = 12
 # the visible text of buttons on the page, most specific first.
 SUBMIT_WORDS = ("submit application", "submit your application", "apply now",
                 "submit", "send application", "finish", "apply")
-CONFIRMED_WORDS = ("thank you", "application received", "we have received",
-                   "successfully submitted", "your application has been",
-                   "thanks for applying")
+# The words live in `browse` now, with their refusal counterparts. Kept
+# here as a name because tests and readers reach for it.
+CONFIRMED_WORDS = browse.CONFIRMED_WORDS
 
 
 class ApplyError(RuntimeError):
@@ -184,7 +184,7 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
                                  for f in plan["fill"]],
                   "filled": [], "skipped": plan["skipped"],
                   "staged_at": stateio.utcnow(),
-                  "say": (f"{len(blocking)} thing(s) on that form only you can "
+                  "say": (f"{speech.count_phrase(len(blocking), 'thing')} on that form only you can "
                           "answer. Tell me those and I will fill the rest and "
                           "bring it back to you to confirm.")}
         stateio.write_json_atomic(_record_path(run_id), record)
@@ -192,6 +192,41 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
 
     shot = staged_dir() / f"{run_id}.png"
     filled = (filler or _fill_and_capture)(url, steps, resume, shot)
+
+    # THE PAGE'S OWN VERDICT, not hers. Staging ended at "I typed
+    # everything I could" and called that ready — so on a form whose
+    # work-authorization question is a pair of divs, she produced an
+    # application AWAITING HIS CONFIRMATION that the browser would then
+    # refuse to send: he taps Approve, submit is pressed, nothing arrives,
+    # and the run reports success. Found on a fixture built to look like
+    # the forms an ATS actually serves.
+    stopped = [item for item in (filled.get("blocking") or [])
+               if item.get("label") not in {q.get("label") for q in plan["ask"]}]
+    if stopped:
+        record = {"id": run_id, "state": "NEEDS_YOU", "url": url,
+                  "approval": "", "steps": steps, "resume": resume,
+                  "questions": (plan["ask"] + stopped)[:MAX_QUESTIONS_SHOWN],
+                  "not_filled": (plan["ask"] + stopped)[:MAX_QUESTIONS_SHOWN],
+                  "would_fill": [{"label": f["label"], "value": f["value"]}
+                                 for f in plan["fill"]],
+                  "filled": [], "skipped": plan["skipped"],
+                  "screenshot": str(shot) if shot.exists() else "",
+                  "staged_at": stateio.utcnow(),
+                  "say": ("I filled what I could, and the form still will not "
+                          "go without: "
+                          + "; ".join(i["label"] for i in stopped[:5])
+                          + ". Tell me those and I will finish it.")}
+        stateio.write_json_atomic(_record_path(run_id), record)
+        journal.append("action", "apply",
+                       f"held an application at {url} — the form will not go "
+                       f"yet ({speech.count_phrase(len(stopped), 'thing')} outstanding)", actor=ACTOR)
+        try:
+            from aletheia import demand
+            demand.record_attempt("application.submit", note or url,
+                                  "NEEDS_YOU", source="apply")
+        except Exception:
+            pass
+        return record
 
     action = browse.approval_action(url, steps)
     approval_id = f"{run_id}-submit"
@@ -212,7 +247,7 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
               "staged_at": stateio.utcnow()}
     stateio.write_json_atomic(_record_path(run_id), record)
     journal.append("action", "apply",
-                   f"staged an application at {url} — {len(steps)} field(s) "
+                   f"staged an application at {url} — {speech.count_phrase(len(steps), 'field')} "
                    f"filled, awaiting his confirmation", actor=ACTOR)
     return record
 
@@ -241,7 +276,11 @@ def _apply_steps(page, steps: list[dict]) -> None:
 
 
 def _fill_and_capture(url: str, steps: list[dict], resume: str, shot: Path) -> dict:
-    """Type it all in and photograph it. Presses nothing."""
+    """Type it all in, photograph it, and say what would still stop it.
+
+    Presses nothing — and, since 2026-09-04, does not pretend a form is
+    ready when it is not: `formfill.blocking` asks the page itself.
+    """
     ok, why = browse.available()
     if not ok:
         raise ApplyError(f"she cannot open the application: {why}")
@@ -249,11 +288,13 @@ def _fill_and_capture(url: str, steps: list[dict], resume: str, shot: Path) -> d
     with browse._Session() as ctx:
         page = ctx.new_page()
         page.goto(url, wait_until="domcontentloaded")
+        formfill.settle(page)
         _apply_steps(page, steps)
         if resume:
             _attach_resume(page, resume)
         page.screenshot(path=str(shot), full_page=True)
-        result = {"title": page.title(), "url": page.url}
+        result = {"title": page.title(), "url": page.url,
+                  "blocking": formfill.blocking(page)}
         page.close()
     return result
 
@@ -290,10 +331,9 @@ def accept(run_id: str) -> dict:
     grant are different verbs and now they are different functions.
     """
     record = load_run(run_id)
-    approval = policy.load(record["approval"])
-    if approval.get("state") != "APPROVED":
-        raise ApplyError(f"approval {record['approval']} is "
-                         f"{approval.get('state')}, not APPROVED")
+    ok, why = policy.usable(record["approval"])
+    if not ok:
+        raise ApplyError(why)
     record["state"] = "APPROVED"
     record["confirmed_at"] = stateio.utcnow()
     stateio.write_json_atomic(_record_path(run_id), record)
@@ -323,10 +363,9 @@ def submit(run_id: str, *, submitter=None) -> dict:
     if record["state"] != "APPROVED":
         raise ApplyError(f"{run_id} is {record['state']}; it needs your "
                          "confirmation before anything is sent")
-    approval = policy.load(record["approval"])
-    if approval.get("state") != "APPROVED":
-        raise ApplyError(f"approval {record['approval']} is "
-                         f"{approval.get('state')} — nothing was sent")
+    ok, why = policy.usable(record["approval"])
+    if not ok:
+        raise ApplyError(f"{why} — nothing was sent")
 
     record["state"] = "SUBMITTING"
     record["submitted_at"] = stateio.utcnow()
@@ -367,6 +406,7 @@ def _refill_and_submit(record: dict) -> dict:
     with browse._Session() as ctx:
         page = ctx.new_page()
         page.goto(record["url"], wait_until="domcontentloaded")
+        formfill.settle(page)
         _apply_steps(page, record["steps"])
         if record.get("resume"):
             _attach_resume(page, record["resume"])
@@ -387,17 +427,14 @@ def _refill_and_submit(record: dict) -> dict:
         landed = page.url
         title = page.title()
         page.close()
-    looks_done = any(word in body.casefold() for word in CONFIRMED_WORDS)
+    # Never "done" without something that says so. A click that produced
+    # no confirmation is a click, not an application — and a page that
+    # handed the form back is a REFUSAL, which used to read the same as
+    # silence. `browse.read_outcome` is the one place that knows the
+    # difference, so this and the general web loop cannot drift on it.
     return {"url": landed, "title": title,
-            "verdict": "confirmed" if looks_done else "submitted, unconfirmed",
             "evidence": body[:600], "screenshot": str(shot),
-            # Never "done" without something that says so. A click that
-            # produced no confirmation is a click, not an application.
-            "note": ("The page said it received the application."
-                     if looks_done else
-                     "The button was pressed and the page did not say it was "
-                     "received. Check the screenshot — it may be a further "
-                     "step, or it may have failed.")}
+            **browse.read_outcome(body, did=record.get("button", "submit"))}
 
 
 def spoken(record: dict) -> str:
@@ -406,7 +443,7 @@ def spoken(record: dict) -> str:
     if record.get("state") == "AWAITING_YOU":
         left = len(record.get("not_filled") or [])
         return (f"Application ready at {record['url']}: "
-                f"{len(record['filled'])} field(s) filled"
+                f"{speech.count_phrase(len(record['filled']), 'field')} filled"
                 + (f", {left} left blank that you may want to look at" if left else "")
                 + ". Say confirm to send it, or look at the screenshot first.")
     if record.get("state") == "SUBMITTED":

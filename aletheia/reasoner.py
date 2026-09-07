@@ -325,7 +325,7 @@ def subscription_text(system_prompt: str, text: str, *,
     try:
         from aletheia import browser_reasoner
         if remaining() <= 0.5:
-            raise ReasonerUnavailable("subscription reasoning time budget expired")
+            raise ReasonerUnavailable("I ran out of thinking time before an answer came back")
         value = browser_reasoner.infer_json(
             system_prompt + "\n\nReply with ONE JSON object and nothing else: "
             '{"answer": "<your entire reply, as a single string>"}',
@@ -359,7 +359,7 @@ def _subscription_json_with_provider(system_prompt: str, text: str, *, context: 
     try:
         claude_budget = remaining()
         if claude_budget < 0.05:
-            raise ReasonerUnavailable("subscription reasoning time budget expired")
+            raise ReasonerUnavailable("I ran out of thinking time before an answer came back")
         value = checked(infer_json(system_prompt, text, context=context,
                                    model=model, timeout_s=claude_budget,
                                    max_context_bytes=max_context_bytes))
@@ -370,14 +370,20 @@ def _subscription_json_with_provider(system_prompt: str, text: str, *, context: 
     try:
         from aletheia import browser_reasoner
         if remaining() <= 0.5:
-            raise ReasonerUnavailable("subscription reasoning time budget expired")
+            raise ReasonerUnavailable("I ran out of thinking time before an answer came back")
         value = browser_reasoner.infer_json(
             system_prompt, text, context=context,
             timeout_s=remaining())
         return checked(value), "chatgpt.browser"
     except Exception:
+        # SAID OUT LOUD. Every one of these reaches the room verbatim
+        # through "I couldn't: <reason>", and "both subscription reasoning
+        # paths are unavailable: Claude failed and ChatGPT browser could
+        # not answer" is a status line, not a sentence. Same fact, same
+        # two paths named, in words — the diagnosis is still in the log
+        # with the exception type and the traceback attached to it.
         raise ReasonerUnavailable(
-            "both subscription reasoning paths are unavailable: Claude failed and ChatGPT browser could not answer"
+            "neither Claude nor the ChatGPT browser could answer just now"
         ) from None
 
 

@@ -54,6 +54,20 @@ entry names its real caller; a NOT_BUILT entry names its ticket. No
 Jarvis theater: the wall and every report render only what the pulse and
 stores actually contain.
 
+**INSTALLED is not WORKING, and a readiness check that confuses them is
+the worst kind of lie** — it is wrong precisely where he is trusting it.
+`browse.available()` returned True from an import and a file on disk, and
+`setup.audit`, whose whole promise is "checked live rather than assumed",
+reported a browser as ready that could not load a single page (a proxy
+that drops browser tunnels; equally, a corporate network or no internet).
+Everything downstream would have failed on his first real ask with the
+audit still green. `browse.reachable()` loads a page and is what the
+audit asks now. Where a verifier can make the real attempt, it must —
+and where the real attempt is expensive, cache it rather than skip it.
+The mirror of that rule is that TESTS must not pay for it: stub the
+verifiers and keep the aggregation under test, or the suite becomes a
+live-network test that answers differently on a train.
+
 ## Authority: authorized vs. unauthorized — not observe vs. act
 
 The playbook replaces the old "observes but doesn't act" line (§55).
@@ -164,9 +178,17 @@ and push there; no auto-merge here — merges to `main` are deliberate.
 ## What to build next is not a guess — ask the demand ledger
 
 `python -m aletheia.demand` is the first thing to read when deciding what
-to build. Every plan that came back with a GAP step, and every "can
-you...?" whose best match was not AVAILABLE, is counted there with the
-operator's own words. Ranked, that is a roadmap nobody wrote: not what an
+to build. Every plan that came back with a GAP step, every "can you...?"
+whose best match was not AVAILABLE, and — since 2026-09-05 — every real
+attempt she TRIED AND COULD NOT FINISH is counted there with the
+operator's own words. That last one is the signal that matters most: for
+a long time the ledger only heard about failures to PLAN, and "she has
+no verb for this" is a guess about what to build, while "she went to the
+site, filled the form, and it wanted an account" is a fact about what he
+could not have — recorded at the moment he had already committed to it.
+Every doing path reports (`webtask`, `apply_run`, `script`,
+`subscriptions`, `reservations`); a ledger one caller feeds and another
+does not just ranks whichever capability happened to be wired. Ranked, that is a roadmap nobody wrote: not what an
 agent guessed would be useful, not what a plan file said in July — what
 he actually tried to do and could not.
 
@@ -180,6 +202,421 @@ It counts; it does not conclude. Frequency is evidence of demand, not
 proof of priority — a thing asked once in anger may matter more than a
 thing asked weekly out of habit. Read it, then decide. His words live in
 private state and are never committed.
+
+## Speed is a feature, and the cost is the round trip
+
+Measured 2026-09-05 on the operator's own subscription: a `claude -p`
+call costs **~3.6 seconds** whether the answer is one word or nine
+thousand characters. Haiku is not faster than Sonnet. The CLI binary
+starts in 0.01s. The cost is the ROUND TRIP, not local compute — so a
+faster computer buys nothing here, and the only way to be fast is to not
+make the call.
+
+Two things hold that, and they are separate on purpose:
+
+- **`aletheia/quick.py` answers what she already knows, from her stores,
+  with no model at all.** "Are you halted?" used to pay the round trip
+  TWICE — once for the planner to decide it was a question, once for
+  `converse` to answer it. It is wired in front of the planner in
+  `intents.propose` AND in `core.answered_now`, because `intent` is in
+  `SLOW_KINDS`: without the second one, a stored answer still came back
+  as "Working on that." plus a poll. It returns `None` for anything it is
+  not certain about, and that is the whole safety argument — **it may only
+  ever remove latency, never an answer.** Decide on the ANSWER, never on
+  the pattern: "can you fly a helicopter" matches the shape, has no stored
+  answer, and running it inline would block the room on the planner.
+  A "can you...?" it answers with anything but yes still feeds the demand
+  ledger, the way `converse` does; a shortcut that stops feeding it makes
+  the thing he asks for most often look like the thing he stopped asking
+  for.
+- **`speech.ack_line` + the waiter in `voice_room` say she is thinking**
+  when the reply is genuinely late. His words: *"even if it's just telling
+  me that you have to think a little harder."* The trigger is ELAPSED TIME
+  (`ACK_AFTER_S`), never a classifier guessing which asks are slow — so a
+  fast-lane answer is never preceded by "let me look", and there is no case
+  where she claims to be working on something she is not. Both lines stay
+  true whatever the answer turns out to be, because it may well be "that
+  needs your approval".
+
+## Talk to her. It is the only audit that finds this class of defect
+
+`python -m aletheia.talk --sandbox "am I free tomorrow afternoon"` says a
+sentence through the real voice door and prints what the room would hear.
+Twenty minutes of that on 2026-09-06 found five defects with 2,340 tests
+green, because every one of them was **correct data in a sentence that
+fails him** — which is precisely what a unit test cannot see, since a
+unit test asserts what its author already believed:
+
+- *"remind me at 3 to call the dentist"* was scheduled for **03:00
+  tomorrow** and confirmed back as "tomorrow at 8 am". Two bugs, and the
+  second hid the first: a bare hour was read literally (nobody means
+  three in the morning), and the confirmation was rendered in the
+  PROCESS's timezone rather than his, so an eighteen-hour error came out
+  sounding plausible. A confirmation exists so he can catch a mistake in
+  one syllable; in the wrong zone it cannot do that job.
+- *"am I free tomorrow afternoon"* answered with nine o'clock in the
+  morning. The word **afternoon was silently dropped**, and answering a
+  different question than the one asked is the failure he cannot detect.
+- *"turn off the kitchen lights"* → "I can't do room.scene yet; filed 1
+  build task(s)." An identifier and a parenthesised plural, out loud.
+- She set two reminders and then said **"Nothing yet today."**
+  `recollection.HERS` matches actor PREFIXES and contained "core", but
+  the Core journals as `operator-local-core` — a substring is not a
+  prefix — so everything he asks for out loud was invisible to her own
+  memory.
+
+Three existing tests had to be UPDATED for these, not just added to:
+they asserted the machine wording (the approval hash in the sentence, the
+capability id, `free on 2026-08-27 at 09:00`). A test that freezes what
+the code does is not a regression test; check what the assertion is
+protecting before treating a red one as a bug in the fix.
+
+`--sandbox` has to redirect EVERY repo-anchored store, and it has been
+wrong twice. v1 moved only private state and left three build tasks and a
+journal line in the repo. v2 added tasks and plans and still missed
+`policy.HALT_PATH` — so saying "halt" to a sandbox **halted the real
+Aletheia** and left her halted, answering every later question with "only
+a resume command executes". A kill switch is the one thing an audit must
+not be able to reach. `talk.SANDBOX_STORES` is the list now, and
+`tests/test_talk_sandbox.py` walks the AST for every `NAME = REPO_ROOT /
+...` in `aletheia/` and fails if one is neither redirected nor explicitly
+marked read-only.
+
+A second lesson from the same run: a forbidden verb gets SUBSTITUTED, not
+refused. The planner may not emit `resume`, `halt`, `approve` or `deny`
+(`intercom.PLANNER_FORBIDDEN`) — so when a sentence asks for one and the
+deterministic layer misses it, the model's only remaining move is to
+compile something else. "Resume yourself" ran `brief` and answered
+"Resume normal operation and surface current state" while resuming
+nothing; "cancel that" offered an approval in order to cancel an
+approval. Every phrasing for those four verbs belongs in `voice.py`, and
+anything that is plainly an order about her own switch and does not match
+exactly must ASK for the one word rather than let the planner near it.
+
+## Absence is evidence for the WHOLE journal, never for a search of it
+
+She saved his landlord's name, recalled it correctly one turn later, and
+then answered *"did you save that?"* with **"No — the journal's empty.
+Nothing I did shows as saved."** A flat contradiction, one turn apart,
+and the failure mode this system exists to prevent.
+
+Three defects stacked:
+
+- `recollection.day` filtered on kind in (action, decision, recovery).
+  `memory.remember` journals as **note** and `tasks.create` as **task** —
+  the two things she does most often on his instruction, both invisible
+  to her own memory. `HER_DOING` is the list now.
+- `about()` scores journal lines against the WORDS of the question, and
+  "did you save that" names nothing searchable, so it matched none.
+- The note attached to that empty list said *"nothing here means it did
+  not happen"*. **A false premise handed to a model comes back as a
+  confident lie.** `for_question` now tells the two situations apart:
+  nothing MATCHED (here is what she has been doing instead, and do not
+  call the journal empty) versus nothing THERE.
+
+Two smaller rules fell out of the same run, and both are about her memory
+being a thing she READS OUT:
+
+- **Talking is not doing.** `converse` journals every answer, and
+  `core:intent` receipts carry the spoken reply, so once notes counted
+  she began listing her own previous answers back at him.
+- **One act journaled by two writers is one act.** A task writes
+  `task:<id>` from the store and `core:task_new` from the command path;
+  the store's line names the thing and the command's names its id, so she
+  said "Added a task: call the plumber; Added a task: t1."
+
+## A store with a writer and no reader makes her a liar
+
+Three of these in one afternoon, every one found by talking to her and
+every one identical underneath:
+
+    "Added to the shopping list: milk."  /  "I don't have a shopping list."
+    "Every Monday at 9 am I'll remind you."  /  "I can't reminder.cancel yet."
+    "I don't have a record of jobs you've applied to."  (there is one)
+
+The writer shipped, the reader did not, and a model asked about a store
+nothing in its context mentions DENIES THE STORE EXISTS. That is worse
+than an error: an error sends him back to you, and this sends him off to
+keep the list somewhere else. It is the same failure as the empty task
+list ("I don't have a calendar or task list connected right now" — she
+had just read it, and it was empty), so the rule has two halves:
+
+- **Every writer has a reader.** `tests/test_every_writer_has_a_reader.py`
+  fails until a new ROUTINE kind names the read-only kind he asks with.
+  It is a hand-kept list on purpose: a mechanical check would have to
+  guess which store a handler touches, and a wrong guess is a test that
+  passes for the wrong reason.
+- **An empty store still proves the store.** Put the key in the context
+  either way, with a note saying which of the three situations it is —
+  empty, full, or unreadable. Absence of rows is not absence of the
+  capability, and the model cannot tell the difference from a missing key.
+
+The same sweep found `scheduler` able to do weekly since the day it was
+written with no way to ASK for it, so "remind me every monday" compiled a
+generic `do_task` under a summary promising a weekly reminder. A
+capability nothing can say is not a capability (rule zero), and the
+planner fills that hole by INVENTING a capability id — `reminder.cancel`
+— filing a build task for it, and reading the id out loud.
+
+## Everything a model writes is going to be read out in a room
+
+`speech.spoken_prose` is the one door for model prose: no markdown (an
+asterisk is silence out loud, a leading hyphen is the word "minus"), no
+capability ids (the registry says what each one IS, and the model's
+`a.b/c` shorthand is expanded), no state ids, then tidied. `converse`'s
+system prompt says it is being read aloud, so most of it never arrives —
+the door is for the rest. Three things it does not fix, which you have to
+fix at the source:
+
+- **A message written for a log.** "both subscription reasoning paths are
+  unavailable: Claude failed and ChatGPT browser could not answer" and
+  `Page.goto: net::ERR_CONNECTION_RESET at https://example.com/ Call log:
+  - navigating to...` both reached the room verbatim through "I
+  couldn't: ...". Say it in English where it is raised; the diagnosis is
+  still in the log with the type and the traceback attached. Where a code
+  is genuinely useful on a screen (`net::ERR_...`), write it once in
+  brackets and take it out for speech (`browse.say_reason`).
+- **A command with a placeholder in it.** `python -m aletheia.apply
+  calendar "<paste the URL>"` answers "what do I type" and not "which
+  URL", and the line that answers that was sitting above it in the
+  checklist all along.
+- **An OFFER is a claim about ability.** "Should I pull them from your
+  subscriptions tracker and bank data?" — there is no bank data. Inventing
+  a source sounds like helpfulness, which makes it harder to catch than
+  inventing an answer.
+
+## The question she is asked in the negative reaches nothing
+
+`_BROAD` in `self_knowledge` matched every positive phrasing of "what can
+you do" and not one negative one, so **"what can't you do"** — the single
+most important honesty question anybody asks this system — travelled with
+NO capability block and was answered from whatever the model remembered
+of the turn before. It hedged: *"I don't have the exact names of those
+two in front of me right now, so I won't guess."* The names were in the
+registry the whole time.
+
+The same blind spot, one store over: `recollection._PAST` matches "did
+you" and "what happened", and matched none of "what went wrong", "did
+anything fail", "what broke". So when you write a pattern that decides
+WHICH CONTEXT TRAVELS, write the negative and the failure-shaped
+phrasings in the same sitting — the model cannot ask for what it was not
+given, and a confident answer with no context is indistinguishable from a
+grounded one until he checks.
+
+Two smaller rules from the same pass:
+
+- **A unit in a context field is read out loud.** `hours: 168` came back
+  as "the last 168 hours show no alerts". `recollection.window_words`
+  says it the way a person does; the number stays for arithmetic.
+- **A deterministic pattern that swallows too much answers a DIFFERENT
+  question**, which is the failure he cannot detect: `how long (.+)` made
+  every "how long" sentence a journey ("I don't know where until my
+  meeting is"), and `(?:add )?(.+?) to the list` made every sentence
+  ending in "to the list" a write — "why did you add milk to the list"
+  put "why did you add milk" ON the list. A question is never an
+  instruction. And the layer matches on a LOWERCASED sentence, so
+  everything it stores has to have his capitals put back
+  (`voice._as_he_said`): "note that Dana called" saved "that dana called".
+
+## Her memory of the conversation had a hole where she was fastest
+
+The thread lived inside `converse`, so it held only the turns a MODEL
+answered. Everything `quick` and the deterministic layer answer in 0.0s —
+which is most of what she says now — left no trace, and every "that",
+"it" and "the other one" fell into the hole:
+
+    > add a task to call the dentist      [0.0s] Added a task: ...
+    > add a task to call the plumber      [0.0s] Added a task: ...
+    > actually cancel that
+      I don't have anything in the recent conversation to know what
+      'that' refers to — checked the conversation history (empty)
+
+`converse.remember_exchange` is the door and the Core walks EVERY spoken
+turn through it — the fast ones, the direct ones, and (one layer down,
+found the same way) the slow ones, where the follow-up's own work records
+its answer. Deduped against the last turn so `converse`'s own call cannot
+double up, wake word stripped, because "thea add a task" is not how he
+refers to it a turn later.
+
+The general rule: **every speed-up is a chance to stop recording
+something.** When you move an answer off the model path, ask what the
+model path was doing for you besides answering — journaling, the demand
+ledger, the conversation thread — and do it on the new path too.
+
+## The audit tool must leave exactly what a real client leaves
+
+Two ways `talk --sandbox` diverged from the wall, and both invented bugs
+that do not exist:
+
+- It polled the follow-up slot and never ACKNOWLEDGED it, so every answer
+  stayed an unread notification and "what's waiting on me" came back
+  *"Aletheia finished thinking: 100 out of 128 things fully work..."* —
+  her own replies, read back as things needing his attention.
+- The rehearsal gate refused `approve`, so the whole approve → execute →
+  receipt loop could never be exercised: the turn after read "No — that
+  was a rehearsal, not a real save." `approve` and `deny` are CONTAINERS
+  like `intent` and `handle` — a decision about a plan whose steps come
+  back through `execute_command` one at a time, where a world-touching
+  one is still refused. They stay in `PLANNER_FORBIDDEN`, so she still
+  cannot approve her own work.
+
+Neither is a fix to Aletheia. Both are the audit lying about her, which
+is worse than not auditing: a fake finding costs a session, and a fake
+all-clear costs him.
+
+## A frozen date next to a moving fixture is a bomb with a date on it
+
+`test_an_offer_whose_slots_have_all_passed_is_abandoned` asserted
+2026-09-10 against slots built at today+2 and today+3. It passed for five
+days and failed on the sixth, for no reason but the calendar — and the
+fixture's own docstring warns about exactly this, having been fixed the
+same way a week earlier. If one side of a comparison moves, both sides
+move.
+
+## The one permanent rule, answered at the door
+
+*"no spending money."* It is the only line he has called permanent, and
+it is now enforced in three places that cannot disagree, because they
+share one predicate — `webtask.would_spend`:
+
+1. **At the door** (`intents._asks_to_spend`): an INSTRUCTION that
+   commits money is refused before the planner runs, in half a second.
+   This exists because the step-level check missed "my wife says it's
+   fine to buy the monitor so do it", which came back as a clarifying
+   question — *which monitor, what budget?* — asked in order to buy it.
+   A refusal that arrives after a round of questions arrives too late and
+   reads as consent in the meantime.
+2. **At plan time** (`planner.SPENDING_KINDS`): a compiled `web_task` or
+   `errand` with a spending goal is REFUSED, and a plan carrying such a
+   step is refused WHOLE — running the rest is not a smaller version of
+   what he asked for, it is a different thing offered under the summary
+   of the thing that was refused. No approval object is created, so
+   there is nothing pending he could later walk past and approve.
+3. **At run time** (`webtask.walk`): unchanged, and now the last line
+   rather than the only one.
+
+A QUESTION about money is not an instruction to spend it — "how much
+would a monitor cost", "can you buy things", "what do I pay for Netflix"
+are all answerable and all contain the words. The door lets questions
+through; only instructions stop there. The check fails CLOSED: the sole
+realistic failure is webtask being unimportable, and if that is true
+nothing can spend anyway.
+
+The word list names the ACT of paying AND the ordinary errands that
+commit money without saying so. "Order me a pizza", "book me a flight to
+Tokyo", "get me an uber" contain no word from the original list, and all
+three came back "1 step ready — say approve to run it". Bias the list
+toward refusing: a false positive costs him one rephrase and a sentence
+explaining why; a false negative spends his money.
+
+## A sandbox that moves the files does not stop the email
+
+`talk --sandbox` redirected every store and still ran the world. On his
+machine, with mail configured, auditing her would have SENT things — a
+real email, a real GitHub issue, a real browser pressing Submit. It sets
+`ALETHEIA_REHEARSAL` now, and `intercom.execute_command` refuses the
+world-touching tier while every local step still runs for real, so the
+rehearsal exercises the real planner, the real gates and the real
+stores.
+
+An ENVIRONMENT VARIABLE, not an argument, because the refusal has to hold
+for every path underneath — the Core's beat, an approved intent running
+on a later tick, a plan step — and not just the sentence that started it.
+
+`intercom.CONTAINERS` is the exemption: `intent` and `handle` are
+world-tier because their STEPS can be, and each step comes back through
+the same function to be checked on its own. Refusing the container would
+leave a rehearsal able to exercise only the sentences that happen to have
+a deterministic verb. I first wrote that set as
+`{"intent", "handle", "agenda", "mission"}`; the last two are modules,
+not intercom kinds, and the test caught it.
+
+## Both interfaces are rendered in the suite now
+
+`tests/test_the_wall_renders_the_pulse.py` and
+`tests/test_the_command_center_renders.py` drive real Chromium against a
+real pulse and a real in-process Core. On a page that is a pure view of
+one JSON file, "do the words come out" is the only thing worth asserting
+— and it immediately found the two surfaces DISAGREEING about the same
+approval. The wall renders `voice.approval_label`, which prefers the
+plan's own summary; the Command Center rendered `reason` raw and showed
+`operator said: "spoken to the wall: thea remember my landlord"` above a
+hex id, with an APPROVE button beside it. The API carries the label now,
+because smarts belong in the collector and never in the page (§88).
+
+Both skip cleanly without a browser, and both use one launch per class:
+an optional dependency's absence must never fail the suite, and fifteen
+seconds per test is how a suite stops being run.
+
+If you write one of these, RESTORE what you redirect in `tearDownClass`.
+`talk._redirect_repo_stores` sets module attributes, so a render test
+that forgets leaves every later test pointing at its temp directory —
+the exact cross-contamination `-t .` exists to prevent, reintroduced by
+a test about isolation.
+
+## Say it OUT LOUD before you believe the receipt
+
+`speech.count_phrase`, `speech.and_list`, `speech.or_list` and
+`speech.spoken_receipt` exist because a receipt is not a sentence, and
+the whole system reads its own receipts back to him — `recollection`
+speaks journal lines, `quick` speaks store rows, `intents.spoken` speaks
+plans. Three rules that keep costing a bug each when they are forgotten:
+
+- **A choice takes "or".** "Which one — call the dentist and call the
+  plumber?" reads as one thing made of two.
+- **Commas collide.** `and_list` already uses them, so an item that
+  contains one ("renew my passport, due Friday") makes the whole list
+  unparseable by ear.
+- **A category is not a notice.** Every reminder is titled "Reminder";
+  the thing he wants is the body. `presence` deduplicated unread notices
+  BY TITLE, so two reminders that both fired became one line and the
+  second silently vanished.
+
+And `intents.spoken` is the last thing between a record and the room, so
+it uses `.get` throughout: a KeyError there is silence where a sentence
+should be, and every branch that returns model prose runs it through
+`strip_ids` first — a clarifying question about her own state says
+"a pending approval (intent-7aed1b5dcd) is waiting on you" otherwise.
+
+## A kind in the grammar with no branch behind it
+
+`intercom.KIND_ARGS` gates what may be relayed, what the planner may
+compile, and what the Core accepts — and nothing checked that
+`execute_command` could carry any of it out. The media block ended in a
+bare `else` that ran `media.convert`, so any future `media_*` kind would
+have silently transcoded and reported success.
+`tests/test_every_kind_has_a_handler.py` holds both directions now, plus
+the grammar's own shape: no duplicate keys (Python keeps the last one
+silently), no required/optional overlap, and no kind that is both
+READ_ONLY and ROUTINE — being in both makes `tier()` depend on the order
+the checks happen to be written in.
+
+## A red test is a question, not an answer
+
+Five times in one session a change turned an existing test red, and every
+time the test was asserting the WORDING rather than the rule:
+
+| it asserted | the rule it was protecting |
+|---|---|
+| the approval hash appears in the sentence | he can tell what he is approving |
+| `I can't do purchase.execute yet` | she names what she cannot do |
+| `free on 2026-08-27 at 09:00` | she answers when he is free |
+| `1 file(s) read` | the journal line is sayable |
+| `a.reason \|\| a.requested_action` in console.js | the heading prefers the sentence |
+
+A test that freezes what the code does is not a regression test — it is a
+copy of the implementation with an assert around it, and it goes red for
+improvements as readily as for bugs. **Read what the assertion is
+protecting before you treat a red one as a bug in your fix**, then either
+your change is wrong, or the test needs to say the rule instead of the
+string. Both are edits; only one of them is a revert.
+
+And when two paths say the same kind of thing, give them ONE
+implementation. `intents.spoken` and `voice.spoken_reply` both read
+failures out loud and drifted, so "That failed: KeyError: ..." survived
+on the path nobody had fixed; `speech.plainly` is shared now. Same reason
+`webtask.would_spend` is one predicate for three gates, and
+`voice.approval_label` is computed by the API for all three interfaces.
 
 ## The standing assignment
 

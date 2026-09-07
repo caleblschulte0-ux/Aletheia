@@ -159,6 +159,10 @@ def validate_approval(ap: dict) -> list[str]:
         "requested_at": str,
     }, optional={
         "expires": str, "task": str, "decided_at": str, "decided_via": str,
+        # A yes has a shelf life. A question nobody answered for a week
+        # has gone cold, and a yes to something irreversible that has sat
+        # unpressed for a day is not what "yes" meant when he said it.
+        "expired_at": str, "expired_because": str,
         # Which registry capability this approval is for. Two jobs: it is
         # what `policy.request` matches a standing grant against
         # (`aletheia.authority`), and it is what an audit of "why was this

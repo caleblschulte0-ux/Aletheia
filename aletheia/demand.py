@@ -114,6 +114,36 @@ def record_plan(plan, request: str) -> list[str]:
     return wanted
 
 
+# Why a real attempt stopped short. The planner's GAP is "she has no verb
+# for this"; these are "she has the verb, went and did it, and hit a wall"
+# — which is a different and better signal, because he had already
+# committed to the thing when it failed.
+STOPPED = {
+    "NEEDS_YOU": "asked him something she could not answer herself",
+    "OUT_OF_STEPS": "ran out of steps before finishing",
+    "NEEDS_SIGN_IN": "the site wanted an account",
+    "NEEDS_YOUR_EYES": "a human check she must not defeat",
+    "REFUSED": "refused it",
+}
+
+
+def record_attempt(capability: str, asked: str, state: str, *,
+                   detail: str = "", source: str = "attempt") -> dict | None:
+    """A real attempt that stopped short of finishing.
+
+    The ledger only ever heard about failures to PLAN — a "can you…?"
+    with no AVAILABLE match, a compiled plan with a GAP step. It never
+    heard about failures to DO, which is the signal that matters most:
+    the difference between "she has no verb for this" and "she went, she
+    tried, and the site wanted an account" is the difference between a
+    guess about what to build and a fact about what he could not have.
+    """
+    why = STOPPED.get(str(state or ""))
+    if why is None:
+        return None            # DONE and AWAITING_YOU are not failures
+    return record(capability, asked, status=str(state), source=source)
+
+
 def ranked(*, days: int = WINDOW_DAYS, limit: int = 12) -> list[dict]:
     """What he has been asking for, most-asked first."""
     rows = _fresh(_load(), days=days)
@@ -123,10 +153,17 @@ def ranked(*, days: int = WINDOW_DAYS, limit: int = 12) -> list[dict]:
         held = by_id.setdefault(cid, {"capability": cid, "times": 0,
                                       "first": row["at"], "last": row["at"],
                                       "status": row.get("status", ""),
-                                      "in_his_words": []})
+                                      "reasons": {}, "in_his_words": []})
         held["times"] += 1
         held["last"] = max(held["last"], row["at"])
         held["first"] = min(held["first"], row["at"])
+        # WHY, not just how often. "web.task, eleven times" is a number;
+        # "seven wanted a sign-in and four ran out of steps" is two
+        # different things to build, and only one of them is a budget.
+        reason = row.get("status") or ""
+        if reason:
+            held.setdefault("reasons", {})
+            held["reasons"][reason] = held["reasons"].get(reason, 0) + 1
         if row.get("asked") and row["asked"] not in held["in_his_words"]:
             held["in_his_words"] = (held["in_his_words"] + [row["asked"]])[-3:]
     out = sorted(by_id.values(), key=lambda h: (h["times"], h["last"]),
@@ -147,8 +184,32 @@ def spoken() -> str:
     rest = len(top) - 1
     return (f"The thing you keep asking for and I cannot do is "
             f"{lead['capability']} — {lead['times']} times"
+            + (f" ({why(lead)})" if why(lead) else "")
             + (f", and {rest} other{'s' if rest != 1 else ''} like it." if rest
                else "."))
+
+
+# What a stop MEANS, for a person rather than a state machine. The ledger
+# is read to decide what to build, and "NEEDS_SIGN_IN x7" is a decision
+# ("she needs a way through login walls") that "web.task x11" is not.
+IN_ENGLISH = {
+    "NEEDS_SIGN_IN": "wanted a sign-in",
+    "NEEDS_YOUR_EYES": "hit a human check",
+    "OUT_OF_STEPS": "ran out of steps",
+    "NEEDS_YOU": "needed an answer from you",
+    "REFUSED": "was refused",
+    "GAP": "had no verb for it",
+}
+
+
+def why(row: dict) -> str:
+    """"7 wanted a sign-in, 4 ran out of steps" — most common first."""
+    counts = row.get("reasons") or {}
+    if not counts:
+        return ""
+    parts = [f"{n} {IN_ENGLISH.get(k, k.lower())}"
+             for k, n in sorted(counts.items(), key=lambda kv: -kv[1])]
+    return ", ".join(parts[:3])
 
 
 def main(argv: list[str] | None = None) -> int:

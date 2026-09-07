@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "note": "Company boards she can search AND apply to. Greenhouse and Lever publish their jobs as public JSON and host the real application form at a public URL with no login. Add a company by adding one line: find its board token in the careers-page URL (boards.greenhouse.io/<token> or jobs.lever.co/<token>).",
+  "note": "Company boards she can search AND apply to. Greenhouse and Lever publish their jobs as public JSON and host the real application form at a public URL with no login. Add a company by adding one line: find its board token in the careers-page URL (boards.greenhouse.io/<token> or jobs.lever.co/<token>). Every token here answered its provider's live API when it was added; `python -m aletheia.jobs --check` re-proves that and names any board that has since gone.",
   "boards": [
     {
       "provider": "greenhouse",
@@ -108,19 +108,79 @@
       "company": "Palantir"
     },
     {
-      "provider": "lever",
-      "token": "attentive",
-      "company": "Attentive"
+      "provider": "greenhouse",
+      "token": "anthropic",
+      "company": "Anthropic"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "datadog",
+      "company": "Datadog"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "mongodb",
+      "company": "MongoDB"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "elastic",
+      "company": "Elastic"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "pinterest",
+      "company": "Pinterest"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "twilio",
+      "company": "Twilio"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "gusto",
+      "company": "Gusto"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "duolingo",
+      "company": "Duolingo"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "carta",
+      "company": "Carta"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "discord",
+      "company": "Discord"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "dropbox",
+      "company": "Dropbox"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "udemy",
+      "company": "Udemy"
     },
     {
       "provider": "lever",
-      "token": "fireblocks",
-      "company": "Fireblocks"
+      "token": "gopuff",
+      "company": "Gopuff"
     },
     {
       "provider": "lever",
-      "token": "brave",
-      "company": "Brave"
+      "token": "shieldai",
+      "company": "Shield AI"
+    },
+    {
+      "provider": "lever",
+      "token": "ro",
+      "company": "Ro"
     }
   ]
 }

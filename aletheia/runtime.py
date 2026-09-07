@@ -18,7 +18,8 @@ from pathlib import Path
 
 from aletheia import (act, attention, communications, desktop_notify, events, gaps,
                       handler, intercom, mail, notifications, policy, proactive,
-                      scheduler, tasks, verification)
+                      reservations, scheduler, subscriptions, tasks,
+                      verification)
 from aletheia.pulse import PULSE_DIR
 from aletheia.stateio import private_dir, read_json, write_json_atomic
 
@@ -469,6 +470,94 @@ def send_approved_applications() -> list[dict]:
     return sent
 
 
+def press_approved_web_tasks() -> list[dict]:
+    """Press what he confirmed on a web task, once each.
+
+    Without this the whole capability ended in a question nobody could
+    answer: she drives the site, stops at Submit, says "confirm it and I
+    will press it", he taps Approve on his phone — and nothing pressed it,
+    ever, because `webtask.commit` only existed on the command line. The
+    same shape as `send_approved_applications`, and the same rule: a
+    failure is surfaced and never retried, because the failure mode of a
+    retry loop on this particular button is several copies of whatever he
+    was doing.
+    """
+    from aletheia import webtask
+    pressed = []
+    for record in webtask.all_runs(webtask.COMMIT):
+        try:
+            approval = policy.load(record["approval"])
+        except Exception:
+            continue
+        if approval.get("state") != "APPROVED":
+            continue
+        try:
+            done = webtask.commit(record["id"])
+        except Exception as exc:
+            notifications.publish(
+                "I could not press it",
+                f"{record.get('button', '')} on {record.get('url', '')} — "
+                f"{type(exc).__name__}: {exc}"[:400],
+                priority="IMPORTANT", source="webtask",
+                dedupe_key=f"webtask-failed:{record['id']}")
+            continue
+        result = done.get("result", {})
+        verdict = str(result.get("verdict") or "submitted, unconfirmed")
+        # WHAT THE SITE SAID, in the title. "Pressed 'Submit application'"
+        # read as success on a run the site had refused outright.
+        title = {"confirmed": "Done",
+                 "rejected": "It would not go through"}.get(verdict, "Pressed it")
+        notifications.publish(
+            f"{title}: {record.get('button', 'it')}",
+            (f"{record.get('goal', '')[:120]} — {result.get('note', '')} "
+             f"{result.get('evidence', '')[:160]}").strip(),
+            priority="IMPORTANT", source="webtask",
+            dedupe_key=f"webtask-pressed:{record['id']}",
+            related={"web_task": record["id"]})
+        pressed.append({"web_task": record["id"], "button": record.get("button"),
+                        "verdict": verdict,
+                        "url": result.get("url", record.get("url"))})
+    return pressed
+
+
+def run_approved_scripts() -> list[dict]:
+    """Run the file-deleting programs he confirmed, once each.
+
+    Same shape as everything else that waits on him: he taps Approve on
+    his phone and the next beat does it. A failure is surfaced and never
+    retried — a delete that half-happened is not a thing to attempt twice
+    on its own initiative.
+    """
+    from aletheia import script
+    done = []
+    for approval in policy.all_approvals():
+        if approval.get("state") != "APPROVED":
+            continue
+        if not str(approval.get("requested_action", "")).startswith(
+                "script.destructive:"):
+            continue
+        try:
+            result = script.confirmed(approval["id"])
+        except script.ScriptRefused:
+            continue                     # already run, or its source is gone
+        except Exception as exc:
+            notifications.publish(
+                "That program would not run",
+                f"{approval.get('reason', '')[:160]} — "
+                f"{type(exc).__name__}: {exc}"[:400],
+                priority="IMPORTANT", source="script",
+                dedupe_key=f"script-failed:{approval['id']}")
+            continue
+        notifications.publish(
+            "Done", f"{approval.get('reason', '')[:160]} — "
+                    f"{result.get('output', '')[:200]}",
+            priority="IMPORTANT", source="script",
+            dedupe_key=f"script-ran:{approval['id']}")
+        done.append({"approval": approval["id"],
+                     "program": result.get("program", "")})
+    return done
+
+
 def tick(fleet: dict, *, now: dt.datetime | None = None,
          registry: dict | None = None, request=None,
          budget_s: float = TICK_BUDGET_S) -> dict:
@@ -560,6 +649,19 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # build and no second thing to remember. Nothing is sent that is not
     # APPROVED, and each is sent exactly once.
     applications_sent = guarded("applications", send_approved_applications)
+    web_tasks_pressed = guarded("web_tasks", press_approved_web_tasks)
+    # A subscription is CANCELLED when the merchant says so, not when we
+    # pressed a button — and believing otherwise costs him a charge a
+    # month for as long as he believes it.
+    # A question nobody answered in a week, and a yes to something
+    # irreversible that has sat unpressed for a day, both stop counting.
+    approvals_expired = guarded(
+        "approvals", lambda: [a["id"] for a in policy.expire_stale()])
+    scripts_run = guarded("scripts", run_approved_scripts)
+    bookings_settled = guarded(
+        "reservations", lambda: [r["id"] for r in reservations.reconcile()])
+    subscriptions_settled = guarded(
+        "subscriptions", lambda: [s["id"] for s in subscriptions.reconcile()])
     delivered = guarded("desktop", desktop_notify.deliver_pending)
     return {
         "failures": failures,
@@ -572,6 +674,11 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
         "events_processed": events_processed,
         "capability_gaps": capability_gaps,
         "approved_intents": approved_intents,
+        "web_tasks_pressed": web_tasks_pressed,
+        "subscriptions_settled": subscriptions_settled,
+        "bookings_settled": bookings_settled,
+        "scripts_run": scripts_run,
+        "approvals_expired": approvals_expired,
         "authorized_errands": authorized_errands,
         "room_devices": room_devices,
         "meetings": meetings_progress,

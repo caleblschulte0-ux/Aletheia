@@ -35,6 +35,8 @@ import argparse
 import hashlib
 import json
 import os
+import re
+import time
 import shutil
 import subprocess
 import sys
@@ -94,7 +96,13 @@ def _browser_executable() -> str | None:
 
 
 def available() -> tuple[bool, str]:
-    """(usable, reason) — the honest answer to 'can you drive a browser'."""
+    """(installed, reason) — is there a browser here to drive at all.
+
+    INSTALLED, not WORKING. It proves an import and a file on disk and
+    nothing else, which is the right gate in front of every call in this
+    module — but it is not an answer to "will the browser reach a page",
+    and it was being read as one. See `reachable()`.
+    """
     try:
         from playwright.sync_api import sync_playwright  # noqa: F401
     except ImportError:
@@ -102,7 +110,100 @@ def available() -> tuple[bool, str]:
     exe = _browser_executable()
     if exe and not Path(exe).exists():
         return False, f"browser executable not found at {exe}"
-    return True, "ready"
+    return True, "installed"
+
+
+# Where "can you actually load a page" is proved. Small, stable, and
+# nobody's product: the answer must be about HIS network, not about
+# whether some company is having an outage.
+PROOF_URL = "https://example.com"
+PROOF_TIMEOUT_MS = 20_000
+_REACHABLE_CACHE: dict[str, object] = {}
+REACHABLE_TTL_S = 300.0
+
+
+def reachable(url: str = PROOF_URL, *, fresh: bool = False) -> tuple[bool, str]:
+    """(works, reason) — can this browser really load a live page.
+
+    `available()` returns "installed" from an import and a path, and that
+    is genuinely all it knows. In a sandbox whose proxy drops browser
+    tunnels, Chromium launches perfectly and every single `goto` dies with
+    ERR_CONNECTION_RESET — so the setup audit, whose whole promise is
+    "checked live rather than assumed", was reporting a browser that
+    cannot reach the internet as ready. That is §106 exactly: never fake a
+    capability. The audit tells him what is ready, and a wrong answer
+    there is the difference between "she'll work" and finding out on the
+    first thing he asks for.
+
+    Cached for five minutes, because it costs a real browser launch, and
+    never raises: the reason string is the finding.
+    """
+    now = time.monotonic()
+    hit = _REACHABLE_CACHE.get(url)
+    if not fresh and isinstance(hit, tuple) and now - hit[0] < REACHABLE_TTL_S:
+        return hit[1], hit[2]
+    ok, why = available()
+    if not ok:
+        return False, why
+    try:
+        with _Session() as ctx:
+            page = ctx.new_page()
+            page.goto(url, timeout=PROOF_TIMEOUT_MS, wait_until="domcontentloaded")
+            title = (page.title() or "").strip()
+            page.close()
+        result = (True, f"loaded {url} — {title[:60]}" if title else f"loaded {url}")
+    except Exception as exc:
+        # The message carries the actual network error (ERR_CONNECTION_RESET,
+        # ERR_PROXY_CONNECTION_FAILED, a timeout) because those have
+        # different fixes and a class name has none — but in ENGLISH first,
+        # with the code in brackets after it. This string is read out loud
+        # (research quotes it when it refuses a question), and it used to
+        # arrive as "Page.goto: net::ERR_CONNECTION_RESET at
+        # https://example.com/ Call log: - navigating to ..., waiting until"
+        # — a stack trace in a room.
+        result = (False, f"the browser launched but could not load {url} — "
+                         f"{_network_reason(exc)}")
+    _REACHABLE_CACHE[url] = (now, result[0], result[1])
+    return result
+
+
+NET_CODE = re.compile(r"\b(net::ERR_[A-Z_]+)\b")
+NET_ENGLISH = {
+    "net::ERR_CONNECTION_RESET": "the connection was reset",
+    "net::ERR_CONNECTION_REFUSED": "the connection was refused",
+    "net::ERR_CONNECTION_TIMED_OUT": "the connection timed out",
+    "net::ERR_CONNECTION_CLOSED": "the connection closed",
+    "net::ERR_PROXY_CONNECTION_FAILED": "the proxy refused the connection",
+    "net::ERR_TUNNEL_CONNECTION_FAILED": "the proxy would not open a tunnel",
+    "net::ERR_NAME_NOT_RESOLVED": "the address did not resolve",
+    "net::ERR_INTERNET_DISCONNECTED": "there is no internet connection",
+    "net::ERR_CERT_AUTHORITY_INVALID": "the certificate was not trusted",
+    "net::ERR_ABORTED": "the page load was aborted",
+}
+
+
+def _network_reason(exc: BaseException) -> str:
+    """Why a page would not load, in English, with the code after it."""
+    text = " ".join(str(exc).split())
+    # Playwright appends its own trace: "Call log: - navigating to ...".
+    text = re.split(r"\s*Call log:", text)[0].strip()
+    found = NET_CODE.search(text)
+    if found:
+        code = found.group(1)
+        return f"{NET_ENGLISH.get(code, 'the browser refused the page')} ({code})"
+    if "Timeout" in text or "timeout" in text:
+        return "it timed out"
+    return text[:120] or "no reason given"
+
+
+def say_reason(why: str) -> str:
+    """A reachability reason with the machine code taken out, for speech.
+
+    The code is the useful half on a screen and gibberish in a room, so it
+    is written once, in brackets, and removed here rather than being
+    absent from the audit that needs it.
+    """
+    return " ".join(NET_CODE.sub("", str(why or "")).replace("()", "").split())
 
 
 def _closed_browser_error(exc: BaseException) -> bool:
@@ -140,6 +241,26 @@ def native_login(url: str, profile: Path | None = None) -> int:
     return subprocess.run(cmd, check=False).returncode
 
 
+def _proxy_from_environment() -> dict | None:
+    """Honour HTTPS_PROXY / HTTP_PROXY / NO_PROXY like every other client.
+
+    Chromium does not read them on its own, so on a network that requires
+    a proxy — a corporate one, a managed runner — every page came back
+    ERR_CONNECTION_RESET while `curl` on the same machine was fine. This
+    only routes the traffic; it changes nothing about certificate
+    verification, which stays exactly as strict as it was.
+    """
+    server = (os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
+              or os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy"))
+    if not server:
+        return None
+    proxy = {"server": server.strip()}
+    bypass = (os.environ.get("NO_PROXY") or os.environ.get("no_proxy") or "").strip()
+    if bypass:
+        proxy["bypass"] = bypass
+    return proxy
+
+
 class _Session:
     """A persistent-profile Playwright context. Context manager."""
 
@@ -154,6 +275,9 @@ class _Session:
         self.profile.mkdir(parents=True, exist_ok=True)
         self._pw = sync_playwright().start()
         kwargs = {"headless": not self.headed}
+        proxy = _proxy_from_environment()
+        if proxy:
+            kwargs["proxy"] = proxy
         exe = _browser_executable()
         if exe:
             kwargs["executable_path"] = exe
@@ -222,6 +346,91 @@ def screenshot(url: str, out_path: str | Path, full_page: bool = True,
         page.close()
     journal.append("action", "browser:screenshot", f"captured {url} -> {out.name}")
     return out
+
+
+# What a page says AFTER she pressed the button. One list, because two
+# copies of "did that work?" drift, and the honest answer matters more
+# here than anywhere else in the system.
+CONFIRMED_WORDS = ("thank you", "application received", "we have received",
+                   "successfully submitted", "your application has been",
+                   "thanks for applying", "we've received", "submission received",
+                   "your submission", "all set", "you're all set",
+                   "successfully", "confirmation number", "we have your")
+
+# A site that REFUSED usually says so in the plainest possible words, and
+# hands the form straight back. She pressed Submit on a form whose phone
+# number the site did not like, got "there was a problem with your
+# application" back, and reported it as done — the exact thing §30
+# forbids: never report "command executed" as "goal achieved".
+REJECTED_WORDS = ("there was a problem", "there were problems", "went wrong",
+                  "please correct", "please fix", "could not be", "unable to",
+                  "was not submitted", "failed to", "is invalid", "we could not",
+                  "are invalid", "not valid", "must be", "is required",
+                  "are required", "required field", "try again",
+                  "error", "errors below", "check the following")
+
+# THE PAST TENSE OF THE BUTTON HE PRESSED. A cancellation does not confirm
+# itself with "thank you for applying": it says "your membership has been
+# cancelled", and the first version could not believe that sentence, so a
+# subscription that really was cancelled stayed marked CANCEL_REQUESTED
+# with a note saying the merchant had not confirmed. What confirms an
+# action is the action, in the past.
+DID_IT = {
+    "cancel": ("cancelled", "canceled", "no longer active", "will not renew",
+               "won't renew", "has ended"),
+    "unsubscribe": ("unsubscribed", "you have been removed", "opted out"),
+    "close": ("closed",), "deactivate": ("deactivated",),
+    "terminate": ("terminated",), "withdraw": ("withdrawn",),
+    "submit": ("submitted",), "send": ("sent",), "post": ("posted",),
+    "publish": ("published",), "delete": ("deleted",), "remove": ("removed",),
+    "book": ("booked", "is confirmed", "booking confirmed"),
+    "reserve": ("reserved", "is confirmed", "reservation confirmed"),
+    "rsvp": ("rsvp'd", "you're going", "see you there"),
+    "order": ("ordered", "on its way"), "confirm": ("confirmed",),
+    "accept": ("accepted",), "transfer": ("transferred",), "share": ("shared",),
+}
+
+
+def read_outcome(body: str, *, did: str = "",
+                 form_still_there: bool = False) -> dict:
+    """CONFIRMED, REJECTED or UNCONFIRMED — never just "pressed".
+
+    A press is an action; whether it worked is a different question, and
+    the only honest source for it is what the page says next. `did` is
+    the label of the button that was pressed, because what confirms an
+    action is that action in the past tense, and every kind of action
+    says it differently.
+
+    Order matters. An unambiguous page-level thank-you wins outright — a
+    confirmation page with the word "error" in a footer is still a
+    confirmation. But the past-tense signal is weaker and yields to a
+    refusal, so "your cancellation could not be completed" does not read
+    as a cancellation just because it contains the word.
+    """
+    text = (body or "").casefold()
+    if any(word in text for word in CONFIRMED_WORDS):
+        return {"verdict": "confirmed",
+                "note": "The page said it went through."}
+    hit = next((word for word in REJECTED_WORDS if word in text), "")
+    if hit:
+        return {"verdict": "rejected",
+                "note": ("The site handed it back rather than accepting it — "
+                         f"it says {hit!r}. Nothing was accepted; read what it "
+                         "wants and I will fix it and try again.")}
+    verb = (did or "").casefold()
+    for word, saids in DID_IT.items():
+        if word in verb and any(said in text for said in saids):
+            return {"verdict": "confirmed",
+                    "note": f"The page says it is {saids[0]}."}
+    if form_still_there:
+        return {"verdict": "rejected",
+                "note": ("The form is still on screen after the press, which "
+                         "is what a site does when it refuses. Nothing was "
+                         "accepted.")}
+    return {"verdict": "submitted, unconfirmed",
+            "note": ("The button was pressed and the page did not say it was "
+                     "received. Check the screenshot — it may be a further "
+                     "step, or it may have failed.")}
 
 
 def validate_steps(steps: list[dict]) -> list[str]:

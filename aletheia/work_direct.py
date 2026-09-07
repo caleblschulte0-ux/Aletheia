@@ -15,7 +15,7 @@ import hashlib
 import json
 import re
 
-from aletheia import work_session
+from aletheia import speech, work_session
 
 PREFIX = "ALETHEIA_CHATGPT_WORK_V1:"
 MAX_ENVELOPE_CHARS = 7_000
@@ -265,7 +265,7 @@ def execute(text: str, *, quote: str) -> dict:
                 )
                 detail = (
                     f"computer run {result.get('run_id', '?')} completed "
-                    f"{result.get('steps_done', 0)} step(s)"
+                    f"{speech.count_phrase(result.get('steps_done', 0), 'step')}"
                 )
             elif action["type"] == "browser":
                 result = work_session.run_browser(
@@ -273,7 +273,7 @@ def execute(text: str, *, quote: str) -> dict:
                 )
                 detail = (
                     f"browser reached {result.get('url', action['url'])} after "
-                    f"{len(result.get('steps_done', []))} step(s)"
+                    f"{speech.count_phrase(len(result.get('steps_done', [])), 'step')}"
                 )
             else:
                 from aletheia import sealed_observe
@@ -313,7 +313,7 @@ def execute(text: str, *, quote: str) -> dict:
         "receipts": receipts,
         "spoken": (
             f"{plan['summary']}. Completed {done} of "
-            f"{len(plan['actions'])} work action(s)."
+            f"{speech.count_phrase(len(plan['actions']), 'work action')}."
             + (
                 f" {receipts[-1]['detail']}"
                 if receipts and receipts[-1]["outcome"] == "failed"

@@ -244,8 +244,11 @@ class GatewayRoutingCase(unittest.TestCase):
              mock.patch.object(reasoner, "subscription_json",
                                side_effect=reasoner.ReasonerUnavailable("down")), \
              mock.patch.object(local_model_pool, "auto_json") as local:
+            # The RULE: it says local reasoning was off rather than
+            # quietly using it. The wording is a sentence now, because
+            # this string is spoken verbatim through "I couldn't: ...".
             with self.assertRaisesRegex(reasoner.ReasonerUnavailable,
-                                        "local reasoning disabled"):
+                                        "local reasoning is switched off"):
                 reasoning_gateway.reason_json("sys", "normal", policy="standard")
         local.assert_not_called()
 

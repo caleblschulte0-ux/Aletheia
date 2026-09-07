@@ -115,7 +115,8 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
             except local_model_pool.LocalPoolUnavailable as exc:
                 local_exc = exc
         if remaining() <= 0.5:
-            raise reasoner.ReasonerUnavailable("routine reasoning time budget expired")
+            raise reasoner.ReasonerUnavailable(
+                "I ran out of thinking time before an answer came back")
         try:
             output = reasoner.subscription_json(
                 system_prompt, text, context=ctx, model=model,
@@ -127,9 +128,11 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
                           if local_exc else None),
             )
         except reasoner.ReasonerUnavailable:
-            suffix = "local routine path unavailable" if local_enabled else "local reasoning disabled"
+            suffix = ("and the local model could not either" if local_enabled
+                      else "and local reasoning is switched off")
             raise reasoner.ReasonerUnavailable(
-                f"both subscription reasoning paths are unavailable; {suffix}"
+                f"neither Claude nor the ChatGPT browser could answer just "
+                f"now, {suffix}"
             ) from None
 
     if policy == "critical":
@@ -155,12 +158,12 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
     except reasoner.ReasonerUnavailable as cloud_exc:
         if not local_enabled:
             raise reasoner.ReasonerUnavailable(
-                "both subscription reasoning paths are unavailable; local reasoning "
-                f"disabled (subscription: {cloud_exc})"
+                "neither Claude nor the ChatGPT browser could answer just now, "
+                f"and local reasoning is switched off ({cloud_exc})"
             ) from None
         if remaining() <= 0.5:
             raise reasoner.ReasonerUnavailable(
-                "subscription reasoning exhausted the standard time budget"
+                "I ran out of thinking time before an answer came back"
             ) from None
         try:
             local = local_model_pool.auto_json(

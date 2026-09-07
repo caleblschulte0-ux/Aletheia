@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 from aletheia import access
-from aletheia import core, followups, journal, memory, notifications, plans, policy, tasks
+from aletheia import core, followups, journal, memory, notifications, plans, policy, speech, tasks
 
 
 class CoreCase(unittest.TestCase):
@@ -121,7 +121,11 @@ class CoreCase(unittest.TestCase):
                 return_value={"outcome": "done", "detail": "Eventual answer."}):
             first = self._post({"text": "take your time"}, path="/api/ask")
             self.assertEqual(first["outcome"], "thinking")
-            self.assertEqual(first["say"], "Working on that.")
+            # Against the CONTRACT, not a frozen literal: the line is
+            # `speech.ack_line`, so a question gets "Let me look." and an
+            # instruction gets "Working on it.". "Take your time" is an
+            # instruction.
+            self.assertEqual(first["say"], speech.ACK_ACTION)
             deadline = time.monotonic() + 3
             while time.monotonic() < deadline:
                 result = self._get(

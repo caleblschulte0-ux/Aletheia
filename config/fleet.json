@@ -164,33 +164,38 @@
           "file": "signals/performance.json",
           "probe": "field",
           "path": "total_realized",
-          "unit": "usd"
+          "unit": "usd",
+          "private": true
         },
         {
           "label": "win rate",
           "file": "signals/performance.json",
           "probe": "field",
           "path": "win_rate",
-          "unit": "%"
+          "unit": "%",
+          "private": true
         },
         {
           "label": "closed trades",
           "file": "signals/performance.json",
           "probe": "field",
-          "path": "n"
+          "path": "n",
+          "private": true
         },
         {
           "label": "open positions",
           "file": "signals/paper_account.json",
           "probe": "count",
-          "path": "positions"
+          "path": "positions",
+          "private": true
         },
         {
           "label": "cash",
           "file": "signals/paper_account.json",
           "probe": "field",
           "path": "cash",
-          "unit": "usd"
+          "unit": "usd",
+          "private": true
         }
       ],
       "front_door": {

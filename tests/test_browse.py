@@ -92,9 +92,12 @@ class BrowseCase(unittest.TestCase):
 
 @needs_browser
 class TestAvailability(BrowseCase):
-    def test_reports_ready(self):
+    def test_reports_installed(self):
+        """INSTALLED, not ready — `available()` proves an import and a file
+        on disk. Whether the browser can reach anything is `reachable()`."""
         ok, reason = browse.available()
         self.assertTrue(ok, reason)
+        self.assertEqual(reason, "installed")
 
     def test_degrades_honestly_without_playwright(self):
         import builtins
@@ -205,6 +208,218 @@ class TestInteract(BrowseCase):
         with self.assertRaises(policy.Halted):
             browse.interact(self.url, [{"action": "click", "selector": "#go"}],
                             approval_id=aid, profile=self.profile)
+
+
+class ANetworkThatWantsAProxy(unittest.TestCase):
+    """Chromium does not read HTTPS_PROXY on its own.
+
+    On a network that requires one — a corporate network, a managed
+    runner — every page came back ERR_CONNECTION_RESET while `curl` on
+    the same machine was fine, and nothing said why. This only routes the
+    traffic: certificate verification stays exactly as strict, because
+    the answer to a proxy is never to stop checking who you are talking
+    to.
+    """
+
+    def test_no_proxy_configured_means_no_proxy_argument(self):
+        with mock.patch.dict("os.environ", {}, clear=True):
+            self.assertIsNone(browse._proxy_from_environment())
+
+    def test_the_standard_variables_are_honoured(self):
+        for name in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"):
+            with self.subTest(name=name):
+                with mock.patch.dict("os.environ", {name: "http://127.0.0.1:8080"},
+                                     clear=True):
+                    self.assertEqual(browse._proxy_from_environment(),
+                                     {"server": "http://127.0.0.1:8080"})
+
+    def test_https_wins_over_http_and_bypass_is_carried(self):
+        with mock.patch.dict("os.environ",
+                             {"HTTP_PROXY": "http://wrong:1",
+                              "HTTPS_PROXY": "http://right:2",
+                              "NO_PROXY": "localhost,127.0.0.1"}, clear=True):
+            self.assertEqual(browse._proxy_from_environment(),
+                             {"server": "http://right:2",
+                              "bypass": "localhost,127.0.0.1"})
+
+    def test_it_never_touches_certificate_verification(self):
+        source = (Path(browse.__file__)).read_text(encoding="utf-8")
+        for weakening in ("ignore_https_errors", "--ignore-certificate-errors",
+                          "ignoreHTTPSErrors"):
+            self.assertNotIn(weakening, source,
+                             "a proxy is never a reason to stop checking certificates")
+
+
+class DidThatActuallyWork(unittest.TestCase):
+    """A press is an action; whether the site accepted it is a different
+    question, and the only honest source is what the page says next.
+
+    She pressed Submit on a form whose phone number the site did not
+    like, got "There was a problem with your application" back, and
+    reported it as done — "command executed" as "goal achieved", which is
+    the one thing the playbook names outright (§30)."""
+
+    def test_a_thank_you_is_a_confirmation(self):
+        self.assertEqual(
+            browse.read_outcome("Thank you. Your application has been received."
+                                )["verdict"], "confirmed")
+
+    def test_the_PAST_TENSE_of_the_button_he_pressed_is_a_confirmation(self):
+        """A cancellation does not confirm itself with "thank you for
+        applying". It says "your membership has been cancelled", and the
+        first version could not believe that sentence — so a subscription
+        that really was cancelled stayed marked CANCEL_REQUESTED with a
+        note saying the merchant had not confirmed."""
+        for body, did in (("Your membership has been cancelled.",
+                           "Cancel my membership"),
+                          ("You have been unsubscribed.", "Unsubscribe"),
+                          ("Your booking is confirmed.", "Book appointment"),
+                          ("Your account is closed.", "Close my account")):
+            with self.subTest(did=did):
+                self.assertEqual(browse.read_outcome(body, did=did)["verdict"],
+                                 "confirmed", body)
+
+    def test_that_signal_YIELDS_to_a_refusal(self):
+        """"Your cancellation could not be completed" contains the word
+        and is the opposite of a cancellation."""
+        self.assertEqual(
+            browse.read_outcome("Your cancellation could not be completed.",
+                                did="Cancel my membership")["verdict"],
+            "rejected")
+
+    def test_the_wrong_past_tense_proves_nothing(self):
+        self.assertEqual(
+            browse.read_outcome("Your booking is confirmed.",
+                                did="Submit application")["verdict"],
+            "submitted, unconfirmed")
+
+    def test_a_form_handed_back_is_a_REFUSAL_not_silence(self):
+        out = browse.read_outcome(
+            "There was a problem with your application.\n"
+            "Phone number must be 10 digits with no punctuation.")
+        self.assertEqual(out["verdict"], "rejected")
+        self.assertIn("Nothing was accepted", out["note"])
+
+    def test_the_form_still_being_there_is_a_refusal_on_its_own(self):
+        """Some sites say nothing at all and simply do not move."""
+        self.assertEqual(
+            browse.read_outcome("Apply now", form_still_there=True)["verdict"],
+            "rejected")
+
+    def test_a_page_that_says_neither_is_UNCONFIRMED_never_done(self):
+        out = browse.read_outcome("Step 2 of 3")
+        self.assertEqual(out["verdict"], "submitted, unconfirmed")
+        self.assertIn("did not say it was received", out["note"])
+
+    def test_a_confirmation_wins_over_a_stray_refusal_word(self):
+        """A thank-you page with the word "error" in its footer is still a
+        thank-you page."""
+        self.assertEqual(
+            browse.read_outcome("Thanks for applying. Report an error here."
+                                )["verdict"], "confirmed")
+
+    def test_both_engines_read_it_from_HERE(self):
+        """Two copies of "did that work?" drift, and this is the answer
+        that matters most in the system."""
+        from aletheia import apply_run, webtask
+        self.assertIs(apply_run.CONFIRMED_WORDS, browse.CONFIRMED_WORDS)
+        for module in (apply_run, webtask):
+            source = Path(module.__file__).read_text(encoding="utf-8")
+            self.assertIn("read_outcome", source)
+            self.assertNotIn("CONFIRMED_WORDS = (", source)
+
+
+
+
+class InstalledIsNotWorkingCase(unittest.TestCase):
+    """`available()` proves an import and a file on disk. That is not an
+    answer to "can the browser reach a page", and it was being read as one.
+
+    Found live 2026-09-06: in a sandbox whose proxy drops browser tunnels,
+    Chromium launches perfectly and every `goto` dies with
+    ERR_CONNECTION_RESET — while `setup.audit`, whose whole promise is
+    "checked live rather than assumed", reported the browser as ready.
+    Everything downstream would then have failed on the first real ask
+    with the audit still saying it was fine.
+    """
+
+    def setUp(self):
+        browse._REACHABLE_CACHE.clear()
+        self.addCleanup(browse._REACHABLE_CACHE.clear)
+
+    def session(self, goto):
+        """A stand-in browser whose `goto` does whatever the test wants."""
+        page = mock.MagicMock()
+        page.goto.side_effect = goto
+        page.title.return_value = "Example Domain"
+        ctx = mock.MagicMock()
+        ctx.new_page.return_value = page
+        ctx.__enter__ = lambda self_: ctx
+        ctx.__exit__ = lambda self_, *a: False
+        return mock.patch.object(browse, "_Session", lambda *a, **k: ctx)
+
+    def test_available_no_longer_claims_readiness_it_cannot_know(self):
+        ok, why = browse.available()
+        if ok:
+            self.assertEqual(why, "installed")
+            self.assertNotIn("ready", why)
+
+    def test_a_browser_that_cannot_load_a_page_is_reported_as_such(self):
+        with mock.patch.object(browse, "available", lambda: (True, "installed")), \
+             self.session(goto=RuntimeError(
+                 "Page.goto: net::ERR_CONNECTION_RESET at https://example.com/")):
+            ok, why = browse.reachable()
+        self.assertFalse(ok)
+        # The real network error, because ERR_CONNECTION_RESET, a proxy
+        # failure and a timeout have three different fixes and a class
+        # name has none.
+        self.assertIn("ERR_CONNECTION_RESET", why)
+
+    def test_a_working_browser_says_what_it_loaded(self):
+        with mock.patch.object(browse, "available", lambda: (True, "installed")), \
+             self.session(goto=None):
+            ok, why = browse.reachable()
+        self.assertTrue(ok)
+        self.assertIn("example.com", why)
+
+    def test_no_browser_at_all_is_not_dressed_up_as_a_network_problem(self):
+        with mock.patch.object(browse, "available",
+                               lambda: (False, "playwright is not installed")):
+            ok, why = browse.reachable()
+        self.assertFalse(ok)
+        self.assertIn("playwright", why)
+
+    def test_the_proof_is_cached_because_it_costs_a_browser_launch(self):
+        calls = []
+
+        def counted(*a, **k):
+            calls.append(1)
+            raise RuntimeError("boom")
+
+        with mock.patch.object(browse, "available", lambda: (True, "installed")), \
+             mock.patch.object(browse, "_Session", counted):
+            browse.reachable()
+            browse.reachable()
+        self.assertEqual(len(calls), 1)
+        with mock.patch.object(browse, "available", lambda: (True, "installed")), \
+             mock.patch.object(browse, "_Session", counted):
+            browse.reachable(fresh=True)
+        self.assertEqual(len(calls), 2, "fresh=True must re-prove it")
+
+    def test_the_setup_audit_asks_the_proving_question(self):
+        """The audit is what tells him what is ready. It must not be the
+        thing that says a dead browser is fine."""
+        from aletheia import setup
+        with mock.patch.object(browse, "reachable",
+                               lambda *a, **k: (False, "could not load")), \
+             mock.patch.object(browse, "available", lambda: (True, "installed")):
+            state, detail = setup._browser_pages()
+        self.assertNotEqual(state, setup.OK)
+        self.assertIn("could not load", detail)
+        with mock.patch.object(browse, "reachable",
+                               lambda *a, **k: (True, "loaded https://example.com")):
+            state, _detail = setup._browser_pages()
+        self.assertEqual(state, setup.OK)
 
 
 if __name__ == "__main__":

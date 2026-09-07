@@ -18,7 +18,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from aletheia import core, intercom, journal, notifications, scheduler
+from aletheia import core, intercom, journal, notifications, pulse, scheduler
 from aletheia.fleet import load_fleet
 from aletheia.sync import GitSync
 
@@ -78,6 +78,13 @@ class CoreSyncFixture(unittest.TestCase):
                        "push": None, "commands_executed": 0}
         for target, attr, value in (
                 (intercom, "COMMANDS_DIR", self.pc / "exchange" / "commands"),
+                # `core_tick` refreshes the wall every beat, and the default
+                # target is the REPO's committed state/pulse/latest.json.
+                # Running the suite rewrote it — a real file, with the real
+                # headline replaced by whatever a test happened to leave in
+                # the private notification store, showing up as an unrelated
+                # dirty file in `git status`. Found 2026-09-05.
+                (pulse, "PULSE_DIR", self.pc / "state" / "pulse"),
                 (journal, "JOURNAL_PATH", self.pc / "state" / "journal" / "journal.jsonl")):
             p = mock.patch.object(target, attr, value)
             p.start(); self.addCleanup(p.stop)
@@ -92,6 +99,16 @@ class CoreSyncFixture(unittest.TestCase):
             p.start(); self.addCleanup(p.stop)
         p = mock.patch.object(verification, "reconcile_durable_receipts", return_value=[])
         p.start(); self.addCleanup(p.stop)
+
+    def test_the_repos_own_pulse_file_is_never_written_by_the_suite(self):
+        """A beat refreshes the wall, and the default target is the file
+        that is checked in. Nothing in a test run may touch it."""
+        from aletheia.fleet import REPO_ROOT
+        real = REPO_ROOT / "state" / "pulse" / "latest.json"
+        before = real.read_bytes() if real.exists() else None
+        core.core_tick(self.syncer, self.fleet, self.status)
+        after = real.read_bytes() if real.exists() else None
+        self.assertEqual(before, after, "the suite rewrote the committed pulse")
 
     def relay_files_command(self, cid, kind, **args):
         path = self.relay / "exchange" / "commands" / f"{cid}.json"

@@ -1,0 +1,387 @@
+{
+  "generated_at": "2026-09-05T20:27:08Z",
+  "fleet_revision": 4,
+  "owner": "caleblschulte0-ux",
+  "source": "GitHubSource",
+  "repos": {
+    "aletheia": {
+      "github": "Aletheia",
+      "role": "hub",
+      "status": "active",
+      "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
+      "commits": [
+        {
+          "sha": "4bb144ec01a0",
+          "date": "2026-09-05T17:25:36Z",
+          "message": "The suite rewrote the committed pulse file"
+        },
+        {
+          "sha": "433ac47edba0",
+          "date": "2026-09-05T17:25:36Z",
+          "message": "Seven seconds of silence for a boolean on the same disk"
+        },
+        {
+          "sha": "2a1ede74fd3e",
+          "date": "2026-09-05T15:19:02Z",
+          "message": "pulse: 2026-09-05T15:19Z"
+        },
+        {
+          "sha": "5f0a70a0a8d2",
+          "date": "2026-09-05T13:38:05Z",
+          "message": "brief: 2026-09-05"
+        },
+        {
+          "sha": "75c6f29dd849",
+          "date": "2026-09-05T10:42:03Z",
+          "message": "pulse: 2026-09-05T10:42Z"
+        }
+      ],
+      "commit": {
+        "sha": "4bb144ec01a0",
+        "date": "2026-09-05T17:25:36Z",
+        "message": "The suite rewrote the committed pulse file"
+      },
+      "vitals": [],
+      "workflows": {
+        "pulse.yml": {
+          "status": "in_progress",
+          "conclusion": null,
+          "updated_at": "2026-09-05T20:27:07Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/33990139000"
+        },
+        "ci.yml": {
+          "status": "completed",
+          "conclusion": "failure",
+          "updated_at": "2026-09-05T17:29:30Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/33980930267"
+        }
+      },
+      "state_files": {
+        "state/pulse/latest.json": {
+          "exists": true,
+          "bytes": 12128
+        }
+      },
+      "health": "red"
+    },
+    "shorts_pipeline": {
+      "github": "Shorts-pipeline",
+      "role": "youtube-automation",
+      "status": "active",
+      "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
+      "commits": [
+        {
+          "sha": "573c2d04b5ff",
+          "date": "2026-09-05T19:29:06Z",
+          "message": "explainer: update posted log + analytics [skip ci]"
+        },
+        {
+          "sha": "16143059fb01",
+          "date": "2026-09-05T17:30:19Z",
+          "message": "explainer: update posted log + analytics [skip ci]"
+        },
+        {
+          "sha": "ba0ba2b55ebb",
+          "date": "2026-09-05T17:30:12Z",
+          "message": "explainer: posted organ-transplant-waitlist-gap [skip ci]"
+        },
+        {
+          "sha": "d43d82e1c7b2",
+          "date": "2026-09-05T17:19:38Z",
+          "message": "watchdog: chatgpt task verdicts 20260905 [skip ci]"
+        },
+        {
+          "sha": "452f6e3e1a08",
+          "date": "2026-09-05T16:49:36Z",
+          "message": "watchdog: chatgpt task verdicts 20260905 [skip ci]"
+        }
+      ],
+      "commit": {
+        "sha": "573c2d04b5ff",
+        "date": "2026-09-05T19:29:06Z",
+        "message": "explainer: update posted log + analytics [skip ci]"
+      },
+      "vitals": [
+        {
+          "label": "trending posted",
+          "value": 308
+        },
+        {
+          "label": "explainer posted",
+          "value": 233
+        },
+        {
+          "label": "third posted",
+          "value": 436
+        },
+        {
+          "label": "curiosity posted",
+          "value": 1
+        }
+      ],
+      "workflows": {
+        "daily.yml": {
+          "status": "completed",
+          "conclusion": "failure",
+          "updated_at": "2026-09-05T16:32:57Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33977258493"
+        },
+        "exchange_phase_a.yml": {
+          "status": "completed",
+          "conclusion": "success",
+          "updated_at": "2026-09-05T13:02:31Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33967700448"
+        },
+        "exchange_phase_b.yml": {
+          "status": "completed",
+          "conclusion": "success",
+          "updated_at": "2026-09-05T16:53:12Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33979228367"
+        },
+        "story_forge.yml": {
+          "status": "completed",
+          "conclusion": "success",
+          "updated_at": "2026-09-05T19:07:57Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33986079177"
+        },
+        "third.yml": {
+          "status": "completed",
+          "conclusion": "success",
+          "updated_at": "2026-09-05T15:06:38Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33970012321"
+        },
+        "explainer.yml": {
+          "status": "completed",
+          "conclusion": "success",
+          "updated_at": "2026-09-05T19:29:13Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33985808645"
+        },
+        "retro.yml": {
+          "status": "completed",
+          "conclusion": "success",
+          "updated_at": "2026-09-05T04:33:31Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33944871812"
+        },
+        "doctor.yml": {
+          "status": "completed",
+          "conclusion": "success",
+          "updated_at": "2026-09-05T09:00:24Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/33956781831"
+        }
+      },
+      "state_files": {
+        "state/posted_log.json": {
+          "exists": true,
+          "bytes": 94676
+        },
+        "state/explainer_posted_log.json": {
+          "exists": true,
+          "bytes": 58683
+        },
+        "state/third_posted_log.json": {
+          "exists": true,
+          "bytes": 233972
+        },
+        "state/curiosity_posted_log.json": {
+          "exists": true,
+          "bytes": 273
+        },
+        "state/showrunner_verdicts.jsonl": {
+          "exists": true,
+          "bytes": 517746
+        },
+        "config/channel_registry.json": {
+          "exists": true,
+          "bytes": 15208
+        }
+      },
+      "health": "red"
+    },
+    "schwab_trader": {
+      "github": "schwab-trader",
+      "role": "trading-bot",
+      "status": "active",
+      "summary": "Guardrailed paper-trading system. The SELL brain and executor watchdog are active; the subscription-backed BUY brain and trade executor are intentionally paused until the operator resumes them.",
+      "commits": [
+        {
+          "sha": "ca28b767144c",
+          "date": "2026-09-04T18:37:00Z",
+          "message": "sell-brain: update exit decisions [skip ci]"
+        },
+        {
+          "sha": "65fde06de2e7",
+          "date": "2026-09-04T15:36:40Z",
+          "message": "sell-brain: update exit decisions [skip ci]"
+        },
+        {
+          "sha": "62fba7a3642a",
+          "date": "2026-09-04T12:39:27Z",
+          "message": "sell-brain: update exit decisions [skip ci]"
+        },
+        {
+          "sha": "0630ca109475",
+          "date": "2026-09-03T18:37:39Z",
+          "message": "sell-brain: update exit decisions [skip ci]"
+        },
+        {
+          "sha": "6ed7c962f04a",
+          "date": "2026-09-03T15:36:56Z",
+          "message": "sell-brain: update exit decisions [skip ci]"
+        }
+      ],
+      "commit": {
+        "sha": "ca28b767144c",
+        "date": "2026-09-04T18:37:00Z",
+        "message": "sell-brain: update exit decisions [skip ci]"
+      },
+      "vitals": [],
+      "private_vitals": [
+        "realized P&L",
+        "win rate",
+        "closed trades",
+        "open positions",
+        "cash"
+      ],
+      "workflows": {
+        "sell-brain.yml": {
+          "status": "completed",
+          "conclusion": "success",
+          "updated_at": "2026-09-04T18:37:06Z",
+          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/33906675560"
+        },
+        "watchdog.yml": {
+          "status": "completed",
+          "conclusion": "success",
+          "updated_at": "2026-09-04T23:08:06Z",
+          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/33928310922"
+        }
+      },
+      "state_files": {
+        "signals/holdings.json": {
+          "exists": true,
+          "bytes": 1892
+        },
+        "signals/paper_account.json": {
+          "exists": true,
+          "bytes": 12504
+        },
+        "signals/performance.json": {
+          "exists": true,
+          "bytes": 504
+        },
+        "reports/track_record.md": {
+          "exists": true,
+          "bytes": 4429
+        }
+      },
+      "health": "green"
+    },
+    "money_machine": {
+      "github": "Money_Machine",
+      "role": "unbuilt",
+      "status": "stub",
+      "summary": "Empty stub \u2014 nothing but a README. No behaviour to observe yet.",
+      "commits": [
+        {
+          "sha": "53c6507f6afe",
+          "date": "2026-08-05T19:11:54Z",
+          "message": "Initial commit"
+        }
+      ],
+      "commit": {
+        "sha": "53c6507f6afe",
+        "date": "2026-08-05T19:11:54Z",
+        "message": "Initial commit"
+      },
+      "vitals": [],
+      "workflows": {},
+      "state_files": {},
+      "health": "dormant"
+    },
+    "etsy_maker": {
+      "github": "etsy_maker",
+      "role": "unbuilt",
+      "status": "stub",
+      "summary": "Empty stub \u2014 nothing but a README. No behaviour to observe yet.",
+      "error": "HTTPError: HTTP Error 404: Not Found",
+      "health": "dormant"
+    },
+    "fosstester": {
+      "github": "fosstester",
+      "role": "unbuilt",
+      "status": "stub",
+      "summary": "Empty stub \u2014 nothing but a README. No behaviour to observe yet.",
+      "commits": [
+        {
+          "sha": "41ea84afb060",
+          "date": "2026-06-03T15:08:19Z",
+          "message": "Initial commit"
+        }
+      ],
+      "commit": {
+        "sha": "41ea84afb060",
+        "date": "2026-06-03T15:08:19Z",
+        "message": "Initial commit"
+      },
+      "vitals": [],
+      "workflows": {},
+      "state_files": {},
+      "health": "dormant"
+    }
+  },
+  "transitions": [],
+  "alerts": [
+    {
+      "repo": "aletheia",
+      "github": "Aletheia",
+      "health": "red",
+      "failing": [
+        "ci.yml"
+      ]
+    },
+    {
+      "repo": "shorts_pipeline",
+      "github": "Shorts-pipeline",
+      "health": "red",
+      "failing": [
+        "daily.yml"
+      ]
+    }
+  ],
+  "plans": {
+    "open": 1,
+    "items": [
+      {
+        "slug": "light-up-the-wall",
+        "title": "Light up the wall",
+        "done": 3,
+        "total": 4
+      }
+    ]
+  },
+  "tasks": {
+    "live": 3,
+    "by_status": {
+      "COMPLETED": 13,
+      "QUEUED": 2,
+      "WAITING_OPERATOR": 1
+    },
+    "items": [
+      {
+        "id": "operator-setup",
+        "status": "WAITING_OPERATOR",
+        "description": "Operator: create the ChatGPT Project + scheduled task for the intercom relay (docs/SETUP.md step 4) \u2014 the last unfinished setup step; merge, FLEET_TOKEN, Pages and the running Core are all done"
+      },
+      {
+        "id": "shorts-daily-authoring-outage",
+        "status": "QUEUED",
+        "description": "Shorts-pipeline daily.yml + third.yml red since 2026-08-14: nobody authors the day's packages. run_trending_daily refuses with 'validated production manifest is incomplete: found 0/6 packages in state/trending_packages/<date>' \u2014 the fail-closed gate working correctly on an upstream authoring outage (the Routine and the ChatGPT takeover are both producing nothing). Zero-upload days have driven the failure counter to 2, its auto-pause threshold. Fix belongs in Shorts-pipeline, on its own branch."
+      },
+      {
+        "id": "light-up-the-wall-s4",
+        "status": "QUEUED",
+        "description": "Point a ChatGPT scheduled task at state/pulse/briefing.md with the exchange/README.md contract"
+      }
+    ]
+  }
+}

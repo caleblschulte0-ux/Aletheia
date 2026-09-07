@@ -51,12 +51,15 @@ import sys
 from dataclasses import dataclass, field, asdict
 
 from aletheia import (brain, capabilities, gaps, intercom, journal, localtime,
-                      policy, reasoner)
+                      policy, reasoner, speech)
 from aletheia.fleet import load_fleet
 
 ACTOR = "aletheia-planner"
 
 EXECUTABLE, GAP, MANUAL, REFUSED = "EXECUTABLE", "GAP", "MANUAL", "REFUSED"
+# Kinds whose whole job is to go and do something out in the world, and
+# which therefore could be pointed at a checkout page.
+SPENDING_KINDS = frozenset({"web_task", "errand", "subscription_cancel"})
 
 PROMPT_HEADER = """You are the planning half of Aletheia, a personal operating \
 system belonging to one operator. You translate what he said into a plan \
@@ -66,6 +69,12 @@ Output a single JSON object and nothing else. No prose, no code fence.
 
   {"intent": "plan", "summary": "<one short line>", "steps": [ ... ],
    "required_capabilities": ["<capability id>", ...], "confidence": 0.0-1.0}
+
+THE SUMMARY IS READ BACK TO HIM OUT LOUD, in the sentence "1 step ready —
+<summary>. Say approve to run it." So write it as the thing you are about
+to do FOR HIM: "Remind you at 8 tomorrow to call the bank", never "Remind
+operator at 8am" or "Remember that the operator's landlord is Mr Okafor".
+No identifiers, no third person, no note to yourself.
 
 Each step is exactly ONE of:
   {"kind": "<a kind below>", "<arg>": "<value>", ...}   a command to run
@@ -118,6 +127,17 @@ decide about the trader", "look at my resume and tell me what is weak",
     memory about a thing that changes daily is a guess wearing a fact's
     clothes.
   - A question that also asks for an action is a plan: do the action.
+
+IF A PERSON COULD DO IT WITH A BROWSER AND A MOUSE, IT IS `web_task` —
+NEVER A GAP. Renewing a registration, paying nothing but checking a
+balance, filling in a form, downloading a statement, unsubscribing,
+updating an address, booking a slot: all of these are one `web_task` step
+with his sentence as the goal. She drives a real browser, uses his own
+details and his own files, and stops at the first button that commits to
+ask him. Emitting `{"gap": ...}` for something a website does is the most
+common way this system says "I can't" about something it can do. If you
+do not know the exact URL, still use `web_task` and leave `url` out — she
+will find it. Only name a gap when no website could do it at all.
 
 Rules that matter more than being helpful:
   - NEVER invent a kind or an argument name. If what he wants has no kind, \
@@ -291,6 +311,20 @@ def _classify(step: dict, fleet: dict, registry: dict, n: int) -> PlannedStep:
             f"{command['kind']} is not a step a plan may take — it is reached "
             "by saying it directly, never by compiling a sentence into it",
             command=command)
+    # MONEY IS REFUSED AT PLAN TIME, not only when the browser opens.
+    # `webtask.walk` has always refused a spending goal — but only once
+    # the run started, so "buy the cheapest 4K monitor and use my saved
+    # card" came back as "1 step ready — Find and purchase the cheapest
+    # 4K monitor on Amazon using saved card. Say approve to run it." She
+    # offered it, took an approval for it, and refused it afterwards.
+    # That teaches him she will do it, and surprises him later. His one
+    # permanent rule deserves to be answered in the first sentence.
+    if command.get("kind") in SPENDING_KINDS:
+        from aletheia import webtask
+        errand = str(command.get("goal") or command.get("what") or "")
+        if webtask.would_spend(errand):
+            return PlannedStep(n, REFUSED, webtask.SPENDING_REFUSAL,
+                               command=command)
     problems = intercom.validate_kind_args(command, fleet)
     if problems:
         # A model that proposed a kind that does not exist has found a real
@@ -515,9 +549,24 @@ def execute(plan: Plan, fleet: dict | None = None, quote: str = "",
             after_step(step, receipt, tuple(receipts))
         if receipt["outcome"] != "done":
             break
-    journal.append("plan", "planner",
-                   f"executed {len(receipts)}/{len(plan.executable)} step(s) of "
-                   f"{plan.summary or plan.request!r}", actor=ACTOR)
+    # `recollection` reads this line back out loud when he asks what she
+    # did, so it is a sentence, not a ratio with a parenthesised plural.
+    #
+    # And it counts what SUCCEEDED. Counting receipts made a plan whose
+    # only step failed report "Did it" — the loop stops at the first
+    # non-done receipt, so one failure produced one receipt for one step
+    # and looked complete.
+    from aletheia import speech
+    worked = [r for r in receipts if r.get("outcome") == "done"]
+    if len(worked) == len(plan.executable):
+        said = f"Did it: {plan.summary or plan.request}"
+    elif worked:
+        said = (f"Got {len(worked)} of "
+                f"{speech.count_phrase(len(plan.executable), 'step')} done: "
+                f"{plan.summary or plan.request}")
+    else:
+        said = f"Could not: {plan.summary or plan.request}"
+    journal.append("plan", "planner", said, actor=ACTOR)
     return receipts
 
 
@@ -542,7 +591,8 @@ def main(argv: list[str] | None = None) -> int:
         print(plan.render())
     if args.materialize:
         made = materialize_gaps(plan)
-        print(f"\nmaterialized {len(made)} gap task(s): {', '.join(made) or '-'}")
+        print(f"\nmaterialized {speech.count_phrase(len(made), 'gap task')}: "
+              f"{', '.join(made) or '-'}")
     if args.run:
         for receipt in execute(plan, quote=f"planner --run: {args.request}"):
             print(f"  step {receipt['n']}: {receipt['outcome']} — {receipt['detail']}")

@@ -33,8 +33,51 @@ def strip_wake_word(text: str) -> str:
     return t
 
 
+# What people put in front of a sentence without meaning anything by it.
+# Every pattern below is anchored at the start, so a single emoji or an
+# "uh" decided whether "remind me at 4 to celebrate" was the instant
+# deterministic verb or a five-second planner round trip that then asked
+# for an approval the direct path would not have needed. A decoration
+# should not change what she does.
+FILLER = re.compile(
+    r"^(?:[^\w\s]+\s*)*"                    # leading emoji or punctuation
+    r"(?:(?:uh+|um+|er+|hmm+|ok|okay|so|well|hey|yo|please|right|"
+    r"i mean|like)\b[,\s]*)*",
+    re.UNICODE)
+
+
+def _without_preamble(low: str) -> str:
+    """Drop leading filler and decoration — never anything that carries meaning.
+
+    Conservative on purpose: if stripping would leave nothing, the sentence
+    WAS the filler ("uh", "ok") and is handed back untouched so the
+    ordinary "I didn't get that" path still sees it.
+    """
+    stripped = FILLER.sub("", low, count=1).lstrip(" ,.!?:;-").strip()
+    return stripped or low
+
+
+# A dot does not make a web address. "read notes.md" was compiled into
+# `browse_read https://notes.md/` and came back
+# "net::ERR_TUNNEL_CONNECTION_FAILED" — she tried to visit his file.
+#
+# Whitelisting the endings that really are top-level domains is the safe
+# direction: an unusual one falls through to the planner, which is slower
+# and can still do the right thing. Blacklisting file extensions is not,
+# because `.md` `.sh` `.it` `.co` `.io` `.me` `.tv` are all both.
+TLDS = frozenset("""
+com org net edu gov mil int io ai dev app co uk us ca au de fr es it nl se
+no fi dk pl ru jp cn in br mx za ch at be pt gr ie nz cz hu ro tv me sh gg
+xyz online site tech store blog cloud page live news info biz eu tel
+""".split())
+
+
 def _spoken_url(tail: str) -> str | None:
-    """'example dot com' -> https://example.com; 'github.com' passes through."""
+    """'example dot com' -> https://example.com; 'github.com' passes through.
+
+    Returns None for anything that is not recognisably a web address, so
+    the caller can let the planner have it.
+    """
     t = tail.strip().rstrip(".?!").lower()
     if not t:
         return None
@@ -45,12 +88,69 @@ def _spoken_url(tail: str) -> str | None:
     t = t.replace(" ", "")
     if t.startswith(("http://", "https://")):
         return t
+    host = t.split("/", 1)[0].split(":", 1)[0].split("?", 1)[0]
+    if "." not in host or host.rsplit(".", 1)[-1] not in TLDS:
+        return None
     return "https://" + t
 
 
+def _is_bare_hour(text: str) -> bool:
+    """Did he give an hour with no am/pm — "at 3" rather than "at 3 pm"?
+
+    Both readings are live for anything he says without am or pm, not
+    only for a bare digit: "quarter past eight" at nine in the evening is
+    a quarter past eight TONIGHT to a person, and reading it as tomorrow
+    morning is the same 12-hour error as "at 3" meaning 03:00. Noon and
+    midnight name one hour each and are never ambiguous.
+    """
+    t = " ".join(str(text or "").lower().replace(".", "").split())
+    if not t or t in ("noon", "midday", "midnight"):
+        return False
+    return "am" not in t.split() and "pm" not in t.split()
+
+
+# The hours as people say them out loud, and the two names for a time
+# that carry no number at all. "Remind me at NOON to eat" came back "I
+# couldn't parse the time 'noon'".
+_SPOKEN_HOURS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+                 "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+                 "eleven": 11, "twelve": 12, "midday": 12, "noon": 12,
+                 "midnight": 0}
+
+
 def _spoken_time(text: str) -> str | None:
-    """'8 am' / '8:30 pm' / '20:15' -> 'HH:MM', else None."""
-    t = text.strip().lower().replace(".", "")
+    """'8 am' / '8:30 pm' / '20:15' / 'half past six' / 'noon' -> 'HH:MM'."""
+    t = " ".join(text.strip().lower().replace(".", "").split())
+    if t.startswith("about ") or t.startswith("around "):
+        t = t.split(" ", 1)[1]
+    # "quarter past eight", "half past six", "quarter to nine" — said far
+    # more often than "08:15", and none of them parsed.
+    m = re.fullmatch(r"(quarter|half|\d{1,2}|ten|twenty|five)\s+(past|to)\s+"
+                     r"([a-z]+|\d{1,2})\s*(am|pm)?", t)
+    if m:
+        minutes = {"quarter": 15, "half": 30, "ten": 10, "twenty": 20,
+                   "five": 5}.get(m.group(1))
+        if minutes is None:
+            minutes = int(m.group(1)) if m.group(1).isdigit() else None
+        hour = (int(m.group(3)) if m.group(3).isdigit()
+                else _SPOKEN_HOURS.get(m.group(3)))
+        if minutes is None or hour is None or not (0 <= hour <= 23):
+            return None
+        if m.group(2) == "to":
+            hour, minutes = (hour - 1) % 24, 60 - minutes
+        if m.group(4) == "pm" and hour < 12:
+            hour += 12
+        if m.group(4) == "am" and hour == 12:
+            hour = 0
+        return f"{hour % 24:02d}:{minutes:02d}"
+    named = re.fullmatch(r"([a-z]+)\s*(am|pm)?", t)
+    if named and named.group(1) in _SPOKEN_HOURS:
+        hour = _SPOKEN_HOURS[named.group(1)]
+        if named.group(2) == "pm" and hour < 12:
+            hour += 12
+        if named.group(2) == "am" and hour == 12:
+            hour = 0
+        return f"{hour:02d}:00"
     m = re.fullmatch(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)?", t)
     if not m:
         return None
@@ -64,32 +164,157 @@ def _spoken_time(text: str) -> str | None:
     return f"{hour:02d}:{minute:02d}"
 
 
+WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday",
+            "saturday", "sunday")
+
+
 def _spoken_day(text: str) -> str | None:
-    """'today' / 'tomorrow' / '2026-08-27' -> ISO date, else None."""
+    """'today' / 'tomorrow' / 'friday' / '2026-08-27' -> ISO date, else None.
+
+    Weekday names are how people name days out loud, and every one of
+    them used to come back "I couldn't parse the day". "Next friday" is
+    deliberately NOT handled here: in English it means this coming Friday
+    to some people and the one after to others, and quietly picking one
+    is the same class of mistake as dropping "afternoon" — so
+    `interpret` asks instead.
+    """
     import datetime as dt
     t = text.strip().lower().rstrip(".?!")
+    t = t[5:].strip() if t.startswith("this ") else t
     today = dt.date.today()
     if t in ("today", ""):
         return today.isoformat()
     if t == "tomorrow":
         return (today + dt.timedelta(days=1)).isoformat()
+    if t in WEEKDAYS:
+        ahead = (WEEKDAYS.index(t) - today.weekday()) % 7
+        return (today + dt.timedelta(days=ahead)).isoformat()
     try:
         return dt.date.fromisoformat(t).isoformat()
     except ValueError:
         return None
 
 
-def _next_occurrence_iso(hhmm: str) -> str:
-    """The next future moment today/tomorrow at HH:MM, operator-local."""
+# Nobody means three in the morning. A bare hour with no am/pm is the
+# most common way a person says a time out loud, and resolving it
+# literally put "remind me at 3", said at a quarter to nine in the
+# morning, at 03:00 TOMORROW — eighteen hours late and in the middle of
+# the night. So a bare hour never lands before this hour of the morning;
+# an explicit "3 am" still does, because then he said it.
+EARLIEST_BARE_HOUR = 6
+
+
+# The words he actually uses for a stretch of a day.
+DAY_PARTS = ("morning", "afternoon", "evening", "tonight")
+
+
+def _spoken_when(text: str) -> tuple[str | None, str | None]:
+    """"tomorrow afternoon" -> (that date, "afternoon"). Either may be None.
+
+    A day and a part of it arrive in one breath and were being parsed as
+    if only the day existed, so "am I free tomorrow afternoon" was
+    answered with nine o'clock in the morning.
+    """
+    words = str(text or "").strip().lower().rstrip(".?!").split()
+    part = None
+    if words and words[-1] in DAY_PARTS:
+        part = words.pop()
+        if part == "tonight":
+            words = words or ["today"]
+    day = _spoken_day(" ".join(words) if words else "today")
+    return day, part
+
+
+def _split_deadline(text: str) -> tuple[str, str]:
+    """"renew my passport by friday" -> ("renew my passport", "2026-09-11").
+
+    He said a deadline and it became prose. `task_new` has always taken
+    one, and `tasks.due` surfaces it on the beat — so "renew the
+    registration by Friday" WAS just a sentence in a file, which is the
+    exact difference between a task list and a graveyard.
+
+    Returns the description unchanged when there is no deadline in it, and
+    when the words after "by" are not a day — "sort the photos by date"
+    must not acquire one.
+    """
+    m = re.search(r"^(.*?)[,\s]+(?:by|before|due(?: on)?)\s+(.+)$", text)
+    if not m:
+        return text, ""
+    rest, when = m.group(1).strip(), m.group(2).strip()
+    if not rest:
+        return text, ""
+    at = re.search(r"^(.*?)\s+at\s+(.+)$", when)
+    day = _spoken_day(at.group(1) if at else when)
+    if not day:
+        return text, ""
+    if at:
+        hhmm = _spoken_time(at.group(2))
+        if hhmm:
+            return rest, f"{day}T{hhmm}:00"
+    return rest, day
+
+
+def _ordinal(day: int) -> str:
+    """1 -> '1st'. Said out loud, so "the 1th" is not an option."""
+    if 11 <= day % 100 <= 13:
+        return f"{day}th"
+    return f"{day}{ {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th') }".replace(" ", "")
+
+
+def _ambiguous_next_weekday(text: str) -> str | None:
+    """The one phrase worth asking about rather than guessing.
+
+    "Next Friday" means the coming Friday to half the people who say it
+    and the one after to the other half. Picking silently is how she
+    confirms the wrong thing confidently, which is the failure that costs
+    trust fastest.
+    """
+    import datetime as dt
+    words = str(text or "").strip().lower().rstrip(".?!").split()
+    if len(words) < 2 or words[0] != "next" or words[1] not in WEEKDAYS:
+        return None
+    today = dt.date.today()
+    ahead = (WEEKDAYS.index(words[1]) - today.weekday()) % 7 or 7
+    soon = today + dt.timedelta(days=ahead)
+    later = soon + dt.timedelta(days=7)
+    name = words[1].capitalize()
+    return (f"Which {name} — the {_ordinal(soon.day)}, "
+            f"or the week after on the {_ordinal(later.day)}?")
+
+
+def _next_occurrence_iso(hhmm: str, *, bare_hour: bool = False,
+                         now: "dt.datetime | None" = None) -> str:
+    """The next moment he plausibly meant by HH:MM, operator-local.
+
+    `bare_hour` says he gave an hour with no am/pm. Then both readings are
+    live — 3 could be 03:00 or 15:00 — and the answer is the earliest
+    future one that a person could have meant, which is never the small
+    hours. "At 3" at 08:45 is this afternoon; at 16:00 it is tomorrow
+    afternoon, not tomorrow before dawn.
+    """
     import datetime as dt
     from aletheia import localtime
     tz = localtime.operator_tz()
-    now = dt.datetime.now(tz)
+    now = now.astimezone(tz) if now is not None else dt.datetime.now(tz)
     hour, minute = map(int, hhmm.split(":"))
-    candidate = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-    if candidate <= now:
-        candidate += dt.timedelta(days=1)
-    return candidate.isoformat()
+
+    def at(day_offset: int, h: int) -> "dt.datetime":
+        return (now + dt.timedelta(days=day_offset)).replace(
+            hour=h, minute=minute, second=0, microsecond=0)
+
+    hours = [hour]
+    if bare_hour and 1 <= hour <= 11:
+        hours.append(hour + 12)
+    candidates = sorted(at(day, h) for day in (0, 1) for h in hours)
+    for candidate in candidates:
+        if candidate <= now:
+            continue
+        if bare_hour and candidate.hour < EARLIEST_BARE_HOUR:
+            continue
+        return candidate.isoformat()
+    # Only reachable if every reading is in the past or the small hours;
+    # the literal next occurrence is still better than no reminder.
+    return next(c for c in candidates if c > now).isoformat()
 
 
 def _status_say() -> str:
@@ -152,10 +377,143 @@ def _attention_say() -> str:
     return " ".join(parts) or "Nothing needs your attention right now."
 
 
+# The days a weekly reminder can name, for the deterministic path.
+_DAY_WORDS = ("monday|tuesday|wednesday|thursday|friday|saturday|sunday|"
+              "mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun|"
+              "weekday|weekend")
+# "Remind me every monday to take the bins out" names no time, and a
+# reminder needs one. Nine in the morning is the hour a person means by
+# "on Monday" — and the confirmation says it back, so a wrong guess costs
+# him one sentence rather than a missed bin day.
+DEFAULT_REMINDER_TIME = "09:00"
+# "Snooze that" with no interval. Short, because he is putting something
+# down for a moment, and the confirmation says the time back.
+DEFAULT_SNOOZE_MINUTES = 15
+
+
+# The fields of a command that hold HIS OWN WORDS, as opposed to a
+# lookup needle or an identifier. Everything here is stored, or read back
+# to him later, so it keeps his capitals.
+HIS_WORDS = ("text", "description", "item", "body", "question", "goal",
+             "need", "note", "topic",
+             # People's names, which are the thing he is most likely to
+             # notice her re-spelling: "remember person Dana ..." stored a
+             # contact whose display name was "dana".
+             "name", "person", "who", "to", "alias")
+
+
+def _as_he_said(transcript: str, fragment: str) -> str:
+    """A matched fragment with his capitals put back.
+
+    The whole deterministic layer matches against a LOWERCASED sentence,
+    which is right for matching and wrong for anything it stores: "note
+    that Dana called" became the note "that dana called", and a name he
+    said is not a name she may re-spell. The fragment came out of the
+    lowered text, so it is found there and sliced from the original.
+    """
+    frag = " ".join(str(fragment or "").split())
+    lowered = str(transcript or "").lower()
+    if not frag or len(lowered) != len(transcript or ""):
+        return fragment
+    at = lowered.find(frag)
+    return transcript[at:at + len(frag)] if at >= 0 else fragment
+
+
+def _his_capitals(transcript: str, decided: dict) -> dict:
+    """Put his capitals back into every stored field of a command."""
+    command = decided.get("command")
+    if not isinstance(command, dict):
+        return decided
+    for field in HIS_WORDS:
+        value = command.get(field)
+        if isinstance(value, str) and value:
+            command[field] = _as_he_said(transcript, value)
+    return decided
+
+
+def _spoken_minutes(text: str) -> int | None:
+    """"an hour", "20 minutes", "half an hour", "2 hours" -> minutes."""
+    t = " ".join(str(text or "").lower().split()).strip(" .?!")
+    if t in ("an hour", "a hour", "one hour", "1 hour"):
+        return 60
+    if t in ("half an hour", "30 mins", "a half hour"):
+        return 30
+    if t in ("a minute", "a moment", "a bit", "a while"):
+        return 15
+    m = re.fullmatch(r"(\d{1,4})\s*(m|min|mins|minute|minutes)", t)
+    if m:
+        return int(m.group(1))
+    m = re.fullmatch(r"(\d{1,3})\s*(h|hr|hrs|hour|hours)", t)
+    if m:
+        return int(m.group(1)) * 60
+    m = re.fullmatch(r"(\d{1,2})\s*(d|day|days)", t)
+    if m:
+        return int(m.group(1)) * 60 * 24
+    return None
+
+
+def _might_be_several(text: str) -> bool:
+    """Could this be a list of things rather than one thing?
+
+    Deliberately generous: a false positive costs a round trip, a false
+    negative puts "eggs milk and bread" on the shopping list as a single
+    item he then has to find and delete.
+    """
+    t = " ".join(str(text or "").lower().split())
+    return "," in t or " and " in t or " & " in t or " plus " in t
+
+
+def _to_the_planner(text: str) -> dict:
+    """Hand the sentence on rather than ending the turn on a parse error.
+
+    The deterministic layer exists to be FAST, and every dead end it
+    produces ("I couldn't parse the time 'noon'") is it being slower than
+    useless — the planner would have read the sentence. It may remove
+    latency; it may never remove an answer.
+    """
+    return {"command": {"kind": "intent", "text": text}, "say": None}
+
+
+def _the_only_open_task() -> str:
+    """The description of the single open task, or "" if there are 0 or 2+."""
+    try:
+        from aletheia import intercom
+        rows = intercom._open_tasks()
+    except Exception:
+        return ""
+    if len(rows) != 1:
+        return ""
+    return str(rows[0].get("description") or rows[0].get("id") or "")
+
+
+def _known_place(text: str) -> bool:
+    """Is this a place she has actually saved? Never raises.
+
+    The gate on reading a bare "how long to X" as a journey. Without it,
+    "how long to finish the report" is a destination.
+    """
+    try:
+        from aletheia import places
+        places.resolve(text)
+        return True
+    except Exception:
+        return False
+
+
 def interpret(transcript: str) -> dict:
-    """One spoken sentence -> a command to gate-check, or words to say."""
+    """One spoken sentence -> a command to gate-check, or words to say.
+
+    The wrapper exists for one reason: every path below matches against a
+    LOWERCASED sentence, and anything it STORES has to keep his capitals.
+    Doing it here rather than in thirty patterns means the next pattern
+    somebody writes gets it for free.
+    """
+    return _his_capitals(strip_wake_word(transcript), _interpret(transcript))
+
+
+def _interpret(transcript: str) -> dict:
     text = strip_wake_word(transcript)
-    low = text.lower().strip().rstrip(".?!")
+    low = _without_preamble(text.lower().strip().rstrip(".?!"))
     if not low:
         return {"command": None, "say": "I'm listening."}
 
@@ -184,10 +542,43 @@ def interpret(transcript: str) -> dict:
     # "résumé" is the same six letters as the kind that lifts the kill
     # switch. A `search` here would turn "read my resume" into un-halting
     # her. Only whole sentences that can mean nothing else.
+    # The reflexive forms are safe to add and were NOT here: "resume
+    # yourself" reached the planner, which is forbidden from emitting
+    # `resume` — so it quietly compiled something else instead and she
+    # answered "Resume normal operation and surface current state" while
+    # resuming nothing. Him telling her to resume is the ordinary path;
+    # the rule is that a MODEL may not decide to lift the halt.
     if re.fullmatch(r"(resume|resume everything|start again|back on|carry on|"
                     r"un-?halt|you can (resume|start again|carry on)|"
-                    r"(go ahead and )?resume now)", low):
+                    r"(go ahead and )?resume now|"
+                    r"resume (yourself|aletheia|thea)( please| now)?|"
+                    r"un-?halt (yourself|aletheia|thea)( please| now)?|"
+                    r"(lift|cancel|clear) the halt|"
+                    r"turn yourself back on)", low):
         return {"command": {"kind": "resume"}, "say": None}
+    # SELF-AUTHORITY, NOT EXACTLY MATCHED. Everything above is a whole
+    # sentence that can mean nothing else. Anything that is plainly an
+    # order about her own kill switch and did NOT match must stop here,
+    # because the planner cannot emit these kinds and its only remaining
+    # move is to substitute a different action — which it did, silently,
+    # and then described the substitute as if it had resumed.
+    #
+    # Asking him for the one word is the honest answer: it is one
+    # syllable, and it is the difference between an emergency stop that
+    # works and one that reports success.
+    # Only when the rest of the sentence is about HER. "Resume the
+    # download when you can" and "stop the music" are ordinary requests
+    # that happen to start with the same verb, and swallowing those would
+    # trade one silent substitution for another.
+    m = re.match(r"^(resume|un-?halt|halt)\s+"
+                 r"((?:yourself|aletheia|thea|it|everything|all|again|now|"
+                 r"please|for me|ok|okay)(?:\s+\w+){0,2})\s*$", low)
+    if m:
+        word = "resume" if m.group(1).startswith(("resume", "unhalt", "un-halt")) \
+            else "halt"
+        return {"command": None,
+                "say": f"Say just \u201c{word}\u201d and I'll do it — I won't "
+                       "guess at anything else for the kill switch."}
 
     # Apostrophes optional: speech-to-text drops them far more often than it
     # keeps them, and "whats going on" was falling past the instant local
@@ -201,23 +592,106 @@ def interpret(transcript: str) -> dict:
                     r"how are things|anything happening|report)", low):
         return {"command": None, "say": _status_say()}
 
+    if re.fullmatch(r"(what|who) (are )?(you|u) watching( for)?"
+                    r"|what emails? (are )?(you|u) watching for"
+                    r"|what are (you|u) waiting (for|on)"
+                    r"|(list )?(my )?watches", low):
+        return {"command": {"kind": "watches"}, "say": None}
+    if re.fullmatch(r"(who|what) (contacts? )?(do i have|have i got)( saved)?"
+                    r"|(list )?(my )?contacts"
+                    r"|who do i have (saved|on file)", low):
+        return {"command": {"kind": "contacts"}, "say": None}
+    m = re.fullmatch(r"what'?s? (?:is )?(.+?)'?s? (?:phone )?(?:number|email|"
+                     r"address|details)", low)
+    if m and len(m.group(1)) < 40:
+        return {"command": {"kind": "contacts", "which": m.group(1).strip()},
+                "say": None}
+    if re.fullmatch(r"(what|which) (jobs?|applications?) have i applied (to|for)"
+                    r"|what have i applied (to|for)"
+                    r"|(what|which) (jobs?|applications?) did (you|u) apply (to|for)"
+                    r"|(list )?(my )?applications", low):
+        return {"command": {"kind": "applications"}, "say": None}
+    if re.fullmatch(r"(what'?s?( is)? on )?(my |the )?shopping list"
+                    r"|what do i need (to buy|from the (shop|store))"
+                    r"|read (me )?(my |the )?shopping list", low):
+        return {"command": {"kind": "shopping_list"}, "say": None}
+    m = re.match(r"(?:take|remove|delete) (.+?) (?:off|from) (?:my |the )?"
+                 r"shopping list", low)
+    if m:
+        return {"command": {"kind": "shopping_off", "item": m.group(1).strip()},
+                "say": None}
+
+    # "Snooze that for an hour" — the commonest thing anybody says to a
+    # notification, and it had no verb at all.
+    m = re.fullmatch(r"snooze(?: (?:that|it|this|them|the (?:alert|notification|"
+                     r"reminder)))?\s*(?:for |by )?(.*)", low)
+    if m:
+        rest = m.group(1).strip()
+        # A bare "snooze that" is the commonest form and names no
+        # interval. Fifteen minutes, and the confirmation says it back —
+        # the same argument as the nine o'clock default for a weekly
+        # reminder. Anything it cannot read goes to the planner rather
+        # than being rounded to a number nobody said.
+        minutes = DEFAULT_SNOOZE_MINUTES if not rest else _spoken_minutes(rest)
+        if minutes:
+            return {"command": {"kind": "notify_snooze", "minutes": minutes},
+                    "say": None}
+        return _to_the_planner(text)
+
+    # what is set, and stopping one. Before the "remind me" patterns so a
+    # question about reminders is never read as a request for a new one.
+    if re.fullmatch(r"(what|which) reminders? (do i have|are set|have i got)"
+                    r"|what am i being reminded (of|about)"
+                    r"|list (my )?reminders|my reminders|reminders", low):
+        return {"command": {"kind": "reminders"}, "say": None}
+    m = re.match(r"(?:cancel|stop|delete|turn off|remove) (?:the |my |that )?"
+                 r"reminder (?:about |for |to )?(.+)", low)
+    if not m:
+        m = re.match(r"stop reminding me (?:about|to|of) (.+)", low)
+    if m:
+        return {"command": {"kind": "reminder_off", "which": m.group(1).strip()},
+                "say": None}
+
     # reminders — before email so "remind me to email bob" stays a reminder
+    #
+    # WEEKLY FIRST: "every monday" contains "every", and the daily pattern
+    # below is anchored on "every day", but a weekly phrasing without a
+    # time ("remind me every monday to take out the trash") had no
+    # deterministic match at all and reached the planner, which compiled a
+    # generic `do_task` under the summary "Set weekly Monday reminder" —
+    # a promise of recurrence the step could not keep.
+    _one_day = r"(?:" + _DAY_WORDS + r")s?"
+    m = re.match(r"remind me (?:every|each) "
+                 r"(" + _one_day + r"(?:\s*(?:,|and|&)\s*" + _one_day + r")*)"
+                 r"(?:\s+at\s+([\w: ]+?))? (?:to|that) (.+)", low)
+    if m:
+        hhmm = _spoken_time(m.group(2)) if m.group(2) else DEFAULT_REMINDER_TIME
+        if not hhmm:
+            # The planner reads times this does not, and the confirmation
+            # says the hour back either way. A dead end here is the fast
+            # lane removing an answer, which it may never do.
+            return _to_the_planner(text)
+        # "tuesday and thursday", "mon, wed and fri" — a list he says in one
+        # breath. The planner's version of this came back as "Weekly
+        # reminder Tue/Thu 6pm", which is a calendar entry, not a sentence.
+        days = [d for d in re.split(r"\s*(?:,|and|&)\s*", m.group(1)) if d]
+        return {"command": {"kind": "remind_weekly", "days": days,
+                            "time": hhmm, "text": m.group(3).strip()},
+                "say": None}
     m = re.match(r"remind me (?:every day|daily) at ([\w: ]+?) (?:to|that) (.+)", low)
     if m:
         hhmm = _spoken_time(m.group(1))
         if hhmm:
             return {"command": {"kind": "remind_daily", "time": hhmm,
                                 "text": m.group(2).strip()}, "say": None}
-        return {"command": None,
-                "say": f"I couldn't parse the time {m.group(1)!r} — say it like '8 am' or '14:30'."}
+        return _to_the_planner(text)
     m = re.match(r"remind me (?:at ([\w: ]+?)|in (\d+) (minutes?|hours?)) (?:to|that) (.+)", low)
     if m:
         if m.group(1):
             hhmm = _spoken_time(m.group(1))
             if not hhmm:
-                return {"command": None,
-                        "say": f"I couldn't parse the time {m.group(1)!r} — say it like '8 am' or '14:30'."}
-            at = _next_occurrence_iso(hhmm)
+                return _to_the_planner(text)
+            at = _next_occurrence_iso(hhmm, bare_hour=_is_bare_hour(m.group(1)))
         else:
             import datetime as dt
             amount = int(m.group(2))
@@ -235,6 +709,55 @@ def interpret(transcript: str) -> dict:
         return {"command": {"kind": "watch_email_from",
                             "who": m.group(1).strip()}, "say": None}
 
+    # "What are my tasks" is a store read and it was costing 8.5 seconds
+    # through the planner, coming back as markdown bullets. She could
+    # CREATE a task by voice and had no verb for reading the list.
+    if re.fullmatch(r"(?:what (?:are|r) my tasks|what'?s? on my (?:list|plate)|"
+                    r"my tasks|list (?:my )?tasks|what do i have to do|"
+                    r"what(?:'s| is|s)? left to do|todo list|"
+                    # "task list" and a bare "tasks" made a TASK called
+                    # "list", because `task <words>` is the create verb.
+                    r"tasks?|task list|the task list|"
+                    r"what am i supposed to be doing)", low):
+        return {"command": {"kind": "tasks"}, "say": None}
+
+    # "Mark the passport one done" — by what he CALLS it. This went to the
+    # planner and came back asking for approval to change a local status,
+    # while "add a task to renew my passport" ran instantly.
+    # "did you do the dishes" is a QUESTION about her, not an instruction
+    # to tick something off, so a bare "did" may not start this — only
+    # "I did". The past-tense statements ("finished the passport one")
+    # stand on their own because nobody asks a question that way.
+    m = (re.fullmatch(r"(?:mark|tick|check|cross) (?:off )?(?:the )?(.+?)"
+                      r"(?: one| task)? (?:as )?(?:done|complete[d]?|finished)",
+                      low)
+         or re.fullmatch(r"(?:tick|check|cross) off (?:the )?(.+?)"
+                         r"(?: one| task)?", low)
+         or re.fullmatch(r"(?:i(?:'ve)? )?(?:finished|completed) (?:the )?(.+?)"
+                         r"(?: one| task)?", low)
+         or re.fullmatch(r"i (?:did|have done) (?:the )?(.+?)(?: one| task)?", low))
+    if m:
+        which = (m.group(1) or "").strip()
+        if which and which not in ("it", "that", "them", "everything"):
+            return {"command": {"kind": "task_done", "which": which}, "say": None}
+        # "Mark that done" with exactly ONE thing open is not ambiguous —
+        # it is the ordinary way to say it, and it was costing a round
+        # trip and an approval. With two open it stays ambiguous and goes
+        # to the planner, which asks him which.
+        only = _the_only_open_task()
+        if which in ("it", "that", "them") and only:
+            return {"command": {"kind": "task_done", "which": only}, "say": None}
+
+    # "what files do you have" reached the planner, which sometimes
+    # compiled `file_list` and sometimes let `converse` answer — and
+    # `converse` does not know she can list a directory, so it replied
+    # "no FILE HE NAMED was passed with this question".
+    if re.fullmatch(r"(?:what|which) files (?:do you have|are there|"
+                    r"have you got)|list (?:my |your )?files|"
+                    r"what(?:'s| is|s)? in (?:my |your )?workspace|"
+                    r"show me (?:my |your )?files", low):
+        return {"command": {"kind": "file_list"}, "say": None}
+
     # notifications
     if re.fullmatch(r"(?:check (?:my )?notifications?|any notifications?|"
                     r"what's new|anything new|notifications?)", low):
@@ -242,15 +765,28 @@ def interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:clear|dismiss|acknowledge) (?:my |the )?notifications?", low):
         return {"command": {"kind": "notify_clear"}, "say": None}
 
-    # free time
-    m = re.fullmatch(r"(?:when am i free|what's my availability|any free time)"
-                     r"(?:\s+(?:on\s+)?(.+))?", low)
+    # free time. "Am I free tomorrow afternoon" is how a person asks this
+    # and it matched none of these, so it fell through to the planner: six
+    # and a half seconds, and the word "afternoon" thrown away on the way.
+    m = re.fullmatch(r"(?:when am i free|am i free|are we free|"
+                     r"what'?s my availability|any free time|do i have time)"
+                     r"(?:\s+(?:on\s+|this\s+)?(.+?))?\s*\??", low)
     if m:
-        day = _spoken_day(m.group(1) or "today")
+        asked = _ambiguous_next_weekday(m.group(1) or "")
+        if asked:
+            return {"command": None, "say": asked}
+        day, part = _spoken_when(m.group(1) or "")
         if day:
-            return {"command": {"kind": "free_time", "day": day}, "say": None}
-        return {"command": None,
-                "say": f"I couldn't parse the day {m.group(1)!r} — say today, tomorrow, or a date."}
+            command = {"kind": "free_time", "day": day}
+            if part:
+                command["part"] = part
+            return {"command": command, "say": None}
+        # FALL THROUGH, don't answer with a parse error. "Am I free at 3 on
+        # friday" and "when am I free next week" are ordinary sentences,
+        # and this branch was ending the turn with "I couldn't parse 'next
+        # week'" — the fast lane removing an ANSWER rather than latency,
+        # which is the one thing it may never do. The planner resolves the
+        # date and compiles the same command; it just costs a round trip.
 
     # private contact: "remember person bob smith bob at gmail dot com"
     m = re.match(r"remember (?:person|contact)\s+(.+?)\s+((?:\S+\s+at\s+\S.*|\S+@\S+))$", low)
@@ -298,7 +834,10 @@ def interpret(transcript: str) -> dict:
                 "say": None}
 
     if re.fullmatch(r"(?:the |my )?(?:morning )?brief(?:ing)?|"
-                    r"catch me up|what did i miss", low):
+                    # The phrasings a person actually uses. "Give me the
+                    # brief" and "brief me" both went to the planner.
+                    r"(?:give me|read me|run) (?:the |my )?brief(?:ing)?|"
+                    r"brief me|catch me up|what did i miss", low):
         return {"command": {"kind": "brief"}, "say": None}
 
     m = re.match(r"handle (?:it|this|that)[,: ]*(.*)$", low)
@@ -306,12 +845,38 @@ def interpret(transcript: str) -> dict:
         return {"command": {"kind": "handle", "text": m.group(1).strip()},
                 "say": None}
 
-    m = re.match(r"how long (?:does it take |to get )?(?:to )?(?:get to )?(.+)", low)
+    # "How long ANYTHING" used to be a travel question. "How long until my
+    # meeting" came back "I don't know where until my meeting is" — the
+    # deterministic layer answering a different question, which is the one
+    # failure he cannot see. An explicit travel phrasing is taken as one
+    # whether or not she knows the place (so she can ask for the address);
+    # the bare "how long to X" is only travel when X really is a place.
+    m = (re.match(r"how long (?:does it |will it |would it |should it )?"
+                  r"(?:take )?(?:to )?(?:get|drive|walk|ride|cycle|bike) to (.+)",
+                  low)
+         or re.match(r"how long is the (?:drive|trip|walk|ride|journey|way) "
+                     r"to (.+)", low))
     if m:
         return {"command": {"kind": "travel_time", "place": m.group(1).strip()},
                 "say": None}
+    m = re.match(r"how (?:long|far) (?:is it )?to (.+)", low)
+    if m and _known_place(m.group(1).strip()):
+        return {"command": {"kind": "travel_time", "place": m.group(1).strip()},
+                "say": None}
 
-    m = re.match(r"(?:add )?(.+?) to (?:the |my )?(?:shopping |grocery )?list$", low)
+    # "Why did you add milk to the list" put "why did you add milk" ON the
+    # list. `add` was optional, so any sentence ENDING in "to the list"
+    # was a write — and a question is never an instruction (the same rule
+    # the spending door holds).
+    m = re.match(r"(?:add|put|get|stick|throw) (.+?) (?:on|to) (?:the |my )?"
+                 r"(?:shopping |grocery )?list$", low)
+    if m and _might_be_several(m.group(1)):
+        # "Add eggs milk and bread to the shopping list" put ONE entry on
+        # it called "eggs milk and bread". Splitting here would have to
+        # guess, and "macaroni and cheese" is one thing — so anything
+        # that might be a list goes to the planner, which can emit a step
+        # per item. A round trip beats a wrong entry.
+        return _to_the_planner(text)
     if m:
         return {"command": {"kind": "shopping_add", "item": m.group(1).strip()},
                 "say": None}
@@ -365,17 +930,19 @@ def interpret(transcript: str) -> dict:
             return {"command": {"kind": "research", "question": question},
                     "say": None}   # the receipt speaks, not a canned line
 
+    # A URL, or nothing — this branch used to answer "I need a web address
+    # to read" to anything else, including "read my resume", which is a
+    # FILE she can genuinely read (document.read_any is AVAILABLE) and one
+    # of the sentences he is most likely to say. Dead-ending a real
+    # capability behind a wrong assumption is worse than being slow: the
+    # planner can compose a file read, and "read my resume and tell me
+    # what I'm bad at" needs it to.
     m = re.match(r"(?:read|open|check|look at|go to|browse)\s+(.+)", low)
     if m:
         url = _spoken_url(m.group(1))
         if url:
             return {"command": {"kind": "browse_read", "url": url}, "say": None}
-        # Not a web address. "Open Notepad and type hello" is a desktop ask,
-        # "check the fridge list" is a file ask, "look at my resume" is a
-        # question — every one of them died here as "I need a web address to
-        # read" until 2026-09-04, the night before first real use, because
-        # this verb assumed the web. Anything that is not a URL falls
-        # through to the planner, which knows the hands and the workspace.
+
 
     m = re.match(r"screenshot\s+(.+)", low)
     if m and _spoken_url(m.group(1)):
@@ -399,7 +966,20 @@ def interpret(transcript: str) -> dict:
         # right; sending him to a browser is not. Read them out so he can
         # say which, in the same breath.
         return {"command": None, "say": _offer_choice(pending)}
-    m = re.match(r"(?:deny|denied|no to)(?:\s+(?:that|it|the pending one))?$", low)
+    # THE WORDS HE ACTUALLY USES TO SAY NO. This was "deny/denied/no to"
+    # only, so "cancel that" and "never mind" fell to the planner — which
+    # is forbidden from emitting `deny` and therefore compiled something
+    # else and offered THAT for approval: "1 step ready — Cancel the
+    # pending approval waiting on his decision. Say approve to run it."
+    # Asking for an approval in order to cancel an approval.
+    #
+    # Each is anchored to the whole sentence, so "cancel my gym
+    # membership" is untouched and still reaches the capability that
+    # really cancels things.
+    m = (re.match(r"(?:deny|denied|no to|cancel|scrap|drop)"
+                  r"(?:\s+(?:that|it|the pending one))?$", low)
+         or re.match(r"(?:never ?mind|forget (?:it|that)|call it off|"
+                     r"don'?t do (?:it|that))$", low))
     if m:
         pending = [a for a in policy.all_approvals() if a["state"] == "PENDING"]
         if len(pending) == 1:
@@ -407,20 +987,25 @@ def interpret(transcript: str) -> dict:
                                 "because": "denied by voice"}, "say": None}
         if not pending:
             return {"command": None, "say": "Nothing is waiting for approval."}
-        return {"command": None,
-                "say": f"{len(pending)} approvals are pending — I won't guess. "
-                       "Use the Command Center to pick."}
+        # Read them out, the way `approve` does. "Use the Command Center"
+        # is an instruction to go somewhere else, said to someone who is
+        # standing in a room talking.
+        return {"command": None, "say": _offer_choice(pending, verb="deny")}
 
     m = re.match(r"(?:add a task|new task|task)\s*(?:to|:)?\s+(.+)", low)
     if m:
-        desc = m.group(1).strip()
+        desc, deadline = _split_deadline(m.group(1).strip())
         slug = re.sub(r"[^a-z0-9]+", "-", desc.lower()).strip("-")[:40] or "voice-task"
         if any(t["id"] == slug for t in tasks.all_tasks()):
             slug = f"{slug}-2"
-        return {"command": {"kind": "task_new", "id": slug, "description": desc},
-                "say": None}
+        command = {"kind": "task_new", "id": slug, "description": desc}
+        if deadline:
+            command["deadline"] = deadline
+        return {"command": command, "say": None}
 
-    m = re.match(r"(?:note|note that|write down|log)\s+(.+)", low)
+    # LONGEST ALTERNATIVE FIRST. Python's alternation takes the first that
+    # matches, so "note" won and the note read "that Dana called".
+    m = re.match(r"(?:note that|note|write down that|write down|log)\s+(.+)", low)
     if m:
         return {"command": {"kind": "note", "text": m.group(1).strip()}, "say": None}
 
@@ -445,17 +1030,38 @@ def approval_label(approval: dict) -> str:
     action = str(approval.get("requested_action", ""))
     capability = str(approval.get("capability", ""))
     if capability == "email.send" or action.startswith("email.send"):
+        # The recipient is the thing he needs, and it is in the reason
+        # rather than the summary.
         reason = str(approval.get("reason", ""))
         who = re.search(r"\bto ([A-Za-z][^.]*?)\s*(?:$|\.)", reason)
         return f"the email{' to ' + who.group(1) if who else ''}"
-    if capability == "calendar.write" or action.startswith("calendar.write"):
-        return "the calendar booking"
-    if capability == "intent.execute":
-        return "the plan"
     if capability == "errand.run":
         return speech.tidy(speech.strip_ids(action)) or "the errand"
     if capability == "agent.delegate" or action.startswith("delegate"):
         return "the work order"
+
+    # WHAT WILL HAPPEN beats both the reason and a category. The
+    # consequence is the plan's own summary of what it will do, which is
+    # the thing he is deciding about; the reason on an intent approval is
+    # `operator said: "spoken to the wall: thea remember that my landlord
+    # is called Mr Okafor"` — a quote inside a quote inside a transport
+    # label, truncated mid-word when it is read out.
+    #
+    # This check used to sit BELOW `if capability == "intent.execute":
+    # return "the plan"`, so every world-touching plan was labelled "the
+    # plan" while the routine ones got a real description. He heard "2
+    # things waiting: the plan and Remember that landlord is Mr Okafor" —
+    # the consequential one was the nameless one.
+    said = speech.tidy(speech.strip_ids(str(approval.get("consequence", ""))))
+    if said and said.lower() not in ("see the plan", "unknown"):
+        return said[:80]
+    if capability == "calendar.write" or action.startswith("calendar.write"):
+        return "the calendar booking"
+    if capability.startswith("intent.execute"):
+        return "the plan"
+    reason = speech.tidy(speech.strip_ids(_unwrap(str(approval.get("reason", "")))))
+    if reason:
+        return reason[:80]
     return speech.tidy(speech.strip_ids(action))[:60] or "the pending one"
 
 
@@ -526,14 +1132,37 @@ def _pick_approval(pending: list[dict], ordinal: str | None,
     return matches[0] if len(matches) == 1 else None
 
 
-def _offer_choice(pending: list[dict]) -> str:
+# How a quote reaches an approval's `reason`: the surface labels it, then
+# `intents` wraps it again. Both are true and neither is speech.
+_WRAPPERS = re.compile(
+    r'^\s*operator said:\s*"?|^\s*(?:spoken to the wall|typed into the '
+    r'command center|relayed by chatgpt):\s*|^\s*thea[,: ]\s*|"\s*$',
+    re.I)
+
+
+def _unwrap(reason: str) -> str:
+    """Peel the transport labels off his actual words."""
+    said = str(reason or "").strip()
+    for _ in range(4):
+        shorter = _WRAPPERS.sub("", said).strip()
+        if shorter == said:
+            break
+        said = shorter
+    return said
+
+
+def _offer_choice(pending: list[dict], verb: str = "approve") -> str:
+    """Read out what is waiting, and ask which one — in HIS verb.
+
+    Answering "never mind" with "say approve the first" is telling him to
+    do the opposite of what he just asked for.
+    """
     from aletheia import speech
     labels = [approval_label(a) for a in pending[:4]]
     more = "" if len(pending) <= 4 else f", and {len(pending) - 4} more"
     return (f"{speech.count_phrase(len(pending), 'thing')} waiting: "
             + speech.and_list(labels) + more
-            + ". Which one — name it; routine ones I can approve by voice, "
-              "the rest you approve on your phone.")
+            + f". Which one — say {verb} the first, or name it.")
 
 
 def spoken_reply(kind: str, outcome: str, detail: str) -> str:
@@ -546,10 +1175,15 @@ def spoken_reply(kind: str, outcome: str, detail: str) -> str:
     """
     if outcome == "halted":
         return "I'm halted — only resume works."
+    from aletheia import speech as _speech
     if outcome in ("refused", "invalid"):
-        return f"I can't do that: {detail}"
+        return f"I can't do that: {_speech.plainly(detail)}"
     if outcome == "error":
-        return f"That failed: {detail}"
+        # "That failed: KeyError: "no place matches 'the airport'"" — the
+        # message underneath was fine and arrived with a class name bolted
+        # to the front. Same stripper as `intents.spoken` uses, so the two
+        # paths cannot drift.
+        return f"That failed: {_speech.plainly(detail)}"
     if kind == "halt":
         return "Halted. Nothing acts until you say resume."
     if kind == "resume":

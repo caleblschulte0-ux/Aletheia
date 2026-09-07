@@ -26,13 +26,20 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 import threading
 
-from aletheia import intercom, journal, planner, policy, stateio
+from aletheia import intercom, journal, planner, policy, quick, speech, stateio
 from aletheia.fleet import load_fleet
 
 ACTOR = "aletheia-intent"
+# Read once at import so `spoken` never pays a webtask import to answer.
+try:
+    from aletheia.webtask import SPENDING_REFUSAL as _SPENDING_REFUSAL
+except Exception:      # webtask is optional-heavy; the rule is not
+    _SPENDING_REFUSAL = ("That asks me to spend money, and I do not do that — "
+                         "not with an approval, not with a confirmation.")
 PROPOSED, RUNNING, EXECUTED, RETIRED, FAILED, INTERRUPTED = (
     "PROPOSED", "RUNNING", "EXECUTED", "RETIRED", "FAILED", "INTERRUPTED")
 _RUN_LOCK = threading.Lock()
@@ -113,6 +120,46 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
     if work_direct.is_direct(request):
         return work_direct.execute(request, quote=quote)
 
+    # AN ANSWER SHE ALREADY HAS COSTS A FILE READ. Measured 2026-09-05: a
+    # `claude -p` round trip is ~3.6s whether the answer is one word or
+    # nine thousand characters, and "are you halted?" was paying it TWICE
+    # — once for the planner to decide it was a question, once for
+    # `converse` to answer it. Seven seconds for a boolean on the same
+    # disk. `quick` reads the same stores the wall does and returns None
+    # for anything it is not certain about, so this only ever removes
+    # latency; it can never remove an answer.
+    fast = quick.answer(request)
+    if fast:
+        return {"id": f"intent-quick-{hashlib.sha256(request.encode()).hexdigest()[:8]}",
+                "state": RETIRED, "request": request,
+                "operator_quote": quote or request,
+                "summary": fast, "intent": "answer", "spoken": fast,
+                "read_only": True, "fast_path": True, "steps": [],
+                "proposed_at": stateio.utcnow()}
+
+    # THE MONEY RULE IS ANSWERED AT THE DOOR.
+    #
+    # Refusing a compiled spending STEP covers the case where the planner
+    # produces one. It does not cover "my wife says it's fine to buy the
+    # monitor so do it", which came back as a clarifying question — "which
+    # monitor, and what's the budget?" — asked in order to buy it. The
+    # refusal arriving after a round of questions is the refusal arriving
+    # too late, and it reads as consent in the meantime.
+    #
+    # A QUESTION about money is not an instruction to spend it: "how much
+    # would a monitor cost" and "can you buy things" are both answerable,
+    # and both contain the words. So only an instruction stops here.
+    if _asks_to_spend(request):
+        journal.append("decision", "intent",
+                       f"refused at the door: asks to spend money — {request[:120]}",
+                       actor=ACTOR)
+        return {"id": "intent-refused-spending", "state": RETIRED,
+                "request": request, "operator_quote": quote or request,
+                "summary": _SPENDING_REFUSAL, "intent": "answer",
+                "spoken": _SPENDING_REFUSAL + " Nothing is queued.",
+                "read_only": True, "refused_spending": True, "steps": [],
+                "proposed_at": stateio.utcnow()}
+
     fleet = fleet if fleet is not None else load_fleet()
     plan = planner.compile(request, fleet=fleet, **compile_kw)
     digest = plan_hash(plan)
@@ -161,8 +208,14 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
         record["state"] = EXECUTED
         record["receipts"] = receipts
         record["read_only"] = True
-        journal.append("action", "intent",
-                       f"answered on the spot (read-only): {plan.summary[:120]}",
+        # An EVENT, not an action. `planner.execute` already journals what
+        # the steps did, so this was a second line for the same act — and
+        # answering a question on the spot is talking, which "what did you
+        # do today" should not list. It read: "Did it: Check how many
+        # unread emails he has; answered on the spot (read-only): Check how
+        # many unread emails he has".
+        journal.append("event", "intent",
+                       f"answered on the spot: {plan.summary[:120]}",
                        actor=ACTOR)
         return record
     if not plan.executable and plan.intent in ("answer", "clarify"):
@@ -182,7 +235,17 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
             return record
         from aletheia import converse
         try:
-            record["spoken"] = converse.answer(request)["answer"]
+            # Through the same sieve as everything else she says. `converse`
+            # reads her stores, so its answers carry the ids in them: "there
+            # are two pending approvals (intent-1b32747ddb,
+            # intent-a3d2ad3434)" — read out loud, in a room. §145. And it
+            # writes for a screen unless something stops it: "What I *can*
+            # do right now is look at your desktop live
+            # (computer.observe/control)" was a real answer, with an
+            # asterisk pair that is silence out loud and an identifier that
+            # is gibberish. `spoken_prose` is all of it in one place.
+            record["spoken"] = speech.spoken_prose(
+                converse.answer(request)["answer"])
         except converse.ConverseError as exc:
             # Its message already names the real reason and the fix ("Claude
             # CLI is not on PATH"). Rewriting that into a class name is how
@@ -196,6 +259,20 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
                 f"I couldn't reach a model to answer that ({type(exc).__name__}). "
                 "Everything else still works.")
         return record
+    # NOTHING IS QUEUED FOR A PLAN THAT ASKS TO SPEND. `spoken()` already
+    # answers with the refusal, but without this an approval object was
+    # still created and left pending — a thing he could walk past later
+    # and say "approve" to, for the ask she had just refused out loud.
+    if any(s.status == planner.REFUSED
+           and str(s.detail or "").startswith(_SPENDING_REFUSAL)
+           for s in plan.steps):
+        record["state"] = RETIRED
+        record["refused_spending"] = True
+        journal.append("decision", "intent",
+                       f"refused: asks to spend money — {request[:120]}",
+                       actor=ACTOR)
+        return record
+
     stateio.write_json_atomic(_record_path(intent_id), record)
 
     if plan.executable and not read_only(plan):
@@ -226,47 +303,397 @@ def spoken(record: dict) -> str:
     if record.get("intent") == "answer" and record.get("spoken"):
         return str(record["spoken"])
     if record.get("direct_work"):
-        return str(record.get("spoken") or record.get("summary") or "Work action completed.")[:600]
+        return speech.spoken_prose(
+            str(record.get("spoken") or record.get("summary")
+                or "Work action completed."))[:600]
 
-    runnable = [s for s in record["steps"] if s["status"] == planner.EXECUTABLE]
-    gaps_named = [s for s in record["steps"] if s["status"] == planner.GAP]
-    manual = [s for s in record["steps"] if s["status"] == planner.MANUAL]
-    refused = [s for s in record["steps"] if s["status"] == planner.REFUSED]
+    # `.get`, not `[...]`: this function is the last thing between a
+    # record and the room, and a KeyError here is silence where a sentence
+    # should be.
+    steps = record.get("steps") or []
+    runnable = [s for s in steps if s.get("status") == planner.EXECUTABLE]
+    gaps_named = [s for s in steps if s.get("status") == planner.GAP]
+    manual = [s for s in steps if s.get("status") == planner.MANUAL]
+    refused = [s for s in steps if s.get("status") == planner.REFUSED]
     if record.get("degraded") and not runnable:
         return f"I could not plan that: {record['degraded'][:160]}"
     if record.get("intent") == "clarify":
-        return record.get("summary") or "I need one thing cleared up before I plan that."
+        # Through the sieve like everything else she says. A clarifying
+        # question is model prose about her own state, so it carries the
+        # ids in it: "the only open item I see is a pending approval
+        # (intent-7aed1b5dcd) waiting on you". §145.
+        asked = speech.spoken_prose(str(record.get("summary") or ""))
+        return asked or "I need one thing cleared up before I plan that."
     if record.get("read_only"):
-        answers = [str(r.get("detail", "")).strip()
-                   for r in (record.get("receipts") or [])
+        receipts = record.get("receipts") or []
+        answers = [str(r.get("detail", "")).strip() for r in receipts
                    if r.get("outcome") == "done" and str(r.get("detail", "")).strip()]
+        # A FAILURE IS NOT AN ANSWER, AND THE SUMMARY IS NOT ONE EITHER.
+        #
+        # This filtered failures out — correctly, an error is not an answer
+        # — and then fell back to `record["summary"]`, which is the
+        # planner's restatement of what he ASKED for. So "read my resume"
+        # came back "Read the operator's resume file" while the receipt
+        # said `WorkspaceError: resume is not a file`, and "how many jobs
+        # are open at Anthropic" came back "Find how many jobs are
+        # currently open at Anthropic" while research had found nothing.
+        #
+        # Both sound like answers. Both are the question, reflected. That
+        # is §30 in its worst shape: not "command executed" reported as
+        # "goal achieved", but a FAILURE reported as the goal, in the
+        # confident voice of having done it.
+        trouble = [_plainly(r) for r in receipts
+                   if r.get("outcome") not in ("done", None) and r.get("detail")]
+        if answers and not trouble:
+            return speech.spoken_prose(" ".join(answers))[:600]
         if answers:
-            return " ".join(answers)[:600]
-        return record.get("summary") or "Nothing to do."
+            # The answers are finished sentences; ". — but" is two marks.
+            return (" ".join(answers)[:480].rstrip(" .") + " — but "
+                    + speech.and_list(trouble)[:200].rstrip(" .") + ".")
+        if trouble:
+            # The reasons are finished sentences; ". ." is two marks.
+            return ("I couldn't: "
+                    + speech.and_list(trouble)[:500].rstrip(" .") + ".")
+        return "I did that, and it produced nothing to tell you."
+    # A PLAN THAT WAS PARTLY REFUSED FOR SPENDING IS REFUSED.
+    #
+    # "Buy the cheapest 4K monitor and use my saved card" compiled into a
+    # step that was refused for spending AND a step that was not, so she
+    # said: "1 step ready — Find cheapest 4K monitor and buy using saved
+    # card. Say approve to run it. That asks me to spend money, and I do
+    # not do that." One sentence offering and refusing the same thing.
+    #
+    # Running the rest is not a smaller version of what he asked for; it
+    # is a different thing, offered under the summary of the thing that
+    # was refused. So the refusal is the answer.
+    money = [s for s in refused
+             if str(s.get("detail", "")).startswith(_SPENDING_REFUSAL)]
+    if money:
+        return _SPENDING_REFUSAL + " Nothing is queued."
+
     parts = []
     if runnable:
-        # Voice may approve only the routine tier (2026-09-03: the room
-        # microphone is an input device, not an authentication device).
-        # Telling him "say approve" for a desktop or world-touching plan sent
-        # him into a refusal; the phone's console and the keyboard are where
-        # those get decided (found 2026-09-04, the night before first use).
-        how = ("Say approve to run it" if record.get("tier") == "routine"
-               else "Approve it on your phone or at the keyboard to run it")
-        parts.append(f"{len(runnable)} step{'s' if len(runnable) != 1 else ''} ready — "
-                     + ", ".join(s["command"]["kind"] for s in runnable)
-                     + f". {how} ({record['approval']}).")
+        # THE SUMMARY, not the kinds. An executable step carries no
+        # capability id (only gaps do), so naming the steps could only
+        # ever read back the intercom vocabulary — "1 step ready —
+        # task_new". The planner's own summary is the plain sentence for
+        # what is about to happen, which is what somebody deciding
+        # whether to say "approve" actually needs.
+        #
+        # And no approval id: §145, he approves by saying "approve", and
+        # a hex string read out loud is a handle he cannot hold in his
+        # head — while the sentence went on to tell him to say it back.
+        ready = speech.count_phrase(len(runnable), "step") + " ready"
+        summary = speech.spoken_prose(str(record.get("summary") or ""))
+        said = f"{ready} — {summary}." if summary else f"{ready}."
+        if record.get("approval_state") == "APPROVED":
+            # A standing grant already covered it, so there is nothing for
+            # him to approve — and "say approve to run it" would send him
+            # looking for a decision that has already been made.
+            parts.append(said + " Your standing authority covers it, so it "
+                                "runs on the next beat.")
+        else:
+            # ...but voice may approve only the ROUTINE tier (2026-09-03:
+            # the room microphone is an input device, not an authentication
+            # device). Telling him to "say approve" for a desktop or
+            # world-touching plan sent him into a refusal, so the sentence
+            # names the surface that can actually take the decision.
+            how = ("Say approve to run it."
+                   if record.get("tier") == intercom.TIER_ROUTINE
+                   else "Approve it on your phone or at the keyboard to run it.")
+            parts.append(said + " " + how + _why_it_asks(record))
     if gaps_named:
-        parts.append("I can't do "
-                     + ", ".join(s["capability"] or "?" for s in gaps_named)
-                     + " yet"
-                     + (f"; filed {len(record.get('gap_tasks') or [])} build task(s)."
-                        if record.get("gap_tasks") else "."))
+        parts.append(_cannot_yet(gaps_named, record))
     if manual:
-        parts.append(f"{len(manual)} step{'s' if len(manual) != 1 else ''} only you can do.")
+        parts.append(f"{speech.count_phrase(len(manual), 'step')} only you can do.")
     if refused:
-        parts.append(f"{len(refused)} proposed step{'s' if len(refused) != 1 else ''} "
-                     "did not survive validation.")
+        # A refusal is worth SAYING only when it is about him. "I do not
+        # spend money" is the whole answer; "claimed missing, but the
+        # registry has audio.route AVAILABLE — claim ignored" is the
+        # planner correcting the model, and he heard it, capability id and
+        # all, appended to "1 step ready — Play music."
+        his = [speech.tidy(speech.strip_ids(str(s.get("detail") or "")))
+               for s in refused
+               if str(s.get("detail", "")).startswith(_HIS_REFUSALS)]
+        if his:
+            parts.append(speech.and_list(his[:2]))
+        elif not parts:
+            # Nothing else to say, so the dropped step IS the answer —
+            # but in his words, not the validator's.
+            parts.append("I couldn't make sense of part of that — say it again?")
     return " ".join(parts) or "Nothing to do."
+
+
+# A question ABOUT money is not an instruction to spend it.
+_A_QUESTION = re.compile(
+    r"^\s*(?:how|what|which|who|when|where|why|is|are|was|were|do|does|did|"
+    r"can|could|should|would|will|have|has|am|tell me|show me)\b", re.I)
+
+
+def _asks_to_spend(request: str) -> bool:
+    """Is this an instruction that commits his money? Never raises."""
+    text = " ".join(str(request or "").split())
+    if not text or text.rstrip().endswith("?") or _A_QUESTION.match(text):
+        return False
+    try:
+        from aletheia import webtask
+        return webtask.would_spend(text)
+    except Exception:
+        # FAIL CLOSED. The only realistic failure here is webtask being
+        # unimportable, and if that is true then nothing can spend anyway
+        # — so refusing costs him nothing and guessing the other way is
+        # the one mistake this rule exists to prevent.
+        return True
+
+
+# Refusal details written FOR HIM. Everything else in that field is the
+# planner talking to itself about a model's bad step, and belongs in the
+# record rather than in the room.
+_HIS_REFUSALS = (_SPENDING_REFUSAL[:40],
+                 "halt is not a step", "resume is not a step",
+                 "approve is not a step", "deny is not a step")
+
+
+def _why_it_asks(record: dict) -> str:
+    """"Why are you asking me about THAT?" — answered, with the fix.
+
+    "Add a task to renew my registration" runs instantly, because
+    `voice.py` has a pattern for it and a direct command is ungated.
+    "Mark the registration one done" asks for approval, because it went
+    through the planner and the planner path gates the routine tier. Same
+    action, same risk, and the only difference is whether somebody had
+    written a regex for that phrasing.
+
+    The gate is not the thing to change — `aletheia.standing` exists
+    precisely so he can say yes once for the whole routine tier, and it
+    is deliberately not grantable by voice, because the room microphone
+    is unauthenticated. What was missing is that nothing ever told him
+    the command existed at the moment he was being asked.
+
+    Self-limiting: once the grant exists, `policy.request` consumes it and
+    no approval is created, so this line stops appearing.
+    """
+    if record.get("tier") != intercom.TIER_ROUTINE:
+        return ""
+    # NEVER NEXT TO A DELETION. "2 steps ready — Delete all files in your
+    # workspace. Say approve to run it. I ask about small local things
+    # like this until you run `standing on` once." Each delete keeps a
+    # version, so the tier is right — but offering to stop asking, in the
+    # same breath as bulk deletion, reads as "shall I make this
+    # automatic?" and that is not a thing to suggest at that moment.
+    # `.get("command", {})` is not enough: a GAP or MANUAL step carries
+    # the key with the value None, and `None.get` is an AttributeError in
+    # the middle of a sentence.
+    kinds = {str((s.get("command") or {}).get("kind") or "")
+             for s in record.get("steps", [])}
+    if kinds & DESTRUCTIVE_KINDS:
+        return ""
+    try:
+        from aletheia import authority
+        if authority.active_grants():
+            return ""
+    except Exception:
+        pass
+    if not _due_to_mention("standing", NUDGE_EVERY_S):
+        return ""
+    # No backticks. This is spoken, and a backtick is either silence or
+    # the word "backtick"; the command is still exact without them.
+    return (" I ask about small local things like this until you run "
+            "python -m aletheia.standing on, once.")
+
+
+# How often a standing nudge may be repeated. It is one sentence and the
+# fix is one command, but three replies in a row carrying it — read out
+# loud, in a room — is the thing that teaches him to stop listening.
+NUDGE_EVERY_S = 3600.0
+
+# Routine-tier kinds that remove or move something. Reversible, and still
+# not the moment to suggest doing it without being asked.
+DESTRUCTIVE_KINDS = frozenset({"file_delete", "file_move", "notify_clear",
+                               "plan_set", "task_status"})
+
+
+def _due_to_mention(what: str, every_s: float) -> bool:
+    """Has it been long enough to say this again? Never raises.
+
+    A failure to READ the marker says yes (better to repeat useful advice
+    than to lose it); a failure to WRITE it just means it may repeat.
+    """
+    import time
+    try:
+        path = stateio.private_dir("nudges") / f"{stateio.safe_id(what)}.json"
+        now = time.time()
+        try:
+            last = float(stateio.read_json(path).get("at", 0.0))
+        except Exception:
+            last = 0.0
+        if now - last < every_s:
+            return False
+        stateio.write_json_atomic(path, {"at": now})
+        return True
+    except Exception:
+        return True
+
+
+def _plainly(receipt: dict) -> str:
+    """One failed step, as a reason rather than a traceback.
+
+    `speech.plainly` is the implementation, shared with
+    `voice.spoken_reply` — both say these out loud, and they had drifted
+    into stripping differently, so "That failed: KeyError: \"no place
+    matches 'the airport'\"" came out of one path while the other had
+    already been fixed.
+    """
+    return speech.plainly(receipt.get("detail", ""))[:220] or "it didn't work"
+
+
+def _in_english(capability: str | None) -> str:
+    """What a capability IS, in the registry's own words.
+
+    She was saying "I can't do room.scene yet" and "1 step ready —
+    free_time" out loud. Those are identifiers: correct, unsayable, and
+    §145 is explicit that implementation details never reach speech
+    unless they are useful to him. The registry already carries a human
+    sentence for every capability; this is that sentence.
+    """
+    from aletheia import speech
+    name = str(capability or "").strip()
+    try:
+        # ONE implementation: `speech.say_capabilities` needs exactly this
+        # to render an id a model wrote into prose, and two copies of "the
+        # registry's own words" drift the moment one of them is fixed.
+        said = speech._capability_english(name) if name else ""
+        if said:
+            return said
+    except Exception:
+        pass
+    return speech.deslug(name) or "that"
+
+
+def _cannot_yet(gaps_named: list[dict], record: dict) -> str:
+    """"Not yet" — and the one thing that would change it.
+
+    A capability waiting on HIM (a hub to connect, an account to link) and
+    one that does not exist yet are completely different answers, and both
+    used to come out as the same sentence with an identifier in the middle
+    of it: "I can't do room.scene yet; filed 1 build task(s)."
+
+    The two paths are phrased separately on purpose. A capability with a
+    setup step is one command away, and that command is the whole answer;
+    one without a step has only the registry's description, which is a
+    noun phrase and reads correctly after "I can't".
+    """
+    from aletheia import speech
+    wanted = [s.get("capability") for s in gaps_named]
+    step = _setup_step(wanted)
+    if step is not None:
+        # Deliberately NOT the step's `why`. That field is written for the
+        # checklist screen and talks about her in the third person —
+        # "without it SHE cannot answer 'am I free'" — which is a strange
+        # thing to hear her say about herself, and long. He just asked for
+        # the thing, so he knows what it is; the command is the part he
+        # can act on.
+        command = _how_command(step)
+        prereq = _setup_prereq(step)
+        said = "Not yet — that one needs setting up first"
+        if command and prereq:
+            return f"{said}. {prereq} Then: {command}."
+        if command:
+            return f"{said}: {command}."
+        return f"{said}."
+    said = "I can't " + speech.and_list([_in_english(c) for c in wanted]) + " yet"
+    if record.get("gap_tasks"):
+        return f"{said}. I've put it on the build list."
+    return f"{said}."
+
+
+def _setup_step(capabilities_wanted: list):
+    """The setup checklist entry for the first gap that has one, or None."""
+    try:
+        from aletheia import setup
+        wanted = {str(c) for c in capabilities_wanted if c}
+        for step in setup.steps():
+            if step.capability in wanted:
+                return step
+    except Exception:
+        pass
+    return None
+
+
+def _how_command(step) -> str:
+    """The runnable line out of a step's instructions.
+
+    The instructions are a block written for a screen — "Only if you
+    already run Home Assistant:", an indented menu path, then the command.
+    Reading the first line out loud gives him a fragment ending in a
+    colon; the command is the part he can act on.
+    """
+    try:
+        for line in step.instructions():
+            text = " ".join(str(line).split()).lstrip("$ ")
+            if not text.startswith("python -m"):
+                continue
+            # The checklist is written for a screen, so a command often
+            # carries an aside: "python -m aletheia.phone_cli ready
+            # (should say True)". Read out, that is the command plus a
+            # sentence fragment. The runnable part is what he needs.
+            return re.sub(r"\s*\(.*$", "", text).strip()
+    except Exception:
+        pass
+    return ""
+
+
+_COMMAND_WORDS = frozenset({"python", "pip", "winget", "npm", "npx", "git",
+                            "curl", "choco", "docker", "node", "ollama", "$"})
+
+
+def _setup_prereq(step) -> str:
+    """The thing HE has to go and fetch, in English — or "".
+
+    A command with a placeholder in it does not answer its own question.
+    "what's on my calendar this week" came back as `python -m aletheia.apply
+    calendar "<paste the URL>"` and nothing else: that says what to type and
+    not WHICH URL, and the line that answers it was sitting directly above
+    the command in the checklist all along. Out loud it was worse — a shell
+    command and an angle-bracket placeholder, with no hint the thing comes
+    out of Google Calendar's settings.
+
+    Headings are skipped: they end in a colon because a screen puts the
+    substance underneath them, and read aloud they are a fragment. The
+    exception is a CONDITIONAL heading, which is kept and prefixed —
+    "Only if you already run Home Assistant:" is the entire difference
+    between a five-minute task and installing a home automation platform.
+    Arrows become commas for the same reason — nobody hears "dash greater
+    than".
+    """
+    condition = ""
+    try:
+        for line in step.instructions():
+            text = " ".join(str(line).split()).lstrip("$ ")
+            if not text or text.split()[0].lower().rstrip(":") in _COMMAND_WORDS:
+                continue
+            # A line that opens with "(" is an aside belonging to the command
+            # above it — "(then ask her anything — this step proves it by
+            # asking)" is not an instruction he can start from.
+            if text.endswith(":"):
+                # A heading is a fragment on its own — except a CONDITIONAL
+                # one, which is the most important thing in the block.
+                # "Only if you already run Home Assistant:" is the whole
+                # difference between a five-minute task and installing a
+                # home automation platform, and dropping it left her
+                # cheerfully reciting a menu path he has no menu for.
+                if text.lower().startswith("only if"):
+                    condition = text
+                continue
+            if text.startswith("(") or len(text.split()) < 4:
+                continue
+            text = (condition + " " + text) if condition else text
+            text = text.replace("->", ",").replace("  ", " ")
+            text = " ".join(text.replace(" ,", ",").split())
+            return text if text.endswith(".") else text + "."
+    except Exception:
+        pass
+    return ""
 
 
 def run_approved(fleet: dict | None = None, executor=None) -> list[dict]:

@@ -69,8 +69,9 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from aletheia import access, act, capabilities, computer, followups, intercom, journal
-from aletheia import liveness, policy, tasks
+from aletheia import closed, liveness, policy, tasks
 from aletheia import current_state, events, notifications, runtime, scheduler
+from aletheia import speech
 from aletheia.fleet import REPO_ROOT, load_fleet
 from aletheia.pulse import PULSE_DIR
 from aletheia.sync import GitSync
@@ -157,6 +158,32 @@ RESTART_EXIT_CODE = 42  # tells the supervisor: relaunch me, this is not a crash
 # request to the hub, a PowerShell probe — so it belongs here too. Measured
 # live: 20.9s. The room gets an acknowledgement and the answer when it lands.
 SLOW_KINDS = {"intent", "screen_ask", "setup_status"}
+
+
+def answered_now(cmd: dict) -> str | None:
+    """An `intent` she can answer out of her own stores, answered here.
+
+    `intent` is in SLOW_KINDS because reasoning takes ten to thirty
+    seconds. Since `aletheia.quick`, some intents are a file read — and
+    routing those through the followup path is actively worse than the
+    problem it solves: the room hears "Working on that.", polls, and gets
+    the real answer a tenth of a second later. Two spoken lines and a
+    round trip for something that was already done.
+
+    So the followup path is for what is actually slow. This returns the
+    sentence when there is one and None otherwise, and asking `quick` for
+    the ANSWER rather than for a pattern match is deliberate: "can you fly
+    a helicopter" matches the shape and has no stored answer, and running
+    that inline would block the room on the planner for the whole round
+    trip. Never raises.
+    """
+    if cmd.get("kind") != "intent":
+        return None
+    try:
+        from aletheia import quick
+        return quick.answer(str(cmd.get("text") or ""))
+    except Exception:
+        return None
 
 
 def stale_code_files(started_at: float | None = None,
@@ -261,7 +288,37 @@ _KICK_LOCK = threading.Lock()
 _KICKING = False
 
 
-def kick_approved_work(fleet: dict) -> bool:
+# How long the room waits for the work an approval unblocked before
+# answering. Not a promise that it finished — a chance for the LOCAL
+# steps, which take milliseconds, to be done before the next sentence.
+#
+# "Approve" / "what's on my shopping list" answered "Nothing on your
+# shopping list" one breath after approving three things onto it: the
+# kick runs off-thread and the deterministic answer came back in 0.0s,
+# beating it. An answer that is wrong for a quarter of a second is
+# indistinguishable from an answer that is wrong.
+KICK_WAIT_S = 2.0
+
+
+def _remember_out_loud(transcript: str, said: str) -> None:
+    """Put a spoken turn in her conversation memory. Never raises.
+
+    The memory lived inside `converse`, so it held only the turns a MODEL
+    answered — and the faster she got, the less she remembered of the
+    conversation. Everything answered from a store in 0.0s was missing
+    from it, which is most of what she says now.
+    """
+    try:
+        from aletheia import converse, voice
+        # WITHOUT the wake word: "thea add a task to call the plumber" is
+        # not how he would refer to it a turn later, and the thread is
+        # read back to a model as what he said.
+        converse.remember_exchange(voice.strip_wake_word(transcript), said)
+    except Exception:
+        pass
+
+
+def kick_approved_work(fleet: dict, wait_s: float = 0.0) -> bool:
     """Run the things an approval just unblocked, immediately.
 
     Off the sync thread on purpose: this is the same work the beat does, and
@@ -269,6 +326,10 @@ def kick_approved_work(fleet: dict) -> bool:
     minute later. One at a time — a second `approve` while the first is
     still running joins it rather than racing it, and every step is
     idempotent by state transition anyway.
+
+    `wait_s` gives the caller a bounded wait: the room uses it so a local
+    step is finished before he can ask about it, and a slow errand still
+    cannot stall anything for longer than that.
     """
     global _KICKING
     with _KICK_LOCK:
@@ -292,7 +353,10 @@ def kick_approved_work(fleet: dict) -> bool:
             with _KICK_LOCK:
                 _KICKING = False
 
-    threading.Thread(target=run, name="aletheia-kick", daemon=True).start()
+    worker = threading.Thread(target=run, name="aletheia-kick", daemon=True)
+    worker.start()
+    if wait_s > 0:
+        worker.join(wait_s)
     return True
 
 
@@ -572,7 +636,20 @@ class Handler(BaseHTTPRequestHandler):
         if url.path == "/api/tasks":
             return self._json(tasks.all_tasks())
         if url.path == "/api/approvals":
-            return self._json(policy.all_approvals())
+            # WITH THE LABEL. The wall renders `voice.approval_label`, which
+            # prefers the plan's own summary; the Command Center rendered
+            # `reason` raw and showed `operator said: "x"` above a hex id.
+            # Two surfaces disagreeing about the same approval, and the one
+            # with the buttons on it had the worse text.
+            from aletheia import voice as _voice
+            rows = []
+            for approval in policy.all_approvals():
+                try:
+                    label = _voice.approval_label(approval)
+                except Exception:
+                    label = ""
+                rows.append({**approval, "label": label})
+            return self._json(rows)
         if url.path == "/api/capabilities":
             return self._json(capabilities.load_registry())
         if url.path == "/api/computer/status":
@@ -660,6 +737,18 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"outcome": "invalid", "detail": detail}, code=400)
             fleet = self.fleet
             asked = text.strip()[:8000]
+            # The typed surface gets the same fast lane as the room: a
+            # question she can answer from her own stores should not come
+            # back as "Working on that." and a poll.
+            fast = answered_now({"kind": "intent", "text": asked})
+            if fast:
+                try:
+                    journal.append("event", "quick", f"answered from her own "
+                                   f"stores: {asked[:120]}", actor="aletheia-core")
+                except Exception:
+                    pass
+                return self._json({"outcome": "answered", "say": fast,
+                                   "detail": fast})
             try:
                 slot = followups.start(
                     lambda: run_command(
@@ -667,7 +756,11 @@ class Handler(BaseHTTPRequestHandler):
                          "operator_quote":
                              f"typed into the command center: {asked[:200]}"},
                         fleet)["detail"],
-                    acknowledgement="Working on that.", durable=True)
+                    # The same line the room says while she thinks, chosen
+                    # by the shape of what he asked: "let me look" for a
+                    # question, "working on it" for an instruction. Both
+                    # stay true whatever the answer turns out to be.
+                    acknowledgement=speech.ack_line(asked), durable=True)
             except Exception as exc:
                 try:
                     journal.append("alert", "followup",
@@ -688,7 +781,7 @@ class Handler(BaseHTTPRequestHandler):
                 # it is the difference between an assistant and a cron job,
                 # so the work he unblocked is kicked NOW — off the sync
                 # thread, so a slow errand still cannot stall the beat.
-                kick_approved_work(self.fleet)
+                kick_approved_work(self.fleet, wait_s=KICK_WAIT_S)
             return self._json(result)
         if path == "/api/voice/followup/ack":
             fid = payload.get("id")
@@ -712,20 +805,42 @@ class Handler(BaseHTTPRequestHandler):
                                   code=400)
             intent = voice.interpret(transcript)
             if intent["command"] is None:
+                _remember_out_loud(transcript, intent["say"])
                 return self._json({"outcome": "answered", "say": intent["say"]})
             cmd = dict(intent["command"])
             kind = cmd.get("kind")
             quote = f"spoken to the wall: {transcript[:200]}"
+            fast = answered_now(cmd)
+            if fast:
+                try:
+                    journal.append("event", "quick", f"answered from her own "
+                                   f"stores: {transcript[:120]}",
+                                   actor="aletheia-core")
+                except Exception:
+                    pass
+                _remember_out_loud(transcript, fast)
+                return self._json({"outcome": "answered", "say": fast})
             if kind in SLOW_KINDS:
                 # Reasoning takes ten to thirty seconds; a person in a room
                 # waits about two. Answer now, think in the background, and
                 # let the listener collect the real sentence when it exists.
                 fleet = self.fleet
+                def think_it_through() -> str:
+                    detail = run_command(
+                        {**cmd, "operator_quote": quote}, fleet)["detail"]
+                    # THE SLOW TURNS COUNT TOO. Recording only the ones
+                    # answered inline left the same hole one layer down:
+                    # "remind me at 8 tomorrow" was answered through this
+                    # path, and "make that 9 instead" a breath later found
+                    # "no visible prior request".
+                    _remember_out_loud(transcript, detail)
+                    return detail
+
                 try:
                     slot = followups.start(
-                        lambda: run_command(
-                            {**cmd, "operator_quote": quote}, fleet)["detail"],
-                        acknowledgement="Working on that.", durable=True)
+                        think_it_through,
+                        acknowledgement=speech.ack_line(
+                            cmd.get("text") or transcript), durable=True)
                 except Exception as exc:
                     try:
                         journal.append(
@@ -742,11 +857,14 @@ class Handler(BaseHTTPRequestHandler):
                                    "followup_id": slot["id"]})
             result = run_command({**cmd, "operator_quote": quote}, self.fleet)
             if kind in ("approve", "resume"):
-                kick_approved_work(self.fleet)  # saying yes out loud acts now too
+                # Saying yes out loud acts now too — and the room waits a
+                # moment for it, so the next question tells the truth.
+                kick_approved_work(self.fleet, wait_s=KICK_WAIT_S)
             # a fallback intent carries its own words (e.g. "no command for
             # that, journaled") — those beat the generic receipt phrasing
             say = intent["say"] or voice.spoken_reply(kind, result["outcome"],
                                                       result["detail"])
+            _remember_out_loud(transcript, say)
             return self._json({**result, "say": say})
 
         unknown = set(payload) - {"steps", "approval_id"}
@@ -895,6 +1013,20 @@ def main(argv: list[str] | None = None) -> int:
     if not args.no_sync:
         start_sync_loop(load_fleet(), interval_s=args.sync_interval,
                         on_code_update=on_code_update)
+
+    # CLOSING HER, the way a window closes. The only stop she had was
+    # Ctrl+C, and she runs as a hidden scheduled task where nobody can
+    # press it — so the only available stop was terminating the task.
+    # This watches for the marker and shuts the server down the same way
+    # a code update does: finish what is in flight, exit 0, journal it.
+    def watch_for_close():
+        while not restarting.is_set():
+            if closed.is_closed():
+                journal.append("event", "core", "closing — asked to")
+                threading.Thread(target=server.shutdown, daemon=True).start()
+                return
+            time.sleep(CLOSE_POLL_S)
+    threading.Thread(target=watch_for_close, daemon=True).start()
     journal.append("event", "core", f"local Core up on {args.host}:{args.port}")
     print(f"Aletheia Core: http://{args.host}:{args.port}  "
           f"(wall at /, command center at /command.html) — Ctrl+C stops")
@@ -902,6 +1034,9 @@ def main(argv: list[str] | None = None) -> int:
         server.serve_forever()
     except KeyboardInterrupt:
         journal.append("event", "core", "local Core stopped")
+        return 0
+    if closed.is_closed():
+        journal.append("event", "core", "closed")
         return 0
     if restarting.is_set():
         if os.environ.get("ALETHEIA_SUPERVISED") == "1":

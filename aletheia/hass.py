@@ -38,7 +38,7 @@ import sys
 import urllib.error
 import urllib.request
 
-from aletheia import devices, journal, policy, room
+from aletheia import devices, journal, policy, room, speech
 
 ACTOR = "aletheia-hass"
 TIMEOUT_S = 10.0
@@ -189,7 +189,7 @@ def execute_scene(scene_id: str, approval_id: str, opener=None) -> dict:
     try:
         planned = room.plan(scene_id)
     except RuntimeError as exc:
-        raise HassUnavailable(f"{exc} — run `hass observe` first") from exc
+        raise HassUnavailable(f"{exc} — run hass observe first") from exc
 
     done, failed = [], None
     for step in planned["steps"]:
@@ -208,7 +208,7 @@ def execute_scene(scene_id: str, approval_id: str, opener=None) -> dict:
               "state": "COMPLETED" if failed is None else "FAILED",
               "steps_done": done, "failed": failed}
     journal.append("action", f"room:{scene_id}",
-                   f"{len(done)}/{len(planned['steps'])} device(s) moved"
+                   f"{len(done)}/{speech.count_phrase(len(planned['steps']), 'device')} moved"
                    + (f" — stopped: {failed}" if failed else ""), actor=ACTOR)
     return record
 
@@ -239,7 +239,8 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.cmd == "observe":
             touched = observe()
-            print(f"observed {len(touched)} registered device(s)")
+            print("observed "
+                  + speech.count_phrase(len(touched), "registered device"))
             return 0
         print(json.dumps(execute_scene(args.id, args.approval), indent=2))
         return 0

@@ -508,7 +508,8 @@ function presenceHTML(now) {
     n => n.priority === "URGENT" || n.priority === "IMPORTANT");
   if (notices.length) {
     rows.push(`<div class="prow"><b>unread</b>${
-      notices.map(n => chip(n.title, n.priority === "URGENT" ? "needs" : "")).join("")}</div>`);
+      notices.map(n => chip(n.says || n.title,
+        n.priority === "URGENT" ? "needs" : "")).join("")}</div>`);
   }
   /* At most three rows. The band is ordered most-urgent-first, so a busy
      day shows what needs him and stops — rather than growing until it

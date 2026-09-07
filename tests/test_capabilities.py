@@ -117,19 +117,19 @@ class TestBrief(unittest.TestCase):
     def test_deltas_and_composition(self):
         prev = _pulse(self.fleet)
         cur = _pulse(self.fleet)
-        # yesterday the trader had less loss and shorts fewer posts
-        for v in prev["repos"]["schwab_trader"]["vitals"]:
-            if v["label"] == "realized P&L":
-                v["value"] = -30.82
+        # yesterday shorts had fewer posts
         for v in prev["repos"]["shorts_pipeline"]["vitals"]:
             if v["label"] == "trending posted":
                 v["value"] = 1
         deltas = brief.vital_deltas(prev, cur)
-        self.assertEqual(deltas["schwab_trader"]["realized P&L"], -10.0)
         self.assertEqual(deltas["shorts_pipeline"]["trending posted"], 2)
         text = brief.compose(enrich(cur, prev), prev, [], new_suggestions=2)
-        self.assertIn("(-$10.00)", text)
         self.assertIn("(+2)", text)
+        # And the half this test used to assert: the trader's realized
+        # P&L and cash balance are PRIVATE vitals now, so they never
+        # reach the brief — which is a committed file in a public repo.
+        self.assertNotIn("schwab_trader", deltas)
+        self.assertNotIn("P&L", text)
         self.assertIn("2 ChatGPT suggestion(s)", text)
         self.assertIn("All quiet.", text)
 

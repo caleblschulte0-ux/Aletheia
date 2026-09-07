@@ -51,8 +51,10 @@ from __future__ import annotations
 
 import argparse
 import ast
+import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -88,6 +90,19 @@ FORBIDDEN_NAMES = frozenset({
 FORBIDDEN_ATTRS = frozenset({
     "system", "popen", "spawn", "spawnl", "spawnv", "execv", "execve", "execl",
     "fork", "forkpty", "kill", "killpg", "putenv", "unsetenv",
+})
+
+# TAKING A FILE AWAY IS NOT THE SAME AS WRITING ONE. `os`, `shutil` and
+# `pathlib` are allowed because a program that works with files needs
+# them — and that quietly meant a generated program could `shutil.rmtree`
+# his workspace with no approval, no version history and no receipt,
+# while `file.author` next door keeps every version it replaces. "Delete
+# every file in my workspace older than a month" is a plausible sentence
+# and it routed straight here. So these need his yes, bound to the exact
+# source, the same way every other irreversible thing does.
+DESTRUCTIVE_ATTRS = frozenset({
+    "remove", "unlink", "rmdir", "removedirs", "rmtree", "truncate",
+    "rename", "renames", "replace", "move", "chmod", "chown",
 })
 
 SYSTEM = """You write one small, self-contained Python 3 program that carries
@@ -131,6 +146,28 @@ def _module_allowed(name: str) -> bool:
         return True
     root = name.split(".")[0]
     return root in ALLOWED_IMPORTS and f"{root}." not in name
+
+
+def destructive_calls(source: str) -> list[str]:
+    """Every call in the program that takes a file away or moves it.
+
+    A list, not a refusal: a program that deletes is not forbidden, it is
+    a thing he has to say yes to. Named so the approval can quote them.
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return []
+    found: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        target = node.func
+        name = (target.attr if isinstance(target, ast.Attribute)
+                else getattr(target, "id", ""))
+        if name in DESTRUCTIVE_ATTRS and name not in found:
+            found.append(name)
+    return sorted(found)
 
 
 def check(source: str) -> None:
@@ -252,10 +289,97 @@ def _environment() -> dict:
     return keep
 
 
-def execute(source: str, *, label: str = "task") -> dict:
-    """Run a checked program in the workspace, and capture everything."""
+# HOW MUCH SHE WILL COPY BEFORE LETTING A PROGRAM LOOSE. `file.author`
+# keeps every version it replaces; a generated program writing directly
+# bypasses that entirely, and I gated DELETING without doing anything
+# about overwriting — a program that rewrites his notes with garbage is
+# not obviously better than one that deletes them. So: copy first, within
+# a bound, and when the bound is exceeded SAY SO rather than implying an
+# undo that does not exist.
+MAX_BACKUP_FILES = 400
+MAX_BACKUP_BYTES = 4 * 1024 * 1024      # per file
+BACKUPS = ".before-scripts"
+
+
+def _manifest(base: Path) -> dict:
+    """What is in the workspace right now, so a run can say what it did."""
+    out = {}
+    for path in base.rglob("*"):
+        if not path.is_file():
+            continue
+        parts = path.relative_to(base).parts
+        if parts and parts[0] in (workspace.VERSIONS, BACKUPS, SCRIPTS_DIR):
+            continue
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+        out[str(path.relative_to(base))] = (stat.st_size, int(stat.st_mtime_ns))
+    return out
+
+
+def _back_up(base: Path, stamp: str) -> tuple[str, str]:
+    """Copy the workspace aside. Returns (where, why-not)."""
+    folder = base / BACKUPS / stamp
+    kept = 0
+    for name in _manifest(base):
+        source = base / name
+        try:
+            if source.stat().st_size > MAX_BACKUP_BYTES:
+                return "", f"{name} is larger than {MAX_BACKUP_BYTES // 1024}KB"
+            if kept >= MAX_BACKUP_FILES:
+                return "", f"there are more than {MAX_BACKUP_FILES} files here"
+            target = folder / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+            kept += 1
+        except OSError as exc:
+            return "", f"{name} could not be copied ({exc.__class__.__name__})"
+    return (str(folder.relative_to(base)) if kept else ""), ""
+
+
+def _changes(before: dict, after: dict) -> dict:
+    return {
+        "created": sorted(set(after) - set(before)),
+        "changed": sorted(n for n in set(after) & set(before)
+                          if after[n] != before[n]),
+        "removed": sorted(set(before) - set(after)),
+    }
+
+
+def source_digest(source: str) -> str:
+    return hashlib.sha256(source.encode("utf-8")).hexdigest()
+
+
+def approval_for(source: str) -> str:
+    """The `requested_action` an approval for THIS program must carry."""
+    return f"script.destructive:{source_digest(source)}"
+
+
+def execute(source: str, *, label: str = "task",
+            approval_id: str | None = None) -> dict:
+    """Run a checked program in the workspace, and capture everything.
+
+    A program that DELETES needs his yes first, bound to the exact source
+    — change one line after he says yes and the hash no longer matches.
+    """
     check(source)
     policy.ensure_not_halted()
+    takes_away = destructive_calls(source)
+    if takes_away:
+        if not approval_id:
+            raise ScriptRefused(
+                "this program removes or moves files ("
+                + ", ".join(takes_away)
+                + ") — that needs your yes, and nothing has been run")
+        ok, why = policy.usable(approval_id)
+        if not ok:
+            raise ScriptRefused(f"{why} — nothing was run")
+        approval = policy.load(approval_id)
+        if approval.get("requested_action") != approval_for(source):
+            raise ScriptRefused(
+                f"approval {approval_id} was given for a different program — "
+                "nothing was run")
     base = workspace.root()
     folder = base / SCRIPTS_DIR
     folder.mkdir(parents=True, exist_ok=True)
@@ -264,6 +388,8 @@ def execute(source: str, *, label: str = "task") -> dict:
     # Saved BEFORE it runs: a generated program nobody can read afterwards
     # is a black box, and this one touches his files.
     saved.write_text(source, encoding="utf-8")
+    before = _manifest(base)
+    kept_at, no_backup = _back_up(base, stamp)
     journal.append("action", "script:run",
                    f"running generated program {saved.name} ({len(source):,} chars)",
                    actor=ACTOR)
@@ -287,29 +413,123 @@ def execute(source: str, *, label: str = "task") -> dict:
     journal.append("action", "script:run",
                    f"{saved.name} finished — {len(out):,} chars of output",
                    actor=ACTOR)
+    # WHAT IT ACTUALLY DID TO HIS FILES. The receipt used to be the
+    # program's own stdout, which is whatever the program felt like
+    # saying about itself.
+    changes = _changes(before, _manifest(base))
     return {"program": str(saved.relative_to(base)), "output": out,
-            "stderr": err.strip(), "chars": len(out)}
+            "stderr": err.strip(), "chars": len(out), **changes,
+            "backup": kept_at, "no_backup_because": no_backup}
 
 
-def run(request: str, *, think=None, label: str = "task") -> dict:
-    """Write a program for the request, check it, run it, report it."""
+def run(request: str, *, think=None, label: str = "task",
+        approval_id: str | None = None) -> dict:
+    """Write a program for the request, check it, run it, report it.
+
+    If the program it wrote takes files away, it is SAVED and he is asked
+    — with the program itself readable and the exact calls named — rather
+    than run and reported afterwards.
+    """
     request = str(request or "").strip()
     if not request:
         raise ValueError("a request is required")
     policy.ensure_not_halted()
-    source = write_program(request, think=think)
-    result = execute(source, label=label)
+    try:
+        source = write_program(request, think=think)
+    except ScriptRefused:
+        # The box said no. That is a thing he asked for and did not get.
+        try:
+            from aletheia import demand
+            demand.record_attempt("task.script", request, "REFUSED",
+                                  source="script")
+        except Exception:
+            pass
+        raise
+    takes_away = destructive_calls(source)
+    if takes_away and not approval_id:
+        held = propose(source, request=request, label=label)
+        return {"state": "AWAITING_YOU", "request": request, **held}
+    result = execute(source, label=label, approval_id=approval_id)
     result["request"] = request
+    result["state"] = "DONE"
     return result
 
 
+def propose(source: str, *, request: str, label: str = "task") -> dict:
+    """Save the program, show it to him, and ask — running nothing."""
+    base = workspace.root()
+    folder = base / SCRIPTS_DIR
+    folder.mkdir(parents=True, exist_ok=True)
+    stamp = stateio.utcnow().replace(":", "").replace("-", "")
+    saved = folder / f"{stateio.safe_id(label, name='label')}-{stamp}.py"
+    saved.write_text(source, encoding="utf-8")
+    takes_away = destructive_calls(source)
+    approval_id = f"script-{source_digest(source)[:12]}"
+    policy.request(
+        approval_id, approval_for(source),
+        reason=(f"{request[:120]} — a program that calls "
+                + ", ".join(takes_away)
+                + f". Read it first: {saved.relative_to(base)}"),
+        consequence=("It removes or moves files in your workspace. There is "
+                     "no undo and no version kept."),
+        reversible=False, capability="task.script")
+    journal.append("action", "script:propose",
+                   f"{saved.name} removes files ({', '.join(takes_away)}) — "
+                   "waiting on him", actor=ACTOR)
+    return {"approval": approval_id, "program": str(saved.relative_to(base)),
+            "destructive": takes_away, "source": source,
+            "say": ("That needs a program that deletes things ("
+                    + ", ".join(takes_away)
+                    + "). I have written it and run nothing — read "
+                    + str(saved.relative_to(base)) + " and confirm it.")}
+
+
+def confirmed(approval_id: str, *, label: str = "task") -> dict:
+    """Run the program he approved, once, from the source he approved."""
+    ok, why = policy.usable(approval_id)
+    if not ok:
+        raise ScriptRefused(f"{why} — nothing was run")
+    approval = policy.load(approval_id)
+    base = workspace.root()
+    wanted = str(approval.get("requested_action") or "")
+    for path in sorted((base / SCRIPTS_DIR).glob("*.py"), reverse=True):
+        source = path.read_text(encoding="utf-8")
+        if approval_for(source) == wanted:
+            out = execute(source, label=label, approval_id=approval_id)
+            out["state"] = "DONE"
+            return out
+    raise ScriptRefused(
+        f"the program {approval_id} was given for is no longer on disk")
+
+
 def spoken(result: dict) -> str:
-    """The printed output IS the receipt — a silent program is a failed one."""
+    """What it said, and what it DID.
+
+    The receipt used to be the program's own stdout, which is whatever
+    the program felt like saying about itself. What his files did is
+    observed, not reported.
+    """
+    if result.get("state") == "AWAITING_YOU":
+        return str(result.get("say", "It needs your yes."))
     out = (result.get("output") or "").strip()
-    if not out:
-        return "It ran, but printed nothing, so I cannot tell you what it did."
-    first = [line for line in out.splitlines() if line.strip()][:3]
-    return " ".join(first)[:400]
+    said = (" ".join([line for line in out.splitlines() if line.strip()][:3])[:400]
+            if out else "It ran and printed nothing")
+    touched = []
+    for verb in ("created", "changed", "removed"):
+        names = result.get(verb) or []
+        if names:
+            touched.append(f"{verb} " + ", ".join(names[:4])
+                           + (f" and {len(names) - 4} more" if len(names) > 4 else ""))
+    if not touched:
+        return said + " — it changed no files."
+    tail = "; ".join(touched)
+    if result.get("backup"):
+        tail += f". The originals are in {result['backup']} if that was wrong"
+    elif result.get("no_backup_because"):
+        # NEVER imply an undo that does not exist.
+        tail += (f". I could not keep copies first ({result['no_backup_because']}),"
+                 " so this one cannot be undone")
+    return f"{said} — {tail}."
 
 
 def main(argv: list[str] | None = None) -> int:

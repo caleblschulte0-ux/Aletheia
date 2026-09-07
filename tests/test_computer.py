@@ -214,5 +214,54 @@ class ComputerCase(unittest.TestCase):
         self.assertFalse(any(step["action"] == "close_window" for step in plan))
 
 
+class EndingSomethingIsAsIrreversibleAsStartingIt(unittest.TestCase):
+    """"Cancel my Planet Fitness membership" is one of the exact things he
+    asks for, and the label had nothing in it that the gate recognised —
+    she would have clicked it without asking anybody. The list only had
+    words for CREATING an obligation."""
+
+    def test_ending_a_thing_needs_him(self):
+        for label in ("Cancel my membership", "Cancel subscription",
+                      "Cancelling membership", "End my subscription",
+                      "Close my account", "Deactivate account",
+                      "Terminate plan", "Unsubscribe", "Withdraw application",
+                      "Opt out of marketing"):
+            with self.subTest(label=label):
+                self.assertTrue(computer.committing_label(label), label)
+
+    def test_committing_HIM_TO_something_needs_him_too(self):
+        """A binding agreement is operator_always whatever it costs
+        (§56 L4): committing him to be somewhere is not undone by pressing
+        back."""
+        for label in ("Book appointment", "Reserve this slot", "RSVP",
+                      "Accept offer", "Accept the terms and conditions"):
+            with self.subTest(label=label):
+                self.assertTrue(computer.committing_label(label), label)
+
+    def test_the_bare_word_CANCEL_is_how_you_back_OUT_of_something(self):
+        """It is the safe button in every dialog ever drawn. Stopping on
+        it would make her useless without making him any safer."""
+        self.assertIsNone(computer.committing_label("Cancel"))
+
+    def test_a_COOKIE_BANNER_is_not_a_binding_agreement(self):
+        """"Accept all" is on every page on the internet."""
+        self.assertIsNone(computer.committing_label("Accept all"))
+        self.assertIsNone(computer.committing_label("Accept cookies"))
+
+    def test_getting_around_a_form_is_still_free(self):
+        for label in ("Next", "Continue", "Back", "Save draft", "Add another",
+                      "Search", "Show more", "Edit"):
+            with self.subTest(label=label):
+                self.assertIsNone(computer.committing_label(label), label)
+
+    def test_the_browser_and_the_desktop_cannot_disagree_about_it(self):
+        """One pattern, both hands. Two copies would drift, and the half
+        that drifted would be the one nobody was watching."""
+        from aletheia import webtask
+        source = Path(webtask.__file__).read_text(encoding="utf-8")
+        self.assertIn("computer.committing_label", source)
+        self.assertNotIn("COMMITTING_PATTERN = re.compile", source)
+
+
 if __name__ == "__main__":
     unittest.main()
