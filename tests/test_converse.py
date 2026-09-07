@@ -690,12 +690,17 @@ class AFileOnHisDESKTOP(unittest.TestCase):
     def setUp(self):
         self.home = tempfile.TemporaryDirectory()
         self.addCleanup(self.home.cleanup)
+        # `.resolve()`: on a GitHub Windows runner TMP is the 8.3 SHORT
+        # form (C:/Users/RUNNER~1/...), while anything the product
+        # resolves comes back long (C:/Users/runneradmin/...). Comparing
+        # the two forms failed on the runner and nowhere else.
+        self.root = Path(self.home.name).resolve()
         patch = mock.patch.object(converse.Path, "home",
-                                  staticmethod(lambda: Path(self.home.name)))
+                                  staticmethod(lambda: self.root))
         patch.start(); self.addCleanup(patch.stop)
 
     def put(self, where, name="lease.md", text="Rent is 1450 a month."):
-        target = Path(self.home.name) / where / name
+        target = self.root / where / name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(text)
         return target
