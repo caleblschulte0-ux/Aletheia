@@ -268,6 +268,10 @@ def _wake_detected(result: dict, *, minimum: float = WAKE_CONFIDENCE_MIN) -> boo
     return "thea" in tokens or "aletheia" in tokens
 
 
+# How fast the room notices it has been closed.
+CLOSED_POLL_S = 2.0
+
+
 def _drain(q: queue.Queue) -> None:
     while True:
         try:
@@ -324,11 +328,22 @@ def microphone_recognizer():
             except queue.Full:
                 pass
 
+    from aletheia import closed
+    last_closed_check = time.monotonic()
     with sd.RawInputStream(
         samplerate=SAMPLE_RATE, blocksize=4000, dtype="int16",
         channels=1, callback=on_audio,
     ):
         while True:
+            # Checked here rather than only at startup: he closes her while
+            # she is listening, and a microphone that stays on until the
+            # next reboot is not a closed window. `is_closed` is a file
+            # check, so it is throttled rather than run per audio block.
+            now = time.monotonic()
+            if now - last_closed_check >= CLOSED_POLL_S:
+                last_closed_check = now
+                if closed.is_closed():
+                    return
             if seen_generation != _output_generation:
                 seen_generation = _output_generation
                 _drain(audio)
@@ -720,6 +735,16 @@ def main(argv: list[str] | None = None) -> int:
         return setup()
     if args.check:
         return check()
+
+    # CLOSED MEANS CLOSED, INCLUDING THE MICROPHONE. This task has its own
+    # logon trigger, so without this check "close her" stopped the Core and
+    # left the room listening — and the next trigger started a fresh
+    # listener while she was supposed to be shut.
+    from aletheia import closed
+    if closed.is_closed():
+        print("Aletheia is closed — not listening. "
+              "`python -m aletheia.closed open` to change that.")
+        return 0
 
     lock = VoiceInstanceLock()
     if not lock.acquire():

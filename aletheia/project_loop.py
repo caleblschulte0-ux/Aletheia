@@ -401,6 +401,16 @@ def main(argv: list[str] | None = None) -> int:
     p_sweep.add_argument("--max", type=int, default=SLICE_MAX)
     sub.add_parser("status")
     args = ap.parse_args(argv)
+    # Its own scheduled task every thirty minutes, so "close her" never
+    # reached it: she was shut and still opening pull requests. `status` is
+    # a read and stays answerable — being closed is a thing he should be
+    # able to ask about.
+    if args.cmd != "status":
+        from aletheia import closed
+        if closed.is_closed():
+            print("Aletheia is closed — the project loop is not running. "
+                  "`python -m aletheia.closed open` to change that.")
+            return 0
     try:
         if args.cmd == "once":
             value = cycle(daily_limit=args.daily_limit)

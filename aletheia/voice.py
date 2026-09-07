@@ -556,6 +556,38 @@ def _interpret(transcript: str) -> dict:
                     r"(lift|cancel|clear) the halt|"
                     r"turn yourself back on)", low):
         return {"command": {"kind": "resume"}, "say": None}
+    # CLOSING HER IS NOT HALTING HER, and until 2026-09-07 voice could
+    # reach `halt` and had no way at all to reach this one. So "turn
+    # yourself off" went to the planner, which is forbidden from emitting
+    # `close`, and its only remaining move was to compile something else
+    # and report success — on the one command where believing her matters
+    # most: he thinks the microphone is off.
+    #
+    # Whole sentences only, and REFLEXIVE ones wherever the verb is
+    # ordinary. "Turn off the kitchen lights" and "close the browser tab"
+    # are things he says; neither can reach this.
+    if re.fullmatch(r"(close|close yourself|close (aletheia|thea)|"
+                    r"turn (yourself )?off|turn off (yourself|aletheia|thea)|"
+                    r"shut (yourself|aletheia|thea) down|"
+                    r"go to sleep|go offline|power (yourself )?down|"
+                    r"close the window|see you later)", low):
+        return {"command": {"kind": "close", "reason": f"by voice: {transcript!r}"},
+                "say": None}
+    # The mirror, for completeness. He can rarely SAY this one: when she is
+    # closed the microphone is off with everything else, so opening her
+    # again is a thing he does from the phone, the Command Center or the
+    # keyboard. It is here so that saying it while she is merely halted
+    # gets an honest "I was not closed" instead of a compiled substitute.
+    if re.fullmatch(r"(open|open yourself|open (aletheia|thea)|"
+                    r"wake up|wake yourself up|come back)", low):
+        return {"command": {"kind": "open"}, "say": None}
+    # "IS ANY OF THIS ON?" — the question he could previously only answer
+    # by reading a process list and Task Scheduler side by side.
+    if re.fullmatch(r"(what(?:'s| is)? running|what(?:'s| is)? on"
+                    r"(?: right now)?|which parts are running|"
+                    r"are (you|u) (all )?running|is anything running|"
+                    r"what parts (of you )?are running|are (you|u) on)", low):
+        return {"command": {"kind": "running"}, "say": None}
     # SELF-AUTHORITY, NOT EXACTLY MATCHED. Everything above is a whole
     # sentence that can mean nothing else. Anything that is plainly an
     # order about her own kill switch and did NOT match must stop here,
@@ -570,7 +602,8 @@ def _interpret(transcript: str) -> dict:
     # download when you can" and "stop the music" are ordinary requests
     # that happen to start with the same verb, and swallowing those would
     # trade one silent substitution for another.
-    m = re.match(r"^(resume|un-?halt|halt)\s+"
+    m = re.match(r"^(resume|un-?halt|halt|close|open|shut down|turn off|"
+                 r"turn on|go to sleep|wake up)\s+"
                  r"((?:yourself|aletheia|thea|it|everything|all|again|now|"
                  r"please|for me|ok|okay)(?:\s+\w+){0,2})\s*$", low)
     if m:

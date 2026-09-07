@@ -1,5 +1,5 @@
 {
-  "revision": 85,
+  "revision": 86,
   "providers": [
     {
       "id": "aletheia.local",
@@ -400,9 +400,20 @@
       "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "none",
-      "caller": "python -m aletheia.closed close|open|status; read by aletheia.core (a watcher thread shuts the server down) and by aletheia.supervisor (at start, and after the Core exits, so the five-minute watchdog does not reopen her)",
+      "caller": "python -m aletheia.running off|on|status (the single front door) and python -m aletheia.closed close|open|status; read by aletheia.core (a watcher thread shuts the server down), aletheia.supervisor (at start, and after the Core exits, so the five-minute watchdog does not reopen her), aletheia.voice_room (at startup and every 2s while listening) and aletheia.project_loop (before any run)",
       "module": "aletheia.closed",
-      "notes": "There was no way to do this. The Core and the supervisor each stop cleanly on Ctrl+C and journal it — and both run as hidden scheduled tasks, where nobody can press Ctrl+C. So the only available stop was Stop-ScheduledTask, which terminates rather than asks: no clean exit, no journal line, mid-action if she was mid-action, and the watchdog reopened her within five minutes anyway. The operator: 'i just need her to close like i close a window not kill her.' A CLOSED WINDOW STAYS CLOSED — that is the whole difference between this and a kill, and it is why the supervisor checks the marker at start as well as after the Core exits. The marker lives in PRIVATE state on purpose: closing her is something he did on this machine at this moment, not a fact about the fleet, and it must never sync over and close a machine he never touched. It is NOT the kill switch and does not pretend to be — HALT (aletheia.policy) keeps her running and refuses to act; this is the window button."
+      "notes": "There was no way to do this. The Core and the supervisor each stop cleanly on Ctrl+C and journal it — and both run as hidden scheduled tasks, where nobody can press Ctrl+C. So the only available stop was Stop-ScheduledTask, which terminates rather than asks: no clean exit, no journal line, mid-action if she was mid-action, and the watchdog reopened her within five minutes anyway. The operator: 'i just need her to close like i close a window not kill her.' A CLOSED WINDOW STAYS CLOSED — that is the whole difference between this and a kill, and it is why the supervisor checks the marker at start as well as after the Core exits. The marker lives in PRIVATE state on purpose: closing her is something he did on this machine at this moment, not a fact about the fleet, and it must never sync over and close a machine he never touched. It is NOT the kill switch and does not pretend to be — HALT (aletheia.policy) keeps her running and refuses to act; this is the window button. 2026-09-07: until this date the marker was honoured by the Core and the supervisor and by NOTHING ELSE. The room voice and the project loop are their own scheduled tasks, so closing her stopped the Core, told the watchdog to leave it stopped, and left a microphone listening in his room and a code loop opening pull requests every thirty minutes. An off switch that reports success and leaves the part he can hear still running is worse than no off switch, because he believes it. Closed now means closed."
+    },
+    {
+      "id": "core.running",
+      "description": "Say plainly which parts of Aletheia are running right now — processes, the tasks that start them at logon, and which of the two switches is set",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.running status; aletheia.running.snapshot() for any interface that wants the same answer",
+      "module": "aletheia.running",
+      "notes": "The operator: \"i want it to be very clear if any part of aletheia is running and i want to make it very easy to turn off and on.\" He was right that it was neither: Aletheia is three processes, three Windows scheduled tasks and TWO switches that mean different things — `closed` is the window button, HALT is the kill switch and keeps her RUNNING while refusing to act. Answering \"is she on?\" meant reading a process list and Task Scheduler side by side and knowing which switch was which. This adds no third switch; it routes to the two that exist and says which is set. Reading is free: status starts nothing, stops nothing and journals nothing."
     },
     {
       "id": "voice.wall",

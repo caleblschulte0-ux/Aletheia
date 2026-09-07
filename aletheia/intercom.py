@@ -72,6 +72,15 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "task_done":     ({"which"}, set()),
     "halt":          (set(), {"reason"}),
     "resume":        (set(), set()),
+    # The WINDOW BUTTON, which is not the kill switch. `halt` keeps her
+    # running and refusing to act; this stops the Core, the room
+    # microphone and the project loop, and the watchdog leaves her shut.
+    # Voice could reach `halt` and had no way at all to reach this one.
+    "close":         (set(), {"reason"}),
+    "open":          (set(), set()),
+    # "Is any of this on?" was a question he could only answer by reading
+    # a process list and Task Scheduler side by side.
+    "running":       (set(), set()),
     "approve":       ({"id"}, set()),
     "deny":          ({"id"}, {"because"}),
     "remember":      ({"domain", "key", "value"}, {"memory_kind"}),
@@ -409,6 +418,9 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email
 # approval — asking him to authorise "tell me the time" is how an approval
 # queue becomes noise he stops reading.
 READ_ONLY_KINDS = frozenset({
+    # Asking whether she is on changes nothing and must stay answerable
+    # while she is halted, closed, or halfway between the two.
+    "running",
     "note", "notify_check", "free_time", "brief", "subscriptions", "money",
     # Reads public job boards. Prepares nothing, sends nothing.
     "jobs", "tasks", "reminders", "shopping_list", "applications",
@@ -545,6 +557,12 @@ def _steps_of(cmd: dict):
 PLANNER_FORBIDDEN = frozenset({
     "halt", "resume",      # a kill switch a compiler can trip is decoration
     "approve", "deny",     # self-authorization, from an ambiguous word
+    # Same rule, same reason. "Close the browser tab", "open my resume"
+    # and "shut the door" are ordinary sentences full of these words, and
+    # a compiler that turns English into command names can be led there.
+    # Every phrasing that means the SWITCH is matched in `voice` before
+    # the planner is ever called.
+    "close", "open",
 })
 
 
@@ -1311,6 +1329,19 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "resume":
         policy.resume(via=ACTOR)
         return "resumed"
+    if kind == "close":
+        from aletheia import closed
+        closed.close(cmd.get("reason", ""))
+        return ("closing — the Core finishes what it is holding, the room "
+                "stops listening, and I stay shut until you open me")
+    if kind == "open":
+        from aletheia import closed
+        if closed.open_again():
+            return "open — I come back within five minutes"
+        return "I was not closed"
+    if kind == "running":
+        from aletheia import running
+        return running.headline(running.snapshot())
     if kind == "approve":
         # "approval intent-0a06bbb663 -> APPROVED" was the receipt, and the
         # room heard "approval -> APPROVED" once the id was stripped: an
