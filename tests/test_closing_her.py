@@ -73,9 +73,17 @@ class ItIsAWindowButtonNotAKill(ClosedCase):
         from aletheia import stateio
         self.assertTrue(str(closed.marker()).startswith(str(stateio.private_root())))
         import subprocess
-        ignored = subprocess.run(["git", "check-ignore", "state/private"],
-                                 capture_output=True)
-        self.assertEqual(ignored.returncode, 0, "state/private must be gitignored")
+        # A path INSIDE it, not the bare directory: `state/private/` is a
+        # directory-only pattern, so `git check-ignore state/private`
+        # answers "not ignored" on any checkout where the directory does
+        # not exist yet — which is every fresh clone, including CI. What
+        # the rule actually means is that nothing under it is ever
+        # committed, and that is what is asserted here.
+        ignored = subprocess.run(
+            ["git", "check-ignore", "state/private/closed.json"],
+            capture_output=True)
+        self.assertEqual(ignored.returncode, 0,
+                         "everything under state/private must be gitignored")
 
     def test_it_is_not_the_kill_switch_and_does_not_pretend_to_be(self):
         """HALT is the safety gate — she keeps running and refuses to act.

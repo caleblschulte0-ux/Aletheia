@@ -203,6 +203,13 @@ class WebTaskCase(unittest.TestCase):
         available.start(); self.addCleanup(available.stop)
         profile.learn_from_resume(
             "Caleb Schulte\nAustin, TX\ncaleb@example.com | (512) 555-0134")
+        # A resume IN THE TEMP WORKSPACE, so `attach "resume"`
+        # resolves to a file this test made. Without it the test
+        # passed only on a machine whose real home happened to hold a
+        # real resume -- find_resume() searches Path.home(), which no
+        # env var redirects -- and failed on every clean checkout,
+        # which is what CI is.
+        (self.ws / "resume.pdf").write_text("a resume")
 
     def brain(self, *replies):
         answers = list(replies)
