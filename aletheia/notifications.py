@@ -64,6 +64,47 @@ def load(notice_id: str) -> dict:
     return value
 
 
+# Parsed notices, keyed by a stat of every file. A stat is ~20x cheaper
+# than an open-and-parse, and this store is read on every presence
+# snapshot — which is three of the sentences he says most.
+_NOTICES_CACHE: tuple | None = None
+
+
+def _notices_signature(paths: list) -> tuple:
+    """What would have to change for the parse to be wrong.
+
+    Per FILE, not the directory: Windows does not touch a directory's
+    mtime when a file inside it is modified in place, and acknowledging a
+    notice does exactly that. A directory-mtime cache would go on
+    reporting a notice he had already dealt with.
+    """
+    signed = []
+    for path in paths:
+        try:
+            info = path.stat()
+            signed.append((path.name, info.st_mtime_ns, info.st_size))
+        except OSError:
+            signed.append((path.name, None, None))
+    return tuple(signed)
+
+
+def _every_notice() -> list[dict]:
+    """Every notice on disk, parsed once per change."""
+    global _NOTICES_CACHE
+    paths = sorted(NOTICES_DIR.glob("*.json"))
+    signature = _notices_signature(paths)
+    if _NOTICES_CACHE and _NOTICES_CACHE[0] == signature:
+        return _NOTICES_CACHE[1]
+    parsed = []
+    for path in paths:
+        try:
+            parsed.append(load(path.stem))
+        except ValueError:
+            continue
+    _NOTICES_CACHE = (signature, parsed)
+    return parsed
+
+
 def all_notifications(*, state: str | None = None, limit: int = 100) -> list[dict]:
     if state is not None and state not in STATES:
         raise ValueError("invalid notification state")
@@ -72,13 +113,12 @@ def all_notifications(*, state: str | None = None, limit: int = 100) -> list[dic
     if not NOTICES_DIR.is_dir():
         return []
     out = []
-    for path in NOTICES_DIR.glob("*.json"):
-        try:
-            value = load(path.stem)
-        except ValueError:
-            continue
+    for value in _every_notice():
         if state is None or value["state"] == state:
-            out.append(value)
+            # A COPY per row: callers read these into sentences, and one
+            # that edited a dict would be editing the cache every later
+            # reader sees.
+            out.append(dict(value))
     out.sort(key=lambda n: (n["created_at"], n["id"]), reverse=True)
     return out[:limit]
 

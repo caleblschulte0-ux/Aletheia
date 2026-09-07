@@ -185,18 +185,55 @@ def append(kind: str, subject: str, text: str, actor: str = "aletheia",
     return entry
 
 
+# Parsed journals, keyed by where they were read from. Small on purpose:
+# tests redirect JOURNAL_PATH constantly, so an unbounded dict would grow
+# for the life of a suite run.
+_PARSED: dict[str, tuple] = {}
+_PARSED_MAX = 8
+
+
+def _signature(files: list) -> tuple:
+    """What would have to change for the parse to be wrong.
+
+    The journal is APPEND-ONLY (CLAUDE.md: never edit or prune), so a
+    writer that gains a line gains both an mtime and a size. Either alone
+    would be a guess; together they are exact, and no hand-written
+    invalidation can be forgotten.
+    """
+    signed = []
+    for f in files:
+        try:
+            info = f.stat()
+            signed.append((str(f), info.st_mtime_ns, info.st_size))
+        except OSError:
+            signed.append((str(f), None, None))
+    return tuple(signed)
+
+
 def entries(path: Path | None = None) -> list[dict]:
     """Every entry from every writer file, one stream ordered by time."""
     path = path or JOURNAL_PATH
+    files = _writer_files(path)
+    key = str(path)
+    signature = _signature(files)
+    cached = _PARSED.get(key)
+    if cached and cached[0] == signature:
+        # A COPY. The list is handed to callers that filter and slice it,
+        # and one that appended to it would be editing every later
+        # reader's history.
+        return list(cached[1])
     out = []
-    for f in _writer_files(path):
+    for f in files:
         # utf-8-sig: tolerate a BOM from a Windows-side writer
         for line in f.read_text(encoding="utf-8-sig").splitlines():
             line = line.strip()
             if line:
                 out.append(json.loads(line))
     out.sort(key=lambda e: e.get("ts", ""))  # stable: same-file order kept
-    return out
+    if len(_PARSED) >= _PARSED_MAX:
+        _PARSED.clear()
+    _PARSED[key] = (signature, out)
+    return list(out)
 
 
 def since(hours: float, path: Path | None = None) -> list[dict]:

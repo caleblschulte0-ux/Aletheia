@@ -190,54 +190,22 @@ def _powershell_tasks() -> dict[str, str]:
     return out_states
 
 
-def version() -> dict:
-    """Which code is checked out, and whether she started before it.
+# What git's own state looks like, so a repeat ask costs nothing. HEAD
+# moves on commit and checkout; FETCH_HEAD moves on fetch, which is the
+# only thing that can change how far behind the checkout is. Nothing else
+# in this answer can change without one of them moving.
+_GIT_STATE = ("HEAD", "FETCH_HEAD", "packed-refs")
+_VERSION_CACHE: tuple | None = None
 
-    STALENESS IS MEASURED AGAINST THE CODE, not against the commit: a
-    commit that only touches docs or tests changes nothing she runs, and
-    saying "restart me" for one would train him to ignore the line. The
-    signal is the newest mtime under `aletheia/`, compared with the moment
-    she started.
 
-    Every field is optional. Outside a git checkout, or before the start
-    stamp existed, the honest answer is that she does not know — never a
-    guess about which code is running.
-    """
-    from aletheia import liveness
-    from aletheia.fleet import REPO_ROOT
-
-    def git(*args):
+def _git_signature(repo_root) -> tuple:
+    signed = []
+    for name in _GIT_STATE:
         try:
-            done = subprocess.run(["git", *args], capture_output=True,
-                                  text=True, cwd=str(REPO_ROOT), timeout=15)
-            return done.stdout.strip() if done.returncode == 0 else ""
-        except Exception:
-            return ""
-
-    started, newest_file, stale = running_old_code()
-    # THE STALENESS THAT ACTUALLY BIT HIM. A file changing on disk is
-    # caught by the supervisor, which relaunches within minutes. Nothing
-    # catches a CHECKOUT that is behind the remote: on 2026-09-07 this
-    # tree was ninety commits behind, three days old, with every part
-    # healthy and no disk change to notice — and a clock question took 26
-    # seconds because the process predated the fast lane.
-    #
-    # Counted against the last fetch, never fetching here: a status read
-    # must not touch the network.
-    behind = ""
-    branch = git("rev-parse", "--abbrev-ref", "HEAD")
-    for remote in (f"origin/{branch}", "origin/main"):
-        counted = git("rev-list", "--count", f"HEAD..{remote}")
-        if counted.isdigit() and int(counted):
-            behind = f"{counted} commits behind {remote}"
-            break
-    return {"behind": behind,
-            "branch": branch,
-            "commit": git("rev-parse", "--short", "HEAD"),
-            "subject": git("log", "-1", "--format=%s")[:80],
-            "started_at": started,
-            "newest_code": newest_file,
-            "running_old_code": stale}
+            signed.append((name, (repo_root / ".git" / name).stat().st_mtime_ns))
+        except OSError:
+            signed.append((name, None))
+    return tuple(signed)
 
 
 def running_old_code() -> tuple:
@@ -267,6 +235,67 @@ def running_old_code() -> tuple:
     except Exception:
         return started, newest_file, None
     return started, newest_file, newest > began
+
+
+def version() -> dict:
+    """Which code is checked out, and whether she started before it.
+
+    STALENESS IS MEASURED AGAINST THE CODE, not against the commit: a
+    commit that only touches docs or tests changes nothing she runs, and
+    saying "restart me" for one would train him to ignore the line. The
+    signal is the newest mtime under `aletheia/`, compared with the moment
+    she started.
+
+    Every field is optional. Outside a git checkout, or before the start
+    stamp existed, the honest answer is that she does not know — never a
+    guess about which code is running.
+    """
+    global _VERSION_CACHE
+    from aletheia.fleet import REPO_ROOT
+
+    def git(*args):
+        try:
+            done = subprocess.run(["git", *args], capture_output=True,
+                                  text=True, cwd=str(REPO_ROOT), timeout=15)
+            return done.stdout.strip() if done.returncode == 0 else ""
+        except Exception:
+            return ""
+
+    # The mtime half is cheap and changes independently of git, so it is
+    # read every time; only the subprocess half is cached.
+    started, newest_file, stale = running_old_code()
+    signature = _git_signature(REPO_ROOT)
+    if _VERSION_CACHE and _VERSION_CACHE[0] == signature:
+        facts = dict(_VERSION_CACHE[1])
+    else:
+        # ONE call for commit, refs and subject. It was three, at ~85ms
+        # each, and every one of them paid for starting git rather than
+        # for reading anything.
+        head = git("log", "-1", "--format=%h%n%D%n%s").splitlines()
+        commit = head[0] if head else ""
+        subject = head[2][:80] if len(head) > 2 else ""
+        branch = git("rev-parse", "--abbrev-ref", "HEAD")
+        # THE STALENESS THAT ACTUALLY BIT HIM. A file changing on disk is
+        # caught by the supervisor, which relaunches within minutes.
+        # Nothing catches a CHECKOUT behind the remote: on 2026-09-07 this
+        # tree was ninety commits behind, three days old, every part
+        # healthy and no disk change to notice.
+        #
+        # Counted against the last fetch, never fetching here: a status
+        # read must not touch the network.
+        behind = ""
+        for remote in (f"origin/{branch}", "origin/main"):
+            counted = git("rev-list", "--count", f"HEAD..{remote}")
+            if counted.isdigit() and int(counted):
+                behind = f"{counted} commits behind {remote}"
+                break
+        facts = {"branch": branch, "commit": commit, "subject": subject,
+                 "behind": behind}
+        _VERSION_CACHE = (signature, dict(facts))
+
+    facts.update({"started_at": started, "newest_code": newest_file,
+                  "running_old_code": stale})
+    return facts
 
 
 def version_words(info: dict) -> str:

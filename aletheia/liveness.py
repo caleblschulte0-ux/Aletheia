@@ -128,10 +128,12 @@ def spoken_duration(seconds: float) -> str:
     """`humanize` writes "3.2h", which is right on a wall and wrong in a
     room. This is the same number as something a person would say."""
     if seconds < 90:
-        return f"{seconds:.0f} seconds"
+        whole = int(round(seconds))
+        return "a second" if whole == 1 else f"{whole} seconds"
     minutes = seconds / 60.0
     if minutes < 60:
-        return f"{minutes:.0f} minutes"
+        whole = int(round(minutes))
+        return "a minute" if whole == 1 else f"{whole} minutes"
     hours = minutes / 60.0
     if hours < 24:
         whole = int(hours)
