@@ -426,7 +426,7 @@ red lights, the repos she watches, his details off his profile, and "what
 can you do" — the one question the registry exists to answer, asked of a
 model instead.
 
-Coverage 50% -> 85%. Live through `/api/ask`: **10-35 ms, answered
+Coverage 50% -> 87% (59 of 68). Live through `/api/ask`: **10-35 ms, answered
 synchronously**, against 26,195 ms measured on the same question before.
 
 **What was measured and deliberately NOT built.** A question that misses
