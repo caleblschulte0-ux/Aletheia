@@ -90,3 +90,6 @@
 {"ts": "2026-09-06T13:52:56Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-09-06"}
 {"ts": "2026-09-07T01:45:44Z", "kind": "task", "actor": "aletheia", "subject": "task:email-him", "text": "created — email him about the boiler"}
 {"ts": "2026-09-07T01:45:44Z", "kind": "task", "actor": "aletheia", "subject": "task:call-plumber", "text": "created — call the plumber"}
+{"ts": "2026-09-07T12:42:52Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:aletheia", "text": "health red -> green"}
+{"ts": "2026-09-07T12:42:52Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:shorts_pipeline", "text": "health red -> green"}
+{"ts": "2026-09-07T12:42:54Z", "kind": "recovery", "actor": "aletheia", "subject": "sentinel", "text": "fleet recovered — alert issue closed"}
