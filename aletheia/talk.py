@@ -175,6 +175,17 @@ def ask(base: str, sentence: str, secret: str) -> tuple[float, str]:
             slot = followups.poll(slot_id)
             if slot["state"] != followups.PENDING:
                 said = str(slot.get("say") or said)
+                # SAY IT AND CONSUME IT, exactly as the wall does. Without
+                # the ack the answer stays an UNREAD notification, so a
+                # twenty-minute audit ended with "what's waiting on me"
+                # answering "Aletheia finished thinking: 100 out of 128
+                # things fully work..." — her own replies, read back as
+                # things needing his attention. An audit tool that leaves
+                # state no real client would leave invents its own bugs.
+                try:
+                    followups.acknowledge(slot_id)
+                except Exception:
+                    pass
                 break
             time.sleep(POLL_S)
         else:
