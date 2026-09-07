@@ -1032,6 +1032,18 @@ def main(argv: list[str] | None = None) -> int:
                 return
             time.sleep(CLOSE_POLL_S)
     threading.Thread(target=watch_for_close, daemon=True).start()
+
+    def warm_the_fast_lane():
+        # The first question he asks otherwise pays ~420 ms of lazy
+        # imports that have nothing to do with the answer — and "what time
+        # is it" is a very likely first question. Daemon and swallowing,
+        # so a slow or broken store delays nothing and takes nothing down.
+        try:
+            from aletheia import quick
+            quick.warm()
+        except Exception:
+            pass
+    threading.Thread(target=warm_the_fast_lane, daemon=True).start()
     journal.append("event", "core", f"local Core up on {args.host}:{args.port}")
     print(f"Aletheia Core: http://{args.host}:{args.port}  "
           f"(wall at /, command center at /command.html) — Ctrl+C stops")

@@ -210,6 +210,39 @@ class AnswerCase(unittest.TestCase):
         self.assertEqual(seen, [])
 
 
+class WarmingUpCase(unittest.TestCase):
+    """The first answer cost ~420 ms and every one after it under 1 ms.
+    None of that is work; it is lazy imports, and it landed on whichever
+    question he happened to ask first."""
+
+    def test_it_asks_for_real_answers(self):
+        asked = []
+        with mock.patch.object(quick, "answer", side_effect=asked.append):
+            quick.warm()
+        self.assertEqual(asked, list(quick._WARM))
+
+    def test_every_warm_sentence_is_one_the_lane_claims(self):
+        """A warm-up that missed the patterns would import nothing and
+        quietly do no good at all."""
+        for sentence in quick._WARM:
+            with self.subTest(sentence=sentence):
+                self.assertIsNotNone(quick.match(sentence))
+
+    def test_a_store_that_explodes_does_not_take_the_core_down(self):
+        """It runs on a thread at startup. Raising there would be a crash
+        in the one place nothing is watching."""
+        with mock.patch.object(quick, "answer", side_effect=RuntimeError("boom")):
+            quick.warm()          # must not raise
+
+    def test_it_writes_nothing(self):
+        """Warming is reads only — it must never journal, because "she
+        answered a question" nobody asked would be a lie in the record."""
+        with mock.patch("aletheia.journal.append") as wrote:
+            quick.warm()
+        wrote.assert_not_called()
+
+
+
 class NeverBreaksCase(unittest.TestCase):
     """A fast path that can break a request is worse than no fast path."""
 

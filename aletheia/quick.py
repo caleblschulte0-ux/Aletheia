@@ -492,6 +492,34 @@ ANSWERS = {"halted": lambda rest: _halted(),
            "home": lambda rest: _mine("city")}
 
 
+# The sentences whose stores cost the most to reach the first time.
+# Between them they pull `localtime` (and the tz database behind it),
+# `speech`, `presence` and `self_knowledge` — which is nearly all of it.
+_WARM = ("what time is it", "what are you doing", "what can you do")
+
+
+def warm() -> None:
+    """Load what the fast lane needs BEFORE he asks for it.
+
+    Measured on the operator's PC, 2026-09-07: the first `answer()` costs
+    ~420 ms and every one after it under 1 ms. Almost none of that is
+    work — it is lazy imports, and `zoneinfo` reading the timezone
+    database is 160 ms on its own. That cost lands on whichever question
+    he happens to ask first, which is precisely the moment this module
+    exists to make fast.
+
+    Every answer here is a read, so warming has no side effect: nothing is
+    journaled, nothing is written, and a store that is empty or missing
+    simply returns None. Never raises — a warm-up that can take down the
+    Core would be worse than a slow first answer.
+    """
+    for sentence in _WARM:
+        try:
+            answer(sentence)
+        except Exception:
+            pass
+
+
 def answer(question: str) -> str | None:
     """An answer from her own stores, or None to go and think.
 
