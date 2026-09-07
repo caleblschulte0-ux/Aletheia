@@ -100,6 +100,22 @@ class TheDetailIsReadableCase(unittest.TestCase):
         self.assertEqual(found["Aletheia"], "running")
         self.assertIn("ready", found["AletheiaVoice"])
 
+    def test_it_says_what_each_part_costs(self):
+        """The room voice holds the speech models in RAM and was sitting
+        on nearly a gigabyte after three days. "What is running" should
+        include what it costs to have running."""
+        payload = ('[{"ProcessId":7,"CommandLine":"python -m aletheia.voice_room",'
+                   '"WorkingSetSize":1073741824}]')
+        with mock.patch.object(running, "_powershell", return_value=payload):
+            rows = running.processes()
+        self.assertEqual(rows[0]["mb"], 1024)
+
+    def test_a_process_with_no_size_is_not_a_crash(self):
+        payload = ('[{"ProcessId":7,"CommandLine":"python -m aletheia.core",'
+                   '"WorkingSetSize":null}]')
+        with mock.patch.object(running, "_powershell", return_value=payload):
+            self.assertEqual(running.processes()[0]["mb"], 0)
+
     def test_a_single_task_is_not_dropped(self):
         """PowerShell emits a bare object rather than a list of one."""
         with mock.patch.object(running, "_powershell",

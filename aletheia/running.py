@@ -68,8 +68,8 @@ def processes() -> list[dict]:
     """Every python process on this machine that is a part of Aletheia."""
     out = _powershell(
         "Get-CimInstance Win32_Process -Filter \"Name='pythonw.exe' or "
-        "Name='python.exe'\" | Select-Object ProcessId,CommandLine | "
-        "ConvertTo-Json -Compress")
+        "Name='python.exe'\" | Select-Object ProcessId,CommandLine,"
+        "WorkingSetSize | ConvertTo-Json -Compress")
     try:
         rows = json.loads(out) if out.strip() else []
     except json.JSONDecodeError:
@@ -81,8 +81,12 @@ def processes() -> list[dict]:
         command = str(row.get("CommandLine") or "")
         for key, _what, needle in PARTS:
             if needle in command:
+                try:
+                    megabytes = int(row.get("WorkingSetSize") or 0) // (1024 * 1024)
+                except (TypeError, ValueError):
+                    megabytes = 0
                 found.append({"part": key, "pid": row.get("ProcessId"),
-                              "command": command.strip()})
+                              "mb": megabytes, "command": command.strip()})
     return found
 
 
@@ -139,7 +143,8 @@ def snapshot() -> dict:
     for key, what, _needle in PARTS:
         rows = by_part.get(key, [])
         parts.append({"part": key, "what": what, "up": bool(rows),
-                      "pids": [r["pid"] for r in rows]})
+                      "pids": [r["pid"] for r in rows],
+                      "mb": sum(r.get("mb", 0) for r in rows)})
     return {"parts": parts, "tasks": tasks(), "closed": shut,
             "closed_reason": why, "halted": bool(halt),
             "halt_reason": (halt or {}).get("reason", "") if halt else "",
@@ -169,9 +174,15 @@ def render(state: dict) -> str:
     lines = [headline(state), ""]
     for part in state["parts"]:
         mark = "on " if part["up"] else "off"
-        pids = (" pid " + ", ".join(str(p) for p in part["pids"])
-                if part["pids"] else "")
-        lines.append(f"  [{mark}] {part['part']:<11} {part['what']}{pids}")
+        # The memory too: the room voice holds the speech models in RAM
+        # and was sitting on a gigabyte after three days. "What is running"
+        # should include what it is costing him to have running.
+        detail = ""
+        if part["pids"]:
+            detail = " — pid " + ", ".join(str(p) for p in part["pids"])
+            if part.get("mb"):
+                detail += f", {part['mb']} MB"
+        lines.append(f"  [{mark}] {part['part']:<11} {part['what']}{detail}")
     age = state.get("heartbeat_age_s")
     if age is not None:
         lines.append(f"\n  last heartbeat: {age:.0f}s ago")
