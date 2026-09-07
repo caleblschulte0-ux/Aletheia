@@ -35,6 +35,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import time
 import shutil
 import subprocess
@@ -154,11 +155,55 @@ def reachable(url: str = PROOF_URL, *, fresh: bool = False) -> tuple[bool, str]:
     except Exception as exc:
         # The message carries the actual network error (ERR_CONNECTION_RESET,
         # ERR_PROXY_CONNECTION_FAILED, a timeout) because those have
-        # different fixes and a class name has none.
-        detail = " ".join(str(exc).split())[:180]
-        result = (False, f"the browser launched but could not load {url}: {detail}")
+        # different fixes and a class name has none — but in ENGLISH first,
+        # with the code in brackets after it. This string is read out loud
+        # (research quotes it when it refuses a question), and it used to
+        # arrive as "Page.goto: net::ERR_CONNECTION_RESET at
+        # https://example.com/ Call log: - navigating to ..., waiting until"
+        # — a stack trace in a room.
+        result = (False, f"the browser launched but could not load {url} — "
+                         f"{_network_reason(exc)}")
     _REACHABLE_CACHE[url] = (now, result[0], result[1])
     return result
+
+
+NET_CODE = re.compile(r"\b(net::ERR_[A-Z_]+)\b")
+NET_ENGLISH = {
+    "net::ERR_CONNECTION_RESET": "the connection was reset",
+    "net::ERR_CONNECTION_REFUSED": "the connection was refused",
+    "net::ERR_CONNECTION_TIMED_OUT": "the connection timed out",
+    "net::ERR_CONNECTION_CLOSED": "the connection closed",
+    "net::ERR_PROXY_CONNECTION_FAILED": "the proxy refused the connection",
+    "net::ERR_TUNNEL_CONNECTION_FAILED": "the proxy would not open a tunnel",
+    "net::ERR_NAME_NOT_RESOLVED": "the address did not resolve",
+    "net::ERR_INTERNET_DISCONNECTED": "there is no internet connection",
+    "net::ERR_CERT_AUTHORITY_INVALID": "the certificate was not trusted",
+    "net::ERR_ABORTED": "the page load was aborted",
+}
+
+
+def _network_reason(exc: BaseException) -> str:
+    """Why a page would not load, in English, with the code after it."""
+    text = " ".join(str(exc).split())
+    # Playwright appends its own trace: "Call log: - navigating to ...".
+    text = re.split(r"\s*Call log:", text)[0].strip()
+    found = NET_CODE.search(text)
+    if found:
+        code = found.group(1)
+        return f"{NET_ENGLISH.get(code, 'the browser refused the page')} ({code})"
+    if "Timeout" in text or "timeout" in text:
+        return "it timed out"
+    return text[:120] or "no reason given"
+
+
+def say_reason(why: str) -> str:
+    """A reachability reason with the machine code taken out, for speech.
+
+    The code is the useful half on a screen and gibberish in a room, so it
+    is written once, in brackets, and removed here rather than being
+    absent from the audit that needs it.
+    """
+    return " ".join(NET_CODE.sub("", str(why or "")).replace("()", "").split())
 
 
 def _closed_browser_error(exc: BaseException) -> bool:

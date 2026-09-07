@@ -323,7 +323,7 @@ def bind_refusal(host: str, tls_cert: str | None, tls_key: str | None,
     if is_loopback(host) or host in ("127.0.0.1", "localhost"):
         return None
     if not enabled(now):
-        return ("no access token exists — run `python -m aletheia.access mint "
+        return ("no access token exists — run python -m aletheia.access mint "
                 "\"<device>\"` first; the Core will not listen off-loopback "
                 "with nothing to authenticate")
     if not (tls_cert and tls_key):

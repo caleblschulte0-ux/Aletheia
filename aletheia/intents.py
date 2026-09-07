@@ -488,8 +488,10 @@ def _why_it_asks(record: dict) -> str:
         pass
     if not _due_to_mention("standing", NUDGE_EVERY_S):
         return ""
+    # No backticks. This is spoken, and a backtick is either silence or
+    # the word "backtick"; the command is still exact without them.
     return (" I ask about small local things like this until you run "
-            "`python -m aletheia.standing on` once.")
+            "python -m aletheia.standing on, once.")
 
 
 # How often a standing nudge may be repeated. It is one sentence and the

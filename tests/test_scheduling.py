@@ -236,15 +236,20 @@ class SchedulingCase(unittest.TestCase):
     # ---- staleness ----------------------------------------------------
 
     def test_an_offer_whose_slots_have_all_passed_is_abandoned(self):
+        # RELATIVE, for the same reason `_slot` is: this was
+        # `dt.datetime(2026, 9, 10)` against slots at today+2 and today+3,
+        # so on 2026-09-07 "later" stopped being later than the last slot
+        # and the test failed for no reason but the calendar. A frozen
+        # date next to a moving fixture is a bomb with a date on it.
         record = self.sent()
-        later = dt.datetime(2026, 9, 10, tzinfo=dt.timezone.utc)
+        later = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=4)
         scheduling.reconcile(now=later)
         self.assertEqual(scheduling.load(record["id"])["state"],
                          scheduling.ABANDONED)
 
     def test_a_live_offer_is_not_abandoned_early(self):
         record = self.sent()
-        early = dt.datetime(2026, 8, 30, tzinfo=dt.timezone.utc)
+        early = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1)
         scheduling.reconcile(now=early)
         self.assertEqual(scheduling.load(record["id"])["state"], scheduling.SENT)
 

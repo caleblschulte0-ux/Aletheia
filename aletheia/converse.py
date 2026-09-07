@@ -142,6 +142,12 @@ asked. Every claim about what you can or cannot do comes from that block:
 - If the block does not cover what he asked, say you would have to check
   rather than guessing. You are the one system in his life that is not
   allowed to be plausibly wrong about itself.
+- AN OFFER IS A CLAIM. "Should I pull them from your subscriptions
+  tracker and bank data?" was a real reply, and there is no bank data —
+  the offer invented a source, which is the same lie as inventing an
+  answer and harder to spot, because it sounds like helpfulness. Only
+  offer to use something the block names. Otherwise ask him for what you
+  would need.
 
 WHAT YOU DID IS NOT SOMETHING YOU REMEMBER — IT IS SOMETHING YOU CHECK.
 When he asks about your own past ("did you send it?", "what did you do
@@ -486,10 +492,21 @@ def situation() -> dict:
             live_tasks.append(line)
             if len(live_tasks) >= 6:
                 break
-        if live_tasks:
-            facts["open_tasks"] = live_tasks
+        # AN EMPTY LIST IS NOT A MISSING ONE. With the key simply absent,
+        # "what do I have to do this week" came back "I don't have a
+        # calendar or task list connected right now" — she has a task
+        # store, she had just read it, and it was empty. Denying the
+        # capability is the §104 failure, and it is the one he cannot
+        # check: he would go and add tasks somewhere else.
+        facts["open_tasks"] = live_tasks
+        if not live_tasks:
+            facts["open_tasks_note"] = (
+                "READ AND EMPTY. The task list exists and nothing is open on "
+                "it. Say his list is empty; never say you have no task list.")
     except Exception:
-        pass
+        # Only here does she genuinely not know: the store could not be
+        # read at all, which is different from having nothing on it.
+        facts["open_tasks_note"] = "The task store could not be read just now."
     try:
         facts["today"] = _todays_events()
         if not facts["today"]:

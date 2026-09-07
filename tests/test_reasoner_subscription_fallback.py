@@ -85,8 +85,14 @@ class SubscriptionFallbackCase(unittest.TestCase):
                                side_effect=browser_reasoner.BrowserReasonerUnavailable("login needed")):
             output, degraded = reasoner.infer_or_fallback(provider, "do something", {})
         self.assertEqual(output["intent"], "clarify")
-        self.assertIn("both subscription reasoning paths are unavailable", degraded)
-        self.assertIn("local reasoning disabled", degraded)
+        # The RULE, not the wording: it names both subscription paths as
+        # having failed, says local reasoning was not available either,
+        # and does not leak the underlying provider's private detail.
+        # (These strings are spoken verbatim through "I couldn't: ...",
+        # so the wording is allowed to become a sentence.)
+        self.assertIn("Claude", degraded)
+        self.assertIn("ChatGPT browser", degraded)
+        self.assertIn("local reasoning is switched off", degraded)
         self.assertNotIn("claude private detail", degraded)
 
     def test_subscription_timeout_is_one_shared_provider_budget(self):

@@ -349,7 +349,7 @@ def plainly(detail: str) -> str:
     One implementation, because `intents.spoken` and `voice.spoken_reply`
     both say these out loud and had drifted into stripping differently.
     """
-    text = " ".join(str(detail or "").split())
+    text = " ".join(unmarkdown(str(detail or "")).split())
     stripped = _CLASS_PREFIX.sub("", text)
     if stripped != text and len(stripped.split()) < 2:
         stripped = text

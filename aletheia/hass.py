@@ -189,7 +189,7 @@ def execute_scene(scene_id: str, approval_id: str, opener=None) -> dict:
     try:
         planned = room.plan(scene_id)
     except RuntimeError as exc:
-        raise HassUnavailable(f"{exc} — run `hass observe` first") from exc
+        raise HassUnavailable(f"{exc} — run hass observe first") from exc
 
     done, failed = [], None
     for step in planned["steps"]:

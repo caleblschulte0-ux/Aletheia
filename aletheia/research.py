@@ -367,9 +367,10 @@ def run(question: str, *, reader=browse.read_page, think=None) -> dict:
             usable, why = browse.reachable()
             if not usable:
                 raise ResearchError(
-                    f"I could not reach the web at all: {why}. That is my "
-                    "connection, not your question — nothing to research "
-                    "until a page will load.")
+                    f"I could not reach the web at all: "
+                    f"{browse.say_reason(why)}. That is my connection, not "
+                    "your question — nothing to research until a page will "
+                    "load.")
         raise ResearchError(
             "no readable sources were found for that question — say it "
             "differently, or it may be something the open web does not answer")

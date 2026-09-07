@@ -154,7 +154,7 @@ class TheReasonSurvivesAnyClassNameCase(unittest.TestCase):
               "detail": "ReasonerUnavailable: both subscription reasoning "
                         "paths are unavailable"}]))
         self.assertNotIn("ReasonerUnavailable", said)
-        self.assertIn("both subscription reasoning paths", said)
+        self.assertIn("subscription reasoning", said)
 
     def test_ordinary_prose_with_a_colon_is_not_eaten(self):
         said = intents.spoken(record(
