@@ -401,7 +401,6 @@ class TheWiderLaneCase(unittest.TestCase):
                 "what's on my calendar",
                 "am i free today",
                 "what plans do i have",
-                "what's on my shopping list",
                 "what did you do last week",
                 "how long have you been up"):
             with self.subTest(sentence=sentence):
@@ -482,6 +481,28 @@ class TheWiderLaneCase(unittest.TestCase):
             raise OSError("no pulse yet")
         with mock.patch("pathlib.Path.read_text", boom):
             self.assertIsNone(quick.answer("any alerts"))
+
+    def test_the_shopping_list_is_the_intercom_sentence(self):
+        """Written once. `quick` and the `shopping_list` command must not
+        drift into two different sentences for the same store."""
+        from aletheia import intercom
+        with mock.patch("aletheia.intercom._shopping_items",
+                        lambda: [{"id": "w1", "need": "milk"}]):
+            said = quick.answer("what's on my shopping list")
+            self.assertEqual(said, intercom.shopping_answer())
+        self.assertIn("milk", said)
+
+    def test_an_empty_shopping_list_says_so(self):
+        with mock.patch("aletheia.intercom._shopping_items", lambda: []):
+            self.assertEqual(quick.answer("what do i need to buy"),
+                             "Nothing on your shopping list.")
+
+    def test_the_shopping_overflow_does_not_say_and_twice(self):
+        rows = [{"id": f"w{i}", "need": f"item{i}"} for i in range(11)]
+        with mock.patch("aletheia.intercom._shopping_items", lambda: rows):
+            said = quick.answer("my shopping list")
+        self.assertIn("3 more", said)
+        self.assertNotIn(", and", said)
 
     def test_repos_counts_the_pulse(self):
         import json

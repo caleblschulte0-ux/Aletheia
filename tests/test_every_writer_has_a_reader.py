@@ -86,7 +86,7 @@ class EveryWriterCanBeAskedAbout(unittest.TestCase):
     def test_every_reader_really_answers(self):
         # A reader that raises for an empty store is not a reader — the
         # empty case is the one he hits first.
-        self.assertTrue(intercom._shopping_answer())
+        self.assertTrue(intercom.shopping_answer())
         self.assertTrue(intercom._reminders_answer())
         self.assertTrue(intercom._contacts_answer())
         self.assertTrue(intercom._watches_answer())

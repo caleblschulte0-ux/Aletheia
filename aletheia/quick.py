@@ -144,6 +144,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how many repos do (?:you|u) watch$"
         r"|^what repos (?:are )?(?:you|u) watching$"
         r"|^how many repos$")),
+    ("shopping", re.compile(
+        r"^what(?:'s| is|s)? on my shopping list$|^what(?:'s| is|s)? on my list$"
+        r"|^(?:my )?shopping list$|^what do i need (?:to buy|from the store)$"
+        r"|^what(?:'s| is|s)? on the shopping list$")),
     # His own details, out of his own profile. She read them off his resume;
     # asking a model to recite them is a round trip to the wrong store.
     ("mine", re.compile(
@@ -439,6 +443,12 @@ def _repos() -> str | None:
             + speech.and_list(shown) + ".")
 
 
+def _shopping() -> str | None:
+    """The same sentence the `shopping_list` command gives, written once."""
+    from aletheia import intercom
+    return intercom.shopping_answer()
+
+
 # What he calls it -> what the profile calls it.
 _MINE = {"email": "email", "email address": "email",
          "phone": "phone", "phone number": "phone", "number": "phone",
@@ -477,6 +487,7 @@ ANSWERS = {"halted": lambda rest: _halted(),
            "capabilities": lambda rest: _capabilities(),
            "alerts": lambda rest: _alerts(),
            "repos": lambda rest: _repos(),
+           "shopping": lambda rest: _shopping(),
            "mine": _mine,
            "home": lambda rest: _mine("city")}
 
