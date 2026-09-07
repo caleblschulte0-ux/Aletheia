@@ -13,7 +13,7 @@
         {
           "sha": "e2e09e43cb58",
           "date": "2026-09-06T17:17:04Z",
-          "message": "\"Net 0.00 across 0 account(s)\" \u2014 read out loud"
+          "message": "\"Net 0.00 across 0 account(s)\" — read out loud"
         },
         {
           "sha": "cdce3cc905d0",
@@ -39,7 +39,7 @@
       "commit": {
         "sha": "e2e09e43cb58",
         "date": "2026-09-06T17:17:04Z",
-        "message": "\"Net 0.00 across 0 account(s)\" \u2014 read out loud"
+        "message": "\"Net 0.00 across 0 account(s)\" — read out loud"
       },
       "vitals": [],
       "workflows": {
@@ -280,7 +280,7 @@
       "github": "Money_Machine",
       "role": "unbuilt",
       "status": "stub",
-      "summary": "Empty stub \u2014 nothing but a README. No behaviour to observe yet.",
+      "summary": "Empty stub — nothing but a README. No behaviour to observe yet.",
       "commits": [
         {
           "sha": "53c6507f6afe",
@@ -302,7 +302,7 @@
       "github": "etsy_maker",
       "role": "unbuilt",
       "status": "stub",
-      "summary": "Empty stub \u2014 nothing but a README. No behaviour to observe yet.",
+      "summary": "Empty stub — nothing but a README. No behaviour to observe yet.",
       "error": "HTTPError: HTTP Error 404: Not Found",
       "health": "dormant"
     },
@@ -310,7 +310,7 @@
       "github": "fosstester",
       "role": "unbuilt",
       "status": "stub",
-      "summary": "Empty stub \u2014 nothing but a README. No behaviour to observe yet.",
+      "summary": "Empty stub — nothing but a README. No behaviour to observe yet.",
       "commits": [
         {
           "sha": "41ea84afb060",
@@ -370,12 +370,12 @@
       {
         "id": "operator-setup",
         "status": "WAITING_OPERATOR",
-        "description": "Operator: create the ChatGPT Project + scheduled task for the intercom relay (docs/SETUP.md step 4) \u2014 the last unfinished setup step; merge, FLEET_TOKEN, Pages and the running Core are all done"
+        "description": "Operator: create the ChatGPT Project + scheduled task for the intercom relay (docs/SETUP.md step 4) — the last unfinished setup step; merge, FLEET_TOKEN, Pages and the running Core are all done"
       },
       {
         "id": "shorts-daily-authoring-outage",
         "status": "QUEUED",
-        "description": "Shorts-pipeline daily.yml + third.yml red since 2026-08-14: nobody authors the day's packages. run_trending_daily refuses with 'validated production manifest is incomplete: found 0/6 packages in state/trending_packages/<date>' \u2014 the fail-closed gate working correctly on an upstream authoring outage (the Routine and the ChatGPT takeover are both producing nothing). Zero-upload days have driven the failure counter to 2, its auto-pause threshold. Fix belongs in Shorts-pipeline, on its own branch."
+        "description": "Shorts-pipeline daily.yml + third.yml red since 2026-08-14: nobody authors the day's packages. run_trending_daily refuses with 'validated production manifest is incomplete: found 0/6 packages in state/trending_packages/<date>' — the fail-closed gate working correctly on an upstream authoring outage (the Routine and the ChatGPT takeover are both producing nothing). Zero-upload days have driven the failure counter to 2, its auto-pause threshold. Fix belongs in Shorts-pipeline, on its own branch."
       },
       {
         "id": "light-up-the-wall-s4",
@@ -383,5 +383,78 @@
         "description": "Point a ChatGPT scheduled task at state/pulse/briefing.md with the exchange/README.md contract"
       }
     ]
+  },
+  "now": {
+    "generated_at": "2026-09-07T14:54:09Z",
+    "halted": false,
+    "heartbeat_age_s": 4.0,
+    "waiting_on_you": [
+      {
+        "label": "Fully shut down Aletheia / stop her from listening entirely",
+        "since": "2026-09-05T00:35:23Z"
+      }
+    ],
+    "waiting_count": 1,
+    "notifications": [
+      {
+        "title": "Aletheia finished thinking",
+        "body": "That didn't parse as a clear request — what would you like me to do?",
+        "says": "Aletheia finished thinking: That didn't parse as a clear request — what would you like me to do?",
+        "priority": "IMPORTANT",
+        "at": "2026-09-07T14:50:33Z"
+      },
+      {
+        "title": "Aletheia finished thinking",
+        "body": "ON. Everything is running.",
+        "says": "Aletheia finished thinking: ON. Everything is running.",
+        "priority": "IMPORTANT",
+        "at": "2026-09-07T14:43:24Z"
+      },
+      {
+        "title": "Aletheia finished thinking",
+        "body": "Not following what you're getting at — that doesn't parse as a question I can answer. If you're testing something or this is dictation garbling, let me know what you actually meant.",
+        "says": "Aletheia finished thinking: Not following what you're getting at — that doesn't parse as a question I can answer. If you're testing somethin",
+        "priority": "IMPORTANT",
+        "at": "2026-09-07T13:56:04Z"
+      },
+      {
+        "title": "Aletheia finished thinking",
+        "body": "Later.",
+        "says": "Aletheia finished thinking: Later.",
+        "priority": "IMPORTANT",
+        "at": "2026-09-07T13:53:55Z"
+      },
+      {
+        "title": "Aletheia finished thinking",
+        "body": "That doesn't parse into a request I can act on — could you rephrase what you want me to do or answer?",
+        "says": "Aletheia finished thinking: That doesn't parse into a request I can act on — could you rephrase what you want me to do or answer?",
+        "priority": "IMPORTANT",
+        "at": "2026-09-07T13:49:02Z"
+      },
+      {
+        "title": "Aletheia finished thinking",
+        "body": "What is it you're planning to do? The message doesn't specify an action, and recent conversation doesn't contain a clear referent for 'this'.",
+        "says": "Aletheia finished thinking: What is it you're planning to do? The message doesn't specify an action, and recent conversation doesn't contain",
+        "priority": "IMPORTANT",
+        "at": "2026-09-07T13:46:13Z"
+      }
+    ],
+    "meetings": [],
+    "working": [
+      {
+        "what": "thinking",
+        "detail": "1 in progress"
+      },
+      {
+        "what": "plan waiting on you",
+        "detail": "Fully shut down Aletheia / stop her from listening entirely"
+      },
+      {
+        "what": "plan waiting on you",
+        "detail": "Answering directly: highlighting Aletheia capabilities beyond a normal chat AI ("
+      }
+    ],
+    "next_appointment": null,
+    "headline": "1 decision waiting: Fully shut down Aletheia / stop her from listening entirely"
   }
 }

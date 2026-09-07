@@ -89,13 +89,17 @@ class TheDetailIsReadableCase(unittest.TestCase):
         self.assertIn("testing", text)
         self.assertIn("running on", text)
 
-    def test_task_states_are_words_not_enum_numbers(self):
-        """`ConvertTo-Json` serialises TaskState as its NUMBER, so this
-        read "AletheiaVoice 3" — exactly the sort of thing this module
-        exists to stop showing him."""
-        payload = ('[{"TaskName":"Aletheia","State":4},'
-                   '{"TaskName":"AletheiaVoice","State":3}]')
-        with mock.patch.object(running, "_powershell", return_value=payload):
+    def test_task_states_come_back_as_words(self):
+        """`schtasks.exe` reports the state in words, which is half the
+        reason it is preferred: the cmdlet's JSON gives the ENUM NUMBER,
+        and this read "AletheiaVoice 3"."""
+        def fake(args, **kw):
+            name = args[args.index("/TN") + 1]
+            state = {"Aletheia": "Running"}.get(name, "Ready")
+            return mock.Mock(returncode=0,
+                             stdout='"\\%s","9/7/2026 9:50 AM","%s"\n'
+                                    % (name, state))
+        with mock.patch("subprocess.run", side_effect=fake):
             found = running.tasks()
         self.assertEqual(found["Aletheia"], "running")
         self.assertIn("ready", found["AletheiaVoice"])
@@ -104,23 +108,48 @@ class TheDetailIsReadableCase(unittest.TestCase):
         """The room voice holds the speech models in RAM and was sitting
         on nearly a gigabyte after three days. "What is running" should
         include what it costs to have running."""
-        payload = ('[{"ProcessId":7,"CommandLine":"python -m aletheia.voice_room",'
+        rows = [{"pid": 7, "command": "python -m aletheia.voice_room",
+                 "mb": 1024}]
+        with mock.patch.object(running, "_psutil_rows", return_value=rows):
+            found = running.processes()
+        self.assertEqual(found[0]["part"], "voice")
+        self.assertEqual(found[0]["mb"], 1024)
+
+    def test_a_process_that_is_not_hers_is_ignored(self):
+        rows = [{"pid": 8, "command": "python -m pip install x", "mb": 12}]
+        with mock.patch.object(running, "_psutil_rows", return_value=rows):
+            self.assertEqual(running.processes(), [])
+
+    def test_the_powershell_fallback_still_reads_sizes(self):
+        """psutil is optional; a machine without it must degrade, not
+        fail — so the slow path stays exercised."""
+        payload = ('[{"ProcessId":7,"CommandLine":"python -m aletheia.core",'
                    '"WorkingSetSize":1073741824}]')
-        with mock.patch.object(running, "_powershell", return_value=payload):
-            rows = running.processes()
-        self.assertEqual(rows[0]["mb"], 1024)
+        with mock.patch.object(running, "_psutil_rows", return_value=None), \
+             mock.patch.object(running, "_powershell", return_value=payload):
+            self.assertEqual(running.processes()[0]["mb"], 1024)
 
     def test_a_process_with_no_size_is_not_a_crash(self):
         payload = ('[{"ProcessId":7,"CommandLine":"python -m aletheia.core",'
                    '"WorkingSetSize":null}]')
-        with mock.patch.object(running, "_powershell", return_value=payload):
+        with mock.patch.object(running, "_psutil_rows", return_value=None), \
+             mock.patch.object(running, "_powershell", return_value=payload):
             self.assertEqual(running.processes()[0]["mb"], 0)
 
-    def test_a_single_task_is_not_dropped(self):
+    def test_a_single_task_is_not_dropped_by_the_fallback(self):
         """PowerShell emits a bare object rather than a list of one."""
-        with mock.patch.object(running, "_powershell",
+        with mock.patch("subprocess.run", side_effect=OSError("no schtasks")), \
+             mock.patch.object(running, "_powershell",
                                return_value='{"TaskName":"Aletheia","State":4}'):
             self.assertEqual(running.tasks(), {"Aletheia": "running"})
+
+    def test_a_task_that_is_not_registered_is_not_an_error(self):
+        """schtasks exits non-zero for a name it does not know. That is an
+        answer — "not registered" — not a failure."""
+        with mock.patch("subprocess.run",
+                        return_value=mock.Mock(returncode=1, stdout="")), \
+             mock.patch.object(running, "_powershell", return_value=""):
+            self.assertEqual(running.tasks(), {})
 
 
 class ReadingIsFreeCase(unittest.TestCase):
@@ -142,15 +171,29 @@ class ReadingIsFreeCase(unittest.TestCase):
         self.assertFalse(found["halted"])
         self.assertFalse(found["closed"])
 
-    def test_powershell_failing_is_not_a_crash(self):
-        with mock.patch("subprocess.run", side_effect=OSError("no shell")):
+    def test_every_scan_failing_is_not_a_crash(self):
+        """No psutil, no schtasks, no PowerShell. She should report that
+        she can see nothing, not raise."""
+        with mock.patch.object(running, "_psutil_rows", return_value=None), \
+             mock.patch("subprocess.run", side_effect=OSError("no shell")):
             self.assertEqual(running.processes(), [])
             self.assertEqual(running.tasks(), {})
 
     def test_garbage_from_powershell_is_not_a_crash(self):
-        with mock.patch.object(running, "_powershell", return_value="not json"):
+        with mock.patch.object(running, "_psutil_rows", return_value=None), \
+             mock.patch("subprocess.run", side_effect=OSError("no schtasks")), \
+             mock.patch.object(running, "_powershell", return_value="not json"):
             self.assertEqual(running.processes(), [])
             self.assertEqual(running.tasks(), {})
+
+    def test_the_headline_does_not_pay_for_the_task_query(self):
+        """The scheduled-task read is the slow half (0.6s against ~20ms)
+        and `headline` never uses it, so the spoken answer must not wait
+        for it. That is what `include_tasks` is for."""
+        with mock.patch.object(running, "_psutil_rows", return_value=[]), \
+             mock.patch.object(running, "tasks") as asked:
+            running.snapshot(include_tasks=False)
+        asked.assert_not_called()
 
 
 class OffMeansEveryPartCase(unittest.TestCase):

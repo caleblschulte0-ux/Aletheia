@@ -148,6 +148,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what(?:'s| is|s)? on my shopping list$|^what(?:'s| is|s)? on my list$"
         r"|^(?:my )?shopping list$|^what do i need (?:to buy|from the store)$"
         r"|^what(?:'s| is|s)? on the shopping list$")),
+    # "What is running" was wired into `voice` and NOT here, so SAYING it
+    # was instant and TYPING it paid a full planner round trip for the
+    # same answer out of the same store. Every door should give the same
+    # one — that is the whole point of there being one answer.
+    ("running", re.compile(
+        r"^what(?:'s| is|s)? running(?: right now)?$"
+        r"|^which parts are running$|^what parts (?:of you )?are running$"
+        r"|^is anything running$|^what(?:'s| is|s)? on right now$"
+        r"|^are (?:you|u) all running$")),
     # His own details, out of his own profile. She read them off his resume;
     # asking a model to recite them is a round trip to the wrong store.
     ("mine", re.compile(
@@ -455,6 +464,20 @@ _MINE = {"email": "email", "email address": "email",
          "city": "city", "town": "city"}
 
 
+def _running() -> str | None:
+    """Which parts are up, out of her own process list.
+
+    `include_tasks=False`: the scheduled-task query is the slow half
+    (0.6 s against ~20 ms for the rest) and the headline never uses it.
+    The full picture, logon tasks included, is `python -m aletheia.running`.
+    """
+    from aletheia import running
+    try:
+        return running.headline(running.snapshot(include_tasks=False))
+    except Exception:
+        return None             # she does not know; the planner may look
+
+
 def _mine(what: str) -> str | None:
     """One fact about him, from his profile. Never guessed: an invented
     phone number is the exact failure `profile` exists to prevent."""
@@ -488,6 +511,7 @@ ANSWERS = {"halted": lambda rest: _halted(),
            "alerts": lambda rest: _alerts(),
            "repos": lambda rest: _repos(),
            "shopping": lambda rest: _shopping(),
+           "running": lambda rest: _running(),
            "mine": _mine,
            "home": lambda rest: _mine("city")}
 
@@ -495,7 +519,10 @@ ANSWERS = {"halted": lambda rest: _halted(),
 # The sentences whose stores cost the most to reach the first time.
 # Between them they pull `localtime` (and the tz database behind it),
 # `speech`, `presence` and `self_knowledge` — which is nearly all of it.
-_WARM = ("what time is it", "what are you doing", "what can you do")
+_WARM = ("what time is it", "what are you doing", "what can you do",
+         # psutil's first import is ~840ms of the ~860ms this costs
+         # cold, and "is any of this on" is a very likely first ask.
+         "what is running")
 
 
 def warm() -> None:

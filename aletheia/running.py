@@ -64,8 +64,38 @@ def _powershell(script: str) -> str:
         return ""
 
 
-def processes() -> list[dict]:
-    """Every python process on this machine that is a part of Aletheia."""
+def _psutil_rows() -> list[dict] | None:
+    """Every python process, via psutil. None when psutil is absent.
+
+    TWO PHASES, and the order is the whole optimisation: reading
+    `cmdline` opens the process, so asking for it across ~300 processes
+    cost 2.5 s. Names are cheap, there are four python processes, and
+    only those four need opening — 5 ms warm, 100 ms cold.
+    """
+    try:
+        import psutil
+    except Exception:
+        return None
+    rows = []
+    try:
+        for proc in psutil.process_iter(["pid", "name"]):
+            name = str(proc.info.get("name") or "").casefold()
+            if name not in ("python.exe", "pythonw.exe"):
+                continue
+            try:
+                command = " ".join(proc.cmdline())
+                megabytes = proc.memory_info().rss // (1024 * 1024)
+            except Exception:
+                continue        # it exited between the two calls; not an error
+            rows.append({"pid": proc.info.get("pid"), "command": command,
+                         "mb": megabytes})
+    except Exception:
+        return None
+    return rows
+
+
+def _powershell_rows() -> list[dict]:
+    """The fallback, for a machine without psutil."""
     out = _powershell(
         "Get-CimInstance Win32_Process -Filter \"Name='pythonw.exe' or "
         "Name='python.exe'\" | Select-Object ProcessId,CommandLine,"
@@ -78,15 +108,29 @@ def processes() -> list[dict]:
         rows = [rows]
     found = []
     for row in rows:
-        command = str(row.get("CommandLine") or "")
+        try:
+            megabytes = int(row.get("WorkingSetSize") or 0) // (1024 * 1024)
+        except (TypeError, ValueError):
+            megabytes = 0
+        found.append({"pid": row.get("ProcessId"),
+                      "command": str(row.get("CommandLine") or ""),
+                      "mb": megabytes})
+    return found
+
+
+def processes() -> list[dict]:
+    """Every python process on this machine that is a part of Aletheia."""
+    rows = _psutil_rows()
+    if rows is None:
+        rows = _powershell_rows()
+    found = []
+    for row in rows:
+        command = str(row.get("command") or "")
         for key, _what, needle in PARTS:
             if needle in command:
-                try:
-                    megabytes = int(row.get("WorkingSetSize") or 0) // (1024 * 1024)
-                except (TypeError, ValueError):
-                    megabytes = 0
-                found.append({"part": key, "pid": row.get("ProcessId"),
-                              "mb": megabytes, "command": command.strip()})
+                found.append({"part": key, "pid": row.get("pid"),
+                              "mb": row.get("mb", 0),
+                              "command": command.strip()})
     return found
 
 
@@ -96,10 +140,39 @@ def tasks() -> dict[str, str]:
     A part can be OFF right now and still set to come back in five
     minutes, which is the difference between "not running" and "off" —
     and the difference he most needs to see.
+
+    `schtasks.exe` by NAME rather than `Get-ScheduledTask | Where-Object`:
+    the cmdlet enumerates every task on the machine and cost 6.9 s, and
+    the native binary answers about three named ones in 0.6 s. It also
+    reports the state in WORDS, so there is no enum number to translate.
     """
+    found = {}
+    for name in TASKS:
+        try:
+            done = subprocess.run(
+                ["schtasks.exe", "/query", "/TN", name, "/FO", "CSV", "/NH"],
+                capture_output=True, text=True, timeout=20)
+        except Exception:
+            continue
+        if done.returncode != 0 or not (done.stdout or "").strip():
+            continue            # a task that is not registered is not an error
+        first = done.stdout.strip().splitlines()[0]
+        fields = [f.strip().strip('"') for f in first.split('","')]
+        if len(fields) >= 3:
+            state = fields[-1].strip('"').casefold()
+            found[name] = {"ready": "ready (starts at logon)"}.get(state, state)
+    if found:
+        return found
+    return _powershell_tasks()
+
+
+def _powershell_tasks() -> dict[str, str]:
+    """The fallback. `ConvertTo-Json` serialises TaskState as its NUMBER,
+    so this read "AletheiaVoice 3" — which is precisely the sort of thing
+    this module exists to stop showing him."""
     out = _powershell(
-        "Get-ScheduledTask -ErrorAction SilentlyContinue | Where-Object { "
-        "$_.TaskName -like 'Aletheia*' } | Select-Object TaskName,State | "
+        "Get-ScheduledTask -TaskName " + ",".join(f"'{t}'" for t in TASKS)
+        + " -ErrorAction SilentlyContinue | Select-Object TaskName,State | "
         "ConvertTo-Json -Compress")
     try:
         rows = json.loads(out) if out.strip() else []
@@ -112,13 +185,19 @@ def tasks() -> dict[str, str]:
         name = row.get("TaskName")
         if not name:
             continue
-        state = row.get("State")
-        out_states[str(name)] = TASK_STATE.get(state, str(state))
+        out_states[str(name)] = TASK_STATE.get(row.get("State"),
+                                               str(row.get("State")))
     return out_states
 
 
-def snapshot() -> dict:
-    """Everything, in one read. Never raises."""
+def snapshot(include_tasks: bool = True) -> dict:
+    """Everything, in one read. Never raises.
+
+    `include_tasks=False` skips the scheduled-task query, which is the
+    slow half (0.6 s against ~5 ms for the rest). `headline` never uses
+    it, so anything that just wants "is she on?" — the spoken answer, the
+    fast lane — should not pay for it.
+    """
     from aletheia import closed, liveness, policy
     running = processes()
     by_part = {}
@@ -145,7 +224,7 @@ def snapshot() -> dict:
         parts.append({"part": key, "what": what, "up": bool(rows),
                       "pids": [r["pid"] for r in rows],
                       "mb": sum(r.get("mb", 0) for r in rows)})
-    return {"parts": parts, "tasks": tasks(), "closed": shut,
+    return {"parts": parts, "tasks": tasks() if include_tasks else {}, "closed": shut,
             "closed_reason": why, "halted": bool(halt),
             "halt_reason": (halt or {}).get("reason", "") if halt else "",
             "heartbeat_age_s": beat_age}
