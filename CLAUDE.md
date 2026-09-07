@@ -325,6 +325,75 @@ being a thing she READS OUT:
   the store's line names the thing and the command's names its id, so she
   said "Added a task: call the plumber; Added a task: t1."
 
+## A store with a writer and no reader makes her a liar
+
+Three of these in one afternoon, every one found by talking to her and
+every one identical underneath:
+
+    "Added to the shopping list: milk."  /  "I don't have a shopping list."
+    "Every Monday at 9 am I'll remind you."  /  "I can't reminder.cancel yet."
+    "I don't have a record of jobs you've applied to."  (there is one)
+
+The writer shipped, the reader did not, and a model asked about a store
+nothing in its context mentions DENIES THE STORE EXISTS. That is worse
+than an error: an error sends him back to you, and this sends him off to
+keep the list somewhere else. It is the same failure as the empty task
+list ("I don't have a calendar or task list connected right now" — she
+had just read it, and it was empty), so the rule has two halves:
+
+- **Every writer has a reader.** `tests/test_every_writer_has_a_reader.py`
+  fails until a new ROUTINE kind names the read-only kind he asks with.
+  It is a hand-kept list on purpose: a mechanical check would have to
+  guess which store a handler touches, and a wrong guess is a test that
+  passes for the wrong reason.
+- **An empty store still proves the store.** Put the key in the context
+  either way, with a note saying which of the three situations it is —
+  empty, full, or unreadable. Absence of rows is not absence of the
+  capability, and the model cannot tell the difference from a missing key.
+
+The same sweep found `scheduler` able to do weekly since the day it was
+written with no way to ASK for it, so "remind me every monday" compiled a
+generic `do_task` under a summary promising a weekly reminder. A
+capability nothing can say is not a capability (rule zero), and the
+planner fills that hole by INVENTING a capability id — `reminder.cancel`
+— filing a build task for it, and reading the id out loud.
+
+## Everything a model writes is going to be read out in a room
+
+`speech.spoken_prose` is the one door for model prose: no markdown (an
+asterisk is silence out loud, a leading hyphen is the word "minus"), no
+capability ids (the registry says what each one IS, and the model's
+`a.b/c` shorthand is expanded), no state ids, then tidied. `converse`'s
+system prompt says it is being read aloud, so most of it never arrives —
+the door is for the rest. Three things it does not fix, which you have to
+fix at the source:
+
+- **A message written for a log.** "both subscription reasoning paths are
+  unavailable: Claude failed and ChatGPT browser could not answer" and
+  `Page.goto: net::ERR_CONNECTION_RESET at https://example.com/ Call log:
+  - navigating to...` both reached the room verbatim through "I
+  couldn't: ...". Say it in English where it is raised; the diagnosis is
+  still in the log with the type and the traceback attached. Where a code
+  is genuinely useful on a screen (`net::ERR_...`), write it once in
+  brackets and take it out for speech (`browse.say_reason`).
+- **A command with a placeholder in it.** `python -m aletheia.apply
+  calendar "<paste the URL>"` answers "what do I type" and not "which
+  URL", and the line that answers that was sitting above it in the
+  checklist all along.
+- **An OFFER is a claim about ability.** "Should I pull them from your
+  subscriptions tracker and bank data?" — there is no bank data. Inventing
+  a source sounds like helpfulness, which makes it harder to catch than
+  inventing an answer.
+
+## A frozen date next to a moving fixture is a bomb with a date on it
+
+`test_an_offer_whose_slots_have_all_passed_is_abandoned` asserted
+2026-09-10 against slots built at today+2 and today+3. It passed for five
+days and failed on the sixth, for no reason but the calendar — and the
+fixture's own docstring warns about exactly this, having been fixed the
+same way a week earlier. If one side of a comparison moves, both sides
+move.
+
 ## The one permanent rule, answered at the door
 
 *"no spending money."* It is the only line he has called permanent, and
