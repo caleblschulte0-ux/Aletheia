@@ -339,6 +339,42 @@ _DAY_WORDS = ("monday|tuesday|wednesday|thursday|friday|saturday|sunday|"
 DEFAULT_REMINDER_TIME = "09:00"
 
 
+# The fields of a command that hold HIS OWN WORDS, as opposed to a
+# lookup needle or an identifier. Everything here is stored, or read back
+# to him later, so it keeps his capitals.
+HIS_WORDS = ("text", "description", "item", "body", "question", "goal",
+             "need", "note", "topic")
+
+
+def _as_he_said(transcript: str, fragment: str) -> str:
+    """A matched fragment with his capitals put back.
+
+    The whole deterministic layer matches against a LOWERCASED sentence,
+    which is right for matching and wrong for anything it stores: "note
+    that Dana called" became the note "that dana called", and a name he
+    said is not a name she may re-spell. The fragment came out of the
+    lowered text, so it is found there and sliced from the original.
+    """
+    frag = " ".join(str(fragment or "").split())
+    lowered = str(transcript or "").lower()
+    if not frag or len(lowered) != len(transcript or ""):
+        return fragment
+    at = lowered.find(frag)
+    return transcript[at:at + len(frag)] if at >= 0 else fragment
+
+
+def _his_capitals(transcript: str, decided: dict) -> dict:
+    """Put his capitals back into every stored field of a command."""
+    command = decided.get("command")
+    if not isinstance(command, dict):
+        return decided
+    for field in HIS_WORDS:
+        value = command.get(field)
+        if isinstance(value, str) and value:
+            command[field] = _as_he_said(transcript, value)
+    return decided
+
+
 def _known_place(text: str) -> bool:
     """Is this a place she has actually saved? Never raises.
 
@@ -354,7 +390,17 @@ def _known_place(text: str) -> bool:
 
 
 def interpret(transcript: str) -> dict:
-    """One spoken sentence -> a command to gate-check, or words to say."""
+    """One spoken sentence -> a command to gate-check, or words to say.
+
+    The wrapper exists for one reason: every path below matches against a
+    LOWERCASED sentence, and anything it STORES has to keep his capitals.
+    Doing it here rather than in thirty patterns means the next pattern
+    somebody writes gets it for free.
+    """
+    return _his_capitals(strip_wake_word(transcript), _interpret(transcript))
+
+
+def _interpret(transcript: str) -> dict:
     text = strip_wake_word(transcript)
     low = _without_preamble(text.lower().strip().rstrip(".?!"))
     if not low:
@@ -542,6 +588,9 @@ def interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:what (?:are|r) my tasks|what'?s? on my (?:list|plate)|"
                     r"my tasks|list (?:my )?tasks|what do i have to do|"
                     r"what(?:'s| is|s)? left to do|todo list|"
+                    # "task list" and a bare "tasks" made a TASK called
+                    # "list", because `task <words>` is the create verb.
+                    r"tasks?|task list|the task list|"
                     r"what am i supposed to be doing)", low):
         return {"command": {"kind": "tasks"}, "say": None}
 
@@ -675,7 +724,12 @@ def interpret(transcript: str) -> dict:
         return {"command": {"kind": "travel_time", "place": m.group(1).strip()},
                 "say": None}
 
-    m = re.match(r"(?:add )?(.+?) to (?:the |my )?(?:shopping |grocery )?list$", low)
+    # "Why did you add milk to the list" put "why did you add milk" ON the
+    # list. `add` was optional, so any sentence ENDING in "to the list"
+    # was a write — and a question is never an instruction (the same rule
+    # the spending door holds).
+    m = re.match(r"(?:add|put|get|stick|throw) (.+?) (?:on|to) (?:the |my )?"
+                 r"(?:shopping |grocery )?list$", low)
     if m:
         return {"command": {"kind": "shopping_add", "item": m.group(1).strip()},
                 "say": None}
@@ -801,7 +855,9 @@ def interpret(transcript: str) -> dict:
             command["deadline"] = deadline
         return {"command": command, "say": None}
 
-    m = re.match(r"(?:note|note that|write down|log)\s+(.+)", low)
+    # LONGEST ALTERNATIVE FIRST. Python's alternation takes the first that
+    # matches, so "note" won and the note read "that Dana called".
+    m = re.match(r"(?:note that|note|write down that|write down|log)\s+(.+)", low)
     if m:
         return {"command": {"kind": "note", "text": m.group(1).strip()}, "say": None}
 
