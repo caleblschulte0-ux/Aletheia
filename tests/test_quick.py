@@ -332,5 +332,221 @@ class SpokenIdsCase(unittest.TestCase):
         self.assertNotIn("193cc7235619", label)
 
 
+
+class TheWiderLaneCase(unittest.TestCase):
+    """2026-09-07: measured against 68 sentences a person actually says,
+    the lane caught 50% of them. The other half paid 25-50 SECONDS for
+    answers sitting in files on the same disk. These are the ones added,
+    and the shapes that must still be declined."""
+
+    def test_the_near_misses_are_claimed(self):
+        """Every one of these was a full planner round trip for an answer
+        the module already knew how to give — it just did not recognise
+        the way he said it."""
+        for sentence, expected in (
+                ("what time is it right now", "clock"),
+                ("got the time", "clock"),
+                ("what is the date today", "date"),
+                # No verb at all is how a person actually checks.
+                ("you there", "halted"),
+                ("you awake", "halted"),
+                ("still there", "halted"),
+                ("you good", "halted"),
+                ("are you still there", "halted"),
+                ("is there anything waiting", "waiting"),
+                ("anything i should know", "waiting"),
+                ("what am i blocking", "waiting")):
+            with self.subTest(sentence=sentence):
+                found = quick.match(sentence)
+                self.assertIsNotNone(found, f"{sentence!r} should be claimed")
+                self.assertEqual(found[0], expected)
+
+    def test_the_new_stores_are_claimed(self):
+        for sentence, expected in (
+                ("what's on my task list", "tasks"),
+                ("how many tasks do i have", "tasks"),
+                ("what's my next task", "tasks"),
+                ("what needs approving", "approvals"),
+                ("how many approvals are pending", "approvals"),
+                ("what can you do", "capabilities"),
+                ("any alerts", "alerts"),
+                ("is anything broken", "alerts"),
+                ("how's the fleet", "alerts"),
+                ("what's my email", "mine"),
+                ("what's my phone number", "mine"),
+                ("where do i live", "home"),
+                ("what month is it", "month"),
+                ("what year is it", "year")):
+            with self.subTest(sentence=sentence):
+                found = quick.match(sentence)
+                self.assertIsNotNone(found, f"{sentence!r} should be claimed")
+                self.assertEqual(found[0], expected)
+
+    def test_a_year_is_not_answered_with_a_date_sentence(self):
+        """The regression this split exists for. `_date` says "Monday the
+        7th of September" — which contains NO YEAR — and folding "what
+        year is it" into it answered confidently and wrongly, which is the
+        one thing this module may never do."""
+        import datetime as dt
+        said = quick.answer("what year is it")
+        self.assertIn(str(dt.date.today().year), said)
+        month = quick.answer("what month is it")
+        self.assertIn(dt.date.today().strftime("%B"), month)
+
+    def test_the_still_ambiguous_are_still_declined(self):
+        """"What are my plans" is his calendar to a person and a `plans`
+        record to her; "am I free" needs a calendar she does not have
+        connected. When in doubt the lane says nothing."""
+        for sentence in (
+                "what's on my calendar",
+                "am i free today",
+                "what plans do i have",
+                "what did you do last week",
+                "how long have you been up"):
+            with self.subTest(sentence=sentence):
+                self.assertIsNone(quick.match(sentence),
+                                  f"{sentence!r} must reach the planner")
+
+    def test_tasks_counts_the_real_store_and_names_the_next(self):
+        rows = [{"id": "a", "description": "call the plumber", "status": "QUEUED",
+                 "dependencies": []},
+                {"id": "b", "description": "done thing", "status": "COMPLETED",
+                 "dependencies": []}]
+        with mock.patch("aletheia.tasks.all_tasks", lambda: rows):
+            said = quick.answer("what's on my task list")
+        self.assertIn("1 task", said)
+        self.assertIn("call the plumber", said)
+        self.assertNotIn("done thing", said)
+
+    def test_an_empty_task_list_says_so(self):
+        with mock.patch("aletheia.tasks.all_tasks", lambda: []):
+            self.assertEqual(quick.answer("what are my tasks"),
+                             "Nothing open on your task list.")
+
+    def test_a_failed_task_is_still_on_his_list(self):
+        """Something that broke is exactly what he wants named when he
+        asks what is open — it is not "done"."""
+        rows = [{"id": "a", "description": "the upload that broke",
+                 "status": "FAILED", "dependencies": []}]
+        with mock.patch("aletheia.tasks.all_tasks", lambda: rows):
+            said = quick.answer("what's on my task list")
+        self.assertIn("the upload that broke", said)
+
+    def test_approvals_counts_only_what_is_pending(self):
+        rows = [{"state": "PENDING", "reason": 'operator said: "buy the monitor"'},
+                {"state": "APPROVED", "reason": "already said yes"}]
+        with mock.patch("aletheia.policy.all_approvals", lambda: rows):
+            said = quick.answer("what needs approving")
+        self.assertIn("1 approval", said)
+        self.assertIn("buy the monitor", said)
+        self.assertNotIn("already said yes", said)
+
+    def test_no_approvals_says_so(self):
+        with mock.patch("aletheia.policy.all_approvals", lambda: []):
+            self.assertEqual(quick.answer("how many approvals are pending"),
+                             "Nothing is waiting on your approval.")
+
+    def test_capabilities_comes_out_of_the_registry(self):
+        over = {"by_status": {"AVAILABLE": 7, "EXPERIMENTAL": 2,
+                              "NOT_BUILT": 1}}
+        with mock.patch("aletheia.self_knowledge.overview", lambda: over):
+            said = quick.answer("what can you do")
+        self.assertIn("7 things are live", said)
+        self.assertIn("2 experimental", said)
+        self.assertIn("1 not built", said)
+
+    def test_an_unreadable_registry_goes_to_the_planner(self):
+        with mock.patch("aletheia.self_knowledge.overview", lambda: {}):
+            self.assertIsNone(quick.answer("what can you do"))
+
+    def test_alerts_reads_the_pulse_she_writes(self):
+        import json
+        payload = json.dumps({"alerts": [{"repo": "shorts", "failing": ["daily.yml"]}]})
+        with mock.patch("pathlib.Path.read_text", lambda self, **kw: payload):
+            said = quick.answer("is anything broken")
+        self.assertIn("shorts", said)
+        self.assertIn("daily.yml", said)
+
+    def test_a_green_fleet_says_green(self):
+        import json
+        with mock.patch("pathlib.Path.read_text",
+                        lambda self, **kw: json.dumps({"alerts": []})):
+            self.assertEqual(quick.answer("any alerts"),
+                             "Nothing red. The fleet is green.")
+
+    def test_no_pulse_at_all_is_not_reported_as_green(self):
+        """A missing file means she does not know, and "everything is
+        fine" is the worst available guess."""
+        def boom(self, **kw):
+            raise OSError("no pulse yet")
+        with mock.patch("pathlib.Path.read_text", boom):
+            self.assertIsNone(quick.answer("any alerts"))
+
+    def test_the_shopping_list_is_the_intercom_sentence(self):
+        """Written once. `quick` and the `shopping_list` command must not
+        drift into two different sentences for the same store."""
+        from aletheia import intercom
+        with mock.patch("aletheia.intercom._shopping_items",
+                        lambda: [{"id": "w1", "need": "milk"}]):
+            said = quick.answer("what's on my shopping list")
+            self.assertEqual(said, intercom.shopping_answer())
+        self.assertIn("milk", said)
+
+    def test_an_empty_shopping_list_says_so(self):
+        with mock.patch("aletheia.intercom._shopping_items", lambda: []):
+            self.assertEqual(quick.answer("what do i need to buy"),
+                             "Nothing on your shopping list.")
+
+    def test_the_shopping_overflow_does_not_say_and_twice(self):
+        rows = [{"id": f"w{i}", "need": f"item{i}"} for i in range(11)]
+        with mock.patch("aletheia.intercom._shopping_items", lambda: rows):
+            said = quick.answer("my shopping list")
+        self.assertIn("3 more", said)
+        self.assertNotIn(", and", said)
+
+    def test_repos_counts_the_pulse(self):
+        import json
+        payload = json.dumps({"repos": {"aletheia": {}, "shorts": {}}})
+        with mock.patch("pathlib.Path.read_text", lambda self, **kw: payload):
+            said = quick.answer("how many repos are you watching")
+        self.assertIn("2 repos", said)
+        self.assertIn("aletheia", said)
+
+    def test_an_empty_pulse_is_not_reported_as_zero_repos(self):
+        import json
+        with mock.patch("pathlib.Path.read_text",
+                        lambda self, **kw: json.dumps({"repos": {}})):
+            self.assertIsNone(quick.answer("how many repos are you watching"))
+
+    def test_the_overflow_does_not_say_and_twice(self):
+        """`and_list` already supplies the conjunction, so appending
+        ", and N more" after it read "a, b, c and d, and 2 more"."""
+        import json
+        repos = {f"repo{i}": {} for i in range(6)}
+        with mock.patch("pathlib.Path.read_text",
+                        lambda self, **kw: json.dumps({"repos": repos})):
+            said = quick.answer("how many repos are you watching")
+        self.assertIn("2 more", said)
+        self.assertNotIn(", and", said)
+
+    def test_his_details_come_from_his_profile(self):
+        with mock.patch("aletheia.profile.answer",
+                        lambda field: {"email": "caleb@example.com"}.get(field)):
+            self.assertEqual(quick.answer("what's my email"), "caleb@example.com")
+
+    def test_a_detail_she_does_not_have_is_never_invented(self):
+        """An invented phone number is the exact failure `profile` exists
+        to prevent, and it would be spoken with total confidence."""
+        with mock.patch("aletheia.profile.answer", lambda field: None):
+            said = quick.answer("what's my phone number")
+        self.assertIn("don't have your phone", said)
+
+    def test_where_he_lives_reads_the_city_field(self):
+        with mock.patch("aletheia.profile.answer",
+                        lambda field: "Hartford, SD" if field == "city" else None):
+            self.assertEqual(quick.answer("where do i live"), "Hartford, SD")
+
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -449,6 +449,64 @@ EXPERIMENTAL, honestly: every proof is against fixture servers on
 loopback. It becomes AVAILABLE when a real employer's confirmation comes
 back for something he asked for.
 
+## Latency, and two things that were only true here (2026-09-07)
+
+The operator: *"Don't stop till this is Jarvis."* The gap turned out to be
+latency and two defects that a green suite could not see.
+
+**CI was red on main and neither failure was a product defect.** Both were
+tests reading the real world instead of the one they set up.
+`test_it_is_PRIVATE_state` asked `git check-ignore state/private`, but
+`.gitignore` says `state/private/` — a directory-only pattern — so git
+answers "not ignored" on any checkout where the directory does not exist,
+which is every fresh clone. `test_the_approval_says_WHAT_IS_BEING_SENT`
+attached "resume" from a temp workspace that never had one, and passed
+here only because `find_resume()` also searches `Path.home()`, which no
+env var redirects — the test was reading the operator's own Desktop. Both
+verified under an emptied HOME.
+
+**"Close her" did nothing.** `core.watch_for_close` slept on
+`CLOSE_POLL_S`, defined nowhere in the repository. The thread raised
+NameError on its first pass and died, so the close marker was never
+noticed — a feature shipped 2026-09-05 with its own test file, dead at
+runtime for two days. Found by starting the Core, not by reading it: the
+tests covered `closed.close()` and `closed.is_closed()` and were right
+about both. Nothing ever ran the Core's watcher.
+
+The guard for that class is the parser, not another test of the same
+shape. `test_every_name_resolves` walks all 144 modules and fails on a
+name that is read and bound nowhere — deliberately permissive (bindings
+collected per file, not per scope) so it cannot cry wolf and nobody is
+ever tempted to suppress it.
+
+**The fast lane caught half of what he says.** Measured against 68
+sentences a person actually uses here: 34 hit, 34 paid a full planner
+round trip. Some were sentences the module already knew how to answer and
+did not recognise — "what time is it RIGHT NOW", and the way a person
+actually checks you are there, which has no verb in it ("you there",
+"still there", "you good"). The rest were stores she was already holding
+and answering from a model: her task list, pending approvals, the fleet's
+red lights, the repos she watches, his details off his profile, and "what
+can you do" — the one question the registry exists to answer, asked of a
+model instead.
+
+Coverage 50% -> 87% (59 of 68). Live through `/api/ask`: **10-35 ms, answered
+synchronously**, against 26,195 ms measured on the same question before.
+
+**What was measured and deliberately NOT built.** A question that misses
+the fast lane costs two model round trips — the planner classifies it,
+then `converse` answers it — and the obvious fix is to route questions
+straight past the planner. Measured first: `planner.compile("what did you
+do last week")` returns `intent=answer` with **zero steps** in 6.9 s, which
+looks like pure classification overhead. But `planner.compile("how many
+unread emails do i have")` returns `intent=plan` with a real `email_check`
+step in 6.3 s. The planner is deciding whether a question needs a
+capability, which is genuine work; routing every question to `converse`
+would have silently degraded exactly the ones that need a store it cannot
+reach. The remaining levers are widening `quick` for shapes that are known
+answerable, and the local model for classification — which is
+operator-gated config, not code.
+
 ## Next five engineering milestones (priority order, per §137)
 
 The five gaps between Aletheia and the thing she is supposed to be were

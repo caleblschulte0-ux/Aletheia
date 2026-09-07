@@ -177,7 +177,11 @@ class WebTaskCase(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        d = Path(self.tmp.name)
+        # `.resolve()`: on a GitHub Windows runner TMP is the 8.3 SHORT
+        # form (C:/Users/RUNNER~1/...), while anything the product
+        # resolves comes back long (C:/Users/runneradmin/...). Comparing
+        # the two forms failed on the runner and nowhere else.
+        d = Path(self.tmp.name).resolve()
         self.ws = d / "ws"
         self.ws.mkdir()
         env = mock.patch.dict(os.environ, {"ALETHEIA_PRIVATE_STATE": str(d),
@@ -203,6 +207,13 @@ class WebTaskCase(unittest.TestCase):
         available.start(); self.addCleanup(available.stop)
         profile.learn_from_resume(
             "Caleb Schulte\nAustin, TX\ncaleb@example.com | (512) 555-0134")
+        # A resume IN THE TEMP WORKSPACE, so `attach "resume"`
+        # resolves to a file this test made. Without it the test
+        # passed only on a machine whose real home happened to hold a
+        # real resume -- find_resume() searches Path.home(), which no
+        # env var redirects -- and failed on every clean checkout,
+        # which is what CI is.
+        (self.ws / "resume.pdf").write_text("a resume")
 
     def brain(self, *replies):
         answers = list(replies)

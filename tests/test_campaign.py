@@ -50,6 +50,11 @@ class CampaignCase(unittest.TestCase):
         d = Path(self.tmp.name)
         self.ws = d / "ws"
         self.ws.mkdir()
+        # RESUME contains an em-dash, and `write_text` with no encoding
+        # uses the LOCALE default -- cp1252 on Windows, which is not
+        # UTF-8. `workspace.read` is strict on purpose and refused it,
+        # so all ten of these errored here and nowhere else. The
+        # product was right; the test was writing the wrong bytes.
         (self.ws / "resume.md").write_text(RESUME, encoding="utf-8")
         env = mock.patch.dict(os.environ, {"ALETHEIA_PRIVATE_STATE": str(d),
                                            "ALETHEIA_WORKSPACE": str(self.ws)})

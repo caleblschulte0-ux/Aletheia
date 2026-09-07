@@ -298,6 +298,11 @@ _KICKING = False
 # beating it. An answer that is wrong for a quarter of a second is
 # indistinguishable from an answer that is wrong.
 KICK_WAIT_S = 2.0
+# How fast she notices the close marker. Shipped UNDEFINED with the
+# feature on 2026-09-05, so `watch_for_close` raised NameError on its
+# first pass and the window button did nothing until a restart: the
+# tests covered `closed.close()` and never ran the Core's own thread.
+CLOSE_POLL_S = 2.0
 
 
 def _remember_out_loud(transcript: str, said: str) -> None:

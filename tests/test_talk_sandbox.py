@@ -70,7 +70,11 @@ class EveryRepoStoreIsAccountedForCase(unittest.TestCase):
         time — so it is classified read-only here and redirected there."""
         import os
         from aletheia import workspace
-        room = Path(tempfile.mkdtemp())
+        # `.resolve()`: on a GitHub Windows runner TMP is the 8.3 SHORT
+        # form (C:/Users/RUNNER~1/...), while anything the product
+        # resolves comes back long (C:/Users/runneradmin/...). Comparing
+        # the two forms failed on the runner and nowhere else.
+        room = Path(tempfile.mkdtemp()).resolve()
         before = os.environ.get("ALETHEIA_WORKSPACE")
         os.environ["ALETHEIA_WORKSPACE"] = str(room / "workspace")
         try:

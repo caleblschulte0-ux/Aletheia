@@ -959,14 +959,22 @@ def _shopping_items() -> list[dict]:
             if str(w.get("state", "")).upper() in SHOPPING_OPEN]
 
 
-def _shopping_answer() -> str:
+def shopping_answer() -> str:
+    """His shopping list as one sentence. Public because `quick` answers
+    "what's on my shopping list" from the same store, and the sentence
+    should be written in exactly one place."""
     from aletheia import speech
     rows = _shopping_items()
     if not rows:
         return "Nothing on your shopping list."
-    said = speech.and_list([str(w.get("need") or w["id"])[:60] for w in rows[:8]])
-    more = f", and {len(rows) - 8} more" if len(rows) > 8 else ""
-    return f"{speech.count_phrase(len(rows), 'thing')} on your shopping list: {said}{more}."
+    named = [str(w.get("need") or w["id"])[:60] for w in rows[:8]]
+    # `and_list` already supplies the conjunction; appending ", and N more"
+    # after it read "milk, eggs and bread, and 2 more". The overflow is
+    # just the last item in the list.
+    if len(rows) > 8:
+        named.append(f"{len(rows) - 8} more")
+    return (f"{speech.count_phrase(len(rows), 'thing')} on your shopping "
+            f"list: {speech.and_list(named)}.")
 
 
 def _one_shopping_item(which: str):
@@ -1686,7 +1694,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "applications":
         return _applications_answer()
     if kind == "shopping_list":
-        return _shopping_answer()
+        return shopping_answer()
     if kind == "shopping_off":
         from aletheia import shopping
         found, why = _one_shopping_item(cmd["item"])
