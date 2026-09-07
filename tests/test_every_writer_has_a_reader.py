@@ -26,6 +26,7 @@ from aletheia import intercom
 READER_FOR = {
     "task_new": "tasks",
     "task_status": "tasks",
+    "task_done": "tasks",
     "shopping_add": "shopping_list",
     "shopping_off": "shopping_list",
     "remind_at": "reminders",

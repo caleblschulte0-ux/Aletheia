@@ -436,6 +436,11 @@ ROUTINE_KINDS = frozenset({
     # the whole test for this tier — the schedule is disabled, never
     # deleted, so "actually put that back" is one command.
     "reminder_off", "shopping_off", "notify_snooze", "notify_operator",
+    # Ticking a task off. It was left out when it was added — an
+    # OVERSIGHT, not a gate: `task_status` sets ANY status including
+    # COMPLETED and has always been routine, so the narrower verb was
+    # asking for approval while the general one did not.
+    "task_done",
     "notify_clear", "remember", "contact_add", "shopping_add",
     # reversible by saying the opposite, reaches nobody but him, and its
     # own default is silence

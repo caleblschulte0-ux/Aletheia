@@ -234,3 +234,37 @@ class TheBriefDoesNotCrashOnAnUnpulsedMachineCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MarkThatDone(unittest.TestCase):
+    """"That" is ambiguous with two things open and obvious with one.
+
+    The exclusion of "it"/"that"/"them" was right in general and wrong in
+    the commonest case: he had exactly one task, said "mark that done",
+    and paid a round trip and an approval for a sentence with only one
+    possible meaning.
+    """
+
+    def _said(self, rows):
+        with mock.patch.object(intercom, "_open_tasks", return_value=rows):
+            return voice.interpret("mark that done")["command"]
+
+    def test_one_open_task_is_not_ambiguous(self):
+        rows = [{"id": "t1", "description": "email the landlord", "status": "QUEUED"}]
+        self.assertEqual(self._said(rows),
+                         {"kind": "task_done", "which": "email the landlord"})
+
+    def test_two_open_tasks_still_go_to_the_planner_to_ask(self):
+        rows = [{"id": "t1", "description": "email the landlord", "status": "QUEUED"},
+                {"id": "t2", "description": "call the plumber", "status": "QUEUED"}]
+        self.assertEqual(self._said(rows)["kind"], "intent")
+
+    def test_nothing_open_is_not_a_task_called_that(self):
+        self.assertEqual(self._said([])["kind"], "intent")
+
+    def test_ticking_one_off_is_as_routine_as_setting_its_status(self):
+        # `task_status` sets ANY status including COMPLETED and has always
+        # been routine; the narrower verb was left in the world tier when
+        # it was added, so it asked for approval and its sibling did not.
+        self.assertEqual(intercom.tier("task_done"), intercom.tier("task_status"))
+        self.assertEqual(intercom.tier("task_done"), intercom.TIER_ROUTINE)

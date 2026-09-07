@@ -462,6 +462,18 @@ def _to_the_planner(text: str) -> dict:
     return {"command": {"kind": "intent", "text": text}, "say": None}
 
 
+def _the_only_open_task() -> str:
+    """The description of the single open task, or "" if there are 0 or 2+."""
+    try:
+        from aletheia import intercom
+        rows = intercom._open_tasks()
+    except Exception:
+        return ""
+    if len(rows) != 1:
+        return ""
+    return str(rows[0].get("description") or rows[0].get("id") or "")
+
+
 def _known_place(text: str) -> bool:
     """Is this a place she has actually saved? Never raises.
 
@@ -716,6 +728,13 @@ def _interpret(transcript: str) -> dict:
         which = (m.group(1) or "").strip()
         if which and which not in ("it", "that", "them", "everything"):
             return {"command": {"kind": "task_done", "which": which}, "say": None}
+        # "Mark that done" with exactly ONE thing open is not ambiguous —
+        # it is the ordinary way to say it, and it was costing a round
+        # trip and an approval. With two open it stays ambiguous and goes
+        # to the planner, which asks him which.
+        only = _the_only_open_task()
+        if which in ("it", "that", "them") and only:
+            return {"command": {"kind": "task_done", "which": only}, "say": None}
 
     # "what files do you have" reached the planner, which sometimes
     # compiled `file_list` and sometimes let `converse` answer — and
