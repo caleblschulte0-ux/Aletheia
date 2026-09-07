@@ -418,6 +418,31 @@ Two smaller rules from the same pass:
   everything it stores has to have his capitals put back
   (`voice._as_he_said`): "note that Dana called" saved "that dana called".
 
+## Her memory of the conversation had a hole where she was fastest
+
+The thread lived inside `converse`, so it held only the turns a MODEL
+answered. Everything `quick` and the deterministic layer answer in 0.0s —
+which is most of what she says now — left no trace, and every "that",
+"it" and "the other one" fell into the hole:
+
+    > add a task to call the dentist      [0.0s] Added a task: ...
+    > add a task to call the plumber      [0.0s] Added a task: ...
+    > actually cancel that
+      I don't have anything in the recent conversation to know what
+      'that' refers to — checked the conversation history (empty)
+
+`converse.remember_exchange` is the door and the Core walks EVERY spoken
+turn through it — the fast ones, the direct ones, and (one layer down,
+found the same way) the slow ones, where the follow-up's own work records
+its answer. Deduped against the last turn so `converse`'s own call cannot
+double up, wake word stripped, because "thea add a task" is not how he
+refers to it a turn later.
+
+The general rule: **every speed-up is a chance to stop recording
+something.** When you move an answer off the model path, ask what the
+model path was doing for you besides answering — journaling, the demand
+ledger, the conversation thread — and do it on the new path too.
+
 ## The audit tool must leave exactly what a real client leaves
 
 Two ways `talk --sandbox` diverged from the wall, and both invented bugs
