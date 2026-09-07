@@ -238,9 +238,14 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
             # Through the same sieve as everything else she says. `converse`
             # reads her stores, so its answers carry the ids in them: "there
             # are two pending approvals (intent-1b32747ddb,
-            # intent-a3d2ad3434)" — read out loud, in a room. §145.
-            record["spoken"] = speech.tidy(
-                speech.strip_ids(converse.answer(request)["answer"]))
+            # intent-a3d2ad3434)" — read out loud, in a room. §145. And it
+            # writes for a screen unless something stops it: "What I *can*
+            # do right now is look at your desktop live
+            # (computer.observe/control)" was a real answer, with an
+            # asterisk pair that is silence out loud and an identifier that
+            # is gibberish. `spoken_prose` is all of it in one place.
+            record["spoken"] = speech.spoken_prose(
+                converse.answer(request)["answer"])
         except converse.ConverseError as exc:
             # Its message already names the real reason and the fix ("Claude
             # CLI is not on PATH"). Rewriting that into a class name is how
@@ -298,9 +303,9 @@ def spoken(record: dict) -> str:
     if record.get("intent") == "answer" and record.get("spoken"):
         return str(record["spoken"])
     if record.get("direct_work"):
-        return speech.tidy(speech.strip_ids(
+        return speech.spoken_prose(
             str(record.get("spoken") or record.get("summary")
-                or "Work action completed.")))[:600]
+                or "Work action completed."))[:600]
 
     # `.get`, not `[...]`: this function is the last thing between a
     # record and the room, and a KeyError here is silence where a sentence
@@ -317,7 +322,7 @@ def spoken(record: dict) -> str:
         # question is model prose about her own state, so it carries the
         # ids in it: "the only open item I see is a pending approval
         # (intent-7aed1b5dcd) waiting on you". §145.
-        asked = speech.tidy(speech.strip_ids(str(record.get("summary") or "")))
+        asked = speech.spoken_prose(str(record.get("summary") or ""))
         return asked or "I need one thing cleared up before I plan that."
     if record.get("read_only"):
         receipts = record.get("receipts") or []
@@ -340,7 +345,7 @@ def spoken(record: dict) -> str:
         trouble = [_plainly(r) for r in receipts
                    if r.get("outcome") not in ("done", None) and r.get("detail")]
         if answers and not trouble:
-            return speech.tidy(speech.strip_ids(" ".join(answers)))[:600]
+            return speech.spoken_prose(" ".join(answers))[:600]
         if answers:
             # The answers are finished sentences; ". — but" is two marks.
             return (" ".join(answers)[:480].rstrip(" .") + " — but "
@@ -379,7 +384,7 @@ def spoken(record: dict) -> str:
         # a hex string read out loud is a handle he cannot hold in his
         # head — while the sentence went on to tell him to say it back.
         ready = speech.count_phrase(len(runnable), "step") + " ready"
-        summary = speech.tidy(speech.strip_ids(str(record.get("summary") or "")))
+        summary = speech.spoken_prose(str(record.get("summary") or ""))
         said = f"{ready} — {summary}." if summary else f"{ready}."
         if record.get("approval_state") == "APPROVED":
             # A standing grant already covered it, so there is nothing for
@@ -544,14 +549,12 @@ def _in_english(capability: str | None) -> str:
     from aletheia import speech
     name = str(capability or "").strip()
     try:
-        from aletheia import capabilities
-        entry = capabilities.get(name) if name else None
-        said = str((entry or {}).get("description") or "").strip()
+        # ONE implementation: `speech.say_capabilities` needs exactly this
+        # to render an id a model wrote into prose, and two copies of "the
+        # registry's own words" drift the moment one of them is fixed.
+        said = speech._capability_english(name) if name else ""
         if said:
-            # One clause. The registry descriptions are a sentence plus a
-            # qualification, and only the first half is the answer.
-            first = re.split(r"\s+[-—:(]\s*|\.\s", said)[0].strip(" .")
-            return first[0].lower() + first[1:] if first else said
+            return said
     except Exception:
         pass
     return speech.deslug(name) or "that"

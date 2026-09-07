@@ -59,6 +59,10 @@ from aletheia import journal
 # scan of the whole history.
 DEFAULT_HOURS = 24 * 7
 TODAY_HOURS = 24
+# The furthest back "what did you do on ..." will read. A journal query
+# that walks a year of files to answer a spoken question is not a fast
+# path, and he does not ask about last March out loud.
+MAX_LOOKBACK_HOURS = 24 * 31
 MAX_ROWS = 14
 TEXT_CHARS = 200
 FLOOR = 1.0
@@ -93,11 +97,21 @@ _PAST = re.compile(
     r"\b(did you|have you|had you|were you|was that|what did you|"
     r"when did|why did|what happened|what have you|what were you|"
     r"what did we|did we|last time|so far today|"
-    r"what are you working on|what have you been|already)\b", re.I)
+    r"what are you working on|what have you been|already|"
+    # "What did I ask you to do yesterday" matched NOTHING here — the
+    # phrase is "did I ask you", not "did you" — so no journal travelled
+    # with it and she answered "no 'what I actually did' data came through
+    # for yesterday. Want me to check the journal directly?", offering to
+    # read a file she can read.
+    r"did i ask|did i tell you|did i say|i asked you)\b", re.I)
 
 # He is asking about the day, not about a subject.
 _TODAY = re.compile(r"\b(today|so far|this morning|this afternoon|tonight|"
                     r"since (this )?(morning|lunch)|all day)\b", re.I)
+
+# ... or about yesterday, which is a DIFFERENT day and not a longer window
+# on this one.
+_YESTERDAY = re.compile(r"\b(yesterday|last night|yesterday's)\b", re.I)
 
 
 def _words(text: str) -> list[str]:
@@ -263,6 +277,45 @@ def day(hours: float = TODAY_HOURS, *, limit: int = MAX_ROWS) -> list[dict]:
     return _once_each([_row(e) for e in rows])[-limit:]
 
 
+def _local_date(ts: str) -> str:
+    """The calendar day a journal line falls on, on HIS clock."""
+    try:
+        from aletheia import localtime
+        return (localtime.parse_utc(ts).astimezone(localtime.operator_tz())
+                .strftime("%Y-%m-%d"))
+    except Exception:
+        return str(ts)[:10]
+
+
+def on_date(date: str, *, limit: int = MAX_ROWS) -> list[dict]:
+    """What she did on ONE CALENDAR DAY, in his timezone.
+
+    "What did you do yesterday" is not a rolling window: asked at nine in
+    the morning, the last 24 hours are mostly yesterday, and answering
+    from them would list the same evening twice — once as today and once
+    as yesterday. A day is a day on his clock, so the filter is the local
+    DATE and the read window is only wide enough to contain it.
+
+    This exists because she answered "what did I ask you to do yesterday"
+    with "Want me to check the journal directly for entries from
+    2026-09-05?" — offering to read a file she can read, which is a round
+    trip and an admission of helplessness for something she already has.
+    """
+    from aletheia import localtime
+    want = str(date or "").strip()[:10]
+    try:
+        tz = localtime.operator_tz()
+        start = dt.datetime.strptime(want, "%Y-%m-%d").replace(tzinfo=tz)
+        hours = (dt.datetime.now(tz) - start).total_seconds() / 3600.0 + 1.0
+    except Exception:
+        return []
+    if hours <= 0 or hours > MAX_LOOKBACK_HOURS:
+        return []
+    rows = [e for e in _read_journal(hours)[0]
+            if _something_she_did(e) and _local_date(e.get("ts", "")) == want]
+    return _once_each([_row(e) for e in rows])[-limit:]
+
+
 def about(question: str, *, hours: float = DEFAULT_HOURS,
           limit: int = MAX_ROWS) -> list[dict]:
     """Journal lines this question is about. Possibly none — which is an
@@ -317,6 +370,21 @@ def for_question(question: str) -> dict:
     text = str(question or "")
     if not _PAST.search(text):
         return {}
+    if _YESTERDAY.search(text) and not _TODAY.search(text):
+        import datetime as dt
+        from aletheia import localtime
+        tz = localtime.operator_tz()
+        date = (dt.datetime.now(tz) - dt.timedelta(days=1)).strftime("%Y-%m-%d")
+        rows = on_date(date)
+        readable = _read_journal(TODAY_HOURS * 2)[1]
+        return {"asked_about": f"her day on {date}", "date": date,
+                "journal": rows, "readable": readable,
+                "note": ((f"This is everything she did on {date}, his clock, "
+                          "read from the journal every action writes to. "
+                          "Answer from it. If it is empty, say nothing was "
+                          "recorded that day rather than offering to go and "
+                          "look — this IS the look.")
+                         if readable else UNREADABLE)}
     if _TODAY.search(text):
         rows = day()
         readable = _read_journal(TODAY_HOURS)[1]

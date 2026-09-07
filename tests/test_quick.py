@@ -129,16 +129,45 @@ class AnswerCase(unittest.TestCase):
         self.assertNotIn(": ;", said)
 
     def test_today_uses_the_field_recollection_actually_writes(self):
+        # It reads `on_date` now, not `day`: "today" is a calendar day on
+        # HIS clock, not the last 24 hours, or the same evening gets
+        # reported twice — once here and once under "yesterday". The rule
+        # this protects is the FIELD (`what`) and the sentence, not which
+        # function supplies the rows.
         rows = [{"what": "intent: answered on the spot"},
                 {"what": "sync: pushed receipts"}]
-        with mock.patch("aletheia.recollection.day", lambda *a, **k: rows):
+        with mock.patch("aletheia.recollection.on_date", lambda *a, **k: rows):
             said = quick.answer("what did you do today")
         self.assertIn("pushed receipts", said)
         self.assertIn("2 things today", said)
         self.assertNotIn("(s)", said)
-        with mock.patch("aletheia.recollection.day", lambda *a, **k: []):
+        with mock.patch("aletheia.recollection.on_date", lambda *a, **k: []):
             self.assertEqual(quick.answer("what did you do today"),
                              "Nothing yet today.")
+
+    def test_yesterday_is_a_different_day_not_a_longer_window(self):
+        rows = [{"what": "sync: pushed receipts"}]
+        seen = []
+
+        def on_date(date, **k):
+            seen.append(date)
+            return rows
+
+        with mock.patch("aletheia.recollection.on_date", on_date):
+            said = quick.answer("what did you do yesterday")
+            quick.answer("what did you do today")
+        self.assertIn("1 thing yesterday", said)
+        self.assertEqual(len(seen), 2)
+        self.assertNotEqual(seen[0], seen[1])
+        with mock.patch("aletheia.recollection.on_date", lambda *a, **k: []):
+            self.assertIn("yesterday", quick.answer("what happened yesterday"))
+
+    def test_what_he_asked_for_is_not_what_she_did(self):
+        # "What did I ask you to do yesterday" asks for HIS instructions;
+        # her journal also holds scheduled work nobody asked for. The fast
+        # lane must not answer the near-miss — that one keeps the model,
+        # which now gets the right day's journal to answer from.
+        self.assertIsNone(quick.match("what did i ask you to do yesterday"))
 
     def test_can_you_answers_from_the_registry(self):
         with stub_registry(REGISTRY_MATCH):

@@ -78,6 +78,16 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # 'journal entries'" — a lookup in the wrong store.
         r"|^(?:show me |read me )?(?:the |your )?journal$"
         r"|^what(?:'s| is|s)? in (?:the |your )?journal$")),
+    # "What did you do yesterday" is one journal read and she was paying a
+    # round trip for it. Deliberately NOT "what did I ask you to do
+    # yesterday": that asks for HIS instructions, and her journal also
+    # holds scheduled work nobody asked for, so the fast lane would be
+    # answering a near-miss. That one keeps the model, which now gets the
+    # right day's journal to answer from (`recollection.for_question`).
+    ("yesterday", re.compile(
+        r"^what (?:did|have) (?:you|u) (?:do|done|get done|been doing) yesterday$"
+        r"|^what (?:did|have) (?:you|u) (?:do|done) last night$"
+        r"|^what happened yesterday$")),
     ("can_you", re.compile(
         r"^(?:can|could) (?:you|u) (?P<what>.{3,120})$"
         r"|^(?:are|r) (?:you|u) able to (?P<what2>.{3,120})$"
@@ -156,16 +166,39 @@ def _doing() -> str:
     return "Nothing in flight right now."
 
 
-def _today() -> str:
-    from aletheia import recollection, speech
-    rows = recollection.day()
-    if not rows:
-        return "Nothing yet today."
+def _on_day(days_ago: int) -> list[dict]:
+    """Her journal for one calendar day on HIS clock, newest last."""
+    import datetime as dt
+    from aletheia import localtime, recollection
+    tz = localtime.operator_tz()
+    date = (dt.datetime.now(tz) - dt.timedelta(days=days_ago)).strftime("%Y-%m-%d")
+    return recollection.on_date(date)
+
+
+def _listed(rows: list[dict], when: str) -> str:
+    from aletheia import speech
     # Each line is already a finished sentence; joining them with "; "
     # after a full stop gives "call the dentist.; email dana."
     lines = [str(r.get("what") or "").strip().rstrip(".")[:90] for r in rows[-3:]]
-    return (f"{speech.count_phrase(len(rows), 'thing')} today. Most recent: "
+    return (f"{speech.count_phrase(len(rows), 'thing')} {when}. Most recent: "
             + "; ".join(lines))
+
+
+def _today() -> str:
+    # A CALENDAR day, not the last 24 hours. Asked at nine in the morning,
+    # a rolling window is mostly yesterday — and it would report the same
+    # evening twice, once here and once under "yesterday".
+    rows = _on_day(0)
+    if not rows:
+        return "Nothing yet today."
+    return _listed(rows, "today")
+
+
+def _yesterday() -> str:
+    rows = _on_day(1)
+    if not rows:
+        return "Nothing in the journal for yesterday."
+    return _listed(rows, "yesterday")
 
 
 def _can_you(what: str) -> str | None:
@@ -204,6 +237,7 @@ ANSWERS = {"halted": lambda rest: _halted(),
            "waiting": lambda rest: _waiting(),
            "doing": lambda rest: _doing(),
            "today": lambda rest: _today(),
+           "yesterday": lambda rest: _yesterday(),
            "can_you": _can_you}
 
 

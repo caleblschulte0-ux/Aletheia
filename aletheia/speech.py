@@ -148,6 +148,99 @@ def tidy(text: str) -> str:
     return out.strip(" ,;:")
 
 
+# ----------------------------------------------------------------- markdown
+# A model writes for a screen unless something stops it. "What I *can* do
+# right now is look at your desktop live (computer.observe/control)" was a
+# real answer, spoken in a room: an asterisk pair read as nothing at all,
+# and an identifier with a slash in it read as gibberish. Both are §145 —
+# implementation details never reach speech unless they are useful to him.
+MD_FENCE = re.compile(r"```[a-zA-Z0-9_+-]*\n?")
+MD_LINK = re.compile(r"\[([^\]\n]+)\]\([^)\s]+\)")
+MD_BOLD = re.compile(r"(?<!\w)\*\*(\S(?:[^*]*?\S)?)\*\*(?!\w)")
+MD_EM = re.compile(r"(?<!\w)\*(\S(?:[^*\n]*?\S)?)\*(?!\w)")
+MD_CODE = re.compile(r"`([^`\n]+)`")
+MD_HEADING = re.compile(r"(?m)^\s{0,3}#{1,6}\s+")
+MD_BULLET = re.compile(r"(?m)^\s{0,3}[-*+]\s+")
+
+
+def unmarkdown(text: str) -> str:
+    """Markdown emphasis is invisible out loud, so remove the marks.
+
+    Deliberately does NOT touch underscores: `_this_` is emphasis and
+    `file_path` is a name, and getting that wrong renames things he asked
+    about. A bullet becomes nothing rather than a dash, because a hyphen
+    at the start of a line is either silence or the word "minus".
+    """
+    out = MD_FENCE.sub("", str(text or ""))
+    out = MD_LINK.sub(r"\1", out)
+    out = MD_BOLD.sub(r"\1", out)
+    out = MD_EM.sub(r"\1", out)
+    out = MD_CODE.sub(r"\1", out)
+    out = MD_HEADING.sub("", out)
+    return MD_BULLET.sub("", out)
+
+
+# `computer.observe/control`, `room.scene`, `email.send` — a capability id
+# is a correct, unsayable name for a thing the registry already describes
+# in English. Only ids the registry really knows are replaced; anything
+# else (example.com, converse.py) is left exactly as written.
+CAP_ID = re.compile(
+    r"\b([a-z][a-z0-9_]{2,}\.[a-z][a-z0-9_]{2,}(?:/[a-z][a-z0-9_]{2,})?)\b")
+
+
+def _capability_english(name: str) -> str:
+    from aletheia import capabilities
+    entry = capabilities.get(name)
+    said = str((entry or {}).get("description") or "").strip()
+    if not said:
+        return ""
+    # The registry writes "a sentence: the qualification" and "a sentence
+    # - the qualification"; only the first half is the answer. The colon
+    # has no space in front of it, which an earlier version of this split
+    # required — so "operate the Windows PC: observe, open apps, click,
+    # type" came out whole, inside a parenthesis, out loud.
+    first = re.split(r"\s+[-—(]\s*|\s*:\s+|\.\s", said)[0].strip(" .")
+    return (first[0].lower() + first[1:]) if first else ""
+
+
+def say_capabilities(text: str) -> str:
+    """Capability ids -> what the registry says they are.
+
+    "(computer.observe/control)" becomes "(look at the desktop or operate
+    the Windows PC)". The slash form is the model's own shorthand for two
+    ids sharing a prefix, so it is expanded rather than mangled.
+    """
+    def one(match: re.Match) -> str:
+        token = match.group(1)
+        head, _, tail = token.partition("/")
+        try:
+            said = _capability_english(head)
+            if tail:
+                sibling = _capability_english(head.split(".")[0] + "." + tail)
+                if said and sibling:
+                    return f"{said} or {sibling}"
+                if not said:
+                    return token
+            return said or token
+        except Exception:
+            return token
+    try:
+        return CAP_ID.sub(one, str(text or ""))
+    except Exception:
+        return str(text or "")
+
+
+def spoken_prose(text: str) -> str:
+    """Model prose, made safe to read out: no markup, no identifiers.
+
+    Everything she says that a model wrote goes through here. The pieces
+    existed separately and each caller picked its own subset, which is how
+    "What I *can* do right now is (computer.observe/control)" reached a
+    room that had already had ids stripped from every other sentence.
+    """
+    return tidy(strip_ids(say_capabilities(unmarkdown(text))))
+
+
 def _times_to_words(text: str, now: dt.datetime | None = None) -> str:
     return ISO_TIME.sub(lambda m: humanize_time(m.group(0), now), text)
 
@@ -288,7 +381,24 @@ def or_list(items: list[str]) -> str:
 
 
 def count_phrase(count: int, singular: str, plural: str | None = None) -> str:
-    plural = plural or singular + "s"
+    """"3 boards", "1 match", "2 matches".
+
+    The default used to be `singular + "s"`, so a caller who did not think
+    about it got "3 matchs" — which is how "3002 match(es)" ended up in a
+    journal line she then read out loud, half of the same sentence having
+    been written through this function. An explicit plural still wins;
+    this only stops the naive default from being wrong.
+    """
+    if plural is None:
+        word = singular.rsplit(" ", 1)[-1]
+        head = singular[:len(singular) - len(word)]
+        if word.endswith(("s", "x", "z", "ch", "sh")):
+            word += "es"
+        elif len(word) > 1 and word.endswith("y") and word[-2] not in "aeiou":
+            word = word[:-1] + "ies"
+        else:
+            word += "s"
+        plural = head + word
     return f"{count} {singular if count == 1 else plural}"
 
 

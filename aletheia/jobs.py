@@ -206,7 +206,8 @@ def search(role: str, *, where: str = "", limit: int = 10,
     matches = [job for _v, job in found[:max(1, min(int(limit), MAX_RESULTS))]]
     journal.append("action", "jobs",
                    f"searched {speech.count_phrase(len(rows), 'board')} for {role!r}: "
-                   f"{len(found)} match(es), {speech.count_phrase(len(failures), 'board')} failed",
+                   f"{speech.count_phrase(len(found), 'match')}, "
+                   f"{speech.count_phrase(len(failures), 'board')} failed",
                    actor=ACTOR)
     _say_a_board_is_gone([f for f in failures if f["gone"]])
     return {"role": role, "where": where, "matches": matches,
@@ -306,7 +307,8 @@ def main(argv: list[str] | None = None) -> int:
     for job in out["matches"]:
         print(f"{job['company']:14} {job['title'][:52]:54} {job['location'][:24]}")
         print(f"               {job['apply_url']}")
-    print(f"\n{out['matched']} match(es) across {speech.count_phrase(out['searched'], 'board')}",
+    print(f"\n{speech.count_phrase(out['matched'], 'match')} across "
+          f"{speech.count_phrase(out['searched'], 'board')}",
           file=sys.stderr)
     for failure in out["failed"]:
         print(f"  board {failure['board']} failed: {failure['why']}", file=sys.stderr)
