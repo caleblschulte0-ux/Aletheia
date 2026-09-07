@@ -172,6 +172,11 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "handle":          ({"text"}, set()),
     "travel_time":     ({"place"}, set()),
     "shopping_add":    ({"item"}, {"budget"}),
+    # Reading the list back, and taking something off it. `shopping_add`
+    # shipped without either, so she confirmed "Added to the shopping
+    # list: milk" and then said she had no shopping list.
+    "shopping_list":   (set(), set()),
+    "shopping_off":    ({"item"}, set()),
     "subscriptions":   (set(), set()),
     "money":           (set(), set()),
     "car":             (set(), {"vehicle"}),
@@ -200,6 +205,13 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # generated from KIND_ARGS and these together, so the model learns the
 # shape of a step list from the registry rather than from a guess.
 KIND_NOTES: dict[str, str] = {
+    "shopping_list": (
+        'What is on his shopping list, read from the store. Use it for '
+        '"what do I need from the shop" as well — it is the same list.'),
+    "shopping_off": (
+        'Take something off the shopping list. item is the words he used; '
+        'she finds the one entry that matches and asks him if two do. It '
+        'is cancelled, not deleted.'),
     "reminders": (
         'What reminders are set, read straight from the schedule store. '
         'which is optional and narrows by the words of the reminder. Use '
@@ -353,6 +365,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email
                "intent", "screen_ask",
                # every private-state verb below lives on the PC
                "meet", "recall", "handle", "travel_time", "shopping_add",
+               "shopping_list", "shopping_off",
                "subscriptions", "money", "car", "projects", "authority_status", "setup_status",
                # the desktop and the sandbox are both on his PC
                "computer_do", "do_task",
@@ -367,7 +380,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email
 READ_ONLY_KINDS = frozenset({
     "note", "notify_check", "free_time", "brief", "subscriptions", "money",
     # Reads public job boards. Prepares nothing, sends nothing.
-    "jobs", "tasks", "reminders",
+    "jobs", "tasks", "reminders", "shopping_list",
     "projects", "car", "recall", "travel_time", "browse_read", "browse_shot",
     # reads public pages and writes a document; commits him to nothing
     "research",
@@ -390,7 +403,7 @@ ROUTINE_KINDS = frozenset({
     # Disabling a reminder is reversible by saying the opposite, which is
     # the whole test for this tier — the schedule is disabled, never
     # deleted, so "actually put that back" is one command.
-    "reminder_off", "notify_operator",
+    "reminder_off", "shopping_off", "notify_operator",
     "notify_clear", "remember", "contact_add", "shopping_add",
     # reversible by saying the opposite, reaches nobody but him, and its
     # own default is silence
@@ -778,6 +791,49 @@ def _one_reminder(which: str):
                       + speech.or_list([str((r.get("command") or {}).get("text")
                                             or r["id"])[:50] for r in hits[:4]])
                       + "?")
+    return hits[0], ""
+
+
+SHOPPING_OPEN = ("RESEARCHING", "SELECTED", "PURCHASE_PROPOSED")
+
+
+def _shopping_items() -> list[dict]:
+    from aletheia import shopping
+    return [w for w in shopping.all_workflows()
+            if str(w.get("state", "")).upper() in SHOPPING_OPEN]
+
+
+def _shopping_answer() -> str:
+    from aletheia import speech
+    rows = _shopping_items()
+    if not rows:
+        return "Nothing on your shopping list."
+    said = speech.and_list([str(w.get("need") or w["id"])[:60] for w in rows[:8]])
+    more = f", and {len(rows) - 8} more" if len(rows) > 8 else ""
+    return f"{speech.count_phrase(len(rows), 'thing')} on your shopping list: {said}{more}."
+
+
+def _one_shopping_item(which: str):
+    """(workflow, why-not) — exactly one thing on the list he could mean."""
+    from aletheia import speech
+    needle = " ".join(str(which or "").split()).casefold()
+    rows = _shopping_items()
+    hits = [w for w in rows if needle and needle in str(w.get("need", "")).casefold()]
+    if not hits:
+        words = [w for w in re.split(r"[^a-z0-9]+", needle)
+                 if len(w) > 2 and w not in TASK_STOP]
+        scored = [(sum(1 for word in words
+                       if word in str(w.get("need", "")).casefold()), w)
+                  for w in rows]
+        best = max((n for n, _w in scored), default=0)
+        hits = [w for n, w in scored if n == best and n > 0]
+    if not hits:
+        return None, (f"Nothing on your shopping list matching {which!r}."
+                      if rows else "Nothing on your shopping list.")
+    if len(hits) > 1:
+        return None, ("Which one — "
+                      + speech.or_list([str(w.get("need") or w["id"])[:50]
+                                        for w in hits[:4]]) + "?")
     return hits[0], ""
 
 
@@ -1437,6 +1493,15 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         workflow = shopping.create(f"shop-{slug}-{_uuid.uuid4().hex[:4]}"[:60],
                                    need=cmd["item"], budget=budget)
         return f"Added to the shopping list: {workflow['need']}."
+    if kind == "shopping_list":
+        return _shopping_answer()
+    if kind == "shopping_off":
+        from aletheia import shopping
+        found, why = _one_shopping_item(cmd["item"])
+        if found is None:
+            raise act.Refused(why)
+        shopping.cancel(found["id"])
+        return f"shopping item {found['id']} off — {found['need']}"
     if kind == "subscriptions":
         from aletheia import subscriptions
         rows = subscriptions.all_subscriptions(active_only=True)

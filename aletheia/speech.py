@@ -308,6 +308,10 @@ def spoken_receipt(kind: str, detail: str, *,
         body = re.search(r"off\s*[—-]\s*(.+)$", text)
         if body:
             return f"Stopped reminding you: {_quoted(body.group(1))}."
+    if kind == "shopping_off":
+        body = re.search(r"off\s*[—-]\s*(.+)$", text)
+        if body:
+            return f"Took it off your shopping list: {_quoted(body.group(1))}."
     if kind == "task_new":
         # "task renew-my-passport queued — renew my passport due Friday"
         named = re.search(r"task [a-z0-9-]+ queued\s*[—-]\s*(.+)", text)

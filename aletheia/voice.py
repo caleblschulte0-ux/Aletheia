@@ -421,6 +421,16 @@ def interpret(transcript: str) -> dict:
                     r"how are things|anything happening|report)", low):
         return {"command": None, "say": _status_say()}
 
+    if re.fullmatch(r"(what'?s?( is)? on )?(my |the )?shopping list"
+                    r"|what do i need (to buy|from the (shop|store))"
+                    r"|read (me )?(my |the )?shopping list", low):
+        return {"command": {"kind": "shopping_list"}, "say": None}
+    m = re.match(r"(?:take|remove|delete) (.+?) (?:off|from) (?:my |the )?"
+                 r"shopping list", low)
+    if m:
+        return {"command": {"kind": "shopping_off", "item": m.group(1).strip()},
+                "say": None}
+
     # what is set, and stopping one. Before the "remind me" patterns so a
     # question about reminders is never read as a request for a new one.
     if re.fullmatch(r"(what|which) reminders? (do i have|are set|have i got)"
