@@ -229,6 +229,36 @@ def _remember_turn(question: str, answer: str,
         stateio.write_json_atomic(THREAD_PATH, {"turns": _trim(turns)})
 
 
+def remember_exchange(said: str, reply: str) -> None:
+    """Record a turn that did NOT go through this module. Never raises.
+
+    Her memory of the conversation lived here, so it only ever held the
+    turns a MODEL answered — and the faster she got, the less she
+    remembered. Four turns in, "actually cancel that" came back "I don't
+    have anything in the recent conversation to know what 'that' refers
+    to — checked the conversation history (empty)", when the two things
+    it could have meant had both been said out loud and answered in
+    0.0 seconds.
+
+    Deduped against the last turn, so `converse`'s own call and the
+    Core's cannot record the same exchange twice.
+    """
+    said, reply = str(said or "").strip(), str(reply or "").strip()
+    if not said or not reply:
+        return
+    try:
+        with _THREAD_LOCK:
+            turns = _thread()
+            if turns and turns[-1].get("you") == said[:600] \
+                    and turns[-1].get("her") == reply[:900]:
+                return
+            turns.append({"at": stateio.utcnow(), "you": said[:600],
+                          "her": reply[:900]})
+            stateio.write_json_atomic(THREAD_PATH, {"turns": _trim(turns)})
+    except Exception:
+        pass
+
+
 def _carried_over(turns: list[dict]) -> list[str]:
     """The file she read a moment ago, still open for the next question.
 

@@ -300,6 +300,24 @@ _KICKING = False
 KICK_WAIT_S = 2.0
 
 
+def _remember_out_loud(transcript: str, said: str) -> None:
+    """Put a spoken turn in her conversation memory. Never raises.
+
+    The memory lived inside `converse`, so it held only the turns a MODEL
+    answered — and the faster she got, the less she remembered of the
+    conversation. Everything answered from a store in 0.0s was missing
+    from it, which is most of what she says now.
+    """
+    try:
+        from aletheia import converse, voice
+        # WITHOUT the wake word: "thea add a task to call the plumber" is
+        # not how he would refer to it a turn later, and the thread is
+        # read back to a model as what he said.
+        converse.remember_exchange(voice.strip_wake_word(transcript), said)
+    except Exception:
+        pass
+
+
 def kick_approved_work(fleet: dict, wait_s: float = 0.0) -> bool:
     """Run the things an approval just unblocked, immediately.
 
@@ -787,6 +805,7 @@ class Handler(BaseHTTPRequestHandler):
                                   code=400)
             intent = voice.interpret(transcript)
             if intent["command"] is None:
+                _remember_out_loud(transcript, intent["say"])
                 return self._json({"outcome": "answered", "say": intent["say"]})
             cmd = dict(intent["command"])
             kind = cmd.get("kind")
@@ -799,6 +818,7 @@ class Handler(BaseHTTPRequestHandler):
                                    actor="aletheia-core")
                 except Exception:
                     pass
+                _remember_out_loud(transcript, fast)
                 return self._json({"outcome": "answered", "say": fast})
             if kind in SLOW_KINDS:
                 # Reasoning takes ten to thirty seconds; a person in a room
@@ -834,6 +854,7 @@ class Handler(BaseHTTPRequestHandler):
             # that, journaled") — those beat the generic receipt phrasing
             say = intent["say"] or voice.spoken_reply(kind, result["outcome"],
                                                       result["detail"])
+            _remember_out_loud(transcript, say)
             return self._json({**result, "say": say})
 
         unknown = set(payload) - {"steps", "approval_id"}
