@@ -7,6 +7,7 @@ explicit. External push delivery is a later provider concern.
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 
 from aletheia.stateio import private_dir, read_json, safe_id, utcnow, write_json_atomic
@@ -70,35 +71,45 @@ def load(notice_id: str) -> dict:
 _NOTICES_CACHE: tuple | None = None
 
 
-def _notices_signature(paths: list) -> tuple:
+def _notices_signature() -> tuple:
     """What would have to change for the parse to be wrong.
 
     Per FILE, not the directory: Windows does not touch a directory's
     mtime when a file inside it is modified in place, and acknowledging a
     notice does exactly that. A directory-mtime cache would go on
     reporting a notice he had already dealt with.
+
+    `os.scandir` rather than `glob` + `stat`: the DirEntry carries the
+    stat the directory walk already read, where the pathlib pair costs
+    three syscalls a file. Across 105 notices that was 55ms — most of
+    what this cache exists to remove.
     """
     signed = []
-    for path in paths:
-        try:
-            info = path.stat()
-            signed.append((path.name, info.st_mtime_ns, info.st_size))
-        except OSError:
-            signed.append((path.name, None, None))
-    return tuple(signed)
+    try:
+        with os.scandir(NOTICES_DIR) as entries:
+            for entry in entries:
+                if not entry.name.endswith(".json"):
+                    continue
+                try:
+                    info = entry.stat()
+                    signed.append((entry.name, info.st_mtime_ns, info.st_size))
+                except OSError:
+                    signed.append((entry.name, None, None))
+    except OSError:
+        return ()
+    return tuple(sorted(signed))
 
 
 def _every_notice() -> list[dict]:
     """Every notice on disk, parsed once per change."""
     global _NOTICES_CACHE
-    paths = sorted(NOTICES_DIR.glob("*.json"))
-    signature = _notices_signature(paths)
+    signature = _notices_signature()
     if _NOTICES_CACHE and _NOTICES_CACHE[0] == signature:
         return _NOTICES_CACHE[1]
     parsed = []
-    for path in paths:
+    for name, _mtime, _size in signature:
         try:
-            parsed.append(load(path.stem))
+            parsed.append(load(name[:-len(".json")]))
         except ValueError:
             continue
     _NOTICES_CACHE = (signature, parsed)
