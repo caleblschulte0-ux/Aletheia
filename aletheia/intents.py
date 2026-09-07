@@ -71,18 +71,14 @@ def load(intent_id: str) -> dict:
 
 
 def all_intents(state: str | None = None) -> list[dict]:
-    out = []
+    """Every intent on disk, parsed once per change, optionally filtered."""
     directory = intents_dir()
     if not directory.is_dir():
-        return out
-    for path in sorted(directory.glob("*.json")):
-        try:
-            record = stateio.read_json(path)
-        except ValueError:
-            continue
-        if state is None or record.get("state") == state:
-            out.append(record)
-    return out
+        return []
+    rows = stateio.parsed_dir(directory)
+    if state is None:
+        return rows
+    return [r for r in rows if r.get("state") == state]
 
 
 def read_only(plan: planner.Plan) -> bool:

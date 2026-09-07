@@ -29,7 +29,7 @@ import os
 import sys
 from pathlib import Path
 
-from aletheia import capabilities, contracts, gh, journal, speech
+from aletheia import capabilities, contracts, gh, journal, speech, stateio
 from aletheia.fleet import REPO_ROOT
 
 def _approvals_dir() -> Path:
@@ -112,15 +112,17 @@ def save(approval: dict) -> None:
 
 
 def all_approvals() -> list[dict]:
+    """Every approval on disk, parsed once per change.
+
+    29 of these to find the 1 that is PENDING, on every
+    `presence.snapshot()`. The cache is keyed on a stat of each FILE, not
+    the directory — `decide()` rewrites an approval IN PLACE, and Windows
+    does not touch the directory when it does. Serving a decided approval
+    as pending would be a security answer, not a latency one.
+    """
     if not APPROVALS_DIR.is_dir():
         return []
-    out = []
-    for f in sorted(APPROVALS_DIR.glob("*.json")):
-        try:
-            out.append(json.loads(f.read_text(encoding="utf-8")))
-        except json.JSONDecodeError:
-            continue
-    return out
+    return stateio.parsed_dir(APPROVALS_DIR)
 
 
 def request(aid: str, requested_action: str, reason: str, consequence: str,

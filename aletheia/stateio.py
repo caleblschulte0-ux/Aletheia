@@ -90,3 +90,70 @@ def create_json_exclusive(path: Path, value: dict[str, Any]) -> None:
         handle.write(_encoded(value))
         handle.flush()
         os.fsync(handle.fileno())
+
+
+# ---------------------------------------------------------------------
+# Parsed directories of small JSON records, re-read only when they change.
+#
+# Three stores have this shape — approvals, intents, notifications — and
+# every one of them was read end to end on every `presence.snapshot()`,
+# then filtered down to a handful of rows. 114 notices to find 69 unread;
+# 29 approvals to find 1 pending.
+#
+# THE CORRECTNESS RULE, and it is the reason this is one function rather
+# than three: the signature is a stat of each FILE, never the directory's
+# mtime. Windows does not update a directory when a file inside it is
+# modified in place, and deciding an approval, acknowledging a notice and
+# advancing an intent are all modifications in place. A directory-mtime
+# cache would serve a decided approval as pending — which is a security
+# answer, not a latency one.
+_PARSED_DIRS: dict[str, tuple] = {}
+_PARSED_DIRS_MAX = 12
+
+
+def _dir_signature(directory) -> tuple:
+    """What would have to change for the parse to be wrong.
+
+    `os.scandir` rather than `glob` + `stat`: the DirEntry carries the
+    stat the directory walk already did, where the pathlib pair costs
+    three syscalls a file. Across 114 notices that was 55ms — more than
+    the parse it was meant to save.
+    """
+    signed = []
+    try:
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                if not entry.name.endswith(".json"):
+                    continue
+                try:
+                    info = entry.stat()
+                    signed.append((entry.name, info.st_mtime_ns, info.st_size))
+                except OSError:
+                    signed.append((entry.name, None, None))
+    except OSError:
+        return ()
+    return tuple(sorted(signed))
+
+
+def parsed_dir(directory) -> list:
+    """Every readable JSON record in `directory`, parsed once per change.
+
+    Returns COPIES. These rows are handed to callers that filter, sort and
+    render them, and one that edited a row would be editing what every
+    later reader sees.
+    """
+    key = str(directory)
+    signature = _dir_signature(directory)
+    cached = _PARSED_DIRS.get(key)
+    if cached is None or cached[0] != signature:
+        rows = []
+        for name, _mtime, _size in signature:
+            try:
+                rows.append(read_json(Path(directory) / name))
+            except (ValueError, OSError):
+                continue        # a torn or hand-edited file is not a record
+        if len(_PARSED_DIRS) >= _PARSED_DIRS_MAX:
+            _PARSED_DIRS.clear()
+        _PARSED_DIRS[key] = (signature, rows)
+        cached = _PARSED_DIRS[key]
+    return [dict(row) for row in cached[1]]

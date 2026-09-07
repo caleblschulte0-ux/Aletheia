@@ -385,7 +385,7 @@
     ]
   },
   "now": {
-    "generated_at": "2026-09-07T16:59:05Z",
+    "generated_at": "2026-09-07T18:53:14Z",
     "halted": false,
     "heartbeat_age_s": 0.0,
     "waiting_on_you": [
@@ -398,10 +398,17 @@
     "notifications": [
       {
         "title": "Aletheia finished thinking",
+        "body": "I could not plan that: ReasonerUnavailable: subscription reasoning and local deep reasoning are unavailable (subscription: neither Claude nor the ChatGPT browser could answer just now",
+        "says": "Aletheia finished thinking: I could not plan that: ReasonerUnavailable: subscription reasoning and local deep reasoning are unavailable (sub",
+        "priority": "IMPORTANT",
+        "at": "2026-09-07T18:37:47Z"
+      },
+      {
+        "title": "Aletheia finished thinking",
         "body": "You said \"the\" — what would you like me to do?",
         "says": "Aletheia finished thinking: You said \"the\" — what would you like me to do?",
         "priority": "IMPORTANT",
-        "at": "2026-09-07T16:19:27Z"
+        "at": "2026-09-07T17:08:37Z"
       },
       {
         "title": "Aletheia finished thinking",
@@ -430,13 +437,6 @@
         "says": "Aletheia finished thinking: That didn't come through clearly — what would you like me to do?",
         "priority": "IMPORTANT",
         "at": "2026-09-07T15:39:14Z"
-      },
-      {
-        "title": "Aletheia finished thinking",
-        "body": "I didn't catch a clear request in that — could you say again what you'd like me to do?",
-        "says": "Aletheia finished thinking: I didn't catch a clear request in that — could you say again what you'd like me to do?",
-        "priority": "IMPORTANT",
-        "at": "2026-09-07T15:34:49Z"
       }
     ],
     "meetings": [],

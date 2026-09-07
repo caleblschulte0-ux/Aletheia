@@ -10,6 +10,7 @@ import hashlib
 import os
 from pathlib import Path
 
+from aletheia import stateio
 from aletheia.stateio import private_dir, read_json, safe_id, utcnow, write_json_atomic
 
 NOTICES_DIR = private_dir("notifications")
@@ -65,57 +66,6 @@ def load(notice_id: str) -> dict:
     return value
 
 
-# Parsed notices, keyed by a stat of every file. A stat is ~20x cheaper
-# than an open-and-parse, and this store is read on every presence
-# snapshot — which is three of the sentences he says most.
-_NOTICES_CACHE: tuple | None = None
-
-
-def _notices_signature() -> tuple:
-    """What would have to change for the parse to be wrong.
-
-    Per FILE, not the directory: Windows does not touch a directory's
-    mtime when a file inside it is modified in place, and acknowledging a
-    notice does exactly that. A directory-mtime cache would go on
-    reporting a notice he had already dealt with.
-
-    `os.scandir` rather than `glob` + `stat`: the DirEntry carries the
-    stat the directory walk already read, where the pathlib pair costs
-    three syscalls a file. Across 105 notices that was 55ms — most of
-    what this cache exists to remove.
-    """
-    signed = []
-    try:
-        with os.scandir(NOTICES_DIR) as entries:
-            for entry in entries:
-                if not entry.name.endswith(".json"):
-                    continue
-                try:
-                    info = entry.stat()
-                    signed.append((entry.name, info.st_mtime_ns, info.st_size))
-                except OSError:
-                    signed.append((entry.name, None, None))
-    except OSError:
-        return ()
-    return tuple(sorted(signed))
-
-
-def _every_notice() -> list[dict]:
-    """Every notice on disk, parsed once per change."""
-    global _NOTICES_CACHE
-    signature = _notices_signature()
-    if _NOTICES_CACHE and _NOTICES_CACHE[0] == signature:
-        return _NOTICES_CACHE[1]
-    parsed = []
-    for name, _mtime, _size in signature:
-        try:
-            parsed.append(load(name[:-len(".json")]))
-        except ValueError:
-            continue
-    _NOTICES_CACHE = (signature, parsed)
-    return parsed
-
-
 def all_notifications(*, state: str | None = None, limit: int = 100) -> list[dict]:
     if state is not None and state not in STATES:
         raise ValueError("invalid notification state")
@@ -124,12 +74,9 @@ def all_notifications(*, state: str | None = None, limit: int = 100) -> list[dic
     if not NOTICES_DIR.is_dir():
         return []
     out = []
-    for value in _every_notice():
+    for value in stateio.parsed_dir(NOTICES_DIR):
         if state is None or value["state"] == state:
-            # A COPY per row: callers read these into sentences, and one
-            # that edited a dict would be editing the cache every later
-            # reader sees.
-            out.append(dict(value))
+            out.append(value)     # `parsed_dir` already returns copies
     out.sort(key=lambda n: (n["created_at"], n["id"]), reverse=True)
     return out[:limit]
 

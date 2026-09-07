@@ -232,8 +232,18 @@ class RealPageCase(unittest.TestCase):
         self.server.server_close()
         port = self.server.server_address[1]
         self.base = f"http://127.0.0.1:{port}"
-        self.server = http.server.HTTPServer(
+        # THREADING, and this is the whole reason these tests were flaky.
+        # `HTTPServer` serves ONE request at a time. Chromium opens
+        # several connections per page and keeps them alive, so a second
+        # request queues behind a connection the browser is holding open,
+        # the page never reaches domcontentloaded, and `Page.goto` times
+        # out after 20 seconds. It failed on a different test every run —
+        # the signature of a race, not of a broken assertion — and it
+        # failed with nothing else on the machine, so it was never the
+        # CPU contention it looked like.
+        self.server = http.server.ThreadingHTTPServer(
             ("127.0.0.1", port), _site(self.base, self.got))
+        self.server.daemon_threads = True
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.addCleanup(self.server.shutdown)
 
