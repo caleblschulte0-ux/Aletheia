@@ -127,6 +127,12 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # personal-OS verbs (2026-08-26): PC-private state, so all LOCAL_KINDS
     "remind_at":       ({"at", "text"}, set()),
     "remind_daily":    ({"time", "text"}, {"tz"}),
+    # "every Monday at 8, take the bins out". `scheduler` has had a
+    # `weekly` kind since it was written and the GRAMMAR could not say it,
+    # so "remind me every monday to take out the trash" compiled to a
+    # generic `do_task` under a summary that promised a weekly reminder.
+    # A capability nothing can ask for is not a capability.
+    "remind_weekly":   ({"days", "time", "text"}, {"tz"}),
     "watch_email_from": ({"who"}, set()),
     "notify_operator": ({"text"}, {"priority"}),
     "notify_check":    (set(), set()),
@@ -186,6 +192,14 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # generated from KIND_ARGS and these together, so the model learns the
 # shape of a step list from the registry rather than from a guess.
 KIND_NOTES: dict[str, str] = {
+    "remind_weekly": (
+        'A reminder that repeats on named days — "every Monday", "every '
+        'weekday at 7", "Tuesdays and Thursdays". days is a list of day '
+        'names (or "weekdays"/"weekend"), time is 24-hour HH:MM in his '
+        'timezone. Use THIS rather than remind_at when he says every, each '
+        'or a plural day: a single-shot reminder under a summary promising '
+        'a weekly one is a promise the step cannot keep. If he names no '
+        'time, use 09:00 — the confirmation says it back to him.'),
     "subscription_cancel": (
         'Cancel a recurring charge she is tracking. subscription is its id '
         '(python -m aletheia.assistant subscriptions lists them), url is the '
@@ -314,7 +328,8 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email
                # ffmpeg and his media files live on the PC
                "media_probe", "media_trim", "media_join", "media_audio",
                "media_captions", "media_convert",
-               "remind_at", "remind_daily", "watch_email_from", "notify_check",
+               "remind_at", "remind_daily", "remind_weekly",
+               "watch_email_from", "notify_check",
                "notify_clear", "free_time", "contact_add", "notify_operator",
                "intent", "screen_ask",
                # every private-state verb below lives on the PC
@@ -352,7 +367,8 @@ READ_ONLY_KINDS = frozenset({
 # Nothing here spends, sends, publishes, or binds him to anything.
 ROUTINE_KINDS = frozenset({
     "task_new", "task_status", "plan_new", "plan_add_step", "plan_step",
-    "plan_set", "remind_at", "remind_daily", "notify_operator",
+    "plan_set", "remind_at", "remind_daily", "remind_weekly",
+    "notify_operator",
     "notify_clear", "remember", "contact_add", "shopping_add",
     # reversible by saying the opposite, reaches nobody but him, and its
     # own default is silence
@@ -837,6 +853,59 @@ def rehearsing() -> bool:
     return os.environ.get(REHEARSAL, "").strip().lower() in ("1", "true", "yes")
 
 
+WEEKDAY_NAMES = ("monday", "tuesday", "wednesday", "thursday", "friday",
+                 "saturday", "sunday")
+WEEKDAY_WORDS = {name: n for n, name in enumerate(WEEKDAY_NAMES)}
+WEEKDAY_WORDS.update({name[:3]: n for n, name in enumerate(WEEKDAY_NAMES)})
+WEEKDAY_GROUPS = {"weekday": [0, 1, 2, 3, 4], "weekdays": [0, 1, 2, 3, 4],
+                  "weekend": [5, 6], "weekends": [5, 6],
+                  "day": list(range(7)), "everyday": list(range(7))}
+
+
+def _weekday_numbers(days) -> list[int]:
+    """Whatever he or the planner called the days -> [0..6], Monday first.
+
+    Accepts the numbers, the words, the abbreviations and the two groups
+    that are not days at all ("weekdays", "the weekend"). Refuses rather
+    than guessing: a reminder on the wrong day is worse than none, and
+    the caller can ask him again in one sentence.
+    """
+    if isinstance(days, (str, int)):
+        days = [days]
+    out: list[int] = []
+    for day in list(days or []):
+        if isinstance(day, bool):
+            raise act.Refused(f"{day!r} is not a day of the week")
+        if isinstance(day, int):
+            if day not in range(7):
+                raise act.Refused(f"{day} is not a day of the week (0-6)")
+            out.append(day)
+            continue
+        word = str(day).strip().lower().rstrip(",.").lstrip("on ")
+        if word in WEEKDAY_GROUPS:
+            out.extend(WEEKDAY_GROUPS[word])
+        elif word in WEEKDAY_WORDS:
+            out.append(WEEKDAY_WORDS[word])
+        else:
+            raise act.Refused(f"{day!r} is not a day of the week")
+    unique = sorted(set(out))
+    if not unique:
+        raise act.Refused("a weekly reminder needs at least one day")
+    return unique
+
+
+def _weekday_words(days: list[int]) -> str:
+    """[0, 2] -> "Monday and Wednesday". Said out loud, so it is a phrase."""
+    from aletheia import speech
+    if days == [0, 1, 2, 3, 4]:
+        return "weekdays"
+    if days == [5, 6]:
+        return "weekends"
+    if len(days) == 7:
+        return "every day"
+    return speech.and_list([WEEKDAY_NAMES[d].capitalize() for d in days])
+
+
 def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "") -> str:
     """Run one validated command. Returns a human-readable detail line.
     Raises act.Refused / ValueError / KeyError — the caller records them."""
@@ -1125,6 +1194,17 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                          kind="daily", timezone=cmd.get("tz") or localtime.operator_timezone(),
                          time=cmd["time"])
         return f"daily reminder {sid} set for {cmd['time']} — {cmd['text'][:80]!r}"
+    if kind == "remind_weekly":
+        from aletheia import scheduler
+        import uuid as _uuid
+        days = _weekday_numbers(cmd["days"])
+        sid = "remind-weekly-" + _uuid.uuid4().hex[:8]
+        scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
+                         kind="weekly",
+                         timezone=cmd.get("tz") or localtime.operator_timezone(),
+                         time=cmd["time"], weekdays=days)
+        return (f"weekly reminder {sid} set for "
+                f"{_weekday_words(days)} at {cmd['time']} — {cmd['text'][:80]!r}")
     if kind == "notify_operator":
         from aletheia import notifications
         notice = notifications.publish("Reminder", cmd["text"], priority="IMPORTANT",

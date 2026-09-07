@@ -257,6 +257,19 @@ def _quoted(text: str) -> str:
     return str(text or "").strip().rstrip(".")
 
 
+def clock_words(hhmm: str) -> str:
+    """"09:00" -> "9 am". A 24-hour clock is a display, not a sentence."""
+    try:
+        hour, minute = (int(part) for part in str(hhmm).split(":", 1))
+        if not (0 <= hour <= 23 and 0 <= minute <= 59):
+            return str(hhmm)
+    except (TypeError, ValueError):
+        return str(hhmm)
+    suffix = "am" if hour < 12 else "pm"
+    twelve = hour % 12 or 12
+    return f"{twelve} {suffix}" if minute == 0 else f"{twelve}:{minute:02d} {suffix}"
+
+
 def spoken_receipt(kind: str, detail: str, *,
                    now: dt.datetime | None = None) -> str:
     """One subsystem receipt, as a sentence.
@@ -276,7 +289,18 @@ def spoken_receipt(kind: str, detail: str, *,
         when = re.search(r"\b(\d{1,2}:\d{2})\b", text)
         what = re.search(r"[—-]\s*'(.+?)'\s*$", text) or re.search(r"'(.+?)'", text)
         if when and what:
-            return (f"Every day at {when.group(1)} I'll remind you: "
+            return (f"Every day at {clock_words(when.group(1))} I'll remind "
+                    f"you: {_quoted(what.group(1))}.")
+    if kind == "remind_weekly":
+        # "weekly reminder remind-weekly-9f2 set for Monday at 09:00 —
+        # 'take out the trash'"
+        when = re.search(r"set for (.+?) at (\d{1,2}:\d{2})\b", text)
+        what = re.search(r"[—-]\s*'(.+?)'\s*$", text) or re.search(r"'(.+?)'", text)
+        if when and what:
+            days = when.group(1)
+            lead = days if days in ("weekdays", "weekends", "every day") else f"every {days}"
+            return (f"{lead[0].upper()}{lead[1:]} at "
+                    f"{clock_words(when.group(2))} I'll remind you: "
                     f"{_quoted(what.group(1))}.")
     if kind == "task_new":
         # "task renew-my-passport queued — renew my passport due Friday"

@@ -493,7 +493,7 @@
       "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "none",
-      "caller": "python -m aletheia.assistant schedule add-once/add-interval/add-daily/add-weekly and python -m aletheia.scheduler list/due",
+      "caller": "python -m aletheia.assistant schedule add-once/add-interval/add-daily/add-weekly, python -m aletheia.scheduler list/due, and the remind_at / remind_daily / remind_weekly commands he can say out loud",
       "verification": "exclusive occurrence receipts prevent duplicate claims",
       "module": "aletheia.scheduler"
     },

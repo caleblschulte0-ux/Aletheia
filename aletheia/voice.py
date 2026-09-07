@@ -328,6 +328,17 @@ def _attention_say() -> str:
     return " ".join(parts) or "Nothing needs your attention right now."
 
 
+# The days a weekly reminder can name, for the deterministic path.
+_DAY_WORDS = ("monday|tuesday|wednesday|thursday|friday|saturday|sunday|"
+              "mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun|"
+              "weekday|weekend")
+# "Remind me every monday to take the bins out" names no time, and a
+# reminder needs one. Nine in the morning is the hour a person means by
+# "on Monday" — and the confirmation says it back, so a wrong guess costs
+# him one sentence rather than a missed bin day.
+DEFAULT_REMINDER_TIME = "09:00"
+
+
 def interpret(transcript: str) -> dict:
     """One spoken sentence -> a command to gate-check, or words to say."""
     text = strip_wake_word(transcript)
@@ -411,6 +422,30 @@ def interpret(transcript: str) -> dict:
         return {"command": None, "say": _status_say()}
 
     # reminders — before email so "remind me to email bob" stays a reminder
+    #
+    # WEEKLY FIRST: "every monday" contains "every", and the daily pattern
+    # below is anchored on "every day", but a weekly phrasing without a
+    # time ("remind me every monday to take out the trash") had no
+    # deterministic match at all and reached the planner, which compiled a
+    # generic `do_task` under the summary "Set weekly Monday reminder" —
+    # a promise of recurrence the step could not keep.
+    _one_day = r"(?:" + _DAY_WORDS + r")s?"
+    m = re.match(r"remind me (?:every|each) "
+                 r"(" + _one_day + r"(?:\s*(?:,|and|&)\s*" + _one_day + r")*)"
+                 r"(?:\s+at\s+([\w: ]+?))? (?:to|that) (.+)", low)
+    if m:
+        hhmm = _spoken_time(m.group(2)) if m.group(2) else DEFAULT_REMINDER_TIME
+        if not hhmm:
+            return {"command": None,
+                    "say": f"I couldn't parse the time {m.group(2)!r} — say "
+                           "it like '8 am' or '14:30'."}
+        # "tuesday and thursday", "mon, wed and fri" — a list he says in one
+        # breath. The planner's version of this came back as "Weekly
+        # reminder Tue/Thu 6pm", which is a calendar entry, not a sentence.
+        days = [d for d in re.split(r"\s*(?:,|and|&)\s*", m.group(1)) if d]
+        return {"command": {"kind": "remind_weekly", "days": days,
+                            "time": hhmm, "text": m.group(3).strip()},
+                "say": None}
     m = re.match(r"remind me (?:every day|daily) at ([\w: ]+?) (?:to|that) (.+)", low)
     if m:
         hhmm = _spoken_time(m.group(1))
