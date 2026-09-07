@@ -139,13 +139,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^any alerts$|^is anything broken$|^anything broken$"
         r"|^how(?:'s| is) the fleet$|^is everything (?:ok|green|fine)$"
         r"|^fleet status$")),
-    # His own details, out of his own profile. She read them off his resume;
-    # asking a model to recite them is a round trip to the wrong store.
     ("repos", re.compile(
         r"^how many repos (?:are )?(?:you|u) (?:watching|watch|track|tracking)$"
         r"|^how many repos do (?:you|u) watch$"
         r"|^what repos (?:are )?(?:you|u) watching$"
         r"|^how many repos$")),
+    # His own details, out of his own profile. She read them off his resume;
+    # asking a model to recite them is a round trip to the wrong store.
     ("mine", re.compile(
         r"^what(?:'s| is|s)? my (?P<mine>email(?: address)?|phone(?: number)?"
         r"|number|city|town)$")),
