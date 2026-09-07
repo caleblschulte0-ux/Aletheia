@@ -20,6 +20,27 @@ class PublicRepoPrivacyCase(unittest.TestCase):
         result=subprocess.run(["git","ls-files","state/private","state/mail","cache"],cwd=REPO_ROOT,text=True,capture_output=True,check=True)
         self.assertEqual(result.stdout.strip(),"",f"private runtime path is tracked: {result.stdout}")
 
+    def test_the_pc_journal_and_anything_derived_from_it_stay_untracked(self):
+        """`state/journal/journal-pc.jsonl` is where his life lives after
+        the 2026-09-04 move out of the tracked tree. The ignore pattern
+        was EXACT, so a `journal-pc.jsonl.bak` written beside it by a
+        migration was not ignored and reached a commit on this PUBLIC
+        repo. Caught before it was pushed; this is why it cannot happen
+        twice."""
+        result=subprocess.run(["git","ls-files","state/journal"],cwd=REPO_ROOT,text=True,capture_output=True,check=True)
+        tracked=[f for f in result.stdout.split() if f.strip()]
+        for path in tracked:
+            name=Path(path).name
+            self.assertFalse(name.startswith("journal-pc"),f"private PC journal tracked: {path}")
+            self.assertFalse(name.endswith(".bak"),f"a backup of a journal is tracked: {path}")
+
+    def test_no_backup_file_anywhere_is_tracked(self):
+        """A .bak is a copy of something, and the thing it is a copy of is
+        usually the thing that was too private to keep."""
+        result=subprocess.run(["git","ls-files"],cwd=REPO_ROOT,text=True,capture_output=True,check=True)
+        backups=[f for f in result.stdout.split() if f.endswith((".bak",".orig",".rej"))]
+        self.assertEqual(backups,[],f"backup files are tracked: {backups}")
+
     def test_public_people_memory_contains_no_email_address(self):
         """`memory/` is no longer a tracked directory at all — it moved to
         private runtime state, which is the stronger form of this rule: a
