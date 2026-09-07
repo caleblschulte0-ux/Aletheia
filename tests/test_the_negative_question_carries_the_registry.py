@@ -47,6 +47,61 @@ class TheNegativeFormIsTheSameQuestion(unittest.TestCase):
         self.assertNotEqual(got.get("asked_about"), "everything")
 
 
+class AskingWhatBrokeReachesTheAlerts(unittest.TestCase):
+    """The same blind spot, one store over.
+
+    `_PAST` matches "did you" and "what happened"; it matched none of
+    "what went wrong", "did anything fail", "what broke" — so the most
+    natural way to ask what is broken travelled with no journal at all.
+    """
+
+    def test_the_failure_shaped_questions_carry_the_journal(self):
+        from aletheia import recollection
+        for said in ("what went wrong", "did anything fail", "what broke",
+                     "is anything broken", "any errors"):
+            got = recollection.for_question(said)
+            self.assertEqual(got.get("asked_about"), "what went wrong", said)
+
+    def test_it_carries_faults_rather_than_everything_she_did(self):
+        from aletheia import recollection
+        rows = [{"ts": "2026-09-07T09:00:00Z", "kind": "alert",
+                 "subject": "pulse", "actor": "aletheia", "text": "trader is red"},
+                {"ts": "2026-09-07T09:05:00Z", "kind": "action",
+                 "subject": "task", "actor": "aletheia", "text": "did a thing"}]
+        with mock.patch.object(recollection, "_read_journal",
+                               return_value=(rows, True)):
+            got = recollection.for_question("what went wrong")
+        said = " ".join(row["what"] for row in got["journal"])
+        self.assertIn("trader is red", said)
+        self.assertNotIn("did a thing", said)
+
+    def test_an_empty_list_is_not_an_invitation_to_invent_one(self):
+        from aletheia import recollection
+        with mock.patch.object(recollection, "_read_journal", return_value=([], True)):
+            got = recollection.for_question("what went wrong")
+        self.assertEqual(got["journal"], [])
+        self.assertIn("never invent a failure", got["note"])
+
+    def test_the_window_is_words_and_not_a_number_of_hours(self):
+        # "The last 168 hours show no alerts or recoveries logged" was a
+        # real answer, out loud.
+        from aletheia import recollection
+        self.assertEqual(recollection.window_words(168), "the last week")
+        self.assertEqual(recollection.window_words(24), "the last day")
+        self.assertEqual(recollection.window_words(72), "the last 3 days")
+        self.assertEqual(recollection.window_words(5), "the last 5 hours")
+        for said in ("what went wrong", "what did you do today", "did you send it"):
+            got = recollection.for_question(said)
+            self.assertTrue(got.get("window"), said)
+            self.assertNotIn(str(int(got.get("hours", 0))), got["window"], said)
+
+    def test_an_unreadable_journal_says_that_instead(self):
+        from aletheia import recollection
+        with mock.patch.object(recollection, "_read_journal", return_value=([], False)):
+            got = recollection.for_question("what broke")
+        self.assertIn("could not be READ", got["note"])
+
+
 class TheAuditToolBehavesLikeTheWall(unittest.TestCase):
     def test_it_acknowledges_the_answer_it_just_said(self):
         slot = {"state": followups.READY, "say": "the answer"}

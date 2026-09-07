@@ -109,6 +109,16 @@ _PAST = re.compile(
 _TODAY = re.compile(r"\b(today|so far|this morning|this afternoon|tonight|"
                     r"since (this )?(morning|lunch)|all day)\b", re.I)
 
+# "What went wrong", "did anything fail", "what broke" — a question about
+# TROUBLE, which the journal records as alerts and recoveries. None of
+# these matched `_PAST` ("did you", "what happened"), so the most natural
+# way to ask what is broken travelled with no journal at all.
+_TROUBLE = re.compile(
+    r"\b(what went wrong|did anything (fail|go wrong|break)|what broke|"
+    r"is anything (broken|failing|wrong)|what(?:'s| is)? (broken|failing|wrong)|"
+    r"anything (broken|failing|go wrong)|what failed|any (errors|failures|problems))\b",
+    re.I)
+
 # ... or about yesterday, which is a DIFFERENT day and not a longer window
 # on this one.
 _YESTERDAY = re.compile(r"\b(yesterday|last night|yesterday's)\b", re.I)
@@ -364,10 +374,57 @@ UNREADABLE = (
     "now. Never invent a time, a recipient or an outcome.")
 
 
+TROUBLE_KINDS = ("alert", "recovery")
+
+TROUBLE_NOTE = (
+    "These are the ALERTS and RECOVERIES in her journal — what actually "
+    "went wrong and what came back. An empty list means nothing was "
+    "recorded as a fault in that window; say that plainly rather than "
+    "hunting for something to worry him with, and never invent a failure.")
+
+
+def trouble(*, hours: float = DEFAULT_HOURS, limit: int = MAX_ROWS) -> list[dict]:
+    """What went wrong lately, newest last."""
+    rows = [e for e in _read_journal(hours)[0]
+            if e.get("kind") in TROUBLE_KINDS]
+    return _once_each([_row(e) for e in rows])[-limit:]
+
+
+def window_words(hours: float) -> str:
+    """"168" is a number she read out loud. This is what a person says.
+
+    "The last 168 hours show no alerts" was a real answer. The context
+    carries the number for arithmetic and this for the sentence.
+    """
+    hours = float(hours or 0)
+    if hours <= 1:
+        return "the last hour"
+    if hours < 24:
+        return f"the last {int(round(hours))} hours"
+    days = hours / 24.0
+    if days <= 1:
+        return "the last day"
+    if days < 7:
+        return f"the last {int(round(days))} days"
+    if 6.5 <= days <= 7.5:
+        return "the last week"
+    weeks = days / 7.0
+    if weeks < 4.5:
+        return f"the last {int(round(weeks))} weeks"
+    return f"the last {int(round(days / 30.0))} months"
+
+
 def for_question(question: str) -> dict:
     """What should travel with THIS question. Empty when it is not about her
     past — and empty-with-a-statement when it is and nothing is there."""
     text = str(question or "")
+    if _TROUBLE.search(text):
+        rows = trouble()
+        readable = _read_journal(DEFAULT_HOURS)[1]
+        return {"asked_about": "what went wrong", "hours": DEFAULT_HOURS,
+                "window": window_words(DEFAULT_HOURS),
+                "journal": rows, "readable": readable,
+                "note": TROUBLE_NOTE if readable else UNREADABLE}
     if not _PAST.search(text):
         return {}
     if _YESTERDAY.search(text) and not _TODAY.search(text):
@@ -389,6 +446,7 @@ def for_question(question: str) -> dict:
         rows = day()
         readable = _read_journal(TODAY_HOURS)[1]
         return {"asked_about": "her day", "hours": TODAY_HOURS,
+                "window": "today",
                 "journal": rows, "readable": readable,
                 "note": (("This is the journal, which every action writes to. "
                           "If it is empty she has done nothing recorded in "
@@ -398,6 +456,7 @@ def for_question(question: str) -> dict:
     rows = about(text)
     if rows:
         return {"asked_about": "her past", "hours": DEFAULT_HOURS,
+                "window": window_words(DEFAULT_HOURS),
                 "journal": rows, "matched": True, "note": MATCHED}
     # NOTHING MATCHED IS NOT NOTHING HAPPENED.
     #
@@ -418,7 +477,8 @@ def for_question(question: str) -> dict:
         note = UNMATCHED
     else:
         note = NOTHING_AT_ALL if readable else UNREADABLE
-    return {"asked_about": "her past", "hours": DEFAULT_HOURS, "journal": rows,
+    return {"asked_about": "her past", "hours": DEFAULT_HOURS,
+            "window": window_words(DEFAULT_HOURS), "journal": rows,
             "matched": False, "readable": readable, "note": note}
 
 
