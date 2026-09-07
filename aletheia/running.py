@@ -190,6 +190,104 @@ def _powershell_tasks() -> dict[str, str]:
     return out_states
 
 
+def version() -> dict:
+    """Which code is checked out, and whether she started before it.
+
+    STALENESS IS MEASURED AGAINST THE CODE, not against the commit: a
+    commit that only touches docs or tests changes nothing she runs, and
+    saying "restart me" for one would train him to ignore the line. The
+    signal is the newest mtime under `aletheia/`, compared with the moment
+    she started.
+
+    Every field is optional. Outside a git checkout, or before the start
+    stamp existed, the honest answer is that she does not know — never a
+    guess about which code is running.
+    """
+    from aletheia import liveness
+    from aletheia.fleet import REPO_ROOT
+
+    def git(*args):
+        try:
+            done = subprocess.run(["git", *args], capture_output=True,
+                                  text=True, cwd=str(REPO_ROOT), timeout=15)
+            return done.stdout.strip() if done.returncode == 0 else ""
+        except Exception:
+            return ""
+
+    started, newest_file, stale = running_old_code()
+    # THE STALENESS THAT ACTUALLY BIT HIM. A file changing on disk is
+    # caught by the supervisor, which relaunches within minutes. Nothing
+    # catches a CHECKOUT that is behind the remote: on 2026-09-07 this
+    # tree was ninety commits behind, three days old, with every part
+    # healthy and no disk change to notice — and a clock question took 26
+    # seconds because the process predated the fast lane.
+    #
+    # Counted against the last fetch, never fetching here: a status read
+    # must not touch the network.
+    behind = ""
+    branch = git("rev-parse", "--abbrev-ref", "HEAD")
+    for remote in (f"origin/{branch}", "origin/main"):
+        counted = git("rev-list", "--count", f"HEAD..{remote}")
+        if counted.isdigit() and int(counted):
+            behind = f"{counted} commits behind {remote}"
+            break
+    return {"behind": behind,
+            "branch": branch,
+            "commit": git("rev-parse", "--short", "HEAD"),
+            "subject": git("log", "-1", "--format=%s")[:80],
+            "started_at": started,
+            "newest_code": newest_file,
+            "running_old_code": stale}
+
+
+def running_old_code() -> tuple:
+    """(started_at, newest changed file, is she behind) — no subprocess.
+
+    A few file stats, so the WARNING can always be on while the git
+    identity is paid only when he asks for it. Measured against the CODE
+    rather than against the last commit: a commit touching only docs or
+    tests changes nothing she runs, and crying "restart me" for one would
+    teach him to ignore the line.
+    """
+    from aletheia import liveness
+    from aletheia.fleet import REPO_ROOT
+    started = (liveness.last() or {}).get("started_at")
+    newest, newest_file = 0.0, ""
+    try:
+        for path in (REPO_ROOT / "aletheia").glob("*.py"):
+            stamp = path.stat().st_mtime
+            if stamp > newest:
+                newest, newest_file = stamp, path.name
+    except Exception:
+        return started, "", None
+    if not started or not newest:
+        return started, newest_file, None    # she cannot honestly say
+    try:
+        began = liveness._parse_ts(started).timestamp()
+    except Exception:
+        return started, newest_file, None
+    return started, newest_file, newest > began
+
+
+def version_words(info: dict) -> str:
+    """One sentence about which code she is running."""
+    where = info.get("branch") or "?"
+    commit = info.get("commit") or "?"
+    said = f"On {where} at {commit}"
+    if info.get("behind"):
+        said += f" — {info['behind']}, so this is not the newest code there is"
+    subject = info.get("subject")
+    if subject:
+        said += f" — {subject}"
+    if info.get("running_old_code"):
+        said += (f". I started BEFORE the current code was written "
+                 f"({info.get('newest_code')} is newer than I am), so I am "
+                 "running an older copy — restart me to pick it up.")
+    elif info.get("running_old_code") is False:
+        said += ". This is the code I am running."
+    return said
+
+
 def snapshot(include_tasks: bool = True) -> dict:
     """Everything, in one read. Never raises.
 
@@ -224,7 +322,9 @@ def snapshot(include_tasks: bool = True) -> dict:
         parts.append({"part": key, "what": what, "up": bool(rows),
                       "pids": [r["pid"] for r in rows],
                       "mb": sum(r.get("mb", 0) for r in rows)})
-    return {"parts": parts, "tasks": tasks() if include_tasks else {}, "closed": shut,
+    _started, newest_file, stale = running_old_code()
+    return {"parts": parts, "tasks": tasks() if include_tasks else {},
+            "running_old_code": stale, "newest_code": newest_file, "closed": shut,
             "closed_reason": why, "halted": bool(halt),
             "halt_reason": (halt or {}).get("reason", "") if halt else "",
             "heartbeat_age_s": beat_age}
@@ -244,6 +344,9 @@ def headline(state: dict) -> str:
         return (f"ON but HALTED — {len(up)} of {len(state['parts'])} parts "
                 "running, refusing to act.")
     if len(up) == len(state["parts"]):
+        if state.get("running_old_code"):
+            return ("ON, but running OLDER CODE than is checked out — "
+                    "restart her to pick it up.")
         return "ON. Everything is running."
     missing = ", ".join(p["part"] for p in state["parts"] if not p["up"])
     return f"PARTLY ON — running, but {missing} is not."
@@ -276,6 +379,11 @@ def render(state: dict) -> str:
         lines.append(f"\n  HALTED (kill switch){' — ' + state['halt_reason'] if state['halt_reason'] else ''}"
                      "\n  She is running and refusing to act. That is not the "
                      "same as off;\n  `python -m aletheia.policy resume` lifts it.")
+    if state.get("running_old_code"):
+        lines.append(
+            f"\n  RUNNING OLDER CODE — {state.get('newest_code') or 'a module'} "
+            "changed after she started.\n  She keeps running the copy she "
+            "loaded; restart her to pick the new one up.")
     if not state["closed"] and not state["halted"]:
         lines.append("\n  `python -m aletheia.running off` closes her.")
     return "\n".join(lines)

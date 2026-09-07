@@ -385,9 +385,9 @@
     ]
   },
   "now": {
-    "generated_at": "2026-09-07T15:22:33Z",
+    "generated_at": "2026-09-07T16:24:40Z",
     "halted": false,
-    "heartbeat_age_s": 1.0,
+    "heartbeat_age_s": 0.0,
     "waiting_on_you": [
       {
         "label": "Fully shut down Aletheia / stop her from listening entirely",
@@ -398,45 +398,45 @@
     "notifications": [
       {
         "title": "Aletheia finished thinking",
-        "body": "That didn't come through as a clear request — could you say again what you'd like me to do?",
-        "says": "Aletheia finished thinking: That didn't come through as a clear request — could you say again what you'd like me to do?",
+        "body": "You said \"the\" — what would you like me to do?",
+        "says": "Aletheia finished thinking: You said \"the\" — what would you like me to do?",
         "priority": "IMPORTANT",
-        "at": "2026-09-07T15:00:33Z"
+        "at": "2026-09-07T16:19:27Z"
       },
       {
         "title": "Aletheia finished thinking",
-        "body": "What would you like me to do — that didn't come through as a clear request?",
-        "says": "Aletheia finished thinking: What would you like me to do — that didn't come through as a clear request?",
+        "body": "What would you like me to do?",
+        "says": "Aletheia finished thinking: What would you like me to do?",
         "priority": "IMPORTANT",
-        "at": "2026-09-07T14:54:32Z"
+        "at": "2026-09-07T16:17:55Z"
       },
       {
         "title": "Aletheia finished thinking",
-        "body": "That didn't parse as a clear request — what would you like me to do?",
-        "says": "Aletheia finished thinking: That didn't parse as a clear request — what would you like me to do?",
+        "body": "I didn't catch a clear request — what would you like me to do?",
+        "says": "Aletheia finished thinking: I didn't catch a clear request — what would you like me to do?",
         "priority": "IMPORTANT",
-        "at": "2026-09-07T14:50:33Z"
+        "at": "2026-09-07T16:16:04Z"
       },
       {
         "title": "Aletheia finished thinking",
-        "body": "ON. Everything is running.",
-        "says": "Aletheia finished thinking: ON. Everything is running.",
+        "body": "I didn't catch a clear request in that — what would you like me to do?",
+        "says": "Aletheia finished thinking: I didn't catch a clear request in that — what would you like me to do?",
         "priority": "IMPORTANT",
-        "at": "2026-09-07T14:43:24Z"
+        "at": "2026-09-07T16:12:21Z"
       },
       {
         "title": "Aletheia finished thinking",
-        "body": "Not following what you're getting at — that doesn't parse as a question I can answer. If you're testing something or this is dictation garbling, let me know what you actually meant.",
-        "says": "Aletheia finished thinking: Not following what you're getting at — that doesn't parse as a question I can answer. If you're testing somethin",
+        "body": "That didn't come through clearly — what would you like me to do?",
+        "says": "Aletheia finished thinking: That didn't come through clearly — what would you like me to do?",
         "priority": "IMPORTANT",
-        "at": "2026-09-07T13:56:04Z"
+        "at": "2026-09-07T15:39:14Z"
       },
       {
         "title": "Aletheia finished thinking",
-        "body": "Later.",
-        "says": "Aletheia finished thinking: Later.",
+        "body": "I didn't catch a clear request in that — could you say again what you'd like me to do?",
+        "says": "Aletheia finished thinking: I didn't catch a clear request in that — could you say again what you'd like me to do?",
         "priority": "IMPORTANT",
-        "at": "2026-09-07T13:53:55Z"
+        "at": "2026-09-07T15:34:49Z"
       }
     ],
     "meetings": [],

@@ -159,6 +159,16 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^are (?:you|u) all running$")),
     # His own details, out of his own profile. She read them off his resume;
     # asking a model to recite them is a round trip to the wrong store.
+    # "What code are you running" had no answer, and that is the question
+    # this whole session started from: the Core had been up three days on
+    # code ninety commits old, every part reported healthy, and nothing
+    # anywhere said so.
+    ("version", re.compile(
+        r"^what version are (?:you|u) on$|^what version are (?:you|u) running$"
+        r"|^what code are (?:you|u) running$|^what(?:'s| is|s)? your version$"
+        r"|^which (?:branch|commit) are (?:you|u) on$"
+        r"|^are (?:you|u) (?:up to date|current|stale)$"
+        r"|^are (?:you|u) running the latest code$")),
     ("uptime", re.compile(
         r"^how long have (?:you|u) been (?:up|running|on|awake|going)$"
         r"|^how long have (?:you|u) been here$"
@@ -462,6 +472,15 @@ def _shopping() -> str | None:
     return intercom.shopping_answer()
 
 
+def _version() -> str | None:
+    """Which code she is running, and whether the tree has moved past it."""
+    from aletheia import running
+    try:
+        return running.version_words(running.version())
+    except Exception:
+        return None
+
+
 def _uptime() -> str | None:
     """How long she has been on, from her own heartbeat."""
     from aletheia import liveness
@@ -525,6 +544,7 @@ ANSWERS = {"halted": lambda rest: _halted(),
            "repos": lambda rest: _repos(),
            "shopping": lambda rest: _shopping(),
            "uptime": lambda rest: _uptime(),
+           "version": lambda rest: _version(),
            "running": lambda rest: _running(),
            "mine": _mine,
            "home": lambda rest: _mine("city")}

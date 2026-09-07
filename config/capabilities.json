@@ -1,5 +1,5 @@
 {
-  "revision": 86,
+  "revision": 87,
   "providers": [
     {
       "id": "aletheia.local",
@@ -406,14 +406,14 @@
     },
     {
       "id": "core.running",
-      "description": "Say plainly which parts of Aletheia are running right now — processes, the tasks that start them at logon, and which of the two switches is set",
+      "description": "Say plainly which parts of Aletheia are running right now, which code they are running, and whether that code is current",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "none",
-      "caller": "python -m aletheia.running status; aletheia.running.snapshot() for any interface that wants the same answer",
+      "caller": "python -m aletheia.running status; the fast lane answers 'what is running', 'what code are you running' and 'how long have you been up'; aletheia.running.snapshot()/version() for any interface that wants the same answer",
       "module": "aletheia.running",
-      "notes": "The operator: \"i want it to be very clear if any part of aletheia is running and i want to make it very easy to turn off and on.\" He was right that it was neither: Aletheia is three processes, three Windows scheduled tasks and TWO switches that mean different things — `closed` is the window button, HALT is the kill switch and keeps her RUNNING while refusing to act. Answering \"is she on?\" meant reading a process list and Task Scheduler side by side and knowing which switch was which. This adds no third switch; it routes to the two that exist and says which is set. Reading is free: status starts nothing, stops nothing and journals nothing."
+      "notes": "The operator: \"i want it to be very clear if any part of aletheia is running and i want to make it very easy to turn off and on.\" He was right that it was neither: Aletheia is three processes, three Windows scheduled tasks and TWO switches that mean different things — `closed` is the window button, HALT is the kill switch and keeps her RUNNING while refusing to act. Answering \"is she on?\" meant reading a process list and Task Scheduler side by side and knowing which switch was which. This adds no third switch; it routes to the two that exist and says which is set. Reading is free: status starts nothing, stops nothing and journals nothing. 2026-09-07, second pass: it also reports WHICH CODE she is running and whether it is current, because that was the defect underneath everything else — the Core had been up three days on a checkout ninety commits behind, every part reported healthy, and a clock question took 26 seconds. Two kinds of stale, and only one of them was already handled: a file changing on disk is caught by the supervisor, which relaunches within minutes; a CHECKOUT behind the remote produces no disk change at all and nothing noticed it. Counted against the last fetch, never fetching — a status read must not touch the network."
     },
     {
       "id": "voice.wall",

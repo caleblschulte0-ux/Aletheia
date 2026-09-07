@@ -315,5 +315,129 @@ class SayingItOutLoudCase(unittest.TestCase):
 
 
 
+class SheIsRunningOldCodeCase(unittest.TestCase):
+    """The defect this whole session began with: the Core had been up
+    since 2026-09-04, the tree had moved ninety commits, "what time is
+    it" took 26 SECONDS because the process predated the fast lane — and
+    every part reported itself healthy, because every part WAS healthy.
+    It was just old, and nothing anywhere said so."""
+
+    def test_a_module_newer_than_her_start_is_old_code(self):
+        with mock.patch("aletheia.liveness.last",
+                        return_value={"started_at": "2026-09-07T10:00:00Z"}), \
+             mock.patch("pathlib.Path.glob") as globbed:
+            newer = mock.Mock()
+            newer.stat.return_value = mock.Mock(
+                st_mtime=__import__("datetime").datetime(
+                    2026, 9, 7, 11, 0, tzinfo=__import__("datetime").timezone.utc
+                ).timestamp())
+            newer.name = "quick.py"
+            globbed.return_value = [newer]
+            started, newest, stale = running.running_old_code()
+        self.assertTrue(stale)
+        self.assertEqual(newest, "quick.py")
+
+    def test_code_older_than_her_start_is_current(self):
+        import datetime as dt
+        with mock.patch("aletheia.liveness.last",
+                        return_value={"started_at": "2026-09-07T12:00:00Z"}), \
+             mock.patch("pathlib.Path.glob") as globbed:
+            older = mock.Mock()
+            older.stat.return_value = mock.Mock(
+                st_mtime=dt.datetime(2026, 9, 7, 11, 0,
+                                     tzinfo=dt.timezone.utc).timestamp())
+            older.name = "quick.py"
+            globbed.return_value = [older]
+            _started, _newest, stale = running.running_old_code()
+        self.assertFalse(stale)
+
+    def test_no_start_stamp_is_not_a_guess(self):
+        """Every heartbeat written before `started_at` existed. "I do not
+        know" is the only honest answer, and it must not read as "current"
+        — that is the reassuring lie this exists to prevent."""
+        with mock.patch("aletheia.liveness.last", return_value={}):
+            _started, _newest, stale = running.running_old_code()
+        self.assertIsNone(stale)
+
+    def test_the_headline_says_it_rather_than_saying_everything_is_fine(self):
+        """"ON. Everything is running." is the exact sentence that hid
+        this for three days."""
+        said = running.headline(state(running_old_code=True))
+        self.assertIn("OLDER CODE", said)
+        self.assertNotIn("Everything is running", said)
+
+    def test_a_healthy_current_core_still_reads_simply(self):
+        said = running.headline(state(running_old_code=False))
+        self.assertEqual(said, "ON. Everything is running.")
+
+    def test_not_knowing_does_not_raise_the_alarm(self):
+        """A warning that fires when she cannot tell would be noise, and
+        noise is how a real warning gets ignored."""
+        said = running.headline(state(running_old_code=None))
+        self.assertEqual(said, "ON. Everything is running.")
+
+    def test_the_words_name_the_file_and_the_fix(self):
+        info = {"branch": "main", "commit": "abc1234", "subject": "a change",
+                "newest_code": "quick.py", "running_old_code": True}
+        said = running.version_words(info)
+        self.assertIn("main", said)
+        self.assertIn("abc1234", said)
+        self.assertIn("quick.py", said)
+        self.assertIn("restart", said.lower())
+
+    def test_current_code_says_so_plainly(self):
+        info = {"branch": "main", "commit": "abc1234", "subject": "a change",
+                "newest_code": "quick.py", "running_old_code": False}
+        self.assertIn("This is the code I am running",
+                      running.version_words(info))
+
+    def test_the_fast_lane_answers_which_code(self):
+        from aletheia import quick
+        with mock.patch.object(running, "version",
+                               return_value={"branch": "main",
+                                             "commit": "abc1234",
+                                             "subject": "s",
+                                             "running_old_code": False}):
+            said = quick.answer("what version are you on")
+        self.assertIn("abc1234", said)
+
+    def test_being_behind_the_remote_is_said_out_loud(self):
+        """THE staleness that actually bit him. A file changing on disk is
+        caught by the supervisor, which relaunches within minutes. Nothing
+        caught a CHECKOUT ninety commits behind the remote — no disk
+        change, every part healthy, and a clock question taking 26
+        seconds because the process predated the fast lane."""
+        said = running.version_words(
+            {"branch": "claude/catchup-audit-20260901", "commit": "31ac0e6",
+             "subject": "an older change",
+             "behind": "90 commits behind origin/main"})
+        self.assertIn("90 commits behind", said)
+        self.assertIn("not the newest code", said)
+
+    def test_a_current_checkout_says_nothing_about_being_behind(self):
+        said = running.version_words(
+            {"branch": "main", "commit": "abc1234", "subject": "s",
+             "behind": "", "running_old_code": False})
+        self.assertNotIn("behind", said)
+
+    def test_the_count_never_touches_the_network(self):
+        """A status read that fetches would be slow, would fail offline,
+        and would be a write to the repository from a question."""
+        import inspect
+        source = inspect.getsource(running.version)
+        self.assertNotIn('"fetch"', source)
+        self.assertIn("rev-list", source)
+
+    def test_it_is_measured_against_CODE_not_against_commits(self):
+        """A commit that touches only docs or tests changes nothing she
+        runs. Crying "restart me" for one would teach him to ignore the
+        line, which costs more than the warning is worth."""
+        import inspect
+        source = inspect.getsource(running.running_old_code)
+        self.assertIn('"aletheia"', source)
+        self.assertIn("*.py", source)
+
+
+
 if __name__ == "__main__":
     unittest.main()
