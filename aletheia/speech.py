@@ -302,6 +302,12 @@ def spoken_receipt(kind: str, detail: str, *,
             return (f"{lead[0].upper()}{lead[1:]} at "
                     f"{clock_words(when.group(2))} I'll remind you: "
                     f"{_quoted(what.group(1))}.")
+    if kind == "reminder_off":
+        # "reminder remind-weekly-9f2 off — take out the trash — every
+        # Monday at 9 am"
+        body = re.search(r"off\s*[—-]\s*(.+)$", text)
+        if body:
+            return f"Stopped reminding you: {_quoted(body.group(1))}."
     if kind == "task_new":
         # "task renew-my-passport queued — renew my passport due Friday"
         named = re.search(r"task [a-z0-9-]+ queued\s*[—-]\s*(.+)", text)

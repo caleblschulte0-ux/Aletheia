@@ -133,6 +133,14 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # generic `do_task` under a summary that promised a weekly reminder.
     # A capability nothing can ask for is not a capability.
     "remind_weekly":   ({"days", "time", "text"}, {"tz"}),
+    # "What reminders do I have" / "stop reminding me about the bins".
+    # `scheduler` has listed and disabled schedules since it was written;
+    # asking for either OUT LOUD compiled a gap called `reminder.cancel`
+    # and an executable step in the same breath, so she said "1 step ready
+    # — Cancel a reminder. Say approve to run it. I can't reminder.cancel
+    # yet."
+    "reminders":       (set(), {"which"}),
+    "reminder_off":    ({"which"}, set()),
     "watch_email_from": ({"who"}, set()),
     "notify_operator": ({"text"}, {"priority"}),
     "notify_check":    (set(), set()),
@@ -192,6 +200,16 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # generated from KIND_ARGS and these together, so the model learns the
 # shape of a step list from the registry rather than from a guess.
 KIND_NOTES: dict[str, str] = {
+    "reminders": (
+        'What reminders are set, read straight from the schedule store. '
+        'which is optional and narrows by the words of the reminder. Use '
+        'this rather than answering from context: the store is the only '
+        'thing that knows.'),
+    "reminder_off": (
+        'Stop a reminder he has set. which is the words he used for it '
+        '("the bins", "the gym one"); she finds the one reminder that '
+        'matches and asks him which if two do. It is DISABLED, not '
+        'deleted, so it can be put back.'),
     "remind_weekly": (
         'A reminder that repeats on named days — "every Monday", "every '
         'weekday at 7", "Tuesdays and Thursdays". days is a list of day '
@@ -329,6 +347,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email
                "media_probe", "media_trim", "media_join", "media_audio",
                "media_captions", "media_convert",
                "remind_at", "remind_daily", "remind_weekly",
+               "reminders", "reminder_off",
                "watch_email_from", "notify_check",
                "notify_clear", "free_time", "contact_add", "notify_operator",
                "intent", "screen_ask",
@@ -348,7 +367,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email
 READ_ONLY_KINDS = frozenset({
     "note", "notify_check", "free_time", "brief", "subscriptions", "money",
     # Reads public job boards. Prepares nothing, sends nothing.
-    "jobs", "tasks",
+    "jobs", "tasks", "reminders",
     "projects", "car", "recall", "travel_time", "browse_read", "browse_shot",
     # reads public pages and writes a document; commits him to nothing
     "research",
@@ -368,7 +387,10 @@ READ_ONLY_KINDS = frozenset({
 ROUTINE_KINDS = frozenset({
     "task_new", "task_status", "plan_new", "plan_add_step", "plan_step",
     "plan_set", "remind_at", "remind_daily", "remind_weekly",
-    "notify_operator",
+    # Disabling a reminder is reversible by saying the opposite, which is
+    # the whole test for this tier — the schedule is disabled, never
+    # deleted, so "actually put that back" is one command.
+    "reminder_off", "notify_operator",
     "notify_clear", "remember", "contact_add", "shopping_add",
     # reversible by saying the opposite, reaches nobody but him, and its
     # own default is silence
@@ -673,6 +695,90 @@ def _task_words(task: dict) -> str:
     # No comma: `and_list` already uses commas, and "renew my passport,
     # due Friday and submit the form, due tomorrow" is unparseable by ear.
     return f"{words} due {said}"
+
+
+REMINDER_KINDS = {"once": "remind_at", "daily": "remind_daily",
+                  "weekly": "remind_weekly"}
+
+
+def _reminder_schedules() -> list[dict]:
+    """Every ENABLED schedule that exists to tell him something.
+
+    A schedule whose command is `notify_operator` is a reminder; anything
+    else on the same store is automation he did not ask to hear about.
+    """
+    from aletheia import scheduler
+    out = []
+    for spec in scheduler.all_schedules():
+        if not spec.get("enabled", True):
+            continue
+        if str((spec.get("command") or {}).get("kind")) != "notify_operator":
+            continue
+        if spec.get("kind") in REMINDER_KINDS:
+            out.append(spec)
+    return out
+
+
+def _reminder_words(spec: dict) -> str:
+    """One reminder, as he would say it."""
+    from aletheia import speech
+    text = str((spec.get("command") or {}).get("text") or spec["id"])[:70]
+    if spec["kind"] == "once":
+        return f"{text} — {speech.humanize_time(str(spec.get('at') or ''))}"
+    when = speech.clock_words(str(spec.get("time") or ""))
+    if spec["kind"] == "daily":
+        return f"{text} — every day at {when}"
+    days = _weekday_words(sorted(spec.get("weekdays") or []))
+    lead = days if days in ("weekdays", "weekends", "every day") else f"every {days}"
+    return f"{text} — {lead} at {when}"
+
+
+def _reminders_answer(which: str = "") -> str:
+    """"What reminders do I have" — from the store, with no model."""
+    from aletheia import speech
+    rows = _reminder_schedules()
+    if which:
+        needle = which.casefold()
+        rows = [r for r in rows
+                if needle in str((r.get("command") or {}).get("text", "")).casefold()]
+        if not rows:
+            return f"No reminder matching {which!r}."
+    if not rows:
+        return "You have no reminders set."
+    said = speech.and_list([_reminder_words(r) for r in rows[:5]])
+    more = f", and {len(rows) - 5} more" if len(rows) > 5 else ""
+    return f"{speech.count_phrase(len(rows), 'reminder')}: {said}{more}."
+
+
+def _one_reminder(which: str):
+    """(schedule, why-not) — exactly one reminder he could mean.
+
+    Same rule as `_one_task`: find it by the words he used, refuse to
+    guess between two, and never silently pick the first.
+    """
+    from aletheia import speech
+    needle = " ".join(str(which or "").split()).casefold()
+    rows = _reminder_schedules()
+
+    def text_of(spec):
+        return str((spec.get("command") or {}).get("text", "")).casefold()
+
+    hits = [r for r in rows if needle and needle in text_of(r)]
+    if not hits:
+        words = [w for w in re.split(r"[^a-z0-9]+", needle)
+                 if len(w) > 2 and w not in TASK_STOP and w != "reminder"]
+        scored = [(sum(1 for w in words if w in text_of(r)), r) for r in rows]
+        best = max((n for n, _r in scored), default=0)
+        hits = [r for n, r in scored if n == best and n > 0]
+    if not hits:
+        return None, (f"No reminder matching {which!r}." if rows
+                      else "You have no reminders set.")
+    if len(hits) > 1:
+        return None, ("Which one — "
+                      + speech.or_list([str((r.get("command") or {}).get("text")
+                                            or r["id"])[:50] for r in hits[:4]])
+                      + "?")
+    return hits[0], ""
 
 
 def _one_task(which: str):
@@ -1205,6 +1311,17 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                          time=cmd["time"], weekdays=days)
         return (f"weekly reminder {sid} set for "
                 f"{_weekday_words(days)} at {cmd['time']} — {cmd['text'][:80]!r}")
+    if kind == "reminders":
+        return _reminders_answer(cmd.get("which", ""))
+    if kind == "reminder_off":
+        from aletheia import scheduler
+        found, why = _one_reminder(cmd["which"])
+        if found is None:
+            raise act.Refused(why)
+        # DISABLED, never deleted: "actually put that back" has to be one
+        # command, and a deleted schedule cannot be put back at all.
+        scheduler.set_enabled(found["id"], False)
+        return f"reminder {found['id']} off — {_reminder_words(found)}"
     if kind == "notify_operator":
         from aletheia import notifications
         notice = notifications.publish("Reminder", cmd["text"], priority="IMPORTANT",
@@ -1286,7 +1403,19 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 f"State is {request['state'].lower().replace('_', ' ')}.")
     if kind == "travel_time":
         from aletheia import places
-        destination = places.resolve(cmd["place"])
+        try:
+            destination = places.resolve(cmd["place"])
+        except KeyError:
+            # `KeyError: "no place matches 'airport'"` reached the room
+            # verbatim, quotes and all. He cannot act on that; he can act
+            # on being told to name the place once.
+            raise act.Refused(
+                f"I don't know where {cmd['place']} is. Tell me the address "
+                "once and I'll remember it.") from None
+        except LookupError:
+            raise act.Refused(
+                f"More than one place answers to {cmd['place']!r} — which "
+                "one do you mean?") from None
         try:
             home = places.resolve("home")
         except Exception:

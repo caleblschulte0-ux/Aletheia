@@ -421,6 +421,20 @@ def interpret(transcript: str) -> dict:
                     r"how are things|anything happening|report)", low):
         return {"command": None, "say": _status_say()}
 
+    # what is set, and stopping one. Before the "remind me" patterns so a
+    # question about reminders is never read as a request for a new one.
+    if re.fullmatch(r"(what|which) reminders? (do i have|are set|have i got)"
+                    r"|what am i being reminded (of|about)"
+                    r"|list (my )?reminders|my reminders|reminders", low):
+        return {"command": {"kind": "reminders"}, "say": None}
+    m = re.match(r"(?:cancel|stop|delete|turn off|remove) (?:the |my |that )?"
+                 r"reminder (?:about |for |to )?(.+)", low)
+    if not m:
+        m = re.match(r"stop reminding me (?:about|to|of) (.+)", low)
+    if m:
+        return {"command": {"kind": "reminder_off", "which": m.group(1).strip()},
+                "say": None}
+
     # reminders — before email so "remind me to email bob" stays a reminder
     #
     # WEEKLY FIRST: "every monday" contains "every", and the daily pattern
