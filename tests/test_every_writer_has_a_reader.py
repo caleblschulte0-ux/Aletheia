@@ -53,6 +53,7 @@ READER_FOR = {
     "media_convert": "media_probe",
     "notify_operator": "notify_check",
     "notify_clear": "notify_check",
+    "notify_snooze": "notify_check",
     # He is the one being told. "What are you announcing" is answered
     # from the announce setting itself, which `setup_status` carries.
     "announce_set": "setup_status",

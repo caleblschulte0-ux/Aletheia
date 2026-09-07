@@ -385,6 +385,9 @@ _DAY_WORDS = ("monday|tuesday|wednesday|thursday|friday|saturday|sunday|"
 # "on Monday" — and the confirmation says it back, so a wrong guess costs
 # him one sentence rather than a missed bin day.
 DEFAULT_REMINDER_TIME = "09:00"
+# "Snooze that" with no interval. Short, because he is putting something
+# down for a moment, and the confirmation says the time back.
+DEFAULT_SNOOZE_MINUTES = 15
 
 
 # The fields of a command that hold HIS OWN WORDS, as opposed to a
@@ -425,6 +428,27 @@ def _his_capitals(transcript: str, decided: dict) -> dict:
         if isinstance(value, str) and value:
             command[field] = _as_he_said(transcript, value)
     return decided
+
+
+def _spoken_minutes(text: str) -> int | None:
+    """"an hour", "20 minutes", "half an hour", "2 hours" -> minutes."""
+    t = " ".join(str(text or "").lower().split()).strip(" .?!")
+    if t in ("an hour", "a hour", "one hour", "1 hour"):
+        return 60
+    if t in ("half an hour", "30 mins", "a half hour"):
+        return 30
+    if t in ("a minute", "a moment", "a bit", "a while"):
+        return 15
+    m = re.fullmatch(r"(\d{1,4})\s*(m|min|mins|minute|minutes)", t)
+    if m:
+        return int(m.group(1))
+    m = re.fullmatch(r"(\d{1,3})\s*(h|hr|hrs|hour|hours)", t)
+    if m:
+        return int(m.group(1)) * 60
+    m = re.fullmatch(r"(\d{1,2})\s*(d|day|days)", t)
+    if m:
+        return int(m.group(1)) * 60 * 24
+    return None
 
 
 def _to_the_planner(text: str) -> dict:
@@ -572,6 +596,23 @@ def _interpret(transcript: str) -> dict:
     if m:
         return {"command": {"kind": "shopping_off", "item": m.group(1).strip()},
                 "say": None}
+
+    # "Snooze that for an hour" — the commonest thing anybody says to a
+    # notification, and it had no verb at all.
+    m = re.fullmatch(r"snooze(?: (?:that|it|this|them|the (?:alert|notification|"
+                     r"reminder)))?\s*(?:for |by )?(.*)", low)
+    if m:
+        rest = m.group(1).strip()
+        # A bare "snooze that" is the commonest form and names no
+        # interval. Fifteen minutes, and the confirmation says it back —
+        # the same argument as the nine o'clock default for a weekly
+        # reminder. Anything it cannot read goes to the planner rather
+        # than being rounded to a number nobody said.
+        minutes = DEFAULT_SNOOZE_MINUTES if not rest else _spoken_minutes(rest)
+        if minutes:
+            return {"command": {"kind": "notify_snooze", "minutes": minutes},
+                    "say": None}
+        return _to_the_planner(text)
 
     # what is set, and stopping one. Before the "remind me" patterns so a
     # question about reminders is never read as a request for a new one.

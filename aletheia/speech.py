@@ -302,6 +302,13 @@ def spoken_receipt(kind: str, detail: str, *,
             return (f"{lead[0].upper()}{lead[1:]} at "
                     f"{clock_words(when.group(2))} I'll remind you: "
                     f"{_quoted(what.group(1))}.")
+    if kind == "notify_snooze":
+        # "snoozed snooze-9f2 until 2026-09-07T21:00:00+00:00 — 'the boiler'"
+        when = ISO_TIME.search(text)
+        what = re.search(r"[—-]\s*'(.+?)'\s*$", text) or re.search(r"'(.+?)'", text)
+        if when and what:
+            return (f"Put away until {humanize_time(when.group(0), now)}: "
+                    f"{_quoted(what.group(1))}.")
     if kind == "reminder_off":
         # "reminder remind-weekly-9f2 off — take out the trash — every
         # Monday at 9 am"

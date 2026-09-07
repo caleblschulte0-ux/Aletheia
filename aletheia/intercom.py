@@ -151,6 +151,10 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # — Cancel a reminder. Say approve to run it. I can't reminder.cancel
     # yet."
     "reminders":       (set(), {"which"}),
+    # "Snooze that for an hour." The notice is put away and comes BACK —
+    # a notification he has read and cannot act on yet is the commonest
+    # thing in the room, and "I can't do that yet" was the answer.
+    "notify_snooze":   ({"minutes"}, {"which"}),
     "reminder_off":    ({"which"}, set()),
     "watch_email_from": ({"who"}, set()),
     "notify_operator": ({"text"}, {"priority"}),
@@ -216,6 +220,10 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # generated from KIND_ARGS and these together, so the model learns the
 # shape of a step list from the registry rather than from a guess.
 KIND_NOTES: dict[str, str] = {
+    "notify_snooze": (
+        'Put a notification away and bring it BACK. minutes is how long; '
+        'which is optional and defaults to the most recent unread one, '
+        'because "snooze that" always means the thing that just spoke.'),
     "contacts": (
         'Who he has saved, and how to reach them. which is optional and '
         'narrows by name or alias — use it for "what is my mum\'s '
@@ -382,7 +390,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email
                "media_probe", "media_trim", "media_join", "media_audio",
                "media_captions", "media_convert",
                "remind_at", "remind_daily", "remind_weekly",
-               "reminders", "reminder_off",
+               "reminders", "reminder_off", "notify_snooze",
                "watch_email_from", "notify_check",
                "notify_clear", "free_time", "contact_add", "notify_operator",
                "intent", "screen_ask",
@@ -427,7 +435,7 @@ ROUTINE_KINDS = frozenset({
     # Disabling a reminder is reversible by saying the opposite, which is
     # the whole test for this tier — the schedule is disabled, never
     # deleted, so "actually put that back" is one command.
-    "reminder_off", "shopping_off", "notify_operator",
+    "reminder_off", "shopping_off", "notify_snooze", "notify_operator",
     "notify_clear", "remember", "contact_add", "shopping_add",
     # reversible by saying the opposite, reaches nobody but him, and its
     # own default is silence
@@ -876,6 +884,40 @@ def _watches_answer() -> str:
         return "I'm not watching for anything at the moment."
     return (f"{speech.count_phrase(len(live), 'thing')} I'm watching for: "
             + speech.and_list(live[:5]) + ".")
+
+
+def _one_notice(which: str = ""):
+    """(notice, why-not) — the one he means by "that", or a question.
+
+    With no words, the most recent UNREAD notice: "snooze THAT" always
+    means the thing that just spoke.
+    """
+    from aletheia import notifications, speech
+    rows = [n for n in notifications.all_notifications(state="UNREAD", limit=50)]
+    if not rows:
+        return None, "Nothing is waiting to be snoozed."
+    needle = " ".join(str(which or "").split()).casefold()
+    if not needle or needle in ("that", "it", "this", "them"):
+        return sorted(rows, key=lambda n: str(n.get("created_at", "")))[-1], ""
+
+    def haystack(notice):
+        return (str(notice.get("title", "")) + " "
+                + str(notice.get("body", ""))).casefold()
+
+    hits = [n for n in rows if needle in haystack(n)]
+    if not hits:
+        words = [w for w in re.split(r"[^a-z0-9]+", needle)
+                 if len(w) > 2 and w not in TASK_STOP]
+        scored = [(sum(1 for w in words if w in haystack(n)), n) for n in rows]
+        best = max((c for c, _n in scored), default=0)
+        hits = [n for c, n in scored if c == best and c > 0]
+    if not hits:
+        return None, f"Nothing waiting matches {which!r}."
+    if len(hits) > 1:
+        return None, ("Which one — "
+                      + speech.or_list([str(n.get("body") or n["title"])[:50]
+                                        for n in hits[:4]]) + "?")
+    return hits[0], ""
 
 
 def _applications_answer() -> str:
@@ -1487,6 +1529,26 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         # command, and a deleted schedule cannot be put back at all.
         scheduler.set_enabled(found["id"], False)
         return f"reminder {found['id']} off — {_reminder_words(found)}"
+    if kind == "notify_snooze":
+        from aletheia import notifications, scheduler
+        import uuid as _uuid
+        minutes = int(cmd["minutes"])
+        if not 1 <= minutes <= 60 * 24 * 7:
+            raise act.Refused("snooze it for anything from a minute to a week.")
+        found, why = _one_notice(cmd.get("which", ""))
+        if found is None:
+            raise act.Refused(why)
+        when = (dt.datetime.now(dt.timezone.utc)
+                + dt.timedelta(minutes=minutes)).replace(microsecond=0)
+        sid = "snooze-" + _uuid.uuid4().hex[:8]
+        scheduler.create(sid, {"kind": "notify_operator",
+                               "text": found.get("body") or found["title"]},
+                         kind="once", at=when.isoformat())
+        # READ, not acknowledged: he has not dealt with it, he has
+        # deferred it, and it is coming back to say so.
+        notifications.set_state(found["id"], "READ")
+        return (f"snoozed {sid} until {when.isoformat()} — "
+                f"{(found.get('body') or found['title'])[:80]!r}")
     if kind == "notify_operator":
         from aletheia import notifications
         notice = notifications.publish("Reminder", cmd["text"], priority="IMPORTANT",
