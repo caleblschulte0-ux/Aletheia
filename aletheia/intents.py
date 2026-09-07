@@ -398,9 +398,14 @@ def spoken(record: dict) -> str:
             # device). Telling him to "say approve" for a desktop or
             # world-touching plan sent him into a refusal, so the sentence
             # names the surface that can actually take the decision.
-            how = ("Say approve to run it."
-                   if record.get("tier") == intercom.TIER_ROUTINE
-                   else "Approve it on your phone or at the keyboard to run it.")
+            # Only override when the tier is KNOWN and is not routine. An
+            # absent tier is not evidence of a dangerous one, and treating
+            # it as one took "say approve" away from every caller that
+            # does not set it.
+            tier = record.get("tier")
+            how = ("Approve it on your phone or at the keyboard to run it."
+                   if tier and tier != intercom.TIER_ROUTINE
+                   else "Say approve to run it.")
             parts.append(said + " " + how + _why_it_asks(record))
     if gaps_named:
         parts.append(_cannot_yet(gaps_named, record))

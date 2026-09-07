@@ -21,7 +21,20 @@ class PublicRepoPrivacyCase(unittest.TestCase):
         self.assertEqual(result.stdout.strip(),"",f"private runtime path is tracked: {result.stdout}")
 
     def test_public_people_memory_contains_no_email_address(self):
+        """`memory/` is no longer a tracked directory at all — it moved to
+        private runtime state, which is the stronger form of this rule: a
+        file that does not exist in the repository cannot leak from it.
+
+        The check still runs against the file when it is there, because
+        "it is gone" and "it is gone FOR NOW" are different, and something
+        could put it back. Absence is asserted as absence rather than
+        erroring on a missing path, which is what this did after the move.
+        """
         path=REPO_ROOT/"memory"/"people.json"
+        if not path.is_file():
+            tracked=subprocess.run(["git","ls-files","memory"],cwd=REPO_ROOT,text=True,capture_output=True,check=True)
+            self.assertEqual(tracked.stdout.strip(),"","memory/ is untracked on disk but tracked in git")
+            return
         text=path.read_text(encoding="utf-8")
         json.loads(text)  # must remain valid JSON
         self.assertIsNone(EMAIL_RE.search(text),"public memory/people.json contains an email-like personal address; use private contacts")

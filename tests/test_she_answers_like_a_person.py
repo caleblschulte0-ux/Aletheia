@@ -201,6 +201,36 @@ class TheApprovalIdCase(unittest.TestCase):
         self.assertNotIn("0a06bbb663", said)
         self.assertIn("Say approve", said)
 
+    def test_a_tier_voice_cannot_approve_does_not_say_say_approve(self):
+        """The room microphone is an input device, not an authentication
+        device: voice may approve only the ROUTINE tier. Telling him to
+        "say approve" for a desktop or world-touching plan sent him
+        straight into a refusal, so the sentence names the surface that
+        can actually take the decision."""
+        from aletheia import intercom
+        record = {
+            "steps": [{"n": 1, "status": planner.EXECUTABLE,
+                       "capability": "computer.act",
+                       "command": {"kind": "computer"}, "detail": ""}],
+            "approval": "intent-0a06bbb663", "intent": "plan",
+            "tier": intercom.TIER_WORLD,
+        }
+        said = intents.spoken(record)
+        self.assertNotIn("Say approve", said)
+        self.assertIn("phone", said)
+
+    def test_an_absent_tier_keeps_the_ordinary_wording(self):
+        """An unknown tier is not evidence of a dangerous one. Treating it
+        as one took "say approve" away from every caller that does not set
+        a tier, which is the normal path."""
+        record = {
+            "steps": [{"n": 1, "status": planner.EXECUTABLE,
+                       "capability": "task.create",
+                       "command": {"kind": "task_new"}, "detail": ""}],
+            "approval": "intent-0a06bbb663", "intent": "plan",
+        }
+        self.assertIn("Say approve", intents.spoken(record))
+
 class TheKillSwitchIsNotGuessedAtCase(unittest.TestCase):
     """"Resume yourself" reached the planner, which is FORBIDDEN from
     emitting `resume` — so its only remaining move was to compile

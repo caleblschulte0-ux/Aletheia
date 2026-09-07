@@ -105,14 +105,14 @@ _PAST = re.compile(
     # record sitting in the journal. What HE asked her is her past too.
     r"what did i (ask|tell|say|have)|what i asked|"
     r"did i ask|did i tell you|did i say|i asked you|"
-    r"yesterday|last night|last week|this week|earlier)", re.I)
+    r"yesterday|last night|last week|this week|earlier)\b", re.I)
 
 # A span he named, for the MULTI-DAY ones. A single day goes through
 # `on_date` below — a calendar day on his clock, not a rolling window —
 # so what is left here is the questions a single date cannot express.
 SPAN_HOURS = {"yesterday": 48.0, "last night": 48.0, "this week": 24.0 * 7,
               "last week": 24.0 * 14, "earlier": 24.0}
-_SPAN = re.compile(r"(yesterday|last night|this week|last week|earlier)", re.I)
+_SPAN = re.compile(r"\b(yesterday|last night|this week|last week|earlier)\b", re.I)
 
 # He is asking about the day, not about a subject.
 _TODAY = re.compile(r"\b(today|so far|this morning|this afternoon|tonight|"

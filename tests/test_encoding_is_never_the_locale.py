@@ -105,5 +105,51 @@ class NonAsciiIsNeverWrittenInTheLocaleCase(unittest.TestCase):
         self.assertFalse(any(ord(c) > 127 for c in text))
 
 
+
+class NoStraySourceControlCharactersCase(unittest.TestCase):
+    """A control character in source is invisible and can be load-bearing.
+
+    2026-09-07: a patch meant to write the regex escape for a word
+    boundary wrote a literal BACKSPACE (0x08) into `recollection.py`
+    instead, because this environment eats backslashes on the way to the
+    shell. `_PAST` then ended in a real backspace, so the pattern matched
+    nothing, so `for_question` returned {} for every question about her
+    past — silently, with no error anywhere, and looking completely
+    normal in an editor. Only the compiled pattern's repr gave it away.
+
+    Tab, newline, carriage return and form feed are ordinary. Everything
+    else below 0x20 is somebody's escape that did not survive the trip.
+    """
+
+    ALLOWED = frozenset({chr(9), chr(10), chr(13), chr(12)})
+
+    def test_no_source_file_carries_a_control_character(self):
+        offenders = []
+        for folder in ("aletheia", "tests"):
+            for path in sorted((ROOT / folder).glob("*.py")):
+                for number, line in enumerate(
+                        path.read_text(encoding="utf-8").splitlines(), 1):
+                    bad = sorted({ch for ch in line
+                                  if ord(ch) < 32 and ch not in self.ALLOWED})
+                    if bad:
+                        offenders.append(
+                            path.name + ":" + str(number) + " contains "
+                            + ", ".join("0x%02x" % ord(c) for c in bad))
+        self.assertEqual(offenders, [], "control character in source")
+
+    def test_the_check_can_actually_fail(self):
+        """The exact shape of the bug: a word-boundary escape that arrived
+        as a backspace."""
+        mangled = 'r"(yesterday|last week)' + chr(8) + '"'
+        bad = [ch for ch in mangled
+               if ord(ch) < 32 and ch not in self.ALLOWED]
+        self.assertEqual(bad, [chr(8)])
+
+    def test_ordinary_source_is_not_flagged(self):
+        fine = 'pattern = re.compile(r"' + chr(92) + 'b(yes|no)")'
+        self.assertEqual([ch for ch in fine
+                          if ord(ch) < 32 and ch not in self.ALLOWED], [])
+
+
 if __name__ == "__main__":
     unittest.main()

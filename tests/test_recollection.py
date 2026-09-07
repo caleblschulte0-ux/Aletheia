@@ -159,16 +159,44 @@ class SpanCase(unittest.TestCase):
         p = mock.patch.object(journal, "JOURNAL_PATH", Path(self.tmp.name) / "j.jsonl")
         p.start(); self.addCleanup(p.stop)
 
-    def test_yesterday_returns_the_two_day_window_unfiltered(self):
-        journal.append("action", "converse", "answered a question about the weather",
-                       actor="aletheia-converse")
-        journal.append("note", "operator", "remind me to call the dentist",
-                       actor="operator-via-intercom")
+    def test_yesterday_is_a_calendar_day_and_carries_his_own_asks(self):
+        """Both branches fixed "what did I ask you to do yesterday" in the
+        same week, and the merge kept the better half of each.
+
+        A DAY, not a 48-hour window: asked at nine in the morning a rolling
+        window is mostly yesterday, and the same evening would be listed
+        twice — once as today and once as yesterday. So the answer is the
+        calendar date on his clock.
+
+        HIS ASKS, not only her actions: the whole point of the question is
+        what HE said, journaled as a note by an `operator-*` actor, and
+        the first version of this path filtered those out and reported the
+        day empty.
+
+        NOT her own chatter: `converse` journals every answer it gives, so
+        counting that as work made "what did you do" a list of times she
+        replied. Talking is not doing (`NOT_DOING_SUBJECTS`) — this test
+        used to assert the opposite, before that was understood.
+        """
+        import datetime as _dt, json as _json
+        from aletheia import localtime
+        when = ((_dt.datetime.now(localtime.operator_tz())
+                 - _dt.timedelta(days=1)).replace(hour=14)
+                .astimezone(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+        with open(journal.JOURNAL_PATH, "a", encoding="utf-8") as fh:
+            for kind, actor, subject, text in (
+                    ("note", "operator-via-intercom", "operator",
+                     "remind me to call the dentist"),
+                    ("action", "aletheia-converse", "converse",
+                     "answered a question about the weather")):
+                fh.write(_json.dumps({"ts": when, "kind": kind, "actor": actor,
+                                      "subject": subject, "text": text}) + "\n")
         out = recollection.for_question("What did I ask you to do yesterday?")
-        self.assertEqual(out["hours"], 48.0)
+        self.assertIn("date", out, "a day question resolves to a DATE")
         texts = [r["what"] for r in out["journal"]]
         self.assertTrue(any("dentist" in t for t in texts), texts)
-        self.assertTrue(any("weather" in t for t in texts), texts)
+        self.assertFalse(any("weather" in t for t in texts),
+                         "her own answers are not things she did")
 
     def test_what_did_i_ask_you_counts_as_her_past(self):
         self.assertTrue(recollection._PAST.search("what did I ask you to do"))
@@ -200,8 +228,12 @@ class PerDayCase(unittest.TestCase):
         self.assertLessEqual(len(rows), recollection.MAX_ROWS * 2)
         self.assertIn("dentist", texts[0], "oldest day comes first")
 
-    def test_the_span_question_uses_per_day(self):
+    def test_a_multi_day_span_uses_per_day(self):
+        """"Yesterday" is a single date and goes through `on_date` now.
+        `per_day` is for what a single date cannot express — "last week" —
+        where one busy day would otherwise push a quieter one out of the
+        list entirely."""
         with mock.patch.object(recollection, "per_day", return_value=[{"what": "x"}]) as pd:
-            out = recollection.for_question("what did you do yesterday")
+            out = recollection.for_question("what did you do last week")
         pd.assert_called_once()
         self.assertEqual(out["journal"], [{"what": "x"}])

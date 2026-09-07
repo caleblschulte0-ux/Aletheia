@@ -314,7 +314,9 @@ def http_search(query: str, *, opener=None) -> dict:
             continue
         links = parse(body)
         if status != 200 or not links:
-            last_error = f"{engine}: HTTP {status}, {len(links)} link(s)"
+            from aletheia import speech
+            last_error = (f"{engine}: HTTP {status}, "
+                          f"{speech.count_phrase(len(links), 'link')}")
             continue
         # `_results` treats a page with almost no text as a challenge; the
         # titles and snippets are the text a person would see.
