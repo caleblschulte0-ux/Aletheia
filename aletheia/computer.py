@@ -151,7 +151,7 @@ FORBIDDEN_APPS = frozenset({
 
 
 def _app_name(app: str) -> str:
-    """The bare program name, however the path was spelled.
+    r"""The bare program name, however the path was spelled.
 
     Backslashes are normalized FIRST because `Path` only treats them as
     separators on Windows: on a POSIX runner
