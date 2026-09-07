@@ -142,6 +142,10 @@ def tidy(text: str) -> str:
     # Only a single trailing mark. "Domain :: excerpt" is a separator,
     # not a comma, and squeezing it reads as a typo.
     out = re.sub(r"\s+([,.;!?])(?!\1)", r"\1", out)
+    # An id removed from between two commas leaves ",,": "there's a
+    # pending approval,, but I can't tell if that's what you mean". Not
+    # full stops — "..." is a real thing a person writes.
+    out = re.sub(r"([,;])\s*(?:\1\s*)+", r"\1 ", out)
     out = re.sub(r"([(\[])\s+", r"\1", out)
     out = re.sub(r"\s{2,}", " ", out)
     out = re.sub(r"(?:\s*[—–-]\s*)+$", "", out.strip())

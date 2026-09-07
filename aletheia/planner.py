@@ -70,6 +70,12 @@ Output a single JSON object and nothing else. No prose, no code fence.
   {"intent": "plan", "summary": "<one short line>", "steps": [ ... ],
    "required_capabilities": ["<capability id>", ...], "confidence": 0.0-1.0}
 
+THE SUMMARY IS READ BACK TO HIM OUT LOUD, in the sentence "1 step ready —
+<summary>. Say approve to run it." So write it as the thing you are about
+to do FOR HIM: "Remind you at 8 tomorrow to call the bank", never "Remind
+operator at 8am" or "Remember that the operator's landlord is Mr Okafor".
+No identifiers, no third person, no note to yourself.
+
 Each step is exactly ONE of:
   {"kind": "<a kind below>", "<arg>": "<value>", ...}   a command to run
   {"gap": "<capability id>", "why": "<what is missing>"} something she cannot do yet

@@ -71,5 +71,62 @@ class EveryTurnIsRemembered(unittest.TestCase):
                                      "Added a task: call the plumber.")
 
 
+class TheSlowTurnsCountToo(unittest.TestCase):
+    """Recording only the turns answered inline left the same hole one
+    layer down: "remind me at 8 tomorrow" is answered through the
+    follow-up path, and "make that 9 instead" a breath later found "no
+    visible prior request or value to update"."""
+
+    def test_the_followup_work_records_its_own_answer(self):
+        from aletheia import core, followups
+
+        started = {}
+
+        def start(work, acknowledgement="", durable=False):
+            started["say"] = work()
+            return {"id": "fu-1", "say": acknowledgement}
+
+        with mock.patch.object(core, "run_command",
+                               return_value={"detail": "1 step ready — do it",
+                                             "outcome": "done"}), \
+             mock.patch.object(followups, "start", start), \
+             mock.patch.object(core, "_remember_out_loud") as kept:
+            # the handler builds the closure; call it the way it does
+            def think_it_through():
+                detail = core.run_command({}, {})["detail"]
+                core._remember_out_loud("remind me at 8 tomorrow", detail)
+                return detail
+            followups.start(think_it_through)
+        self.assertEqual(started["say"], "1 step ready — do it")
+        kept.assert_called_once_with("remind me at 8 tomorrow",
+                                     "1 step ready — do it")
+
+    def test_the_core_really_wires_it(self):
+        # The closure above is a copy of the handler's; this checks the
+        # handler actually calls it, by reading the source rather than
+        # standing up an HTTP server for one line.
+        import inspect
+        from aletheia import core
+        source = inspect.getsource(core)
+        self.assertIn("def think_it_through", source)
+        self.assertIn("_remember_out_loud(transcript, detail)", source)
+
+
+class PunctuationLeftBehind(unittest.TestCase):
+    def test_an_id_removed_from_between_two_commas(self):
+        from aletheia import speech
+        self.assertEqual(
+            speech.tidy("there's a pending approval,, but I can't tell"),
+            "there's a pending approval, but I can't tell")
+        self.assertEqual(speech.spoken_prose(
+            "two approvals (intent-1b32747ddb, intent-a3d2ad3434), waiting"),
+            "two approvals, waiting")
+
+    def test_an_ellipsis_is_a_real_thing_a_person_writes(self):
+        from aletheia import speech
+        self.assertEqual(speech.tidy("wait... really"), "wait... really")
+        self.assertEqual(speech.tidy("a, b, c"), "a, b, c")
+
+
 if __name__ == "__main__":
     unittest.main()

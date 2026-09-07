@@ -825,10 +825,20 @@ class Handler(BaseHTTPRequestHandler):
                 # waits about two. Answer now, think in the background, and
                 # let the listener collect the real sentence when it exists.
                 fleet = self.fleet
+                def think_it_through() -> str:
+                    detail = run_command(
+                        {**cmd, "operator_quote": quote}, fleet)["detail"]
+                    # THE SLOW TURNS COUNT TOO. Recording only the ones
+                    # answered inline left the same hole one layer down:
+                    # "remind me at 8 tomorrow" was answered through this
+                    # path, and "make that 9 instead" a breath later found
+                    # "no visible prior request".
+                    _remember_out_loud(transcript, detail)
+                    return detail
+
                 try:
                     slot = followups.start(
-                        lambda: run_command(
-                            {**cmd, "operator_quote": quote}, fleet)["detail"],
+                        think_it_through,
                         acknowledgement=speech.ack_line(
                             cmd.get("text") or transcript), durable=True)
                 except Exception as exc:
