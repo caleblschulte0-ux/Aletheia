@@ -159,6 +159,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^are (?:you|u) all running$")),
     # His own details, out of his own profile. She read them off his resume;
     # asking a model to recite them is a round trip to the wrong store.
+    ("uptime", re.compile(
+        r"^how long have (?:you|u) been (?:up|running|on|awake|going)$"
+        r"|^how long have (?:you|u) been here$"
+        r"|^what(?:'s| is|s)? your uptime$|^uptime$")),
     ("mine", re.compile(
         r"^what(?:'s| is|s)? my (?P<mine>email(?: address)?|phone(?: number)?"
         r"|number|city|town)$")),
@@ -458,6 +462,15 @@ def _shopping() -> str | None:
     return intercom.shopping_answer()
 
 
+def _uptime() -> str | None:
+    """How long she has been on, from her own heartbeat."""
+    from aletheia import liveness
+    seconds = liveness.uptime_seconds()
+    if seconds is None:
+        return None                 # she does not know; do not invent one
+    return f"Up {liveness.spoken_duration(seconds)}."
+
+
 # What he calls it -> what the profile calls it.
 _MINE = {"email": "email", "email address": "email",
          "phone": "phone", "phone number": "phone", "number": "phone",
@@ -511,6 +524,7 @@ ANSWERS = {"halted": lambda rest: _halted(),
            "alerts": lambda rest: _alerts(),
            "repos": lambda rest: _repos(),
            "shopping": lambda rest: _shopping(),
+           "uptime": lambda rest: _uptime(),
            "running": lambda rest: _running(),
            "mine": _mine,
            "home": lambda rest: _mine("city")}

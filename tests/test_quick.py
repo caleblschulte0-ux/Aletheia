@@ -434,8 +434,7 @@ class TheWiderLaneCase(unittest.TestCase):
                 "what's on my calendar",
                 "am i free today",
                 "what plans do i have",
-                "what did you do last week",
-                "how long have you been up"):
+                "what did you do last week"):
             with self.subTest(sentence=sentence):
                 self.assertIsNone(quick.match(sentence),
                                   f"{sentence!r} must reach the planner")

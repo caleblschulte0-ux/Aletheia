@@ -50,6 +50,13 @@ def heartbeat_path() -> Path:
     return stateio.private_dir("liveness") / "heartbeat.json"
 
 
+# When THIS process came up, set once by `note_start`. Module state
+# rather than a file read on every beat: the Core is the only thing that
+# beats (core.py:384, and note_start at startup), so the process that
+# stamps the heartbeat is always the process the stamp is about.
+_STARTED_AT: str | None = None
+
+
 def beat(actor: str = "core", port: int | None = None,
          path: Path | None = None) -> dict:
     """Stamp 'I am alive, now'. Never raises: a heartbeat that could not be
@@ -57,6 +64,8 @@ def beat(actor: str = "core", port: int | None = None,
     entry = {"ts": stateio.utcnow(), "actor": actor, "pid": os.getpid()}
     if port is not None:
         entry["port"] = port
+    if _STARTED_AT:
+        entry["started_at"] = _STARTED_AT
     try:
         stateio.write_json_atomic(path or heartbeat_path(), entry)
     except Exception:
@@ -87,6 +96,56 @@ def age_seconds(now: str | None = None, path: Path | None = None) -> float | Non
     return max(0.0, (current - then).total_seconds())
 
 
+def uptime_seconds(now: str | None = None,
+                   path: Path | None = None) -> float | None:
+    """How long she has been up, or None when she cannot honestly say.
+
+    The mirror of the outage measurement above, and it was missing: she
+    could tell him to the second how long she had been GONE and had no
+    answer at all for how long she had been here. "How long have you been
+    up" is the first thing anybody asks a machine whose whole promise is
+    being on.
+
+    None, never a guess, in three cases that all mean "I do not know":
+    no heartbeat at all, a heartbeat from before this was recorded, and a
+    STALE one — a stamp from a process that has since died says when it
+    started, not that it is still running.
+    """
+    entry = last(path)
+    started = (entry or {}).get("started_at")
+    if not started:
+        return None
+    if not alive(now, path):
+        return None
+    try:
+        current = _parse_ts(now or stateio.utcnow())
+        return max(0.0, (current - _parse_ts(started)).total_seconds())
+    except (ValueError, TypeError):
+        return None
+
+
+def spoken_duration(seconds: float) -> str:
+    """`humanize` writes "3.2h", which is right on a wall and wrong in a
+    room. This is the same number as something a person would say."""
+    if seconds < 90:
+        return f"{seconds:.0f} seconds"
+    minutes = seconds / 60.0
+    if minutes < 60:
+        return f"{minutes:.0f} minutes"
+    hours = minutes / 60.0
+    if hours < 24:
+        whole = int(hours)
+        rest = int(round((hours - whole) * 60))
+        if rest in (0, 60):
+            whole += 1 if rest == 60 else 0
+            return "an hour" if whole == 1 else f"{whole} hours"
+        return (f"{whole} hour{'s' if whole != 1 else ''} "
+                f"and {rest} minute{'s' if rest != 1 else ''}")
+    days = hours / 24.0
+    whole = int(days)
+    return "a day" if whole == 1 else f"{whole} days"
+
+
 def alive(now: str | None = None, path: Path | None = None) -> bool:
     age = age_seconds(now, path)
     return age is not None and age < STALE_AFTER_S
@@ -112,6 +171,8 @@ def note_start(actor: str = "core", port: int | None = None,
     health also handles 'she was gone'.
     """
     gap = age_seconds(now, path)
+    global _STARTED_AT
+    _STARTED_AT = now or stateio.utcnow()
     beat(actor=actor, port=port, path=path)
     if gap is None or gap < OUTAGE_AFTER_S:
         return None

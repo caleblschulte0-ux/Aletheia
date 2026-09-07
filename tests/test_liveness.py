@@ -82,5 +82,87 @@ class LivenessCase(unittest.TestCase):
         self.assertEqual(journal.entries(journal.JOURNAL_PATH), [])
 
 
+class HowLongHasSheBeenUpCase(unittest.TestCase):
+    """She could say to the second how long she had been GONE and had no
+    answer at all for how long she had been here — which is the first
+    thing anybody asks a machine whose whole promise is being on."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.path = Path(self.tmp.name) / "heartbeat.json"
+        liveness._STARTED_AT = None
+        self.addCleanup(setattr, liveness, "_STARTED_AT", None)
+
+    def test_a_heartbeat_with_no_start_stamp_is_not_a_guess(self):
+        """Every heartbeat written before this existed. "I do not know" is
+        the only honest answer, and None is how this module says it."""
+        liveness.beat(path=self.path)
+        self.assertIsNone(liveness.uptime_seconds(path=self.path))
+
+    def test_note_start_records_it_and_beats_carry_it(self):
+        liveness.note_start(path=self.path, now="2026-09-07T10:00:00Z")
+        self.assertEqual(liveness.last(self.path)["started_at"],
+                         "2026-09-07T10:00:00Z")
+        liveness.beat(path=self.path)
+        self.assertEqual(liveness.last(self.path)["started_at"],
+                         "2026-09-07T10:00:00Z",
+                         "a later beat must not lose the start stamp")
+
+    def test_it_measures_from_the_start(self):
+        liveness.note_start(path=self.path, now="2026-09-07T10:00:00Z")
+        self.assertEqual(
+            liveness.uptime_seconds(now="2026-09-07T10:02:30Z", path=self.path),
+            150.0)
+
+    def test_a_STALE_heartbeat_says_nothing_about_being_up(self):
+        """A stamp from a process that has since died records when it
+        started, not that it is still running. Reading uptime off a dead
+        process would be the most confident possible lie about being on."""
+        liveness.note_start(path=self.path, now="2026-09-07T10:00:00Z")
+        long_after = "2026-09-07T18:00:00Z"
+        self.assertFalse(liveness.alive(now=long_after, path=self.path))
+        self.assertIsNone(liveness.uptime_seconds(now=long_after, path=self.path))
+
+    def test_a_torn_stamp_is_not_a_crash(self):
+        liveness.note_start(path=self.path, now="not a timestamp")
+        self.assertIsNone(liveness.uptime_seconds(path=self.path))
+
+
+class SaidOutLoudCase(unittest.TestCase):
+    """`humanize` writes "3.2h", which is right on a wall and wrong in a
+    room."""
+
+    def test_it_says_it_the_way_a_person_would(self):
+        for seconds, expected in ((45, "45 seconds"), (600, "10 minutes"),
+                                  (3600, "an hour"), (7200, "2 hours"),
+                                  (90000, "a day"), (200000, "2 days")):
+            with self.subTest(seconds=seconds):
+                self.assertEqual(liveness.spoken_duration(seconds), expected)
+
+    def test_an_awkward_span_keeps_both_halves(self):
+        self.assertEqual(liveness.spoken_duration(3900), "1 hour and 5 minutes")
+
+    def test_nothing_it_says_is_an_abbreviation(self):
+        """The whole reason this exists beside `humanize`."""
+        for seconds in (45, 600, 3600, 3900, 7200, 90000, 200000):
+            said = liveness.spoken_duration(seconds)
+            for short in ("s", "m", "h", "d"):
+                self.assertFalse(said.endswith(short) and said[-2:-1].isdigit(),
+                                 said)
+
+    def test_the_fast_lane_declines_when_she_does_not_know(self):
+        from aletheia import quick
+        with mock.patch("aletheia.liveness.uptime_seconds", return_value=None):
+            self.assertIsNone(quick.answer("how long have you been up"))
+
+    def test_the_fast_lane_says_it_when_she_does(self):
+        from aletheia import quick
+        with mock.patch("aletheia.liveness.uptime_seconds", return_value=7200):
+            self.assertEqual(quick.answer("how long have you been up"),
+                             "Up 2 hours.")
+
+
+
 if __name__ == "__main__":
     unittest.main()
