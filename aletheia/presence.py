@@ -137,14 +137,18 @@ def _working() -> list[dict]:
     thinking = _safe(followups.pending_count, 0)
     if thinking:
         out.append({"what": "thinking", "detail": f"{thinking} in progress"})
-    for record in _safe(lambda: intents.all_intents(state=intents.PROPOSED), []):
-        out.append({"what": "plan waiting on you",
-                    "detail": str(record.get("summary", ""))[:80]})
-        if len(out) >= MAX_ITEMS:
-            return out
-    for state, what in ((intents.RUNNING, "plan running"),
+    # ONE read, grouped — not one read per state. `all_intents` globs the
+    # directory and parses every record, and asking it three times parsed
+    # all of them three times: 19ms a call, on the snapshot behind three
+    # of the sentences he says most. Grouping is better than caching it
+    # would have been, because there is no stale copy to get wrong.
+    by_state: dict = {}
+    for record in _safe(intents.all_intents, []):
+        by_state.setdefault(record.get("state"), []).append(record)
+    for state, what in ((intents.PROPOSED, "plan waiting on you"),
+                        (intents.RUNNING, "plan running"),
                         (intents.INTERRUPTED, "plan needs verification")):
-        for record in _safe(lambda state=state: intents.all_intents(state=state), []):
+        for record in by_state.get(state, []):
             out.append({"what": what,
                         "detail": str(record.get("summary", ""))[:80]})
             if len(out) >= MAX_ITEMS:

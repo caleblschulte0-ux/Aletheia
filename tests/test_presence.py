@@ -87,10 +87,18 @@ class SnapshotCase(unittest.TestCase):
 
     def test_an_interrupted_intent_is_visible_as_needing_verification(self):
         from aletheia import errands, followups, intents
+        # The double answers the way `all_intents` really does: a
+        # record CARRIES its state, and the argument filters on it.
+        # The old one returned rows only when asked for that exact
+        # state and gave them no `state` field at all — so it passed
+        # for a caller that asks once per state and failed for one
+        # that reads the directory once and groups, which is the
+        # same answer for a third of the work.
+        rows = [{"summary": "water the garden",
+                 "state": intents.INTERRUPTED}]
         with mock.patch.object(followups, "pending_count", return_value=0), \
              mock.patch.object(intents, "all_intents", side_effect=lambda state=None: (
-                 [{"summary": "water the garden"}]
-                 if state == intents.INTERRUPTED else [])), \
+                 [r for r in rows if state is None or r["state"] == state])), \
              mock.patch.object(errands, "all_errands", return_value=[]):
             working = presence._working()
         self.assertEqual(working, [{"what": "plan needs verification",
