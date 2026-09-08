@@ -1,5 +1,5 @@
 {
-  "revision": 95,
+  "revision": 96,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1557,13 +1557,14 @@
     },
     {
       "id": "weather.read",
-      "status": "NOT_BUILT",
+      "status": "AVAILABLE",
       "risk_class": "read",
       "approval_policy": "none",
       "provider": "aletheia.local",
       "description": "What the weather is doing where he is",
-      "caller": "ticket - needs a provider. His location is on file (memory identity.home_city, Hartford SD) and research.http_search already fetches over plain HTTP, so this is a source decision rather than a build",
-      "notes": "Registered 2026-09-08 from the same audit. 'What's the weather' is one of the most ordinary things anybody asks an assistant and it was a 25-80s round trip ending in nothing. Answered instantly and counted now."
+      "caller": "aletheia.quick 'weather' pattern (so voice, the phone and typed input); aletheia.weather.spoken",
+      "notes": "Registered 2026-09-08 from the same audit. 'What's the weather' is one of the most ordinary things anybody asks an assistant and it was a 25-80s round trip ending in nothing. Answered instantly and counted now. || 2026-09-08 BUILT and PROVEN LIVE on his machine: 'Right now in Hartford, SD: Slight Chance Showers And Thunderstorms then Partly Sunny, 83 degrees.' 0.54s cold, 0.01s cached. NO API KEY ANYWHERE - the US National Weather Service serves anyone sending a User-Agent, and api.zippopotam.us turns his postcode into a point. That matters for the reason doctext gives about itself: a feature needing a key somebody has to remember to obtain is a capability that says AVAILABLE on one machine. His postcode was already on file (57033), so the answer needs nothing from him. US ONLY, and it says so rather than reaching for a provider it cannot verify - a confident forecast for the wrong Hartford is worse than none, and there are at least four. 'Tomorrow' is arithmetic on the period list, not a word match: the service says Today/Tonight/Wednesday, so 'tomorrow' matched nothing and the first draft answered with TODAY's forecast under today's label.",
+      "module": "aletheia.weather"
     }
   ]
 }

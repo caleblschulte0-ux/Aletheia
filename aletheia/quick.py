@@ -205,6 +205,17 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # A greeting is not small talk to something that can see his day. It
     # cost 25-80 seconds to be greeted back, and the answer to "hey" that
     # is worth saying is what is waiting on him.
+    # THE WEATHER. In `quick` rather than the grammar because it is a
+    # read she can do from a cache in a hundredth of a second, which is
+    # what this lane is for — and it means the most ordinary question
+    # anybody asks never touches a model.
+    ("weather", re.compile(
+        r"^(?:what(?:'s| is|s)? (?:the )?weather"
+        r"|how(?:'s| is) the weather|what(?:'s| is|s)? it like outside)"
+        r"(?: (?P<weather>today|tonight|tomorrow|this (?:morning|afternoon|evening)"
+        r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$"
+        r"|^(?:is|will) it (?:going to )?(?:rain|snow) (?P<weather2>today|tonight|tomorrow)$"
+        r"|^weather(?: (?P<weather3>today|tonight|tomorrow))?$")),
     ("greeting", re.compile(
         r"^(?:hi|hello|hey|yo|hiya|howdy|hey there|hi there)$"
         r"|^good (?:morning|afternoon|evening)$"
@@ -236,7 +247,8 @@ def match(question: str) -> tuple[str, str] | None:
         captured = found.groupdict()
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
                                            "free", "free2", "free3",
-                                           "down", "down2")
+                                           "down", "down2", "weather",
+                                           "weather2", "weather3")
                      if captured.get(k)), "")
         return name, rest
     return None
@@ -483,7 +495,7 @@ _HE_CAN_ASK_FOR = {
     "making Word, Excel and PowerPoint files": ("doc_make",),
     "email": ("email_check", "email_read", "email_draft"),
     "texting people": ("message_send",),
-    "your calendar": ("free_time", "meet"),
+    "your calendar and the weather": ("free_time", "meet"),
     "people you know": ("contacts", "contact_add", "watch_email_from",
                         "watches"),
     "remembering things": ("remember", "recall", "note"),
@@ -513,6 +525,9 @@ _NOT_A_THING_HE_ASKS_FOR = frozenset({
     "running", "brief", "setup_status", "notify_check", "notify_clear",
     "notify_snooze", "notify_operator", "announce_set", "rule",
     "authority_status", "mic", "mic_on", "mic_off",
+    # Switches over her own workings, like the microphone: he turns
+    # them on and off, he does not ask her to DO them.
+    "chatgpt", "chatgpt_on", "chatgpt_off",
 })
 
 
@@ -723,6 +738,19 @@ def _home() -> str | None:
     return f"{city}, {state}" if state else str(city)
 
 
+def _weather(when: str = "") -> str | None:
+    """What it is doing outside, from the free national service.
+
+    No key anywhere, and his postcode is already on file — so the most
+    ordinary question anybody asks needs nothing from him and no model.
+    """
+    try:
+        from aletheia import weather
+        return weather.spoken(when)
+    except Exception:
+        return None                 # she does not know; the planner may try
+
+
 def _greeting() -> str | None:
     """Greeted back, plus the one thing he would have asked next.
 
@@ -779,6 +807,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "free": _free,
            "running": lambda rest: _running(),
            "mine": _mine,
+           "weather": lambda rest: _weather(rest),
            "greeting": lambda rest: _greeting(),
            "home": lambda rest: _home()}
 

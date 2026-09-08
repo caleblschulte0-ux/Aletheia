@@ -39,8 +39,9 @@ class ItAnswersInsteadOfThinkingCase(RefusalCase):
             # NOT "set a timer": that was built the same day, which is
             # exactly why a refusal test should not be anchored to a
             # capability somebody is about to finish.
-            for said in ("play some music", "turn on the kitchen lights",
-                         "what's the weather"):
+            # Statuses PINNED below rather than taken from the
+            # registry, for the same reason.
+            for said in ("play some music", "turn on the kitchen lights"):
                 with self.subTest(said=said):
                     record = intents.propose(said, quote=said)
                     self.assertTrue(record["spoken"])
@@ -63,16 +64,28 @@ class ItStillCountsCase(RefusalCase):
     def test_his_ask_reaches_the_ledger_in_his_own_words(self):
         """The planner path recorded this. Getting faster must not make
         the thing he wants most look like the thing he stopped asking
-        for."""
-        cannot.answer("what's the weather")
+        for.
+
+        The status is PINNED. Four tests have broken this week
+        because they used whatever was unbuilt that morning as
+        their example, and then it got built. A test about the
+        mechanism should not depend on the roadmap.
+        """
+        entry = dict(capabilities.get("media.play"))
+        entry["status"] = "NOT_BUILT"
+        with mock.patch.object(capabilities, "get", return_value=entry):
+            cannot.answer("play some music")
         rows = demand.ranked()
-        weather = [r for r in rows if r["capability"] == "weather.read"]
-        self.assertTrue(weather, rows)
-        self.assertIn("what's the weather", weather[0]["in_his_words"])
+        music = [r for r in rows if r["capability"] == "media.play"]
+        self.assertTrue(music, rows)
+        self.assertIn("play some music", music[0]["in_his_words"])
 
     def test_a_broken_ledger_never_breaks_the_answer(self):
-        with mock.patch.object(demand, "record", side_effect=OSError("full")):
-            self.assertIn("weather", cannot.answer("what's the weather"))
+        entry = dict(capabilities.get("media.play"))
+        entry["status"] = "NOT_BUILT"
+        with mock.patch.object(capabilities, "get", return_value=entry), \
+             mock.patch.object(demand, "record", side_effect=OSError("full")):
+            self.assertIn("music", cannot.answer("play some music"))
 
 
 class ItReadsTheRegistryCase(RefusalCase):
@@ -91,7 +104,7 @@ class ItReadsTheRegistryCase(RefusalCase):
 
     def test_an_unreadable_registry_never_raises(self):
         with mock.patch.object(capabilities, "get", side_effect=OSError("gone")):
-            self.assertIsNone(cannot.answer("what's the weather"))
+            self.assertIsNone(cannot.answer("play some music"))
 
 
 class ItRefusesToOverreachCase(RefusalCase):
