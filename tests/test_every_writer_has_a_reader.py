@@ -32,6 +32,8 @@ READER_FOR = {
     # on" is how he confirms it. A switch he can flip and not see is the
     # shape this file exists to prevent — doubly so for a microphone.
     "mic_off": "mic",
+    # He turned it off; "are you using my ChatGPT" is how he sees it.
+    "chatgpt_off": "chatgpt",
     "agent_stop": "agents",
     "agents_pause": "agents",
     "task_new": "tasks",

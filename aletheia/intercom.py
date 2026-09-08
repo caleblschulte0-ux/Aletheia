@@ -154,6 +154,12 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # The agent runtime, said out loud. `agent_new` is the only one that
     # adds capacity, so it is the only one that is world-tier.
     # The room microphone. `mic_on` is a BUTTON, never a sentence.
+    # His ChatGPT subscription as a second worker. Granting ADDS
+    # capacity, so it is world-tier by falling through; stopping only
+    # ever reduces, so it is routine and never waits.
+    "chatgpt":       (set(), set()),
+    "chatgpt_on":    (set(), {"hours"}),
+    "chatgpt_off":   (set(), set()),
     "mic":           (set(), set()),
     "mic_on":        (set(), set()),
     "mic_off":       (set(), set()),
@@ -450,6 +456,10 @@ READ_ONLY_KINDS = frozenset({
     # state. It is the question he is most entitled to a straight answer
     # to, and it changes nothing by being asked.
     "mic",
+    # "Are you using my ChatGPT" must be answerable at any moment: it is
+    # his account, and the question is one he is entitled to a straight
+    # answer to whatever else is happening.
+    "chatgpt",
     "note", "notify_check", "free_time", "brief", "subscriptions", "money",
     # Reads public job boards. Prepares nothing, sends nothing.
     "jobs", "tasks", "reminders", "shopping_list", "applications",
@@ -488,7 +498,7 @@ ROUTINE_KINDS = frozenset({
     # CLOSING the microphone only ever reduces what is listening, so it
     # is routine and never waits. Opening it is world-tier by falling
     # through, and forbidden to the planner besides.
-    "mic_off",
+    "mic_off", "chatgpt_off",
     # Ticking a task off. It was left out when it was added — an
     # OVERSIGHT, not a gate: `task_status` sets ANY status including
     # COMPLETED and has always been routine, so the narrower verb was
@@ -1612,6 +1622,19 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                        requested_via=f"intercom: {quote[:80]}")
         return (f"draft to {d['to_name']} ready — {d['subject']!r}. "
                 f"Approval {d['id']} is pending; approving it sends the email.")
+    if kind == "chatgpt":
+        from aletheia import second_opinion
+        return second_opinion.spoken()
+    if kind == "chatgpt_on":
+        from aletheia import second_opinion
+        hours = cmd.get("hours") or second_opinion.DEFAULT_HOURS
+        second_opinion.grant(int(hours),
+                             via=f"operator: {quote[:60]}" if quote else "operator")
+        return second_opinion.spoken()
+    if kind == "chatgpt_off":
+        from aletheia import second_opinion
+        second_opinion.revoke(via=f"operator: {quote[:60]}" if quote else "operator")
+        return second_opinion.spoken()
     if kind == "mic":
         from aletheia import ears
         return ears.spoken()

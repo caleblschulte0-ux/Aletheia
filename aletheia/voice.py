@@ -1180,6 +1180,22 @@ def _interpret(transcript: str) -> dict:
                     r"|(?:microphone|mic) status)", low):
         return {"command": {"kind": "mic"}, "say": None}
 
+    # HIS CHATGPT SUBSCRIPTION AS A SECOND WORKER. Granting it is a
+    # deliberate act and stopping it is instant, the same asymmetry as
+    # every other switch here.
+    if re.fullmatch(r"(?:you can )?use (?:my )?chat ?gpt(?: for this| too| as well)?"
+                    r"|(?:ask|check with) chat ?gpt (?:too|as well|for a second opinion)"
+                    r"|turn on chat ?gpt|enable chat ?gpt", low):
+        return {"command": {"kind": "chatgpt_on"}, "say": None}
+    if re.fullmatch(r"(?:stop|quit|don'?t) using (?:my )?chat ?gpt"
+                    r"|turn off chat ?gpt|disable chat ?gpt"
+                    r"|(?:stop|no more) chat ?gpt", low):
+        return {"command": {"kind": "chatgpt_off"}, "say": None}
+    if re.fullmatch(r"(?:are|r) (?:you|u) using (?:my )?chat ?gpt"
+                    r"|chat ?gpt status|(?:can|could) (?:you|u) use "
+                    r"(?:my )?chat ?gpt", low):
+        return {"command": {"kind": "chatgpt"}, "say": None}
+
     # DOCUMENTS, SAID THE WAY HE SAYS THEM. `doc_make` was built and had
     # no sentence, so "make me a spreadsheet of my expenses" went to the
     # planner — a capability with no way to ask for it is one he never

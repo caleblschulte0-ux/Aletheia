@@ -64,7 +64,21 @@ def operator_lease_enabled() -> bool:
     it if the operator deliberately launched that child from a leased foreground
     shell.
     """
-    return os.environ.get(ALLOW_ENV, "").strip() == "1"
+    if os.environ.get(ALLOW_ENV, "").strip() == "1":
+        return True
+    # A SECOND EXPLICIT DOOR, not a wider one. The environment variable
+    # protects against an unattended process QUIETLY driving his personal
+    # account — inheriting a lease from a shell he opened last Tuesday.
+    # A grant he made himself, on this boot, with an expiry, is the
+    # opposite of quiet; and it is how he can say yes without opening a
+    # shell, which is why this looked like a missing feature rather than
+    # a closed tap. His ruling: "Yes it can use chatgpt as a secondary
+    # worker but no api key it has to use my subscription."
+    try:
+        from aletheia import second_opinion
+        return second_opinion.granted()
+    except Exception:
+        return False
 
 
 def drop_lease(env: dict | None = None) -> dict:
