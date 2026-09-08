@@ -316,8 +316,35 @@ class AgreementCase(unittest.TestCase):
                                        {"answer": "Isaac Asimov"}), False)
 
     def test_a_missing_field_is_a_real_difference(self):
-        self.assertIs(agreement.agrees({"answer": "x", "confidence": 0.9},
+        self.assertIs(agreement.agrees({"answer": "x", "basis": "because"},
                                        {"answer": "x"}), False)
+
+    def test_a_models_own_confidence_does_not_decide_agreement(self):
+        """Found live: three correct answers scored 33% agreement.
+
+        The teacher said Reykjavik at 0.99 and the student said Reykjavik
+        at 1.0, and the pair was recorded as a DISAGREEMENT because
+        `confidence` was compared like any other field. Left alone, local
+        could never have certified for a reason with nothing to do with
+        being right. Confidence is the model's opinion of ITSELF.
+        """
+        self.assertIs(agreement.agrees({"answer": "Reykjavik", "confidence": 0.99},
+                                       {"answer": "Reykjavik", "confidence": 0.1}),
+                      True)
+
+    def test_the_same_answer_at_different_lengths_agrees(self):
+        """"Reykjavik" and "The capital of Iceland is Reykjavik"."""
+        self.assertIs(
+            agreement.agrees({"answer": "The capital of Iceland is Reykjavik."},
+                             {"answer": "Reykjavik"}), True)
+        self.assertIs(
+            agreement.agrees({"answer": "Frank Herbert wrote the novel Dune"},
+                             {"answer": "Frank Herbert"}), True)
+
+    def test_a_string_field_is_judged_the_same_way_loose_prose_is(self):
+        """One implementation, so a fix cannot reach only one path."""
+        self.assertIs(agreement.agrees({"answer": "it costs 40 dollars"},
+                                       {"answer": "it costs 400 dollars"}), False)
 
     def test_disagreeing_numbers_decide_it(self):
         """"40 dollars" and "400 dollars" share every word but one fact."""

@@ -40,6 +40,15 @@ MAX_WORDS_FOR_OVERLAP = 60
 
 _WORD = re.compile(r"[a-z0-9']+")
 
+#: A model's own confidence is its opinion of ITSELF, not part of the
+#: answer. Comparing it made two identical answers disagree because one
+#: said 0.99 and the other 1.0 - which on live evidence scored three
+#: correct answers at 33% agreement, and would have kept local from ever
+#: certifying for a reason unrelated to being right.
+ADVISORY_FIELDS = frozenset({
+    "confidence", "certainty", "score", "probability", "p", "rating",
+})
+
 #: Words that carry no claim. Removing them stops "the a of and" from
 #: making two unrelated sentences look alike.
 _NOISE = frozenset("""
@@ -91,11 +100,16 @@ def compare_json(teacher: dict, student: dict, *,
     """Structured answers can be judged properly, so they are.
 
     A JSON contract names its own important fields; when the caller does
-    not say which, every key the teacher produced has to match.
+    not say which, every key the teacher produced has to match - except
+    the model's own confidence, which is its opinion of itself.
+
+    String fields are handed to `compare_text` below (resolved at call
+    time), so there is one rule for "do these say the same thing".
     """
     if not isinstance(teacher, dict) or not isinstance(student, dict):
         return None
-    names = tuple(keys) if keys else tuple(teacher.keys())
+    names = tuple(keys) if keys else tuple(
+        k for k in teacher.keys() if str(k).lower() not in ADVISORY_FIELDS)
     if not names:
         return None
     verdicts = []
@@ -107,13 +121,13 @@ def compare_json(teacher: dict, student: dict, *,
         verdict = _same_scalar(teacher[name], student[name])
         if verdict is None:
             if isinstance(teacher[name], str) and isinstance(student[name], str):
-                score = _overlap(teacher[name], student[name])
-                if score is None:
-                    verdicts.append(None)
-                    continue
-                if score <= DISAGREE_BELOW:
+                # ONE implementation: a string field is judged exactly the
+                # way loose prose is, so the figure check and containment
+                # apply here too rather than only to bare text.
+                text_verdict = compare_text(teacher[name], student[name])
+                if text_verdict is False:
                     return False
-                verdicts.append(True if score >= AGREE_ABOVE else None)
+                verdicts.append(text_verdict)
                 continue
             verdicts.append(None)
         elif verdict is False:
@@ -125,6 +139,24 @@ def compare_json(teacher: dict, student: dict, *,
     if any(v is None for v in verdicts):
         return None               # some field could not be judged
     return True
+
+
+def _contained(left: str, right: str) -> bool | None:
+    """Is the shorter answer entirely inside the longer one?
+
+    Only meaningful for SHORT answers: in a paragraph, one side containing
+    the other's vocabulary says nothing about whether they agree. Requires
+    at least two meaningful words so a single common noun cannot carry it.
+    """
+    a, b = set(_words(left)), set(_words(right))
+    if not a or not b:
+        return None
+    smaller, larger = (a, b) if len(a) <= len(b) else (b, a)
+    # One word is enough BECAUSE the noise words are already gone: what
+    # remains is a content word, and "Reykjavik" is a whole answer.
+    if not smaller or len(larger) > MAX_WORDS_FOR_OVERLAP:
+        return None
+    return smaller <= larger or None
 
 
 def compare_text(teacher: str, student: str) -> bool | None:
@@ -142,6 +174,12 @@ def compare_text(teacher: str, student: str) -> bool | None:
     teacher_numbers, student_numbers = _numbers(teacher), _numbers(student)
     if teacher_numbers and student_numbers and not (teacher_numbers & student_numbers):
         return False
+    # "Reykjavik" and "The capital of Iceland is Reykjavik" are the same
+    # answer given at different lengths. Overlap alone calls them
+    # unrelated; containment recognises them.
+    contained = _contained(teacher, student)
+    if contained is True:
+        return True
     score = _overlap(teacher, student)
     if score is None:
         return None

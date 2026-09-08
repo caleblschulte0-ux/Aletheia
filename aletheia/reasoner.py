@@ -45,6 +45,14 @@ MAX_CONTEXT_BYTES = 8 * 1024
 CLI = "claude"
 _SHADOW_LOCK = threading.Lock()
 
+#: A shadow is not on anybody's critical path, so it is not held to the
+#: interactive budget. Measured 2026-09-08: local JSON reasoning takes
+#: ~27s here, well past the 12s fast role, so the old behaviour recorded
+#: a TIMEOUT (a quality failure) for a model that was merely slow. The
+#: latency gate is what should stop a slow model being promoted, and it
+#: needs honest timings to do it.
+SHADOW_TIMEOUT_S = 90.0
+
 
 class ReasonerUnavailable(RuntimeError):
     """No configured reasoning provider was usable."""
@@ -403,6 +411,20 @@ def _local_fingerprint() -> str:
         return ""
 
 
+def _looks_like_a_timeout(student_error: str | None) -> bool:
+    """Ran out of time, rather than answered wrongly.
+
+    The distinction matters to the scoreboard: `LocalPoolUnavailable:
+    both local reasoning roles are unavailable` is what a timeout looks
+    like from here, and it contains none of the obvious words.
+    """
+    if not student_error:
+        return False
+    lowered = student_error.lower()
+    return any(word in lowered for word in
+               ("timeout", "timed out", "unavailable", "deadline"))
+
+
 def _score_the_shadow(text: str, teacher_result, student_result,
                       student_ms, teacher_ms, student_error) -> None:
     """Write the routing verdict. Metadata only, and never raises.
@@ -422,7 +444,7 @@ def _score_the_shadow(text: str, teacher_result, student_result,
             agreed=verdict,
             local_ms=student_ms,
             frontier_ms=teacher_ms,
-            timed_out=bool(student_error and "timeout" in student_error.lower()),
+            timed_out=_looks_like_a_timeout(student_error),
         )
     except Exception:
         pass
@@ -469,6 +491,12 @@ def _schedule_local_shadow(system_prompt: str, text: str, context: dict | None,
                 student = local_model_pool.auto_json(
                     system_prompt, text, context=context or {}, validator=validator,
                     preferred_role=preferred,
+                    # One attempt at the role that fits, and no failover:
+                    # a background student escalating to the 17.8GB deep
+                    # model is minutes of pegged CPU while he waits for
+                    # something else.
+                    allow_failover=False,
+                    timeout_s=SHADOW_TIMEOUT_S,
                 )
                 turn_id = student.turn_id
                 student_result = student.output
