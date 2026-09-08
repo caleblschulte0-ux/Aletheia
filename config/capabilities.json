@@ -1,5 +1,5 @@
 {
-  "revision": 93,
+  "revision": 94,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1546,13 +1546,14 @@
     },
     {
       "id": "timer.set",
-      "status": "NOT_BUILT",
+      "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "none",
       "provider": "aletheia.local",
       "description": "Set a timer or an alarm and say so when it goes off",
-      "caller": "ticket - the scheduler already does durable once/interval/daily/weekly work (aletheia.scheduler); a timer is that plus a spoken alert at the end, and a way to ask for one in seconds and minutes rather than clock time",
-      "notes": "Registered 2026-09-08 from a day-of-ordinary-sentences audit: 'set a timer for 10 minutes' took a PLANNER round trip - 25-80s on this PC - to come back with an apology. aletheia.cannot answers it in milliseconds instead and records the ask here. Naming the gap is what turns it into work rather than a permanent limitation."
+      "caller": "voice: 'set a timer for 10 minutes', 'set an alarm for 7', 'wake me up at 6:30' -> intercom kind 'remind_at' -> aletheia.scheduler once-schedule, spoken by the Core's beat",
+      "notes": "Registered 2026-09-08 from a day-of-ordinary-sentences audit: 'set a timer for 10 minutes' took a PLANNER round trip - 25-80s on this PC - to come back with an apology. aletheia.cannot answers it in milliseconds instead and records the ask here. Naming the gap is what turns it into work rather than a permanent limitation. || 2026-09-08 BUILT, and it needed no new machinery: a timer IS a one-shot alert at a moment, which is what remind_at already was - 'remind me in 10 minutes to check the oven' had worked for weeks. It was NOT_BUILT because the SENTENCE reached nothing, which is the difference between a missing capability and a missing pattern, and worth telling apart before building a subsystem. Alarms inherit the bare-hour rule: 'set an alarm for 7' said in the evening means tomorrow morning. `aletheia.cannot` stops refusing it automatically, because it reads this status rather than a hard-coded list.",
+      "module": "aletheia.voice"
     },
     {
       "id": "weather.read",

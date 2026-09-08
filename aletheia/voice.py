@@ -860,6 +860,51 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "remind_at", "at": at,
                             "text": m.group(1).strip()}, "say": None}
 
+    # A TIMER IS A ONE-SHOT ALERT, which is what `remind_at` already is.
+    # `timer.set` was NOT_BUILT because the sentence reached nothing, not
+    # because the mechanism was missing: "remind me in 10 minutes to
+    # check the oven" has worked for weeks. So a timer said AS a timer
+    # compiles to the same durable schedule, with the words a person
+    # wants to hear at the end.
+    m = re.fullmatch(r"(?:set|start) (?:a |an )?timer (?:for |of )?"
+                     r"(\d+)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?)"
+                     r"(?:\s+(?:to|for|so i can)\s+(.+))?", low)
+    if m:
+        import datetime as dt
+        amount, unit = int(m.group(1)), m.group(2)
+        if unit.startswith(("second", "sec")):
+            delta, spoken_unit = dt.timedelta(seconds=amount), "second"
+        elif unit.startswith(("hour", "hr")):
+            delta, spoken_unit = dt.timedelta(hours=amount), "hour"
+        else:
+            delta, spoken_unit = dt.timedelta(minutes=amount), "minute"
+        why = (m.group(3) or "").strip()
+        # The unit is an ADJECTIVE here and stays singular — "a 10
+        # minute timer", not "a 10 minutes timer". Pluralising it
+        # is the right rule in the wrong place, and this is read
+        # out loud.
+        text = why or f"your {amount} {spoken_unit} timer is up"
+        at = (dt.datetime.now(dt.timezone.utc) + delta).isoformat()
+        return {"command": {"kind": "remind_at", "at": at, "text": text},
+                "say": None}
+
+    # An alarm is the same thing at a clock time, and it inherits the
+    # bare-hour rule: "at 7" said in the evening means tomorrow morning,
+    # which is written down here already because a bare hour once became
+    # three in the morning.
+    m = re.fullmatch(r"(?:set|wake me(?: up)?(?: with)?) (?:an |a )?alarm "
+                     r"(?:for |at )([\w: ]+?)(?:\s+(?:to|for)\s+(.+))?"
+                     r"|wake me(?: up)? at ([\w: ]+)", low)
+    if m:
+        when = (m.group(1) or m.group(3) or "").strip()
+        hhmm = _spoken_time(when)
+        if not hhmm:
+            return _to_the_planner(text)
+        at = _next_occurrence_iso(hhmm, bare_hour=_is_bare_hour(when))
+        why = (m.group(2) or "").strip()
+        return {"command": {"kind": "remind_at", "at": at,
+                            "text": why or "your alarm"}, "say": None}
+
     # "tell me when I get an email from bob"
     m = re.match(r"(?:tell me|let me know|watch for)\s+when\s+(?:i get|there's)?\s*"
                  r"(?:an?\s+)?e?mail (?:arrives )?from\s+(.+)", low) or \
