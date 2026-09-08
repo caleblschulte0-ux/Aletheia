@@ -28,6 +28,10 @@ READER_FOR = {
     # workers doing" is how he finds out it worked. A runtime he can
     # start things in and not see is the exact shape this file exists
     # to prevent.
+    # Closing the microphone changes what is listening, and "is the mic
+    # on" is how he confirms it. A switch he can flip and not see is the
+    # shape this file exists to prevent — doubly so for a microphone.
+    "mic_off": "mic",
     "agent_stop": "agents",
     "agents_pause": "agents",
     "task_new": "tasks",

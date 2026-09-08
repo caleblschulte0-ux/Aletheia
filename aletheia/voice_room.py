@@ -746,6 +746,21 @@ def main(argv: list[str] | None = None) -> int:
               "`python -m aletheia.closed open` to change that.")
         return 0
 
+    # AND OFF IS THE DEFAULT. His ruling, 2026-09-07: "i don't want an
+    # always on microphone. And if I do want that, that'll be a button I
+    # press within Aletheia once she's turned on."
+    #
+    # This task is logon-triggered with a five-minute watchdog, so
+    # without this check a microphone in his room opened itself when he
+    # signed in and reopened itself whenever it stopped. The task and the
+    # watchdog stay — pressing the button should start listening in
+    # seconds — but they start a process that opens nothing.
+    from aletheia import ears
+    if not ears.listening():
+        print(ears.spoken())
+        print("Turn it on with: python -m aletheia.ears on")
+        return 0
+
     lock = VoiceInstanceLock()
     if not lock.acquire():
         # A repeating scheduled-task trigger or a manual launch must never make

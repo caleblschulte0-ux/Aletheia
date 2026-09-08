@@ -996,6 +996,37 @@ def _interpret(transcript: str) -> dict:
                     r"do i have (?:any )?e?mail|what's in my inbox)", low):
         return {"command": {"kind": "email_check"}, "say": None}
 
+    # SHE CAN BE TOLD TO STOP LISTENING, and cannot be told to start.
+    # Turning it on is a button (intercom `mic_on`, and PLANNER_FORBIDDEN
+    # besides), because a microphone that opens when it is spoken to is
+    # not off. Turning it off works from anywhere, always.
+    if re.fullmatch(r"(?:stop listening|quit listening|stop the microphone"
+                    r"|(?:turn|shut) (?:the )?(?:microphone|mic) off"
+                    r"|(?:turn|shut) off (?:the )?(?:microphone|mic)"
+                    r"|close (?:your |the )?(?:ears|microphone|mic)"
+                    r"|(?:you can )?stop listening now)", low):
+        return {"command": {"kind": "mic_off"}, "say": None}
+
+    # AND ASKING FOR IT OUT LOUD IS ANSWERED, NOT COMPILED. `mic_on` is
+    # PLANNER_FORBIDDEN, and CLAUDE.md is explicit about what happens to
+    # a forbidden verb that reaches the planner anyway: it is SUBSTITUTED.
+    # "Resume yourself" ran `brief` and reported success while resuming
+    # nothing. So this asks for the one thing that does work rather than
+    # letting a compiler near it.
+    if re.fullmatch(r"(?:start listening|listen to me|open (?:your |the )?"
+                    r"(?:ears|microphone|mic)|(?:turn|switch) on (?:the |your )?"
+                    r"(?:microphone|mic)|(?:turn|switch) (?:the |your )?"
+                    r"(?:microphone|mic) on|keep listening)", low):
+        return {"command": None,
+                "say": ("The microphone is a button, not something I turn on "
+                        "for you. Press MIC in the Command Center and I'll "
+                        "start listening.")}
+
+    if re.fullmatch(r"(?:is (?:the |your )?(?:microphone|mic) on"
+                    r"|are (?:you|u) listening"
+                    r"|(?:microphone|mic) status)", low):
+        return {"command": {"kind": "mic"}, "say": None}
+
     # THE AGENT RUNTIME, said the way a person would say it. He should
     # never have to type `spawn --agent=research --provider=claude`.
     if re.fullmatch(r"(?:what (?:are|r) (?:your|the|my) (?:workers?|agents?) "

@@ -57,7 +57,8 @@ def why() -> str:
 
 
 def close(reason: str = "", via: str = "operator") -> dict:
-    """Ask her to finish and stay shut."""
+    """Ask her to finish and stay shut — the microphone included."""
+    _close_the_microphone(via)
     record = {"closed_at": stateio.utcnow(), "reason": str(reason or ""),
               "via": str(via)}
     path = marker()
@@ -66,6 +67,23 @@ def close(reason: str = "", via: str = "operator") -> dict:
     journal.append("event", "core", "closed by operator"
                    + (f" — {reason}" if reason else ""), actor=ACTOR)
     return record
+
+
+def _close_the_microphone(via: str) -> None:
+    """Closing her closes the ears, and OPENING her does not reopen them.
+
+    Only one direction on purpose. "Close" already meant "including the
+    microphone"; this makes the flag agree with the process rather than
+    leaving it saying `on` while nothing listens. The mirror would be
+    wrong: reopening her must not silently reopen a microphone, or
+    "turn Aletheia on" quietly becomes "turn the microphone on".
+    """
+    try:
+        from aletheia import ears
+        if ears.state().get("on"):
+            ears.turn_off(via=f"{via}: she was closed")
+    except Exception:
+        pass                       # closing her must never fail on this
 
 
 def open_again(via: str = "operator") -> bool:

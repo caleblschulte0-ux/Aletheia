@@ -150,6 +150,10 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "message_send":  ({"to", "body"}, set()),
     # The agent runtime, said out loud. `agent_new` is the only one that
     # adds capacity, so it is the only one that is world-tier.
+    # The room microphone. `mic_on` is a BUTTON, never a sentence.
+    "mic":           (set(), set()),
+    "mic_on":        (set(), set()),
+    "mic_off":       (set(), set()),
     "agents":        (set(), set()),
     "agent_new":     ({"name", "mission"}, {"project", "agent_type"}),
     "agent_stop":    ({"which"}, set()),
@@ -437,6 +441,10 @@ READ_ONLY_KINDS = frozenset({
     # And so must "what are your workers doing" — knowing what is running
     # is most urgent exactly when something has gone wrong.
     "agents",
+    # "Is the microphone on" must be answerable at any time, in any
+    # state. It is the question he is most entitled to a straight answer
+    # to, and it changes nothing by being asked.
+    "mic",
     "note", "notify_check", "free_time", "brief", "subscriptions", "money",
     # Reads public job boards. Prepares nothing, sends nothing.
     "jobs", "tasks", "reminders", "shopping_list", "applications",
@@ -468,6 +476,10 @@ ROUTINE_KINDS = frozenset({
     # that waits for an approval arrives after the thing it was meant to
     # prevent. Creating one is world-tier; stopping one is not.
     "agent_stop", "agents_pause",
+    # CLOSING the microphone only ever reduces what is listening, so it
+    # is routine and never waits. Opening it is world-tier by falling
+    # through, and forbidden to the planner besides.
+    "mic_off",
     # Ticking a task off. It was left out when it was added — an
     # OVERSIGHT, not a gate: `task_status` sets ANY status including
     # COMPLETED and has always been routine, so the narrower verb was
@@ -595,6 +607,9 @@ PLANNER_FORBIDDEN = frozenset({
     # Every phrasing that means the SWITCH is matched in `voice` before
     # the planner is ever called.
     "close", "open",
+    # A microphone a model can open is not a microphone that is off. His
+    # ruling: it is a button he presses, and the planner is not a button.
+    "mic_on",
 })
 
 
@@ -1588,6 +1603,18 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                        requested_via=f"intercom: {quote[:80]}")
         return (f"draft to {d['to_name']} ready — {d['subject']!r}. "
                 f"Approval {d['id']} is pending; approving it sends the email.")
+    if kind == "mic":
+        from aletheia import ears
+        return ears.spoken()
+    if kind == "mic_on":
+        from aletheia import ears
+        ears.turn_on(via=f"command centre: {quote[:60]}" if quote else "command centre")
+        return ("The microphone is on. It closes when she closes or the "
+                "machine restarts — it never comes back by itself.")
+    if kind == "mic_off":
+        from aletheia import ears
+        ears.turn_off(via=f"voice: {quote[:60]}" if quote else "operator")
+        return "The microphone is off. Nothing is listening."
     if kind == "agents":
         from aletheia import agents
         return agents.spoken_roster()
