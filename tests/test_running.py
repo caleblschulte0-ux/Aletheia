@@ -288,6 +288,13 @@ class SayingItOutLoudCase(unittest.TestCase):
             with self.subTest(said=said):
                 self.assertEqual(self.reaches(said)["kind"], "running", said)
 
+    # What this protects is that a SWITCH is never reached by a sentence
+    # that is not about the switch. Asserting `intent` froze a second
+    # claim nobody meant to make — that no other verb may ever answer
+    # these either — so it went red when "what is on my task list"
+    # started reaching `tasks`, which is the right answer to it.
+    SWITCHES = ("close", "open", "halt", "resume", "running")
+
     def test_ordinary_sentences_with_the_same_verbs_are_untouched(self):
         """The whole risk of this change. Each of these is a thing he
         actually says, and swallowing one would trade a missing switch
@@ -299,7 +306,8 @@ class SayingItOutLoudCase(unittest.TestCase):
                      "Thea, stop the music",
                      "Thea, what is on my task list"):
             with self.subTest(said=said):
-                self.assertEqual(self.reaches(said)["kind"], "intent", said)
+                self.assertNotIn(self.reaches(said)["kind"], self.SWITCHES,
+                                 said)
 
     def test_the_planner_may_not_compile_a_switch(self):
         """Same rule as halt/resume, same reason: a compiler that turns
