@@ -1348,6 +1348,40 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "browse_shot", "url": _spoken_url(m.group(1))},
                 "say": None}
 
+    # His OWN screen. The browse_shot branch above runs first and only
+    # fires when the words resolve to a URL, so "screenshot example.com"
+    # never reaches this. Everything here is imperative: "did you take a
+    # screenshot" is a question, and a question is never an instruction.
+    _SCREEN_WORDS = r"(?:screens?|desktop|monitors?|display)"
+    m = re.match(
+        r"(?:please\s+)?(?:take|grab|get|capture|make|snap)\s+"
+        r"(?:me\s+)?(?:a|an|another)?\s*"
+        r"(?:screen\s?shot|screen\s?grab"
+        r"|(?:picture|photo|shot|capture)\s+of\s+(?:my|the|this)\s+" + _SCREEN_WORDS + r")"
+        r"(?:\s+of\s+(?:my|the|this)\s+" + _SCREEN_WORDS + r")?\s*$", low)
+    if not m:
+        # the bare noun, and "screenshot my screen"
+        m = re.match(r"screen\s?shot(?:\s+(?:of\s+)?(?:my|the|this)\s+"
+                     + _SCREEN_WORDS + r")?\s*$", low)
+    if not m:
+        # "capture my screen" / "photograph the desktop" - the verb takes
+        # the screen directly, with no "of" to hang the earlier branch on.
+        m = re.match(r"(?:please\s+)?(?:capture|photograph|snap)\s+"
+                     r"(?:my|the|this)\s+" + _SCREEN_WORDS + r"\s*$", low)
+    if m:
+        # "all my screens" means the whole virtual desktop; anything else
+        # means the one he is looking at.
+        monitor = "all" if re.search(r"\ball\b", low) else "active"
+        return {"command": {"kind": "screenshot", "monitor": monitor},
+                "say": None}
+
+    # "all my screens" / "both monitors" said as the whole sentence
+    m = re.match(r"(?:please\s+)?(?:take|grab|get|capture)\s+"
+                 r"(?:a\s+)?(?:screen\s?shot|picture)\s+of\s+"
+                 r"(?:all|both)\s+(?:my\s+|the\s+)?" + _SCREEN_WORDS + r"\s*$", low)
+    if m:
+        return {"command": {"kind": "screenshot", "monitor": "all"}, "say": None}
+
     m = re.match(r"(?:approve|approved|yes to)\s*"
                  r"(?:that|it|the pending one|the (?P<ord>first|second|third|last)"
                  r"(?: one)?|(?P<what>.+?))?$", low)

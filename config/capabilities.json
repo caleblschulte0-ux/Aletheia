@@ -1,5 +1,5 @@
 {
-  "revision": 98,
+  "revision": 99,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1036,15 +1036,27 @@
       "verification": "19 tests: acting steps refused with nothing performed, password contents never present in the observation, oversized screens trimmed by whole records. Live on the PC 2026-08-27: asked what was open and answered correctly from real windows."
     },
     {
+      "id": "screen.capture",
+      "description": "Photograph the desktop and save the picture on the PC",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "voice: 'take a screenshot', 'capture my screen', 'screenshot my desktop'; intercom kind 'screenshot' (READ_ONLY, LOCAL); python -m aletheia.screen --out PATH",
+      "module": "aletheia.screen",
+      "notes": "The desktop half of what browse.screenshot does for a web page. Stdlib only - ctypes talks to user32/gdi32 the way desktop_context already does, and zlib plus struct are a complete PNG encoder for one colour type - so it does not depend on anybody having remembered to pip install an imaging library. GDI does the downscaling via StretchBlt with HALFTONE, because resampling two million pixels in a Python loop would put the cost back where the point was to remove it. Defaults to the ACTIVE monitor, decided by measurement rather than taste: this PC runs three screens as one 5760x1080 desktop, and capturing all of it scaled the long edge to 1024 and produced a 1024x192 smear with no readable text. 'What is on my screen' means the one holding the focused window. LOOKING IS NOT PRESSING, as in perception.screen: there is no click, key or focus call in the module - absent by construction, not refused by a check. Captures land in cache/, which is gitignored, so a picture of his screen never enters the repo.",
+      "verification": "Live on the PC 2026-09-08: captured the active monitor at 1024x576 in 112 ms and the image was read back and inspected - a sharp, legible Firefox window, not the black rectangle every byte-count check would also have passed. Voice phrasings verified to fire on ten imperative forms and to leave questions alone ('did you take a screenshot' and 'what's on my screen' still route to the planner and to perception.screen)."
+    },
+    {
       "id": "perception.pixels",
       "description": "Answer a question about an IMAGE - a screenshot or a photo - rather than an accessibility tree",
       "provider": "aletheia.local",
       "status": "NOT_BUILT",
       "risk_class": "medium",
       "approval_policy": "operator_once",
-      "caller": "ticket - needs a vision model fast enough to be worth asking, and a desktop capture path (there is browser screenshot in browse.screenshot, but nothing captures the DESKTOP)",
+      "caller": "ticket - blocked on HARDWARE, not on wiring. The desktop capture half now exists (screen.capture); what is missing is somewhere fast enough to run a vision model",
       "module": "",
-      "notes": "Measured on his PC 2026-09-08 rather than estimated, because the answer turned on the number. Ollama is running and qwen3.6:27b reports the vision capability, so this is buildable today - it is not built because of what it costs. Asked the simplest question there is (an 808-byte PNG of a red circle on white, 'what shape and colour is this') it answered 'red circle' correctly in 268s cold and 85s warm. His bar for a simple ask is five seconds, and a real 1920x1080 screenshot is far larger than 808 bytes. Shipping this would mean 'what am I looking at' taking a minute and a half, which is the experience he has already told us is the problem. The path forward is a SMALLER vision model (a 4B-8B VLM rather than a 27B general model), not more wiring - and that is his call to make, since it is his disk and his machine. Until then perception.screen answers from the accessibility tree, which needs no model at all and is why it was built first.",
+      "notes": "Measured twice on his PC 2026-09-08, and the second measurement overturned the first. The morning entry blamed MODEL SIZE - qwen3.6:27b answered a trivial 808-byte image in 268s cold and 85s warm - and recommended a smaller VLM. He approved that, so qwen3-vl:4b (3.3GB) was pulled. On the toy image it looked like a fix (18s warm). On the REAL workload it was not: a genuine 1024x576 screenshot of his own screen took 178s, and shrinking the image to 512px did not help (157s), which is the shape of a problem that is not about pixels. `ollama ps` says 100% CPU. The machine is an Intel i5-1035G4 (4 cores, 1.10GHz, a 2019 15W laptop part) with Intel Iris Plus integrated graphics and no discrete GPU, so there is nothing to enable and no smaller model rescues it - a third model would be a third download and the same answer. NOT a quality problem, which is the frustrating part: at 512px the 4B model correctly identified Mussolini, Tojo and Hitler in a video thumbnail. It is purely that a two-to-three minute answer to \"what am I looking at\" is worse than saying no. Real options, all his to choose: run the vision model on a machine with a GPU and reach it over the tailnet; accept it as BACKGROUND-only work where minutes are fine and the answer arrives later; or leave it, since perception.screen already answers most \"what is on my screen\" questions from the accessibility tree with no model at all, which is exactly why that was built first. ChatGPT's staging contract (staging/jarvis_gap/vision.py) was reviewed and is sound - it forbids action-shaped fields so a vision model cannot smuggle back a click - and is worth taking whenever there is somewhere fast enough to put behind it.",
       "verification": "Not built. The latency above is the live measurement that keeps it that way; ChatGPT's staging contract for this (staging/jarvis_gap/vision.py on chatgpt/jarvis-gap-build-20260830) was reviewed and is sound - it forbids action-shaped fields in a vision answer so a model cannot smuggle back a click - and is worth taking when there is a model fast enough to put behind it."
     },
     {

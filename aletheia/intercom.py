@@ -139,6 +139,12 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "media_captions": ({"source", "subtitles", "out"}, set()),
     "media_convert": ({"source", "out"}, {"height"}),
     "browse_shot":   ({"url"}, set()),
+    # Photographing the DESKTOP, where browse_shot photographs a web
+    # page. "active" is the monitor holding the focused window: this
+    # PC runs three screens as one 5760x1080 desktop, so capturing
+    # all of it and fitting the long edge into 1024 gave a 1024x192
+    # smear. "What is on my screen" means the one he is looking at.
+    "screenshot":    (set(), {"monitor"}),
     "email_check":   (set(), set()),
     # the text of ONE unread message, named by sender or subject; exactly
     # one match or a question back, never a guess (2026-09-02)
@@ -409,7 +415,7 @@ KIND_NOTES: dict[str, str] = {
 # command can ever be executed by both sides in a race. A local kind with
 # no receipt is honestly PENDING: the PC hasn't picked it up (Core off or
 # offline), and ChatGPT should say exactly that, not invent an outcome.
-LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email_draft",
+LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email_read", "email_draft",
                # the workspace is a directory on his PC
                "doc_make",
                # Phone Link is paired to his iPhone on THIS machine;
@@ -474,6 +480,9 @@ READ_ONLY_KINDS = frozenset({
     "file_read", "file_list",
     # looking at his own screen commits him to nothing either
     "computer_observe",
+    # and photographing it commits him to nothing: the file stays on the
+    # PC under cache/, which is gitignored, exactly like browse_shot's
+    "screenshot",
     # reading what a media file IS changes nothing
     "media_probe",
     "email_check", "email_read", "screen_ask", "authority_status", "setup_status",
@@ -1758,6 +1767,30 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         browse.screenshot(cmd["url"], target)
         # media never enters git — the capture stays on the PC, named here
         return f"screenshot of {cmd['url']} saved on the PC at {target}"
+    if kind == "screenshot":
+        from aletheia import screen
+        wanted = str(cmd.get("monitor") or "active").strip().lower()
+        if wanted not in screen.MONITORS:
+            return (f"I can photograph the active screen, the primary one, "
+                    f"or all of them - not {wanted!r}.")
+        try:
+            shot = screen.capture(monitor=wanted)
+        except screen.ScreenUnavailable as exc:
+            # Said in English: this sentence is read out in a room.
+            return f"I couldn't take a screenshot - {exc}."
+        out = REPO_ROOT / "cache" / "screen-captures"
+        out.mkdir(parents=True, exist_ok=True)
+        stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        target = out / f"screen-{stamp}.png"
+        target.write_bytes(shot.png)
+        journal.append("action", ACTOR,
+                       f"took a screenshot of the {wanted} screen "
+                       f"({shot.width}x{shot.height}) -> {target}",
+                       actor=ACTOR)
+        # The NAME, not the path: a Windows path read out loud is unusable,
+        # and the full location is in the journal line above.
+        where = "your screen" if wanted == "active" else f"the {wanted} screen"
+        return f"Took a screenshot of {where}. It's saved as {target.name}."
     if kind == "remind_at":
         from aletheia import scheduler
         import re as _re, uuid as _uuid
