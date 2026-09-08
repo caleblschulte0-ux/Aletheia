@@ -90,7 +90,13 @@ FLOOR = 1.0
 # she did for him, and listing them back would be her reading her own
 # filing out loud.
 HERS = ("aletheia", "operator-via", "operator-local", "core", "converse",
-        "desktop", "workspace", "agents", "messages", "teams")
+        "desktop", "workspace", "agents", "messages", "teams",
+        # Pressing pause and writing him a document are things she
+        # DID. `documents` slipped past the actor guard because
+        # officedocs journalled under a literal rather than a
+        # module constant, so a Word document she wrote would not
+        # have appeared in her account of her own day.
+        "music", "documents")
 
 STOP = frozenset("""
 a an and are as at be by can could did do does for from get give go had has

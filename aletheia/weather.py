@@ -35,8 +35,6 @@ import urllib.request
 
 from aletheia import stateio
 
-ACTOR = "weather"
-
 # The NWS asks for a User-Agent that identifies the caller. It is in
 # their terms rather than a nicety, and a bare urllib default is refused.
 AGENT = "Aletheia personal assistant (local, single user)"

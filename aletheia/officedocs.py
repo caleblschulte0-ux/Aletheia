@@ -37,6 +37,12 @@ from xml.sax.saxutils import escape
 
 # What a document may contain before something has gone wrong. Generous
 # for a report, small enough that a runaway loop cannot fill his disk.
+# Named as a constant rather than passed as a literal, so
+# `test_every_actor_constant_is_hers_or_deliberately_not` can
+# see it: the guard reads module constants, and a literal walks
+# straight past it.
+ACTOR = "documents"
+
 MAX_PARAGRAPHS = 5_000
 MAX_ROWS = 50_000
 MAX_COLUMNS = 256
@@ -447,7 +453,7 @@ def save(path: str, *, blocks=None, rows=None, slides=None,
     journal.append("action", "document",
                    f"wrote {target.name} ({WRITABLE[suffix]})"
                    + (f" — {why[:80]}" if why else ""),
-                   actor="documents")
+                   actor=ACTOR)
     return {"path": str(target), "kind": WRITABLE[suffix],
             "bytes": target.stat().st_size, "verified": check}
 
