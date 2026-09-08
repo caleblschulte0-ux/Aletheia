@@ -30,8 +30,8 @@ import re
 import sys
 import threading
 
-from aletheia import (asking, intercom, journal, planner, policy, quick,
-                      speech, stateio)
+from aletheia import (asking, cannot, intercom, journal, planner, policy,
+                      quick, speech, stateio)
 from aletheia.fleet import load_fleet
 
 ACTOR = "aletheia-intent"
@@ -213,6 +213,26 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
                 "summary": _SPENDING_REFUSAL, "intent": "answer",
                 "spoken": _SPENDING_REFUSAL + " Nothing is queued.",
                 "read_only": True, "refused_spending": True, "steps": [],
+                "proposed_at": stateio.utcnow()}
+
+    # A FAST NO IS BETTER THAN A SLOW ONE, and it was slow.
+    #
+    # "Set a timer for ten minutes" took a planner round trip — 25-80
+    # seconds here — to come back with "I can't do timer.set yet". He
+    # waited most of a minute to be disappointed. `cannot` reads the
+    # REGISTRY rather than a hard-coded list, so the day the capability
+    # lands the sentence goes back to the planner that can serve it; and
+    # it records the ask, because the planner path did and his asks must
+    # not stop being counted just because the answer got faster.
+    #
+    # AFTER `quick`, so anything she can actually answer is answered.
+    refusal = cannot.answer(request)
+    if refusal:
+        return {"id": f"intent-cannot-{hashlib.sha256(request.encode()).hexdigest()[:8]}",
+                "state": RETIRED, "request": request,
+                "operator_quote": quote or request,
+                "summary": refusal, "intent": "answer", "spoken": refusal,
+                "read_only": True, "fast_path": True, "steps": [],
                 "proposed_at": stateio.utcnow()}
 
     # A QUESTION THAT NEEDS NO PLAN DOES NOT NEED A PLANNER.
