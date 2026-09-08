@@ -413,10 +413,38 @@ class SayingNoCase(unittest.TestCase):
                 policy.decide(aid, "DENIED", via="test")
 
     def test_cancelling_a_real_thing_is_not_a_denial(self):
-        """"Cancel my gym membership" must still reach the capability that
-        really cancels things."""
+        """A real cancellation reaches the verb that cancels things.
+
+        This asserted `intent` — the planner — while its own
+        docstring said "the capability that really cancels things".
+        The planner was the best available answer when it was
+        written and was never what the sentence describes.
+        `subscription_cancel` takes the name, and it is high-risk
+        and operator_always: reaching it means she prepares the
+        cancellation and asks him, which is the point.
+        """
         got = voice.interpret("thea cancel my gym membership")["command"]
-        self.assertEqual(got["kind"], "intent")
+        self.assertNotEqual(got["kind"], "deny")
+        self.assertEqual(got["kind"], "subscription_cancel")
+        self.assertEqual(got["subscription"], "gym")
+
+    def test_the_cancel_boundary_holds_in_both_directions(self):
+        """The sentences either side of it, in one place.
+
+        "Cancel that" with something pending is a denial, and
+        "cancel the reminder about the gym" switches a reminder off.
+        Neither may become a subscription cancellation.
+        """
+        policy.request("ap-boundary", "a", "r", "c", True,
+                       capability="journal.append")
+        try:
+            denial = voice.interpret("thea cancel that")["command"]
+            self.assertEqual(denial["kind"], "deny")
+        finally:
+            policy.decide("ap-boundary", "DENIED", via="test")
+        reminder = voice.interpret(
+            "thea cancel the reminder about the gym")["command"]
+        self.assertEqual(reminder["kind"], "reminder_off")
 
     def test_with_several_waiting_it_asks_in_HIS_verb(self):
         """Answering "never mind" with "say approve the first" tells him to
