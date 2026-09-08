@@ -72,7 +72,12 @@ ACK_AFTER_S = 1.2
 # line, and a slow one still gets acknowledged before the silence starts
 # to read as "she didn't hear me". Real work keeps the short wait,
 # because there she is genuinely about to go quiet for a while.
-ACK_AFTER_QUICK_S = 3.0
+# FIVE, from his own sentence: "it should come back within five seconds
+# and tell me Reykjavik." Measured, that answer takes 3.2s — so at three
+# seconds she would have said "Let me look." two tenths of a second
+# before saying "Reykjavik", which is the worst place to put it. Past
+# five, the question really is slow and the silence needs breaking.
+ACK_AFTER_QUICK_S = 5.0
 STILL_AFTER_S = 12.0
 # How often the waiter re-checks. Small enough that the acknowledgement
 # lands on time, large enough to cost nothing.
