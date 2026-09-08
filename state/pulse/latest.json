@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-08T04:45:45Z",
+  "generated_at": "2026-09-08T11:25:53Z",
   "fleet_revision": 4,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -10,6 +10,11 @@
       "status": "active",
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
+        {
+          "sha": "60408a220fe6",
+          "date": "2026-09-08T04:45:52Z",
+          "message": "pulse: 2026-09-08T04:45Z"
+        },
         {
           "sha": "0e9813b79f7f",
           "date": "2026-09-08T01:29:19Z",
@@ -29,25 +34,20 @@
           "sha": "a9d39f3034cf",
           "date": "2026-09-07T12:42:55Z",
           "message": "pulse: 2026-09-07T12:42Z"
-        },
-        {
-          "sha": "4f1c8ec138c5",
-          "date": "2026-09-07T04:50:06Z",
-          "message": "pulse: 2026-09-07T04:50Z"
         }
       ],
       "commit": {
-        "sha": "0e9813b79f7f",
-        "date": "2026-09-08T01:29:19Z",
-        "message": "Closing her did nothing to a Core that was already running"
+        "sha": "60408a220fe6",
+        "date": "2026-09-08T04:45:52Z",
+        "message": "pulse: 2026-09-08T04:45Z"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-09-08T04:45:42Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/34188133952"
+          "updated_at": "2026-09-08T11:25:50Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/34220637885"
         },
         "ci.yml": {
           "status": "completed",
@@ -59,7 +59,7 @@
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 12402
+          "bytes": 12154
         }
       },
       "health": "green"
@@ -70,6 +70,11 @@
       "status": "active",
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
+        {
+          "sha": "8d5930fedd4b",
+          "date": "2026-09-08T09:36:51Z",
+          "message": "doctor: evidence pack + backlog 2026-09-08 [skip ci]"
+        },
         {
           "sha": "98ad4252cc7e",
           "date": "2026-09-08T04:13:09Z",
@@ -89,16 +94,11 @@
           "sha": "7cea3cbea1fe",
           "date": "2026-09-07T21:28:14Z",
           "message": "explainer: posted four-day-workweek-spreads [skip ci]"
-        },
-        {
-          "sha": "1b6f101bc7e6",
-          "date": "2026-09-07T19:47:09Z",
-          "message": "explainer: update posted log + analytics [skip ci]"
         }
       ],
       "commit": {
-        "sha": "98ad4252cc7e",
-        "date": "2026-09-08T04:13:09Z",
+        "sha": "8d5930fedd4b",
+        "date": "2026-09-08T09:36:51Z",
         "message": "doctor: evidence pack + backlog 2026-09-08 [skip ci]"
       },
       "vitals": [
@@ -141,8 +141,8 @@
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-07T20:40:51Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34160167810"
+          "updated_at": "2026-09-08T09:52:09Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34212020975"
         },
         "third.yml": {
           "status": "completed",
@@ -165,8 +165,8 @@
         "doctor.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-08T04:13:13Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34186201616"
+          "updated_at": "2026-09-08T09:36:56Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34210955045"
         }
       },
       "state_files": {
