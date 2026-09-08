@@ -31,7 +31,7 @@ import sys
 import threading
 
 from aletheia import (asking, cannot, intercom, journal, planner, policy,
-                      quick, speech, stateio)
+                      quick, routing, speech, stateio)
 from aletheia.fleet import load_fleet
 
 ACTOR = "aletheia-intent"
@@ -248,7 +248,13 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
     # question costs him the work not happening. So this only fires on
     # sentences that open like a question, name no doing-verb, and do not
     # mention her or his own stores.
-    if asking.is_a_plain_question(request):
+    # ...and neither does a request whose whole product IS the answer.
+    # "Write me an email to Brant" is one round trip pretending to be a
+    # project: `routing.answerable_directly` is True for writing,
+    # rewriting, summarising and plain questions, and False the moment
+    # anything DELIVERS - so "write and send Brant an email" still
+    # compiles a plan and still passes the gates on the way out.
+    if asking.is_a_plain_question(request) or routing.answerable_directly(request):
         record = {"id": f"intent-asked-{hashlib.sha256(request.encode()).hexdigest()[:8]}",
                   "state": RETIRED, "request": request,
                   "operator_quote": quote or request,

@@ -127,6 +127,13 @@ def expectation(said: str) -> str:
     Named for what he will experience rather than for what runs:
     "instant" is a file read, "quick" is one model round trip, and
     "working" is the one where she has to say she is thinking.
+
+    A request whose whole product is the ANSWER is quick even when it is
+    phrased as an instruction: "write me an email", "summarise this" and
+    "make this sound friendlier" are each one round trip, and calling
+    them "working" made the room wait in the long-job silence for
+    something that lands in seconds. Anything that DELIVERS is still
+    working, because then there is real work to do.
     """
     try:
         from aletheia import quick
@@ -134,4 +141,13 @@ def expectation(said: str) -> str:
             return "instant"
     except Exception:
         pass
-    return "quick" if is_a_plain_question(said) else "working"
+    if is_a_plain_question(said):
+        return "quick"
+    try:
+        from aletheia import routing
+        if routing.answerable_directly(said):
+            return "quick"
+    except Exception:
+        # A router that cannot load must not make her slower than she was.
+        pass
+    return "working"
