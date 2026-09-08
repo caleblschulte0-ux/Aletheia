@@ -122,14 +122,20 @@ class NoRoundTripForThese(unittest.TestCase):
 
     def test_a_real_request_is_still_a_real_request(self):
         """The net must not have caught the things that need thinking."""
-        # Chosen from the same measurement: these really do end at the
-        # planner today, and must keep doing so. `research`, `meet` and
-        # `apply` are NOT here — the deterministic layer already compiles
-        # all three, which is worth knowing before adding a pattern for
-        # something it can already do.
-        for said in ("what's the weather tomorrow",
-                     "how many days until christmas",
-                     "set a timer for 10 minutes"):
+        # PLANNER-BOUND BY SHAPE, not by absence. This picked its
+        # examples from "things she cannot do yet" — the most
+        # volatile list in the repository, and the one I am
+        # shortening. "Set a timer" was here this morning and is a
+        # verb by lunchtime; "what's the weather" is a fast refusal
+        # now. Three tests broke that way today.
+        #
+        # These are open-ended work with no single verb behind them.
+        # "Fix the onboarding bug" will still need a plan when every
+        # capability in the registry is AVAILABLE, which is what
+        # makes it a fair test of the net rather than of the roadmap.
+        for said in ("fix the onboarding bug",
+                     "sort out my week and tell me what to drop",
+                     "work out why the deploy keeps failing"):
             with self.subTest(said=said):
                 kind, fast = self.lane(said)
                 self.assertEqual(kind, "intent", said)
