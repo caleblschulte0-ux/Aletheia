@@ -148,6 +148,9 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # demand ledger, in his own words. Same shape as email_draft: it
     # writes a draft and an approval and sends nothing.
     "message_send":  ({"to", "body"}, set()),
+    # Word and Excel. The suffix picks the format; `content` is blocks
+    # for a .docx and rows for a .xlsx.
+    "doc_make":      ({"path", "content"}, {"sheet_name", "why"}),
     # The agent runtime, said out loud. `agent_new` is the only one that
     # adds capacity, so it is the only one that is world-tier.
     # The room microphone. `mic_on` is a BUTTON, never a sentence.
@@ -398,6 +401,8 @@ KIND_NOTES: dict[str, str] = {
 # no receipt is honestly PENDING: the PC hasn't picked it up (Core off or
 # offline), and ChatGPT should say exactly that, not invent an outcome.
 LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email_draft",
+               # the workspace is a directory on his PC
+               "doc_make",
                # Phone Link is paired to his iPhone on THIS machine;
                # Actions cannot text anybody.
                "message_send",
@@ -472,6 +477,10 @@ ROUTINE_KINDS = frozenset({
     # the whole test for this tier — the schedule is disabled, never
     # deleted, so "actually put that back" is one command.
     "reminder_off", "shopping_off", "notify_snooze", "notify_operator",
+    # Writes one file inside her own workspace: reversible, reaches
+    # nobody, and the workspace keeps the previous version. Same tier as
+    # `file_write`, which it sits beside.
+    "doc_make",
     # Stopping a worker only ever REDUCES what is running, and a stop
     # that waits for an approval arrives after the thing it was meant to
     # prevent. Creating one is world-tier; stopping one is not.
@@ -1671,6 +1680,27 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             capabilities=agents.reading_scope())
         return (f"{made['name']} exists — {made['mission'][:90]}. "
                 f"It can read and nothing else until you widen it.")
+    if kind == "doc_make":
+        from aletheia import officedocs
+        content = cmd["content"]
+        if not isinstance(content, list) or not content:
+            raise ValueError("content must be a non-empty list — blocks for a "
+                             "document, rows for a spreadsheet")
+        suffix = str(cmd["path"]).lower().rsplit(".", 1)[-1]
+        if suffix == "xlsx":
+            made = officedocs.save(cmd["path"], rows=content,
+                                   sheet_name=cmd.get("sheet_name", "Sheet1"),
+                                   why=cmd.get("why", ""))
+        else:
+            # A list of strings is a document of plain paragraphs, which
+            # is what a planner produces when it has not been asked for
+            # headings; a list of dicts carries styles.
+            blocks = [b if isinstance(b, dict) else {"text": b} for b in content]
+            made = officedocs.save(cmd["path"], blocks=blocks,
+                                   why=cmd.get("why", ""))
+        name = made["path"].rsplit("\\", 1)[-1].rsplit("/", 1)[-1]
+        return (f"wrote {name} — {made['kind']}, "
+                f"{made['bytes']} bytes, and it reads back correctly")
     if kind == "message_send":
         from aletheia import messages
         d = messages.draft(cmd["to"], cmd["body"],

@@ -1,5 +1,5 @@
 {
-  "revision": 90,
+  "revision": 91,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1433,7 +1433,7 @@
       "approval_policy": "none",
       "caller": "intercom kind 'compose' (so voice, the phone, and any compiled plan); python -m aletheia.compose",
       "module": "aletheia.compose",
-      "notes": "Found by running the sentence: 'summarize my resume into three bullets and save it as summary.md' compiled to file_write with text='Three-bullet summary of resume, generated from the resume content retrieved above' - EXECUTABLE, validating clean, and it would have put that sentence in his file. The cause is structural, not a bad guess: the planner is a COMPILER and file_write(path, text) demands finished text as an argument at compile time, before anything has been read, so a request to WRITE something had only two outcomes available - a clarifying question or a placeholder - and which one it got was luck. compose moves the authoring to EXECUTION time. It adds no reach: it writes through aletheia.workspace (her directory only, versioned on overwrite, size-capped, halted when she is halted) and reads through the same module's wider read half. It never pretends: every source unreadable writes NOTHING, a partial read is declared in the prompt, a model refusal (CANNOT WRITE) and an unreachable model both save nothing and say why."
+      "notes": "Found by running the sentence: 'summarize my resume into three bullets and save it as summary.md' compiled to file_write with text='Three-bullet summary of resume, generated from the resume content retrieved above' - EXECUTABLE, validating clean, and it would have put that sentence in his file. The cause is structural, not a bad guess: the planner is a COMPILER and file_write(path, text) demands finished text as an argument at compile time, before anything has been read, so a request to WRITE something had only two outcomes available - a clarifying question or a placeholder - and which one it got was luck. compose moves the authoring to EXECUTION time. It adds no reach: it writes through aletheia.workspace (her directory only, versioned on overwrite, size-capped, halted when she is halted) and reads through the same module's wider read half. It never pretends: every source unreadable writes NOTHING, a partial read is declared in the prompt, a model refusal (CANNOT WRITE) and an unreachable model both save nothing and say why. || 2026-09-08: `document.author` is the sibling that makes REAL Office files — see that entry."
     },
     {
       "id": "application.prepare",
@@ -1532,6 +1532,17 @@
       "approval_policy": "none",
       "caller": "ticket — the Spotify desktop app is on this PC (a window titled 'Spotify Premium' was open 2026-09-02); computer.act can open it and press Play/Pause by their accessible names, and audio.route can pick the output. A media.play kind would compose those; nothing composes them yet",
       "notes": "Registered 2026-09-04 because 'play some music' compiled into a sandboxed program, which can play nothing — the planner named audio.route (routing, not playing) and the unmatched-ask rule offered a program for the remainder. medium risk: it changes what the room is doing and is reversible by pausing."
+    },
+    {
+      "id": "document.author",
+      "description": "Make a real Word document or Excel spreadsheet - .docx and .xlsx, openable in Office or Google Docs",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "module": "aletheia.officedocs",
+      "caller": "intercom kind 'doc_make' (LOCAL - the workspace is a directory on his PC), reachable from voice and any compiled plan; aletheia.officedocs.save",
+      "notes": "He asked whether she can make Excel, PowerPoint and Word files. She could READ a .docx (document.read_any) and could not write one: workspace.write refuses any suffix outside TEXT_SUFFIXES, so everything she authored was markdown or plain text. STDLIB ONLY, for the reason doctext gives about itself - `pip install python-docx openpyxl` makes the feature work on the machine of whoever remembered to run it, which is the same shape as a capability that says AVAILABLE and is not. Both formats are ZIP archives of XML and zipfile is stdlib. PROVEN BY READING IT BACK: every .docx written is re-opened with doctext._docx_text - the repo's own reader, the one his resume goes through - and the words have to come back, or the file is DELETED rather than left somewhere he might send it from. Spreadsheet numbers are written as numbers so SUM() works; text uses inline strings rather than a shared-string table, because a mismatch between the table and the sheet is the classic way to produce a file Excel refuses to open. Every XML part is parsed after writing: a zip that is intact and contains malformed XML is exactly the file Office calls corrupt. Control characters are stripped - a raw 0x08 in a cell corrupts a workbook, and this repo has already lost an afternoon to one. PowerPoint is NOT built: a minimal .pptx needs a slide master, a layout and a theme, which is four times the work of the other two and none of it verifiable without a reader to round-trip against. Ticket: document.author.slides. Google Sheets/Slides are also not built - they need OAuth, and calendar_auth is the precedent to follow when he wants them."
     }
   ]
 }
