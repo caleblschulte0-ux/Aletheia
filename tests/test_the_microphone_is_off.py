@@ -31,6 +31,13 @@ class EarsCase(unittest.TestCase):
         p = mock.patch.object(journal, "JOURNAL_PATH", d / "j.jsonl")
         p.start()
         self.addCleanup(p.stop)
+        # Which boot this is, is a fact about the machine. Pinning it
+        # keeps these tests about the SWITCH, and stops them passing only
+        # on platforms that happen to answer. `RealBootIdCase` below
+        # exercises the real one.
+        boot = mock.patch.object(ears, "_boot_id", return_value="boot-1")
+        boot.start()
+        self.addCleanup(boot.stop)
 
 
 class OffIsTheDefaultCase(EarsCase):
@@ -56,14 +63,14 @@ class OffIsTheDefaultCase(EarsCase):
         """
         ears.turn_on(via="test")
         self.assertTrue(ears.listening())
-        with mock.patch.object(ears, "_boot_id", lambda: "a-different-boot"):
+        with mock.patch.object(ears, "_boot_id", return_value="boot-2"):
             self.assertFalse(ears.listening())
             # And it says WHY, rather than just "off": he did turn it on.
             self.assertIn("restarted", ears.spoken())
 
     def test_a_platform_that_cannot_say_which_boot_it_is_stays_off(self):
         ears.turn_on(via="test")
-        with mock.patch.object(ears, "_boot_id", lambda: ""):
+        with mock.patch.object(ears, "_boot_id", return_value=""):
             self.assertFalse(ears.listening(), "unknown boot opened the mic")
 
     def test_closing_her_closes_the_microphone(self):
@@ -77,6 +84,20 @@ class OffIsTheDefaultCase(EarsCase):
         closed.close(reason="test", via="test")
         closed.open_again(via="test")
         self.assertFalse(ears.listening())
+
+
+class RealBootIdCase(unittest.TestCase):
+    """The one place the real `_boot_id` runs, asserting only what holds
+    on every platform: it is STABLE. Whether this machine can answer at
+    all is the machine's business — an empty answer means the microphone
+    stays off, which is the safe direction and is asserted above."""
+
+    def test_it_is_stable_when_asked_twice(self):
+        self.assertEqual(ears._boot_id(), ears._boot_id())
+
+    def test_it_never_raises_whatever_the_platform_says(self):
+        with mock.patch("builtins.open", side_effect=OSError("no /proc")):
+            self.assertIsInstance(ears._boot_id(), str)
 
 
 class OnlyAButtonOpensItCase(EarsCase):
