@@ -882,6 +882,14 @@ def main(argv: list[str] | None = None) -> int:
             actor="aletheia-voice",
         )
         print('listening — say "Thea, ..." (Ctrl+C stops)')
+        # ONE LINE, ONCE. Not an announcement — §144 is about speaking
+        # UNPROMPTED, and this is the direct answer to a button he just
+        # pressed. Without it the button produces silence, and silence is
+        # indistinguishable from a microphone that did not start.
+        try:
+            speak("I'm listening.")
+        except Exception:
+            pass
         try:
             listen_forever()
         except KeyboardInterrupt:

@@ -100,6 +100,70 @@ def listening() -> bool:
     return record.get("boot") == boot
 
 
+# What the room is started as. `pythonw` so no console window opens in
+# his face — the same way the supervisor runs everything else.
+ROOM_MODULE = "aletheia.voice_room"
+
+
+def room_is_running() -> bool:
+    """Is a listener process alive? Never raises."""
+    try:
+        import subprocess
+        out = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "(Get-CimInstance Win32_Process -Filter \"Name like 'pythonw%'\" "
+             "| Where-Object { $_.CommandLine -match 'voice_room' } "
+             "| Measure-Object).Count"],
+            capture_output=True, text=True, timeout=15)
+        return (out.stdout or "0").strip().splitlines()[-1].strip() not in ("", "0")
+    except Exception:
+        return False
+
+
+def start_room() -> tuple[bool, str]:
+    """Start the listener. (started, what happened) — never raises.
+
+    A button that sets a flag and starts nothing is not a button: on a
+    machine where the scheduled task is disabled, pressing MIC would
+    have written a file and produced silence.
+    """
+    import subprocess
+    import sys
+    from pathlib import Path
+    if room_is_running():
+        return True, "already listening"
+    try:
+        pythonw = str(Path(sys.executable).with_name("pythonw.exe"))
+        if not Path(pythonw).exists():
+            pythonw = sys.executable
+        subprocess.Popen(
+            [pythonw, "-m", ROOM_MODULE],
+            cwd=str(stateio.REPO_ROOT) if hasattr(stateio, "REPO_ROOT") else None,
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, close_fds=True)
+        return True, "listener started"
+    except Exception as exc:
+        # Honest: the flag is on and the process is not, which he needs
+        # to be told rather than left to discover by talking to a room
+        # that is not listening.
+        return False, f"could not start the listener ({type(exc).__name__})"
+
+
+def stop_room() -> tuple[bool, str]:
+    """Stop the listener. Always allowed, never raises."""
+    try:
+        import subprocess
+        subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "Get-CimInstance Win32_Process -Filter \"Name like 'pythonw%'\" "
+             "| Where-Object { $_.CommandLine -match 'voice_room' } "
+             "| ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"],
+            capture_output=True, text=True, timeout=20)
+        return True, "listener stopped"
+    except Exception as exc:
+        return False, f"could not stop the listener ({type(exc).__name__})"
+
+
 def turn_on(via: str = "operator") -> dict:
     """He pressed the button. Deliberate, and only for this boot.
 

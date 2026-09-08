@@ -1609,11 +1609,20 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "mic_on":
         from aletheia import ears
         ears.turn_on(via=f"command centre: {quote[:60]}" if quote else "command centre")
+        # A BUTTON DOES THE THING. Setting the flag and starting nothing
+        # would have him press MIC, hear silence, and conclude it is
+        # broken — on a machine where the listener is not already up,
+        # which is every machine now that it does not start itself.
+        started, detail = ears.start_room()
+        if not started:
+            return ("The microphone is on, but I could not start the "
+                    f"listener — {detail}. Nothing is listening yet.")
         return ("The microphone is on. It closes when she closes or the "
                 "machine restarts — it never comes back by itself.")
     if kind == "mic_off":
         from aletheia import ears
         ears.turn_off(via=f"voice: {quote[:60]}" if quote else "operator")
+        ears.stop_room()
         return "The microphone is off. Nothing is listening."
     if kind == "agents":
         from aletheia import agents
