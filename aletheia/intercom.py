@@ -144,6 +144,10 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # one match or a question back, never a guess (2026-09-02)
     "email_read":    ({"which"}, set()),
     "email_draft":   ({"to", "body"}, {"subject"}),
+    # The most-asked-for thing she could not do — thirteen times in the
+    # demand ledger, in his own words. Same shape as email_draft: it
+    # writes a draft and an approval and sends nothing.
+    "message_send":  ({"to", "body"}, set()),
     # personal-OS verbs (2026-08-26): PC-private state, so all LOCAL_KINDS
     "remind_at":       ({"at", "text"}, set()),
     "remind_daily":    ({"time", "text"}, {"tz"}),
@@ -384,6 +388,9 @@ KIND_NOTES: dict[str, str] = {
 # no receipt is honestly PENDING: the PC hasn't picked it up (Core off or
 # offline), and ChatGPT should say exactly that, not invent an outcome.
 LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email_draft",
+               # Phone Link is paired to his iPhone on THIS machine;
+               # Actions cannot text anybody.
+               "message_send",
                # research only READS pages, but it reads them with the
                # operator's browser, so it belongs to the PC runner
                "research",
@@ -1556,6 +1563,14 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                        requested_via=f"intercom: {quote[:80]}")
         return (f"draft to {d['to_name']} ready — {d['subject']!r}. "
                 f"Approval {d['id']} is pending; approving it sends the email.")
+    if kind == "message_send":
+        from aletheia import messages
+        d = messages.draft(cmd["to"], cmd["body"],
+                           requested_via=f"intercom: {quote[:80]}")
+        # The number is not read back: he knows who Brant is, and a phone
+        # number spoken aloud in a room is his to say, not hers.
+        return (f"text to {d['to_name']} ready. Approval {d['id']} is "
+                f"pending; approving it sends it from your phone.")
     if kind == "browse_shot":
         from aletheia import browse
         out = REPO_ROOT / "cache" / "browser-captures"

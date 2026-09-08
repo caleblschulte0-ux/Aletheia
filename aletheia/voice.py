@@ -996,6 +996,22 @@ def _interpret(transcript: str) -> dict:
                     r"do i have (?:any )?e?mail|what's in my inbox)", low):
         return {"command": {"kind": "email_check"}, "say": None}
 
+    # "Text Brant that I'm on my way." Thirteen asks in the demand ledger
+    # and no verb behind any of them: the planner named `intercom.relay`
+    # as the nearest gap and compiled a sandboxed program, which has no
+    # network and cannot text anyone.
+    #
+    # BEFORE the email pattern, because "text" and "message" are their own
+    # verbs and must not fall into it. The body is required: "text Brant"
+    # with nothing to say is a question, not a message, and it falls
+    # through to the planner to ask what he wants said.
+    m = re.match(r"(?:send (?:a )?(?:text|message)(?: to)?|text|message)\s+"
+                 r"(.+?)\s+(?:that|saying|and say|telling (?:him|her|them)|:)"
+                 r"\s+(.+)", low)
+    if m:
+        return {"command": {"kind": "message_send", "to": m.group(1).strip(),
+                            "body": m.group(2).strip()}, "say": None}
+
     m = re.match(r"e?mail\s+(.+?)\s+(?:that|saying|and say|:)\s+(.+)", low)
     if m:
         return {"command": {"kind": "email_draft", "to": m.group(1).strip(),

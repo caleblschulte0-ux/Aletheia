@@ -450,6 +450,16 @@ def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
     except Exception as exc:
         journal.append("event", "core:sync",
                        f"mail delivery error: {type(exc).__name__}: {exc}", actor=ACTOR)
+    try:
+        # Same rule as mail: only drafts he has APPROVED go anywhere, and
+        # the approval is bound to the exact words and the exact number.
+        from aletheia import messages
+        for sent in messages.send_approved():
+            results.append(sent)
+    except Exception as exc:
+        journal.append("event", "core:sync",
+                       f"message delivery error: {type(exc).__name__}: {exc}",
+                       actor=ACTOR)
     status["commands_executed"] += len(results)
     try:
         # calendar feeds: mirror the operator's ICS subscriptions at most

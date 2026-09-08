@@ -1,5 +1,5 @@
 {
-  "revision": 88,
+  "revision": 89,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1337,11 +1337,12 @@
       "id": "message.send",
       "description": "Send a text message (SMS/iMessage) to a person on the operator's behalf",
       "provider": "aletheia.local",
-      "status": "NOT_BUILT",
+      "status": "EXPERIMENTAL",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "ticket — Phase 13/21 messaging: Windows Phone Link paired to the iPhone, driven through computer.act (compose) with the Send control refused back to a hash-bound approval; contacts.resolve names the person",
-      "notes": "Registered 2026-09-02 because the planner, asked to 'text Brant', named intercom.relay as the closest gap and then compiled a sandboxed program for it — a program with no network cannot text anyone, and intercom.relay is not messaging. A gap with the right name is what §105 asks for. Sending reaches another person, so it is operator_always whatever adapter arrives (§72–§73); a build never bundles the grant (§70). Checked live 2026-09-02: Phone Link 1.26071 is installed and its host runs, but the app sits at its onboarding screen ('Choose your device to get started' - Android / iPhone): no phone is paired. Pairing the iPhone is his to do (a QR scan on the phone and a Bluetooth pairing - physical steps, section 143). Once paired, the build is: contacts.resolve -> Phone Link Messages via computer.act (open, find the conversation, set_text the message) -> the Send control refused back to a hash-bound approval he decides -> the sent message read back from the thread as verification."
+      "caller": "intercom kind 'message_send' (LOCAL) from voice (\"text Brant that I'm on my way\"); aletheia.messages.draft writes the draft and the approval, and core's sync beat calls aletheia.messages.send_approved for drafts he has APPROVED",
+      "notes": "Registered 2026-09-02 because the planner, asked to 'text Brant', named intercom.relay as the closest gap and then compiled a sandboxed program for it — a program with no network cannot text anyone, and intercom.relay is not messaging. A gap with the right name is what §105 asks for. Sending reaches another person, so it is operator_always whatever adapter arrives (§72–§73); a build never bundles the grant (§70). Checked live 2026-09-02: Phone Link 1.26071 is installed and its host runs, but the app sits at its onboarding screen ('Choose your device to get started' - Android / iPhone): no phone is paired. Pairing the iPhone is his to do (a QR scan on the phone and a Bluetooth pairing - physical steps, section 143). Once paired, the build is: contacts.resolve -> Phone Link Messages via computer.act (open, find the conversation, set_text the message) -> the Send control refused back to a hash-bound approval he decides -> the sent message read back from the thread as verification. || 2026-09-07, BUILT and EXPERIMENTAL: `aletheia/messages.py`. It was the only entry in the demand ledger — thirteen asks, in his own words. ONE approval binds the words AND the keystrokes: the requested_action is computer.approval_action(plan) and the plan literally contains the number and the message, so an edit after approval no longer matches and is refused (tested). She cannot press Send even holding that approval — `computer.act` refuses any control labelled Send, and this capability RELIES on that refusal rather than working around it; the press goes through `computer.execute`, which re-reads the live label first. The launch is aimed at Phone Link's AUMID rather than the `sms:` default, for the same reason `phone_windows._launch_tel` aims `tel:` — three packaged apps claim the protocol on this machine. An unknown recipient is refused and never guessed, and a string of fewer than ten digits is not a phone number. EXPERIMENTAL and not AVAILABLE because INSTALLED IS NOT WORKING: no text has left this machine yet. What moves it: one supervised live send to a number he chooses, with him watching the Phone Link window — outward-facing and irreversible, so it is his to authorize, exactly like the Phase 12 test call.",
+      "module": "aletheia.messages"
     },
     {
       "id": "goal.pursue",
