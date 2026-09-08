@@ -1065,8 +1065,27 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "car"}, "say": None}
 
     if re.fullmatch(r"(?:my projects?|what projects are (?:open|active)|"
-                    r"what am i working on)", low):
+                    r"what am i working on|"
+                    # "Repos" is the word he uses, in a repository he
+                    # wrote. `projects` takes no arguments, so there was
+                    # nothing standing between this sentence and it
+                    # except the sentence.
+                    r"(?:check |how are )?(?:my |the )?repos(?:itories)?|"
+                    r"how are my projects|what's happening with my projects|"
+                    r"project status)", low):
         return {"command": {"kind": "projects"}, "say": None}
+
+    # "Cancel my gym membership." HIGH-RISK and operator_always, so
+    # reaching the verb means she PREPARES it and asks him — which is
+    # exactly what should happen. The alternative was the planner
+    # compiling something adjacent, and CLAUDE.md already records what
+    # that looks like: "1 step ready — Cancel a reminder."
+    m = re.fullmatch(r"cancel (?:my |the )?(.+?)"
+                     r"(?: membership| subscription| plan)?", low)
+    if m and 2 <= len(m.group(1)) <= 60 and not re.match(
+            r"that|it|the pending one|approval|reminder|alarm|timer", m.group(1)):
+        return {"command": {"kind": "subscription_cancel",
+                            "subscription": m.group(1).strip()}, "say": None}
 
     # Screen questions run BEFORE the browse verbs for the same reason the
     # email ones do: "read this" is about what is in front of him, not a
