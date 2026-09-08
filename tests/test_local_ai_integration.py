@@ -162,14 +162,28 @@ class LocalTransportCase(unittest.TestCase):
 
 
 class GatewayRoutingCase(unittest.TestCase):
+    """What the gateway does with a local pool that is on AND answering.
+
+    Reachability is a PREMISE of this case, not a property of the machine
+    running it. `local_enabled` is `enabled() and reachable()`, and
+    `reachable()` opens a socket: until it was pinned here, these tests
+    passed on the operator's PC because Ollama happened to be running and
+    failed in CI because it was not — the routing they assert never ran.
+    The unreachable half is its own case below.
+    """
+
     def setUp(self):
         self.env = mock.patch.dict(os.environ, {
             "ALETHEIA_LOCAL_AI_ENABLED": "1",
             "ALETHEIA_LOCAL_AI_SHADOW": "0",
         }, clear=False)
         self.env.start()
+        self.up = mock.patch.object(local_model_pool, "reachable",
+                                    return_value=True)
+        self.up.start()
 
     def tearDown(self):
+        self.up.stop()
         self.env.stop()
 
     def local_run(self, summary="local", role="fast"):
@@ -251,6 +265,28 @@ class GatewayRoutingCase(unittest.TestCase):
                                         "local reasoning is switched off"):
                 reasoning_gateway.reason_json("sys", "normal", policy="standard")
         local.assert_not_called()
+
+    def test_an_unreachable_pool_is_skipped_rather_than_waited_on(self):
+        """Configured is not running, and the difference is 45 seconds.
+
+        This is the state the gate was added for: Ollama installed and
+        stopped. Routine must go straight to the subscription rather than
+        wait on a model that will never answer, and `standard` must not
+        hand the subscription a shortened budget to leave room for it.
+        """
+        with mock.patch.object(local_model_pool, "reachable", return_value=False), \
+             mock.patch.object(local_model_pool, "auto_json",
+                               side_effect=AssertionError("a stopped pool must not be called")), \
+             mock.patch.object(reasoner, "subscription_json",
+                               return_value={"summary": "teacher"}) as sub:
+            routine = reasoning_gateway.reason_json("sys", "simple", policy="routine")
+            standard = reasoning_gateway.reason_json("sys", "normal", policy="standard")
+
+        self.assertEqual(routine.output["summary"], "teacher")
+        self.assertEqual(standard.output["summary"], "teacher")
+        # The whole point of the gate: no slice held back for a stopped pool.
+        budget = sub.call_args.kwargs["timeout_s"]
+        self.assertGreater(budget, reasoning_gateway.STANDARD_SUBSCRIPTION_SLICE_S)
 
     def test_critical_never_downgrades_to_local_answer(self):
         with mock.patch.object(reasoner, "subscription_json", side_effect=reasoner.ReasonerUnavailable("down")), \
