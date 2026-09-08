@@ -159,11 +159,19 @@ class TheKillSwitchIsNotSomethingASENTENCECanTrip(unittest.TestCase):
         """`close` and `open` joined this set on 2026-09-07, for the reason
         the set exists: "close the browser tab" and "open my resume" are
         ordinary sentences, and a compiler that turns English into command
-        names can be led from one to the switch that shuts her down."""
+        names can be led from one to the switch that shuts her down.
+
+        `mic_on` joined it the same day, on his ruling that the room
+        microphone is a button he presses. A microphone a model can open
+        is not a microphone that is off, and "start listening" is exactly
+        the kind of sentence a compiler is happy to produce.
+
+        The list is written out again here on purpose: adding to it
+        should cost somebody a deliberate second edit."""
         from aletheia import intercom
         self.assertEqual(intercom.PLANNER_FORBIDDEN,
                          frozenset({"halt", "resume", "approve", "deny",
-                                    "close", "open"}))
+                                    "close", "open", "mic_on"}))
 
     def test_the_agenda_refuses_the_same_ones(self):
         """Two lists that disagree is one list that is wrong."""
