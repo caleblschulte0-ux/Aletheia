@@ -54,10 +54,16 @@ def _tidy(text: str) -> str:
 # Each is (name, pattern). Anchored, because "tell me about the halt
 # behaviour in the docs" is not "are you halted".
 PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
+    # `down` marks the alternatives that ask whether she is STOPPED, so
+    # the answer can agree with the question. Without it "are you
+    # running" and "you there" -- the two most natural ways to ask --
+    # were answered "No, I'm running.", which is a contradiction in the
+    # same breath.
     ("halted", re.compile(
-        r"^(?:are|r) (?:you|u) (?:halted|stopped|paused|off|frozen)$"
+        r"^(?:are|r) (?:you|u) (?P<down>halted|stopped|paused|off|frozen)$"
         r"|^(?:are|r) (?:you|u) (?:running|on|up|working|alive|awake)$"
-        r"|^is the kill switch (?:on|off)$|^(?:are|r) (?:you|u) ok$"
+        r"|^is the kill switch (?P<down2>on)$|^is the kill switch off$"
+        r"|^(?:are|r) (?:you|u) ok$"
         # No verb at all is how a person actually checks. "you there" is
         # the single most natural way to ask this and it paid a planner
         # round trip to be told yes.
@@ -187,9 +193,18 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how long have (?:you|u) been (?:up|running|on|awake|going)$"
         r"|^how long have (?:you|u) been here$"
         r"|^what(?:'s| is|s)? your uptime$|^uptime$")),
+    # A greeting is not small talk to something that can see his day. It
+    # cost 25-80 seconds to be greeted back, and the answer to "hey" that
+    # is worth saying is what is waiting on him.
+    ("greeting", re.compile(
+        r"^(?:hi|hello|hey|yo|hiya|howdy|hey there|hi there)$"
+        r"|^good (?:morning|afternoon|evening)$"
+        r"|^how (?:are|r) (?:you|u)(?: doing| today)?$"
+        r"|^how (?:you|u) doing$|^how goes it$")),
     ("mine", re.compile(
         r"^what(?:'s| is|s)? my (?P<mine>email(?: address)?|phone(?: number)?"
-        r"|number|city|town)$")),
+        r"|number|city|town|name|first name|last name|full name)$"
+        r"|^who am i$")),
     ("home", re.compile(
         r"^where do i live$|^what city do i live in$"
         r"|^what town do i live in$|^where(?:'s| is) home$")),
@@ -211,19 +226,28 @@ def match(question: str) -> tuple[str, str] | None:
             continue
         captured = found.groupdict()
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
-                                           "free", "free2", "free3")
+                                           "free", "free2", "free3",
+                                           "down", "down2")
                      if captured.get(k)), "")
         return name, rest
     return None
 
 
-def _halted() -> str:
+def _halted(asks_if_down: bool = True) -> str:
+    """Yes or no, agreeing with the direction the question was asked in.
+
+    "Are you halted?" and "You there?" want opposite words for the same
+    state. Answering both with the sentence written for the first is how
+    "are you running" came back "No, I'm running." — the state was right
+    and the first word contradicted it.
+    """
     from aletheia import policy
     halt = policy.halted()
     if not halt:
-        return "No, I'm running."
+        return "No, I'm running." if asks_if_down else "Yes, I'm running."
     reason = str(halt.get("reason") or "").strip()
-    return "Yes, I'm halted" + (f" — {reason}." if reason else ".")
+    lead = "Yes, I'm halted" if asks_if_down else "No, I'm halted"
+    return lead + (f" — {reason}." if reason else ".")
 
 
 def _waiting() -> str:
@@ -520,9 +544,20 @@ def _uptime() -> str | None:
 
 
 # What he calls it -> what the profile calls it.
-_MINE = {"email": "email", "email address": "email",
-         "phone": "phone", "phone number": "phone", "number": "phone",
-         "city": "city", "town": "city"}
+# More than one field can answer one question: he says "my name" and the
+# store has a preferred name, a legal name and a first name, any of which
+# is a true answer. First one she has, in the order a person would say it.
+_MINE = {"email": ("email",), "email address": ("email",),
+         "phone": ("phone",), "phone number": ("phone",),
+         "number": ("phone",),
+         "city": ("city",), "town": ("city",),
+         "name": ("preferred_name", "first_name", "legal_name"),
+         "first name": ("first_name", "preferred_name"),
+         "last name": ("last_name",),
+         "full name": ("legal_name", "full_name")}
+
+# "Who am I" has no captured word to look up, so it names its own.
+_WHO_AM_I = "name"
 
 
 def _running() -> str | None:
@@ -541,22 +576,83 @@ def _running() -> str | None:
 
 def _mine(what: str) -> str | None:
     """One fact about him, from his profile. Never guessed: an invented
-    phone number is the exact failure `profile` exists to prevent."""
+    phone number is the exact failure `profile` exists to prevent.
+
+    `profile.answer` reads her memory of him as well as the profile
+    itself, so a fact she holds in one store is not denied from the
+    other — which is how "where do I live" answered "I don't have your
+    city on file" while "Hartford, SD 57033" sat on the same disk.
+    """
     from aletheia import profile
-    field = _MINE.get(" ".join(str(what or "").split()).casefold())
-    if not field:
+    asked = " ".join(str(what or "").split()).casefold() or _WHO_AM_I
+    fields = _MINE.get(asked)
+    if not fields:
         return None
     try:
-        value = profile.answer(field)
+        for field in fields:
+            value = profile.answer(field)
+            if value:
+                return str(value)
     except Exception:
         return None
-    if not value:
-        return (f"I don't have your {field} on file. "
+    return (f"I don't have your {asked} on file. "
+            "Tell me and I'll remember it.")
+
+
+def _home() -> str | None:
+    """Where he lives — the city AND the state, which is how it is said.
+
+    `_mine("city")` alone answers "Hartford", and the store holds the
+    state next to it.
+    """
+    from aletheia import profile
+    try:
+        city, state = profile.answer("city"), profile.answer("state")
+    except Exception:
+        return None
+    if not city:
+        return ("I don't have your city on file. "
                 "Tell me and I'll remember it.")
-    return str(value)
+    # Bare, no full stop: `_mine` returns the value and not a sentence,
+    # and "Hartford, SD" already reads as an answer.
+    return f"{city}, {state}" if state else str(city)
 
 
-ANSWERS = {"halted": lambda rest: _halted(),
+def _greeting() -> str | None:
+    """Greeted back, plus the one thing he would have asked next.
+
+    Everything here comes from `presence` and the kill switch: whether
+    she is running, and what is waiting on him. A greeting is the moment
+    that is most worth saying, and it was costing a planner round trip to
+    say nothing.
+    """
+    from aletheia import policy
+    try:
+        halt = policy.halted()
+        if halt:
+            reason = str(halt.get("reason") or "").strip()
+            return ("I'm here, but halted"
+                    + (f" — {reason}." if reason else ".")
+                    + " Nothing runs until you resume me.")
+        from aletheia import presence, speech
+        now = presence.snapshot()
+        waiting = len(list(now.get("waiting_on_you") or []))
+        notices = len(list(now.get("notifications") or []))
+        if not waiting and not notices:
+            return "I'm here. Nothing is waiting on you."
+        bits = []
+        if waiting:
+            bits.append(f"{waiting} waiting on you")
+        if notices:
+            bits.append(f"{notices} I wanted to tell you about")
+        # The list itself is one sentence away, and reading it out is what
+        # "what's waiting on me" is for.
+        return f"I'm here. {speech.and_list(bits)}."
+    except Exception:
+        return None
+
+
+ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "waiting": lambda rest: _waiting(),
            "doing": lambda rest: _doing(),
            "today": lambda rest: _today(),
@@ -577,7 +673,8 @@ ANSWERS = {"halted": lambda rest: _halted(),
            "free": _free,
            "running": lambda rest: _running(),
            "mine": _mine,
-           "home": lambda rest: _mine("city")}
+           "greeting": lambda rest: _greeting(),
+           "home": lambda rest: _home()}
 
 
 # The sentences whose stores cost the most to reach the first time.

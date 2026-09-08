@@ -553,8 +553,16 @@ def _interpret(transcript: str) -> dict:
     # Phrases, not a bare "stop": searched anywhere in the sentence, and
     # every one of them is unambiguous on its own. "Stop the music" does not
     # contain any of them.
+    #
+    # "Stop that" and "stop it" are the same emergency, one pronoun longer,
+    # and they were reaching the planner — which may not emit `halt` at
+    # all, so the sentence that stops her stopped nothing. Only the
+    # pronouns: an OBJECT means something else ("stop the music"), and the
+    # asymmetry decides the rest. A halt he did not mean costs him the
+    # word "resume"; a halt he meant and did not get costs whatever she
+    # was doing.
     if (re.fullmatch(r"(halt|stop|kill switch|emergency stop|shut it down|"
-                     r"stand down)", low)
+                     r"stand down|stop (that|it|now)|that(?:'s| is) enough)", low)
             or re.search(r"\b(stop everything|halt everything|stop all of (it|this)|"
                          r"stop what you.?re doing|stop everything you.?re doing|"
                          r"kill switch|emergency stop|shut (it|everything) down|"
@@ -780,6 +788,10 @@ def _interpret(transcript: str) -> dict:
                     # "task list" and a bare "tasks" made a TASK called
                     # "list", because `task <words>` is the create verb.
                     r"tasks?|task list|the task list|"
+                    # "Read me my tasks" is the same request with the verb
+                    # said out loud, and it was the one that missed.
+                    r"(?:read|say|tell) (?:me )?(?:my |the )?tasks?(?: list)?|"
+                    r"what(?:'s| is|s)? on my (?:task|todo|to-do) list|"
                     r"what am i supposed to be doing)", low):
         return {"command": {"kind": "tasks"}, "say": None}
 
@@ -814,8 +826,10 @@ def _interpret(transcript: str) -> dict:
     # compiled `file_list` and sometimes let `converse` answer — and
     # `converse` does not know she can list a directory, so it replied
     # "no FILE HE NAMED was passed with this question".
-    if re.fullmatch(r"(?:what|which) files (?:do you have|are there|"
-                    r"have you got)|list (?:my |your )?files|"
+    # "What files do I have" — his files, in her workspace — asked the
+    # one way the pattern did not have: about himself rather than her.
+    if re.fullmatch(r"(?:what|which) files (?:do you have|do i have|"
+                    r"are there|have you got)|list (?:my |your )?files|"
                     r"what(?:'s| is|s)? in (?:my |your )?workspace|"
                     r"show me (?:my |your )?files", low):
         return {"command": {"kind": "file_list"}, "say": None}
@@ -952,7 +966,13 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "money"}, "say": None}
 
     if re.fullmatch(r"(?:when is the car due|car service|"
-                    r"does the car need anything|check the car)", low):
+                    r"does the car need anything|check the car|"
+                    # Mileage is the number on the record she already
+                    # reads, and asking for it went to the planner.
+                    r"(?:what(?:'s| is|s)? )?(?:my |the )?car'?s? "
+                    r"(?:mileage|milage)|"
+                    r"how many miles (?:are )?on (?:my|the) car|"
+                    r"what(?:'s| is|s)? the mileage(?: on (?:my|the) car)?)", low):
         return {"command": {"kind": "car"}, "say": None}
 
     if re.fullmatch(r"(?:my projects?|what projects are (?:open|active)|"
@@ -1053,6 +1073,17 @@ def _interpret(transcript: str) -> dict:
         # is an instruction to go somewhere else, said to someone who is
         # standing in a room talking.
         return {"command": None, "say": _offer_choice(pending, verb="deny")}
+
+    # "Thanks" is not a question and has no store behind it, so it does
+    # not belong in `quick` — but it went to the PLANNER, which is 25-80
+    # seconds on this machine to be told you're welcome. It is the same
+    # shape as "never mind" above: a turn that ends politely and asks for
+    # nothing. Whole sentence only, so "thanks for the reminder, remind me
+    # again at six" is still a reminder.
+    if re.fullmatch(r"(?:thanks|thank you|thanks a lot|thanks so much|"
+                    r"thank you very much|ty|cheers|appreciate it|"
+                    r"thanks thea|thank you thea)", low):
+        return {"command": None, "say": "Any time."}
 
     m = re.match(r"(?:add a task|new task|task)\s*(?:to|:)?\s+(.+)", low)
     if m:

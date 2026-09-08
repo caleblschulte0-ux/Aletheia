@@ -92,6 +92,36 @@ class AnswerCase(unittest.TestCase):
         self.assertIn("Yes", said)
         self.assertIn("he said stop", said)
 
+    def test_the_answer_agrees_with_the_question(self):
+        """"Are you running?" was answered "No, I'm running."
+
+        One pattern catches both directions of the same question on
+        purpose. The answer was written for one of them, so the most
+        natural way to ask — "you there" — contradicted itself in the
+        two words after the "No". Both states, because a wrong "yes"
+        while she is halted is the more dangerous half.
+        """
+        asks_if_down = ("are you halted", "are you stopped", "are you off",
+                        "are you frozen", "is the kill switch on")
+        asks_if_up = ("are you running", "are you on", "are you up",
+                      "are you awake", "are you ok", "you there",
+                      "still there", "is the kill switch off")
+
+        with mock.patch("aletheia.policy.halted", lambda: None):
+            for said in asks_if_down:
+                self.assertEqual(quick.answer(said), "No, I'm running.", said)
+            for said in asks_if_up:
+                self.assertEqual(quick.answer(said), "Yes, I'm running.", said)
+
+        with mock.patch("aletheia.policy.halted",
+                        lambda: {"reason": "he said stop"}):
+            for said in asks_if_down:
+                self.assertTrue(quick.answer(said).startswith("Yes, I'm halted"),
+                                f"{said} -> {quick.answer(said)}")
+            for said in asks_if_up:
+                self.assertTrue(quick.answer(said).startswith("No, I'm halted"),
+                                f"{said} -> {quick.answer(said)}")
+
     def test_waiting_counts_what_is_actually_there(self):
         empty = {"halted": False, "waiting_on_you": [], "notifications": []}
         with mock.patch("aletheia.presence.snapshot", lambda: empty):
