@@ -36,7 +36,6 @@ repo is public.
 """
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from aletheia.stateio import private_dir, read_json, safe_id, utcnow, write_json_atomic
