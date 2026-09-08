@@ -461,14 +461,23 @@ def launch_followup(followup_id: str, core_url: str, say,
     collector = collector or collect_followup
     acknowledge = acknowledge or acknowledge_followup
 
+    # Does this collector narrate? A question with an answer, so it is
+    # asked once rather than by calling and seeing what breaks: a
+    # try/except TypeError would call a real collector twice when the
+    # error came from inside it, and would let a crash escape the guard
+    # below — which it did, and a test caught it.
+    try:
+        import inspect
+        narrates = "on_progress" in inspect.signature(collector).parameters
+    except (TypeError, ValueError):
+        narrates = False
+
     def deliver():
         try:
             # `say` is the same mouth the answer comes out of, so a plan
             # and its results cannot arrive out of order.
-            later = collector(followup_id, core_url, on_progress=say)
-        except TypeError:
-            # A collector injected by an older test does not take it.
-            later = collector(followup_id, core_url)
+            later = (collector(followup_id, core_url, on_progress=say)
+                     if narrates else collector(followup_id, core_url))
         except Exception:
             later = None
         say(later or FOLLOWUP_FAILURE)
