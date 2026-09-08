@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: live
 
       - uses: actions/setup-python@v5
         with:
@@ -52,8 +52,8 @@ jobs:
             echo "no decision recorded"
           else
             git commit -m "policy: ${{ steps.decide.outputs.outcome }}"
-            git pull --rebase origin main
-            git push origin main
+            git pull --rebase origin live
+            git push origin live
           fi
 
       - name: Close the issue once decided

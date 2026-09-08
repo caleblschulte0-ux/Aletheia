@@ -13,7 +13,7 @@ on:
     workflows: [pulse]
     types: [completed]
   push:
-    branches: [main]
+    branches: [live, main]
     paths: ["interface/**", "state/pulse/latest.json", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
@@ -35,7 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: live
 
       - name: Assemble the published site (wall + pulse only)
         run: |

@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: live
 
       - uses: actions/setup-python@v5
         with:
@@ -73,6 +73,6 @@ jobs:
             echo "pulse unchanged — nothing to commit"
           else
             git commit -m "pulse: $(date -u +%Y-%m-%dT%H:%MZ)"
-            git pull --rebase origin main
-            git push origin main
+            git pull --rebase origin live
+            git push origin live
           fi

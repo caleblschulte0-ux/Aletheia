@@ -2,7 +2,7 @@ name: chatgpt-windows-bringup
 
 on:
   pull_request:
-    branches: [main]
+    branches: [live, main]
     paths:
       - "aletheia/**"
       - "tests/**"

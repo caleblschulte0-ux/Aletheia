@@ -7,7 +7,7 @@ name: intercom
 
 on:
   push:
-    branches: [main]
+    branches: [live, main]
     paths: ["exchange/commands/**"]
   workflow_dispatch:
 
@@ -26,7 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: live
 
       - uses: actions/setup-python@v5
         with:
@@ -47,6 +47,6 @@ jobs:
             echo "nothing executed"
           else
             git commit -m "intercom: receipts $(date -u +%Y-%m-%dT%H:%MZ)"
-            git pull --rebase origin main
-            git push origin main
+            git pull --rebase origin live
+            git push origin live
           fi
