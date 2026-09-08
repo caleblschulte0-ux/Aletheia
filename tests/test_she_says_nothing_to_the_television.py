@@ -61,6 +61,19 @@ class NoiseIsNotARequestCase(unittest.TestCase):
             with self.subTest(said=said):
                 self.assertTrue(voice.worth_answering(said), said)
 
+    def test_a_short_instruction_is_not_noise(self):
+        """"Print this" was silenced: two words, one a stopword.
+
+        Every fragment his machine actually produced starts with filler.
+        A person who starts with a real word has said something, however
+        short — and silencing that is the failure the rule exists to
+        prevent, pointing the other way.
+        """
+        for said in ("print this", "louder", "weather", "call mom",
+                     "cancel that"):
+            with self.subTest(said=said):
+                self.assertTrue(voice.worth_answering(said), said)
+
     def test_a_real_request_is_never_silenced(self):
         for said in ("what time is it", "add milk to the shopping list",
                      "what is the capital of iceland",

@@ -568,14 +568,23 @@ def worth_answering(said: str) -> bool:
             return True
     except Exception:
         return True
-    words = [w for w in re.findall(r"[a-z0-9']+", text.lower())
-             if w not in _NOT_CONTENT]
-    # Last resort, and only for sentences NO lane recognised. Two content
-    # words: "the injuries" has one and is a fragment of something rather
-    # than a request. The cost of being wrong here is that he repeats
-    # himself once; the cost of being wrong the other way was a planner
-    # round trip and an apology, every time the television spoke.
-    return len(words) >= 2
+    tokens = re.findall(r"[a-z0-9']+", text.lower())
+    if not tokens:
+        return False
+    # THE FIRST WORD IS THE SIGNAL. Every fragment his machine actually
+    # picked up starts with filler — "the", "the injuries", "uh", "um
+    # the", "ok", "yeah", "right", "er", "it", "that". A person who
+    # starts with a real word has said something, however short:
+    # "print this" is two words, one of them a stopword, and it is an
+    # instruction. Silencing that is the same failure this rule exists
+    # to prevent, pointing the other way.
+    if tokens[0] not in _NOT_CONTENT:
+        return True
+    # Otherwise it opened with filler, so it needs two words with meaning
+    # in them. The cost of being wrong here is that he repeats himself
+    # once; the cost of being wrong the other way was a planner round
+    # trip and an apology, every time the television spoke.
+    return len([w for w in tokens if w not in _NOT_CONTENT]) >= 2
 
 
 def interpret(transcript: str) -> dict:
@@ -825,6 +834,31 @@ def _interpret(transcript: str) -> dict:
             at = (dt.datetime.now(dt.timezone.utc) + delta).isoformat()
         return {"command": {"kind": "remind_at", "at": at, "text": m.group(4).strip()},
                 "say": None}
+
+    # THE OTHER WORD ORDER, which is the commoner one. Every pattern
+    # above is "remind me AT <time> TO <thing>"; "remind me to call the
+    # dentist at 3" matched none of them and paid a planner round trip
+    # for the most ordinary request an assistant gets.
+    #
+    # After the forward forms so nothing that already worked changes
+    # route, and a time is REQUIRED: "remind me to call the dentist"
+    # with no when is a task, and the planner decides that better.
+    m = re.match(r"remind me (?:to|that) (.+?) "
+                 r"(?:at ([\w: ]+)|in (\d+) (minutes?|hours?))$", low)
+    if m:
+        if m.group(2):
+            hhmm = _spoken_time(m.group(2))
+            if not hhmm:
+                return _to_the_planner(text)
+            at = _next_occurrence_iso(hhmm, bare_hour=_is_bare_hour(m.group(2)))
+        else:
+            import datetime as dt
+            amount = int(m.group(3))
+            delta = dt.timedelta(minutes=amount) if m.group(4).startswith("minute") \
+                else dt.timedelta(hours=amount)
+            at = (dt.datetime.now(dt.timezone.utc) + delta).isoformat()
+        return {"command": {"kind": "remind_at", "at": at,
+                            "text": m.group(1).strip()}, "say": None}
 
     # "tell me when I get an email from bob"
     m = re.match(r"(?:tell me|let me know|watch for)\s+when\s+(?:i get|there's)?\s*"
@@ -1081,6 +1115,38 @@ def _interpret(transcript: str) -> dict:
                     r"|are (?:you|u) listening"
                     r"|(?:microphone|mic) status)", low):
         return {"command": {"kind": "mic"}, "say": None}
+
+    # DOCUMENTS, SAID THE WAY HE SAYS THEM. `doc_make` was built and had
+    # no sentence, so "make me a spreadsheet of my expenses" went to the
+    # planner — a capability with no way to ask for it is one he never
+    # uses. The FORMAT is the noun he says: spreadsheet/excel -> .xlsx,
+    # deck/presentation/powerpoint -> .pptx, anything else -> .docx.
+    m = re.match(r"(?:make|write|create|draft|put together|build)\s+"
+                 r"(?:me\s+)?(?:a|an|that|this|it)?\s*"
+                 r"(spreadsheet|excel(?: file| sheet)?|sheet|"
+                 r"deck|presentation|powerpoint|slides|"
+                 r"word doc(?:ument)?|doc(?:ument)?|report|memo|write[- ]?up)"
+                 r"\b(?:\s+(?:of|about|for|on|covering)\s+(?P<topic>.+))?$",
+                 low)
+    if m:
+        noun = m.group(1)
+        if re.match(r"spreadsheet|excel|sheet", noun):
+            suffix, kind_word = ".xlsx", "spreadsheet"
+        elif re.match(r"deck|presentation|powerpoint|slides", noun):
+            suffix, kind_word = ".pptx", "deck"
+        else:
+            suffix, kind_word = ".docx", "document"
+        topic = (m.group("topic") or "").strip()
+        stem = re.sub(r"[^a-z0-9]+", "-", topic.lower()).strip("-")[:40]
+        # She needs to know WHAT goes in it, and only he knows that. The
+        # honest move is to ask for the contents rather than invent them —
+        # a spreadsheet of made-up expenses is worse than no spreadsheet.
+        return {"command": None,
+                "say": (f"I can make that {kind_word}"
+                        + (f" about {topic}" if topic else "")
+                        + f". Tell me what goes in it and I'll save it as "
+                        + (f"{stem}{suffix}" if stem else f"a {suffix} file")
+                        + ".")}
 
     # THE AGENT RUNTIME, said the way a person would say it. He should
     # never have to type `spawn --agent=research --provider=claude`.

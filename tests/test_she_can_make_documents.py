@@ -127,9 +127,14 @@ class ADeckIsProvableAfterAllCase(DocumentCase):
 
     def test_slides_survive_characters_that_would_break_the_xml(self):
         made = officedocs.save("odd.pptx", slides=[
-            {"title": "<b>Q3 & Q4</b>", "bullets": ["weird"]}])
+            {"title": "<b>Q3 & Q4</b>", "bullets": ["we\x08ird"]}])
         self.assertTrue(made["verified"]["ok"])
-        self.assertIn("Q3 & Q4", officedocs.deck_text(made["path"])[0])
+        text = officedocs.deck_text(made["path"])[0]
+        self.assertIn("Q3 & Q4", text)
+        # The control character is gone and the word survived — a raw
+        # 0x08 is what makes PowerPoint call a file corrupt.
+        self.assertNotIn("\x08", text)
+        self.assertIn("weird", text)
 
 
 class ItRefusesRatherThanCorruptsCase(DocumentCase):
