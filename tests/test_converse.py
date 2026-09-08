@@ -197,15 +197,12 @@ class ClarifyingIsNotAnswering(ConverseCase):
                   "summary": "Which sister — Ana or Mia?"}
         self.assertEqual(intents.spoken(record), "Which sister — Ana or Mia?")
 
-    def test_only_a_question_reaches_converse(self):
-        source = (Path(__file__).parent.parent / "aletheia" / "intents.py"
-                  ).read_text(encoding="utf-8")
-        branch = source[source.index('if not plan.executable and plan.intent'):]
-        branch = branch[:branch.index("stateio.write_json_atomic")]
-        self.assertIn('if plan.intent == "clarify"', branch)
-        self.assertLess(branch.index('plan.intent == "clarify"'),
-                        branch.index("converse.answer"),
-                        "clarify must return before the answer path")
+    # "A clarify never reaches converse" is asserted in
+    # `test_intents.IntentCase.test_a_clarify_never_reaches_converse`,
+    # where the planner provider, fleet and registry fixtures already
+    # exist. It used to live here as a grep of `intents.py` source, which
+    # went red the day the call moved into a shared helper — a refactor,
+    # not a bug.
 
 
 class SheReadsTheFileHeNames(ConverseCase):

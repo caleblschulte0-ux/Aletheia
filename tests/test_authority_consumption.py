@@ -159,7 +159,7 @@ class RegistryTruthCase(unittest.TestCase):
         # anything that spends, sends, binds or destroys must be declared
         # high-risk or operator_always in the registry itself.
         for cid in ("purchase.execute", "finance.transact", "subscription.cancel",
-                    "reservation.book", "email.send", "errand.run",
+                    "reservation.book", "email.send", "message.send", "errand.run",
                     "intent.execute", "computer.control", "browser.interact"):
             entry = capabilities.get(cid)
             self.assertTrue(

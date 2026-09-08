@@ -174,14 +174,84 @@ def set_answer(field: str, value, *, source: str = "operator") -> dict:
     return answers[field]
 
 
+# What her MEMORY of him already contains, in the words this store uses.
+#
+# Her memory (Playbook §38-45) and this profile both ended up holding his
+# name and his city, and only one of them was ever read for an answer. On
+# his machine memory held "Caleb Schulte" and "Hartford, SD 57033" while
+# every field here was empty, so "where do I live" came back "I don't
+# have your city on file" — about a fact on the same disk — and
+# `setup_status` asked him for it.
+#
+# Parsed, not pasted. These values are typed into form fields, and
+# "Hartford, SD 57033" in a box labelled City is the same class of wrong
+# as a phone number with two extra digits on the front.
+_FROM_MEMORY = ("full_name", "operator_name", "home_city")
+
+
+def _split_place(value: str) -> dict:
+    """"Hartford, SD 57033" -> city / state / postal_code."""
+    m = re.match(r"\s*(?P<city>[^,]{2,60}?)\s*,\s*(?P<state>[A-Za-z]{2})"
+                 r"(?:\s+(?P<zip>[0-9]{5}(?:-[0-9]{4})?))?\s*$", str(value or ""))
+    if not m:
+        return {}
+    out = {"city": m.group("city").strip(), "state": m.group("state").upper()}
+    if m.group("zip"):
+        out["postal_code"] = m.group("zip")
+    return out
+
+
+def _split_name(value: str) -> dict:
+    words = str(value or "").split()
+    if not (2 <= len(words) <= 4):
+        return {}
+    return {"legal_name": " ".join(words),
+            "first_name": words[0], "last_name": words[-1]}
+
+
+def from_memory() -> dict:
+    """The overlap, translated — read-only, and never written back here.
+
+    Copying would create the second source of truth that caused this.
+    Never raises: memory being unreadable must not take the profile down
+    with it, because the profile is the half he actually corrects.
+    """
+    try:
+        from aletheia import memory
+        identity = (memory.everything() or {}).get("identity") or {}
+    except Exception:
+        return {}
+    held = {}
+    for key in _FROM_MEMORY:
+        entry = identity.get(key)
+        value = entry.get("value") if isinstance(entry, dict) else entry
+        if not value:
+            continue
+        if key == "home_city":
+            held.update(_split_place(value))
+        elif key == "full_name":
+            held.update(_split_name(value))
+        elif key == "operator_name":
+            held.setdefault("preferred_name", str(value).strip())
+    return {k: v for k, v in held.items() if k in FIELDS and v}
+
+
 def answer(field: str):
     held = load().get(field)
-    return held.get("value") if isinstance(held, dict) else None
+    value = held.get("value") if isinstance(held, dict) else None
+    if value in (None, ""):
+        # Not "she does not know" until BOTH have been asked.
+        return from_memory().get(field)
+    return value
 
 
 def known() -> dict:
-    return {k: v.get("value") for k, v in load().items()
+    """Everything she can answer, this store winning where they overlap."""
+    held = {k: v.get("value") for k, v in load().items()
             if isinstance(v, dict) and v.get("value") not in (None, "")}
+    remembered = from_memory()
+    remembered.update(held)
+    return remembered
 
 
 def missing(fields: list[str] | None = None) -> list[dict]:
@@ -205,7 +275,13 @@ def forget(field: str) -> bool:
 # ---- learning it instead of asking for it --------------------------------
 
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
-_PHONE = re.compile(r"(?:\+?\d{1,2}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}")
+# A separator inside a phone number is a space, a dot or a hyphen — NEVER
+# a line break, and the country code needs its plus. Without both, a line
+# above his number ending in "33" was read as part of it: his real resume
+# yielded "33 (605) 321-5691". `[\s.-]` matched the newline, and `\d{1,2}`
+# with an optional plus was happy to call "33" a country code.
+_PHONE = re.compile(r"(?<!\d)(?:\+\d{1,2}[ .\-]?)?\(?\d{3}\)?[ .\-]?"
+                    r"\d{3}[ .\-]?\d{4}(?!\d)")
 _LINKEDIN = re.compile(r"(?:https?://)?(?:www\.)?linkedin\.com/in/[\w-]+", re.I)
 _GITHUB = re.compile(r"(?:https?://)?(?:www\.)?github\.com/[\w-]+", re.I)
 _SITE = re.compile(r"https?://[\w.-]+\.[a-z]{2,}(?:/\S*)?", re.I)

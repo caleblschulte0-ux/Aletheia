@@ -144,6 +144,32 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # one match or a question back, never a guess (2026-09-02)
     "email_read":    ({"which"}, set()),
     "email_draft":   ({"to", "body"}, {"subject"}),
+    # The most-asked-for thing she could not do — thirteen times in the
+    # demand ledger, in his own words. Same shape as email_draft: it
+    # writes a draft and an approval and sends nothing.
+    "message_send":  ({"to", "body"}, set()),
+    # Word and Excel. The suffix picks the format; `content` is blocks
+    # for a .docx and rows for a .xlsx.
+    "doc_make":      ({"path", "content"}, {"sheet_name", "why"}),
+    # The agent runtime, said out loud. `agent_new` is the only one that
+    # adds capacity, so it is the only one that is world-tier.
+    # The room microphone. `mic_on` is a BUTTON, never a sentence.
+    # His ChatGPT subscription as a second worker. Granting ADDS
+    # capacity, so it is world-tier by falling through; stopping only
+    # ever reduces, so it is routine and never waits.
+    # Transport for whatever is playing. LOCAL: it presses keys on
+    # his own machine.
+    "music":         ({"action"}, set()),
+    "chatgpt":       (set(), set()),
+    "chatgpt_on":    (set(), {"hours"}),
+    "chatgpt_off":   (set(), set()),
+    "mic":           (set(), set()),
+    "mic_on":        (set(), set()),
+    "mic_off":       (set(), set()),
+    "agents":        (set(), set()),
+    "agent_new":     ({"name", "mission"}, {"project", "agent_type"}),
+    "agent_stop":    ({"which"}, set()),
+    "agents_pause":  (set(), set()),
     # personal-OS verbs (2026-08-26): PC-private state, so all LOCAL_KINDS
     "remind_at":       ({"at", "text"}, set()),
     "remind_daily":    ({"time", "text"}, {"tz"}),
@@ -384,6 +410,11 @@ KIND_NOTES: dict[str, str] = {
 # no receipt is honestly PENDING: the PC hasn't picked it up (Core off or
 # offline), and ChatGPT should say exactly that, not invent an outcome.
 LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email_draft",
+               # the workspace is a directory on his PC
+               "doc_make",
+               # Phone Link is paired to his iPhone on THIS machine;
+               # Actions cannot text anybody.
+               "message_send", "music",
                # research only READS pages, but it reads them with the
                # operator's browser, so it belongs to the PC runner
                "research",
@@ -421,6 +452,17 @@ READ_ONLY_KINDS = frozenset({
     # Asking whether she is on changes nothing and must stay answerable
     # while she is halted, closed, or halfway between the two.
     "running",
+    # And so must "what are your workers doing" — knowing what is running
+    # is most urgent exactly when something has gone wrong.
+    "agents",
+    # "Is the microphone on" must be answerable at any time, in any
+    # state. It is the question he is most entitled to a straight answer
+    # to, and it changes nothing by being asked.
+    "mic",
+    # "Are you using my ChatGPT" must be answerable at any moment: it is
+    # his account, and the question is one he is entitled to a straight
+    # answer to whatever else is happening.
+    "chatgpt",
     "note", "notify_check", "free_time", "brief", "subscriptions", "money",
     # Reads public job boards. Prepares nothing, sends nothing.
     "jobs", "tasks", "reminders", "shopping_list", "applications",
@@ -448,6 +490,21 @@ ROUTINE_KINDS = frozenset({
     # the whole test for this tier — the schedule is disabled, never
     # deleted, so "actually put that back" is one command.
     "reminder_off", "shopping_off", "notify_snooze", "notify_operator",
+    # Writes one file inside her own workspace: reversible, reaches
+    # nobody, and the workspace keeps the previous version. Same tier as
+    # `file_write`, which it sits beside.
+    "doc_make",
+    # Stopping a worker only ever REDUCES what is running, and a stop
+    # that waits for an approval arrives after the thing it was meant to
+    # prevent. Creating one is world-tier; stopping one is not.
+    "agent_stop", "agents_pause",
+    # CLOSING the microphone only ever reduces what is listening, so it
+    # is routine and never waits. Opening it is world-tier by falling
+    # through, and forbidden to the planner besides.
+    "mic_off", "chatgpt_off",
+    # Pressing pause is as reversible as pressing play, and a media
+    # key reaches nobody outside the room.
+    "music",
     # Ticking a task off. It was left out when it was added — an
     # OVERSIGHT, not a gate: `task_status` sets ANY status including
     # COMPLETED and has always been routine, so the narrower verb was
@@ -487,6 +544,18 @@ ROUTINE_KINDS = frozenset({
 # themselves. The classification FAILS CLOSED — a kind added tomorrow and
 # forgotten here is treated as world-touching, which is the safe mistake.
 TIER_READ, TIER_ROUTINE, TIER_WORLD = "read", "routine", "world"
+
+
+def _agent_id(name: str) -> str:
+    """A spoken name -> a filesystem-safe id, deduped against what exists."""
+    import re as _re
+    from aletheia import agents
+    base = _re.sub(r"[^a-z0-9]+", "-", str(name or "").lower()).strip("-")[:40]
+    base = base or "worker"
+    candidate, n = base, 2
+    while agents.exists(candidate):
+        candidate, n = f"{base}-{n}", n + 1
+    return candidate
 
 
 def tier(kind: str) -> str:
@@ -563,6 +632,9 @@ PLANNER_FORBIDDEN = frozenset({
     # Every phrasing that means the SWITCH is matched in `voice` before
     # the planner is ever called.
     "close", "open",
+    # A microphone a model can open is not a microphone that is off. His
+    # ruling: it is a button he presses, and the planner is not a button.
+    "mic_on",
 })
 
 
@@ -1556,6 +1628,127 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                        requested_via=f"intercom: {quote[:80]}")
         return (f"draft to {d['to_name']} ready — {d['subject']!r}. "
                 f"Approval {d['id']} is pending; approving it sends the email.")
+    if kind == "music":
+        from aletheia import music
+        return music.control(cmd["action"])
+    if kind == "chatgpt":
+        from aletheia import second_opinion
+        return second_opinion.spoken()
+    if kind == "chatgpt_on":
+        from aletheia import second_opinion
+        hours = cmd.get("hours") or second_opinion.DEFAULT_HOURS
+        second_opinion.grant(int(hours),
+                             via=f"operator: {quote[:60]}" if quote else "operator")
+        return second_opinion.spoken()
+    if kind == "chatgpt_off":
+        from aletheia import second_opinion
+        second_opinion.revoke(via=f"operator: {quote[:60]}" if quote else "operator")
+        return second_opinion.spoken()
+    if kind == "mic":
+        from aletheia import ears
+        return ears.spoken()
+    if kind == "mic_on":
+        from aletheia import ears
+        ears.turn_on(via=f"command centre: {quote[:60]}" if quote else "command centre")
+        # A BUTTON DOES THE THING. Setting the flag and starting nothing
+        # would have him press MIC, hear silence, and conclude it is
+        # broken — on a machine where the listener is not already up,
+        # which is every machine now that it does not start itself.
+        started, detail = ears.start_room()
+        if not started:
+            return ("The microphone is on, but I could not start the "
+                    f"listener — {detail}. Nothing is listening yet.")
+        return ("The microphone is on. It closes when she closes or the "
+                "machine restarts — it never comes back by itself.")
+    if kind == "mic_off":
+        from aletheia import ears
+        ears.turn_off(via=f"voice: {quote[:60]}" if quote else "operator")
+        ears.stop_room()
+        return "The microphone is off. Nothing is listening."
+    if kind == "agents":
+        from aletheia import agents
+        return agents.spoken_roster()
+    if kind == "agent_stop":
+        from aletheia import agents
+        which = str(cmd["which"]).strip()
+        matches = [a for a in agents.all_agents()
+                   if a["status"] not in agents.FINISHED
+                   and (which.casefold() in a["id"].casefold()
+                        or which.casefold() in str(a.get("name", "")).casefold())]
+        if not matches:
+            return f"No worker called {which}."
+        if len(matches) > 1:
+            # `speech` is imported at module scope. A local `from ... import`
+            # here would make the name local to this WHOLE function and
+            # break every other branch that uses it — which is exactly
+            # what it did to `computer_do`.
+            return ("More than one matches — "
+                    + speech.or_list([a["name"] for a in matches[:4]]) + "?")
+        stopped = agents.kill(matches[0]["id"], why=f"by voice: {quote[:60]}")
+        extra = len(stopped) - 1
+        return (f"Stopped {matches[0]['name']}."
+                + (f" And {extra} working under it." if extra else ""))
+    if kind == "agents_pause":
+        from aletheia import agents
+        stopped = agents.kill_all(why=f"by voice: {quote[:60]}")
+        if not stopped:
+            return "Nothing was running."
+        return f"Stopped {len(stopped)} worker{'s' if len(stopped) != 1 else ''}."
+    if kind == "agent_new":
+        from aletheia import agents
+        made = agents.spawn(
+            _agent_id(cmd["name"]), name=cmd["name"], mission=cmd["mission"],
+            agent_type=cmd.get("agent_type", "project"),
+            project=cmd.get("project", ""),
+            # The starting scope is READ-ONLY on purpose. A worker created
+            # by a sentence begins able to look and not to touch; widening
+            # it is a separate decision, made once he knows what it is for.
+            #
+            # This said `grantable(READ_ONLY_KINDS)` first — intercom KINDS
+            # where registry CAPABILITY IDS were wanted. Every id was
+            # unknown, all of them were dropped, and the agent was created
+            # holding nothing at all: safe by accident, meaningless on
+            # purpose. `risk_class == "read"` is the registry's own word.
+            capabilities=agents.reading_scope())
+        return (f"{made['name']} exists — {made['mission'][:90]}. "
+                f"It can read and nothing else until you widen it.")
+    if kind == "doc_make":
+        from aletheia import officedocs
+        content = cmd["content"]
+        if not isinstance(content, list) or not content:
+            raise ValueError("content must be a non-empty list — blocks for a "
+                             "document, rows for a spreadsheet")
+        suffix = str(cmd["path"]).lower().rsplit(".", 1)[-1]
+        if suffix == "pptx":
+            # A dict is a slide with bullets; a bare string is a slide
+            # that is only a title, which is what a planner produces for
+            # a section break.
+            slides = [c if isinstance(c, dict) else {"title": str(c)}
+                      for c in content]
+            made = officedocs.save(cmd["path"], slides=slides,
+                                   why=cmd.get("why", ""))
+        elif suffix == "xlsx":
+            made = officedocs.save(cmd["path"], rows=content,
+                                   sheet_name=cmd.get("sheet_name", "Sheet1"),
+                                   why=cmd.get("why", ""))
+        else:
+            # A list of strings is a document of plain paragraphs, which
+            # is what a planner produces when it has not been asked for
+            # headings; a list of dicts carries styles.
+            blocks = [b if isinstance(b, dict) else {"text": b} for b in content]
+            made = officedocs.save(cmd["path"], blocks=blocks,
+                                   why=cmd.get("why", ""))
+        name = made["path"].rsplit("\\", 1)[-1].rsplit("/", 1)[-1]
+        return (f"wrote {name} — {made['kind']}, "
+                f"{made['bytes']} bytes, and it reads back correctly")
+    if kind == "message_send":
+        from aletheia import messages
+        d = messages.draft(cmd["to"], cmd["body"],
+                           requested_via=f"intercom: {quote[:80]}")
+        # The number is not read back: he knows who Brant is, and a phone
+        # number spoken aloud in a room is his to say, not hers.
+        return (f"text to {d['to_name']} ready. Approval {d['id']} is "
+                f"pending; approving it sends it from your phone.")
     if kind == "browse_shot":
         from aletheia import browse
         out = REPO_ROOT / "cache" / "browser-captures"

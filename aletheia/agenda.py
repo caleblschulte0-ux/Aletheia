@@ -78,6 +78,12 @@ FORBIDDEN_KINDS = {
     # mid-mission would shut her down in the middle of his work and look,
     # from outside, exactly like a crash.
     "close", "open",
+    # ...and it may not OPEN THE MICROPHONE. His ruling is that listening
+    # is a button he presses; an agenda that could press it would make the
+    # default he refused reachable by a mission he approved for something
+    # else entirely. `mic_off` is deliberately absent — an agenda closing
+    # the microphone only ever reduces what is listening.
+    "mic_on",
     # an agenda that files intents that file intents is a loop with a budget
     "intent",
     # standing proactive rules are authority that outlives this mission
@@ -88,6 +94,7 @@ FORBIDDEN_KINDS = {
 
 REFUSAL_REASON = {
     "close": "an agenda that can close her can close her mid-mission",
+    "mic_on": "the microphone is a button he presses, not a step in a mission",
     "open": "opening her again is his, not a mission's",
     "approve": "an agenda that can approve things can approve its own",
     "deny": "an agenda that can decide approvals can decide its own",

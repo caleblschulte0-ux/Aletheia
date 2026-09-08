@@ -24,6 +24,21 @@ from aletheia import intercom
 
 # writer -> the read-only kind he asks with, or "" and a reason.
 READER_FOR = {
+    # Stopping a worker changes what is running, and "what are your
+    # workers doing" is how he finds out it worked. A runtime he can
+    # start things in and not see is the exact shape this file exists
+    # to prevent.
+    # Closing the microphone changes what is listening, and "is the mic
+    # on" is how he confirms it. A switch he can flip and not see is the
+    # shape this file exists to prevent — doubly so for a microphone.
+    "mic_off": "mic",
+    # He turned it off; "are you using my ChatGPT" is how he sees it.
+    "chatgpt_off": "chatgpt",
+    # Pressing pause is its own confirmation: the room goes quiet.
+    # There is no store to read back, so this is the reader.
+    "music": "running",
+    "agent_stop": "agents",
+    "agents_pause": "agents",
     "task_new": "tasks",
     "task_status": "tasks",
     "task_done": "tasks",
@@ -42,6 +57,9 @@ READER_FOR = {
     "plan_set": "projects",
     "apply_prepare": "applications",
     "apply_campaign": "applications",
+    # She wrote it into the workspace; `file_list` is how he sees it is
+    # there, and `file_read` cannot read a .docx back as text.
+    "doc_make": "file_list",
     "file_write": "file_list",
     "file_edit": "file_read",
     "file_move": "file_list",

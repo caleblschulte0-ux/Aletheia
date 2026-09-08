@@ -523,6 +523,70 @@ def _known_place(text: str) -> bool:
         return False
 
 
+# Words that carry no request on their own. Filler, and the handful of
+# bare function words a recogniser produces from room noise — "the" is
+# the one that actually happened, over and over.
+_NOT_CONTENT = frozenset("""
+a an the and or but so of to in on at for with from by is are was were be
+been am do does did done have has had will would could should may might
+must can it its it's this that these those there here he she they them
+him her his hers their we us our you your i me my mine
+uh uhh um umm er erm hmm mm mhm ah oh eh yeah yep yup nah nope ok okay
+right well like just really actually thing things please thanks thank
+""".split())
+
+
+def worth_answering(said: str) -> bool:
+    """Did a person actually ask her something?
+
+    False means SAY NOTHING — not "I didn't catch that". A machine that
+    apologises to the television is broken, and every apology also cost a
+    planner round trip and a notification.
+
+    Anything the deterministic layer compiles is a request whatever its
+    length, so "stop" — one word, and the most important word here — can
+    never be silenced by this.
+    """
+    text = " ".join(str(said or "").split())
+    if not text:
+        return False
+    try:
+        got = interpret(text) or {}
+        if (got.get("command") or {}).get("kind") not in (None, "intent"):
+            return True
+        if got.get("say") and not got.get("command"):
+            return True          # a turn she already knows how to end
+    except Exception:
+        return True              # never silent because something broke
+    try:
+        # THE LANE THAT ANSWERS MOST OF WHAT HE SAYS. "Are you halted" is
+        # an `intent` to the interpreter and one content word to the
+        # counter — "halted" — so without this the most basic question he
+        # can ask her was treated as room noise.
+        from aletheia import quick
+        if quick.answer(text):
+            return True
+    except Exception:
+        return True
+    tokens = re.findall(r"[a-z0-9']+", text.lower())
+    if not tokens:
+        return False
+    # THE FIRST WORD IS THE SIGNAL. Every fragment his machine actually
+    # picked up starts with filler — "the", "the injuries", "uh", "um
+    # the", "ok", "yeah", "right", "er", "it", "that". A person who
+    # starts with a real word has said something, however short:
+    # "print this" is two words, one of them a stopword, and it is an
+    # instruction. Silencing that is the same failure this rule exists
+    # to prevent, pointing the other way.
+    if tokens[0] not in _NOT_CONTENT:
+        return True
+    # Otherwise it opened with filler, so it needs two words with meaning
+    # in them. The cost of being wrong here is that he repeats himself
+    # once; the cost of being wrong the other way was a planner round
+    # trip and an apology, every time the television spoke.
+    return len([w for w in tokens if w not in _NOT_CONTENT]) >= 2
+
+
 def interpret(transcript: str) -> dict:
     """One spoken sentence -> a command to gate-check, or words to say.
 
@@ -553,8 +617,16 @@ def _interpret(transcript: str) -> dict:
     # Phrases, not a bare "stop": searched anywhere in the sentence, and
     # every one of them is unambiguous on its own. "Stop the music" does not
     # contain any of them.
+    #
+    # "Stop that" and "stop it" are the same emergency, one pronoun longer,
+    # and they were reaching the planner — which may not emit `halt` at
+    # all, so the sentence that stops her stopped nothing. Only the
+    # pronouns: an OBJECT means something else ("stop the music"), and the
+    # asymmetry decides the rest. A halt he did not mean costs him the
+    # word "resume"; a halt he meant and did not get costs whatever she
+    # was doing.
     if (re.fullmatch(r"(halt|stop|kill switch|emergency stop|shut it down|"
-                     r"stand down)", low)
+                     r"stand down|stop (that|it|now)|that(?:'s| is) enough)", low)
             or re.search(r"\b(stop everything|halt everything|stop all of (it|this)|"
                          r"stop what you.?re doing|stop everything you.?re doing|"
                          r"kill switch|emergency stop|shut (it|everything) down|"
@@ -763,6 +835,76 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "remind_at", "at": at, "text": m.group(4).strip()},
                 "say": None}
 
+    # THE OTHER WORD ORDER, which is the commoner one. Every pattern
+    # above is "remind me AT <time> TO <thing>"; "remind me to call the
+    # dentist at 3" matched none of them and paid a planner round trip
+    # for the most ordinary request an assistant gets.
+    #
+    # After the forward forms so nothing that already worked changes
+    # route, and a time is REQUIRED: "remind me to call the dentist"
+    # with no when is a task, and the planner decides that better.
+    m = re.match(r"remind me (?:to|that) (.+?) "
+                 r"(?:at ([\w: ]+)|in (\d+) (minutes?|hours?))$", low)
+    if m:
+        if m.group(2):
+            hhmm = _spoken_time(m.group(2))
+            if not hhmm:
+                return _to_the_planner(text)
+            at = _next_occurrence_iso(hhmm, bare_hour=_is_bare_hour(m.group(2)))
+        else:
+            import datetime as dt
+            amount = int(m.group(3))
+            delta = dt.timedelta(minutes=amount) if m.group(4).startswith("minute") \
+                else dt.timedelta(hours=amount)
+            at = (dt.datetime.now(dt.timezone.utc) + delta).isoformat()
+        return {"command": {"kind": "remind_at", "at": at,
+                            "text": m.group(1).strip()}, "say": None}
+
+    # A TIMER IS A ONE-SHOT ALERT, which is what `remind_at` already is.
+    # `timer.set` was NOT_BUILT because the sentence reached nothing, not
+    # because the mechanism was missing: "remind me in 10 minutes to
+    # check the oven" has worked for weeks. So a timer said AS a timer
+    # compiles to the same durable schedule, with the words a person
+    # wants to hear at the end.
+    m = re.fullmatch(r"(?:set|start) (?:a |an )?timer (?:for |of )?"
+                     r"(\d+)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?)"
+                     r"(?:\s+(?:to|for|so i can)\s+(.+))?", low)
+    if m:
+        import datetime as dt
+        amount, unit = int(m.group(1)), m.group(2)
+        if unit.startswith(("second", "sec")):
+            delta, spoken_unit = dt.timedelta(seconds=amount), "second"
+        elif unit.startswith(("hour", "hr")):
+            delta, spoken_unit = dt.timedelta(hours=amount), "hour"
+        else:
+            delta, spoken_unit = dt.timedelta(minutes=amount), "minute"
+        why = (m.group(3) or "").strip()
+        # The unit is an ADJECTIVE here and stays singular — "a 10
+        # minute timer", not "a 10 minutes timer". Pluralising it
+        # is the right rule in the wrong place, and this is read
+        # out loud.
+        text = why or f"your {amount} {spoken_unit} timer is up"
+        at = (dt.datetime.now(dt.timezone.utc) + delta).isoformat()
+        return {"command": {"kind": "remind_at", "at": at, "text": text},
+                "say": None}
+
+    # An alarm is the same thing at a clock time, and it inherits the
+    # bare-hour rule: "at 7" said in the evening means tomorrow morning,
+    # which is written down here already because a bare hour once became
+    # three in the morning.
+    m = re.fullmatch(r"(?:set|wake me(?: up)?(?: with)?) (?:an |a )?alarm "
+                     r"(?:for |at )([\w: ]+?)(?:\s+(?:to|for)\s+(.+))?"
+                     r"|wake me(?: up)? at ([\w: ]+)", low)
+    if m:
+        when = (m.group(1) or m.group(3) or "").strip()
+        hhmm = _spoken_time(when)
+        if not hhmm:
+            return _to_the_planner(text)
+        at = _next_occurrence_iso(hhmm, bare_hour=_is_bare_hour(when))
+        why = (m.group(2) or "").strip()
+        return {"command": {"kind": "remind_at", "at": at,
+                            "text": why or "your alarm"}, "say": None}
+
     # "tell me when I get an email from bob"
     m = re.match(r"(?:tell me|let me know|watch for)\s+when\s+(?:i get|there's)?\s*"
                  r"(?:an?\s+)?e?mail (?:arrives )?from\s+(.+)", low) or \
@@ -780,6 +922,10 @@ def _interpret(transcript: str) -> dict:
                     # "task list" and a bare "tasks" made a TASK called
                     # "list", because `task <words>` is the create verb.
                     r"tasks?|task list|the task list|"
+                    # "Read me my tasks" is the same request with the verb
+                    # said out loud, and it was the one that missed.
+                    r"(?:read|say|tell) (?:me )?(?:my |the )?tasks?(?: list)?|"
+                    r"what(?:'s| is|s)? on my (?:task|todo|to-do) list|"
                     r"what am i supposed to be doing)", low):
         return {"command": {"kind": "tasks"}, "say": None}
 
@@ -814,8 +960,10 @@ def _interpret(transcript: str) -> dict:
     # compiled `file_list` and sometimes let `converse` answer — and
     # `converse` does not know she can list a directory, so it replied
     # "no FILE HE NAMED was passed with this question".
-    if re.fullmatch(r"(?:what|which) files (?:do you have|are there|"
-                    r"have you got)|list (?:my |your )?files|"
+    # "What files do I have" — his files, in her workspace — asked the
+    # one way the pattern did not have: about himself rather than her.
+    if re.fullmatch(r"(?:what|which) files (?:do you have|do i have|"
+                    r"are there|have you got)|list (?:my |your )?files|"
                     r"what(?:'s| is|s)? in (?:my |your )?workspace|"
                     r"show me (?:my |your )?files", low):
         return {"command": {"kind": "file_list"}, "say": None}
@@ -952,12 +1100,37 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "money"}, "say": None}
 
     if re.fullmatch(r"(?:when is the car due|car service|"
-                    r"does the car need anything|check the car)", low):
+                    r"does the car need anything|check the car|"
+                    # Mileage is the number on the record she already
+                    # reads, and asking for it went to the planner.
+                    r"(?:what(?:'s| is|s)? )?(?:my |the )?car'?s? "
+                    r"(?:mileage|milage)|"
+                    r"how many miles (?:are )?on (?:my|the) car|"
+                    r"what(?:'s| is|s)? the mileage(?: on (?:my|the) car)?)", low):
         return {"command": {"kind": "car"}, "say": None}
 
     if re.fullmatch(r"(?:my projects?|what projects are (?:open|active)|"
-                    r"what am i working on)", low):
+                    r"what am i working on|"
+                    # "Repos" is the word he uses, in a repository he
+                    # wrote. `projects` takes no arguments, so there was
+                    # nothing standing between this sentence and it
+                    # except the sentence.
+                    r"(?:check |how are )?(?:my |the )?repos(?:itories)?|"
+                    r"how are my projects|what's happening with my projects|"
+                    r"project status)", low):
         return {"command": {"kind": "projects"}, "say": None}
+
+    # "Cancel my gym membership." HIGH-RISK and operator_always, so
+    # reaching the verb means she PREPARES it and asks him — which is
+    # exactly what should happen. The alternative was the planner
+    # compiling something adjacent, and CLAUDE.md already records what
+    # that looks like: "1 step ready — Cancel a reminder."
+    m = re.fullmatch(r"cancel (?:my |the )?(.+?)"
+                     r"(?: membership| subscription| plan)?", low)
+    if m and 2 <= len(m.group(1)) <= 60 and not re.match(
+            r"that|it|the pending one|approval|reminder|alarm|timer", m.group(1)):
+        return {"command": {"kind": "subscription_cancel",
+                            "subscription": m.group(1).strip()}, "say": None}
 
     # Screen questions run BEFORE the browse verbs for the same reason the
     # email ones do: "read this" is about what is in front of him, not a
@@ -975,6 +1148,170 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:check (?:my )?e?mail|any (?:new )?e?mail|"
                     r"do i have (?:any )?e?mail|what's in my inbox)", low):
         return {"command": {"kind": "email_check"}, "say": None}
+
+    # SHE CAN BE TOLD TO STOP LISTENING, and cannot be told to start.
+    # Turning it on is a button (intercom `mic_on`, and PLANNER_FORBIDDEN
+    # besides), because a microphone that opens when it is spoken to is
+    # not off. Turning it off works from anywhere, always.
+    if re.fullmatch(r"(?:stop listening|quit listening|stop the microphone"
+                    r"|(?:turn|shut) (?:the )?(?:microphone|mic) off"
+                    r"|(?:turn|shut) off (?:the )?(?:microphone|mic)"
+                    r"|close (?:your |the )?(?:ears|microphone|mic)"
+                    r"|(?:you can )?stop listening now)", low):
+        return {"command": {"kind": "mic_off"}, "say": None}
+
+    # AND ASKING FOR IT OUT LOUD IS ANSWERED, NOT COMPILED. `mic_on` is
+    # PLANNER_FORBIDDEN, and CLAUDE.md is explicit about what happens to
+    # a forbidden verb that reaches the planner anyway: it is SUBSTITUTED.
+    # "Resume yourself" ran `brief` and reported success while resuming
+    # nothing. So this asks for the one thing that does work rather than
+    # letting a compiler near it.
+    if re.fullmatch(r"(?:start listening|listen to me|open (?:your |the )?"
+                    r"(?:ears|microphone|mic)|(?:turn|switch) on (?:the |your )?"
+                    r"(?:microphone|mic)|(?:turn|switch) (?:the |your )?"
+                    r"(?:microphone|mic) on|keep listening)", low):
+        return {"command": None,
+                "say": ("The microphone is a button, not something I turn on "
+                        "for you. Press MIC in the Command Center and I'll "
+                        "start listening.")}
+
+    if re.fullmatch(r"(?:is (?:the |your )?(?:microphone|mic) on"
+                    r"|are (?:you|u) listening"
+                    r"|(?:microphone|mic) status)", low):
+        return {"command": {"kind": "mic"}, "say": None}
+
+    # MUSIC. Transport only, and the difference is said out loud rather
+    # than blurred: media keys control what is already queued, and
+    # choosing what plays needs his Spotify account.
+    m = re.fullmatch(r"(?:play|start|resume) (?:some |the |my )?"
+                     r"(?:music|tunes|spotify|something)"
+                     r"|(?:play|resume)(?: it)?"
+                     r"|(?:pause|stop) (?:the )?(?:music|song|spotify|track)"
+                     r"|pause(?: it)?"
+                     r"|(?:skip|next)(?: (?:this|the|that))?(?: (?:song|track|one))?"
+                     r"|(?:go back|previous)(?: (?:a |one )?(?:song|track))?"
+                     r"|(?:play|start) it again", low)
+    if m:
+        if re.match(r"(?:pause|stop)", low):
+            action = "pause"
+        elif re.match(r"(?:skip|next)", low):
+            action = "next"
+        elif re.match(r"(?:go back|previous)", low):
+            action = "previous"
+        else:
+            action = "play"
+        return {"command": {"kind": "music", "action": action}, "say": None}
+
+    # NAMING SOMETHING TO PLAY is the half that needs his account, and
+    # she says so instead of resuming whatever was paused on Thursday and
+    # calling it what he asked for.
+    # The signal is not the word "some", it is what follows it: "play
+    # some MUSIC" is transport and "put on some JAZZ" is a choice.
+    if re.match(r"(?:play|put on)\s+"
+                r"(?!(?:some |the |my )?(?:music|tunes|spotify|something)\b"
+                r"|it\b|devils?\b|devil's\b)"
+                r"[a-z0-9]", low):
+        from aletheia import music as _music
+        return {"command": None, "say": _music.cannot_choose()}
+
+    # HIS CHATGPT SUBSCRIPTION AS A SECOND WORKER. Granting it is a
+    # deliberate act and stopping it is instant, the same asymmetry as
+    # every other switch here.
+    if re.fullmatch(r"(?:you can )?use (?:my )?chat ?gpt(?: for this| too| as well)?"
+                    r"|(?:ask|check with) chat ?gpt (?:too|as well|for a second opinion)"
+                    r"|turn on chat ?gpt|enable chat ?gpt", low):
+        return {"command": {"kind": "chatgpt_on"}, "say": None}
+    if re.fullmatch(r"(?:stop|quit|don'?t) using (?:my )?chat ?gpt"
+                    r"|turn off chat ?gpt|disable chat ?gpt"
+                    r"|(?:stop|no more) chat ?gpt", low):
+        return {"command": {"kind": "chatgpt_off"}, "say": None}
+    if re.fullmatch(r"(?:are|r) (?:you|u) using (?:my )?chat ?gpt"
+                    r"|chat ?gpt status|(?:can|could) (?:you|u) use "
+                    r"(?:my )?chat ?gpt", low):
+        return {"command": {"kind": "chatgpt"}, "say": None}
+
+    # DOCUMENTS, SAID THE WAY HE SAYS THEM. `doc_make` was built and had
+    # no sentence, so "make me a spreadsheet of my expenses" went to the
+    # planner — a capability with no way to ask for it is one he never
+    # uses. The FORMAT is the noun he says: spreadsheet/excel -> .xlsx,
+    # deck/presentation/powerpoint -> .pptx, anything else -> .docx.
+    m = re.match(r"(?:make|write|create|draft|put together|build)\s+"
+                 r"(?:me\s+)?(?:a|an|that|this|it)?\s*"
+                 r"(spreadsheet|excel(?: file| sheet)?|sheet|"
+                 r"deck|presentation|powerpoint|slides|"
+                 r"word doc(?:ument)?|doc(?:ument)?|report|memo|write[- ]?up)"
+                 r"\b(?:\s+(?:of|about|for|on|covering)\s+(?P<topic>.+))?$",
+                 low)
+    if m:
+        noun = m.group(1)
+        if re.match(r"spreadsheet|excel|sheet", noun):
+            suffix, kind_word = ".xlsx", "spreadsheet"
+        elif re.match(r"deck|presentation|powerpoint|slides", noun):
+            suffix, kind_word = ".pptx", "deck"
+        else:
+            suffix, kind_word = ".docx", "document"
+        topic = (m.group("topic") or "").strip()
+        stem = re.sub(r"[^a-z0-9]+", "-", topic.lower()).strip("-")[:40]
+        # She needs to know WHAT goes in it, and only he knows that. The
+        # honest move is to ask for the contents rather than invent them —
+        # a spreadsheet of made-up expenses is worse than no spreadsheet.
+        return {"command": None,
+                "say": (f"I can make that {kind_word}"
+                        + (f" about {topic}" if topic else "")
+                        + f". Tell me what goes in it and I'll save it as "
+                        + (f"{stem}{suffix}" if stem else f"a {suffix} file")
+                        + ".")}
+
+    # THE AGENT RUNTIME, said the way a person would say it. He should
+    # never have to type `spawn --agent=research --provider=claude`.
+    if re.fullmatch(r"(?:what (?:are|r) (?:your|the|my) (?:workers?|agents?) "
+                    r"(?:doing|up to|working on)(?: right now)?"
+                    r"|who(?:'s| is) working(?: on what)?"
+                    r"|(?:list|show me) (?:your|the|my) (?:workers?|agents?)"
+                    r"|(?:your|the|my) (?:workers?|agents?))", low):
+        return {"command": {"kind": "agents"}, "say": None}
+
+    # Stopping is never gated, for the same reason `halt` is not.
+    if re.fullmatch(r"(?:pause|stop) (?:all )?(?:autonomous work|"
+                    r"(?:the |your |my )?(?:workers?|agents?))"
+                    r"|stop everyone|(?:pause|stop) all (?:the )?(?:workers?|agents?)",
+                    low):
+        return {"command": {"kind": "agents_pause"}, "say": None}
+
+    m = re.fullmatch(r"(?:kill|stop|cancel|retire) (?:the |my )?(.+?)"
+                     r"(?: agent| worker)", low)
+    if m:
+        return {"command": {"kind": "agent_stop", "which": m.group(1).strip()},
+                "say": None}
+
+    # "Make somebody responsible for Barkly."
+    m = re.fullmatch(r"(?:make|create|assign) (?:somebody|someone|a worker|"
+                     r"an agent|a permanent agent) (?:responsible )?"
+                     r"(?:for|to) (.+)", low)
+    if m:
+        subject = m.group(1).strip()
+        return {"command": {"kind": "agent_new",
+                            "name": f"{subject} agent",
+                            "project": subject.split()[0][:80],
+                            "mission": f"own {subject} — know its state, "
+                                       f"keep its objectives, and bring me work",
+                            "agent_type": "project"}, "say": None}
+
+    # "Text Brant that I'm on my way." Thirteen asks in the demand ledger
+    # and no verb behind any of them: the planner named `intercom.relay`
+    # as the nearest gap and compiled a sandboxed program, which has no
+    # network and cannot text anyone.
+    #
+    # BEFORE the email pattern, because "text" and "message" are their own
+    # verbs and must not fall into it. The body is required: "text Brant"
+    # with nothing to say is a question, not a message, and it falls
+    # through to the planner to ask what he wants said.
+    m = re.match(r"(?:send (?:a )?(?:text|message)(?: to)?|text|message)\s+"
+                 r"(.+?)\s+(?:that|saying|and say|telling (?:him|her|them)|:)"
+                 r"\s+(.+)", low)
+    if m:
+        return {"command": {"kind": "message_send", "to": m.group(1).strip(),
+                            "body": m.group(2).strip()}, "say": None}
 
     m = re.match(r"e?mail\s+(.+?)\s+(?:that|saying|and say|:)\s+(.+)", low)
     if m:
@@ -1053,6 +1390,17 @@ def _interpret(transcript: str) -> dict:
         # is an instruction to go somewhere else, said to someone who is
         # standing in a room talking.
         return {"command": None, "say": _offer_choice(pending, verb="deny")}
+
+    # "Thanks" is not a question and has no store behind it, so it does
+    # not belong in `quick` — but it went to the PLANNER, which is 25-80
+    # seconds on this machine to be told you're welcome. It is the same
+    # shape as "never mind" above: a turn that ends politely and asks for
+    # nothing. Whole sentence only, so "thanks for the reminder, remind me
+    # again at six" is still a reminder.
+    if re.fullmatch(r"(?:thanks|thank you|thanks a lot|thanks so much|"
+                    r"thank you very much|ty|cheers|appreciate it|"
+                    r"thanks thea|thank you thea)", low):
+        return {"command": None, "say": "Any time."}
 
     m = re.match(r"(?:add a task|new task|task)\s*(?:to|:)?\s+(.+)", low)
     if m:

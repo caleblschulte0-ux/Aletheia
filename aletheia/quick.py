@@ -54,10 +54,16 @@ def _tidy(text: str) -> str:
 # Each is (name, pattern). Anchored, because "tell me about the halt
 # behaviour in the docs" is not "are you halted".
 PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
+    # `down` marks the alternatives that ask whether she is STOPPED, so
+    # the answer can agree with the question. Without it "are you
+    # running" and "you there" -- the two most natural ways to ask --
+    # were answered "No, I'm running.", which is a contradiction in the
+    # same breath.
     ("halted", re.compile(
-        r"^(?:are|r) (?:you|u) (?:halted|stopped|paused|off|frozen)$"
+        r"^(?:are|r) (?:you|u) (?P<down>halted|stopped|paused|off|frozen)$"
         r"|^(?:are|r) (?:you|u) (?:running|on|up|working|alive|awake)$"
-        r"|^is the kill switch (?:on|off)$|^(?:are|r) (?:you|u) ok$"
+        r"|^is the kill switch (?P<down2>on)$|^is the kill switch off$"
+        r"|^(?:are|r) (?:you|u) ok$"
         # No verb at all is how a person actually checks. "you there" is
         # the single most natural way to ask this and it paid a planner
         # round trip to be told yes.
@@ -130,6 +136,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What can you do" is the question this whole registry exists to
     # answer, and it was the one question that went to a model to be
     # answered ABOUT the registry.
+    # The counts, for the question the old "what can you do" answer was
+    # really answering. He almost never asks this; when he does, he wants
+    # the number and not the list.
+    ("how_many", re.compile(
+        r"^how many (?:things|capabilities|capabilitys) (?:can|could) "
+        r"(?:you|u) do$"
+        r"|^how many (?:things|capabilities) (?:do|have) (?:you|u) "
+        r"(?:do|have|got)$"
+        r"|^how many capabilities (?:are there|do you have)$")),
     ("capabilities", re.compile(
         r"^what can (?:you|u) do(?: for me)?$"
         r"|^what are (?:you|u) able to do$|^what are your capabilities$"
@@ -187,9 +202,29 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how long have (?:you|u) been (?:up|running|on|awake|going)$"
         r"|^how long have (?:you|u) been here$"
         r"|^what(?:'s| is|s)? your uptime$|^uptime$")),
+    # A greeting is not small talk to something that can see his day. It
+    # cost 25-80 seconds to be greeted back, and the answer to "hey" that
+    # is worth saying is what is waiting on him.
+    # THE WEATHER. In `quick` rather than the grammar because it is a
+    # read she can do from a cache in a hundredth of a second, which is
+    # what this lane is for — and it means the most ordinary question
+    # anybody asks never touches a model.
+    ("weather", re.compile(
+        r"^(?:what(?:'s| is|s)? (?:the )?weather"
+        r"|how(?:'s| is) the weather|what(?:'s| is|s)? it like outside)"
+        r"(?: (?P<weather>today|tonight|tomorrow|this (?:morning|afternoon|evening)"
+        r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$"
+        r"|^(?:is|will) it (?:going to )?(?:rain|snow) (?P<weather2>today|tonight|tomorrow)$"
+        r"|^weather(?: (?P<weather3>today|tonight|tomorrow))?$")),
+    ("greeting", re.compile(
+        r"^(?:hi|hello|hey|yo|hiya|howdy|hey there|hi there)$"
+        r"|^good (?:morning|afternoon|evening)$"
+        r"|^how (?:are|r) (?:you|u)(?: doing| today)?$"
+        r"|^how (?:you|u) doing$|^how goes it$")),
     ("mine", re.compile(
         r"^what(?:'s| is|s)? my (?P<mine>email(?: address)?|phone(?: number)?"
-        r"|number|city|town)$")),
+        r"|number|city|town|name|first name|last name|full name)$"
+        r"|^who am i$")),
     ("home", re.compile(
         r"^where do i live$|^what city do i live in$"
         r"|^what town do i live in$|^where(?:'s| is) home$")),
@@ -211,19 +246,29 @@ def match(question: str) -> tuple[str, str] | None:
             continue
         captured = found.groupdict()
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
-                                           "free", "free2", "free3")
+                                           "free", "free2", "free3",
+                                           "down", "down2", "weather",
+                                           "weather2", "weather3")
                      if captured.get(k)), "")
         return name, rest
     return None
 
 
-def _halted() -> str:
+def _halted(asks_if_down: bool = True) -> str:
+    """Yes or no, agreeing with the direction the question was asked in.
+
+    "Are you halted?" and "You there?" want opposite words for the same
+    state. Answering both with the sentence written for the first is how
+    "are you running" came back "No, I'm running." — the state was right
+    and the first word contradicted it.
+    """
     from aletheia import policy
     halt = policy.halted()
     if not halt:
-        return "No, I'm running."
+        return "No, I'm running." if asks_if_down else "Yes, I'm running."
     reason = str(halt.get("reason") or "").strip()
-    return "Yes, I'm halted" + (f" — {reason}." if reason else ".")
+    lead = "Yes, I'm halted" if asks_if_down else "No, I'm halted"
+    return lead + (f" — {reason}." if reason else ".")
 
 
 def _waiting() -> str:
@@ -241,13 +286,17 @@ def _waiting() -> str:
         # `presence` calls it `label` and it is already a sentence a person
         # wrote — asking for `reason` here got "something" every time.
         what = str(first.get("label") or first.get("reason") or "one of them")
-        parts.append(f"{len(waiting)} waiting on you — the first is {what[:110]}")
+        parts.append(f"{len(waiting)} waiting on you — the first is "
+                     + speech.shorten(what, 90))
     if notices:
         # SAY WHAT THEY ARE. A reminder fired correctly, on time, and the
         # answer to "what's waiting on me" was "1 thing I wanted to tell
         # you about" — the answer to "how many", when he asked what.
-        said = speech.and_list([str(n.get("says") or n.get("title") or "")[:90]
-                                for n in notices[:3]])
+        # Titles rather than bodies, cut at a word boundary. A body is a
+        # paragraph with commas in it, and `and_list` joins with commas —
+        # three of those ran together into one unbreathable sentence
+        # ending "...is worth right now?: I don't ha,".
+        said = speech.and_list([speech.notice_line(n) for n in notices[:3]])
         more = f", and {len(notices) - 3} more" if len(notices) > 3 else ""
         parts.append(said + more if said else
                      f"{speech.count_phrase(len(notices), 'thing')} "
@@ -420,13 +469,109 @@ def _approvals() -> str:
             + (f". The first: {first[:130].rstrip('.')}." if first else "."))
 
 
+# What he can ASK FOR, in his words. Keyed by intercom kind, because a
+# kind is exactly a thing he can say — the registry's `core.*`,
+# `policy.*` and `journal.*` are machinery he can neither reach nor care
+# about, and two thirds of "104 things are live" was that.
+#
+# Hand-kept, the same reasoning `test_every_writer_has_a_reader` gives:
+# a mechanical grouping would have to guess, and a wrong guess reads
+# fluently while being wrong. A test asserts every kind is either here or
+# deliberately marked internal, so a new verb cannot go unmentioned.
+# How many groups she names out loud. A list of everything is a list of
+# nothing: he stops listening at the fourth item.
+SPOKEN_GROUPS = 6
+
+_HE_CAN_ASK_FOR = {
+    "your tasks and reminders": ("task_new", "tasks", "task_done",
+                                 "task_status", "remind_at", "remind_daily",
+                                 "remind_weekly", "reminders", "reminder_off",
+                                 "do_task"),
+    "your lists": ("shopping_add", "shopping_list", "shopping_off"),
+    # Third on purpose: dict order is spoken order, only the first six
+    # are said, and "can you make me a spreadsheet" is a question he
+    # actually asked. A capability nobody hears about is one he will
+    # never use.
+    "making Word, Excel and PowerPoint files": ("doc_make",),
+    "email": ("email_check", "email_read", "email_draft"),
+    "texting people": ("message_send",),
+    "your calendar and the weather": ("free_time", "meet"),
+    "people you know": ("contacts", "contact_add", "watch_email_from",
+                        "watches"),
+    "remembering things": ("remember", "recall", "note"),
+    "music": ("music",),
+    "your files": ("file_list", "file_read", "file_write", "file_edit",
+                   "file_move", "file_delete", "compose"),
+    "looking things up on the web": ("browse_read", "browse_shot", "research",
+                                     "web_task", "web_task_answer",
+                                     "web_task_retry"),
+    "driving your computer": ("computer_do", "computer_observe", "screen_ask"),
+    "your projects and repos": ("projects", "plan_new", "plan_add_step",
+                                "plan_step", "plan_set", "issue", "dispatch"),
+    "job applications": ("jobs", "apply_prepare", "apply_campaign",
+                         "applications"),
+    "money you spend": ("money", "subscriptions", "subscription_cancel"),
+    "your car and journeys": ("car", "travel_time"),
+    "media files": ("media_probe", "media_trim", "media_join", "media_audio",
+                    "media_captions", "media_convert"),
+    "putting workers on something": ("agents", "agent_new", "agent_stop",
+                                         "agents_pause"),
+}
+
+# Reachable, but not things a person asks FOR: switches, plumbing and the
+# machinery of asking. Named so the test can tell "deliberately unlisted"
+# from "somebody added a verb and forgot".
+_NOT_A_THING_HE_ASKS_FOR = frozenset({
+    "halt", "resume", "close", "open", "approve", "deny", "intent", "handle",
+    "running", "brief", "setup_status", "notify_check", "notify_clear",
+    "notify_snooze", "notify_operator", "announce_set", "rule",
+    "authority_status", "mic", "mic_on", "mic_off",
+    # Switches over her own workings, like the microphone: he turns
+    # them on and off, he does not ask her to DO them.
+    "chatgpt", "chatgpt_on", "chatgpt_off",
+})
+
+
 def _capabilities() -> str | None:
-    """Out of the registry, which is the point of having one."""
+    """The things he can ask for, named — not counted.
+
+    "104 things are live, 17 experimental..." was every number true and
+    nobody's question. This says what they ARE, from the grammar, and
+    only mentions what is live: a capability waiting on setup is not
+    something he can ask for today.
+    """
+    from aletheia import capabilities, intercom, speech
+    try:
+        reg = capabilities.load_registry()
+    except Exception:
+        return None                 # unreadable registry — let the planner try
+    live_ids = {c["id"] for c in reg.get("capabilities", [])
+                if c.get("status") == "AVAILABLE"}
+    if not live_ids:
+        return None
+
+    # A group is worth naming when the grammar can still reach it.
+    named = [name for name, kinds in _HE_CAN_ASK_FOR.items()
+             if any(k in intercom.KIND_ARGS for k in kinds)]
+    if not named:
+        return None
+    # SIX, NOT SIXTEEN. Read out loud, a list of everything is a list of
+    # nothing — he stops listening at the fourth item and has learned
+    # less than from three. The dict is in the order a person meets them.
+    head, rest = named[:SPOKEN_GROUPS], named[SPOKEN_GROUPS:]
+    said = "I can help with " + speech.and_list(head)
+    if rest:
+        said += f", and {len(rest)} other kinds of thing"
+    return said + ". Ask me for anything and I'll tell you straight if I can't."
+
+
+def _how_many() -> str | None:
+    """The counts, for the question the old answer was really answering."""
     from aletheia import self_knowledge, speech
     by = dict((self_knowledge.overview() or {}).get("by_status") or {})
     live = int(by.get("AVAILABLE") or 0)
     if not live:
-        return None                 # unreadable registry — let the planner try
+        return None
     parts = [f"{live} things are live"]
     for key, label in (("EXPERIMENTAL", "experimental"),
                        ("NEEDS_CONFIGURATION", "waiting on setup"),
@@ -520,9 +665,20 @@ def _uptime() -> str | None:
 
 
 # What he calls it -> what the profile calls it.
-_MINE = {"email": "email", "email address": "email",
-         "phone": "phone", "phone number": "phone", "number": "phone",
-         "city": "city", "town": "city"}
+# More than one field can answer one question: he says "my name" and the
+# store has a preferred name, a legal name and a first name, any of which
+# is a true answer. First one she has, in the order a person would say it.
+_MINE = {"email": ("email",), "email address": ("email",),
+         "phone": ("phone",), "phone number": ("phone",),
+         "number": ("phone",),
+         "city": ("city",), "town": ("city",),
+         "name": ("preferred_name", "first_name", "legal_name"),
+         "first name": ("first_name", "preferred_name"),
+         "last name": ("last_name",),
+         "full name": ("legal_name", "full_name")}
+
+# "Who am I" has no captured word to look up, so it names its own.
+_WHO_AM_I = "name"
 
 
 def _running() -> str | None:
@@ -541,22 +697,96 @@ def _running() -> str | None:
 
 def _mine(what: str) -> str | None:
     """One fact about him, from his profile. Never guessed: an invented
-    phone number is the exact failure `profile` exists to prevent."""
+    phone number is the exact failure `profile` exists to prevent.
+
+    `profile.answer` reads her memory of him as well as the profile
+    itself, so a fact she holds in one store is not denied from the
+    other — which is how "where do I live" answered "I don't have your
+    city on file" while "Hartford, SD 57033" sat on the same disk.
+    """
     from aletheia import profile
-    field = _MINE.get(" ".join(str(what or "").split()).casefold())
-    if not field:
+    asked = " ".join(str(what or "").split()).casefold() or _WHO_AM_I
+    fields = _MINE.get(asked)
+    if not fields:
         return None
     try:
-        value = profile.answer(field)
+        for field in fields:
+            value = profile.answer(field)
+            if value:
+                return str(value)
     except Exception:
         return None
-    if not value:
-        return (f"I don't have your {field} on file. "
+    return (f"I don't have your {asked} on file. "
+            "Tell me and I'll remember it.")
+
+
+def _home() -> str | None:
+    """Where he lives — the city AND the state, which is how it is said.
+
+    `_mine("city")` alone answers "Hartford", and the store holds the
+    state next to it.
+    """
+    from aletheia import profile
+    try:
+        city, state = profile.answer("city"), profile.answer("state")
+    except Exception:
+        return None
+    if not city:
+        return ("I don't have your city on file. "
                 "Tell me and I'll remember it.")
-    return str(value)
+    # Bare, no full stop: `_mine` returns the value and not a sentence,
+    # and "Hartford, SD" already reads as an answer.
+    return f"{city}, {state}" if state else str(city)
 
 
-ANSWERS = {"halted": lambda rest: _halted(),
+def _weather(when: str = "") -> str | None:
+    """What it is doing outside, from the free national service.
+
+    No key anywhere, and his postcode is already on file — so the most
+    ordinary question anybody asks needs nothing from him and no model.
+    """
+    try:
+        from aletheia import weather
+        return weather.spoken(when)
+    except Exception:
+        return None                 # she does not know; the planner may try
+
+
+def _greeting() -> str | None:
+    """Greeted back, plus the one thing he would have asked next.
+
+    Everything here comes from `presence` and the kill switch: whether
+    she is running, and what is waiting on him. A greeting is the moment
+    that is most worth saying, and it was costing a planner round trip to
+    say nothing.
+    """
+    from aletheia import policy
+    try:
+        halt = policy.halted()
+        if halt:
+            reason = str(halt.get("reason") or "").strip()
+            return ("I'm here, but halted"
+                    + (f" — {reason}." if reason else ".")
+                    + " Nothing runs until you resume me.")
+        from aletheia import presence, speech
+        now = presence.snapshot()
+        waiting = len(list(now.get("waiting_on_you") or []))
+        notices = len(list(now.get("notifications") or []))
+        if not waiting and not notices:
+            return "I'm here. Nothing is waiting on you."
+        bits = []
+        if waiting:
+            bits.append(f"{waiting} waiting on you")
+        if notices:
+            bits.append(f"{notices} I wanted to tell you about")
+        # The list itself is one sentence away, and reading it out is what
+        # "what's waiting on me" is for.
+        return f"I'm here. {speech.and_list(bits)}."
+    except Exception:
+        return None
+
+
+ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "waiting": lambda rest: _waiting(),
            "doing": lambda rest: _doing(),
            "today": lambda rest: _today(),
@@ -569,6 +799,7 @@ ANSWERS = {"halted": lambda rest: _halted(),
            "tasks": lambda rest: _tasks(),
            "approvals": lambda rest: _approvals(),
            "capabilities": lambda rest: _capabilities(),
+           "how_many": lambda rest: _how_many(),
            "alerts": lambda rest: _alerts(),
            "repos": lambda rest: _repos(),
            "shopping": lambda rest: _shopping(),
@@ -577,7 +808,9 @@ ANSWERS = {"halted": lambda rest: _halted(),
            "free": _free,
            "running": lambda rest: _running(),
            "mine": _mine,
-           "home": lambda rest: _mine("city")}
+           "weather": lambda rest: _weather(rest),
+           "greeting": lambda rest: _greeting(),
+           "home": lambda rest: _home()}
 
 
 # The sentences whose stores cost the most to reach the first time.

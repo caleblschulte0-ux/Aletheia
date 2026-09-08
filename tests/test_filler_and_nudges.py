@@ -41,11 +41,26 @@ class FillerCase(unittest.TestCase):
     def test_a_sentence_that_is_ONLY_filler_is_left_alone(self):
         """"Uh" and "ok" are not commands, and stripping them to nothing
         must not turn them into one."""
-        for said in ("uh", "ok", "um", "hey"):
+        for said in ("uh", "ok", "um"):
             with self.subTest(said=said):
                 self.assertIsNone(quick.match(said), said)
                 got = voice.interpret(f"thea {said}")["command"]
                 self.assertEqual(got["kind"], "intent", said)
+
+    def test_hey_on_its_own_is_a_greeting_and_not_a_command(self):
+        """"Hey" is filler IN FRONT of a sentence and a greeting alone.
+
+        It was listed with "uh" and "ok" above, which was right when the
+        fast lane had nothing to say to it. The rule that list protects
+        is that stripping filler to nothing must not INVENT A COMMAND —
+        and it still does not. What changed is that "hey" by itself is
+        answered from `presence` instead of paying 25-80 seconds to be
+        greeted back, and answering a greeting is not compiling one.
+        """
+        self.assertEqual((quick.match("hey") or (None,))[0], "greeting")
+        self.assertIsNone(quick.match("uh hey"), "still filler in front")
+        got = voice.interpret("thea hey")["command"]
+        self.assertEqual(got["kind"], "intent", "no command was invented")
 
     def test_words_that_look_like_filler_but_carry_meaning_survive(self):
         for said, expect in (("like a boss", "like a boss"),

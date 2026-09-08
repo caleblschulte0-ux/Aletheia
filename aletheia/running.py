@@ -317,6 +317,15 @@ def version_words(info: dict) -> str:
     return said
 
 
+def _listening() -> bool:
+    """Whether the microphone is open, never raising into a status read."""
+    try:
+        from aletheia import ears
+        return ears.listening()
+    except Exception:
+        return False
+
+
 def snapshot(include_tasks: bool = True) -> dict:
     """Everything, in one read. Never raises.
 
@@ -353,15 +362,32 @@ def snapshot(include_tasks: bool = True) -> dict:
                       "mb": sum(r.get("mb", 0) for r in rows)})
     _started, newest_file, stale = running_old_code()
     return {"parts": parts, "tasks": tasks() if include_tasks else {},
+            # Whether the microphone is OPEN, which is not the same fact as
+            # whether the room process is up: the process exists and opens
+            # nothing until he presses the button.
+            "listening": _listening(),
             "running_old_code": stale, "newest_code": newest_file, "closed": shut,
             "closed_reason": why, "halted": bool(halt),
             "halt_reason": (halt or {}).get("reason", "") if halt else "",
             "heartbeat_age_s": beat_age}
 
 
+def _by_design(state: dict, part: dict) -> bool:
+    """Is this part down because he chose that, rather than broken?
+
+    Only the microphone, and only while the switch says off. Anything
+    else that is not running is a fault and must keep reading like one.
+    """
+    return part["part"] == "voice" and not state.get("listening", False)
+
+
 def headline(state: dict) -> str:
     """One line he can act on, before any of the detail."""
     up = [p for p in state["parts"] if p["up"]]
+    # A microphone he deliberately left closed is not a missing part, and
+    # calling it one every time would teach him to ignore this line —
+    # which is exactly how three days of stale code hid behind it.
+    expected = [p for p in state["parts"] if not _by_design(state, p)]
     if state["closed"]:
         if up:
             return (f"CLOSED — but {len(up)} part(s) are still running. "
@@ -372,12 +398,14 @@ def headline(state: dict) -> str:
     if state["halted"]:
         return (f"ON but HALTED — {len(up)} of {len(state['parts'])} parts "
                 "running, refusing to act.")
-    if len(up) == len(state["parts"]):
+    if len([p for p in up if not _by_design(state, p)]) == len(expected):
         if state.get("running_old_code"):
             return ("ON, but running OLDER CODE than is checked out — "
                     "restart her to pick it up.")
+        if not state.get("listening", False):
+            return "ON. Everything is running, and the microphone is off."
         return "ON. Everything is running."
-    missing = ", ".join(p["part"] for p in state["parts"] if not p["up"])
+    missing = ", ".join(p["part"] for p in expected if not p["up"])
     return f"PARTLY ON — running, but {missing} is not."
 
 

@@ -25,6 +25,11 @@ def state(**over):
                   {"part": "core", "what": "y", "up": True, "pids": [2]},
                   {"part": "voice", "what": "z", "up": True, "pids": [3]}],
         "tasks": {}, "closed": False, "closed_reason": "",
+        # The room process is up in this fixture, and since 2026-09-07 an
+        # up room MEANS an open microphone: `voice_room` exits without
+        # opening one unless the switch is on. A fixture with voice up
+        # and the switch off describes a machine that cannot exist.
+        "listening": True,
         "halted": False, "halt_reason": "", "heartbeat_age_s": 4.0,
     }
     base.update(over)
@@ -44,6 +49,25 @@ class TheHeadlineSaysTheThingCase(unittest.TestCase):
 
     def test_everything_up(self):
         self.assertEqual(running.headline(state()), "ON. Everything is running.")
+
+    def test_a_microphone_he_left_off_is_not_a_missing_part(self):
+        """The default state, and it must not read as a fault.
+
+        His ruling made the room off by default. Saying "PARTLY ON —
+        running, but voice is not" every time he asks would teach him to
+        ignore this line, which is exactly how three days of stale code
+        hid behind "ON. Everything is running."
+        """
+        said = running.headline(state(parts=down("voice"), listening=False))
+        self.assertTrue(said.startswith("ON."), said)
+        self.assertIn("microphone is off", said)
+        self.assertNotIn("PARTLY", said)
+
+    def test_a_part_that_really_is_missing_still_reads_as_a_fault(self):
+        """The exemption is the microphone and nothing else."""
+        said = running.headline(state(parts=down("core"), listening=True))
+        self.assertIn("PARTLY ON", said)
+        self.assertIn("core", said)
 
     def test_closed_and_stopped_is_plainly_off(self):
         said = running.headline(state(closed=True, parts=down("supervisor", "core", "voice")))
@@ -288,6 +312,13 @@ class SayingItOutLoudCase(unittest.TestCase):
             with self.subTest(said=said):
                 self.assertEqual(self.reaches(said)["kind"], "running", said)
 
+    # What this protects is that a SWITCH is never reached by a sentence
+    # that is not about the switch. Asserting `intent` froze a second
+    # claim nobody meant to make — that no other verb may ever answer
+    # these either — so it went red when "what is on my task list"
+    # started reaching `tasks`, which is the right answer to it.
+    SWITCHES = ("close", "open", "halt", "resume", "running")
+
     def test_ordinary_sentences_with_the_same_verbs_are_untouched(self):
         """The whole risk of this change. Each of these is a thing he
         actually says, and swallowing one would trade a missing switch
@@ -299,7 +330,8 @@ class SayingItOutLoudCase(unittest.TestCase):
                      "Thea, stop the music",
                      "Thea, what is on my task list"):
             with self.subTest(said=said):
-                self.assertEqual(self.reaches(said)["kind"], "intent", said)
+                self.assertNotIn(self.reaches(said)["kind"], self.SWITCHES,
+                                 said)
 
     def test_the_planner_may_not_compile_a_switch(self):
         """Same rule as halt/resume, same reason: a compiler that turns

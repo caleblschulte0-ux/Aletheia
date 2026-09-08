@@ -30,7 +30,8 @@ import re
 import sys
 import threading
 
-from aletheia import intercom, journal, planner, policy, quick, speech, stateio
+from aletheia import (asking, cannot, intercom, journal, planner, policy,
+                      quick, speech, stateio)
 from aletheia.fleet import load_fleet
 
 ACTOR = "aletheia-intent"
@@ -99,6 +100,64 @@ def read_only(plan: planner.Plan) -> bool:
         s.command["kind"] in intercom.READ_ONLY_KINDS for s in steps)
 
 
+def _say_the_plan(plan) -> None:
+    """One sentence about what is about to happen. Never raises.
+
+    Only when there is something to say: a plan with no executable steps
+    is about to be answered in the next breath, and narrating that would
+    be two sentences where one does. Ids are stripped because this is
+    read out loud in a room.
+    """
+    try:
+        from aletheia import followups
+        steps = [s for s in getattr(plan, "steps", []) or []]
+        if not steps or not getattr(plan, "executable", False):
+            return
+        summary = speech.strip_ids(str(getattr(plan, "summary", "") or "")).strip()
+        if not summary:
+            return
+        followups.report(
+            f"Here's the plan: {summary} — "
+            f"{speech.count_phrase(len(steps), 'step')}.")
+    except Exception:
+        pass        # narration must never be able to break the work
+
+
+def _speak_answer(record: dict, request: str) -> dict:
+    """Answer a question out loud, and never raise.
+
+    ONE implementation for both roads to an answer — the short one that
+    skips the planner and the long one that came back from it with
+    nothing to do. Two copies of this drifted once already in this repo
+    (`intents.spoken` and `voice.spoken_reply`), which is how "That
+    failed: KeyError: ..." survived on the path nobody had fixed.
+    """
+    from aletheia import converse
+    try:
+        # Through the same sieve as everything else she says. `converse`
+        # reads her stores, so its answers carry the ids in them: "there
+        # are two pending approvals (intent-1b32747ddb, intent-a3d2ad3434)"
+        # — read out loud, in a room. §145. And it writes for a screen
+        # unless something stops it: "What I *can* do right now is look at
+        # your desktop live (computer.observe/control)" was a real answer,
+        # with an asterisk pair that is silence out loud and an identifier
+        # that is gibberish. `spoken_prose` is all of it in one place.
+        record["spoken"] = speech.spoken_prose(converse.answer(request)["answer"])
+    except converse.ConverseError as exc:
+        # Its message already names the real reason and the fix ("Claude
+        # CLI is not on PATH"). Rewriting that into a class name is how an
+        # actionable failure becomes a shrug.
+        record["spoken"] = str(exc)
+    except Exception as exc:
+        # An unreachable model must not turn into silence: say which half
+        # failed, because "she said nothing" and "she could not think" are
+        # different problems with different fixes.
+        record["spoken"] = (
+            f"I couldn't reach a model to answer that ({type(exc).__name__}). "
+            "Everything else still works.")
+    return record
+
+
 def propose(request: str, quote: str = "", fleet: dict | None = None,
             materialize: bool = True, **compile_kw) -> dict:
     """Compile a sentence into a plan, persist it, and ask for it.
@@ -156,8 +215,60 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
                 "read_only": True, "refused_spending": True, "steps": [],
                 "proposed_at": stateio.utcnow()}
 
+    # A FAST NO IS BETTER THAN A SLOW ONE, and it was slow.
+    #
+    # "Set a timer for ten minutes" took a planner round trip — 25-80
+    # seconds here — to come back with "I can't do timer.set yet". He
+    # waited most of a minute to be disappointed. `cannot` reads the
+    # REGISTRY rather than a hard-coded list, so the day the capability
+    # lands the sentence goes back to the planner that can serve it; and
+    # it records the ask, because the planner path did and his asks must
+    # not stop being counted just because the answer got faster.
+    #
+    # AFTER `quick`, so anything she can actually answer is answered.
+    refusal = cannot.answer(request)
+    if refusal:
+        return {"id": f"intent-cannot-{hashlib.sha256(request.encode()).hexdigest()[:8]}",
+                "state": RETIRED, "request": request,
+                "operator_quote": quote or request,
+                "summary": refusal, "intent": "answer", "spoken": refusal,
+                "read_only": True, "fast_path": True, "steps": [],
+                "proposed_at": stateio.utcnow()}
+
+    # A QUESTION THAT NEEDS NO PLAN DOES NOT NEED A PLANNER.
+    #
+    # "What's the capital of Iceland" was compiled by a fifteen-kilobyte
+    # grammar prompt — 25-80 seconds on this machine — which concluded it
+    # was a question and produced no steps, and then `converse` ran to
+    # answer it anyway. The expensive call existed only to classify, which
+    # is the same round trip `quick` was written to remove one layer down.
+    #
+    # `asking` decides deterministically and is biased toward the planner:
+    # a question misread as a job costs him seconds, a JOB misread as a
+    # question costs him the work not happening. So this only fires on
+    # sentences that open like a question, name no doing-verb, and do not
+    # mention her or his own stores.
+    if asking.is_a_plain_question(request):
+        record = {"id": f"intent-asked-{hashlib.sha256(request.encode()).hexdigest()[:8]}",
+                  "state": RETIRED, "request": request,
+                  "operator_quote": quote or request,
+                  "summary": request[:200], "intent": "answer",
+                  "read_only": True, "asked_directly": True, "steps": [],
+                  "proposed_at": stateio.utcnow()}
+        _speak_answer(record, request)
+        journal.append("event", "intent",
+                       f"answered without planning: {request[:120]}", actor=ACTOR)
+        return record
+
     fleet = fleet if fleet is not None else load_fleet()
     plan = planner.compile(request, fleet=fleet, **compile_kw)
+    # SAY THE PLAN THE MOMENT IT EXISTS. His shape for a long request is
+    # "I know that she's working on it fast, and then I'll hear the plan
+    # fast, and then the results, they'll come when they come." Between
+    # the acknowledgement and the results there was silence — minutes of
+    # it — with a compiled plan sitting unmentioned. Outside a followup
+    # this is a no-op, so nothing changes for a direct caller.
+    _say_the_plan(plan)
     digest = plan_hash(plan)
     intent_id = f"intent-{digest[:10]}"
     approval_id = intent_id
@@ -229,31 +340,7 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
             # paragraph about ambiguity, which is worse in every way. Only a
             # question he asked gets answered here.
             return record
-        from aletheia import converse
-        try:
-            # Through the same sieve as everything else she says. `converse`
-            # reads her stores, so its answers carry the ids in them: "there
-            # are two pending approvals (intent-1b32747ddb,
-            # intent-a3d2ad3434)" — read out loud, in a room. §145. And it
-            # writes for a screen unless something stops it: "What I *can*
-            # do right now is look at your desktop live
-            # (computer.observe/control)" was a real answer, with an
-            # asterisk pair that is silence out loud and an identifier that
-            # is gibberish. `spoken_prose` is all of it in one place.
-            record["spoken"] = speech.spoken_prose(
-                converse.answer(request)["answer"])
-        except converse.ConverseError as exc:
-            # Its message already names the real reason and the fix ("Claude
-            # CLI is not on PATH"). Rewriting that into a class name is how
-            # an actionable failure becomes a shrug.
-            record["spoken"] = str(exc)
-        except Exception as exc:
-            # An unreachable model must not turn into silence: say which
-            # half failed, because "she said nothing" and "she could not
-            # think" are different problems with different fixes.
-            record["spoken"] = (
-                f"I couldn't reach a model to answer that ({type(exc).__name__}). "
-                "Everything else still works.")
+        _speak_answer(record, request)
         return record
     # NOTHING IS QUEUED FOR A PLAN THAT ASKS TO SPEND. `spoken()` already
     # answers with the refusal, but without this an approval object was

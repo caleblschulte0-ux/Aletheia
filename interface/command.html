@@ -75,6 +75,11 @@
   <div class="haltwrap">
     <span id="halt-state" class="ok">CHECKING…</span>
     <button id="halt-btn" class="danger" onclick="toggleHalt()">HALT</button>
+    <!-- His ruling: the always-on microphone is not a default, it is a
+         button. It says which way it is BEFORE he presses it, because a
+         toggle whose label is the action rather than the state is how
+         you open a microphone by accident. -->
+    <button id="mic-btn" onclick="toggleMic()">MIC: OFF</button>
     <a href="/" style="color:var(--muted);font-family:var(--mono);font-size:.65rem">→ the wall</a>
   </div>
 </header>
@@ -259,6 +264,29 @@ async function ack(id) {
 
 async function toggleHalt() {
   await post(haltedNow ? {kind: "resume"} : {kind: "halt", reason: "operator pressed HALT"});
+}
+
+let micOn = false;
+async function toggleMic() {
+  // No optimism here: the button reflects what the Core says after the
+  // command, never what we hoped it would say. A microphone control that
+  // shows ON before it is on is the one lie this button must not tell.
+  await post({kind: micOn ? "mic_off" : "mic_on"});
+  await refreshMic();
+}
+
+async function refreshMic() {
+  try {
+    const said = await post({kind: "mic"});
+    micOn = /microphone is on/i.test(JSON.stringify(said || ""));
+  } catch (e) {
+    micOn = false;                       // unknown reads as OFF
+  }
+  const btn = document.getElementById("mic-btn");
+  if (btn) {
+    btn.textContent = micOn ? "MIC: ON" : "MIC: OFF";
+    btn.className = micOn ? "danger" : "";
+  }
 }
 
 async function refresh() {

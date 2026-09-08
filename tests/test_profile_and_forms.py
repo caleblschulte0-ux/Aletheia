@@ -61,6 +61,37 @@ class SheLearnsHimRatherThanInterrogatingHim(ProfileCase):
         self.assertIn("linkedin.com/in/", got["linkedin"])
         self.assertIn("github.com/", got["github"])
 
+    def test_a_number_never_absorbs_the_line_above_it(self):
+        """His real resume yielded "33 (605) 321-5691".
+
+        The line above his phone number ends in digits — a zip code, a
+        year, a street number, whatever a real document happens to put
+        there. `_PHONE`'s optional country code took those digits and
+        the newline between them as part of the number, because its
+        separator class was `\s`.
+
+        The fixture resume above is one clean block, so nothing here
+        could ever have caught it. This is the same text with the shape
+        a real page has. It matters more than the answer it fixes:
+        these values are typed into job applications.
+        """
+        got = profile.learn_from_resume(
+            "Caleb Schulte\n"
+            "Hartford, SD 57033\n"
+            "caleblschulte0@gmail.com\n"
+            "(605) 321-5691\n")
+        self.assertEqual(got["phone"], "(605) 321-5691")
+
+    def test_a_country_code_needs_its_plus(self):
+        """Two loose digits before a number are not a country code."""
+        self.assertEqual(
+            profile._PHONE.search("+1 (512) 555-0134").group(0),
+            "+1 (512) 555-0134")
+        # No plus: the number starts where the number starts.
+        self.assertEqual(
+            profile._PHONE.search("call 1 605 321 5691").group(0),
+            "605 321 5691")
+
     def test_it_invents_nothing_that_is_not_there(self):
         profile.learn_from_resume("Just some words about work.")
         for guessed in ("email", "phone", "city", "work_authorization"):

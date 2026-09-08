@@ -32,6 +32,7 @@ from pathlib import Path
 
 from aletheia import speech, voice_quality
 from aletheia.proc import run as proc_run
+from aletheia import voice
 from aletheia.voice import WAKE_WORDS
 
 PRIMARY_MODEL_NAME = "vosk-model-en-us-0.22-lgraph"
@@ -65,6 +66,19 @@ REPEAT_FAILURE_WINDOW_S = 20.0
 # question `quick` answers from a file (~10ms) is never preceded by "let me
 # look", and nothing has to know in advance which asks are slow.
 ACK_AFTER_S = 1.2
+# ...but not for a question that is about to land anyway. A fact about
+# the world is one model round trip — roughly four seconds — and a flat
+# 1.2s ack made her interrupt herself: "Working on it." ... "Reykjavik."
+# Three seconds of silence first means most quick answers never need the
+# line, and a slow one still gets acknowledged before the silence starts
+# to read as "she didn't hear me". Real work keeps the short wait,
+# because there she is genuinely about to go quiet for a while.
+# FIVE, from his own sentence: "it should come back within five seconds
+# and tell me Reykjavik." Measured, that answer takes 3.2s — so at three
+# seconds she would have said "Let me look." two tenths of a second
+# before saying "Reykjavik", which is the worst place to put it. Past
+# five, the question really is slow and the silence needs breaking.
+ACK_AFTER_QUICK_S = 5.0
 STILL_AFTER_S = 12.0
 # How often the waiter re-checks. Small enough that the acknowledgement
 # lands on time, large enough to cost nothing.
@@ -378,10 +392,19 @@ def is_addressed(text: str) -> bool:
 
 def collect_followup(followup_id: str, core_url: str = CORE_URL,
                      wait_s: float = FOLLOWUP_WAIT_S,
-                     poll_s: float = FOLLOWUP_POLL_S, sleep=None) -> str | None:
+                     poll_s: float = FOLLOWUP_POLL_S, sleep=None,
+                     on_progress=None) -> str | None:
+    """Wait for the answer, saying anything she reports along the way.
+
+    A long request used to be an acknowledgement and then silence until
+    the results — minutes of it, with a compiled plan sitting unsaid.
+    `on_progress` is called with each new line, in order, exactly once:
+    she narrates by saying the NEW ones, not by re-reading the list.
+    """
     import time as _time
     sleep = sleep or _time.sleep
     deadline = _time.monotonic() + wait_s
+    spoken = 0
     while _time.monotonic() < deadline:
         try:
             with urllib.request.urlopen(
@@ -393,6 +416,14 @@ def collect_followup(followup_id: str, core_url: str = CORE_URL,
             # transient refused connection is not proof the answer vanished.
             sleep(poll_s)
             continue
+        if on_progress:
+            lines = list(payload.get("progress") or [])
+            for line in lines[spoken:]:
+                try:
+                    on_progress(line)
+                except Exception:
+                    pass      # narration must never lose the answer
+            spoken = max(spoken, len(lines))
         if payload.get("state") in ("READY", "FAILED"):
             return payload.get("say")
         if payload.get("state") == "EXPIRED":
@@ -401,17 +432,62 @@ def collect_followup(followup_id: str, core_url: str = CORE_URL,
     return None
 
 
+def acknowledge_followup(followup_id: str, core_url: str = CORE_URL) -> bool:
+    """Tell the Core the answer was actually spoken. Never raises.
+
+    Without this every answer the ROOM speaks stays an unread IMPORTANT
+    notification for ever — 80 of them had piled up on his machine, so
+    "what's waiting on me" read back her own replies as though they were
+    work. The wall and the audit tool both did this; the room, the
+    surface he actually uses, never did.
+
+    A failure here must not take the room down: the answer has already
+    been said, and the worst case is one stale notice rather than a
+    listener that died doing bookkeeping.
+    """
+    try:
+        request = urllib.request.Request(
+            f"{core_url}/api/voice/followup/ack",
+            data=json.dumps({"id": followup_id}).encode("utf-8"),
+            headers=_local_headers(), method="POST")
+        with urllib.request.urlopen(request, timeout=5):
+            return True
+    except Exception:
+        return False
+
+
 def launch_followup(followup_id: str, core_url: str, say,
-                    collector=None) -> threading.Thread:
+                    collector=None, acknowledge=None) -> threading.Thread:
     """Collect one promised reply without making the room deaf meanwhile."""
     collector = collector or collect_followup
+    acknowledge = acknowledge or acknowledge_followup
+
+    # Does this collector narrate? A question with an answer, so it is
+    # asked once rather than by calling and seeing what breaks: a
+    # try/except TypeError would call a real collector twice when the
+    # error came from inside it, and would let a crash escape the guard
+    # below — which it did, and a test caught it.
+    try:
+        import inspect
+        narrates = "on_progress" in inspect.signature(collector).parameters
+    except (TypeError, ValueError):
+        narrates = False
 
     def deliver():
         try:
-            later = collector(followup_id, core_url)
+            # `say` is the same mouth the answer comes out of, so a plan
+            # and its results cannot arrive out of order.
+            later = (collector(followup_id, core_url, on_progress=say)
+                     if narrates else collector(followup_id, core_url))
         except Exception:
             later = None
         say(later or FOLLOWUP_FAILURE)
+        # AFTER saying it, and only if there was something to say.
+        # Acknowledging a failed collection would consume an answer
+        # nobody heard — the exact loss the pure-read GET exists to
+        # prevent.
+        if later:
+            acknowledge(followup_id, core_url)
 
     thread = threading.Thread(target=deliver, name=f"voice-{followup_id}",
                               daemon=True)
@@ -500,13 +576,23 @@ def _ask_with_acknowledgement(command: str, core_url: str, say,
 
     worker = threading.Thread(target=work, daemon=True)
     worker.start()
+    # How long to stay quiet before saying she is on it. A question that
+    # should land in four seconds gets longer silence than a job that is
+    # about to take minutes — see ACK_AFTER_QUICK_S.
+    try:
+        from aletheia import asking
+        ack_after = (ACK_AFTER_QUICK_S
+                     if asking.expectation(command) == "quick"
+                     else ACK_AFTER_S)
+    except Exception:
+        ack_after = ACK_AFTER_S
     started = monotonic()
     said_ack = said_still = False
     while not done.wait(ACK_WAIT_TICK_S):
         waited = monotonic() - started
         # Each line at most once. A voice that narrates its own waiting
         # every twelve seconds is worse than one that waits quietly.
-        if not said_ack and waited >= ACK_AFTER_S:
+        if not said_ack and waited >= ack_after:
             said_ack = True
             say(speech.ack_line(command))
         elif said_ack and not said_still and waited >= STILL_AFTER_S:
@@ -617,6 +703,25 @@ def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
                 say("Yes?")
                 awaiting_since = monotonic()
                 continue
+
+        # SAY NOTHING RATHER THAN "I DIDN'T CATCH THAT". A fragment the
+        # wake word picked up off the room — "the", "uh", "the injuries"
+        # — used to go to the planner, wait most of a minute, and come
+        # back with an apology she read out loud and filed as a
+        # notification. His list had a dozen of them.
+        #
+        # Nothing the deterministic layer understands reaches this, so
+        # "stop" is never silenced. It is journaled, so a silence is
+        # explainable later, and it is not counted as a turn.
+        if not voice.worth_answering(command):
+            try:
+                from aletheia import journal
+                journal.append("event", "voice-room",
+                               f"heard nothing worth answering: {command[:60]!r}",
+                               actor="aletheia-voice-room")
+            except Exception:
+                pass
+            continue
 
         answer = _ask_with_acknowledgement(command, core_url, say,
                                            monotonic=monotonic)
@@ -746,6 +851,21 @@ def main(argv: list[str] | None = None) -> int:
               "`python -m aletheia.closed open` to change that.")
         return 0
 
+    # AND OFF IS THE DEFAULT. His ruling, 2026-09-07: "i don't want an
+    # always on microphone. And if I do want that, that'll be a button I
+    # press within Aletheia once she's turned on."
+    #
+    # This task is logon-triggered with a five-minute watchdog, so
+    # without this check a microphone in his room opened itself when he
+    # signed in and reopened itself whenever it stopped. The task and the
+    # watchdog stay — pressing the button should start listening in
+    # seconds — but they start a process that opens nothing.
+    from aletheia import ears
+    if not ears.listening():
+        print(ears.spoken())
+        print("Turn it on with: python -m aletheia.ears on")
+        return 0
+
     lock = VoiceInstanceLock()
     if not lock.acquire():
         # A repeating scheduled-task trigger or a manual launch must never make
@@ -762,6 +882,14 @@ def main(argv: list[str] | None = None) -> int:
             actor="aletheia-voice",
         )
         print('listening — say "Thea, ..." (Ctrl+C stops)')
+        # ONE LINE, ONCE. Not an announcement — §144 is about speaking
+        # UNPROMPTED, and this is the direct answer to a button he just
+        # pressed. Without it the button produces silence, and silence is
+        # indistinguishable from a microphone that did not start.
+        try:
+            speak("I'm listening.")
+        except Exception:
+            pass
         try:
             listen_forever()
         except KeyboardInterrupt:

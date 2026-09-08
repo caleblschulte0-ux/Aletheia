@@ -92,6 +92,36 @@ class AnswerCase(unittest.TestCase):
         self.assertIn("Yes", said)
         self.assertIn("he said stop", said)
 
+    def test_the_answer_agrees_with_the_question(self):
+        """"Are you running?" was answered "No, I'm running."
+
+        One pattern catches both directions of the same question on
+        purpose. The answer was written for one of them, so the most
+        natural way to ask — "you there" — contradicted itself in the
+        two words after the "No". Both states, because a wrong "yes"
+        while she is halted is the more dangerous half.
+        """
+        asks_if_down = ("are you halted", "are you stopped", "are you off",
+                        "are you frozen", "is the kill switch on")
+        asks_if_up = ("are you running", "are you on", "are you up",
+                      "are you awake", "are you ok", "you there",
+                      "still there", "is the kill switch off")
+
+        with mock.patch("aletheia.policy.halted", lambda: None):
+            for said in asks_if_down:
+                self.assertEqual(quick.answer(said), "No, I'm running.", said)
+            for said in asks_if_up:
+                self.assertEqual(quick.answer(said), "Yes, I'm running.", said)
+
+        with mock.patch("aletheia.policy.halted",
+                        lambda: {"reason": "he said stop"}):
+            for said in asks_if_down:
+                self.assertTrue(quick.answer(said).startswith("Yes, I'm halted"),
+                                f"{said} -> {quick.answer(said)}")
+            for said in asks_if_up:
+                self.assertTrue(quick.answer(said).startswith("No, I'm halted"),
+                                f"{said} -> {quick.answer(said)}")
+
     def test_waiting_counts_what_is_actually_there(self):
         empty = {"halted": False, "waiting_on_you": [], "notifications": []}
         with mock.patch("aletheia.presence.snapshot", lambda: empty):
@@ -525,18 +555,39 @@ class TheWiderLaneCase(unittest.TestCase):
             self.assertEqual(quick.answer("how many approvals are pending"),
                              "Nothing is waiting on your approval.")
 
-    def test_capabilities_comes_out_of_the_registry(self):
+    def test_how_many_comes_out_of_the_registry(self):
+        """The counts still exist — for the question that asks for them.
+
+        "What can you do" used to answer with an inventory: "104 things
+        are live, 17 experimental...". Every number true, and nobody's
+        question. The numbers moved to the sentence that wants them.
+        """
         over = {"by_status": {"AVAILABLE": 7, "EXPERIMENTAL": 2,
                               "NOT_BUILT": 1}}
         with mock.patch("aletheia.self_knowledge.overview", lambda: over):
-            said = quick.answer("what can you do")
+            said = quick.answer("how many things can you do")
         self.assertIn("7 things are live", said)
         self.assertIn("2 experimental", said)
         self.assertIn("1 not built", said)
 
-    def test_an_unreadable_registry_goes_to_the_planner(self):
-        with mock.patch("aletheia.self_knowledge.overview", lambda: {}):
+    def test_what_she_can_do_changes_with_the_registry(self):
+        """The rule the counts were standing in for: the answer is READ,
+        never canned. Empty registry, no answer."""
+        from aletheia import capabilities
+        with mock.patch.object(capabilities, "load_registry",
+                               lambda *a, **k: {"capabilities": []}):
             self.assertIsNone(quick.answer("what can you do"))
+        said = quick.answer("what can you do")
+        self.assertIsNotNone(said)
+        self.assertIn("I can help with", said)
+
+    def test_an_unreadable_registry_goes_to_the_planner(self):
+        from aletheia import capabilities
+        with mock.patch.object(capabilities, "load_registry",
+                               side_effect=OSError("gone")):
+            self.assertIsNone(quick.answer("what can you do"))
+        with mock.patch("aletheia.self_knowledge.overview", lambda: {}):
+            self.assertIsNone(quick.answer("how many things can you do"))
 
     def test_alerts_reads_the_pulse_she_writes(self):
         import json
