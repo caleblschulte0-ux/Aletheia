@@ -32,6 +32,7 @@ from pathlib import Path
 
 from aletheia import speech, voice_quality
 from aletheia.proc import run as proc_run
+from aletheia import voice
 from aletheia.voice import WAKE_WORDS
 
 PRIMARY_MODEL_NAME = "vosk-model-en-us-0.22-lgraph"
@@ -702,6 +703,25 @@ def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
                 say("Yes?")
                 awaiting_since = monotonic()
                 continue
+
+        # SAY NOTHING RATHER THAN "I DIDN'T CATCH THAT". A fragment the
+        # wake word picked up off the room — "the", "uh", "the injuries"
+        # — used to go to the planner, wait most of a minute, and come
+        # back with an apology she read out loud and filed as a
+        # notification. His list had a dozen of them.
+        #
+        # Nothing the deterministic layer understands reaches this, so
+        # "stop" is never silenced. It is journaled, so a silence is
+        # explainable later, and it is not counted as a turn.
+        if not voice.worth_answering(command):
+            try:
+                from aletheia import journal
+                journal.append("event", "voice-room",
+                               f"heard nothing worth answering: {command[:60]!r}",
+                               actor="aletheia-voice-room")
+            except Exception:
+                pass
+            continue
 
         answer = _ask_with_acknowledgement(command, core_url, say,
                                            monotonic=monotonic)

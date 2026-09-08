@@ -523,6 +523,61 @@ def _known_place(text: str) -> bool:
         return False
 
 
+# Words that carry no request on their own. Filler, and the handful of
+# bare function words a recogniser produces from room noise — "the" is
+# the one that actually happened, over and over.
+_NOT_CONTENT = frozenset("""
+a an the and or but so of to in on at for with from by is are was were be
+been am do does did done have has had will would could should may might
+must can it its it's this that these those there here he she they them
+him her his hers their we us our you your i me my mine
+uh uhh um umm er erm hmm mm mhm ah oh eh yeah yep yup nah nope ok okay
+right well like just really actually thing things please thanks thank
+""".split())
+
+
+def worth_answering(said: str) -> bool:
+    """Did a person actually ask her something?
+
+    False means SAY NOTHING — not "I didn't catch that". A machine that
+    apologises to the television is broken, and every apology also cost a
+    planner round trip and a notification.
+
+    Anything the deterministic layer compiles is a request whatever its
+    length, so "stop" — one word, and the most important word here — can
+    never be silenced by this.
+    """
+    text = " ".join(str(said or "").split())
+    if not text:
+        return False
+    try:
+        got = interpret(text) or {}
+        if (got.get("command") or {}).get("kind") not in (None, "intent"):
+            return True
+        if got.get("say") and not got.get("command"):
+            return True          # a turn she already knows how to end
+    except Exception:
+        return True              # never silent because something broke
+    try:
+        # THE LANE THAT ANSWERS MOST OF WHAT HE SAYS. "Are you halted" is
+        # an `intent` to the interpreter and one content word to the
+        # counter — "halted" — so without this the most basic question he
+        # can ask her was treated as room noise.
+        from aletheia import quick
+        if quick.answer(text):
+            return True
+    except Exception:
+        return True
+    words = [w for w in re.findall(r"[a-z0-9']+", text.lower())
+             if w not in _NOT_CONTENT]
+    # Last resort, and only for sentences NO lane recognised. Two content
+    # words: "the injuries" has one and is a fragment of something rather
+    # than a request. The cost of being wrong here is that he repeats
+    # himself once; the cost of being wrong the other way was a planner
+    # round trip and an apology, every time the television spoke.
+    return len(words) >= 2
+
+
 def interpret(transcript: str) -> dict:
     """One spoken sentence -> a command to gate-check, or words to say.
 
