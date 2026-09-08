@@ -1160,6 +1160,45 @@ def _interpret(transcript: str) -> dict:
                     r"|(?:you can )?stop listening now)", low):
         return {"command": {"kind": "mic_off"}, "say": None}
 
+    # LOOKING AT THE ACTUAL PICTURE of his screen: the same shape as the
+    # microphone, for the same reason. A screenshot cannot be redacted the
+    # way window text can, so it is off until he says otherwise and dies
+    # on restart. Matched here rather than compiled, because `eyes_on` is
+    # PLANNER_FORBIDDEN and a forbidden verb that reaches the planner gets
+    # substituted for something else.
+    #
+    # Only PERMISSION-GRANTING phrasings switch it on. "Look at my screen
+    # and tell me what this is" is a QUESTION and must stay one; if that
+    # fell through to here, asking would quietly start sending pictures.
+    if re.fullmatch(r"(?:(?:you|u) can |(?:you|u) may |i'?ll let (?:you|u) "
+                    r"|let (?:you|u) |i'?m letting (?:you|u) )"
+                    r"(?:look at|see|read|photograph) (?:my|the) screen"
+                    r"(?: (?:for )?(?:a bit|a while|today|now))?"
+                    r"|(?:turn|switch) on (?:screen |screenshot )?"
+                    r"(?:looking|vision|eyes)"
+                    r"|(?:turn|switch) (?:your )?eyes on"
+                    r"|allow (?:screenshots|screen looking|screen shots)"
+                    r"|open (?:your )?eyes", low):
+        return {"command": {"kind": "eyes_on"}, "say": None}
+
+    # Off works from anywhere, always, like the microphone's.
+    if re.fullmatch(r"(?:stop|quit) (?:looking at|reading|photographing) "
+                    r"(?:my|the) screen"
+                    r"|(?:don'?t|do not) look at (?:my|the) screen(?: any ?more)?"
+                    r"|no more screenshots"
+                    r"|(?:turn|switch) off (?:screen |screenshot )?"
+                    r"(?:looking|vision|eyes)"
+                    r"|(?:turn|switch) (?:your )?eyes off"
+                    r"|close (?:your )?eyes", low):
+        return {"command": {"kind": "eyes_off"}, "say": None}
+
+    if re.fullmatch(r"(?:can|are) (?:you|u) (?:able to )?"
+                    r"(?:see|look at|looking at) (?:my|the) screen"
+                    r"|(?:can|are) (?:you|u) (?:see|seeing) (?:my|the) screen"
+                    r"|are (?:your )?eyes on"
+                    r"|(?:screen )?(?:looking|vision|eyes) status", low):
+        return {"command": {"kind": "eyes"}, "say": None}
+
     # AND ASKING FOR IT OUT LOUD IS ANSWERED, NOT COMPILED. `mic_on` is
     # PLANNER_FORBIDDEN, and CLAUDE.md is explicit about what happens to
     # a forbidden verb that reaches the planner anyway: it is SUBSTITUTED.

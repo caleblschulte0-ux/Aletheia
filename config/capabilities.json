@@ -1,5 +1,5 @@
 {
-  "revision": 99,
+  "revision": 100,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1049,15 +1049,15 @@
     },
     {
       "id": "perception.pixels",
-      "description": "Answer a question about an IMAGE - a screenshot or a photo - rather than an accessibility tree",
-      "provider": "aletheia.local",
-      "status": "NOT_BUILT",
-      "risk_class": "medium",
+      "description": "Look at the actual picture of the screen and answer a question about it",
+      "provider": "claude.cli",
+      "status": "AVAILABLE",
+      "risk_class": "high",
       "approval_policy": "operator_once",
-      "caller": "ticket - blocked on HARDWARE, not on wiring. The desktop capture half now exists (screen.capture); what is missing is somewhere fast enough to run a vision model",
-      "module": "",
-      "notes": "Measured twice on his PC 2026-09-08, and the second measurement overturned the first. The morning entry blamed MODEL SIZE - qwen3.6:27b answered a trivial 808-byte image in 268s cold and 85s warm - and recommended a smaller VLM. He approved that, so qwen3-vl:4b (3.3GB) was pulled. On the toy image it looked like a fix (18s warm). On the REAL workload it was not: a genuine 1024x576 screenshot of his own screen took 178s, and shrinking the image to 512px did not help (157s), which is the shape of a problem that is not about pixels. `ollama ps` says 100% CPU. The machine is an Intel i5-1035G4 (4 cores, 1.10GHz, a 2019 15W laptop part) with Intel Iris Plus integrated graphics and no discrete GPU, so there is nothing to enable and no smaller model rescues it - a third model would be a third download and the same answer. NOT a quality problem, which is the frustrating part: at 512px the 4B model correctly identified Mussolini, Tojo and Hitler in a video thumbnail. It is purely that a two-to-three minute answer to \"what am I looking at\" is worse than saying no. Real options, all his to choose: run the vision model on a machine with a GPU and reach it over the tailnet; accept it as BACKGROUND-only work where minutes are fine and the answer arrives later; or leave it, since perception.screen already answers most \"what is on my screen\" questions from the accessibility tree with no model at all, which is exactly why that was built first. ChatGPT's staging contract (staging/jarvis_gap/vision.py) was reviewed and is sound - it forbids action-shaped fields so a vision model cannot smuggle back a click - and is worth taking whenever there is somewhere fast enough to put behind it.",
-      "verification": "Not built. The latency above is the live measurement that keeps it that way; ChatGPT's staging contract for this (staging/jarvis_gap/vision.py on chatgpt/jarvis-gap-build-20260830) was reviewed and is sound - it forbids action-shaped fields in a vision answer so a model cannot smuggle back a click - and is worth taking when there is a model fast enough to put behind it."
+      "caller": "aletheia.eyes.answer, reached by intercom kind 'screen_ask' when the accessibility tree could not answer; voice: 'you can look at my screen' / 'stop looking at my screen' / 'can you see my screen'; python -m aletheia.eyes on|off|ask",
+      "module": "aletheia.eyes",
+      "notes": "THE LAST STEP, NOT THE FIRST. His ruling 2026-09-08: 'Yes it can use Claude when needed that's the thing - if I wanted something that's just going to ask Claude to do everything I will just talk to Claude.' So screen_ask reads the accessibility tree first every time, because that is free, stays on the machine and is right most of the time, and only photographs the screen when the tree came back under eyes.TREE_CONFIDENCE_FLOOR (0.6) AND he has switched looking on. Verified: 'what application am I using' answered at 0.99 from the tree with looked=false, no picture sent. Why not the local vision model: measured on this PC, ollama runs 100% CPU (i5-1035G4, Intel integrated graphics, no discrete GPU) and a real screenshot took 178s through qwen3-vl:4b; the same picture through his Claude subscription answered in 8-12s. No API key - the same official client on the subscription he already pays for (Playbook 6). A SCREENSHOT CANNOT BE REDACTED: perception.screen drops password fields and rewrites credential-shaped values because it handles text, and pixels are pixels - a capture catches whatever was on screen, which may be a bank balance or a password manager. So this is built the way he ruled the microphone should be: a boot-stamped, time-boxed lease that is OFF by default, dies on restart, and is revocable from anywhere. eyes_on is in BOTH intercom.PLANNER_FORBIDDEN and agenda.FORBIDDEN_KINDS, so neither a compiled sentence nor an approved mission can start sending his screen anywhere; every phrasing that means the switch is matched deterministically in voice.py instead. A rehearsal (ALETHEIA_REHEARSAL) never photographs anything - talk --sandbox redirects stores, and a screenshot is not a store. LOOKING IS NOT ACTING: an answer carrying an action-shaped field (click, coordinates, command, url) is REFUSED rather than trimmed, so a model that has seen the screen cannot hand back a press - the idea is ChatGPT's, from staging/jarvis_gap/vision.py, and it was the best thing on that branch. The picture is journalled by sha256 and size, never by content, and is deleted whether or not the answer arrives.",
+      "verification": "26 tests in tests/test_eyes.py: off by default, dead after a restart, expired leases refused, action-shaped answers refused, a rehearsal never capturing, the journal carrying the digest and not the content, and the screenshot discarded even when the look fails. The ladder is tested in both directions - a confident tree answer with look() wired to raise, and a weak one that must escalate. Live on the PC 2026-09-08: switched on, asked about the actual picture, correct answer in 12s at 0.75 confidence; switched back off afterwards."
     },
     {
       "id": "presence.wall",

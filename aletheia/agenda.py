@@ -84,6 +84,12 @@ FORBIDDEN_KINDS = {
     # else entirely. `mic_off` is deliberately absent — an agenda closing
     # the microphone only ever reduces what is listening.
     "mic_on",
+    # ...nor may it start sending PICTURES of his screen off the machine.
+    # Exactly the microphone's argument, and the same trap: `mic_on` sat
+    # in PLANNER_FORBIDDEN and not here for a while, so an agenda could
+    # have opened what the planner could not. `eyes_off` is deliberately
+    # absent, because switching it off only ever reduces what is sent.
+    "eyes_on",
     # an agenda that files intents that file intents is a loop with a budget
     "intent",
     # standing proactive rules are authority that outlives this mission
@@ -95,6 +101,7 @@ FORBIDDEN_KINDS = {
 REFUSAL_REASON = {
     "close": "an agenda that can close her can close her mid-mission",
     "mic_on": "the microphone is a button he presses, not a step in a mission",
+    "eyes_on": "looking at the actual picture of his screen is his to switch on",
     "open": "opening her again is his, not a mission's",
     "approve": "an agenda that can approve things can approve its own",
     "deny": "an agenda that can decide approvals can decide its own",

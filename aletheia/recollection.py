@@ -96,7 +96,12 @@ HERS = ("aletheia", "operator-via", "operator-local", "core", "converse",
         # officedocs journalled under a literal rather than a
         # module constant, so a Word document she wrote would not
         # have appeared in her account of her own day.
-        "music", "documents")
+        "music", "documents",
+        # Looking at the actual picture of his screen is a thing she
+        # DID, and the one he is most likely to ask her about after
+        # the fact - "did you look at my screen?" has to be
+        # answerable from her own account of the day.
+        "eyes")
 
 STOP = frozenset("""
 a an and are as at be by can could did do does for from get give go had has

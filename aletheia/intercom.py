@@ -172,6 +172,13 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "mic":           (set(), set()),
     "mic_on":        (set(), set()),
     "mic_off":       (set(), set()),
+    # Looking at the actual PICTURE of his screen, rather than reading it
+    # as text. A screenshot cannot be redacted the way perception.screen
+    # redacts a window title, so it gets the microphone's treatment: off
+    # by default, his to switch on, dead on restart.
+    "eyes":          (set(), set()),
+    "eyes_on":       (set(), {"hours"}),
+    "eyes_off":      (set(), set()),
     "agents":        (set(), set()),
     "agent_new":     ({"name", "mission"}, {"project", "agent_type"}),
     "agent_stop":    ({"which"}, set()),
@@ -465,6 +472,9 @@ READ_ONLY_KINDS = frozenset({
     # state. It is the question he is most entitled to a straight answer
     # to, and it changes nothing by being asked.
     "mic",
+    # "Can you see my screen" is a question about a switch, and he is
+    # entitled to a straight answer whenever he asks it.
+    "eyes",
     # "Are you using my ChatGPT" must be answerable at any moment: it is
     # his account, and the question is one he is entitled to a straight
     # answer to whatever else is happening.
@@ -510,7 +520,7 @@ ROUTINE_KINDS = frozenset({
     # CLOSING the microphone only ever reduces what is listening, so it
     # is routine and never waits. Opening it is world-tier by falling
     # through, and forbidden to the planner besides.
-    "mic_off", "chatgpt_off",
+    "mic_off", "chatgpt_off", "eyes_off",
     # Pressing pause is as reversible as pressing play, and a media
     # key reaches nobody outside the room.
     "music",
@@ -644,6 +654,11 @@ PLANNER_FORBIDDEN = frozenset({
     # A microphone a model can open is not a microphone that is off. His
     # ruling: it is a button he presses, and the planner is not a button.
     "mic_on",
+    # And a model may not decide to start sending pictures of his screen
+    # off the machine. Same reason as the microphone, higher stakes: a
+    # screenshot carries whatever happened to be on screen, and unlike
+    # window text it cannot be redacted on the way out.
+    "eyes_on",
 })
 
 
@@ -1872,12 +1887,35 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         parts = [f"{n['title']}: {n['body'][:80]}" for n in unread[:5]]
         head = f"{len(unread)} notification{'s' if len(unread) != 1 else ''}. "
         return head + " — ".join(parts)
+    if kind == "eyes":
+        from aletheia import eyes
+        return eyes.spoken()
+    if kind == "eyes_on":
+        from aletheia import eyes
+        eyes.grant(int(cmd.get("hours") or eyes.DEFAULT_HOURS))
+        return eyes.spoken()
+    if kind == "eyes_off":
+        from aletheia import eyes
+        eyes.revoke()
+        return ("I've stopped looking at the actual picture of your screen. "
+                "I can still read what's on it as text.")
     if kind == "screen_ask":
-        from aletheia import perception
+        from aletheia import eyes, perception
         window = ({"title_re": re.escape(cmd["window"])} if cmd.get("window")
                   else None)
-        answer = perception.describe(cmd["question"], window=window)
-        return answer["answer"]
+        if window is not None:
+            # A question aimed at ONE named window is a question about
+            # that window's controls, which is what the tree is for.
+            return perception.describe(cmd["question"], window=window)["answer"]
+        # The ladder: read it as text, and look at the picture only if
+        # that genuinely could not answer and he has switched looking on.
+        answer = eyes.answer(cmd["question"])
+        said = answer["answer"]
+        if answer.get("could_look") is False:
+            # Do not leave him wondering why she was vague.
+            said += (" I couldn't tell from the screen text - if you want me "
+                     "to look at the actual picture, say \"look at my screen\".")
+        return said
     if kind == "intent":
         from aletheia import intents
         record = intents.propose(cmd["text"], quote=quote, fleet=fleet)

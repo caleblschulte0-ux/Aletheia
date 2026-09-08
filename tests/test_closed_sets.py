@@ -166,12 +166,19 @@ class TheKillSwitchIsNotSomethingASENTENCECanTrip(unittest.TestCase):
         is not a microphone that is off, and "start listening" is exactly
         the kind of sentence a compiler is happy to produce.
 
+        `eyes_on` joined it on 2026-09-08 for the microphone's reason
+        with higher stakes: it starts sending PICTURES of his screen off
+        the machine, and unlike window text a screenshot cannot be
+        redacted on the way out. "Look at my screen and tell me what
+        this is" is an ordinary sentence, and a compiler asked to turn
+        it into a command name has an obvious wrong answer available.
+
         The list is written out again here on purpose: adding to it
         should cost somebody a deliberate second edit."""
         from aletheia import intercom
         self.assertEqual(intercom.PLANNER_FORBIDDEN,
                          frozenset({"halt", "resume", "approve", "deny",
-                                    "close", "open", "mic_on"}))
+                                    "close", "open", "mic_on", "eyes_on"}))
 
     def test_the_agenda_refuses_the_same_ones(self):
         """Two lists that disagree is one list that is wrong."""

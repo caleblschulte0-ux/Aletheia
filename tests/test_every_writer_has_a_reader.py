@@ -79,6 +79,11 @@ READER_FOR = {
     # `handle` files an intent and answers with its own state; the thing
     # it produces is a task or a plan, both readable above.
     "handle": "tasks",
+    # Switching looking off writes the lease; "can you see my screen" is
+    # how he reads it back. (`eyes_on` is not here because it is not
+    # ROUTINE - it falls through to world-tier and is forbidden to the
+    # planner besides.)
+    "eyes_off": "eyes",
 }
 
 

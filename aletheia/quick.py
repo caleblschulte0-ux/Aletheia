@@ -530,6 +530,10 @@ _NOT_A_THING_HE_ASKS_FOR = frozenset({
     # Switches over her own workings, like the microphone: he turns
     # them on and off, he does not ask her to DO them.
     "chatgpt", "chatgpt_on", "chatgpt_off",
+    # And looking at the actual picture of his screen. Asking about the
+    # screen is `screen_ask`, which is listed; these three are the switch
+    # behind it, which he flips rather than asks for.
+    "eyes", "eyes_on", "eyes_off",
 })
 
 
