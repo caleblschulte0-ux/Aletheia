@@ -150,6 +150,15 @@ CODE_PATHS = ["aletheia", "interface", "config", "requirements-optional.txt"]
 # this is code the running process is not executing.
 PROCESS_STARTED_AT = time.time()
 RESTART_EXIT_CODE = 42  # tells the supervisor: relaunch me, this is not a crash
+# How often the running Core looks for the "closed" marker.
+#
+# THIS WAS NEVER DEFINED. `watch_for_close` used it, so the watcher thread
+# died with NameError on its first loop — in a daemon thread, under
+# pythonw, where the traceback goes nowhere. The marker was written, the
+# supervisor honoured it, and the Core that was ALREADY RUNNING carried on
+# talking: "i did both them and its still talking in the back". Closing
+# her worked in every case except the one that matters.
+CLOSE_POLL_S = 2.0
 
 # Kinds that reach a reasoning provider and therefore take tens of seconds.
 # The room gets an acknowledgement now and the real sentence when it lands
@@ -316,6 +325,34 @@ def _remember_out_loud(transcript: str, said: str) -> None:
         converse.remember_exchange(voice.strip_wake_word(transcript), said)
     except Exception:
         pass
+
+
+def watch_for_close(server, restarting, *, poll_s: float = None,
+                    limit: int | None = None) -> bool:
+    """Shut the server down when the operator closes her. True if it did.
+
+    A MODULE FUNCTION, not a closure inside `main`, because the closure
+    could not be tested and the one line in it that mattered —
+    `time.sleep(CLOSE_POLL_S)` — used a name that did not exist. The
+    thread died on its first pass, silently, in a daemon thread under
+    pythonw, and a Core that was already running never noticed being
+    closed at all.
+
+    `limit` bounds the loop for tests; None means until she closes or
+    restarts.
+    """
+    poll_s = CLOSE_POLL_S if poll_s is None else poll_s
+    passes = 0
+    while not restarting.is_set():
+        if closed.is_closed():
+            journal.append("event", "core", "closing — asked to")
+            threading.Thread(target=server.shutdown, daemon=True).start()
+            return True
+        passes += 1
+        if limit is not None and passes >= limit:
+            return False
+        time.sleep(poll_s)
+    return False
 
 
 def kick_approved_work(fleet: dict, wait_s: float = 0.0) -> bool:
@@ -1019,14 +1056,8 @@ def main(argv: list[str] | None = None) -> int:
     # press it — so the only available stop was terminating the task.
     # This watches for the marker and shuts the server down the same way
     # a code update does: finish what is in flight, exit 0, journal it.
-    def watch_for_close():
-        while not restarting.is_set():
-            if closed.is_closed():
-                journal.append("event", "core", "closing — asked to")
-                threading.Thread(target=server.shutdown, daemon=True).start()
-                return
-            time.sleep(CLOSE_POLL_S)
-    threading.Thread(target=watch_for_close, daemon=True).start()
+    threading.Thread(target=watch_for_close, args=(server, restarting),
+                     daemon=True).start()
     journal.append("event", "core", f"local Core up on {args.host}:{args.port}")
     print(f"Aletheia Core: http://{args.host}:{args.port}  "
           f"(wall at /, command center at /command.html) — Ctrl+C stops")
