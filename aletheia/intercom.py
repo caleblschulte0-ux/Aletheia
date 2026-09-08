@@ -1653,7 +1653,13 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             # The starting scope is READ-ONLY on purpose. A worker created
             # by a sentence begins able to look and not to touch; widening
             # it is a separate decision, made once he knows what it is for.
-            capabilities=agents.grantable(sorted(READ_ONLY_KINDS)))
+            #
+            # This said `grantable(READ_ONLY_KINDS)` first — intercom KINDS
+            # where registry CAPABILITY IDS were wanted. Every id was
+            # unknown, all of them were dropped, and the agent was created
+            # holding nothing at all: safe by accident, meaningless on
+            # purpose. `risk_class == "read"` is the registry's own word.
+            capabilities=agents.reading_scope())
         return (f"{made['name']} exists — {made['mission'][:90]}. "
                 f"It can read and nothing else until you widen it.")
     if kind == "message_send":

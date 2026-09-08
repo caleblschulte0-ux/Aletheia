@@ -67,6 +67,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import uuid
 from pathlib import Path
 
 from aletheia import authority, contracts, journal, policy
@@ -185,6 +186,23 @@ def root_record() -> dict:
     return {"version": 1, "id": ROOT, "name": "Aletheia", "type": "root",
             "parent": None, "mission": "the operator's interface",
             "status": "READY", "capabilities": grantable(ids)}
+
+
+def reading_scope() -> list[str]:
+    """Every capability that only LOOKS at things.
+
+    `risk_class == "read"` is the registry's own word for it, so a
+    capability added tomorrow is in this set the day it is added and
+    nobody has to remember to widen a list. This is what a worker
+    created by a sentence starts with: able to see, unable to touch.
+    """
+    from aletheia import capabilities
+    try:
+        reg = capabilities.load_registry()
+    except Exception:
+        return []
+    return grantable([c["id"] for c in reg.get("capabilities", [])
+                      if c.get("risk_class") == "read"])
 
 
 def holds(agent_id: str) -> set[str]:
@@ -309,6 +327,87 @@ def require(agent_id: str, capability_id: str) -> None:
         raise NotPermitted(
             f"agent {agent_id!r} does not hold {capability_id}. It may ask; "
             "asking is not authority.")
+
+
+def act(agent_id: str, command: dict, *, capability: str, quote: str = "",
+        runner=None) -> dict:
+    """The ONE place an agent's work reaches the world.
+
+    Everything the hierarchy promises is enforced here rather than at
+    each call site: the kill switch, the agent's own state, the scope it
+    was given, and the tier of the thing it is trying to run. A second
+    door would be a second set of these checks, and the bug would be in
+    whichever one nobody read.
+
+    **A world-tier kind is refused outright, whatever the agent holds.**
+    Sending, spending, binding and destroying stop for him every time,
+    and an agent is not a way around that. It may still ASK — the answer
+    is an approval with his name on it — and asking is not authority.
+
+    Writes a receipt through `outcomes` (the repo's existing one, not a
+    second audit trail) and records the run in the worker's workspace,
+    so "what did this agent actually do" has an answer that is not a
+    model's recollection of itself.
+    """
+    from aletheia import intercom, outcomes, workspaces
+
+    kind = str((command or {}).get("kind") or "")
+    if not kind:
+        raise AgentError("a command with no kind is not a command")
+
+    # Refused BEFORE the permission check, so the message is about the
+    # right thing: this is not "you lack a capability", it is "no agent
+    # has this one".
+    if intercom.tier(kind) == intercom.TIER_WORLD:
+        raise NotPermitted(
+            f"{kind} reaches the world, so it stops for him — no agent runs "
+            "it. Ask, and the approval goes to him.")
+
+    require(agent_id, capability)
+
+    # A timestamp to the SECOND is not unique: two reads in one second
+    # collided and the second one raised FileExistsError out of the
+    # receipt store, turning a working action into a crash.
+    action_id = f"act-{agent_id}-{stateio_utcnow_slug()}-{uuid.uuid4().hex[:6]}"
+    outcomes.start(action_id, capability=capability, provider="aletheia.local",
+                   intent=f"{agent_id}: {kind}", plan=dict(command),
+                   requested_by=f"agent:{agent_id}",
+                   inputs_summary=str(quote)[:200])
+    set_status(agent_id, "RUNNING")
+    try:
+        run = runner or _intercom_runner
+        detail = run(command, quote)
+    except Exception as exc:
+        # `outcomes.ATTEMPT_OUTCOMES` is the vocabulary; "FAILED" is not
+        # in it. RETRYABLE because the runtime cannot tell an unreadable
+        # store from a permanent refusal, and calling something terminal
+        # that is not is how work gets silently abandoned.
+        outcomes.add_attempt(action_id, outcome="FAILED_RETRYABLE",
+                             note=f"{type(exc).__name__}: {exc}"[:300])
+        set_status(agent_id, "FAILED_RETRYABLE", note=str(exc)[:200])
+        workspaces.record_run(agent_id, {"role": kind, "question": quote},
+                              {"state": "FAILED", "why": str(exc)[:300]})
+        raise
+    # SUCCEEDED, which the store turns into AWAITING_VERIFICATION rather
+    # than VERIFIED — running a command is not evidence that it worked
+    # (§30), and this door does not get to skip that distinction.
+    outcomes.add_attempt(action_id, outcome="SUCCEEDED",
+                         result_summary=str(detail)[:300])
+    set_status(agent_id, "READY")
+    workspaces.record_run(agent_id, {"role": kind, "question": quote},
+                          {"state": "COMPLETED", "provider": "aletheia.local"})
+    return {"action_id": action_id, "detail": detail}
+
+
+def stateio_utcnow_slug() -> str:
+    """A sortable, filename-safe stamp for one action."""
+    return utcnow().replace(":", "").replace("-", "").replace("T", "-").rstrip("Z")
+
+
+def _intercom_runner(command: dict, quote: str) -> str:
+    """The real one: the same gated grammar every other caller speaks."""
+    from aletheia import fleet as fleet_mod, intercom
+    return intercom.execute_command(command, fleet_mod.load_fleet(), quote=quote)
 
 
 def set_status(agent_id: str, status: str, *, note: str = "") -> dict:
