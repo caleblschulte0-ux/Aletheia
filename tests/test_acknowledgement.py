@@ -101,9 +101,33 @@ class WaitingCase(unittest.TestCase):
         self.assertEqual(said, [speech.ACK_ACTION])
 
     def test_a_slow_question_gets_the_question_line(self):
-        said, _out = self.ask(voice_room.ACK_AFTER_S + 1.0,
+        """A question that really is slow still gets the question line.
+
+        The THRESHOLD moved — a question waits ACK_AFTER_QUICK_S before
+        she says anything — but which line she says when she does is
+        unchanged, and that is what this protects.
+        """
+        said, _out = self.ask(voice_room.ACK_AFTER_QUICK_S + 1.0,
                               command="what did dana say today")
         self.assertEqual(said, [speech.ACK_QUESTION])
+
+    def test_a_question_that_lands_in_a_few_seconds_is_not_interrupted(self):
+        """"Working on it." ... "Reykjavik." is two utterances where one
+        would do, and the first makes the second feel late.
+
+        A fact about the world is one model round trip — about four
+        seconds — so she stays quiet longer for those than for work that
+        is genuinely about to take minutes.
+        """
+        said, _out = self.ask(voice_room.ACK_AFTER_S + 0.5,
+                              command="what's the capital of Iceland")
+        self.assertEqual(said, [], "she talked over a four-second answer")
+
+    def test_real_work_is_still_acknowledged_quickly(self):
+        """The other half of his ruling: for a job she says so early."""
+        said, _out = self.ask(voice_room.ACK_AFTER_S + 0.5,
+                              command="go do major work on my repos")
+        self.assertEqual(said, [speech.ACK_ACTION])
 
     def test_a_very_long_wait_says_so_exactly_once(self):
         said, _out = self.ask(voice_room.STILL_AFTER_S * 3)

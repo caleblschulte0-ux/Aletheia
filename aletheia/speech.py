@@ -401,6 +401,41 @@ def plainly(detail: str) -> str:
     return tidy(strip_ids(stripped))
 
 
+def shorten(text: str, limit: int = 70) -> str:
+    """Cut to `limit` characters at a WORD boundary, never mid-word.
+
+    "I don't have" truncated to "I don't ha" is noise where a fact
+    should be, and read out loud it sounds like she broke off. Anything
+    that has to be cut for speech comes through here.
+    """
+    words = " ".join(str(text or "").split())
+    if len(words) <= limit:
+        return words
+    cut = words[:limit].rsplit(" ", 1)[0].rstrip(" ,;:-")
+    # A single word longer than the limit has no boundary to cut at;
+    # better a slightly long word than a mangled one.
+    return cut or words.split(" ")[0]
+
+
+# A title that names a CATEGORY tells him nothing: every reminder is
+# titled "Reminder", and the thing he wants is the body.
+_CATEGORY_TITLES = frozenset({"reminder", "notification", "notice", "alert",
+                              "aletheia finished thinking"})
+
+
+def notice_line(notice: dict, limit: int = 70) -> str:
+    """One notification, in a phrase that can be said in one breath.
+
+    Prefers the title, because a body is a paragraph — unless the title
+    is a category, which names the kind and not the thing.
+    """
+    title = " ".join(str(notice.get("title") or "").split())
+    body = " ".join(str(notice.get("says") or notice.get("body") or "").split())
+    if title and title.casefold() not in _CATEGORY_TITLES:
+        return shorten(title, limit)
+    return shorten(body or title, limit)
+
+
 def and_list(items: list[str]) -> str:
     """['a','b','c'] -> 'a, b and c'. Speech, not a bullet list."""
     items = [str(i).strip() for i in items if str(i).strip()]

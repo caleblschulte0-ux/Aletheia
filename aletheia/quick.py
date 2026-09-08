@@ -265,13 +265,17 @@ def _waiting() -> str:
         # `presence` calls it `label` and it is already a sentence a person
         # wrote — asking for `reason` here got "something" every time.
         what = str(first.get("label") or first.get("reason") or "one of them")
-        parts.append(f"{len(waiting)} waiting on you — the first is {what[:110]}")
+        parts.append(f"{len(waiting)} waiting on you — the first is "
+                     + speech.shorten(what, 90))
     if notices:
         # SAY WHAT THEY ARE. A reminder fired correctly, on time, and the
         # answer to "what's waiting on me" was "1 thing I wanted to tell
         # you about" — the answer to "how many", when he asked what.
-        said = speech.and_list([str(n.get("says") or n.get("title") or "")[:90]
-                                for n in notices[:3]])
+        # Titles rather than bodies, cut at a word boundary. A body is a
+        # paragraph with commas in it, and `and_list` joins with commas —
+        # three of those ran together into one unbreathable sentence
+        # ending "...is worth right now?: I don't ha,".
+        said = speech.and_list([speech.notice_line(n) for n in notices[:3]])
         more = f", and {len(notices) - 3} more" if len(notices) > 3 else ""
         parts.append(said + more if said else
                      f"{speech.count_phrase(len(notices), 'thing')} "

@@ -65,6 +65,14 @@ REPEAT_FAILURE_WINDOW_S = 20.0
 # question `quick` answers from a file (~10ms) is never preceded by "let me
 # look", and nothing has to know in advance which asks are slow.
 ACK_AFTER_S = 1.2
+# ...but not for a question that is about to land anyway. A fact about
+# the world is one model round trip — roughly four seconds — and a flat
+# 1.2s ack made her interrupt herself: "Working on it." ... "Reykjavik."
+# Three seconds of silence first means most quick answers never need the
+# line, and a slow one still gets acknowledged before the silence starts
+# to read as "she didn't hear me". Real work keeps the short wait,
+# because there she is genuinely about to go quiet for a while.
+ACK_AFTER_QUICK_S = 3.0
 STILL_AFTER_S = 12.0
 # How often the waiter re-checks. Small enough that the acknowledgement
 # lands on time, large enough to cost nothing.
@@ -401,10 +409,35 @@ def collect_followup(followup_id: str, core_url: str = CORE_URL,
     return None
 
 
+def acknowledge_followup(followup_id: str, core_url: str = CORE_URL) -> bool:
+    """Tell the Core the answer was actually spoken. Never raises.
+
+    Without this every answer the ROOM speaks stays an unread IMPORTANT
+    notification for ever — 80 of them had piled up on his machine, so
+    "what's waiting on me" read back her own replies as though they were
+    work. The wall and the audit tool both did this; the room, the
+    surface he actually uses, never did.
+
+    A failure here must not take the room down: the answer has already
+    been said, and the worst case is one stale notice rather than a
+    listener that died doing bookkeeping.
+    """
+    try:
+        request = urllib.request.Request(
+            f"{core_url}/api/voice/followup/ack",
+            data=json.dumps({"id": followup_id}).encode("utf-8"),
+            headers=_local_headers(), method="POST")
+        with urllib.request.urlopen(request, timeout=5):
+            return True
+    except Exception:
+        return False
+
+
 def launch_followup(followup_id: str, core_url: str, say,
-                    collector=None) -> threading.Thread:
+                    collector=None, acknowledge=None) -> threading.Thread:
     """Collect one promised reply without making the room deaf meanwhile."""
     collector = collector or collect_followup
+    acknowledge = acknowledge or acknowledge_followup
 
     def deliver():
         try:
@@ -412,6 +445,12 @@ def launch_followup(followup_id: str, core_url: str, say,
         except Exception:
             later = None
         say(later or FOLLOWUP_FAILURE)
+        # AFTER saying it, and only if there was something to say.
+        # Acknowledging a failed collection would consume an answer
+        # nobody heard — the exact loss the pure-read GET exists to
+        # prevent.
+        if later:
+            acknowledge(followup_id, core_url)
 
     thread = threading.Thread(target=deliver, name=f"voice-{followup_id}",
                               daemon=True)
@@ -500,13 +539,23 @@ def _ask_with_acknowledgement(command: str, core_url: str, say,
 
     worker = threading.Thread(target=work, daemon=True)
     worker.start()
+    # How long to stay quiet before saying she is on it. A question that
+    # should land in four seconds gets longer silence than a job that is
+    # about to take minutes — see ACK_AFTER_QUICK_S.
+    try:
+        from aletheia import asking
+        ack_after = (ACK_AFTER_QUICK_S
+                     if asking.expectation(command) == "quick"
+                     else ACK_AFTER_S)
+    except Exception:
+        ack_after = ACK_AFTER_S
     started = monotonic()
     said_ack = said_still = False
     while not done.wait(ACK_WAIT_TICK_S):
         waited = monotonic() - started
         # Each line at most once. A voice that narrates its own waiting
         # every twelve seconds is worse than one that waits quietly.
-        if not said_ack and waited >= ACK_AFTER_S:
+        if not said_ack and waited >= ack_after:
             said_ack = True
             say(speech.ack_line(command))
         elif said_ack and not said_still and waited >= STILL_AFTER_S:

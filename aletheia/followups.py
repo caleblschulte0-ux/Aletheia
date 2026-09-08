@@ -66,7 +66,35 @@ def _load_record(followup_id: str) -> dict | None:
     return value
 
 
+def _is_a_question_back(said: str) -> bool:
+    """Did she answer him, or ask him something?
+
+    A question back is the one reply that does not survive being left in
+    a list: by the time he reads it the conversation that would have
+    answered it is gone. Ending in a question mark is what one looks
+    like, and what an answer almost never does.
+    """
+    return str(said or "").strip().endswith("?")
+
+
 def _publish_terminal(record: dict) -> str | None:
+    # A CLARIFYING QUESTION IS NOT A THING WAITING ON HIM. Six of these
+    # were sitting IMPORTANT and unread on his machine — her own "I
+    # didn't catch a clear request in 'the injuries'", filed as work and
+    # read back days later, when nothing could answer it any more.
+    #
+    # Live, this path is not the one that matters: the room says the
+    # question out loud and he answers in the same breath. The
+    # notification is for when he is away, and a question is precisely
+    # the reply that is worthless by then. Journaled, so it is not lost —
+    # only the claim on his attention is dropped.
+    #
+    # FAILED still notifies: "I could not finish" is a fact about her.
+    if record["state"] == READY and _is_a_question_back(record.get("say")):
+        _journal("event",
+                 f"{record['id']}: asked him something and he was not there; "
+                 "not filed as waiting on him")
+        return None
     title = ("Aletheia finished thinking" if record["state"] == READY
              else "Aletheia could not finish a reply")
     try:
