@@ -83,11 +83,60 @@ class ItReallyIsADocumentCase(DocumentCase):
         self.assertEqual(officedocs._cell_ref(2, 27), "AA2")
 
 
+class ADeckIsProvableAfterAllCase(DocumentCase):
+    """I registered PowerPoint as a ticket and called it unverifiable,
+    because nothing here reads a deck back. That was wrong and I had not
+    looked: `doctext` reads a .docx by pulling `<w:t>` runs out of the
+    zip, and a .pptx is the same shape — `<a:t>` runs, one part per
+    slide. The reader is twenty lines."""
+
+    def test_the_words_come_back_slide_by_slide(self):
+        made = officedocs.save("launch.pptx", slides=[
+            {"title": "Barkly launch", "bullets": ["Readiness review"]},
+            {"title": "Ask", "bullets": ["Two weeks", "One engineer"]}])
+        self.assertTrue(made["verified"]["ok"], made["verified"])
+        slides = officedocs.deck_text(made["path"])
+        self.assertEqual(len(slides), 2)
+        self.assertIn("Barkly launch", slides[0])
+        self.assertIn("Readiness review", slides[0])
+        self.assertIn("One engineer", slides[1])
+
+    def test_every_part_powerpoint_insists_on_is_present(self):
+        """It refuses a deck without a master, a layout and a theme."""
+        made = officedocs.save("d.pptx", slides=[{"title": "One"}])
+        with zipfile.ZipFile(made["path"]) as archive:
+            names = set(archive.namelist())
+        for needed in ("ppt/presentation.xml",
+                       "ppt/slideMasters/slideMaster1.xml",
+                       "ppt/slideLayouts/slideLayout1.xml",
+                       "ppt/theme/theme1.xml",
+                       "ppt/slides/slide1.xml"):
+            self.assertIn(needed, names)
+
+    def test_every_part_of_a_deck_is_valid_xml(self):
+        made = officedocs.save("v.pptx", slides=[{"title": "One",
+                                                  "bullets": ["a", "b"]}])
+        with zipfile.ZipFile(made["path"]) as archive:
+            for name in archive.namelist():
+                if name.endswith((".xml", ".rels")):
+                    ElementTree.fromstring(archive.read(name))
+
+    def test_a_deck_with_no_slides_is_not_a_deck(self):
+        with self.assertRaises(officedocs.DocumentError):
+            officedocs.save("empty.pptx", slides=[])
+
+    def test_slides_survive_characters_that_would_break_the_xml(self):
+        made = officedocs.save("odd.pptx", slides=[
+            {"title": "<b>Q3 & Q4</b>", "bullets": ["weird"]}])
+        self.assertTrue(made["verified"]["ok"])
+        self.assertIn("Q3 & Q4", officedocs.deck_text(made["path"])[0])
+
+
 class ItRefusesRatherThanCorruptsCase(DocumentCase):
     def test_a_format_she_cannot_make_is_refused_by_name(self):
         with self.assertRaises(officedocs.DocumentError) as caught:
-            officedocs.save("deck.pptx", blocks=[{"text": "hello"}])
-        self.assertIn("pptx", str(caught.exception))
+            officedocs.save("notes.rtf", blocks=[{"text": "hello"}])
+        self.assertIn("rtf", str(caught.exception))
 
     def test_an_empty_document_is_not_a_document(self):
         for path, kwargs in (("a.docx", {"blocks": []}),
@@ -139,6 +188,14 @@ class ThroughTheGrammarCase(DocumentCase):
              "content": [["Item", "Qty"], ["Widget", 12]]},
             {}, quote="make me a sheet")
         self.assertIn("spreadsheet", said)
+
+    def test_a_deck_through_the_grammar(self):
+        said = intercom.execute_command(
+            {"kind": "doc_make", "path": "deck.pptx",
+             "content": [{"title": "Q3", "bullets": ["Up 12%"]}, "Thank you"]},
+            {}, quote="make me a deck")
+        self.assertIn("slide deck", said)
+        self.assertIn("reads back correctly", said)
 
     def test_plain_strings_are_paragraphs(self):
         """What a planner produces when nobody asked for headings."""

@@ -1,5 +1,5 @@
 {
-  "revision": 91,
+  "revision": 92,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1535,14 +1535,14 @@
     },
     {
       "id": "document.author",
-      "description": "Make a real Word document or Excel spreadsheet - .docx and .xlsx, openable in Office or Google Docs",
+      "description": "Make a real Word document, Excel spreadsheet or PowerPoint deck - .docx, .xlsx and .pptx, openable in Office or Google Docs",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "none",
       "module": "aletheia.officedocs",
       "caller": "intercom kind 'doc_make' (LOCAL - the workspace is a directory on his PC), reachable from voice and any compiled plan; aletheia.officedocs.save",
-      "notes": "He asked whether she can make Excel, PowerPoint and Word files. She could READ a .docx (document.read_any) and could not write one: workspace.write refuses any suffix outside TEXT_SUFFIXES, so everything she authored was markdown or plain text. STDLIB ONLY, for the reason doctext gives about itself - `pip install python-docx openpyxl` makes the feature work on the machine of whoever remembered to run it, which is the same shape as a capability that says AVAILABLE and is not. Both formats are ZIP archives of XML and zipfile is stdlib. PROVEN BY READING IT BACK: every .docx written is re-opened with doctext._docx_text - the repo's own reader, the one his resume goes through - and the words have to come back, or the file is DELETED rather than left somewhere he might send it from. Spreadsheet numbers are written as numbers so SUM() works; text uses inline strings rather than a shared-string table, because a mismatch between the table and the sheet is the classic way to produce a file Excel refuses to open. Every XML part is parsed after writing: a zip that is intact and contains malformed XML is exactly the file Office calls corrupt. Control characters are stripped - a raw 0x08 in a cell corrupts a workbook, and this repo has already lost an afternoon to one. PowerPoint is NOT built: a minimal .pptx needs a slide master, a layout and a theme, which is four times the work of the other two and none of it verifiable without a reader to round-trip against. Ticket: document.author.slides. Google Sheets/Slides are also not built - they need OAuth, and calendar_auth is the precedent to follow when he wants them."
+      "notes": "He asked whether she can make Excel, PowerPoint and Word files. She could READ a .docx (document.read_any) and could not write one: workspace.write refuses any suffix outside TEXT_SUFFIXES, so everything she authored was markdown or plain text. STDLIB ONLY, for the reason doctext gives about itself - `pip install python-docx openpyxl` makes the feature work on the machine of whoever remembered to run it, which is the same shape as a capability that says AVAILABLE and is not. Both formats are ZIP archives of XML and zipfile is stdlib. PROVEN BY READING IT BACK: every .docx written is re-opened with doctext._docx_text - the repo's own reader, the one his resume goes through - and the words have to come back, or the file is DELETED rather than left somewhere he might send it from. Spreadsheet numbers are written as numbers so SUM() works; text uses inline strings rather than a shared-string table, because a mismatch between the table and the sheet is the classic way to produce a file Excel refuses to open. Every XML part is parsed after writing: a zip that is intact and contains malformed XML is exactly the file Office calls corrupt. Control characters are stripped - a raw 0x08 in a cell corrupts a workbook, and this repo has already lost an afternoon to one. PowerPoint IS built, and the reason it was registered as a ticket an hour earlier was wrong: I said a deck was unverifiable because nothing here reads one back, without looking. doctext reads a .docx by pulling <w:t> runs out of the zip; a .pptx is the same shape, <a:t> runs, one part per slide. `officedocs.deck_text` is twenty lines and the deck is as provable as the other two - the words come back slide by slide, and verification also insists on every part PowerPoint refuses a deck without: a slide master, a layout and a theme. Google Sheets/Slides are still not built - they need OAuth, and calendar_auth is the precedent to follow when he wants them."
     }
   ]
 }

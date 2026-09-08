@@ -1687,7 +1687,15 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             raise ValueError("content must be a non-empty list — blocks for a "
                              "document, rows for a spreadsheet")
         suffix = str(cmd["path"]).lower().rsplit(".", 1)[-1]
-        if suffix == "xlsx":
+        if suffix == "pptx":
+            # A dict is a slide with bullets; a bare string is a slide
+            # that is only a title, which is what a planner produces for
+            # a section break.
+            slides = [c if isinstance(c, dict) else {"title": str(c)}
+                      for c in content]
+            made = officedocs.save(cmd["path"], slides=slides,
+                                   why=cmd.get("why", ""))
+        elif suffix == "xlsx":
             made = officedocs.save(cmd["path"], rows=content,
                                    sheet_name=cmd.get("sheet_name", "Sheet1"),
                                    why=cmd.get("why", ""))

@@ -213,13 +213,199 @@ def xlsx_bytes(rows: list[list], sheet_name: str = "Sheet1") -> dict[str, str]:
     }
 
 
+# ---- PowerPoint ----------------------------------------------------------
+#
+# A deck needs a master, a layout and a theme or PowerPoint refuses to
+# open it. None of the three ever vary here, so they are written once as
+# the smallest valid form rather than generated.
+
+_A = 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
+_P = 'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"'
+_R = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+
+_THEME = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    f'<a:theme {_A} name="Office"><a:themeElements>'
+    '<a:clrScheme name="Office"><a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1>'
+    '<a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1>'
+    '<a:dk2><a:srgbClr val="44546A"/></a:dk2><a:lt2><a:srgbClr val="E7E6E6"/></a:lt2>'
+    '<a:accent1><a:srgbClr val="4472C4"/></a:accent1><a:accent2><a:srgbClr val="ED7D31"/></a:accent2>'
+    '<a:accent3><a:srgbClr val="A5A5A5"/></a:accent3><a:accent4><a:srgbClr val="FFC000"/></a:accent4>'
+    '<a:accent5><a:srgbClr val="5B9BD5"/></a:accent5><a:accent6><a:srgbClr val="70AD47"/></a:accent6>'
+    '<a:hlink><a:srgbClr val="0563C1"/></a:hlink>'
+    '<a:folHlink><a:srgbClr val="954F72"/></a:folHlink></a:clrScheme>'
+    '<a:fontScheme name="Office">'
+    '<a:majorFont><a:latin typeface="Calibri Light"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>'
+    '<a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont>'
+    '</a:fontScheme>'
+    '<a:fmtScheme name="Office">'
+    '<a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill>'
+    '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>'
+    '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst>'
+    '<a:lnStyleLst><a:ln><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>'
+    '<a:ln><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>'
+    '<a:ln><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst>'
+    '<a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle>'
+    '<a:effectStyle><a:effectLst/></a:effectStyle>'
+    '<a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst>'
+    '<a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill>'
+    '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>'
+    '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst>'
+    '</a:fmtScheme></a:themeElements></a:theme>')
+
+_SLIDE_MASTER = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    f'<p:sldMaster {_A} {_P} {_R}><p:cSld><p:spTree>'
+    '<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>'
+    '<p:grpSpPr/></p:spTree></p:cSld>'
+    '<p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" '
+    'accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" '
+    'accent6="accent6" hlink="hlink" folHlink="folHlink"/>'
+    '<p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst>'
+    '</p:sldMaster>')
+
+_SLIDE_LAYOUT = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    f'<p:sldLayout {_A} {_P} {_R} type="titleOnly"><p:cSld><p:spTree>'
+    '<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>'
+    '<p:grpSpPr/></p:spTree></p:cSld><p:clrMapOvr><a:overrideClrMapping '
+    'bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" '
+    'accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" '
+    'hlink="hlink" folHlink="folHlink"/></p:clrMapOvr></p:sldLayout>')
+
+
+def _shape(shape_id: int, name: str, x: int, y: int, cx: int, cy: int,
+           paragraphs: list[str], size: int) -> str:
+    body = "".join(
+        f'<a:p><a:r><a:rPr lang="en-US" sz="{size}" dirty="0"/>'
+        f'<a:t>{_x(line)}</a:t></a:r></a:p>' for line in paragraphs) or "<a:p/>"
+    return (
+        f'<p:sp><p:nvSpPr><p:cNvPr id="{shape_id}" name="{_x(name)}"/>'
+        '<p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr>'
+        f'<p:spPr><a:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/>'
+        '</a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>'
+        f'<p:txBody><a:bodyPr wrap="square"/><a:lstStyle/>{body}</p:txBody></p:sp>')
+
+
+def _slide_xml(title: str, bullets: list[str]) -> str:
+    shapes = _shape(2, "Title", 838200, 685800, 10515600, 1325563,
+                    [title] if title else [], 4000)
+    if bullets:
+        shapes += _shape(3, "Content", 838200, 2130425, 10515600, 3602038,
+                         list(bullets), 2000)
+    return ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            f'<p:sld {_A} {_P} {_R}><p:cSld><p:spTree>'
+            '<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/>'
+            '</p:nvGrpSpPr><p:grpSpPr/>'
+            + shapes +
+            '</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>'
+            '</p:sld>')
+
+
+def pptx_bytes(slides: list[dict]) -> dict[str, str]:
+    """`slides` are {"title": ..., "bullets": [...]}."""
+    if not slides:
+        raise DocumentError("a deck with no slides is not a deck")
+    if len(slides) > MAX_SLIDES:
+        raise DocumentError(f"{len(slides)} slides is beyond what she will "
+                            f"write ({MAX_SLIDES})")
+    parts: dict[str, str] = {}
+    ids, rels = [], []
+    for n, slide in enumerate(slides, start=1):
+        parts[f"ppt/slides/slide{n}.xml"] = _slide_xml(
+            str(slide.get("title") or ""),
+            [str(b) for b in (slide.get("bullets") or [])])
+        parts[f"ppt/slides/_rels/slide{n}.xml.rels"] = _RELS.format(body=(
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/'
+            'officeDocument/2006/relationships/slideLayout" '
+            'Target="../slideLayouts/slideLayout1.xml"/>'))
+        ids.append(f'<p:sldId id="{255 + n}" r:id="rId{n + 1}"/>')
+        rels.append(
+            f'<Relationship Id="rId{n + 1}" Type="http://schemas.openxml'
+            'formats.org/officeDocument/2006/relationships/slide" '
+            f'Target="slides/slide{n}.xml"/>')
+
+    overrides = "".join(
+        f'<Override PartName="/ppt/slides/slide{n}.xml" ContentType='
+        '"application/vnd.openxmlformats-officedocument.presentationml.slide'
+        '+xml"/>' for n in range(1, len(slides) + 1))
+
+    parts["[Content_Types].xml"] = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-'
+        'package.relationships+xml"/>'
+        '<Default Extension="xml" ContentType="application/xml"/>'
+        '<Override PartName="/ppt/presentation.xml" ContentType="application/'
+        'vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>'
+        '<Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType='
+        '"application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>'
+        '<Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType='
+        '"application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>'
+        '<Override PartName="/ppt/theme/theme1.xml" ContentType="application/'
+        'vnd.openxmlformats-officedocument.theme+xml"/>' + overrides + "</Types>")
+    parts["_rels/.rels"] = _RELS.format(body=(
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/'
+        'officeDocument/2006/relationships/officeDocument" '
+        'Target="ppt/presentation.xml"/>'))
+    parts["ppt/presentation.xml"] = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        f'<p:presentation {_A} {_P} {_R}>'
+        '<p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/>'
+        "</p:sldMasterIdLst><p:sldIdLst>" + "".join(ids) + "</p:sldIdLst>"
+        '<p:sldSz cx="12192000" cy="6858000"/><p:notesSz cx="6858000" cy="9144000"/>'
+        "</p:presentation>")
+    parts["ppt/_rels/presentation.xml.rels"] = _RELS.format(body=(
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/'
+        'officeDocument/2006/relationships/slideMaster" '
+        'Target="slideMasters/slideMaster1.xml"/>' + "".join(rels) +
+        f'<Relationship Id="rId{len(slides) + 2}" Type="http://schemas.'
+        'openxmlformats.org/officeDocument/2006/relationships/theme" '
+        'Target="theme/theme1.xml"/>'))
+    parts["ppt/slideMasters/slideMaster1.xml"] = _SLIDE_MASTER
+    parts["ppt/slideMasters/_rels/slideMaster1.xml.rels"] = _RELS.format(body=(
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/'
+        'officeDocument/2006/relationships/slideLayout" '
+        'Target="../slideLayouts/slideLayout1.xml"/>'
+        '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/'
+        'officeDocument/2006/relationships/theme" Target="../theme/theme1.xml"/>'))
+    parts["ppt/slideLayouts/slideLayout1.xml"] = _SLIDE_LAYOUT
+    parts["ppt/slideLayouts/_rels/slideLayout1.xml.rels"] = _RELS.format(body=(
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/'
+        'officeDocument/2006/relationships/slideMaster" '
+        'Target="../slideMasters/slideMaster1.xml"/>'))
+    parts["ppt/theme/theme1.xml"] = _THEME
+    return parts
+
+
+def deck_text(target) -> list[str]:
+    """The words out of a deck, one string per slide.
+
+    Twenty lines, and it is why the deck is provable: `doctext` reads a
+    .docx by pulling `<w:t>` runs out of the zip and a .pptx is the same
+    shape, `<a:t>` runs, one part per slide. I called this unverifiable
+    once. It was not; I had not looked.
+    """
+    from xml.etree import ElementTree
+    ns = "{http://schemas.openxmlformats.org/drawingml/2006/main}t"
+    out = []
+    with zipfile.ZipFile(Path(target)) as archive:
+        names = sorted(n for n in archive.namelist()
+                       if re.fullmatch(r"ppt/slides/slide\d+\.xml", n))
+        for name in names:
+            root = ElementTree.fromstring(archive.read(name))
+            out.append("\n".join(node.text or "" for node in root.iter(ns)))
+    return out
+
+
 # ---- the door ------------------------------------------------------------
 
-WRITABLE = {".docx": "a Word document", ".xlsx": "a spreadsheet"}
+WRITABLE = {".docx": "a Word document", ".xlsx": "a spreadsheet",
+            ".pptx": "a slide deck"}
 
 
-def save(path: str, *, blocks=None, rows=None, sheet_name: str = "Sheet1",
-         why: str = "") -> dict:
+def save(path: str, *, blocks=None, rows=None, slides=None,
+         sheet_name: str = "Sheet1", why: str = "") -> dict:
     """Write one document into her workspace, and prove it afterwards.
 
     The suffix decides the format, because that is what he says: "save it
@@ -239,6 +425,10 @@ def save(path: str, *, blocks=None, rows=None, sheet_name: str = "Sheet1",
         if not blocks:
             raise DocumentError("a document with no content is not a document")
         parts = docx_bytes(list(blocks))
+    elif suffix == ".pptx":
+        if not slides:
+            raise DocumentError("a deck with no slides is not a deck")
+        parts = pptx_bytes(list(slides))
     else:
         if not rows:
             raise DocumentError("a spreadsheet with no rows is not a spreadsheet")
@@ -311,6 +501,22 @@ def verify(target: Path) -> dict:
             if not words:
                 return {"ok": False, "why": "no readable text came back"}
             return {"ok": True, "why": "", "words": words, "text": text[:400]}
+        if target.suffix.casefold() == ".pptx":
+            # Every part PowerPoint refuses a deck without, then the words
+            # read back off the slides — the same round trip the .docx
+            # gets, through a reader that turned out to be twenty lines.
+            for needed in ("ppt/presentation.xml",
+                           "ppt/slideMasters/slideMaster1.xml",
+                           "ppt/slideLayouts/slideLayout1.xml",
+                           "ppt/theme/theme1.xml"):
+                if needed not in names:
+                    return {"ok": False, "why": f"no {needed.rsplit('/', 1)[-1]}"}
+            slides = deck_text(target)
+            if not slides or not any(s.strip() for s in slides):
+                return {"ok": False, "why": "no readable text on any slide"}
+            return {"ok": True, "why": "", "slides": len(slides),
+                    "text": " / ".join(s.replace("\n", " ")[:60]
+                                       for s in slides[:3])}
         if "xl/worksheets/sheet1.xml" not in names:
             return {"ok": False, "why": "no worksheet part"}
         return {"ok": True, "why": ""}
