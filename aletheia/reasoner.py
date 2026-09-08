@@ -392,13 +392,70 @@ def _shadow_enabled() -> bool:
     return model_pool_config.shadow_enabled()
 
 
+def _local_fingerprint() -> str:
+    """Which model the evidence is about. Changes invalidate it."""
+    try:
+        from aletheia import model_pool_config
+        fast = model_pool_config.resolve("fast") or {}
+        deep = model_pool_config.resolve("deep") or {}
+        return f"{fast.get('model', '?')}+{deep.get('model', '?')}"
+    except Exception:
+        return ""
+
+
+def _score_the_shadow(text: str, teacher_result, student_result,
+                      student_ms, teacher_ms, student_error) -> None:
+    """Write the routing verdict. Metadata only, and never raises.
+
+    A shadow that cannot be scored is simply not scored: `agrees` returns
+    None when it cannot tell, and the scorecard counts comparisons rather
+    than attempts, so an unjudgeable pair does not vote.
+    """
+    try:
+        from aletheia import agreement, routing, scorecard
+        verdict = (None if student_result is None
+                   else agreement.agrees(teacher_result, student_result))
+        scorecard.record(
+            routing.task_type(text),
+            fingerprint=_local_fingerprint(),
+            ok=student_error is None and student_result is not None,
+            agreed=verdict,
+            local_ms=student_ms,
+            frontier_ms=teacher_ms,
+            timed_out=bool(student_error and "timeout" in student_error.lower()),
+        )
+    except Exception:
+        pass
+
+
 def _schedule_local_shadow(system_prompt: str, text: str, context: dict | None,
                            validator: Callable[[dict], dict] | None,
                            teacher_result: dict, teacher_provider: str,
-                           teacher_turn_id: str | None, model: str) -> None:
-    """Run at most one background student at a time; never delay the teacher."""
+                           teacher_turn_id: str | None, model: str,
+                           teacher_ms: int | None = None) -> None:
+    """Run at most one background student at a time; never delay the teacher.
+
+    The student's result is also SCORED: timed, compared against the
+    teacher, and written to `scorecard` as routing metadata. That store
+    holds no prompt and no answer, which is why it needs no training
+    opt-in - the content-bearing pair still goes only to `training_data`
+    under the setting he controls.
+    """
     if not _shadow_enabled() or not _SHADOW_LOCK.acquire(blocking=False):
         return
+    # Do not spend his CPU learning something already settled. There is no
+    # GPU on this machine, so a shadow of a long request is minutes of
+    # pegged cores while he waits for something else.
+    try:
+        from aletheia import routing, scorecard
+        _kind = routing.task_type(text)
+        _worth, _why = scorecard.worth_shadowing(_kind)
+        if not _worth:
+            scorecard.note_skip(_kind, _why)
+            _SHADOW_LOCK.release()
+            return
+    except Exception:
+        pass
 
     def work() -> None:
         try:
@@ -406,6 +463,8 @@ def _schedule_local_shadow(system_prompt: str, text: str, context: dict | None,
             preferred = "deep" if model == PLAN_MODEL else None
             student_error = None
             turn_id = None
+            student_ms = None
+            started = time.monotonic()
             try:
                 student = local_model_pool.auto_json(
                     system_prompt, text, context=context or {}, validator=validator,
@@ -413,9 +472,13 @@ def _schedule_local_shadow(system_prompt: str, text: str, context: dict | None,
                 )
                 turn_id = student.turn_id
                 student_result = student.output
+                student_ms = int((time.monotonic() - started) * 1000)
             except Exception as exc:
                 student_error = f"{type(exc).__name__}: {exc}"[:1000]
                 student_result = None
+                student_ms = int((time.monotonic() - started) * 1000)
+            _score_the_shadow(text, teacher_result, student_result,
+                              student_ms, teacher_ms, student_error)
             training_data.record_teacher_pair(
                 student_turn_id=turn_id,
                 teacher_turn_id=teacher_turn_id,
@@ -446,10 +509,15 @@ def subscription_json(system_prompt: str, text: str, *, context: dict | None = N
     """
     limit = _bounded_context_limit(max_context_bytes)
     validate_input(system_prompt, text, context, max_context_bytes=limit)
+    # Timed so the scorecard has a frontier median to hold local against.
+    # Without it "local is fast enough" has nothing to mean, and latency
+    # is a promotion gate here rather than a footnote.
+    _teacher_started = time.monotonic()
     value, provider_id = _subscription_json_with_provider(
         system_prompt, text, context=context, model=model,
         timeout_s=timeout_s, validator=validator, max_context_bytes=limit,
     )
+    teacher_ms = int((time.monotonic() - _teacher_started) * 1000)
     teacher_turn_id = None
     try:
         from aletheia import training_data
@@ -469,7 +537,7 @@ def subscription_json(system_prompt: str, text: str, *, context: dict | None = N
     if shadow:
         _schedule_local_shadow(
             system_prompt, text, context, validator, value, provider_id,
-            teacher_turn_id, model,
+            teacher_turn_id, model, teacher_ms,
         )
     return value
 

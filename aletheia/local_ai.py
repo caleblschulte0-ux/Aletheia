@@ -26,6 +26,12 @@ def main(argv: list[str] | None = None) -> int:
     set_model.add_argument(
         "--think", action=argparse.BooleanOptionalAction, default=None,
     )
+    sub.add_parser("routing")
+    reset = sub.add_parser("routing-reset")
+    reset.add_argument("task_type")
+    prob = sub.add_parser("routing-probation")
+    prob.add_argument("task_type")
+    prob.add_argument("--reason", default="set by the operator")
     fb = sub.add_parser("feedback")
     fb.add_argument("turn_id")
     fb.add_argument("verdict", choices=["good", "bad", "mixed", "corrected"])
@@ -33,7 +39,18 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     exit_code = 0
-    if args.cmd == "status":
+    if args.cmd == "routing":
+        from aletheia import reasoner, scorecard
+        value = scorecard.everything(fingerprint=reasoner._local_fingerprint())
+    elif args.cmd == "routing-reset":
+        from aletheia import scorecard
+        scorecard.reset(args.task_type)
+        value = scorecard.explain(args.task_type)
+    elif args.cmd == "routing-probation":
+        from aletheia import scorecard
+        scorecard.probation(args.task_type, args.reason)
+        value = scorecard.explain(args.task_type)
+    elif args.cmd == "status":
         value = reasoning_gateway.status()
     elif args.cmd == "training":
         value = training_data.stats()
