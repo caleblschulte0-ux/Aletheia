@@ -69,12 +69,30 @@ class TestLoop(unittest.TestCase):
         self.assertIn("couldn't reach my Core", spoken[0])
 
     def test_max_utterances_bounds_the_loop(self):
+        """Real sentences, because noise no longer counts as an utterance.
+
+        This said "thea one", "thea two", "thea three" — placeholders,
+        and single meaningless words are exactly what the room now stays
+        silent for. The rule being protected is that `max_utterances`
+        bounds the loop, so the fixture has to be things she would
+        actually answer.
+        """
         with mock.patch.object(voice_room, "ask_core", return_value={"say": "ok"}):
             handled = voice_room.listen_forever(
-                recognizer=iter([(True, "thea one"), (True, "thea two"),
-                                 (True, "thea three")]),
+                recognizer=iter([(True, "thea add milk to the shopping list"),
+                                 (True, "thea what are my tasks"),
+                                 (True, "thea what time is it")]),
                 speaker=lambda t: None, max_utterances=2)
         self.assertEqual(handled, 2)
+
+    def test_room_noise_is_not_an_utterance(self):
+        """The other half: a fragment must not consume the budget either."""
+        with mock.patch.object(voice_room, "ask_core",
+                               side_effect=AssertionError("noise reached the Core")):
+            handled = voice_room.listen_forever(
+                recognizer=iter([(True, "thea the"), (True, "thea uh")]),
+                speaker=lambda t: None, max_utterances=2)
+        self.assertEqual(handled, 0)
 
 
 class TestReadiness(unittest.TestCase):
