@@ -17,6 +17,28 @@ GRANTS_DIR = private_dir("authority") / "grants"
 CLAIMS_DIR = private_dir("authority") / "claims"
 
 
+def delegable(capability_id: str, reg: dict | None = None) -> bool:
+    """May this capability EVER be exercised on standing authority?
+
+    No, if the registry calls it high-risk or operator_always (§56 L4):
+    spending, sending, binding and destroying stop for him every time,
+    and no grant, agent or descendant of one buys a way around that.
+
+    One predicate, because this rule now gates three different things —
+    standing grants, grant creation, and what an agent may be given — and
+    three copies of an authority check is three chances to fix two of
+    them. Unknown capability raises, which fails CLOSED.
+
+    `reg` is the already-loaded registry, for callers asking about many
+    capabilities at once: without it each question re-reads and re-parses
+    the whole file, which made one `agents.root_record()` parse a
+    130-entry JSON document 130 times.
+    """
+    entry = capabilities.get(capability_id, reg)
+    return (entry["risk_class"] != "high"
+            and entry["approval_policy"] != "operator_always")
+
+
 def _path(grant_id: str) -> Path:
     return GRANTS_DIR / f"{safe_id(grant_id, name='grant id')}.json"
 
@@ -42,8 +64,7 @@ def create(grant_id: str, *, capability_ids: list[str], approval_id: str,
     if expiry <= dt.datetime.now(dt.timezone.utc):
         raise ValueError("grant must expire in the future")
     for cid in capability_ids:
-        entry = capabilities.get(cid)
-        if entry["risk_class"] == "high" or entry["approval_policy"] == "operator_always":
+        if not delegable(cid):
             raise ValueError(f"capability {cid} is not eligible for delegated authority")
     now = utcnow()
     value = {"version": 1, "id": safe_id(grant_id, name="grant id"),
@@ -85,7 +106,7 @@ def allows(grant: dict, capability_id: str, *, now: dt.datetime | None = None) -
         entry = capabilities.get(capability_id)
     except KeyError:
         return False
-    return entry["risk_class"] != "high" and entry["approval_policy"] != "operator_always"
+    return delegable(capability_id)
 
 
 def claim(grant_id: str, capability_id: str, action_id: str, *, now: dt.datetime | None = None) -> dict:
