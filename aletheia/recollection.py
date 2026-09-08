@@ -78,8 +78,19 @@ FLOOR = 1.0
 # "Nothing yet today." Found 2026-09-06 by asking her.
 # `tests/test_she_remembers_her_own_actions.py` now holds this list
 # against the ACTOR constants that actually exist.
+# Actor prefixes whose journal lines are things SHE DID, and therefore
+# things "what did you do today" must be able to see. A writer missing
+# from here is invisible to her own memory: the Core journals as
+# `operator-local-core`, and until that prefix was here everything he
+# asked for out loud was absent from her account of her own day.
+#
+# `agents`, `messages` and `teams` are work she does for him — texting
+# somebody, creating a worker, running a team. `workspaces` is
+# deliberately NOT here: a note a worker writes to itself is not a thing
+# she did for him, and listing them back would be her reading her own
+# filing out loud.
 HERS = ("aletheia", "operator-via", "operator-local", "core", "converse",
-        "desktop", "workspace")
+        "desktop", "workspace", "agents", "messages", "teams")
 
 STOP = frozenset("""
 a an and are as at be by can could did do does for from get give go had has

@@ -1628,7 +1628,10 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         if not matches:
             return f"No worker called {which}."
         if len(matches) > 1:
-            from aletheia import speech
+            # `speech` is imported at module scope. A local `from ... import`
+            # here would make the name local to this WHOLE function and
+            # break every other branch that uses it — which is exactly
+            # what it did to `computer_do`.
             return ("More than one matches — "
                     + speech.or_list([a["name"] for a in matches[:4]]) + "?")
         stopped = agents.kill(matches[0]["id"], why=f"by voice: {quote[:60]}")
