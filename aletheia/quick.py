@@ -499,6 +499,7 @@ _HE_CAN_ASK_FOR = {
     "people you know": ("contacts", "contact_add", "watch_email_from",
                         "watches"),
     "remembering things": ("remember", "recall", "note"),
+    "music": ("music",),
     "your files": ("file_list", "file_read", "file_write", "file_edit",
                    "file_move", "file_delete", "compose"),
     "looking things up on the web": ("browse_read", "browse_shot", "research",

@@ -33,14 +33,20 @@ class RefusalCase(unittest.TestCase):
 
 class ItAnswersInsteadOfThinkingCase(RefusalCase):
     def test_the_planner_is_never_asked_about_a_thing_she_cannot_do(self):
-        with mock.patch.object(intents.planner, "compile",
+        """The status is SUPPLIED, not read.
+
+        Five tests have broken this week because they used
+        whatever happened to be unbuilt that morning as their
+        example, and then it got built — timers, then the weather,
+        then music. A test about the MECHANISM must not depend on
+        the roadmap.
+        """
+        unbuilt = dict(capabilities.get("media.play"))
+        unbuilt["status"] = "NOT_BUILT"
+        with mock.patch.object(capabilities, "get", return_value=unbuilt), \
+             mock.patch.object(intents.planner, "compile",
                                side_effect=AssertionError(
                                    "waited on the planner to say no")):
-            # NOT "set a timer": that was built the same day, which is
-            # exactly why a refusal test should not be anchored to a
-            # capability somebody is about to finish.
-            # Statuses PINNED below rather than taken from the
-            # registry, for the same reason.
             for said in ("play some music", "turn on the kitchen lights"):
                 with self.subTest(said=said):
                     record = intents.propose(said, quote=said)
@@ -49,13 +55,23 @@ class ItAnswersInsteadOfThinkingCase(RefusalCase):
 
     def test_needs_configuration_is_a_next_step_not_a_dead_end(self):
         """"It exists and needs a token from you" and "this does not exist"
-        are different answers, and only one of them he can act on."""
+        are different answers, and only one of them he can act on.
+
+        This one reads the REGISTRY deliberately, using the single
+        capability that is going to stay where it is: he has said
+        he is not setting up the lights.
+        """
+        self.assertEqual(capabilities.get("room.scene")["status"],
+                         "NEEDS_CONFIGURATION")
         said = cannot.answer("turn on the lights")
         self.assertIn("needs setting up", said)
         self.assertIn("what do you still need", said)
 
     def test_not_built_says_it_is_on_the_list(self):
-        said = cannot.answer("play some music")
+        unbuilt = dict(capabilities.get("media.play"))
+        unbuilt["status"] = "NOT_BUILT"
+        with mock.patch.object(capabilities, "get", return_value=unbuilt):
+            said = cannot.answer("play some music")
         self.assertIn("can't play music yet", said)
         self.assertIn("on the list", said)
 

@@ -157,6 +157,9 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # His ChatGPT subscription as a second worker. Granting ADDS
     # capacity, so it is world-tier by falling through; stopping only
     # ever reduces, so it is routine and never waits.
+    # Transport for whatever is playing. LOCAL: it presses keys on
+    # his own machine.
+    "music":         ({"action"}, set()),
     "chatgpt":       (set(), set()),
     "chatgpt_on":    (set(), {"hours"}),
     "chatgpt_off":   (set(), set()),
@@ -411,7 +414,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "email_check", "email_read", "email
                "doc_make",
                # Phone Link is paired to his iPhone on THIS machine;
                # Actions cannot text anybody.
-               "message_send",
+               "message_send", "music",
                # research only READS pages, but it reads them with the
                # operator's browser, so it belongs to the PC runner
                "research",
@@ -499,6 +502,9 @@ ROUTINE_KINDS = frozenset({
     # is routine and never waits. Opening it is world-tier by falling
     # through, and forbidden to the planner besides.
     "mic_off", "chatgpt_off",
+    # Pressing pause is as reversible as pressing play, and a media
+    # key reaches nobody outside the room.
+    "music",
     # Ticking a task off. It was left out when it was added — an
     # OVERSIGHT, not a gate: `task_status` sets ANY status including
     # COMPLETED and has always been routine, so the narrower verb was
@@ -1622,6 +1628,9 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                        requested_via=f"intercom: {quote[:80]}")
         return (f"draft to {d['to_name']} ready — {d['subject']!r}. "
                 f"Approval {d['id']} is pending; approving it sends the email.")
+    if kind == "music":
+        from aletheia import music
+        return music.control(cmd["action"])
     if kind == "chatgpt":
         from aletheia import second_opinion
         return second_opinion.spoken()

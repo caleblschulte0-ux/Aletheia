@@ -34,6 +34,9 @@ READER_FOR = {
     "mic_off": "mic",
     # He turned it off; "are you using my ChatGPT" is how he sees it.
     "chatgpt_off": "chatgpt",
+    # Pressing pause is its own confirmation: the room goes quiet.
+    # There is no store to read back, so this is the reader.
+    "music": "running",
     "agent_stop": "agents",
     "agents_pause": "agents",
     "task_new": "tasks",

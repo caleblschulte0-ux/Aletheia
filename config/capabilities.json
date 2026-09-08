@@ -1,5 +1,5 @@
 {
-  "revision": 96,
+  "revision": 97,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1525,13 +1525,14 @@
     },
     {
       "id": "media.play",
-      "description": "Play music or a video on the PC: start the player, choose what plays, pause and resume",
+      "description": "Start, pause and skip what is playing on the PC (Windows media keys; opens Spotify if it is shut)",
       "provider": "aletheia.local",
-      "status": "NOT_BUILT",
+      "status": "AVAILABLE",
       "risk_class": "medium",
       "approval_policy": "none",
-      "caller": "ticket — the Spotify desktop app is on this PC (a window titled 'Spotify Premium' was open 2026-09-02); computer.act can open it and press Play/Pause by their accessible names, and audio.route can pick the output. A media.play kind would compose those; nothing composes them yet",
-      "notes": "Registered 2026-09-04 because 'play some music' compiled into a sandboxed program, which can play nothing — the planner named audio.route (routing, not playing) and the unmatched-ask rule offered a program for the remainder. medium risk: it changes what the room is doing and is reversible by pausing."
+      "caller": "intercom kind 'music' (LOCAL) from voice - 'play some music', 'pause', 'skip'; aletheia.music.control",
+      "notes": "Registered 2026-09-04 because 'play some music' compiled into a sandboxed program, which can play nothing — the planner named audio.route (routing, not playing) and the unmatched-ask rule offered a program for the remainder. medium risk: it changes what the room is doing and is reversible by pausing. || 2026-09-08 BUILT for TRANSPORT, with no API key: play/pause/next/previous are Windows media keys, which every player on the machine already listens for. He offered to get a Spotify key and should not have to for this half. Spotify here is the Store build (SpotifyAB.SpotifyMusic_zpdnekdrzrea0) with no .exe, so it is launched by AUMID the way phone_windows aims at Phone Link. A media key is FIRE AND FORGET - Windows gives no acknowledgement that any application acted - so she says 'Play.' and never 'it's playing', which would be the sentence he cannot check. CHOOSING what plays is media.choose and is NOT built: resuming whatever was paused on Thursday is a different promise from 'play the Rolling Stones'.",
+      "module": "aletheia.music"
     },
     {
       "id": "document.author",
@@ -1565,6 +1566,16 @@
       "caller": "aletheia.quick 'weather' pattern (so voice, the phone and typed input); aletheia.weather.spoken",
       "notes": "Registered 2026-09-08 from the same audit. 'What's the weather' is one of the most ordinary things anybody asks an assistant and it was a 25-80s round trip ending in nothing. Answered instantly and counted now. || 2026-09-08 BUILT and PROVEN LIVE on his machine: 'Right now in Hartford, SD: Slight Chance Showers And Thunderstorms then Partly Sunny, 83 degrees.' 0.54s cold, 0.01s cached. NO API KEY ANYWHERE - the US National Weather Service serves anyone sending a User-Agent, and api.zippopotam.us turns his postcode into a point. That matters for the reason doctext gives about itself: a feature needing a key somebody has to remember to obtain is a capability that says AVAILABLE on one machine. His postcode was already on file (57033), so the answer needs nothing from him. US ONLY, and it says so rather than reaching for a provider it cannot verify - a confident forecast for the wrong Hartford is worse than none, and there are at least four. 'Tomorrow' is arithmetic on the period list, not a word match: the service says Today/Tonight/Wednesday, so 'tomorrow' matched nothing and the first draft answered with TODAY's forecast under today's label.",
       "module": "aletheia.weather"
+    },
+    {
+      "id": "media.choose",
+      "status": "NOT_BUILT",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "provider": "aletheia.local",
+      "description": "Play a particular song, album or artist by name",
+      "caller": "ticket - needs the Spotify Web API and his account: an OAuth consent like calendar_auth's, then search + play on his active device. He has Premium, which the playback endpoints require",
+      "notes": "Registered 2026-09-08 alongside media.play, which does transport with no key at all. Kept SEPARATE on purpose: one entry covering both would say AVAILABLE about a capability that cannot do what its own description promises, and 'play some music' answering by resuming Thursday's queue is not what he asked for. Until this exists, naming something to play is answered honestly - aletheia.music.cannot_choose."
     }
   ]
 }

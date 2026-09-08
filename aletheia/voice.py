@@ -1180,6 +1180,40 @@ def _interpret(transcript: str) -> dict:
                     r"|(?:microphone|mic) status)", low):
         return {"command": {"kind": "mic"}, "say": None}
 
+    # MUSIC. Transport only, and the difference is said out loud rather
+    # than blurred: media keys control what is already queued, and
+    # choosing what plays needs his Spotify account.
+    m = re.fullmatch(r"(?:play|start|resume) (?:some |the |my )?"
+                     r"(?:music|tunes|spotify|something)"
+                     r"|(?:play|resume)(?: it)?"
+                     r"|(?:pause|stop) (?:the )?(?:music|song|spotify|track)"
+                     r"|pause(?: it)?"
+                     r"|(?:skip|next)(?: (?:this|the|that))?(?: (?:song|track|one))?"
+                     r"|(?:go back|previous)(?: (?:a |one )?(?:song|track))?"
+                     r"|(?:play|start) it again", low)
+    if m:
+        if re.match(r"(?:pause|stop)", low):
+            action = "pause"
+        elif re.match(r"(?:skip|next)", low):
+            action = "next"
+        elif re.match(r"(?:go back|previous)", low):
+            action = "previous"
+        else:
+            action = "play"
+        return {"command": {"kind": "music", "action": action}, "say": None}
+
+    # NAMING SOMETHING TO PLAY is the half that needs his account, and
+    # she says so instead of resuming whatever was paused on Thursday and
+    # calling it what he asked for.
+    # The signal is not the word "some", it is what follows it: "play
+    # some MUSIC" is transport and "put on some JAZZ" is a choice.
+    if re.match(r"(?:play|put on)\s+"
+                r"(?!(?:some |the |my )?(?:music|tunes|spotify|something)\b"
+                r"|it\b|devils?\b|devil's\b)"
+                r"[a-z0-9]", low):
+        from aletheia import music as _music
+        return {"command": None, "say": _music.cannot_choose()}
+
     # HIS CHATGPT SUBSCRIPTION AS A SECOND WORKER. Granting it is a
     # deliberate act and stopping it is instant, the same asymmetry as
     # every other switch here.
