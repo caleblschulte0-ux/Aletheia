@@ -102,13 +102,67 @@ class CoreSyncFixture(unittest.TestCase):
 
     def test_the_repos_own_pulse_file_is_never_written_by_the_suite(self):
         """A beat refreshes the wall, and the default target is the file
-        that is checked in. Nothing in a test run may touch it."""
+        that is checked in. Nothing in a test run may touch it.
+
+        This watches for the WRITE rather than diffing the file's bytes
+        before and after. The always-on Core rewrites that same path
+        every few seconds on the operator's PC, so a byte diff straddles
+        somebody else's write and blames the suite for it - which is
+        exactly what happened on 2026-09-08 (16:16:18 -> 16:16:21, three
+        seconds apart, with the tick innocent in between). Watching the
+        write is also strictly stronger: a diff can only catch a write
+        that changed the content, and would miss a rewrite of identical
+        bytes.
+        """
+        from pathlib import Path
+
+        from aletheia import stateio
         from aletheia.fleet import REPO_ROOT
-        real = REPO_ROOT / "state" / "pulse" / "latest.json"
-        before = real.read_bytes() if real.exists() else None
-        core.core_tick(self.syncer, self.fleet, self.status)
-        after = real.read_bytes() if real.exists() else None
-        self.assertEqual(before, after, "the suite rewrote the committed pulse")
+        real = (REPO_ROOT / "state" / "pulse" / "latest.json").resolve()
+
+        written: list[Path] = []
+        real_write_text = Path.write_text
+        real_write_bytes = Path.write_bytes
+        real_atomic = stateio.write_json_atomic
+
+        def note(path):
+            try:
+                written.append(Path(path).resolve())
+            except OSError:                     # a path that cannot resolve
+                written.append(Path(path))      # cannot be the repo's pulse
+
+        def watched_text(self_path, *a, **kw):
+            note(self_path)
+            return real_write_text(self_path, *a, **kw)
+
+        def watched_bytes(self_path, *a, **kw):
+            note(self_path)
+            return real_write_bytes(self_path, *a, **kw)
+
+        def watched_atomic(path, *a, **kw):
+            note(path)
+            return real_atomic(path, *a, **kw)
+
+        patches = [
+            mock.patch.object(Path, "write_text", watched_text),
+            mock.patch.object(Path, "write_bytes", watched_bytes),
+            mock.patch.object(stateio, "write_json_atomic", watched_atomic),
+        ]
+        for p in patches:
+            p.start()
+        try:
+            core.core_tick(self.syncer, self.fleet, self.status)
+        finally:
+            for p in patches:
+                p.stop()
+
+        # If the patches silently failed to bind, `written` would be empty
+        # and the assertion below would pass without proving anything. A
+        # beat always writes SOMETHING, so this keeps the test honest.
+        self.assertTrue(written, "the write-watcher recorded nothing, so the "
+                                 "check below proves nothing")
+        self.assertNotIn(real, written,
+                         "the suite wrote the committed pulse")
 
     def relay_files_command(self, cid, kind, **args):
         path = self.relay / "exchange" / "commands" / f"{cid}.json"

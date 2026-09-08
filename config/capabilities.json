@@ -1,5 +1,5 @@
 {
-  "revision": 97,
+  "revision": 98,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1034,6 +1034,18 @@
       "module": "aletheia.perception",
       "notes": "Playbook §86, done §13's way: accessibility tree before screen coordinates before vision-only pixels. That is not a compromise - a UIA tree knows a control is a button called 'Submit', where a screenshot knows it is beige - and it needs no vision model and no API key. Two boundaries make it separate from computer.control rather than a flag on it. LOOKING IS NOT PRESSING: this module can only emit list_windows and inspect_controls, so invoke/set_text/open_app/close_window are absent by construction, not refused by a check (the browse.read_page vs browse.interact precedent, §61). A SCREEN IS NOT SAFE TEXT: password fields are dropped rather than masked, credential-shaped values are replaced wherever they appear, and the observation is bounded before any provider sees it - and the model's own answer is redacted again on the way back. The observation is declared UNTRUSTED DATA, because a window title is attacker-chosen in exactly the way an email subject is.",
       "verification": "19 tests: acting steps refused with nothing performed, password contents never present in the observation, oversized screens trimmed by whole records. Live on the PC 2026-08-27: asked what was open and answered correctly from real windows."
+    },
+    {
+      "id": "perception.pixels",
+      "description": "Answer a question about an IMAGE - a screenshot or a photo - rather than an accessibility tree",
+      "provider": "aletheia.local",
+      "status": "NOT_BUILT",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "ticket - needs a vision model fast enough to be worth asking, and a desktop capture path (there is browser screenshot in browse.screenshot, but nothing captures the DESKTOP)",
+      "module": "",
+      "notes": "Measured on his PC 2026-09-08 rather than estimated, because the answer turned on the number. Ollama is running and qwen3.6:27b reports the vision capability, so this is buildable today - it is not built because of what it costs. Asked the simplest question there is (an 808-byte PNG of a red circle on white, 'what shape and colour is this') it answered 'red circle' correctly in 268s cold and 85s warm. His bar for a simple ask is five seconds, and a real 1920x1080 screenshot is far larger than 808 bytes. Shipping this would mean 'what am I looking at' taking a minute and a half, which is the experience he has already told us is the problem. The path forward is a SMALLER vision model (a 4B-8B VLM rather than a 27B general model), not more wiring - and that is his call to make, since it is his disk and his machine. Until then perception.screen answers from the accessibility tree, which needs no model at all and is why it was built first.",
+      "verification": "Not built. The latency above is the live measurement that keeps it that way; ChatGPT's staging contract for this (staging/jarvis_gap/vision.py on chatgpt/jarvis-gap-build-20260830) was reviewed and is sound - it forbids action-shaped fields in a vision answer so a model cannot smuggle back a click - and is worth taking when there is a model fast enough to put behind it."
     },
     {
       "id": "presence.wall",
