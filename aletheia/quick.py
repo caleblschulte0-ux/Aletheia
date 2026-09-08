@@ -136,6 +136,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What can you do" is the question this whole registry exists to
     # answer, and it was the one question that went to a model to be
     # answered ABOUT the registry.
+    # The counts, for the question the old "what can you do" answer was
+    # really answering. He almost never asks this; when he does, he wants
+    # the number and not the list.
+    ("how_many", re.compile(
+        r"^how many (?:things|capabilities|capabilitys) (?:can|could) "
+        r"(?:you|u) do$"
+        r"|^how many (?:things|capabilities) (?:do|have) (?:you|u) "
+        r"(?:do|have|got)$"
+        r"|^how many capabilities (?:are there|do you have)$")),
     ("capabilities", re.compile(
         r"^what can (?:you|u) do(?: for me)?$"
         r"|^what are (?:you|u) able to do$|^what are your capabilities$"
@@ -448,13 +457,100 @@ def _approvals() -> str:
             + (f". The first: {first[:130].rstrip('.')}." if first else "."))
 
 
+# What he can ASK FOR, in his words. Keyed by intercom kind, because a
+# kind is exactly a thing he can say — the registry's `core.*`,
+# `policy.*` and `journal.*` are machinery he can neither reach nor care
+# about, and two thirds of "104 things are live" was that.
+#
+# Hand-kept, the same reasoning `test_every_writer_has_a_reader` gives:
+# a mechanical grouping would have to guess, and a wrong guess reads
+# fluently while being wrong. A test asserts every kind is either here or
+# deliberately marked internal, so a new verb cannot go unmentioned.
+# How many groups she names out loud. A list of everything is a list of
+# nothing: he stops listening at the fourth item.
+SPOKEN_GROUPS = 6
+
+_HE_CAN_ASK_FOR = {
+    "your tasks and reminders": ("task_new", "tasks", "task_done",
+                                 "task_status", "remind_at", "remind_daily",
+                                 "remind_weekly", "reminders", "reminder_off",
+                                 "do_task"),
+    "your lists": ("shopping_add", "shopping_list", "shopping_off"),
+    "email": ("email_check", "email_read", "email_draft"),
+    "texting people": ("message_send",),
+    "your calendar": ("free_time", "meet"),
+    "people you know": ("contacts", "contact_add", "watch_email_from",
+                        "watches"),
+    "remembering things": ("remember", "recall", "note"),
+    "your files": ("file_list", "file_read", "file_write", "file_edit",
+                   "file_move", "file_delete", "compose"),
+    "looking things up on the web": ("browse_read", "browse_shot", "research",
+                                     "web_task", "web_task_answer",
+                                     "web_task_retry"),
+    "driving your computer": ("computer_do", "computer_observe", "screen_ask"),
+    "your projects and repos": ("projects", "plan_new", "plan_add_step",
+                                "plan_step", "plan_set", "issue", "dispatch"),
+    "job applications": ("jobs", "apply_prepare", "apply_campaign",
+                         "applications"),
+    "money you spend": ("money", "subscriptions", "subscription_cancel"),
+    "your car and journeys": ("car", "travel_time"),
+    "media files": ("media_probe", "media_trim", "media_join", "media_audio",
+                    "media_captions", "media_convert"),
+    "putting workers on something": ("agents", "agent_new", "agent_stop",
+                                         "agents_pause"),
+}
+
+# Reachable, but not things a person asks FOR: switches, plumbing and the
+# machinery of asking. Named so the test can tell "deliberately unlisted"
+# from "somebody added a verb and forgot".
+_NOT_A_THING_HE_ASKS_FOR = frozenset({
+    "halt", "resume", "close", "open", "approve", "deny", "intent", "handle",
+    "running", "brief", "setup_status", "notify_check", "notify_clear",
+    "notify_snooze", "notify_operator", "announce_set", "rule",
+    "authority_status", "mic", "mic_on", "mic_off",
+})
+
+
 def _capabilities() -> str | None:
-    """Out of the registry, which is the point of having one."""
+    """The things he can ask for, named — not counted.
+
+    "104 things are live, 17 experimental..." was every number true and
+    nobody's question. This says what they ARE, from the grammar, and
+    only mentions what is live: a capability waiting on setup is not
+    something he can ask for today.
+    """
+    from aletheia import capabilities, intercom, speech
+    try:
+        reg = capabilities.load_registry()
+    except Exception:
+        return None                 # unreadable registry — let the planner try
+    live_ids = {c["id"] for c in reg.get("capabilities", [])
+                if c.get("status") == "AVAILABLE"}
+    if not live_ids:
+        return None
+
+    # A group is worth naming when the grammar can still reach it.
+    named = [name for name, kinds in _HE_CAN_ASK_FOR.items()
+             if any(k in intercom.KIND_ARGS for k in kinds)]
+    if not named:
+        return None
+    # SIX, NOT SIXTEEN. Read out loud, a list of everything is a list of
+    # nothing — he stops listening at the fourth item and has learned
+    # less than from three. The dict is in the order a person meets them.
+    head, rest = named[:SPOKEN_GROUPS], named[SPOKEN_GROUPS:]
+    said = "I can help with " + speech.and_list(head)
+    if rest:
+        said += f", and {len(rest)} other kinds of thing"
+    return said + ". Ask me for anything and I'll tell you straight if I can't."
+
+
+def _how_many() -> str | None:
+    """The counts, for the question the old answer was really answering."""
     from aletheia import self_knowledge, speech
     by = dict((self_knowledge.overview() or {}).get("by_status") or {})
     live = int(by.get("AVAILABLE") or 0)
     if not live:
-        return None                 # unreadable registry — let the planner try
+        return None
     parts = [f"{live} things are live"]
     for key, label in (("EXPERIMENTAL", "experimental"),
                        ("NEEDS_CONFIGURATION", "waiting on setup"),
@@ -669,6 +765,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "tasks": lambda rest: _tasks(),
            "approvals": lambda rest: _approvals(),
            "capabilities": lambda rest: _capabilities(),
+           "how_many": lambda rest: _how_many(),
            "alerts": lambda rest: _alerts(),
            "repos": lambda rest: _repos(),
            "shopping": lambda rest: _shopping(),
