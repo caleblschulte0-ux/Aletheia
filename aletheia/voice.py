@@ -996,6 +996,41 @@ def _interpret(transcript: str) -> dict:
                     r"do i have (?:any )?e?mail|what's in my inbox)", low):
         return {"command": {"kind": "email_check"}, "say": None}
 
+    # THE AGENT RUNTIME, said the way a person would say it. He should
+    # never have to type `spawn --agent=research --provider=claude`.
+    if re.fullmatch(r"(?:what (?:are|r) (?:your|the|my) (?:workers?|agents?) "
+                    r"(?:doing|up to|working on)(?: right now)?"
+                    r"|who(?:'s| is) working(?: on what)?"
+                    r"|(?:list|show me) (?:your|the|my) (?:workers?|agents?)"
+                    r"|(?:your|the|my) (?:workers?|agents?))", low):
+        return {"command": {"kind": "agents"}, "say": None}
+
+    # Stopping is never gated, for the same reason `halt` is not.
+    if re.fullmatch(r"(?:pause|stop) (?:all )?(?:autonomous work|"
+                    r"(?:the |your |my )?(?:workers?|agents?))"
+                    r"|stop everyone|(?:pause|stop) all (?:the )?(?:workers?|agents?)",
+                    low):
+        return {"command": {"kind": "agents_pause"}, "say": None}
+
+    m = re.fullmatch(r"(?:kill|stop|cancel|retire) (?:the |my )?(.+?)"
+                     r"(?: agent| worker)", low)
+    if m:
+        return {"command": {"kind": "agent_stop", "which": m.group(1).strip()},
+                "say": None}
+
+    # "Make somebody responsible for Barkly."
+    m = re.fullmatch(r"(?:make|create|assign) (?:somebody|someone|a worker|"
+                     r"an agent|a permanent agent) (?:responsible )?"
+                     r"(?:for|to) (.+)", low)
+    if m:
+        subject = m.group(1).strip()
+        return {"command": {"kind": "agent_new",
+                            "name": f"{subject} agent",
+                            "project": subject.split()[0][:80],
+                            "mission": f"own {subject} — know its state, "
+                                       f"keep its objectives, and bring me work",
+                            "agent_type": "project"}, "say": None}
+
     # "Text Brant that I'm on my way." Thirteen asks in the demand ledger
     # and no verb behind any of them: the planner named `intercom.relay`
     # as the nearest gap and compiled a sandboxed program, which has no

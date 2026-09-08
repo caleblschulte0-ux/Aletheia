@@ -24,6 +24,12 @@ from aletheia import intercom
 
 # writer -> the read-only kind he asks with, or "" and a reason.
 READER_FOR = {
+    # Stopping a worker changes what is running, and "what are your
+    # workers doing" is how he finds out it worked. A runtime he can
+    # start things in and not see is the exact shape this file exists
+    # to prevent.
+    "agent_stop": "agents",
+    "agents_pause": "agents",
     "task_new": "tasks",
     "task_status": "tasks",
     "task_done": "tasks",

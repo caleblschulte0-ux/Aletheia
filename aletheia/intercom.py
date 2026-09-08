@@ -148,6 +148,12 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # demand ledger, in his own words. Same shape as email_draft: it
     # writes a draft and an approval and sends nothing.
     "message_send":  ({"to", "body"}, set()),
+    # The agent runtime, said out loud. `agent_new` is the only one that
+    # adds capacity, so it is the only one that is world-tier.
+    "agents":        (set(), set()),
+    "agent_new":     ({"name", "mission"}, {"project", "agent_type"}),
+    "agent_stop":    ({"which"}, set()),
+    "agents_pause":  (set(), set()),
     # personal-OS verbs (2026-08-26): PC-private state, so all LOCAL_KINDS
     "remind_at":       ({"at", "text"}, set()),
     "remind_daily":    ({"time", "text"}, {"tz"}),
@@ -428,6 +434,9 @@ READ_ONLY_KINDS = frozenset({
     # Asking whether she is on changes nothing and must stay answerable
     # while she is halted, closed, or halfway between the two.
     "running",
+    # And so must "what are your workers doing" — knowing what is running
+    # is most urgent exactly when something has gone wrong.
+    "agents",
     "note", "notify_check", "free_time", "brief", "subscriptions", "money",
     # Reads public job boards. Prepares nothing, sends nothing.
     "jobs", "tasks", "reminders", "shopping_list", "applications",
@@ -455,6 +464,10 @@ ROUTINE_KINDS = frozenset({
     # the whole test for this tier — the schedule is disabled, never
     # deleted, so "actually put that back" is one command.
     "reminder_off", "shopping_off", "notify_snooze", "notify_operator",
+    # Stopping a worker only ever REDUCES what is running, and a stop
+    # that waits for an approval arrives after the thing it was meant to
+    # prevent. Creating one is world-tier; stopping one is not.
+    "agent_stop", "agents_pause",
     # Ticking a task off. It was left out when it was added — an
     # OVERSIGHT, not a gate: `task_status` sets ANY status including
     # COMPLETED and has always been routine, so the narrower verb was
@@ -494,6 +507,18 @@ ROUTINE_KINDS = frozenset({
 # themselves. The classification FAILS CLOSED — a kind added tomorrow and
 # forgotten here is treated as world-touching, which is the safe mistake.
 TIER_READ, TIER_ROUTINE, TIER_WORLD = "read", "routine", "world"
+
+
+def _agent_id(name: str) -> str:
+    """A spoken name -> a filesystem-safe id, deduped against what exists."""
+    import re as _re
+    from aletheia import agents
+    base = _re.sub(r"[^a-z0-9]+", "-", str(name or "").lower()).strip("-")[:40]
+    base = base or "worker"
+    candidate, n = base, 2
+    while agents.exists(candidate):
+        candidate, n = f"{base}-{n}", n + 1
+    return candidate
 
 
 def tier(kind: str) -> str:
@@ -1563,6 +1588,44 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                        requested_via=f"intercom: {quote[:80]}")
         return (f"draft to {d['to_name']} ready — {d['subject']!r}. "
                 f"Approval {d['id']} is pending; approving it sends the email.")
+    if kind == "agents":
+        from aletheia import agents
+        return agents.spoken_roster()
+    if kind == "agent_stop":
+        from aletheia import agents
+        which = str(cmd["which"]).strip()
+        matches = [a for a in agents.all_agents()
+                   if a["status"] not in agents.FINISHED
+                   and (which.casefold() in a["id"].casefold()
+                        or which.casefold() in str(a.get("name", "")).casefold())]
+        if not matches:
+            return f"No worker called {which}."
+        if len(matches) > 1:
+            from aletheia import speech
+            return ("More than one matches — "
+                    + speech.or_list([a["name"] for a in matches[:4]]) + "?")
+        stopped = agents.kill(matches[0]["id"], why=f"by voice: {quote[:60]}")
+        extra = len(stopped) - 1
+        return (f"Stopped {matches[0]['name']}."
+                + (f" And {extra} working under it." if extra else ""))
+    if kind == "agents_pause":
+        from aletheia import agents
+        stopped = agents.kill_all(why=f"by voice: {quote[:60]}")
+        if not stopped:
+            return "Nothing was running."
+        return f"Stopped {len(stopped)} worker{'s' if len(stopped) != 1 else ''}."
+    if kind == "agent_new":
+        from aletheia import agents
+        made = agents.spawn(
+            _agent_id(cmd["name"]), name=cmd["name"], mission=cmd["mission"],
+            agent_type=cmd.get("agent_type", "project"),
+            project=cmd.get("project", ""),
+            # The starting scope is READ-ONLY on purpose. A worker created
+            # by a sentence begins able to look and not to touch; widening
+            # it is a separate decision, made once he knows what it is for.
+            capabilities=agents.grantable(sorted(READ_ONLY_KINDS)))
+        return (f"{made['name']} exists — {made['mission'][:90]}. "
+                f"It can read and nothing else until you widen it.")
     if kind == "message_send":
         from aletheia import messages
         d = messages.draft(cmd["to"], cmd["body"],
