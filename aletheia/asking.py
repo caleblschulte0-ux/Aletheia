@@ -35,11 +35,30 @@ import re
 # How a person opens a question. Anchored: this is the FIRST thing said,
 # after filler is stripped, so "what should I do about the boiler" is a
 # question and "tell Dana what time it is" is not.
+# A wh-word opens a question and nothing else: no English imperative
+# starts with "what" or "why".
 OPENERS = re.compile(
     r"^(?:what|whats|what's|who|whose|whom|when|where|why|how|which|"
-    r"is|are|was|were|does|do|did|can|could|should|would|will|"
     r"tell me about|explain|describe|define|remind me what|"
-    r"do you know|any idea|got any idea)\b",
+    r"any idea|got any idea)\b",
+    re.IGNORECASE)
+
+# An AUXILIARY is different: "does it rain in Iceland" is a question and
+# "do the thing" is an order, and they start with the same word. The
+# difference is what follows — a question puts a SUBJECT there, an
+# imperative puts its object. Without this, every instruction opening
+# with do/does/is/can was answered conversationally and the work simply
+# did not happen; thirty tests caught it in one pass.
+# "Do it" is an order and "does it rain" is a question, and they differ
+# by one letter. `do` + `it` is never a question in English; every other
+# auxiliary before `it` is.
+AN_ORDER_NOT_A_QUESTION = re.compile(
+    r"^do\s+(?:it|that|this|these|those)\b", re.IGNORECASE)
+
+AUXILIARY_THEN_SUBJECT = re.compile(
+    r"^(?:is|are|was|were|does|do|did|can|could|should|would|will|has|have)\s+"
+    r"(?:i|you|we|they|he|she|it|there|that|this|these|those|"
+    r"anyone|anybody|everyone|somebody|people)\b",
     re.IGNORECASE)
 
 # A verb that means WORK, wherever it appears. If one of these is in the
@@ -89,7 +108,9 @@ def is_a_plain_question(said: str) -> bool:
 
     if len(text.split()) > MAX_WORDS:
         return False
-    if not OPENERS.match(text):
+    if AN_ORDER_NOT_A_QUESTION.match(text):
+        return False
+    if not (OPENERS.match(text) or AUXILIARY_THEN_SUBJECT.match(text)):
         return False
     if DOING.search(text):
         return False

@@ -57,6 +57,24 @@ class IntentCase(unittest.TestCase):
                 "steps": [{"kind": "task_new", "id": "water-plants",
                            "description": "water the plants"}]}
 
+    def test_a_clarify_never_reaches_converse(self):
+        """"Which sister, Ana or Mia?" is already the right thing to say.
+
+        Sent through `converse` it comes back as a paragraph about
+        ambiguity. This was a source grep in test_converse asserting
+        that one string appeared before another in `intents.py`; it went
+        red when both roads to an answer were given one implementation,
+        which was a refactor and not a bug. Asserted behaviourally it is
+        stronger — it catches the defect however `converse` is reached.
+        """
+        from aletheia import converse
+        with mock.patch.object(
+                converse, "answer",
+                side_effect=AssertionError("a clarify was sent through converse")):
+            record = self.propose({"intent": "clarify", "steps": [],
+                                   "summary": "Which sister — Ana or Mia?"})
+        self.assertEqual(intents.spoken(record), "Which sister — Ana or Mia?")
+
     # ---- proposing -------------------------------------------------
 
     def test_proposing_persists_the_plan_and_asks_but_runs_nothing(self):
