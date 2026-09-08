@@ -36,6 +36,33 @@ _SLOTS: dict[str, dict] = {}
 _PROCESS_ID = uuid.uuid4().hex
 
 
+# Which followup this thread is running, so anything underneath can say
+# something out loud without being handed a slot id. A thread marker
+# rather than a global: two long requests in flight must not narrate
+# into each other.
+_CURRENT = threading.local()
+
+
+def report(line: str) -> bool:
+    """Say something while the work continues. No-op outside a followup.
+
+    For the middle of a long request — what she is ABOUT to do, once she
+    knows. Progress is spoken and forgotten: it never becomes a
+    notification and is never the answer, so a listener that misses one
+    has missed a sentence rather than a result.
+    """
+    followup_id = getattr(_CURRENT, "followup_id", None)
+    said = " ".join(str(line or "").split())[:400]
+    if not followup_id or not said:
+        return False
+    with _LOCK:
+        slot = _SLOTS.get(followup_id)
+        if slot is None:
+            return False
+        slot.setdefault("progress", []).append(said)
+    return True
+
+
 def _journal(kind: str, detail: str) -> None:
     """Delivery must not fail merely because its audit sink is unavailable."""
     try:
@@ -199,6 +226,7 @@ def start(work, acknowledgement: str = "One moment.", *, durable: bool = False) 
         _journal("event", f"{followup_id}: PENDING")
 
     def runner():
+        _CURRENT.followup_id = followup_id
         try:
             said = work()
             state = READY
@@ -237,7 +265,8 @@ def poll(followup_id: str) -> dict:
         _prune()
         slot = _SLOTS.get(followup_id)
         if slot is not None:
-            return {"id": slot["id"], "state": slot["state"], "say": slot["say"]}
+            return {"id": slot["id"], "state": slot["state"], "say": slot["say"],
+                    "progress": list(slot.get("progress") or [])}
     # Filesystem access stays outside the hot in-process lock.
     record = _load_record(followup_id)
     if record and record.get("state") in (READY, FAILED):

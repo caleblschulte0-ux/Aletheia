@@ -100,6 +100,29 @@ def read_only(plan: planner.Plan) -> bool:
         s.command["kind"] in intercom.READ_ONLY_KINDS for s in steps)
 
 
+def _say_the_plan(plan) -> None:
+    """One sentence about what is about to happen. Never raises.
+
+    Only when there is something to say: a plan with no executable steps
+    is about to be answered in the next breath, and narrating that would
+    be two sentences where one does. Ids are stripped because this is
+    read out loud in a room.
+    """
+    try:
+        from aletheia import followups
+        steps = [s for s in getattr(plan, "steps", []) or []]
+        if not steps or not getattr(plan, "executable", False):
+            return
+        summary = speech.strip_ids(str(getattr(plan, "summary", "") or "")).strip()
+        if not summary:
+            return
+        followups.report(
+            f"Here's the plan: {summary} — "
+            f"{speech.count_phrase(len(steps), 'step')}.")
+    except Exception:
+        pass        # narration must never be able to break the work
+
+
 def _speak_answer(record: dict, request: str) -> dict:
     """Answer a question out loud, and never raise.
 
@@ -219,6 +242,13 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
 
     fleet = fleet if fleet is not None else load_fleet()
     plan = planner.compile(request, fleet=fleet, **compile_kw)
+    # SAY THE PLAN THE MOMENT IT EXISTS. His shape for a long request is
+    # "I know that she's working on it fast, and then I'll hear the plan
+    # fast, and then the results, they'll come when they come." Between
+    # the acknowledgement and the results there was silence — minutes of
+    # it — with a compiled plan sitting unmentioned. Outside a followup
+    # this is a no-op, so nothing changes for a direct caller.
+    _say_the_plan(plan)
     digest = plan_hash(plan)
     intent_id = f"intent-{digest[:10]}"
     approval_id = intent_id

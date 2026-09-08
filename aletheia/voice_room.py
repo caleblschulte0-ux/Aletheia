@@ -391,10 +391,19 @@ def is_addressed(text: str) -> bool:
 
 def collect_followup(followup_id: str, core_url: str = CORE_URL,
                      wait_s: float = FOLLOWUP_WAIT_S,
-                     poll_s: float = FOLLOWUP_POLL_S, sleep=None) -> str | None:
+                     poll_s: float = FOLLOWUP_POLL_S, sleep=None,
+                     on_progress=None) -> str | None:
+    """Wait for the answer, saying anything she reports along the way.
+
+    A long request used to be an acknowledgement and then silence until
+    the results — minutes of it, with a compiled plan sitting unsaid.
+    `on_progress` is called with each new line, in order, exactly once:
+    she narrates by saying the NEW ones, not by re-reading the list.
+    """
     import time as _time
     sleep = sleep or _time.sleep
     deadline = _time.monotonic() + wait_s
+    spoken = 0
     while _time.monotonic() < deadline:
         try:
             with urllib.request.urlopen(
@@ -406,6 +415,14 @@ def collect_followup(followup_id: str, core_url: str = CORE_URL,
             # transient refused connection is not proof the answer vanished.
             sleep(poll_s)
             continue
+        if on_progress:
+            lines = list(payload.get("progress") or [])
+            for line in lines[spoken:]:
+                try:
+                    on_progress(line)
+                except Exception:
+                    pass      # narration must never lose the answer
+            spoken = max(spoken, len(lines))
         if payload.get("state") in ("READY", "FAILED"):
             return payload.get("say")
         if payload.get("state") == "EXPIRED":
@@ -446,6 +463,11 @@ def launch_followup(followup_id: str, core_url: str, say,
 
     def deliver():
         try:
+            # `say` is the same mouth the answer comes out of, so a plan
+            # and its results cannot arrive out of order.
+            later = collector(followup_id, core_url, on_progress=say)
+        except TypeError:
+            # A collector injected by an older test does not take it.
             later = collector(followup_id, core_url)
         except Exception:
             later = None
