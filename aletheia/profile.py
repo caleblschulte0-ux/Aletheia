@@ -205,7 +205,13 @@ def forget(field: str) -> bool:
 # ---- learning it instead of asking for it --------------------------------
 
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
-_PHONE = re.compile(r"(?:\+?\d{1,2}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}")
+# A separator inside a phone number is a space, a dot or a hyphen — NEVER
+# a line break, and the country code needs its plus. Without both, a line
+# above his number ending in "33" was read as part of it: his real resume
+# yielded "33 (605) 321-5691". `[\s.-]` matched the newline, and `\d{1,2}`
+# with an optional plus was happy to call "33" a country code.
+_PHONE = re.compile(r"(?<!\d)(?:\+\d{1,2}[ .\-]?)?\(?\d{3}\)?[ .\-]?"
+                    r"\d{3}[ .\-]?\d{4}(?!\d)")
 _LINKEDIN = re.compile(r"(?:https?://)?(?:www\.)?linkedin\.com/in/[\w-]+", re.I)
 _GITHUB = re.compile(r"(?:https?://)?(?:www\.)?github\.com/[\w-]+", re.I)
 _SITE = re.compile(r"https?://[\w.-]+\.[a-z]{2,}(?:/\S*)?", re.I)
