@@ -476,6 +476,11 @@ _HE_CAN_ASK_FOR = {
                                  "remind_weekly", "reminders", "reminder_off",
                                  "do_task"),
     "your lists": ("shopping_add", "shopping_list", "shopping_off"),
+    # Third on purpose: dict order is spoken order, only the first six
+    # are said, and "can you make me a spreadsheet" is a question he
+    # actually asked. A capability nobody hears about is one he will
+    # never use.
+    "making Word, Excel and PowerPoint files": ("doc_make",),
     "email": ("email_check", "email_read", "email_draft"),
     "texting people": ("message_send",),
     "your calendar": ("free_time", "meet"),
