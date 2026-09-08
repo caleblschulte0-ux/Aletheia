@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import json
 import math
+import threading
+import contextlib
 import os
 import time
 from urllib.parse import urlparse
@@ -66,6 +68,14 @@ def operator_lease_enabled() -> bool:
     """
     if os.environ.get(ALLOW_ENV, "").strip() == "1":
         return True
+    # HE IS WAITING FOR THIS ONE. His ruling: he should not have to turn
+    # ChatGPT on for a question he asked out loud. The lease exists to
+    # stop an UNATTENDED loop quietly driving his personal account, and a
+    # request he is sitting in front of is the opposite of unattended -
+    # so the fallback rung is open for the life of that request and shuts
+    # again the moment it is served. See `attending()`.
+    if attended():
+        return True
     # A SECOND EXPLICIT DOOR, not a wider one. The environment variable
     # protects against an unattended process QUIETLY driving his personal
     # account — inheriting a lease from a shell he opened last Tuesday.
@@ -79,6 +89,31 @@ def operator_lease_enabled() -> bool:
         return second_opinion.granted()
     except Exception:
         return False
+
+
+_ATTENDED = threading.local()
+
+
+def attended() -> bool:
+    """Is the operator waiting on the request being served right now?"""
+    return bool(getattr(_ATTENDED, "on", False))
+
+
+@contextlib.contextmanager
+def attending():
+    """Mark a request as one he asked for and is waiting on.
+
+    Thread-local, and that is the whole point: a background thread spawned
+    during his request does not inherit it, and work the Core picks up on
+    a later tick never had it. Nested use is safe - the flag is restored
+    rather than cleared, so an inner block cannot end an outer one.
+    """
+    previous = getattr(_ATTENDED, "on", False)
+    _ATTENDED.on = True
+    try:
+        yield
+    finally:
+        _ATTENDED.on = previous
 
 
 def drop_lease(env: dict | None = None) -> dict:

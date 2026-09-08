@@ -118,10 +118,14 @@ _DELIVERS_AS_VERB = re.compile(
     r"(?:^|\b(?:and|then|also|plus)\s+)(?:please\s+)?(?:"
     + _DELIVERY_NOUNS + r")\b", re.IGNORECASE)
 
-#: Reaching outside for current facts. Not answerable from a model's memory.
+#: Reaching outside for current facts. `review` is deliberately absent:
+#: it matched "review this function for bugs" and sent a code review to
+#: the web. "Reviews OF something" is the sense meant, so it must be
+#: written that way rather than as a bare word.
 _RESEARCHES = re.compile(
-    r"\b(?:research|look up|find out|search|google|browse|check online"
-    r"|latest|current|today'?s|news|price of|reviews?)\b", re.IGNORECASE)
+    r"\b(?:research|look up|find out|search for|google|browse|check online"
+    r"|latest|current|today'?s|news|price of|reviews? of|reviews? for)\b",
+    re.IGNORECASE)
 
 _CODES = re.compile(
     r"\b(?:code|function|class|method|module|script|repo|repository|refactor"
@@ -163,7 +167,21 @@ _LEADS_WITH_SUMMARY = re.compile(
     r"^(?:please\s+)?(?:can you\s+|could you\s+|would you\s+)?(?:"
     + _SUMMARISES + r")\b", re.IGNORECASE)
 
-#: Short and factual: the shape local is actually fast at.
+#: An explanation that is really a coding question: it asks how to DO
+#: something in code, rather than what something is.
+_ASKS_HOW_TO_CODE = re.compile(
+    r"\b(?:how (?:do|would|can) (?:i|you|we)|how to)\b.{0,60}"
+    r"\b(?:code|function|class|method|script|regex|sql|query|api|test|tests"
+    r"|python|javascript|typescript|rust|golang|java|css|html)\b",
+    re.IGNORECASE)
+
+#: Short and factual: the shape local is actually fast at. A COMPARISON
+#: is not one, however it opens - "what's the difference between rust and
+#: go" was claimed by the leading "what" and labelled a short fact.
+_COMPARES = re.compile(
+    r"\b(?:difference|differences|compare|compared|versus|vs\.?|better than"
+    r"|pros and cons|trade-?offs?)\b", re.IGNORECASE)
+
 _SHORT_FACT = re.compile(
     r"^(?:who|what|when|where|which|how many|how much|how long|how far"
     r"|how old)\b", re.IGNORECASE)
@@ -171,6 +189,11 @@ _SHORT_FACT = re.compile(
 
 def _normal(said: str) -> str:
     return " ".join(str(said or "").split())
+
+
+def _is_a_short_fact(text: str) -> bool:
+    """Opens like a short question AND is not asking for a comparison."""
+    return bool(_SHORT_FACT.match(text)) and not _COMPARES.search(text)
 
 
 def delivers(said: str) -> bool:
@@ -198,7 +221,9 @@ def task_type(said: str) -> str:
     # Anything that delivers is an action, whether or not a writing verb
     # introduced it: "write and send Brant an email" and the bare "text
     # Brant that I'm late" are both work that has to pass the gates.
-    if delivers(text):
+    # RUNNING what was written counts too - "write a script and run it"
+    # and "write a function and add it to utils.py" both leave the page.
+    if delivers(text) or _RUNS_IT.search(text):
         return "action"
     if _RESEARCHES.search(text):
         return "research"
@@ -213,12 +238,21 @@ def task_type(said: str) -> str:
 
     if _DEBUGS.search(text):
         return "debugging"
+    if _EXPLAINS.match(text):
+        # Checked BEFORE the code words: "what's the difference between
+        # rust and go" is an explanation that happens to name languages,
+        # and mislabelling it taught the scorecard about the wrong
+        # category. "How do I write a decorator" stays coding below.
+        if _is_a_short_fact(text):
+            return "simple_qa"
+        if not _ASKS_HOW_TO_CODE.search(text):
+            return "explanation"
     if _CODES.search(text):
         return "coding"
     if _EXPLAINS.match(text):
         # "what is X" is a short fact; "explain X" is a paragraph.
-        return "simple_qa" if _SHORT_FACT.match(text) else "explanation"
-    if _SHORT_FACT.match(text):
+        return "simple_qa" if _is_a_short_fact(text) else "explanation"
+    if _is_a_short_fact(text):
         return "simple_qa"
     return "unknown"
 
@@ -229,6 +263,11 @@ def providers_for(said_or_type: str) -> tuple[str, ...]:
             else task_type(said_or_type))
     return TASK_PROVIDER_POLICY.get(kind, TASK_PROVIDER_POLICY["unknown"])
 
+
+#: Asking for code to be RUN is not asking for code.
+_RUNS_IT = re.compile(
+    r"\b(?:and )?(?:run|execute|apply|install|deploy|build it|test it"
+    r"|add (?:it )?to|put (?:it|this) in)\b", re.IGNORECASE)
 
 #: Task types whose whole product is the answer itself. Asking for one is
 #: not starting a project, and routing it through the planner costs
@@ -245,8 +284,18 @@ def answerable_directly(said: str) -> bool:
     whether real work silently becomes a chat reply. Anything that
     delivers, plans, researches or touches the world is excluded above by
     `task_type` before it can reach here.
+
+    Code counts when he asked for the CODE. "Write a python function to
+    parse dates" produces text and delivers nothing - the same shape as
+    "write me an email", and it was compiling a plan. "Write a script and
+    run it" delivers, so it still plans.
     """
-    return task_type(said) in ANSWER_IS_THE_WHOLE_JOB
+    kind = task_type(said)
+    if kind in ANSWER_IS_THE_WHOLE_JOB:
+        return True
+    if kind == "coding" and _LEADS_WITH_WRITING.match(_normal(said)):
+        return not delivers(said) and not _RUNS_IT.search(_normal(said))
+    return False
 
 
 def explain(said: str) -> dict:

@@ -122,7 +122,27 @@ def status_payload() -> dict:
 
 
 def run_command(payload: dict, fleet: dict) -> dict:
-    """The Core's command path — same grammar, same gates, inline answer."""
+    """The Core's command path — same grammar, same gates, inline answer.
+
+    Everything that reaches here came from him: /api/command, /api/ask
+    and /api/voice, and nothing else. The beat, agendas, watchers and the
+    project loop go straight to `intercom.execute_command`. So this is
+    where a request is marked ATTENDED, which is what lets the reasoning
+    ladder fall through to his signed-in ChatGPT without him switching
+    anything on — his ruling, 2026-09-08: he should not have to turn on
+    ChatGPT or Claude for a question he asked.
+
+    The mark is set INSIDE this function, not around its callers: two of
+    them hand the work to a `followups` thread, and a thread-local set on
+    the HTTP thread would not reach it — losing the fallback on exactly
+    the long requests most likely to want it.
+    """
+    from aletheia import browser_reasoner
+    with browser_reasoner.attending():
+        return _run_command(payload, fleet)
+
+
+def _run_command(payload: dict, fleet: dict) -> dict:
     quote = str(payload.pop("operator_quote", "typed into the local command center"))
     problems = intercom.validate_kind_args(payload, fleet)
     if problems:

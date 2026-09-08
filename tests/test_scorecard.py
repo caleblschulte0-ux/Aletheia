@@ -289,14 +289,13 @@ class ItStoresNoContentCase(ScorecardCase):
 
 class CertificationBuysNoAuthorityCase(ScorecardCase):
     def test_the_scoreboard_cannot_reach_any_gate(self):
-        """No amount of good performance may touch what is PERMITTED."""
-        with open(scorecard.__file__, encoding="utf-8") as handle:
-            source = handle.read()
-        for forbidden in ("policy", "approval", "intercom", "execute",
-                          "webtask", "halt", "subprocess", "capabilities"):
-            with self.subTest(name=forbidden):
-                self.assertNotIn(forbidden, source.lower(),
-                                 f"{forbidden} would let routing touch authority")
+        """No amount of good performance may touch what is PERMITTED.
+
+        Read from the AST, not grepped: what this module imports and
+        calls is the thing that matters, and a word in a comment is not.
+        """
+        from tests.test_routing import _assert_touches_no_authority
+        _assert_touches_no_authority(scorecard)
 
     def test_it_only_ever_answers_who_reasons(self):
         for kind in ("simple_qa", "planning", "action"):

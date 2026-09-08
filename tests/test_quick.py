@@ -458,12 +458,48 @@ class TheWiderLaneCase(unittest.TestCase):
 
     def test_the_still_ambiguous_are_still_declined(self):
         """"What are my plans" is his calendar to a person and a `plans`
-        record to her; "am I free" needs a calendar she does not have
-        connected. When in doubt the lane says nothing."""
+        record to her. When in doubt the lane says nothing.
+
+        "What's on my calendar" LEFT this list on 2026-09-08, for the
+        same reason "am I free" did in the test just below: it was
+        declined on the belief that the calendar was not connected, and
+        it is - an ICS feed that happens to be empty. The sentence names
+        one store and is not ambiguous about which, so it is answered
+        from that store now. "What plans do I have" genuinely is
+        ambiguous, and stays here.
+        """
         for sentence in (
-                "what's on my calendar",
                 "what plans do i have",
                 "what did you do last week"):
+            with self.subTest(sentence=sentence):
+                self.assertIsNone(quick.match(sentence),
+                                  f"{sentence!r} must reach the planner")
+
+    def test_his_next_meeting_comes_off_the_same_block_the_wall_shows(self):
+        """Already computed every beat, and paying a round trip to be said.
+
+        `presence._next_appointment` is the one definition of "next", so
+        the room and the wall cannot disagree about it. An EMPTY calendar
+        still proves the calendar: "nothing coming up" is a real answer,
+        and falling through to a model that has no feed either would
+        replace it with a guess.
+        """
+        with mock.patch("aletheia.presence._next_appointment",
+                        return_value={"title": "Dentist",
+                                      "when": "tomorrow at 3 pm"}) as asked:
+            said = quick.answer("what's my next meeting")
+        self.assertTrue(asked.called)
+        self.assertIn("Dentist", said)
+        self.assertIn("tomorrow at 3 pm", said)
+
+        with mock.patch("aletheia.presence._next_appointment", return_value=None):
+            self.assertIn("Nothing", quick.answer("what's on my calendar"))
+
+    def test_a_question_about_the_meeting_is_not_the_meeting(self):
+        """A pattern that swallows too much answers a different question."""
+        for sentence in ("what's my next meeting about",
+                         "move my next meeting",
+                         "cancel my next meeting"):
             with self.subTest(sentence=sentence):
                 self.assertIsNone(quick.match(sentence),
                                   f"{sentence!r} must reach the planner")

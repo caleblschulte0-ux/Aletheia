@@ -18,6 +18,43 @@ from unittest import mock
 from aletheia import asking, routing
 
 
+#: Modules that decide what may be DONE. Routing decides who THINKS, and
+#: must not be able to reach any of them - not to check a gate, not to
+#: read one, not at all.
+AUTHORITY = frozenset({
+    "policy", "approvals", "intercom", "webtask", "computer", "agenda",
+    "capabilities", "subprocess", "os", "shutil",
+})
+
+
+def _assert_touches_no_authority(module):
+    """Fail if `module` imports or calls anything that can act."""
+    import ast
+
+    with open(module.__file__, encoding="utf-8") as handle:
+        tree = ast.parse(handle.read())
+
+    imported, called = set(), set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(a.name.split(".")[-1] for a in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            if node.module:
+                imported.add(node.module.split(".")[-1])
+            imported.update(a.name.split(".")[-1] for a in node.names)
+        elif isinstance(node, ast.Attribute):
+            # `policy.something` - the shape of reaching for a gate, and
+            # the shape a getattr-style dodge takes too.
+            if isinstance(node.value, ast.Name):
+                called.add(node.value.id)
+
+    reached = (imported | called) & AUTHORITY
+    if reached:
+        raise AssertionError(
+            f"{module.__name__} reaches {sorted(reached)}; routing may "
+            f"decide who reasons, never what may be done")
+
+
 class WhatKindOfWorkCase(unittest.TestCase):
     def test_producing_words_is_writing(self):
         for said in ("write me an email to Brant about my promotion",
@@ -116,6 +153,50 @@ class TheDeliveryLineCase(unittest.TestCase):
                 self.assertFalse(routing.answerable_directly(said), said)
 
 
+class TheLaneAuditFindingsCase(unittest.TestCase):
+    """Misroutes found by auditing a day's worth of sentences at once.
+
+    Each of these was costing him the planner, or teaching the scorecard
+    about the wrong category, and none was visible from reading a regex.
+    """
+
+    def test_a_code_review_is_not_a_trip_to_the_web(self):
+        """`reviews?` matched "review this function for bugs"."""
+        self.assertEqual(routing.task_type("review this function for bugs"),
+                         "coding")
+        self.assertEqual(routing.task_type("read the reviews of this laptop"),
+                         "research")
+
+    def test_asking_for_code_is_answered_not_planned(self):
+        """It produces text and delivers nothing, like an email."""
+        said = "write a python function to parse dates"
+        self.assertEqual(routing.task_type(said), "coding")
+        self.assertTrue(routing.answerable_directly(said))
+
+    def test_asking_for_code_to_be_RUN_is_still_work(self):
+        for said in ("write a script and run it",
+                     "write a python function and add it to utils.py",
+                     "write a migration and apply it"):
+            with self.subTest(said=said):
+                self.assertEqual(routing.task_type(said), "action")
+                self.assertFalse(routing.answerable_directly(said))
+
+    def test_a_comparison_is_not_a_short_fact(self):
+        """"what's the difference between rust and go" opened with "what"."""
+        self.assertEqual(
+            routing.task_type("what's the difference between rust and go"),
+            "explanation")
+        self.assertEqual(routing.task_type("compare python and rust"),
+                         "explanation")
+        self.assertEqual(routing.task_type("what is the capital of Iceland"),
+                         "simple_qa")
+
+    def test_how_do_i_write_code_is_still_coding(self):
+        """The explanation branch must not swallow real coding questions."""
+        self.assertEqual(routing.task_type("how do I write a python decorator"),
+                         "coding")
+
+
 class ThreeSpeedsCase(unittest.TestCase):
     def test_a_stored_answer_is_still_instant(self):
         """The tier an earlier draft of this change silently deleted."""
@@ -184,13 +265,15 @@ class ProviderPolicyCase(unittest.TestCase):
                          "chatgpt")
 
     def test_choosing_a_provider_grants_no_authority(self):
-        """Routing decides who REASONS, never what may be DONE."""
-        with open(routing.__file__, encoding="utf-8") as handle:
-            source = handle.read()
-        for forbidden in ("approve", "policy.", "execute", "intercom",
-                          "webtask", "subprocess"):
-            self.assertNotIn(forbidden, source,
-                             f"{forbidden} would let routing touch authority")
+        """Routing decides who REASONS, never what may be DONE.
+
+        Read from the AST rather than grepped: the words `run` and
+        `execute` legitimately appear inside a pattern that matches
+        "write a script and run it", and a test that cannot tell a regex
+        from a call is one that gets silenced. What matters is what this
+        module imports and calls.
+        """
+        _assert_touches_no_authority(routing)
 
 
 if __name__ == "__main__":

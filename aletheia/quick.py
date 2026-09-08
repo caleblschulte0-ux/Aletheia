@@ -192,6 +192,17 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:do i|have i) (?:have|got) (?:anything|any plans|much) on"
         r"(?: (?P<free2>today|tomorrow))?$"
         r"|^is my (?P<free3>today|tomorrow) free$")),
+    # Already computed every beat for the wall (`next_appointment`), and
+    # it was paying a round trip to be read aloud. Deliberately without a
+    # trailing clause: "what's my next meeting ABOUT" and "move my next
+    # meeting" are different questions and belong to the planner.
+    ("next_meeting", re.compile(
+        r"^what(?:'s| is|s)? my next (?:meeting|appointment|event)$"
+        r"|^when(?:'s| is)? my next (?:meeting|appointment|event)$"
+        r"|^do i have (?:any )?(?:meetings|appointments)(?: coming up| today)?$"
+        r"|^what(?:'s| is|s)? (?:next |coming up )?on my calendar$"
+        r"|^(?:my )?next (?:meeting|appointment)$"
+        r"|^what(?:'s| is|s)? my schedule(?: today)?$")),
     ("version", re.compile(
         r"^what version are (?:you|u) on$|^what version are (?:you|u) running$"
         r"|^what code are (?:you|u) running$|^what(?:'s| is|s)? your version$"
@@ -651,6 +662,31 @@ def _free(when: str = "") -> str | None:
         return None             # no feed, or it could not be read
 
 
+def _next_meeting() -> str | None:
+    """His next appointment, from the block the wall already renders.
+
+    `presence._next_appointment` is the one definition of "next"; reading
+    the calendar again here would be a second implementation free to
+    drift from the one he can see.
+    """
+    import datetime as dt
+    from aletheia import localtime, presence
+    try:
+        now = dt.datetime.now(localtime.operator_tz())
+        appointment = presence._next_appointment(now)
+    except Exception:
+        return None             # no feed, or it could not be read
+    if not appointment:
+        # An empty calendar still proves the calendar. Falling through to
+        # a model here would replace a true answer with a guess.
+        return "Nothing on your calendar coming up."
+    title = str(appointment.get("title") or "").strip()
+    when = str(appointment.get("when") or "").strip()
+    if not when:
+        return None
+    return f"{title} {when}." if title else f"You've got something {when}."
+
+
 def _version() -> str | None:
     """Which code she is running, and whether the tree has moved past it."""
     from aletheia import running
@@ -811,6 +847,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "uptime": lambda rest: _uptime(),
            "version": lambda rest: _version(),
            "free": _free,
+           "next_meeting": lambda rest: _next_meeting(),
            "running": lambda rest: _running(),
            "mine": _mine,
            "weather": lambda rest: _weather(rest),
