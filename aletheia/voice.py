@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import re
 
-from aletheia import capabilities, policy, tasks
+from aletheia import capabilities, policy, speech, tasks
 
 WAKE_WORDS = ("thea", "theia", "tia", "althea", "aletheia")
 
@@ -1290,13 +1290,17 @@ def _interpret(transcript: str) -> dict:
         else:
             suffix, kind_word = ".docx", "document"
         topic = (m.group("topic") or "").strip()
-        stem = re.sub(r"[^a-z0-9]+", "-", topic.lower()).strip("-")[:40]
+        # HIS words, said back by HER: "about my resume" out of her mouth
+        # means her resume. And a file called my-resume.docx names whose
+        # it is rather than what it is.
+        spoken_topic = speech.as_she_says_it(topic)
+        stem = speech.file_stem(topic)
         # She needs to know WHAT goes in it, and only he knows that. The
         # honest move is to ask for the contents rather than invent them —
         # a spreadsheet of made-up expenses is worse than no spreadsheet.
         return {"command": None,
                 "say": (f"I can make that {kind_word}"
-                        + (f" about {topic}" if topic else "")
+                        + (f" about {spoken_topic}" if spoken_topic else "")
                         + f". Tell me what goes in it and I'll save it as "
                         + (f"{stem}{suffix}" if stem else f"a {suffix} file")
                         + ".")}
@@ -1448,17 +1452,30 @@ def _interpret(transcript: str) -> dict:
     # Each is anchored to the whole sentence, so "cancel my gym
     # membership" is untouched and still reaches the capability that
     # really cancels things.
-    m = (re.match(r"(?:deny|denied|no to|cancel|scrap|drop)"
-                  r"(?:\s+(?:that|it|the pending one))?$", low)
-         or re.match(r"(?:never ?mind|forget (?:it|that)|call it off|"
-                     r"don'?t do (?:it|that))$", low))
+    asked_to_cancel = re.match(
+        r"(?:deny|denied|no to|cancel|scrap|drop)"
+        r"(?:\s+(?:that|it|the pending one))?$", low)
+    # DROPPING THE SUBJECT, which is not the same sentence. Both deny a
+    # pending thing when there is one; they differ only when there is
+    # nothing to cancel, and there "Nothing is waiting for approval" is a
+    # report on a queue he did not ask about.
+    dropped_it = re.match(
+        r"(?:never ?mind|forget (?:it|that)|call it off|"
+        r"don'?t do (?:it|that))$", low)
+    m = asked_to_cancel or dropped_it
     if m:
         pending = [a for a in policy.all_approvals() if a["state"] == "PENDING"]
         if len(pending) == 1:
             return {"command": {"kind": "deny", "id": pending[0]["id"],
                                 "because": "denied by voice"}, "say": None}
         if not pending:
-            return {"command": None, "say": "Nothing is waiting for approval."}
+            # BOTH things are true and he needs both. A bare "Okay."
+            # leaves him believing he just cancelled something, and a bare
+            # "Nothing is waiting for approval" answers a question he did
+            # not ask. So: acknowledge the dismissal, and say the state.
+            return {"command": None,
+                    "say": ("Okay - nothing was waiting." if dropped_it
+                            else "Nothing is waiting for approval.")}
         # Read them out, the way `approve` does. "Use the Command Center"
         # is an instruction to go somewhere else, said to someone who is
         # standing in a room talking.

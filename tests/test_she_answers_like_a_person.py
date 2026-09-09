@@ -457,8 +457,22 @@ class SayingNoCase(unittest.TestCase):
         self.assertNotIn("Command Center", said)
 
     def test_nothing_waiting_says_so(self):
+        """He must not be left believing he cancelled something.
+
+        "Forget it" is him dropping the subject, so answering it with a
+        bare report on the approvals queue is a non-sequitur - but a bare
+        "Okay." is worse, because it sounds like something was called
+        off. The answer does both: it takes the dismissal and says there
+        was nothing there.
+        """
+        said = voice.interpret("thea forget it")["say"]
+        self.assertIn("nothing was waiting", said.lower())
+        self.assertIn("okay", said.lower())
+
+    def test_asking_to_cancel_reports_the_queue_plainly(self):
+        """"Cancel that" IS about the pending thing, so this stays."""
         self.assertIn("Nothing is waiting",
-                      voice.interpret("thea forget it")["say"])
+                      voice.interpret("thea cancel that")["say"])
 
 
 class ConverseIsSpeechTooCase(unittest.TestCase):

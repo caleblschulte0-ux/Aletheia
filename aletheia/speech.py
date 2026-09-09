@@ -281,6 +281,46 @@ def _times_to_words(text: str, now: dt.datetime | None = None) -> str:
     return ISO_TIME.sub(lambda m: humanize_time(m.group(0), now), text)
 
 
+#: His first person, said back to him. Whole words only: "my" -> "your",
+#: never "myopic" -> "yourpic". "our" is left alone deliberately - "our
+#: repos" means both of them and "your repos" would be a small lie.
+_HIS_PRONOUNS = (
+    (r"\bmy\b", "your"), (r"\bmine\b", "yours"),
+    (r"\bmyself\b", "yourself"), (r"\bI\b", "you"),
+    (r"\bi\b", "you"), (r"\bme\b", "you"),
+)
+
+
+def as_she_says_it(phrase: str) -> str:
+    """Turn HIS phrase into one SHE can say about him.
+
+    "my resume" -> "your resume". Used where she describes back what he
+    asked for; not for reproducing his exact words, which `_quoted`
+    handles and which must stay literal.
+    """
+    said = str(phrase or "")
+    for pattern, replacement in _HIS_PRONOUNS:
+        said = re.sub(pattern, replacement, said)
+    return said
+
+
+#: Words that should not start a file name: they describe whose it is,
+#: not what it is. "my resume" is `resume.docx`.
+_LEADING_FILLER = re.compile(
+    r"^(?:my|your|our|the|a|an|this|that|some)\s+", re.IGNORECASE)
+
+
+def file_stem(topic: str, limit: int = 40) -> str:
+    """A file name from a spoken topic. "my resume" -> "resume"."""
+    said = str(topic or "").strip()
+    while True:
+        shorter = _LEADING_FILLER.sub("", said)
+        if shorter == said:
+            break
+        said = shorter
+    return re.sub(r"[^a-z0-9]+", "-", said.lower()).strip("-")[:limit]
+
+
 def _quoted(text: str) -> str:
     """Present his own words after a colon, so their capitals stay right.
 

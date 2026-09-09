@@ -138,5 +138,91 @@ class ALineBreakIsNotAPauseCase(unittest.TestCase):
         self.assertIn(line, speech.sentences_not_lines(line))
 
 
+class HisWordsSaidBackByHerCase(unittest.TestCase):
+    """"About my resume", out of her mouth, means HER resume.
+
+        > make me a word document about my resume
+          I can make that document about MY resume... save it as
+          MY-RESUME.docx.
+    """
+
+    def test_his_first_person_becomes_second(self):
+        self.assertEqual(speech.as_she_says_it("my resume"), "your resume")
+        self.assertEqual(speech.as_she_says_it("expenses I paid"),
+                         "expenses you paid")
+
+    def test_whole_words_only(self):
+        """"myopic" must not become "youropic"."""
+        self.assertEqual(speech.as_she_says_it("myopic mice"), "myopic mice")
+
+    def test_our_is_left_alone(self):
+        """"Our repos" means both of them; "your repos" is a small lie."""
+        self.assertEqual(speech.as_she_says_it("our repos"), "our repos")
+
+    def test_a_file_is_named_for_what_it_is(self):
+        """Not for whose it is: "my resume" is resume.docx."""
+        self.assertEqual(speech.file_stem("my resume"), "resume")
+        self.assertEqual(speech.file_stem("the quarterly numbers"),
+                         "quarterly-numbers")
+        self.assertEqual(speech.file_stem("my  Q3   Expenses!"), "q3-expenses")
+
+    def test_the_offer_says_it_his_way_round(self):
+        from aletheia import voice
+        said = (voice.interpret("make me a word document about my resume")
+                or {}).get("say") or ""
+        self.assertIn("your resume", said)
+        self.assertIn("resume.docx", said)
+        self.assertNotIn("my resume", said)
+        self.assertNotIn("my-resume", said)
+
+
+class DroppingTheSubjectCase(unittest.TestCase):
+    """"Never mind" is not a question about the approvals queue.
+
+        > never mind
+          Nothing is waiting for approval.
+
+    Answering a different question than the one asked is the failure he
+    cannot detect. "Cancel that" IS about the pending thing, so there the
+    same sentence is a real answer.
+    """
+
+    def _said(self, sentence):
+        from aletheia import voice
+        with mock.patch("aletheia.policy.all_approvals", return_value=[]):
+            return (voice.interpret(sentence) or {}).get("say") or ""
+
+    def test_dropping_it_is_acknowledged(self):
+        for sentence in ("never mind", "nevermind", "forget it",
+                         "forget that", "call it off", "don't do it"):
+            with self.subTest(sentence=sentence):
+                said = self._said(sentence).lower()
+                # Both truths: the dismissal is taken, AND he is told
+                # there was nothing there - so he cannot walk away
+                # believing he just cancelled something.
+                self.assertIn("okay", said, sentence)
+                self.assertIn("nothing was waiting", said, sentence)
+                self.assertNotIn("waiting for approval", said, sentence)
+
+    def test_asking_to_cancel_still_reports_the_queue(self):
+        for sentence in ("cancel that", "deny that", "no to that", "drop it"):
+            with self.subTest(sentence=sentence):
+                self.assertIn("Nothing is waiting", self._said(sentence))
+
+    def test_both_still_deny_a_real_pending_thing(self):
+        from aletheia import voice
+        pending = [{"id": "intent-abc", "state": "PENDING",
+                    "requested_action": "run 1 step(s): note",
+                    "reason": "operator said: x", "consequence": "a note"}]
+        for sentence in ("never mind", "cancel that"):
+            with self.subTest(sentence=sentence):
+                with mock.patch("aletheia.policy.all_approvals",
+                                return_value=pending):
+                    decided = voice.interpret(sentence) or {}
+                command = decided.get("command") or {}
+                self.assertEqual(command.get("kind"), "deny", sentence)
+                self.assertEqual(command.get("id"), "intent-abc")
+
+
 if __name__ == "__main__":
     unittest.main()
