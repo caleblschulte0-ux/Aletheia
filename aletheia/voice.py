@@ -1095,8 +1095,19 @@ def _interpret(transcript: str) -> dict:
                     r"what subscriptions do i have)", low):
         return {"command": {"kind": "subscriptions"}, "say": None}
 
+    # "What's my BANK balance" and "what do I have IN THE BANK" reached no
+    # pattern, so `converse` answered them with no finance context and
+    # invented one - "I have read-only access to your balances and
+    # transactions", about a store with nothing in it. A question she can
+    # answer from a store must never be left to a model without it.
     if re.fullmatch(r"(?:how much money do i have|what'?s my balance|"
-                    r"my net worth|how am i doing financially)", low):
+                    r"my net worth|how am i doing financially"
+                    r"|what'?s my bank balance|what'?s in (?:my|the) bank"
+                    r"|what do i have in (?:my|the) bank"
+                    r"|how much (?:do i have|money is there)"
+                    r"(?: in (?:my|the) bank| in the bank)?"
+                    r"|what are my (?:accounts|balances)"
+                    r"|my (?:accounts|balances))", low):
         return {"command": {"kind": "money"}, "say": None}
 
     if re.fullmatch(r"(?:when is the car due|car service|"

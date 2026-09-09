@@ -112,8 +112,20 @@ class ExecutionCase(unittest.TestCase):
             self.assertIn(expect, self.run_kind(**cmd), cmd)
 
     def test_money_reports_zero_rather_than_silence(self):
-        said = self.run_kind(kind="money")
-        self.assertIn("net", said.lower())
+        """Not silence, and not a balance sheet for accounts he has not got.
+
+        This asserted the word "net", which "Assets 0.00, liabilities
+        0.00, net 0.00 across 0 accounts" satisfied while implying he
+        has accounts and they are empty. He has none and nothing is
+        connected, and she was separately telling him she had
+        "read-only access to your balances" - so the rule is the same
+        one the test above states: an empty store says so, and never
+        claims a source.
+        """
+        said = self.run_kind(kind="money").lower()
+        self.assertTrue(said.strip(), "said nothing at all")
+        self.assertIn("no bank connected", said)
+        self.assertNotIn("read-only access", said)
 
     def test_recall_admits_when_it_knows_nothing(self):
         said = self.run_kind(kind="recall", about="a person who does not exist")

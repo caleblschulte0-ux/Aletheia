@@ -2062,9 +2062,19 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         worth = finance.net_worth()
         pending = finance.handoffs()
         from aletheia import speech as _speech
-        said = (f"Assets {worth['assets']:.2f}, liabilities {worth['liabilities']:.2f}, "
-                f"net {worth['net']:.2f} across "
-                f"{_speech.count_phrase(worth['accounts'], 'account')}.")
+        if not worth["accounts"]:
+            # NOTHING IS CONNECTED, and "assets 0.00 across 0 accounts"
+            # implies there are accounts and they are empty. An empty
+            # store still proves the store - it says which of the two
+            # this is, and what would change it.
+            said = ("You haven't got any accounts recorded, so I don't have "
+                    "a balance to give you. There's no bank connected - "
+                    "I can only hold what you or I record.")
+        else:
+            said = (f"Assets {worth['assets']:,.2f}, liabilities "
+                    f"{worth['liabilities']:,.2f}, net {worth['net']:,.2f} "
+                    f"across "
+                    f"{_speech.count_phrase(worth['accounts'], 'account')}.")
         if pending:
             said += (f" {_speech.count_phrase(len(pending), 'payment')} "
                      "waiting for you to authorize.")
