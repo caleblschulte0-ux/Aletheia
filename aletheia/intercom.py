@@ -1164,6 +1164,17 @@ def _one_task(which: str):
     from aletheia import speech
     needle = " ".join(str(which or "").split()).casefold()
     rows = _open_tasks()
+    # "THE FIRST ONE", after she has just read them out in this order.
+    # Checked before the text match so a task whose words happen to
+    # contain "first" cannot claim a sentence that is plainly counting.
+    where = speech.ordinal_index(needle)
+    if where is not None:
+        try:
+            return rows[where], ""
+        except IndexError:
+            return None, (f"There {'is' if len(rows) == 1 else 'are'} only "
+                          + speech.count_phrase(len(rows), "thing")
+                          + " on your list.")
     hits = [t for t in rows
             if needle and (needle in str(t.get("description", "")).casefold()
                            or needle in str(t.get("id", "")).casefold())]

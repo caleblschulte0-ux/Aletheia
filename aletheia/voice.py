@@ -1125,10 +1125,28 @@ def _interpret(transcript: str) -> dict:
     # exactly what should happen. The alternative was the planner
     # compiling something adjacent, and CLAUDE.md already records what
     # that looks like: "1 step ready — Cancel a reminder."
+    # Things SHE owns. Naming one of these means he is not talking about a
+    # service he pays for, so the subscription verb must not claim the
+    # sentence. Searched across the WHOLE phrase, not anchored at its
+    # start: the anchored version let "cancel the first reminder" and
+    # "cancel my 3pm reminder" through to subscription_cancel, because
+    # they begin with "first" and "3pm".
+    #
+    # Deliberately broad, in the safe direction. Missing here costs a
+    # planner round trip; matching wrongly sends her looking for a real
+    # service to cancel.
+    _HERS_NOT_A_SERVICE = re.compile(
+        r"\b(?:that|it|the pending one|approval|approvals|reminder|reminders"
+        r"|alarm|alarms|timer|timers|task|tasks|note|notes|meeting|meetings"
+        r"|appointment|appointments|event|events|schedule|agenda"
+        # No leading "the": `cancel (?:my |the )?` has already eaten it,
+        # so "cancel the last one" arrives here as just "last one".
+        r"|(?:first|second|third|fourth|last)(?: one)?)\b", re.IGNORECASE)
+
     m = re.fullmatch(r"cancel (?:my |the )?(.+?)"
                      r"(?: membership| subscription| plan)?", low)
-    if m and 2 <= len(m.group(1)) <= 60 and not re.match(
-            r"that|it|the pending one|approval|reminder|alarm|timer", m.group(1)):
+    if (m and 2 <= len(m.group(1)) <= 60
+            and not _HERS_NOT_A_SERVICE.search(m.group(1))):
         return {"command": {"kind": "subscription_cancel",
                             "subscription": m.group(1).strip()}, "say": None}
 
@@ -1521,7 +1539,10 @@ def _interpret(transcript: str) -> dict:
     return {"command": {"kind": "intent", "text": text}, "say": None}
 
 
-ORDINALS = {"first": 0, "second": 1, "third": 2, "last": -1}
+#: One definition, in `speech`, because `intercom` resolves tasks with the
+#: same table and two copies drift. Kept under this name so every existing
+#: reference here still reads the way it did.
+ORDINALS = speech.ORDINALS
 
 
 def approval_label(approval: dict) -> str:

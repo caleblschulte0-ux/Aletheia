@@ -321,6 +321,30 @@ def file_stem(topic: str, limit: int = 40) -> str:
     return re.sub(r"[^a-z0-9]+", "-", said.lower()).strip("-")[:limit]
 
 
+#: How he points at one item in a list she just read out. Lives here
+#: because `voice` resolves approvals with it and `intercom` resolves
+#: tasks with it, and two copies of a table like this drift.
+ORDINALS = {"first": 0, "second": 1, "third": 2, "fourth": 3, "last": -1}
+
+#: Words around an ordinal that carry no meaning of their own, so
+#: "the first one" is the same reference as "first".
+_ORDINAL_FILLER = re.compile(r"^(?:the\s+)?(?P<word>\w+)(?:\s+one)?$",
+                             re.IGNORECASE)
+
+
+def ordinal_index(phrase: str):
+    """`"the first one"` -> 0. None when he is not counting.
+
+    Only a phrase that is essentially JUST an ordinal resolves. "The
+    first bank one" describes a task rather than counting to it, and
+    belongs to whatever matches on words.
+    """
+    m = _ORDINAL_FILLER.match(" ".join(str(phrase or "").split()))
+    if not m:
+        return None
+    return ORDINALS.get(m.group("word").casefold())
+
+
 def _quoted(text: str) -> str:
     """Present his own words after a colon, so their capitals stay right.
 
