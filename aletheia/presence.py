@@ -49,9 +49,10 @@ def _approvals() -> list[dict]:
 
 # Titles that say what KIND of notice it is and nothing about this one.
 # Every reminder is titled "Reminder"; the thing he actually wants is in
-# the body.
-GENERIC_TITLES = frozenset({"reminder", "notification", "notice", "alert",
-                            "update", "aletheia"})
+# the body. Defined in `speech` because the room, the wall and the phone
+# must agree about it - this module kept its own copy and the two had
+# already drifted apart.
+from aletheia.speech import CATEGORY_TITLES as GENERIC_TITLES
 
 
 def _notifications() -> list[dict]:

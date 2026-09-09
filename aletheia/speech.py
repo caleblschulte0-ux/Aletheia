@@ -515,8 +515,17 @@ def shorten(text: str, limit: int = 70) -> str:
 
 # A title that names a CATEGORY tells him nothing: every reminder is
 # titled "Reminder", and the thing he wants is the body.
-_CATEGORY_TITLES = frozenset({"reminder", "notification", "notice", "alert",
-                              "aletheia finished thinking"})
+#: One list. `presence` kept a second one that had already drifted - it
+#: had "update" and "aletheia", this had "aletheia finished thinking",
+#: and neither had the other's - so the wall and the room disagreed about
+#: which titles were worth reading out.
+CATEGORY_TITLES = frozenset({"reminder", "reminders", "notification",
+                             "notifications", "notice", "alert", "alerts",
+                             "update", "aletheia",
+                             "aletheia finished thinking"})
+
+#: Kept for the callers that already spell it privately.
+_CATEGORY_TITLES = CATEGORY_TITLES
 
 
 def notice_line(notice: dict, limit: int = 70) -> str:

@@ -753,7 +753,19 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(current_state.snapshot())
         if url.path == "/api/notifications":
             state = parse_qs(url.query).get("state", [None])[0]
-            return self._json(notifications.all_notifications(state=state))
+            rows = notifications.all_notifications(state=state)
+            # `says` is the line to SHOW, computed here rather than in
+            # each page: every reminder is titled "Reminder", and a
+            # surface that renders the title shows him the category
+            # instead of the thing. Same reason the API carries
+            # voice.approval_label.
+            from aletheia import speech as _speech
+            for row in rows:
+                try:
+                    row["says"] = _speech.notice_line(row)
+                except Exception:
+                    row["says"] = str(row.get("title") or "")
+            return self._json(rows)
         if url.path == "/api/events":
             last = int(parse_qs(url.query).get("last", ["50"])[0])
             return self._json(events.list_events(limit=max(1, min(last, 500))))

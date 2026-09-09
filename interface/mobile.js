@@ -100,7 +100,11 @@
       if (!items.length) { $('notificationsBox').innerHTML='<div class="empty">No notifications.</div>'; return; }
       $('notificationsBox').innerHTML = items.slice(0,100).map(n => {
         const cls = n.priority === 'IMPORTANT' ? 'important' : '';
-        return `<div class="item"><div class="row"><strong>${esc(n.title)}</strong>${pill(n.priority || n.state, cls)}</div><div class="small muted">${esc(n.body || '')}</div><div class="row" style="margin-top:7px"><span class="small muted">${esc(n.source || '')}</span>${n.state==='UNREAD'?`<button class="secondary" data-ack="${esc(n.id)}">Acknowledge</button>`:''}</div></div>`;
+        // `says` is the line the Core rendered: the body when the title
+        // is a bare category ("Reminder"), the title otherwise.
+        const heading = n.says || n.title || '';
+        const under = (n.body && n.body !== heading) ? n.body : '';
+        return `<div class="item"><div class="row"><strong>${esc(heading)}</strong>${pill(n.priority || n.state, cls)}</div><div class="small muted">${esc(under)}</div><div class="row" style="margin-top:7px"><span class="small muted">${esc(n.source || '')}</span>${n.state==='UNREAD'?`<button class="secondary" data-ack="${esc(n.id)}">Acknowledge</button>`:''}</div></div>`;
       }).join('');
       document.querySelectorAll('[data-ack]').forEach(b => b.onclick=()=>ack(b.dataset.ack));
     } catch(e) { $('notificationsBox').innerHTML=`<div class="error">${esc(e.message)}</div>`; }
