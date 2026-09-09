@@ -299,9 +299,12 @@ def _draft_sha(d: dict) -> str:
 def draft(to: str, subject: str, body: str, requested_via: str = "voice") -> dict:
     addr, name = resolve_address(to)
     if addr is None:
+        # A QUESTION, not a command with three placeholders in it. She can
+        # save it herself (`contact_add`), so the useful thing to say is
+        # the one he can answer out loud.
         raise ValueError(
-            f"no address known for {name!r} — add them privately first: "
-            f"python -m aletheia.contacts new <id> {name!r} --email <address>")
+            f"I don't have an email address for {name}. Tell me what it is "
+            f"and I'll remember it.")
     if not body.strip():
         raise ValueError("the message body is empty")
     if len(body) > MAX_BODY_CHARS:

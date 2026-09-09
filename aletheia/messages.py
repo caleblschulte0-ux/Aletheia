@@ -171,8 +171,8 @@ def draft(to: str, body: str, requested_via: str = "voice") -> dict:
     number, name = resolve_number(to)
     if number is None:
         raise ValueError(
-            f"no phone number on file for {name!r} — add it privately first: "
-            f"python -m aletheia.contacts new <id> {name!r} --phone <number>")
+            f"I don't have a phone number for {name}. Tell me the number "
+            f"and I'll remember it.")
     body = str(body or "").strip()
     if not body:
         raise ValueError("the message is empty")

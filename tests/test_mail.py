@@ -54,7 +54,14 @@ class TestAddresses(MailCase):
     def test_unknown_name_is_an_honest_refusal_not_a_guess(self):
         with self.assertRaises(ValueError) as ctx:
             mail.draft("someone i never mentioned", "s", "body")
-        self.assertIn("add them privately", str(ctx.exception))
+        # The RULE is that she refuses rather than guessing an address.
+        # This used to assert the wording of a shell command with three
+        # placeholders in it - which is read out loud, and answers "what
+        # do I type" rather than "whose address".
+        said = str(ctx.exception)
+        self.assertIn("email", said.lower())
+        self.assertNotIn("python -m", said)
+        self.assertNotIn("<", said)
         self.assertEqual(policy.all_approvals(), [])  # nothing filed
 
 

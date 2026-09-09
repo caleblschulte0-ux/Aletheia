@@ -45,7 +45,13 @@ class SheNeverGuessesWhoSheIsTextingCase(MessagesCase):
         with self.assertRaises(ValueError) as caught:
             messages.draft("Dana", "hello")
         # The refusal has to say how to fix it, out loud.
-        self.assertIn("no phone number on file", str(caught.exception))
+        # The rule is in this test's own name: a QUESTION, not a number
+        # she made up. The old text failed that - it was a command with
+        # placeholders - so the assertion says the rule instead.
+        said = str(caught.exception)
+        self.assertIn("number", said.lower())
+        self.assertNotIn("python -m", said)
+        self.assertNotIn("<", said)
         self.assertIn("Dana", str(caught.exception))
 
     def test_a_known_name_resolves_to_his_stored_number(self):

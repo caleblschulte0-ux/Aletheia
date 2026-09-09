@@ -212,7 +212,11 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # `part` is morning/afternoon/evening. He says it constantly and it
     # used to be dropped in silence — see `_free_sentence`.
     "free_time":       ({"day"}, {"tz", "minutes", "part"}),
-    "contact_add":     ({"name", "email"}, {"alias"}),
+    # Either an email or a phone, and at least one of them - a contact she
+    # cannot reach is not a contact. `email` stopped being required when
+    # texting needed a number: `contacts.create` had supported phones all
+    # along, and the grammar was the only thing that did not.
+    "contact_add":     ({"name"}, {"email", "phone", "alias"}),
     # The slot for everything that is not a slot (2026-08-27). `text` is
     # whatever the operator actually said; aletheia.planner compiles it
     # into steps expressed in the kinds ABOVE, and every one of those is
@@ -2143,19 +2147,40 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "free_time":
         return free_time_answer(cmd)
     if kind == "contact_add":
-        from aletheia import contacts, mail as mail_mod
+        from aletheia import contacts, mail as mail_mod, messages as _messages
         import re as _re
-        addr, _ = mail_mod.resolve_address(cmd["email"])
-        if addr is None or "@" not in addr:
-            return f"that didn't sound like an email address: {cmd['email']!r}"
+        addr = phone = None
+        if cmd.get("email"):
+            addr, _ = mail_mod.resolve_address(cmd["email"])
+            if addr is None or "@" not in addr:
+                return f"that didn't sound like an email address: {cmd['email']!r}"
+        if cmd.get("phone"):
+            phone = _messages.normalize_number(cmd["phone"])
+            if not _messages.looks_like_a_number(phone):
+                return f"that didn't sound like a phone number: {cmd['phone']!r}"
+        if not addr and not phone:
+            # A contact she cannot reach is not a contact, and saying so
+            # is better than storing a name that fails at send time.
+            return (f"I need an email address or a phone number for "
+                    f"{cmd['name']} before I can remember them.")
         cid = _re.sub(r"[^a-z0-9]+", "-", cmd["name"].lower()).strip("-") or "person"
         aliases = [cmd["alias"]] if cmd.get("alias") else []
         try:
-            contacts.create(cid, cmd["name"].strip(), emails=[addr], aliases=aliases,
+            contacts.create(cid, cmd["name"].strip(),
+                            emails=[addr] if addr else [],
+                            phones=[phone] if phone else [],
+                            aliases=aliases,
                             provenance=f"operator via voice/intercom: {quote[:100]}")
         except FileExistsError:
-            contacts.update(cid, emails=[addr])
-        return f"remembered {cmd['name']} as {addr} — private contacts only, never the public repo"
+            changes = {}
+            if addr:
+                changes["emails"] = [addr]
+            if phone:
+                changes["phones"] = [phone]
+            contacts.update(cid, **changes)
+        reached = " and ".join(x for x in (addr, phone) if x)
+        return (f"remembered {cmd['name']} as {reached} — private contacts "
+                "only, never the public repo")
     raise ValueError(f"unhandled kind {kind!r}")  # unreachable after validation
 
 
