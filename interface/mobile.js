@@ -64,14 +64,34 @@
       const s = await api('/api/state');
       const blocks = [];
       const focus = s.focus || s.active_focus || s.current_focus;
-      if (focus) blocks.push(`<div class="item"><div class="muted small">Focus</div><strong>${esc(typeof focus === 'string' ? focus : JSON.stringify(focus))}</strong></div>`);
+      // `focus` is an OBJECT (active_projects, active_tasks). Stringifying
+      // it put raw JSON on the page under "Current state" - the panel he
+      // would actually look at on a phone. Rendered by name instead; an
+      // empty focus says nothing rather than printing "{}".
+      if (typeof focus === 'string' && focus.trim()) {
+        blocks.push(`<div class="item"><div class="muted small">Focus</div><strong>${esc(focus)}</strong></div>`);
+      } else if (focus && typeof focus === 'object') {
+        const named = (rows, key) => (Array.isArray(rows) ? rows : [])
+          .map(r => (typeof r === 'string' ? r : (r && (r[key] || r.name || r.title || r.id))))
+          .filter(Boolean);
+        const projects = named(focus.active_projects, 'name');
+        const tasks = named(focus.active_tasks, 'description');
+        if (projects.length) {
+          blocks.push(`<div class="item"><div class="muted small">Projects</div>${projects.map(p => `<div>${esc(p)}</div>`).join('')}</div>`);
+        }
+        if (tasks.length) {
+          blocks.push(`<div class="item"><div class="muted small">Working on</div>${tasks.map(t => `<div>${esc(t)}</div>`).join('')}</div>`);
+        }
+      }
       if (Array.isArray(s.attention) && s.attention.length) {
         blocks.push(`<div class="item"><div class="muted small">Attention</div>${s.attention.map(x=>`<div>${esc(x.title || x.description || x.id || JSON.stringify(x))}</div>`).join('')}</div>`);
       }
       if (Array.isArray(s.waiting) && s.waiting.length) {
         blocks.push(`<div class="item"><div class="muted small">Waiting</div>${s.waiting.slice(0,8).map(x=>`<div>${esc(x.title || x.description || x.id || JSON.stringify(x))}</div>`).join('')}</div>`);
       }
-      $('stateBox').innerHTML = blocks.join('') || `<pre class="small mono muted">${esc(JSON.stringify(s,null,2))}</pre>`;
+      // Nothing to show is a sentence, not a JSON dump of the whole state.
+      $('stateBox').innerHTML = blocks.join('')
+        || '<div class="empty">Nothing on the go right now.</div>';
     } catch(e) { $('stateBox').innerHTML = `<div class="error">${esc(e.message)}</div>`; }
   }
   async function loadNotifications() {

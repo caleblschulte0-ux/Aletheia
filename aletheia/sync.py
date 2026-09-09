@@ -37,6 +37,7 @@ Design rules:
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -49,6 +50,25 @@ PUSH_ATTEMPTS = 3
 # What the Core writes itself, and may therefore safely stash across a
 # rebase. Everything else in the tree belongs to a person.
 OWNED_PATHS = ("state/", "exchange/commands/", "exchange/receipts/", "cache/")
+
+
+#: `XY path`, where XY is one or two status characters. Matched by SHAPE
+#: rather than sliced at a fixed offset, because `_git` strips its output
+#: and that removes the leading space of the first line - which turned
+#: " M state/pulse/latest.json" into "tate/pulse/latest.json", stopped it
+#: matching the owned `state/` prefix, and blocked the Core's own pull.
+_PORCELAIN = re.compile(r"^\s*(?P<status>[MADRCU?!]{1,2})\s+(?P<path>.+)$")
+
+
+def _porcelain_path(line: str) -> str:
+    """The path out of one `git status --porcelain` line, or ""."""
+    m = _PORCELAIN.match(line)
+    if not m:
+        return ""
+    path = m.group("path").strip().strip('"')
+    if " -> " in path:      # a rename: what exists now is the destination
+        path = path.split(" -> ", 1)[1].strip().strip('"')
+    return path
 
 
 def _git(args: list[str], cwd: Path) -> tuple[int, str]:
@@ -126,9 +146,7 @@ class GitSync:
             return []
         paths = []
         for line in out.splitlines():
-            path = line[3:].strip().strip('"')
-            if " -> " in path:            # a rename: the destination is what exists now
-                path = path.split(" -> ", 1)[1]
+            path = _porcelain_path(line)
             if path and not any(path.startswith(prefix) for prefix in owned):
                 paths.append(path)
         return paths
