@@ -341,11 +341,30 @@ def _on_day(days_ago: int) -> list[dict]:
     return recollection.on_date(date)
 
 
+#: Long enough to say what happened, short enough for three of them in
+#: one spoken sentence.
+MAX_LINE = 90
+
+
+def _shortened(line: str) -> str:
+    """Cut at a WORD. A hard slice gave "...for a second opinion w".
+
+    Read aloud that is a stammer, and on a screen it looks broken. The
+    ellipsis is deliberate: a shortened sentence should say that it was
+    shortened rather than simply stop.
+    """
+    if len(line) <= MAX_LINE:
+        return line
+    clipped = line[:MAX_LINE].rsplit(" ", 1)[0].rstrip(",;:- ")
+    return (clipped or line[:MAX_LINE].rstrip()) + "..."
+
+
 def _listed(rows: list[dict], when: str) -> str:
     from aletheia import speech
     # Each line is already a finished sentence; joining them with "; "
     # after a full stop gives "call the dentist.; email dana."
-    lines = [str(r.get("what") or "").strip().rstrip(".")[:90] for r in rows[-3:]]
+    lines = [_shortened(str(r.get("what") or "").strip().rstrip("."))
+             for r in rows[-3:]]
     return (f"{speech.count_phrase(len(rows), 'thing')} {when}. Most recent: "
             + "; ".join(lines))
 

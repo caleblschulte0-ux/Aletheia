@@ -377,9 +377,15 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
             consequence=plan.summary or "see the plan",
             reversible=tier == intercom.TIER_ROUTINE, capability=capability)
         record["approval_state"] = approval.get("state")
+    # SAYABLE. This line is read back out of her journal by "what did you
+    # do today", and "1 executable, 0 blocked" is a log entry, not a
+    # sentence - the same defect as the "1 file(s) read" line the suite
+    # already caught once. The counts stay; the English is fixed.
+    planned = speech.count_phrase(len(plan.executable), "step")
+    held = f", {len(plan.blocked)} blocked" if plan.blocked else ""
     journal.append("plan", "intent",
-                   f"{intent_id}: {len(plan.executable)} executable, "
-                   f"{len(plan.blocked)} blocked — {plan.summary or request[:120]}",
+                   f"{intent_id}: planned {planned}{held} — "
+                   f"{plan.summary or request[:120]}",
                    actor=ACTOR)
     return record
 

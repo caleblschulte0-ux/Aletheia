@@ -577,6 +577,26 @@ def _agent_id(name: str) -> str:
     return candidate
 
 
+#: Read-only kinds that PRODUCE something he would want back later: a
+#: remembered note, a picture on disk, a written document. They need no
+#: authority, which is why they are read-only, and they are still things
+#: she DID - so they journal as actions and appear in "what did you do
+#: today". Everything else read-only merely answers a question.
+MAKES_SOMETHING = frozenset({"note", "screenshot", "browse_shot", "research"})
+
+
+def only_answers(kind: str) -> bool:
+    """Did this change nothing but tell him something?
+
+    Used to decide whether the journal records an ACTION or an EVENT.
+    Deliberately conservative in one direction: an unlisted kind counts
+    as work, so a new verb shows up in her account of the day until
+    somebody decides it should not. Missing real work is the worse
+    error - it is how a store gets a writer and no reader.
+    """
+    return kind in READ_ONLY_KINDS and kind not in MAKES_SOMETHING
+
+
 def tier(kind: str) -> str:
     """How much authority one command really needs."""
     if kind in READ_ONLY_KINDS:

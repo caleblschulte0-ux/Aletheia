@@ -1,5 +1,5 @@
 {
-  "revision": 100,
+  "revision": 102,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1229,25 +1229,25 @@
       "id": "reason.local",
       "description": "Offline local models (Ollama) as a reasoning provider when the subscription clients are unavailable",
       "provider": "aletheia.local",
-      "status": "NEEDS_CONFIGURATION",
+      "status": "AVAILABLE",
       "risk_class": "medium",
-      "approval_policy": "registry_grant",
+      "approval_policy": "none",
       "caller": "aletheia.reasoner via aletheia.local_model_pool; policy in aletheia.reasoning_gateway; python -m aletheia.local_ai to provision",
       "module": "aletheia.local_brain",
-      "notes": "DISABLED by default and reported so by reasoning_gateway.status (enabled=false, source=default). The invariant that matters more than the plumbing: a local model must never become the authority for a critical decision merely because Claude is out. The gateway's policy tiers are what enforce that - critical work degrades honestly instead of silently dropping to a smaller model, and shadow mode exists so a local model can be compared without being trusted. NEEDS_CONFIGURATION until the operator provisions models and opts in.",
-      "verification": "tests/test_local_ai_integration.py: the critical tier never downgrades to a local answer (the local pool is asserted NOT CALLED when the subscriptions are down, so it fails instead of quietly answering); a remote Ollama endpoint is refused; a failed activation leaves local routing disabled"
+      "notes": "ENABLED on his PC since 2026-09-08 (model-pool.json: enabled=true, shadow=true; qwen3:8b fast, qwen3.6:27b deep) and answering. Until then this said NEEDS_CONFIGURATION, and asking her what she could NOT do told him he had no local models at all while they were running - a capability denied to his face, which is worse than one merely missing. The invariant that matters more than the plumbing is unchanged: a local model must never become the authority for a critical decision merely because Claude is out. The gateway's policy tiers enforce that - critical work degrades honestly instead of silently dropping to a smaller model - and the scorecard now decides promotion on measured agreement AND latency, so being available is not the same as being trusted.",
+      "verification": "Live on the PC 2026-09-08: the background student answered through the real gateway and agreed with the subscription on every compared pair (agreement 1.0), at ~21s median against the subscription's ~6s - accurate, and too slow to be given authority, which is exactly what the scorecard's latency gate is for. tests/test_local_ai_integration.py: the critical tier never downgrades to a local answer (the local pool is asserted NOT CALLED when the subscriptions are down, so it fails instead of quietly answering); a remote Ollama endpoint is refused; a failed activation leaves local routing disabled."
     },
     {
       "id": "reason.chatgpt_browser",
       "description": "The operator's ChatGPT subscription used as a reasoning fallback through a real browser session - no API key",
       "provider": "chatgpt.app",
-      "status": "NEEDS_CONFIGURATION",
+      "status": "AVAILABLE",
       "risk_class": "medium",
-      "approval_policy": "registry_grant",
+      "approval_policy": "operator_once",
       "caller": "aletheia.reasoner (fallback after the Claude CLI) and aletheia.perception, both via aletheia.reasoning_gateway; python -m aletheia.chatgpt_session to initialize the profile",
       "module": "aletheia.browser_reasoner",
-      "notes": "Gated on an OPERATOR LEASE that unattended contexts must never inherit: EVERY always-on entry point drops the lease from its own environment as its first statement — the Core, the supervisor (which also strips it from every child environment), the project loop and the voice room. The last two matter most and were missed by the first pass: they run as their OWN Windows scheduled tasks, so no parent scrubs anything and Task Scheduler hands them the user's environment. A watchdog, project loop, scheduled process or voice room therefore cannot open a visible ChatGPT window on the operator's screen. chatgpt_session.status reports ready=false ('browser profile has not been initialized') today.",
-      "verification": "tests/test_browser_reasoner_windows_mode.py: the always-on entry points are enumerated from the SCHEDULED TASK REGISTRY, not a hand-written list, and each main() is asserted to drop the lease before it parses an argument — a new always-on task cannot be registered without doing the same"
+      "notes": "Gated on an OPERATOR LEASE that unattended contexts must never inherit: every always-on entry point drops the lease from its own environment - the Core, the supervisor (which also strips it from every child environment), the project loop and the voice room. His ruling 2026-09-08, that he should not have to turn on ChatGPT or Claude, is why an ATTENDED request now satisfies that lease on its own: the ladder falls through from the Claude CLI to this without him switching anything on, while a scheduled tick still cannot reach his account. The lease had been asking which PROCESS was running, and every always-on process answers no - including the Core and the voice room, which are also where he TALKS to her, so his own questions were being refused by a guard written against background loops.",
+      "verification": "Live on the PC 2026-09-09: asked for the capital of Iceland through the real browser session on his subscription and it answered in 12.2s with no API key. INSTALLED is not WORKING, and its own readiness string said login was verified only on first use - so it was verified. tests/test_attended_fallback.py holds the boundary: an unattended process still may not use his account, and an AST walk over every module proves nothing outside the HTTP request path can reach the attended door. tests/test_browser_reasoner_windows_mode.py: the always-on entry points are enumerated from the SCHEDULED TASK REGISTRY rather than a hand-written list."
     },
     {
       "id": "followup.deliver",

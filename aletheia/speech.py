@@ -234,6 +234,33 @@ def say_capabilities(text: str) -> str:
         return str(text or "")
 
 
+#: A line that ends like this already tells the voice to stop.
+_ENDS_A_SENTENCE = ".!?:;,"
+
+
+def sentences_not_lines(text: str) -> str:
+    """Turn a written-down list into something sayable.
+
+    A newline is punctuation on a page and nothing at all in a room. Four
+    capabilities on four lines came out as one breath, ending
+    "...never act on its own And 17 more are experimental" - no pause, no
+    full stop, two sentences run together.
+
+    Each line becomes its own sentence. Not `and_list`: four items in one
+    comma-spliced breath is worse, and seventeen would be unlistenable.
+    """
+    lines = [line.strip() for line in str(text or "").splitlines()]
+    kept = [line for line in lines if line]
+    if len(kept) < 2:
+        return " ".join(kept)
+    finished = []
+    for line in kept:
+        if line[-1] not in _ENDS_A_SENTENCE:
+            line += "."
+        finished.append(line)
+    return " ".join(finished)
+
+
 def spoken_prose(text: str) -> str:
     """Model prose, made safe to read out: no markup, no identifiers.
 
@@ -241,8 +268,13 @@ def spoken_prose(text: str) -> str:
     existed separately and each caller picked its own subset, which is how
     "What I *can* do right now is (computer.observe/control)" reached a
     room that had already had ids stripped from every other sentence.
+
+    Line breaks are handled here for the same reason markdown is: they
+    are page formatting, and this door exists because everything through
+    it is going to be read out.
     """
-    return tidy(strip_ids(say_capabilities(unmarkdown(text))))
+    return tidy(strip_ids(say_capabilities(
+        sentences_not_lines(unmarkdown(text)))))
 
 
 def _times_to_words(text: str, now: dt.datetime | None = None) -> str:

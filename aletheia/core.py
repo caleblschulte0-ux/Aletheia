@@ -159,7 +159,17 @@ def _run_command(payload: dict, fleet: dict) -> dict:
         result = {"outcome": "unavailable", "detail": str(exc)}
     except Exception as exc:
         result = {"outcome": "error", "detail": f"{type(exc).__name__}: {exc}"}
-    journal.append("action", f"core:{payload.get('kind')}",
+    # TALKING IS NOT DOING. A read-only kind changes nothing, so recording
+    # it as an "action" made her own answers show up in "what did you do
+    # today" - she answered "I'm not using your ChatGPT account" and then
+    # reported having done that. The line is still written; it is simply
+    # true now. `intercom.tier` is the one definition of which kinds act.
+    # NOT `tier()`: that answers how much authority a kind needs, and four
+    # read-only kinds need none while still producing something he would
+    # want back - a note, a screenshot, a document.
+    did_something = not intercom.only_answers(payload.get("kind", ""))
+    journal.append("action" if did_something else "event",
+                   f"core:{payload.get('kind')}",
                    f"{result['outcome']} — {result['detail']}", actor=ACTOR)
     return result
 
