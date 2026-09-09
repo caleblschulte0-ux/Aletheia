@@ -82,17 +82,27 @@ class SpeechCase(unittest.TestCase):
 # pick them out but may not DECIDE them (the room microphone is an input
 # device, not an authentication device). `note-plants` is the low-risk one
 # that voice may still approve.
+# Asked JUST NOW, because that is what these fixtures mean: an approval
+# he is being put to in this conversation. A bare "approve" answers
+# something he has recently heard, and one with no timestamp is treated
+# as too old to answer blind - see
+# tests/test_a_bare_yes_answers_a_fresh_question.py, written after a
+# four-day-old "Fully shut down Aletheia" sat on his wall as the only
+# pending item, where any "approve" would have run it.
+_JUST_ASKED = dt.datetime.now(dt.timezone.utc).isoformat()
+
 APPROVALS = [
     {"id": "intent-0a06bbb663", "state": "PENDING", "capability": "intent.execute",
-     "requested_action": "run 3 steps"},
+     "requested_action": "run 3 steps", "requested_at": _JUST_ASKED},
     {"id": "mail-a1e1957d0f", "state": "PENDING", "capability": "email.send",
-     "requested_action": "email.send:abc", "reason": "send email to Dana Okafor"},
+     "requested_action": "email.send:abc", "reason": "send email to Dana Okafor",
+     "requested_at": _JUST_ASKED},
     {"id": "book-meet-dana", "state": "PENDING", "capability": "calendar.write",
-     "requested_action": "calendar.write:abc"},
+     "requested_action": "calendar.write:abc", "requested_at": _JUST_ASKED},
 ]
 LOW_RISK = {"id": "note-plants", "state": "PENDING", "capability": "journal.append",
             "requested_action": "note: water the plants",
-            "reason": "note about the plants"}
+            "reason": "note about the plants", "requested_at": _JUST_ASKED}
 
 
 class ApprovalByVoiceCase(unittest.TestCase):

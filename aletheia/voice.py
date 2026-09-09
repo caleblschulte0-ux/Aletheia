@@ -1462,7 +1462,16 @@ def _interpret(transcript: str) -> dict:
         if not pending:
             return {"command": None, "say": "Nothing is waiting for approval."}
         if len(pending) == 1:
-            return _approve_by_voice(pending[0])
+            only = pending[0]
+            if _asked_recently(only):
+                return _approve_by_voice(only)
+            # ONE pending is unambiguous about WHICH, not evidence that he
+            # knows what it is. Read it back with its age and let him say
+            # yes to the thing itself.
+            return {"command": None,
+                    "say": (f"The only thing waiting is from "
+                            f"{_how_long_ago(only)}: {approval_label(only)}. "
+                            f"Say approve that if you still want it.")}
         chosen = _pick_approval(pending, m.group("ord"), m.group("what"))
         if chosen is not None:
             return _approve_by_voice(chosen)
@@ -1554,6 +1563,55 @@ def _interpret(transcript: str) -> dict:
 #: same table and two copies drift. Kept under this name so every existing
 #: reference here still reads the way it did.
 ORDINALS = speech.ORDINALS
+
+#: How recently an approval must have been asked for a bare "approve" to
+#: be taken as an answer to it. "Yes" replies to something he has just
+#: heard; past this it is worth naming what he is agreeing to. Found the
+#: hard way: a four-day-old misparse ("Fully shut down Aletheia") was the
+#: only thing pending, so any "approve" would have run it.
+ANSWERING_WINDOW_MINUTES = 10
+
+
+def _asked_recently(approval: dict,
+                    now: "dt.datetime | None" = None) -> bool:
+    """Was this put to him recently enough that "approve" means it?
+
+    Unreadable or missing timestamps count as NOT recent: the safe
+    mistake is asking him which one, never running the wrong thing.
+    """
+    import datetime as dt
+
+    stamp = approval.get("requested_at") or approval.get("created_at")
+    if not stamp:
+        return False
+    try:
+        asked = dt.datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return False
+    if asked.tzinfo is None:
+        asked = asked.replace(tzinfo=dt.timezone.utc)
+    now = now or dt.datetime.now(dt.timezone.utc)
+    return (now - asked) <= dt.timedelta(minutes=ANSWERING_WINDOW_MINUTES)
+
+
+def _how_long_ago(approval: dict) -> str:
+    """"four days ago", for reading back to him."""
+    import datetime as dt
+
+    stamp = approval.get("requested_at") or approval.get("created_at")
+    try:
+        asked = dt.datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return "a while back"
+    if asked.tzinfo is None:
+        asked = asked.replace(tzinfo=dt.timezone.utc)
+    gap = dt.datetime.now(dt.timezone.utc) - asked
+    if gap.days >= 1:
+        return f"{speech.count_phrase(gap.days, 'day')} ago"
+    hours = int(gap.total_seconds() // 3600)
+    if hours >= 1:
+        return f"{speech.count_phrase(hours, 'hour')} ago"
+    return "a few minutes ago"
 
 
 def approval_label(approval: dict) -> str:

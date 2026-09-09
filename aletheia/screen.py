@@ -176,14 +176,19 @@ def capture(*, max_edge: int = DEFAULT_MAX_EDGE, monitor: str = "active",
     ``monitor`` is "active" (the screen holding the focused window),
     "primary", or "all" (the whole virtual desktop).
     """
-    if not available():
-        raise ScreenUnavailable("desktop capture is available only on Windows")
+    # ARGUMENTS FIRST, platform second. A value that is not a size is not
+    # a size on any operating system, and checking the platform first
+    # turned every bad-argument bug into "this is not Windows" - which
+    # told a caller nothing and hid three real checks from CI, where the
+    # suite runs on Linux.
     if monitor not in MONITORS:
         raise ValueError(f"monitor must be one of {list(MONITORS)}")
     if not isinstance(max_edge, int) or isinstance(max_edge, bool) or max_edge < 1:
         raise ValueError("max_edge must be a positive integer")
     if max_edge > MAX_EDGE_LIMIT:
         raise ValueError(f"max_edge above {MAX_EDGE_LIMIT} is refused")
+    if not available():
+        raise ScreenUnavailable("desktop capture is available only on Windows")
 
     from ctypes import wintypes
 

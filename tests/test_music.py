@@ -93,13 +93,22 @@ class TransportNeedsNoKeyCase(MusicCase):
             music.control("shuffle")
 
     def test_neither_probe_ever_raises(self):
+        """The rule is in the name: they RETURN, they do not throw.
+
+        This pinned "could not open", which is what Windows says. CI runs
+        on Linux, where the probe honours the rule and says something
+        else - equally true - so the suite was green on his PC and red in
+        CI for a sentence neither of them was wrong about.
+        """
         with mock.patch("subprocess.run", side_effect=OSError("no shell")):
             self.assertFalse(music.player_running())
         with mock.patch("subprocess.Popen", side_effect=OSError("no explorer")), \
              mock.patch.object(music, "player_running", return_value=False):
             ok, why = music.open_player()
-            self.assertFalse(ok)
-            self.assertIn("could not open", why)
+        self.assertFalse(ok)
+        # A reason worth reading, whichever platform gave it.
+        self.assertTrue(str(why).strip(), "refused without saying why")
+        self.assertNotIn("Traceback", str(why))
 
 
 class ChoosingIsADifferentPromiseCase(MusicCase):
