@@ -1,34 +1,34 @@
 # Fleet briefing
 
-Generated 2026-09-08T21:13:52Z from fleet registry rev 4 via GitHubSource.
+Generated 2026-09-09T11:30:43Z from fleet registry rev 4 via GitHubSource.
 
 ## 🔴 `Aletheia` — hub (active)
 
 The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.
 
-Last commit `90143abe24c3` at 2026-09-08T20:53:59Z: Producing words is not a project
+Last commit `3cdc709070e0` at 2026-09-08T23:12:21Z: He should not have to switch ChatGPT on; he should have to be there
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-09-08T21:13:49Z
-- `ci.yml`: failure at 2026-09-08T20:57:49Z
+- `pulse.yml`: in_progress at 2026-09-09T11:30:41Z
+- `ci.yml`: failure at 2026-09-08T23:16:31Z
 
 ## 🔴 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `5311d338554b` at 2026-09-08T20:45:30Z: explainer: update posted log + analytics [skip ci]
+Last commit `beea97b9cbeb` at 2026-09-09T11:30:07Z: exchange: verify reddit-subcontractor-lien-payback-s4-90a134bf26e6 [skip ci]
 
 Vitals — trending posted: 316 · explainer posted: 238 · third posted: 456 · curiosity posted: 1
 
 Watched workflows:
 - `daily.yml`: failure at 2026-09-08T16:24:53Z
-- `exchange_phase_a.yml`: success at 2026-09-08T16:19:50Z
+- `exchange_phase_a.yml`: success at 2026-09-09T09:36:55Z
 - `exchange_phase_b.yml`: success at 2026-09-08T17:58:48Z
-- `story_forge.yml`: success at 2026-09-08T19:58:07Z
+- `story_forge.yml`: success at 2026-09-09T09:53:17Z
 - `third.yml`: skipped at 2026-09-08T16:25:02Z
-- `explainer.yml`: success at 2026-09-08T20:45:35Z
-- `retro.yml`: success at 2026-09-08T04:41:16Z
-- `doctor.yml`: success at 2026-09-08T09:36:56Z
+- `explainer.yml`: success at 2026-09-09T10:46:40Z
+- `retro.yml`: success at 2026-09-09T04:46:21Z
+- `doctor.yml`: success at 2026-09-09T09:40:12Z
 
 ## 🔴 `schwab-trader` — trading-bot (active)
 
@@ -39,7 +39,7 @@ Vitals withheld (5, on his own screen): realized P&L, win rate, closed trades, o
 
 Watched workflows:
 - `sell-brain.yml`: failure at 2026-09-08T18:35:26Z
-- `watchdog.yml`: success at 2026-09-08T19:42:13Z
+- `watchdog.yml`: success at 2026-09-08T22:01:38Z
 
 ## 💤 `Money_Machine` — unbuilt (stub)
 
