@@ -1123,7 +1123,49 @@ def free_time_answer(cmd: dict) -> str:
     # and he has no way to tell that it happened.
     if part:
         slots = cal.in_part(slots, part)
-    return _free_sentence(cal.merge_slots(slots), day, part)
+    said = _free_sentence(cal.merge_slots(slots), day, part)
+    # AN EMPTY CALENDAR AND THE WRONG CALENDAR GIVE THE SAME ANSWER.
+    # "Free tomorrow afternoon 12 pm to 5 pm", said with no hedge, when
+    # the connected feed holds ZERO events for two months in either
+    # direction. His own setup audit already says this out loud — "'am I
+    # free?' will answer yes to every hour. If that is wrong, the
+    # schedule lives on a different calendar than the feed given" — and
+    # the person who needs that sentence is not reading the audit, he is
+    # standing in a room being told he is free.
+    #
+    # Only when it is COMPLETELY empty. A quiet week is a fact about his
+    # week; nothing at all, ever, is a fact about the connection.
+    return said + _nothing_on_it_at_all(cal, day)
+
+
+#: How far either side of the day in question counts as "his calendar has
+#: nothing on it at all". Wide enough that a genuinely quiet fortnight
+#: does not trip it.
+EMPTY_CALENDAR_DAYS = 45
+
+
+def _nothing_on_it_at_all(cal, day) -> str:
+    """The caveat, or nothing. Never raises: a hedge that breaks the
+    sentence it hedges is worse than no hedge."""
+    import datetime as _dt
+    try:
+        rows = cal.all_events()
+    except Exception:
+        return ""
+    window = _dt.timedelta(days=EMPTY_CALENDAR_DAYS)
+    for row in rows or []:
+        stamp = str(row.get("start") or row.get("starts_at") or "")[:10]
+        try:
+            when = _dt.date.fromisoformat(stamp)
+        except ValueError:
+            # Unreadable is not empty. Say nothing rather than claim the
+            # calendar is bare because one row would not parse.
+            return ""
+        if abs(when - day) <= window:
+            return ""
+    return (" Though there is nothing on your calendar at all for weeks "
+            "either side, so if that sounds wrong, I may be reading a "
+            "different calendar than the one you use.")
 
 
 def shopping_answer() -> str:
