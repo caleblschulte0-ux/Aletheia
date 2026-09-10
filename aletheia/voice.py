@@ -514,6 +514,32 @@ def _also_item(said: str) -> str:
 _SHOPPING_RUN = 4
 
 
+def _on_the_shopping_list(item: str) -> bool:
+    """Is that actually on his shopping list right now?
+
+    Asked instead of guessed. "Got the milk" and "I got the job" are the
+    same sentence, and only the store can tell them apart — so a removal
+    that reads a store beats a pattern that reads a verb.
+
+    Never raises: an unreadable list means the sentence goes to the
+    planner, which is what it did before.
+    """
+    needle = " ".join(str(item or "").casefold().split())
+    if not needle:
+        return False
+    try:
+        from aletheia import intercom
+        rows = intercom._shopping_items()
+    except Exception:
+        return False
+    for row in rows or []:
+        need = " ".join(str(row.get("need") or row.get("id") or "")
+                        .casefold().split())
+        if need and (need == needle or needle in need or need in needle):
+            return True
+    return False
+
+
 def _just_added_to_the_list() -> bool:
     """Is he in the middle of putting things on the shopping list?
 
@@ -871,8 +897,28 @@ def _interpret(transcript: str) -> dict:
                     r"|what do i need (to buy|from the (shop|store))"
                     r"|read (me )?(my |the )?shopping list", low):
         return {"command": {"kind": "shopping_list"}, "say": None}
-    m = re.match(r"(?:take|remove|delete) (.+?) (?:off|from) (?:my |the )?"
-                 r"shopping list", low)
+    # "SHOPPING LIST" WAS REQUIRED IN FULL, while the ADD side beside it
+    # has always accepted a bare "the list" — so "add milk to the list"
+    # was instant and "take milk off the list" cost four and a half
+    # seconds at the planner and then asked permission to undo it. The
+    # same asymmetry the reminder cancel had: the writer is fast and the
+    # un-doer is not, which teaches him to be careful about asking.
+    #
+    # "Got the milk" is here because that is what a person says in a shop,
+    # and it means the same thing.
+    m = re.match(r"(?:take|remove|delete|cross|scratch|tick) (?:off )?(.+?) "
+                 r"(?:off|from) (?:my |the )?(?:shopping |grocery )?list", low)
+    if not m:
+        # "GOT THE MILK" is what a person says in a shop, and it means the
+        # same thing. It is also how "I got the job" and "got it" are
+        # said, so this asks the STORE rather than guessing: it is a
+        # removal only if that thing is actually on his list right now. A
+        # pattern that swallows too much answers a different question,
+        # which is the failure he cannot detect.
+        said = re.fullmatch(r"(?:i(?:'ve| have)? )?(?:got|bought|picked up) "
+                            r"(?:the |some |a |an )?(.+?)", low)
+        if said and _on_the_shopping_list(said.group(1)):
+            m = said
     if m:
         return {"command": {"kind": "shopping_off", "item": m.group(1).strip()},
                 "say": None}
@@ -893,6 +939,23 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "notify_snooze", "minutes": minutes},
                     "say": None}
         return _to_the_planner(text)
+
+    # FORGETTING, which she could do all along and could not be asked to.
+    # `memory.forget` is a real function with no kind, no registry entry
+    # and no phrasing, so "forget my landlord" reached the planner, which
+    # invented the identifier `memory.forget`, filed a build task for a
+    # thing that already existed, and read the id out loud.
+    #
+    # "Forget it" and "forget that" are deliberately NOT here: those mean
+    # "never mind" and already deny a pending approval, which is a
+    # different act and the safer one to keep.
+    m = re.fullmatch(r"forget (?:about )?(?!it$|that$|everything$)"
+                     r"((?:what you know about |everything about )?.+?)"
+                     r"\s*\??", low)
+    if m:
+        return {"command": {"kind": "forget",
+                            "about": _as_he_said(transcript, m.group(1))},
+                "say": None}
 
     # what is set, and stopping one. Before the "remind me" patterns so a
     # question about reminders is never read as a request for a new one.

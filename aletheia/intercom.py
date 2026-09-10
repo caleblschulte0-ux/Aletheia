@@ -90,6 +90,13 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "approve":       ({"id"}, set()),
     "deny":          ({"id"}, {"because"}),
     "remember":      ({"domain", "key", "value"}, {"memory_kind"}),
+    # UNWIRED SINCE THE DAY IT WAS WRITTEN. `memory.forget` is a real
+    # function in `aletheia.memory` with no kind, no registry entry and no
+    # phrasing, so "forget my landlord" reached the planner — which
+    # INVENTED the identifier `memory.forget`, filed a build task for a
+    # thing that already exists, and read the id out loud. Rule zero:
+    # never build a capability and leave it unwired.
+    "forget":        ({"about"}, {"domain"}),
     "browse_read":   ({"url"}, set()),
     "research":      ({"question"}, set()),
     # she can produce something now, not just say things
@@ -473,7 +480,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                "notify_clear", "free_time", "contact_add", "notify_operator",
                "intent", "screen_ask",
                # every private-state verb below lives on the PC
-               "meet", "recall", "handle", "travel_time", "shopping_add",
+               "meet", "recall", "forget", "handle", "travel_time", "shopping_add",
                "shopping_list", "shopping_off", "contacts", "watches",
                "subscriptions", "money", "car", "projects", "authority_status", "setup_status",
                # the desktop and the sandbox are both on his PC
@@ -557,7 +564,12 @@ ROUTINE_KINDS = frozenset({
     # COMPLETED and has always been routine, so the narrower verb was
     # asking for approval while the general one did not.
     "task_done",
-    "notify_clear", "remember", "contact_add", "shopping_add",
+    # `forget` sits beside `remember` because it is the same act on the
+    # same private store, and putting it anywhere else would mean she can
+    # be told something without an approval and needs one to be told to
+    # drop it. It is the one act with no undo, though, so the receipt says
+    # WHAT went rather than just "forgotten".
+    "notify_clear", "remember", "forget", "contact_add", "shopping_add",
     # reversible by saying the opposite, reaches nobody but him, and its
     # own default is silence
     "announce_set",
@@ -970,6 +982,36 @@ def _reminder_list_words(rows: list) -> str:
             else f"The {len(said)} you have are")
     tail = "" if len(rows) <= 4 else f", and {len(rows) - 4} more"
     return f"{lead} {speech.and_list(said)}{tail}."
+
+
+def _remembered_matching(about: str, domain: str | None = None):
+    """(domain, key, value) for everything she has that he could mean.
+
+    An empty `about` returns the lot, which is how the miss answer says
+    what he DOES have. Matched on the key AND the value, because "forget
+    Dana" is as natural as "forget my landlord" and only one of those is
+    a key.
+    """
+    from aletheia import memory
+    needle = " ".join(str(about or "").casefold().split())
+    # "My landlord" is how he says it; "landlord" is how it is stored.
+    for lead in ("my ", "the ", "what you know about ", "everything about "):
+        if needle.startswith(lead):
+            needle = needle[len(lead):]
+    found = []
+    for one in memory.DOMAINS if not domain else [domain]:
+        try:
+            for key, entry in (memory._load(one) or {}).items():
+                value = str((entry or {}).get("value", ""))
+                if not needle:
+                    found.append((one, key, value))
+                    continue
+                hay = f"{key} {value}".casefold()
+                if needle in hay or needle.replace(" ", "") in key.casefold():
+                    found.append((one, key, value))
+        except Exception:
+            continue
+    return found
 
 
 def _one_reminder(which: str):
@@ -1663,6 +1705,31 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                         source=f"operator via intercom: {quote[:120]}",
                         kind=cmd.get("memory_kind", "explicit"))
         return f"remembered {cmd['domain']}.{cmd['key']}"
+    if kind == "forget":
+        from aletheia import memory, speech
+        about = " ".join(str(cmd.get("about") or "").split())
+        hits = _remembered_matching(about, cmd.get("domain"))
+        if not hits:
+            # AN EMPTY ANSWER STILL PROVES THE STORE, and here it matters
+            # twice: "I forgot it" about something she never had would
+            # leave him believing a fact is gone that is still there.
+            known = _remembered_matching("", None)
+            if not known:
+                return f"I have nothing remembered about {about}."
+            return (f"I have nothing remembered about {about}. "
+                    f"What I do have is "
+                    + speech.and_list([k for _d, k, _v in known[:6]])
+                    + ("." if len(known) <= 6
+                       else f", and {len(known) - 6} more."))
+        if len(hits) > 1:
+            return ("Which one - "
+                    + speech.or_list([k for _d, k, _v in hits[:4]]) + "?")
+        domain, key, value = hits[0]
+        memory.forget(domain, key, via=f"operator via intercom: {quote[:80]}")
+        # SAY WHAT WENT. "Forgotten" alone is unverifiable by ear, and
+        # this is the one act in the system with no undo - `remember`
+        # keeps what it replaced, and forgetting keeps nothing.
+        return f"forgot {key} - it was {value}"
     if kind.startswith("media_"):
         from aletheia import media
         ok, why = media.available()

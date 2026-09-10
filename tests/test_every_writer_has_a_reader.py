@@ -51,6 +51,9 @@ READER_FOR = {
     "contact_add": "contacts",
     "watch_email_from": "watches",
     "remember": "recall",
+    # Forgetting is the same store read back the same way: "what do you
+    # know about my landlord" is how he checks it is gone.
+    "forget": "recall",
     "plan_new": "projects",
     "plan_add_step": "projects",
     "plan_step": "projects",

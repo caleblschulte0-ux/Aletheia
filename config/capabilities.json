@@ -1,5 +1,5 @@
 {
-  "revision": 113,
+  "revision": 114,
   "providers": [
     {
       "id": "aletheia.local",
@@ -346,6 +346,17 @@
       "risk_class": "low",
       "approval_policy": "none",
       "caller": "intercom remember commands, CLI, Claude sessions"
+    },
+    {
+      "id": "memory.forget",
+      "description": "Drop something you told me to remember, and say what it was as it goes",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "aletheia.intercom forget (voice: \"forget my landlord\", \"forget Dana\"); python -m aletheia.memory forget <domain> <key>",
+      "module": "aletheia.memory",
+      "notes": "UNWIRED SINCE THE DAY IT WAS WRITTEN. `memory.forget` has been a real function in aletheia/memory.py the whole time, with no intercom kind, no registry entry and no phrasing - so \"forget my landlord\" reached the planner, which INVENTED the identifier `memory.forget`, filed a build task for a thing that already existed, and read the id out loud: \"I can't memory.forget yet. I've put it on the build list.\" Rule zero exactly: never build a capability and leave it unwired. Sits at the same tier as memory.remember, because it is the same act on the same private store and it would be strange to be told something for free and need an approval to be told to drop it. He says \"my landlord\" and it is stored as \"landlord\", so the lead-in is folded; and the value is matched as well as the key, because \"forget Dana\" is as natural as \"forget my landlord\" and only one of those is a key. Two matches ask which; none says what he DOES have, because \"forgotten\" about something she never held would leave him believing a fact is gone that is still there. THE ONLY ACT IN THE SYSTEM WITH NO UNDO - workspace.write keeps the version it replaced, memory.remember records what it overwrote, reminders are disabled rather than deleted - so the receipt says WHAT went, not just that something did. \"Forget it\" and \"forget that\" are deliberately NOT this: they mean never mind, and already deny a pending approval."
     },
     {
       "id": "memory.recall",
