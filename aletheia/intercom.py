@@ -1706,7 +1706,11 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                         kind=cmd.get("memory_kind", "explicit"))
         return f"remembered {cmd['domain']}.{cmd['key']}"
     if kind == "forget":
-        from aletheia import memory, speech
+        # `speech` is NOT imported here. It is a module-level name, and an
+        # import of it anywhere in this function makes it LOCAL to the whole
+        # function: every earlier branch that says `speech.` (computer_do,
+        # among others) then raised UnboundLocalError. Found by the full suite.
+        from aletheia import memory
         about = " ".join(str(cmd.get("about") or "").split())
         hits = _remembered_matching(about, cmd.get("domain"))
         if not hits:

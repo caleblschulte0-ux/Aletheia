@@ -580,7 +580,7 @@ _HE_CAN_ASK_FOR = {
     "your calendar and the weather": ("free_time", "meet"),
     "people you know": ("contacts", "contact_add", "watch_email_from",
                         "watches"),
-    "remembering things": ("remember", "recall", "note"),
+    "remembering things": ("remember", "recall", "forget", "note"),
     "music": ("music",),
     "your files": ("file_find", "file_size", "file_list", "file_read",
                    "file_write", "file_edit", "file_move", "file_delete",
