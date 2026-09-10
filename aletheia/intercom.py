@@ -951,6 +951,16 @@ def _reminders_answer(which: str = "") -> str:
     return f"{speech.count_phrase(len(rows), 'reminder')}: {said}{more}."
 
 
+def _reminder_list_words(rows: list) -> str:
+    """What he DOES have, for when the one he named is not there."""
+    from aletheia import speech
+    said = [_reminder_words(r) for r in rows[:4]]
+    lead = ("The one you have is" if len(rows) == 1
+            else f"The {len(said)} you have are")
+    tail = "" if len(rows) <= 4 else f", and {len(rows) - 4} more"
+    return f"{lead} {speech.and_list(said)}{tail}."
+
+
 def _one_reminder(which: str):
     """(schedule, why-not) — exactly one reminder he could mean.
 
@@ -964,6 +974,19 @@ def _one_reminder(which: str):
     def text_of(spec):
         return str((spec.get("command") or {}).get("text", "")).casefold()
 
+    # "THE FIRST ONE", after she has just read them out in this order —
+    # the same rule `_one_task` already holds, and the same reason: it is
+    # how a person names a thing in a list they were just told. Checked
+    # before the text match so a reminder whose words happen to contain
+    # "first" cannot claim a sentence that is plainly counting.
+    where = speech.ordinal_index(needle)
+    if where is not None:
+        try:
+            return rows[where], ""
+        except IndexError:
+            return None, ("You only have "
+                          + speech.count_phrase(len(rows), "reminder") + ".")
+
     hits = [r for r in rows if needle and needle in text_of(r)]
     if not hits:
         words = [w for w in re.split(r"[^a-z0-9]+", needle)
@@ -972,8 +995,19 @@ def _one_reminder(which: str):
         best = max((n for n, _r in scored), default=0)
         hits = [r for n, r in scored if n == best and n > 0]
     if not hits:
-        return None, (f"No reminder matching {which!r}." if rows
-                      else "You have no reminders set.")
+        if not rows:
+            return None, "You have no reminders set."
+        # AN EMPTY ANSWER STILL PROVES THE STORE. "No reminder matching
+        # 'plumber'." is true, is two sentences jammed together once the
+        # caller prefixes "I can't do that:", and leaves him with nothing
+        # to say next. What he has IS the answer to what he asked.
+        # A frame that is grammatical whichever way he phrased it: "cancel
+        # the PLUMBER reminder" gives "plumber" and "cancel the reminder
+        # about THE DENTIST" gives "the dentist", and "no reminder about
+        # plumber" / "no the dentist reminder" is wrong one way or the
+        # other. This one takes either.
+        return None, (f"None of your reminders is about {which}. "
+                      + _reminder_list_words(rows))
     if len(hits) > 1:
         return None, ("Which one — "
                       + speech.or_list([str((r.get("command") or {}).get("text")

@@ -904,6 +904,16 @@ def _interpret(transcript: str) -> dict:
                  r"reminder (?:about |for |to )?(.+)", low)
     if not m:
         m = re.match(r"stop reminding me (?:about|to|of) (.+)", low)
+    if not m:
+        # THE OTHER WORD ORDER, which is the one he used: "cancel the
+        # DENTIST REMINDER", not "cancel the reminder about the dentist".
+        # Setting one is instant and free; cancelling it cost four seconds
+        # at the planner and then asked permission to undo something she
+        # had just done for nothing. Anchored to the whole sentence and
+        # ending in the word itself, so "cancel my gym membership" is
+        # untouched and still reaches the thing that really cancels.
+        m = re.fullmatch(r"(?:cancel|stop|delete|turn off|remove) "
+                         r"(?:the |my |that )?(.+?) reminders?\s*", low)
     if m:
         return {"command": {"kind": "reminder_off", "which": m.group(1).strip()},
                 "say": None}
@@ -2095,7 +2105,17 @@ def spoken_reply(kind: str, outcome: str, detail: str) -> str:
         return "I'm halted — only resume works."
     from aletheia import speech as _speech
     if outcome in ("refused", "invalid"):
-        return f"I can't do that: {_speech.plainly(detail)}"
+        said = _speech.plainly(detail)
+        # A REASON THAT IS ALREADY A SENTENCE DOES NOT NEED A PREAMBLE.
+        # The good refusals say the whole thing — "You have no reminder
+        # about the plumber. The one you have is take out the bins" —
+        # and "I can't do that: You have no reminder..." reads as two
+        # people talking. The prefix earns its place in front of a
+        # fragment ("no place matches 'the airport'"), which is what most
+        # of these still are.
+        if said[:1].isupper() and said.rstrip().endswith((".", "!", "?")):
+            return said
+        return f"I can't do that: {said}"
     if outcome == "error":
         # "That failed: KeyError: "no place matches 'the airport'"" — the
         # message underneath was fine and arrived with a class name bolted
