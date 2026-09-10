@@ -470,6 +470,83 @@ def _not_a_file(said: str) -> bool:
     return len(words) <= 4 and any(w in _NOT_A_FILE for w in words)
 
 
+#: What "add X to the shopping list" looks like, so a follow-up can ask
+#: whether that is what just happened. One definition, used by the
+#: pattern itself and by the continuation below it.
+_SHOPPING_ADD = re.compile(
+    r"(?:add|put|get|stick|throw) (.+?) (?:on|to) (?:the |my )?"
+    r"(?:shopping |grocery )?list$")
+
+
+#: The continuation itself, so a RUN of them can be recognised. "Add milk
+#: to the shopping list / add bread too / and eggs" is one act said three
+#: ways, and checking only the immediately previous turn broke the chain
+#: after the first: "and eggs" follows a continuation, not a full
+#: sentence, and went back to costing four seconds and an approval.
+#
+# It has to carry a MARKER — a leading "and"/"also", or a trailing
+# "too"/"as well". Written without one it matched "add a task to call the
+# plumber" as a continuation, so the walk stepped straight over a change
+# of subject and back to the groceries behind it. The live run happened
+# to survive that because an unrelated turn sat in between; the unit test
+# did not, which is the whole argument for having both.
+_ALSO = re.compile(r"(?:and |also )add (.+)"
+                   r"|add (.+?)(?: too| as well| also)"
+                   r"|(?:and|also) (.+)")
+
+
+def _also_item(said: str) -> str:
+    """The thing named by a continuation, or "".
+
+    ONE definition, matched the same way in both places it is used —
+    deciding whether the PREVIOUS turn was part of a run, and reading the
+    item out of THIS one. Writing the second without the marker requirement
+    put "a task to call the plumber" on the shopping list, because a bare
+    "add X" inside a run swallowed a change of subject whole.
+    """
+    m = _ALSO.fullmatch(str(said or "").strip())
+    if not m:
+        return ""
+    return (m.group(1) or m.group(2) or m.group(3) or "").strip()
+
+#: How far back a run may reach. Small on purpose: this resolves "too",
+#: which means the thing just said, not the thing said before lunch.
+_SHOPPING_RUN = 4
+
+
+def _just_added_to_the_list() -> bool:
+    """Is he in the middle of putting things on the shopping list?
+
+    Walks BACK through the thread: a full "add X to the shopping list"
+    means yes, another continuation means keep looking, and anything else
+    at all means no — which is what stops "add a task to call the plumber"
+    followed by "add cheese too" from quietly becoming groceries.
+
+    Read from the conversation thread, which every spoken turn goes
+    through, including the fast ones — the whole reason it was moved out
+    of `converse`. Matched against HIS sentence rather than HER answer:
+    her wording is exactly the sort of thing that gets improved, and a
+    pattern anchored to it drifts silently the moment it does.
+
+    Never raises. No thread means the follow-up goes to the planner,
+    which is what it did before.
+    """
+    try:
+        from aletheia import converse
+        turns = converse.recent(limit=_SHOPPING_RUN)
+    except Exception:
+        return False
+    for turn in reversed(turns or []):
+        said = _without_preamble(
+            str(turn.get("he_asked") or "").casefold()).strip()
+        if _SHOPPING_ADD.match(said):
+            return True
+        if _also_item(said):
+            continue
+        return False
+    return False
+
+
 def _as_he_said(transcript: str, fragment: str) -> str:
     """A matched fragment with his capitals put back.
 
@@ -1200,6 +1277,25 @@ def _interpret(transcript: str) -> dict:
         return _to_the_planner(text)
     if m:
         return {"command": {"kind": "shopping_add", "item": m.group(1).strip()},
+                "say": None}
+
+    # THE SECOND ITEM COST HIM FOUR AND A HALF SECONDS AND AN APPROVAL.
+    #
+    #   > add milk to the shopping list   [0.1s] Added to the shopping list: milk.
+    #   > add bread too                   [4.6s] 1 step ready - Add bread to
+    #                                     the shopping list. Say approve to run it.
+    #
+    # The same act, one turn apart, with two completely different
+    # experiences — and the slower one asks permission to do the thing the
+    # faster one just did for free. Nobody says the whole sentence twice.
+    #
+    # Matched on what HE SAID last, never on her reply: her wording is
+    # exactly the sort of thing that gets improved, and a pattern anchored
+    # to it drifts the moment somebody rewrites the sentence.
+    item = _also_item(low)
+    if item and not _might_be_several(item) and _just_added_to_the_list():
+        return {"command": {"kind": "shopping_add",
+                            "item": _as_he_said(transcript, item)},
                 "say": None}
 
     if re.fullmatch(r"(?:what am i paying for|my subscriptions?|"
