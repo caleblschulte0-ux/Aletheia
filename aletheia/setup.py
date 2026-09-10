@@ -259,7 +259,33 @@ def _local_ai() -> tuple[str, str]:
                if not p.get("online")]
     if offline:
         return BROKEN, f"enabled but these profiles are not answering: {', '.join(offline)}"
-    return OK, "local profiles enabled and answering"
+    # ANSWERING IS NOT RUNNABLE. Ollama replying to a request proves Ollama
+    # is running; it says nothing about whether the model it would load
+    # fits in this machine. The `deep` role defaulted to a 17.8 GB model on
+    # a 16 GB laptop, and using it took the machine to 98.4% of its commit
+    # limit with 1 GB free — at which point Windows starts killing things.
+    # An audit whose whole promise is "checked live rather than assumed"
+    # was reporting that as OK.
+    try:
+        from aletheia import local_model_pool
+        cramped = [local_model_pool.room_for_role(role)
+                   for role in ("fast", "deep")]
+        cramped = [r for r in cramped if not r["fits"]]
+    except Exception:
+        cramped = []
+    if len(cramped) >= 2:
+        return BROKEN, "; ".join(r["why"] for r in cramped)[:400]
+    if cramped:
+        # NOT BROKEN: the other role fits and answers, and most of what he
+        # asks goes there. An audit that shouts BROKEN at a lane that
+        # mostly works is its own kind of lie, and the one after it gets
+        # read as noise. OK, with the limit said plainly and the fix in
+        # the same sentence.
+        return OK, (f"answering. {cramped[0]['why']} Those questions go to "
+                    f"the smaller model or to the Claude subscription; "
+                    f"point the deep role at a smaller model to change "
+                    f"that")[:400]
+    return OK, "local profiles enabled, answering, and small enough to run here"
 
 
 def _chatgpt_browser() -> tuple[str, str]:

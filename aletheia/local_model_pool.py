@@ -45,6 +45,75 @@ def choose_role(text: str, context: dict | None = None) -> str:
     return "deep" if size >= 6_000 else "fast"
 
 
+#: How long a model's size is trusted before asking Ollama again. Models
+#: are pulled rarely; the machine's memory changes minute to minute, so
+#: only the SIZE is cached and the room is measured every time.
+_SIZES: dict[str, Any] = {"at": 0.0, "by_name": {}}
+_SIZE_CACHE_S = 300.0
+_SIZE_TIMEOUT_S = 4.0
+
+
+def installed_sizes(*, now: float | None = None) -> dict[str, int]:
+    """What each installed model weighs, from Ollama's own listing.
+
+    Never raises: a lane that cannot say how big its models are must not
+    become a lane that refuses to answer.
+    """
+    import time as _time
+    import urllib.request
+
+    now = _time.monotonic() if now is None else now
+    if now - float(_SIZES["at"]) < _SIZE_CACHE_S and _SIZES["by_name"]:
+        return dict(_SIZES["by_name"])
+    sizes: dict[str, int] = {}
+    try:
+        base = local_brain.DEFAULT_BASE_URL
+        try:
+            base = local_brain.base_url()
+        except Exception:
+            pass
+        with urllib.request.urlopen(f"{base.rstrip('/')}/api/tags",
+                                    timeout=_SIZE_TIMEOUT_S) as resp:
+            listed = json.loads(resp.read().decode("utf-8", "replace"))
+        for entry in listed.get("models") or []:
+            name = str(entry.get("name") or "")
+            if name:
+                sizes[name] = int(entry.get("size") or 0)
+    except Exception:
+        return dict(_SIZES["by_name"])
+    _SIZES.update({"at": now, "by_name": sizes})
+    return dict(sizes)
+
+
+def room_for_role(role: str) -> dict:
+    """Whether this role's model can run on this machine right now.
+
+    THE CHECK THAT WAS MISSING. `reachable()` proves Ollama is running and
+    nothing more, and the `deep` role resolves by default to
+    `qwen3.6:27b` — 17.8 GB on a 16 GB machine with no discrete GPU. Any
+    question `choose_role` sends to "deep" loaded it: measured live
+    2026-09-09, commit charge went to 32,329 MB of a 32,841 MB limit and
+    Windows began killing processes. What it killed was this repository's
+    own test suite.
+
+    A model that is not installed returns fits=True with known=False: that
+    is Ollama's error to report, in Ollama's words, not a memory refusal
+    wearing its coat.
+    """
+    from aletheia import machine
+
+    name = str(model_pool_config.resolve(role).get("model") or "")
+    size = installed_sizes().get(name, 0)
+    if not size:
+        return {"fits": True, "known": False, "model": name,
+                "why": "size unknown", "needed": 0, "usable": 0, "total": 0}
+    verdict = machine.room_for(size)
+    verdict["model"] = name
+    if not verdict["fits"]:
+        verdict["why"] = machine.why_it_does_not_fit(name, verdict)
+    return verdict
+
+
 def _config(role: str, timeout_s: float | None = None,
             think_override: bool | None = None) -> local_brain.OllamaConfig:
     profile = model_pool_config.resolve(role)
@@ -70,6 +139,15 @@ def run_json(system_prompt: str, text: str, *, context: dict | None = None,
     ctx = context or {}
     if not isinstance(ctx, dict):
         raise ValueError("local context must be an object")
+    # BEFORE THE MACHINE IS ASKED TO DO SOMETHING IT CANNOT DO. Loading a
+    # model bigger than the memory it has does not make her slow, it makes
+    # the computer start killing things — measured at 98.4% of the commit
+    # limit with 1 GB free. Refusing here means the caller fails over to a
+    # role that fits or to the frontier lane, which is the honest outcome:
+    # she has a Claude subscription and he has one laptop.
+    room = room_for_role(role)
+    if not room["fits"]:
+        raise LocalPoolUnavailable(room["why"])
     started = time.perf_counter()
     proposal = None
     config = None
@@ -122,7 +200,7 @@ def auto_json(system_prompt: str, text: str, *, context: dict | None = None,
             validator=validator, timeout_s=timeout_s,
             require_enabled=require_enabled,
         )
-    except LocalPoolUnavailable:
+    except LocalPoolUnavailable as first_failure:
         if not allow_failover:
             raise
         try:
@@ -131,8 +209,16 @@ def auto_json(system_prompt: str, text: str, *, context: dict | None = None,
                 validator=validator, timeout_s=timeout_s,
                 require_enabled=require_enabled,
             )
-        except LocalPoolUnavailable:
-            raise LocalPoolUnavailable("both local reasoning roles are unavailable") from None
+        except LocalPoolUnavailable as second_failure:
+            # BOTH REASONS, not a shrug. "Both local reasoning roles are
+            # unavailable" told him nothing and the two halves usually
+            # fail for different reasons — one model too big for the
+            # machine, the other Ollama not running — with different
+            # fixes. Collapsing them is how an actionable failure becomes
+            # a sentence he can only reply "okay" to.
+            raise LocalPoolUnavailable(
+                f"neither local model could run. {first} — {first_failure}; "
+                f"{second} — {second_failure}") from None
 
 
 # Reachability, cached: the answer changes when he starts or stops
