@@ -369,6 +369,21 @@ class NobodyNamesItResumePdf(unittest.TestCase):
         os.utime(new, (time.time(), time.time()))
         self.assertEqual(Path(applications.find_resume()), new)
 
+    def test_a_file_literally_named_resume_does_not_beat_a_newer_one(self):
+        """Live 2026-09-10: Documents/Aletheia/resume.pdf, made for one job in
+        September, kept winning after he wrote a new resume."""
+        import os, time
+        old = self.put("Documents/Aletheia", "resume.pdf")
+        new = self.put("Downloads", "Caleb_Schulte_Resume.pdf")
+        os.utime(old, (1, 1))
+        os.utime(new, (time.time(), time.time()))
+        self.assertEqual(Path(applications.find_resume()), new)
+
+    def test_notes_about_a_resume_and_lock_files_are_not_resumes(self):
+        self.assertFalse(applications.looks_like_a_resume("resume-summary.md"))
+        self.assertFalse(applications.looks_like_a_resume("~$leb_Schulte_resume.docx"))
+        self.assertTrue(applications.looks_like_a_resume("Caleb_Schulte_Resume_Updated.docx"))
+
     def test_finding_nothing_still_names_the_fix(self):
         with self.assertRaises(applications.ApplicationError) as caught:
             applications.find_resume()

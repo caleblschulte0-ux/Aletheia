@@ -93,7 +93,13 @@ def looks_like_a_resume(name: str) -> bool:
     stem, _, suffix = name.rpartition(".")
     if not stem or f".{suffix.casefold()}" not in RESUME_SUFFIXES:
         return False
+    if name.startswith("~$"):
+        return False            # Word's lock file beside an open document
     words = [w for w in re.split(r"[^a-z0-9]+", stem.casefold()) if w]
+    # Notes ABOUT a resume are not the resume. resume-summary.md was the
+    # newest resume-looking file on his PC 2026-09-10.
+    if set(words) & {"summary", "notes", "cover", "letter", "template", "sample", "example", "tips"}:
+        return False
     return bool({"resume", "resumé", "cv"} & set(words)) or "curriculum" in words
 
 
@@ -113,7 +119,7 @@ def find_resume(named: str = "") -> str:
         raise ApplicationError(
             f"she could not find {named}. Put it in her workspace "
             f"({workspace.root()}) or give the full path.")
-    seen = []
+    seen, hits = [], []
     for place in RESUME_PLACES:
         for stem in RESUME_NAMES:
             for suffix in RESUME_SUFFIXES:
@@ -122,7 +128,7 @@ def find_resume(named: str = "") -> str:
                                  if place else base / f"{stem}{suffix}")
                     seen.append(candidate)
                     if candidate.is_file():
-                        return str(candidate)
+                        hits.append(candidate)
     # Then by what it LOOKS like: newest first, because the one he last
     # touched is the one he means.
     #
@@ -143,9 +149,21 @@ def find_resume(named: str = "") -> str:
         candidates = _files.find("", limit=_files.MAX_SCANNED)
     except Exception:
         candidates = []
-    for row in candidates:          # already newest first
-        if looks_like_a_resume(row["name"]):
-            return row["path"]
+    hits += [_Path(row["path"]) for row in candidates if looks_like_a_resume(row["name"])]
+    # THE NEWEST ONE, whatever it is called. A file literally named
+    # resume.pdf used to win before anything else was looked at, so the copy
+    # he made for one job in September was still being used after he wrote a
+    # new resume: live 2026-09-10 she filled applications from the old one.
+    newest = None
+    for hit in hits:
+        try:
+            stamp = hit.stat().st_mtime
+        except OSError:
+            continue
+        if newest is None or stamp > newest[0]:
+            newest = (stamp, hit)
+    if newest:
+        return str(newest[1])
     raise ApplicationError(
         "she could not find your resume. She looked for anything with "
         "'resume' or 'cv' in its name as .pdf, "

@@ -229,13 +229,9 @@ def read_resume(named: str = "") -> tuple[str, str]:
     candidates = [first] + [str(base.with_suffix(suffix))
                             for suffix in (".docx", ".txt", ".md", ".rtf", ".pdf")
                             if suffix != base.suffix.casefold()]
-    if not named:
-        try:
-            from aletheia import files
-            candidates += [row["path"] for row in files.find("", limit=files.MAX_SCANNED)
-                           if applications.looks_like_a_resume(row["name"])]
-        except Exception:
-            pass
+    # Only the SAME document in another format stands in for it. Falling
+    # through to any resume-looking file on the disk is how an older resume
+    # got used live 2026-09-10 while the one he meant would not read.
     why, seen = "", set()
     for path in candidates:
         if path in seen or not Path(path).is_file():
@@ -518,6 +514,7 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
                     record = stage(form_url, resume=resume_path, extra=extra, note=note)
                     record["job_title"] = page.get("title", "")
                     record["posting"] = page.get("posting") or page["url"]
+                    record["found_on"] = page.get("found_on", "")
                     record["answered_for_you"] = len(extra)
                 except Exception:
                     pass
@@ -707,15 +704,21 @@ def start(role: str = "", *, count: int = 5, where: str = "", resume: str = "",
           spawner=None) -> dict:
     """Begin a campaign in its own process and come straight back."""
     count = max(1, min(int(count), MAX_JOBS))
-    args = [sys.executable, "-m", "aletheia.campaign", "run", "--count", str(count), "--notify"]
+    # WHICH RESUME is settled here, said out loud, and handed to the run by
+    # path, so the file he is told about is the file it uses. Live 2026-09-10
+    # it filled applications from an old resume and nothing said so.
+    try:
+        resume = applications.find_resume(resume)
+    except Exception as exc:
+        return {"started": False, "why": str(exc)}
+    args = [sys.executable, "-m", "aletheia.campaign", "run", "--count", str(count), "--notify",
+            "--resume", resume]
     if role:
         args += ["--role", role]
     if where:
         args += ["--where", where]
-    if resume:
-        args += ["--resume", resume]
-    out = _launch(args, {"kind": "campaign", "role": role, "count": count, "where": where},
-                  spawner)
+    out = _launch(args, {"kind": "campaign", "role": role, "count": count, "where": where,
+                         "resume": resume}, spawner)
     if out.get("started"):
         journal.append("action", "campaign",
                        f"started making {speech.count_phrase(count, 'application')} ready"
@@ -730,14 +733,37 @@ def start_answer(question: str, answer: str, *, spawner=None) -> dict:
     return _launch(args, {"kind": "answer", "question": str(question)[:200]}, spawner)
 
 
+def _resume_said(path: str) -> str:
+    """"Caleb_Schulte_Resume.pdf, saved today": enough to know it is the right one."""
+    if not path:
+        return "your resume"
+    import datetime as _dt
+    p = Path(path)
+    try:
+        saved = _dt.date.fromtimestamp(p.stat().st_mtime)
+    except OSError:
+        return p.name
+    today = _dt.date.today()
+    if saved == today:
+        when = "today"
+    elif (today - saved).days == 1:
+        when = "yesterday"
+    else:
+        when = f"{saved.strftime('%B')} {saved.day}, {saved.year}"
+    return f"{p.name}, saved {when}"
+
+
 def started_words(started: dict) -> str:
     if not started.get("started"):
+        if started.get("why"):
+            return f"I can't start the applications: {started['why']}"
         return ("I'm already working on a batch of applications. I'll tell you when "
                 "they're ready.")
     what = f"{started['role']} jobs" if started.get("role") else "jobs that fit your resume"
-    return (f"On it. I'm finding {what}, filling in "
-            f"{speech.count_phrase(started['count'], 'application')} and I'll tell you when "
-            "they're ready for you to approve. Nothing gets sent until you do.")
+    return (f"On it. I'm using {_resume_said(started.get('resume', ''))}. I'm finding {what}, "
+            f"filling in {speech.count_phrase(started['count'], 'application')} and I'll tell "
+            "you when they're ready for you to approve. Nothing gets sent until you do. "
+            "If that's the wrong resume, tell me which one.")
 
 
 def answer_words(started: dict) -> str:
@@ -780,9 +806,10 @@ def spoken(out: dict) -> str:
                     f"{'s' if len(questions) != 1 else ''} from you first")
     if failed:
         said.append(f"{failed} I could not reach a form on")
+    used = f" I used {_resume_said(out['resume'])}." if out.get("resume") else ""
     if not said:
-        return "Nothing to apply to — no openings had a form she could read."
-    return ". ".join(said) + ". Nothing has been sent."
+        return "Nothing to apply to — no openings had a form she could read." + used
+    return ". ".join(said) + ". Nothing has been sent." + used
 
 
 def main(argv: list[str] | None = None) -> int:

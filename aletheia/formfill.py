@@ -196,6 +196,11 @@ def match_field(field: dict) -> str | None:
     for key, spec in profile.FIELDS.items():
         if yes_no and key not in YES_NO_FIELDS:
             continue
+        # "Years of experience IN sales operations" is not his total years:
+        # live it got 6, counting six years of construction.
+        if key == "years_experience" and re.search(
+                r"experience\b.*\b(?:in|with|as|doing|using|on|at)\b", label):
+            continue
         for phrase in spec["asks"]:
             if len(phrase) <= best_len:
                 continue

@@ -15,6 +15,11 @@ cryptography>=42
 # Linux/macOS have a system database; the wheel is harmless there.
 tzdata
 
+# Reading his resume when it is a PDF. The stdlib reader in aletheia.doctext
+# cannot map the fonts LibreOffice and Word embed, so without this a real
+# resume reads as nothing (found live 2026-09-10) and applications stop.
+pypdf>=4
+
 # voice.wake — room voice (Phase 10): offline recognizer + mic + endpoint checks
 #   python -m aletheia.voice_room --setup   (downloads the ~40MB model once)
 vosk

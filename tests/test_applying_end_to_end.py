@@ -272,14 +272,69 @@ class HisNameIsNotGuessedFromSpacingCase(PrivateProfile):
         self.assertEqual((out["first_name"], out["last_name"]), ("Jane", "O'Brien"))
 
 
+class TheResumeHeMeantCase(PrivateProfile):
+    """Live 2026-09-10 the campaign filled applications from an old resume:
+    a file named resume.pdf won, would not read, and a different resume
+    stood in for it without a word."""
+
+    def test_an_unreadable_resume_is_never_swapped_for_a_different_one(self):
+        new = self.root / "Caleb_Schulte_Resume.pdf"
+        new.write_bytes(b"%PDF")
+        old = self.root / "resume old.docx"
+        old.write_bytes(b"PK")
+
+        def read(path, anywhere=False):
+            if str(path).endswith(".pdf"):
+                raise ValueError("unreadable")
+            return {"text": RESUME}
+        with mock.patch.object(applications, "find_resume", return_value=str(new)), \
+             mock.patch.object(workspace, "read", side_effect=read), \
+             mock.patch("aletheia.files.find", return_value=[{"path": str(old), "name": old.name}]):
+            with self.assertRaises(campaign.CampaignError) as caught:
+                campaign.read_resume("")
+        self.assertIn("Caleb_Schulte_Resume.pdf", str(caught.exception))
+
+    def test_the_summary_says_which_resume_it_used(self):
+        said = campaign.spoken({"ready": [{}], "resume": str(self.root / "resume.docx")})
+        self.assertIn("I used resume.docx", said)
+
+    def test_no_resume_found_is_said_and_nothing_starts(self):
+        with mock.patch.object(applications, "find_resume",
+                               side_effect=applications.ApplicationError("she could not find your resume")):
+            out = campaign.start("", count=3, spawner=lambda args: self.fail("started"))
+        self.assertFalse(out["started"])
+        self.assertIn("could not find your resume", campaign.started_words(out))
+
+    def test_years_of_experience_in_something_is_not_his_total(self):
+        match = campaign.formfill.match_field
+        self.assertIsNone(match({"label": "How many years of experience do you have in a sales operations role?*"}))
+        self.assertEqual(match({"label": "Years of experience*"}), "years_experience")
+
+
 class InItsOwnProcessCase(PrivateProfile):
+    def setUp(self):
+        super().setUp()
+        self.resume = self.root / "Caleb_Schulte_Resume.pdf"
+        self.resume.write_bytes(b"%PDF-1.4")
+        patch = mock.patch.object(applications, "find_resume", return_value=str(self.resume))
+        patch.start()
+        self.addCleanup(patch.stop)
+
     def test_it_starts_and_comes_straight_back(self):
         spawned = []
         out = campaign.start("", count=7, spawner=lambda args: spawned.append(args) or 4242)
         self.assertTrue(out["started"])
         self.assertIn("--notify", spawned[0])
         self.assertNotIn("--role", spawned[0])
-        self.assertIn("jobs that fit your resume", campaign.started_words(out))
+        said = campaign.started_words(out)
+        self.assertIn("jobs that fit your resume", said)
+
+    def test_it_says_which_resume_and_hands_the_run_that_exact_file(self):
+        spawned = []
+        out = campaign.start("", count=2, spawner=lambda args: spawned.append(args) or 1)
+        self.assertEqual(spawned[0][spawned[0].index("--resume") + 1], str(self.resume))
+        self.assertIn("Caleb_Schulte_Resume.pdf, saved today", campaign.started_words(out))
+        self.assertIn("wrong resume", campaign.started_words(out))
 
     def test_one_at_a_time(self):
         campaign.start("", count=3, spawner=lambda args: 1)
