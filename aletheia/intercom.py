@@ -707,10 +707,6 @@ PLANNER_FORBIDDEN = frozenset({
     # screenshot carries whatever happened to be on screen, and unlike
     # window text it cannot be redacted on the way out.
     "eyes_on",
-    # Ending a project is his decision. A sentence that merely contains
-    # "drop" must not end one; `voice` matches the real phrasings against
-    # the charters that exist before the planner is ever called.
-    "project_drop",
 })
 
 

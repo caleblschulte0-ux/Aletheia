@@ -106,10 +106,14 @@ class ExecutionCase(unittest.TestCase):
         return intercom.execute_command(cmd, FLEET)
 
     def test_empty_stores_say_so_rather_than_inventing(self):
-        for cmd, expect in (({"kind": "subscriptions"}, "No subscriptions"),
-                            ({"kind": "projects"}, "No active projects"),
-                            ({"kind": "car"}, "No vehicle")):
-            self.assertIn(expect, self.run_kind(**cmd), cmd)
+        # EMPTY means empty. Since 2026-09-10 "projects" also reads the
+        # charters in plans/, and the repository carries real ones, so the
+        # store has to be emptied for the rule to be the thing under test.
+        with mock.patch("aletheia.plans.all_plans", return_value=[]):
+            for cmd, expect in (({"kind": "subscriptions"}, "No subscriptions"),
+                                ({"kind": "projects"}, "No active projects"),
+                                ({"kind": "car"}, "No vehicle")):
+                self.assertIn(expect, self.run_kind(**cmd), cmd)
 
     def test_money_reports_zero_rather_than_silence(self):
         """Not silence, and not a balance sheet for accounts he has not got.

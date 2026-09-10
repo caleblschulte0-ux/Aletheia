@@ -319,10 +319,13 @@ class TheVerbsCase(unittest.TestCase):
         patch.start()
         self.addCleanup(patch.stop)
 
-    def test_queuing_is_routine_and_ending_one_is_his_alone(self):
+    def test_queuing_is_routine_and_reversible(self):
+        """Not a switch: a dropped charter reopens with plan_set, so the
+        planner may name it. The closed sets are for self-authorization and
+        the kill switch, and tests/test_closed_sets.py pins them."""
         for kind in ("project_new", "project_step", "project_drop"):
             self.assertEqual(intercom.tier(kind), intercom.TIER_ROUTINE)
-        self.assertIn("project_drop", intercom.PLANNER_FORBIDDEN)
+            self.assertNotIn(kind, intercom.PLANNER_FORBIDDEN)
 
     def test_a_new_project_is_queued_and_she_says_when(self):
         said = intercom.execute_command({"kind": "project_new", "idea": "a podcast about maps"}, {})
