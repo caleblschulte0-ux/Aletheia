@@ -18,9 +18,10 @@ is a thing a person like that closes unread. So the brief now LEADS with
 exactly one thing that needs him — `pick_one_thing`, placed first in the
 issue comment so it is the line his phone shows — and he answers it by
 replying to the issue from wherever he is (`reply`, run by
-brief-reply.yml): "done", "keep" or "drop". The comment is posted by the
-Actions bot on purpose: GitHub does not notify a person about comments made
-with his own token, which is the token the PC holds.
+brief-reply.yml): "yes", "done", "keep" or "drop". The same reply box takes
+"new project: ...", "add ... to <project>" and "drop <project>". The comment
+is posted by the Actions bot on purpose: GitHub does not notify a person
+about comments made with his own token, which is the token the PC holds.
 """
 from __future__ import annotations
 
@@ -39,6 +40,9 @@ BRIEF_DIR = REPO_ROOT / "state" / "brief"
 BRIEF_TITLE = "☀️ Fleet brief"
 ONE_THING_FILE = "one_thing.json"
 SNOOZE_FILE = "snoozes.json"
+# "new project: ..." replied on the brief, waiting for the PC to draft it.
+# The same path aletheia.charters reads through the contents API.
+PROJECT_ASKS_FILE = "project_asks.json"
 # A charter nobody — him or the builder — has moved in this long gets asked
 # about. Long enough not to nag a project resting for a weekend; short
 # enough to catch the drift he described before it becomes a month.
@@ -142,18 +146,46 @@ def _days(n: int) -> str:
     return "1 day" if n == 1 else f"{n} days"
 
 
+def _count(n: int, noun: str) -> str:
+    if n == 0:
+        return f"no {noun}s"
+    return f"1 {noun}" if n == 1 else f"{n} {noun}s"
+
+
 def _charters(pulse: dict) -> list[dict]:
     return [i for i in ((pulse.get("projects") or {}).get("items") or [])
             if isinstance(i, dict) and i.get("slug")]
 
 
+def _drafts() -> list[dict]:
+    """Charters drafted from something he asked for, waiting for his yes."""
+    from aletheia import plans
+    return sorted((p for p in plans.all_plans()
+                   if plans.is_charter(p) and p.get("state") == "proposed"),
+                  key=lambda p: (str(p.get("created") or ""), str(p.get("slug"))))
+
+
+def _confirm_text(plan: dict) -> str:
+    steps = [s for s in plan.get("steps") or [] if isinstance(s, dict)]
+    hers = [s for s in steps if (s.get("owner") or "thea") == "thea"]
+    yours = [s for s in steps if s.get("owner") == "caleb"]
+    first = (hers or steps or [{"text": ""}])[0]["text"]
+    merge = ("I'll merge its finished work myself once the tests pass and a second model has checked it."
+             if (plan.get("project") or {}).get("risk") == "low" else "You merge its work.")
+    return (f"New project drafted: {plan.get('title')}. {plan.get('goal')} "
+            f"{_count(len(hers), 'step')} for me and {_count(len(yours), 'step')} for you, "
+            f"starting with: {first}. {merge} Reply yes to start it, or no to drop it.")
+
+
 def pick_one_thing(pulse: dict, snoozes: dict | None = None,
-                   now: dt.datetime | None = None) -> dict | None:
+                   now: dt.datetime | None = None,
+                   drafts: list[dict] | None = None) -> dict | None:
     """The ONE thing that needs him today, or None.
 
-    Exactly one, in the order that unblocks the most work otherwise ready
-    to go:
+    Exactly one, in the order that unblocks the most:
 
+    0. a project he asked for, drafted and waiting for his yes — nothing
+       at all happens on it until he answers;
     1. a finished builder pull request only he may merge (a high-risk
        charter — the trader);
     2. his next step, on the charter that has sat quiet longest;
@@ -163,6 +195,10 @@ def pick_one_thing(pulse: dict, snoozes: dict | None = None,
     (aletheia.project_merge) — that is what marking a charter low-risk means.
     """
     now = _now(now)
+    for plan in drafts or []:
+        if isinstance(plan, dict) and plan.get("slug"):
+            return {"kind": "confirm", "slug": plan["slug"], "title": plan.get("title"),
+                    "text": _confirm_text(plan)}
     items = _charters(pulse)
     waiting = []
     for item in items:
@@ -201,7 +237,9 @@ def _project_line(item: dict) -> str:
     if item.get("error"):
         return f"{head} · couldn't read its branch ({item['error']})"
     quiet = _quiet(item)
-    if item.get("quiet_at_least") and quiet >= 0:
+    if item.get("not_started"):
+        moved = "not started yet"
+    elif item.get("quiet_at_least") and quiet >= 0:
         moved = f"no real work in at least {_days(quiet)} (only machine commits)"
     else:
         moved = ("no commits yet" if quiet < 0 else "moved today" if quiet == 0
@@ -238,17 +276,20 @@ def compose(pulse: dict, prev: dict | None, journal_entries: list[dict],
         lines.append("**All quiet.** No faults anywhere in the fleet.")
     lines.append("")
 
-    thing = pick_one_thing(pulse, snoozes=_read_state(SNOOZE_FILE))
+    drafts = _drafts()
+    thing = pick_one_thing(pulse, snoozes=_read_state(SNOOZE_FILE), drafts=drafts)
     if thing:
         lines.append("## 🧭 Your one thing today")
         lines.append(thing["text"])
         lines.append("")
 
     charters = _charters(pulse)
-    if charters:
+    if charters or drafts:
         lines.append("## Projects")
         for item in charters:
             lines.append("- " + _project_line(item))
+        for plan in drafts:
+            lines.append(f"- **{plan.get('title')}** — drafted, waiting for your yes")
         lines.append("")
 
     for rid, r in pulse["repos"].items():
@@ -320,15 +361,54 @@ def compose(pulse: dict, prev: dict | None, journal_entries: list[dict],
     return "\n".join(lines)
 
 
-def reply(body: str, *, now: dt.datetime | None = None) -> str:
-    """Apply his reply on the brief issue to today's one thing.
+def _project_command(body: str, now: dt.datetime) -> str | None:
+    """"new project: ...", "add ... to <project>", "drop <project>" — or None.
 
-    Only the FIRST WORD counts, and only the repository owner's comments
-    reach here (brief-reply.yml checks the author). A word that does not
-    answer today's one thing changes nothing and says so — a reply he meant
-    as a note to himself is never read as an instruction.
+    These are not answers to today's one thing, so they work whatever today's
+    thing is. A step or a drop must name a charter that exists; "add some
+    thoughts to the doc" names none and falls through to the answer logic,
+    where it changes nothing.
+    """
+    from aletheia import charters, plans
+    said = " ".join(str(body or "").split())
+    m = re.fullmatch(r"new project\s*[:,\-]?\s*(.{3,}?)[.!]?", said, re.IGNORECASE)
+    if m:
+        charters.ask("new", text=m.group(1), via="operator-issue-comment",
+                     path=BRIEF_DIR / PROJECT_ASKS_FILE, now=now)
+        return (f"Got it. I'll draft {m.group(1)} and ask you here to say yes, usually within "
+                "half an hour of the PC checking in.")
+    m = re.fullmatch(r"add (?:a step )?(.+?) (?:to|for) (?:the |my )?(.+?)"
+                     r"(?: project| charter)?[.!]?", said, re.IGNORECASE)
+    if m:
+        found, _why = plans.find_charter(m.group(2))
+        if found is not None:
+            owner = plans.infer_owner(m.group(1))
+            plans.add_step(found["slug"], m.group(1), owner=owner)
+            return (f"Added to {found['title']}: {m.group(1)} "
+                    f"({'yours' if owner == plans.CALEB else 'mine'}).")
+    m = re.fullmatch(r"(?:drop|shelve|abandon|stop working on) (?:the |my )?(.+?)"
+                     r"(?: project| charter)?[.!]?", said, re.IGNORECASE)
+    if m:
+        found, _why = plans.find_charter(m.group(1))
+        if found is not None:
+            plans.set_plan(found["slug"], "dropped", because="he replied drop on the brief")
+            return f"Dropped {found['title']}. The builder will leave it alone."
+    return None
+
+
+def reply(body: str, *, now: dt.datetime | None = None) -> str:
+    """Apply his reply on the brief issue.
+
+    Only the repository owner's comments reach here (brief-reply.yml checks
+    the author). A project command works any day; otherwise only the FIRST
+    WORD counts, as an answer to today's one thing. A word that answers
+    nothing changes nothing and says so — a reply he meant as a note to
+    himself is never read as an instruction.
     """
     now = _now(now)
+    command = _project_command(body, now)
+    if command is not None:
+        return command
     words = str(body or "").strip().split()
     word = re.sub(r"[^a-z]", "", words[0].casefold()) if words else ""
     thing = _read_state(ONE_THING_FILE)
@@ -339,7 +419,13 @@ def reply(body: str, *, now: dt.datetime | None = None) -> str:
         return f"Today's one thing was already answered ({thing['answered']}), so nothing changed."
     from aletheia import plans
     title = thing.get("title") or slug
-    if kind == "step" and word in {"done", "did", "finished", "complete"}:
+    if kind == "confirm" and word in {"yes", "yep", "yeah", "sure", "start", "go"}:
+        plans.confirm(slug, words=" ".join(words), via="operator-issue-comment")
+        outcome = f"Started {title}. The builder takes its first step tonight."
+    elif kind == "confirm" and word in {"no", "nope", "drop"}:
+        plans.set_plan(slug, "dropped", because="he said no to the draft")
+        outcome = f"Dropped the {title} draft. Nothing was started."
+    elif kind == "step" and word in {"done", "did", "finished", "complete"}:
         plans.set_step(slug, int(thing["n"]), "done")
         journal.append("decision", f"plan:{slug}",
                        f"step {thing['n']} marked done by his reply on the brief",
@@ -360,7 +446,7 @@ def reply(body: str, *, now: dt.datetime | None = None) -> str:
         plans.set_plan(slug, "dropped", because="he replied drop to the drift check-in")
         outcome = f"Dropped {title}. The builder will leave it alone."
     else:
-        takes = {"step": "done", "drift": "keep or drop",
+        takes = {"confirm": "yes or no", "step": "done", "drift": "keep or drop",
                  "merge": "a merge on GitHub, not a reply"}.get(kind, "a different answer")
         return f"That doesn't answer today's one thing (it takes {takes}), so nothing changed."
     _write_state(ONE_THING_FILE, {**thing, "answered": word, "answered_at": _stamp(now)})
@@ -410,9 +496,9 @@ def main(argv: list[str] | None = None) -> int:
     prev = previous_pulse(pulse)
     text = compose(pulse, prev, journal.since(24), _count_new_suggestions())
     day = pulse["generated_at"][:10]
-    thing = pick_one_thing(pulse, snoozes=_read_state(SNOOZE_FILE))
-    # What "done" in a reply will refer to. A day with nothing on it is
-    # recorded too, so yesterday's step cannot be answered by today's reply.
+    thing = pick_one_thing(pulse, snoozes=_read_state(SNOOZE_FILE), drafts=_drafts())
+    # What "yes" or "done" in a reply will refer to. A day with nothing on it
+    # is recorded too, so yesterday's thing cannot be answered by today's reply.
     _write_state(ONE_THING_FILE, {**(thing or {}), "day": day})
 
     (BRIEF_DIR / "history").mkdir(parents=True, exist_ok=True)

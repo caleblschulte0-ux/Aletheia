@@ -653,6 +653,16 @@ say whose they are.
   branches, forks, red or absent CI, protected paths, same-model reviews.
   Do not add a second merge path, and do not widen this one without a new
   ruling in his words.
+- **A new project is a sentence.** He asked for it fluid — *"I don't need
+  a hard coded barkly area"* — so "new project: ...", "add sound effects
+  to Barkly" and "drop the holdco thing" work by voice, phone or a reply
+  on the brief. `aletheia/charters.py` queues them; the project loop
+  drafts with a model and writes `plans/<slug>.json` as `proposed`
+  straight onto `live` through the contents API (the Core's sync never
+  pushes `plans/`), then dispatches brief.yml so the bot asks him now.
+  Nothing reads a proposed charter, and `plans.confirm` — reached only by
+  his "yes" — is the one door to `open`. Never hardcode a project into
+  code; a charter file is the whole of a project's existence.
 - **Draft charters are drafts.** The first four were written by a Claude
   session from each repository's own docs. When he corrects one, his
   version wins. When you write one for something new he mentions, make

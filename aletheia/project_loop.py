@@ -284,15 +284,31 @@ def _carry_projects(*, request=gh.request) -> dict:
     return out
 
 
+def _draft_asks(*, request=gh.request) -> dict:
+    """What he said about his projects, turned into drafts and edits
+    (aletheia.charters). Its own failure never costs the repair cycle its
+    turn; HALT still stops everything."""
+    from aletheia import charters
+    try:
+        return charters.drain(request=request)
+    except policy.Halted:
+        raise
+    except Exception as exc:
+        return {"error": f"{type(exc).__name__}: {exc}"[:200]}
+
+
 def cycle(*, request=gh.request, daily_limit: int = DEFAULT_DAILY_LIMIT) -> dict:
     if type(daily_limit) is not int or not 1 <= daily_limit <= 20:
         raise ValueError("daily_limit must be 1..20")
     policy.ensure_not_halted()
+    # FIRST, and before the grant: drafting what he asked for needs no
+    # code-work authority. It writes charters he still has to say yes to.
+    charter_asks = _draft_asks(request=request)
     grant = code_trust.active()
     if not grant:
         result = {
             "version": 1, "status": "BLOCKED", "reason": "code_work_grant_required",
-            "updated_at": stateio.utcnow(),
+            "charters": charter_asks, "updated_at": stateio.utcnow(),
         }
         stateio.write_json_atomic(LATEST, result)
         return result

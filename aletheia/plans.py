@@ -19,7 +19,10 @@ cloud builder; his go into the morning brief, one at a time. A step is
 credited by a merged pull request that names it (`credit_merged`) or by
 him, never by a worker saying it finished (§68).
 
-States: plan open|done|dropped; step todo|doing|done|blocked.
+A charter he asks for by saying so (aletheia.charters) arrives "proposed"
+and nothing works on it until his yes (`confirm`) opens it.
+
+States: plan proposed|open|done|dropped; step todo|doing|done|blocked.
 """
 from __future__ import annotations
 
@@ -42,6 +45,12 @@ THEA, CALEB = "thea", "caleb"
 # How a pull request says which charter step it builds. It is the only
 # thing that turns a merge into credit, so it is matched exactly.
 CHARTER_STEP = re.compile(r"Charter-Step:\s*([a-z0-9][a-z0-9-]*)#(\d+)", re.IGNORECASE)
+# How he says a step is HIS: about himself, or a decision, a purchase, a
+# person to contact. Everything else he adds to a project is work for her.
+_HIS_STEP = re.compile(
+    r"^(?:i|i'm|i'll|i've|i need|me|my|for me|remind me|caleb)\b"
+    r"|^(?:decide|choose|pick|buy|pay|purchase|sign up|subscribe|call|phone|meet|"
+    r"visit|send|approve|log in|login|film|record)\b", re.IGNORECASE)
 
 
 def _now() -> str:
@@ -95,6 +104,8 @@ def validate_plan(plan: dict, fleet: dict) -> list[str]:
                 problems.append("project.base_branch: a charter names the branch the project lives on")
             if project.get("risk") not in PROJECT_RISKS:
                 problems.append(f"project.risk {project.get('risk')!r} not in {sorted(PROJECT_RISKS)}")
+    elif plan.get("state") == "proposed":
+        problems.append("only a charter can be proposed")
     numbers = {s.get("n") for s in plan.get("steps", []) if isinstance(s, dict)}
     for i, step in enumerate(plan.get("steps", [])):
         if not step.get("text"):
@@ -148,6 +159,62 @@ def next_for(plan: dict, who: str) -> dict | None:
     return None
 
 
+def infer_owner(text: str) -> str:
+    """Whose a step he just added is, from the way he said it.
+
+    "Add sound effects to Barkly" is work for her; "add I need to film the
+    intro" and "add buy a domain" are his. A step that spends money is his
+    whatever the words — the money line is not a guess to get wrong.
+    """
+    words = " ".join(str(text or "").split())
+    if _HIS_STEP.search(words):
+        return CALEB
+    try:
+        from aletheia import webtask
+        if webtask.would_spend(words):
+            return CALEB
+    except Exception:
+        pass
+    return THEA
+
+
+def _words(value: object) -> str:
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", str(value or "").casefold()).split())
+
+
+def find_charter(name: str, rows: list[dict] | None = None) -> tuple[dict | None, str]:
+    """The one open or drafted charter he means by `name`, or why not.
+
+    By what he CALLS it — "Barkly", "the holdco thing", "open range" — never
+    by a slug he should not have to know. Two that fit is a question, not a
+    guess, and none is said plainly rather than filed somewhere.
+    """
+    wanted = _words(name)
+    for lead in ("the ", "my ", "that "):
+        if wanted.startswith(lead):
+            wanted = wanted[len(lead):]
+    for tail in (" project", " charter", " thing", " one"):
+        if wanted.endswith(tail):
+            wanted = wanted[: -len(tail)]
+    if not wanted:
+        return None, "Which project?"
+    live = [p for p in (rows if rows is not None else all_plans())
+            if is_charter(p) and p.get("state") in ("open", "proposed")]
+    exact = [p for p in live if wanted in (_words(p.get("slug")), _words(p.get("title")))]
+    if len(exact) == 1:
+        return exact[0], ""
+    close = exact or [p for p in live
+                      if _words(p.get("title")).startswith(wanted)
+                      or _words(p.get("slug")).startswith(wanted)
+                      or set(wanted.split()) <= set(_words(p.get("title")).split())]
+    if len(close) == 1:
+        return close[0], ""
+    if close:
+        names = [str(p.get("title")) for p in close[:3]]
+        return None, "Which one, " + " or ".join(names) + "?"
+    return None, f"I don't have a project called {name}."
+
+
 def new_plan(slug: str, title: str, goal: str) -> dict:
     if _path(slug).exists():
         raise FileExistsError(f"plan {slug!r} already exists")
@@ -158,11 +225,17 @@ def new_plan(slug: str, title: str, goal: str) -> dict:
     return plan
 
 
-def add_step(slug: str, text: str, repo: str | None = None) -> dict:
+def add_step(slug: str, text: str, repo: str | None = None,
+             owner: str | None = None) -> dict:
     plan = load(slug)
-    step = {"n": len(plan["steps"]) + 1, "text": text, "state": "todo"}
+    step = {"n": max((int(s.get("n") or 0) for s in plan["steps"]), default=0) + 1,
+            "text": text, "state": "todo"}
     if repo:
         step["repo"] = repo
+    if owner:
+        if owner not in STEP_OWNERS:
+            raise ValueError(f"step owner must be one of {sorted(STEP_OWNERS)}")
+        step["owner"] = owner
     plan["steps"].append(step)
     save(plan)
     journal.append("plan", f"plan:{slug}", f"step {step['n']} added — {text}")
@@ -186,9 +259,27 @@ def set_plan(slug: str, state: str, because: str = "") -> dict:
     if state not in PLAN_STATES:
         raise ValueError(f"plan state must be one of {sorted(PLAN_STATES)}")
     plan = load(slug)
+    # A DRAFT STARTS ON HIS YES AND NOTHING ELSE. `plan_set` is reachable by
+    # voice and by the planner, and a model that could set a drafted
+    # project to "open" could start work he has not agreed to.
+    if is_charter(plan) and plan.get("state") == "proposed" and state == "open":
+        raise ValueError("a drafted project starts only when he says yes to it")
     plan["state"] = state
     save(plan)
     journal.append("plan", f"plan:{slug}", f"-> {state}" + (f" — {because}" if because else ""))
+    return plan
+
+
+def confirm(slug: str, *, words: str, via: str) -> dict:
+    """His yes to a drafted project: the ONE door from proposed to open."""
+    plan = load(slug)
+    if not is_charter(plan) or plan.get("state") != "proposed":
+        raise ValueError(f"{slug} is not a drafted project waiting for a yes")
+    plan["state"] = "open"
+    plan["confirmed"] = {"at": _now(), "via": via,
+                         "words": " ".join(str(words or "").split())[:200]}
+    save(plan)
+    journal.append("decision", f"plan:{slug}", f"started on his yes: {plan['title']}", actor=via)
     return plan
 
 
@@ -275,7 +366,7 @@ def main(argv: list[str] | None = None) -> int:
     else:  # list
         for plan in all_plans():
             done, total = progress(plan)
-            print(f"[{plan['state']:7}] {plan['slug']:24} {done}/{total}  {plan['title']}")
+            print(f"[{plan['state']:8}] {plan['slug']:24} {done}/{total}  {plan['title']}")
     return 0
 
 

@@ -349,6 +349,13 @@ def collect_projects(fleet: dict, source, plan_rows: list[dict] | None = None,
                 item["quiet_at_least"] = True
             item["commits_7d"] = sum(
                 1 for c in work if (_days_since(c["date"], now) or 0) < 7)
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                # A new venture's branch does not exist until the builder's
+                # first run creates it. Not started is not unreadable.
+                item["not_started"] = True
+            else:
+                item["error"] = f"{type(exc).__name__}: {exc}"[:200]
         except Exception as exc:
             item["error"] = f"{type(exc).__name__}: {exc}"[:200]
         try:

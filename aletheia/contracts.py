@@ -41,7 +41,9 @@ AGENT_ROLES = {
 
 APPROVAL_STATES = {"PENDING", "APPROVED", "DENIED", "EXPIRED"}
 
-GOAL_STATES = {"open", "done", "dropped"}          # carried by plans/*.json today
+# carried by plans/*.json today. "proposed" is a drafted charter waiting for
+# his yes: nothing works on it, and only plans.confirm moves it to "open".
+GOAL_STATES = {"proposed", "open", "done", "dropped"}
 GOAL_STEP_STATES = {"todo", "doing", "done", "blocked"}
 # A charter step is hers (the builder does it) or his (the brief asks him).
 GOAL_STEP_OWNERS = {"thea", "caleb"}
@@ -114,7 +116,7 @@ def validate_goal(g: dict) -> list[str]:
     problems = _check(g, "Goal", required={
         "slug": str, "title": str, "goal": str,
         "state": (str, GOAL_STATES), "created": str, "steps": list,
-    }, optional={"project": dict})
+    }, optional={"project": dict, "confirmed": dict})
     project = g.get("project") if isinstance(g, dict) else None
     if isinstance(project, dict):
         problems += _check(project, "Goal.project", required={

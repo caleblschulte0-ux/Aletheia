@@ -16,6 +16,8 @@ class ProjectLoopCase(unittest.TestCase):
         # test_projects_are_carried.py. Here it must not reach the network.
         carry = mock.patch.object(project_loop, "_carry_projects", return_value={})
         carry.start(); self.addCleanup(carry.stop)
+        drafts = mock.patch.object(project_loop, "_draft_asks", return_value={})
+        drafts.start(); self.addCleanup(drafts.stop)
 
     def test_no_grant_blocks_before_portfolio_scan(self):
         with mock.patch.object(project_loop.code_trust, "active", return_value=None), \

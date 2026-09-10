@@ -60,6 +60,12 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "plan_add_step": ({"slug", "text"}, {"repo"}),
     "plan_step":     ({"slug", "n", "state"}, set()),
     "plan_set":      ({"slug", "state"}, {"because"}),
+    # His projects, by saying so (aletheia.charters). QUEUED, not done: a
+    # new one is drafted by the project loop and waits for his "yes" on the
+    # brief; a step or a drop is applied there too, within half an hour.
+    "project_new":   ({"idea"}, set()),
+    "project_step":  ({"project", "text"}, set()),
+    "project_drop":  ({"project"}, set()),
     "task_new":      ({"id", "description"}, {"goal", "worker", "deadline"}),
     "task_status":   ({"id", "state"}, {"note"}),
     # She could CREATE a task by voice and change its status, and had no
@@ -441,6 +447,8 @@ KIND_NOTES: dict[str, str] = {
 LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email_read", "email_draft",
                # the workspace is a directory on his PC
                "doc_make",
+               # what he asks about his projects queues in private state on the PC
+               "project_new", "project_step", "project_drop",
                # Phone Link is paired to his iPhone on THIS machine;
                # Actions cannot text anybody.
                "message_send", "music",
@@ -522,6 +530,9 @@ READ_ONLY_KINDS = frozenset({
 ROUTINE_KINDS = frozenset({
     "task_new", "task_status", "plan_new", "plan_add_step", "plan_step",
     "plan_set", "remind_at", "remind_daily", "remind_weekly",
+    # Queuing what he said about his projects: one private local file, and
+    # nothing new starts from it until he says yes to the draft it becomes.
+    "project_new", "project_step", "project_drop",
     # Disabling a reminder is reversible by saying the opposite, which is
     # the whole test for this tier — the schedule is disabled, never
     # deleted, so "actually put that back" is one command.
@@ -696,6 +707,10 @@ PLANNER_FORBIDDEN = frozenset({
     # screenshot carries whatever happened to be on screen, and unlike
     # window text it cannot be redacted on the way out.
     "eyes_on",
+    # Ending a project is his decision. A sentence that merely contains
+    # "drop" must not end one; `voice` matches the real phrasings against
+    # the charters that exist before the planner is ever called.
+    "project_drop",
 })
 
 
@@ -1499,6 +1514,43 @@ def _weekday_words(days: list[int]) -> str:
     return speech.and_list([WEEKDAY_NAMES[d].capitalize() for d in days])
 
 
+def _projects_answer() -> str:
+    """Every kind of project he has, in one sentence.
+
+    The charters she is carrying, the drafts waiting for his yes, what he
+    asked for that is not drafted yet, and the private project records.
+    Until 2026-09-10 this read only the private records, so "my projects"
+    would have answered "No active projects" over four charters being
+    built - a store with a writer and no reader, the defect CLAUDE.md names.
+    """
+    from aletheia import charters, projects
+    parts = []
+    charter_rows = [p for p in plans.all_plans() if plans.is_charter(p)]
+    live = [p for p in charter_rows if p.get("state") == "open"]
+    drafts = [p for p in charter_rows if p.get("state") == "proposed"]
+    if live:
+        parts.append("I'm carrying " + speech.and_list([
+            f"{p['title']} ({plans.progress(p)[0]} of {plans.progress(p)[1]} steps done)"
+            for p in live[:6]]))
+    if drafts:
+        parts.append("waiting for your yes: " + speech.and_list(
+            [str(p["title"]) for p in drafts[:4]]))
+    queued = charters.pending()
+    if queued:
+        parts.append("still to draft or apply: " + speech.and_list(
+            [q.get("text") or q.get("project") or "one ask" for q in queued[:4]]))
+    rows = [p for p in projects.all_projects()
+            if str(p.get("status", "")).upper() not in ("DONE", "CANCELLED")]
+    if rows:
+        parts.append(f"{len(rows)} active: " + ", ".join(
+            f"{p.get('title', p['id'])} ({str(p.get('status','')).lower()})"
+            for p in rows[:5]))
+    if not parts:
+        return "No active projects."
+    said = ". ".join(parts) + "."
+    return said[0].upper() + said[1:]
+
+
 def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "") -> str:
     """Run one validated command. Returns a human-readable detail line.
     Raises act.Refused / ValueError / KeyError — the caller records them."""
@@ -1541,6 +1593,24 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "plan_set":
         plans.set_plan(cmd["slug"], cmd["state"], cmd.get("because", ""))
         return f"plan {cmd['slug']} -> {cmd['state']}"
+    if kind == "project_new":
+        from aletheia import charters
+        charters.ask("new", text=cmd["idea"], via=ACTOR)
+        return (f"Got it. I'll draft {cmd['idea']} as a project and send it to "
+                "your phone to say yes to, usually within half an hour.")
+    if kind in ("project_step", "project_drop"):
+        from aletheia import charters
+        found, why = plans.find_charter(cmd["project"])
+        if found is None:
+            return why
+        if kind == "project_step":
+            charters.ask("step", text=cmd["text"], project=found["slug"], via=ACTOR)
+            whose = "yours" if plans.infer_owner(cmd["text"]) == plans.CALEB else "mine"
+            return (f"Adding to {found['title']}: {cmd['text']} ({whose}). "
+                    "It'll be on the list within half an hour.")
+        charters.ask("drop", project=found["slug"], via=ACTOR)
+        return (f"Dropping {found['title']}. The builder will leave it alone "
+                "within half an hour.")
     if kind == "tasks":
         return _tasks_answer(cmd.get("which", ""))
     if kind == "task_done":
@@ -2248,14 +2318,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 parts.append(f"{name}: nothing due")
         return "; ".join(parts)
     if kind == "projects":
-        from aletheia import projects
-        rows = [p for p in projects.all_projects()
-                if str(p.get("status", "")).upper() not in ("DONE", "CANCELLED")]
-        if not rows:
-            return "No active projects."
-        return f"{len(rows)} active: " + ", ".join(
-            f"{p.get('title', p['id'])} ({str(p.get('status','')).lower()})"
-            for p in rows[:5])
+        return _projects_answer()
     if kind == "setup_status":
         from aletheia import setup as _setup
         return _setup.spoken()
