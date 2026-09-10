@@ -198,11 +198,41 @@ class SaidOutLoudCase(unittest.TestCase):
         self.assertIn("months ago", files.when_words(now - 86400 * 90, now=now))
 
     def test_an_unknown_folder_is_refused_in_english(self):
+        """The rule is that it says what she CAN look in.
+
+        This asserted "Downloads", which exists on HIS machine and not on
+        a CI runner, so it went red in CI while passing here — a test
+        about the environment it happened to run in, which is the third
+        time that shape has appeared today. What must be true is that the
+        refusal names the places she really has, whatever they are.
+        """
         with self.assertRaises(files.FilesError) as caught:
             files.find("x", place="Attic")
         said = str(caught.exception)
         self.assertIn("Attic", said)
-        self.assertIn("Downloads", said, "does not say what she CAN look in")
+        known = files.place_names()
+        self.assertTrue(known, "she has no places at all")
+        for name in known:
+            self.assertIn(name, said, "does not say what she CAN look in")
+
+    def test_a_folder_she_knows_that_is_missing_is_a_different_answer(self):
+        """"She does not know a folder called Downloads" is about HER.
+
+        On a machine with no Downloads — a fresh install, a CI runner —
+        that sentence reads as ignorance of the word and sends him looking
+        for a different one. The true answer is about the machine.
+        """
+        with mock.patch.object(files, "places",
+                               lambda: [("my workspace", Path("x"))]):
+            with self.assertRaises(files.FilesError) as caught:
+                files.find("x", place="Downloads")
+            said = str(caught.exception)
+            self.assertIn("no Downloads folder on this machine", said)
+            self.assertNotIn("does not know", said)
+
+            with self.assertRaises(files.FilesError) as caught:
+                files.find("x", place="Attic")
+            self.assertIn("does not know", str(caught.exception))
 
 
 class MatchingCase(unittest.TestCase):

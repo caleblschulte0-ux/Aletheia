@@ -46,8 +46,22 @@ class WhatTheMachineHasCase(unittest.TestCase):
         self.assertTrue(0 <= found["load_percent"] <= 100)
 
     def test_headroom_is_left_for_everything_he_has_open(self):
-        self.assertEqual(machine.usable_for_a_model(),
-                         machine.memory()["total"] - machine.RESERVE_BYTES)
+        """Stubbed: a CI runner with less RAM than the reserve would make
+        this a test about the machine it ran on, which is the shape that
+        already went red once today."""
+        with mock.patch.object(machine, "memory",
+                               lambda: {"total": 16 * GB, "available": 10 * GB,
+                                        "load_percent": 35}):
+            self.assertEqual(machine.usable_for_a_model(),
+                             16 * GB - machine.RESERVE_BYTES)
+
+    def test_a_machine_smaller_than_the_reserve_has_no_room(self):
+        """Never a negative budget, which would make everything fit."""
+        with mock.patch.object(machine, "memory",
+                               lambda: {"total": GB, "available": GB // 2,
+                                        "load_percent": 50}):
+            self.assertEqual(machine.usable_for_a_model(), 0)
+            self.assertFalse(machine.room_for(GB)["fits"])
 
     def test_a_model_bigger_than_the_machine_does_not_fit(self):
         with mock.patch.object(machine, "memory",

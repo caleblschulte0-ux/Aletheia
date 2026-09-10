@@ -254,9 +254,21 @@ def search(query: str = "", *, place: str = "",
     named = _named(place) if place else None
     if place and named is None:
         from aletheia import speech
+
+        # TWO DIFFERENT ANSWERS, and only one of them is about her. A name
+        # she has never heard of is her limit; a name she knows perfectly
+        # well for a folder this machine does not have is HIS. "She does
+        # not know a folder called Downloads" said on a fresh install
+        # reads as ignorance about the word, and sends him looking for a
+        # different word. Same rule as an empty store still proving the
+        # store: absence of the folder is not absence of the capability.
+        asked = " ".join(str(place or "").casefold().split())
+        heard_of = any(asked == name.split("/")[-1].casefold()
+                       for name in PLACES)
+        lead = (f"there is no {place} folder on this machine"
+                if heard_of else f"she does not know a folder called {place}")
         raise FilesError(
-            f"she does not know a folder called {place}. She can look in "
-            + speech.or_list(place_names()) + ".")
+            f"{lead}. She can look in " + speech.or_list(place_names()) + ".")
     targets = [("", named)] if named else places()
     found: list[dict] = []
     ran_out = False
