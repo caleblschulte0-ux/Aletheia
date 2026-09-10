@@ -324,16 +324,6 @@ def day(hours: float = TODAY_HOURS, *, limit: int = MAX_ROWS) -> list[dict]:
     return _once_each([_row(e) for e in rows])[-limit:]
 
 
-def _local_date(ts: str) -> str:
-    """The calendar day a journal line falls on, on HIS clock."""
-    try:
-        from aletheia import localtime
-        return (localtime.parse_utc(ts).astimezone(localtime.operator_tz())
-                .strftime("%Y-%m-%d"))
-    except Exception:
-        return str(ts)[:10]
-
-
 def on_date(date: str, *, limit: int = MAX_ROWS) -> list[dict]:
     """What she did on ONE CALENDAR DAY, in his timezone.
 

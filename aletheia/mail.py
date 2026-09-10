@@ -54,7 +54,12 @@ from aletheia.stateio import utcnow, write_json_atomic
 MAIL_DIR = REPO_ROOT / "state" / "mail"          # gitignored — see module doc
 CONFIG_FILE = Path.home() / ".aletheia" / "mail.json"
 ACTOR = "aletheia-mail"
-MAX_BODY_CHARS = 20_000
+#: How much of a RECEIVED message she keeps. Two different limits shared
+#: this name — this one, and a send-side ceiling defined 95 lines below —
+#: so Python silently kept the second, and every incoming email was cut at
+#: 6,000 characters by a constant about outgoing ones. Neither number was
+#: wrong; the name was.
+MAX_READ_CHARS = 20_000
 CHECK_LIMIT = 5
 POLL_SEEN_LIMIT = 2_000
 POLL_MIN_INTERVAL_S = 300  # one IMAP login per 5 min is plenty; a login per
@@ -149,7 +154,10 @@ def migrate_password_to_vault() -> dict:
     return {"moved": True, "vault_name": SECRET_NAME, "file": str(CONFIG_FILE)}
 
 
-MAX_BODY_CHARS = 6_000
+#: How long a message she will SEND. Deliberately far smaller than what
+#: she will read: a long email she was handed is a fact about the world,
+#: and a long email she is about to send is a mistake.
+MAX_SEND_CHARS = 6_000
 
 
 class MailError(RuntimeError):
@@ -202,7 +210,7 @@ def _body_text(msg) -> str:
         stripper = _Strip(); stripper.feed("\n".join(html_parts)); text = "".join(stripper.out)
     else:
         text = ""
-    return re.sub(r"\n{3,}", "\n\n", text).strip()[:MAX_BODY_CHARS]
+    return re.sub(r"\n{3,}", "\n\n", text).strip()[:MAX_READ_CHARS]
 
 
 class SmtpImapTransport:
@@ -307,8 +315,8 @@ def draft(to: str, subject: str, body: str, requested_via: str = "voice") -> dic
             f"and I'll remember it.")
     if not body.strip():
         raise ValueError("the message body is empty")
-    if len(body) > MAX_BODY_CHARS:
-        raise ValueError(f"body exceeds {MAX_BODY_CHARS} characters")
+    if len(body) > MAX_SEND_CHARS:
+        raise ValueError(f"body exceeds {MAX_SEND_CHARS} characters")
     subject = subject.strip() or "Message from Caleb"
     d = {
         "id": f"mail-{uuid.uuid4().hex[:10]}", "to": addr, "to_name": name,

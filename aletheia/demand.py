@@ -166,6 +166,24 @@ def ranked(*, days: int = WINDOW_DAYS, limit: int = 12) -> list[dict]:
             held["reasons"][reason] = held["reasons"].get(reason, 0) + 1
         if row.get("asked") and row["asked"] not in held["in_his_words"]:
             held["in_his_words"] = (held["in_his_words"] + [row["asked"]])[-3:]
+    # THE STATUS COMES FROM THE REGISTRY, NOT FROM THE LEDGER'S MEMORY.
+    # `setdefault` above froze whatever the FIRST record said, so the
+    # ledger reported `message.send NOT_BUILT` for a week after it was
+    # promoted to EXPERIMENTAL — its own `reasons` even showed the newer
+    # value sitting underneath. A registry is the only source of truth for
+    # what she can do (CLAUDE.md), and a second copy that disagrees by
+    # Friday is exactly what that rule exists to prevent. The recorded
+    # statuses stay in `reasons`, because those are HISTORY: "thirteen of
+    # these were asked when it did not exist" is a real fact about demand.
+    for held in by_id.values():
+        try:
+            from aletheia import capabilities
+            held["status"] = capabilities.get(held["capability"])["status"]
+        except Exception:
+            # A capability that has since been REMOVED from the registry
+            # still has demand worth counting; say what was recorded and
+            # do not invent a status for it.
+            pass
     out = sorted(by_id.values(), key=lambda h: (h["times"], h["last"]),
                  reverse=True)
     return out[:limit]
@@ -212,6 +230,24 @@ def why(row: dict) -> str:
     return ", ".join(parts[:3])
 
 
+def _his_day(stamp: str) -> str:
+    """The calendar day HE was living in, not the one UTC was.
+
+    Records are stored in UTC, correctly, and `stamp[:10]` then read the
+    UTC calendar date as if it were his: an ask made at 21:53 on the 9th
+    in Hartford was listed as "last 2026-09-10" — tomorrow, to the person
+    reading it. Same defect as the reminder confirmed back as "tomorrow at
+    8 am": correct arithmetic, wrong day, and plausible enough that only
+    the calendar catches it.
+    """
+    try:
+        from aletheia import localtime
+        return (localtime.parse_utc(stamp)
+                .astimezone(localtime.operator_tz()).strftime("%Y-%m-%d"))
+    except Exception:
+        return str(stamp)[:10]
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description="What he keeps asking for and cannot have.")
@@ -225,7 +261,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     for row in rows:
         print(f"{row['times']:>3}x  {row['capability']:<28} "
-              f"{row['status']:<20} last {row['last'][:10]}")
+              f"{row['status']:<20} last {_his_day(row['last'])}")
         for quote in row["in_his_words"]:
             print(f"        “{quote}”")
     return 0

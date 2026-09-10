@@ -71,8 +71,10 @@ MAX_HIS_FILES = 40             # of his own documents she will offer to attach
 # document is a thing you send somebody, and a .key or a .env is not.
 ATTACHABLE = frozenset({".pdf", ".docx", ".doc", ".txt", ".md", ".rtf",
                         ".odt", ".pages", ".csv", ".png", ".jpg", ".jpeg"})
-MAX_FRAMES = 12
-FRAME_WAIT_TRIES = 40          # 10s for an iframe to attach
+# MAX_FRAMES and FRAME_WAIT_TRIES were here too, with the same values,
+# 370 lines above the block that aliases them from `formfill` — which
+# exists precisely so the two form-driving paths "cannot drift on what a
+# selector means". A second copy of a number is that drift, waiting.
 TAB_WAIT_TRIES = 20            # 3s for a new tab to open
 IDLE_LIMIT = 3                 # rounds that change nothing before she stops
 STALE_AFTER_MIN = 20           # a RUNNING record older than this is a leftover
