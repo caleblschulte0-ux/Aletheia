@@ -1,6 +1,6 @@
 # Fleet briefing
 
-Generated 2026-09-10T11:27:24Z from fleet registry rev 4 via GitHubSource.
+Generated 2026-09-10T16:29:18Z from fleet registry rev 4 via GitHubSource.
 
 ## 🟢 `Aletheia` — hub (active)
 
@@ -9,36 +9,36 @@ The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT 
 Last commit `fdae9038f794` at 2026-09-10T07:14:38Z: Setting a reminder was free; cancelling it cost four seconds and permission
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-09-10T11:27:21Z
+- `pulse.yml`: in_progress at 2026-09-10T16:29:15Z
 - `ci.yml`: success at 2026-09-10T07:18:26Z
 
-## 🔴 `Shorts-pipeline` — youtube-automation (active)
+## 🟢 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `490b64e4e652` at 2026-09-10T11:23:44Z: explainer: update posted log + analytics [skip ci]
+Last commit `94327070b1f2` at 2026-09-10T16:22:34Z: watchdog: chatgpt task verdicts 20260910 [skip ci]
 
-Vitals — trending posted: 316 · explainer posted: 242 · third posted: 459 · curiosity posted: 1
+Vitals — trending posted: 318 · explainer posted: 242 · third posted: 470 · curiosity posted: 1
 
 Watched workflows:
-- `daily.yml`: failure at 2026-09-09T17:14:37Z
-- `exchange_phase_a.yml`: success at 2026-09-10T09:39:41Z
-- `exchange_phase_b.yml`: success at 2026-09-09T17:53:06Z
+- `daily.yml`: success at 2026-09-10T12:09:18Z
+- `exchange_phase_a.yml`: success at 2026-09-10T15:15:42Z
+- `exchange_phase_b.yml`: success at 2026-09-10T11:38:02Z
 - `story_forge.yml`: success at 2026-09-10T09:52:00Z
-- `third.yml`: success at 2026-09-09T15:43:36Z
+- `third.yml`: success at 2026-09-10T15:19:08Z
 - `explainer.yml`: success at 2026-09-10T11:23:51Z
 - `retro.yml`: success at 2026-09-10T04:46:33Z
 - `doctor.yml`: success at 2026-09-10T09:39:30Z
 
-## 🟢 `schwab-trader` — trading-bot (active)
+## 🔴 `schwab-trader` — trading-bot (active)
 
 Guardrailed paper-trading system. The SELL brain and executor watchdog are active; the subscription-backed BUY brain and trade executor are intentionally paused until the operator resumes them.
 
-Last commit `a7fb4d0c8d5e` at 2026-09-09T18:37:35Z: sell-brain: update exit decisions [skip ci]
+Last commit `800b1f6d6341` at 2026-09-10T12:36:55Z: sell-brain: update exit decisions [skip ci]
 Vitals withheld (5, on his own screen): realized P&L, win rate, closed trades, open positions, cash
 
 Watched workflows:
-- `sell-brain.yml`: success at 2026-09-09T18:37:40Z
+- `sell-brain.yml`: failure at 2026-09-10T15:35:25Z
 - `watchdog.yml`: success at 2026-09-09T21:56:24Z
 
 ## 💤 `Money_Machine` — unbuilt (stub)

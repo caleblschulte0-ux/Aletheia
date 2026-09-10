@@ -112,3 +112,6 @@
 {"ts": "2026-09-10T04:50:51Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue updated — Aletheia, Shorts-pipeline"}
 {"ts": "2026-09-10T11:27:35Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:aletheia", "text": "health red -> green"}
 {"ts": "2026-09-10T14:43:15Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-09-10"}
+{"ts": "2026-09-10T16:29:32Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:shorts_pipeline", "text": "health red -> green"}
+{"ts": "2026-09-10T16:29:32Z", "kind": "alert", "actor": "aletheia", "subject": "repo:schwab_trader", "text": "health green -> red"}
+{"ts": "2026-09-10T16:29:34Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue updated — schwab-trader"}
