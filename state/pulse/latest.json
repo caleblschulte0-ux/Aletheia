@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-10T04:50:34Z",
+  "generated_at": "2026-09-10T11:27:24Z",
   "fleet_revision": 4,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,58 +11,58 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
-          "sha": "378489f96332",
-          "date": "2026-09-10T04:39:22Z",
-          "message": "A 17.8 GB model on a 16 GB laptop, reported as ready"
+          "sha": "fdae9038f794",
+          "date": "2026-09-10T07:14:38Z",
+          "message": "Setting a reminder was free; cancelling it cost four seconds and permission"
         },
         {
-          "sha": "0d48f1298475",
-          "date": "2026-09-10T04:38:56Z",
-          "message": "She read a Python program out loud"
+          "sha": "e775df6eaf18",
+          "date": "2026-09-10T06:50:52Z",
+          "message": "The registry was the last place still saying she would spend his money"
         },
         {
-          "sha": "e3d0995f1d87",
-          "date": "2026-09-10T04:05:08Z",
-          "message": "Four things saying something other than what they meant"
+          "sha": "ae6795b1b9d9",
+          "date": "2026-09-10T06:12:01Z",
+          "message": "The second item cost him four seconds and an approval"
         },
         {
-          "sha": "339081bbb751",
-          "date": "2026-09-10T04:04:42Z",
-          "message": "She could read any file he named, and could not find one"
+          "sha": "737df7a64094",
+          "date": "2026-09-10T05:56:37Z",
+          "message": "An empty calendar and the wrong calendar give the same answer"
         },
         {
-          "sha": "ddcffcc94164",
-          "date": "2026-09-10T03:06:55Z",
-          "message": "She said \"yes\" and described something else"
+          "sha": "b012f9d8279d",
+          "date": "2026-09-10T05:42:26Z",
+          "message": "CI found a test of mine that was about the machine it ran on"
         }
       ],
       "commit": {
-        "sha": "378489f96332",
-        "date": "2026-09-10T04:39:22Z",
-        "message": "A 17.8 GB model on a 16 GB laptop, reported as ready"
+        "sha": "fdae9038f794",
+        "date": "2026-09-10T07:14:38Z",
+        "message": "Setting a reminder was free; cancelling it cost four seconds and permission"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-09-10T04:50:32Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/34438730455"
+          "updated_at": "2026-09-10T11:27:21Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/34471373503"
         },
         "ci.yml": {
           "status": "completed",
-          "conclusion": "failure",
-          "updated_at": "2026-09-10T04:43:04Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/34438024416"
+          "conclusion": "success",
+          "updated_at": "2026-09-10T07:18:26Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/34449004000"
         }
       },
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 12400
+          "bytes": 12424
         }
       },
-      "health": "red"
+      "health": "green"
     },
     "shorts_pipeline": {
       "github": "Shorts-pipeline",
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "7c79f18ed959",
-          "date": "2026-09-10T03:32:03Z",
-          "message": "`point` is not an animator, and it never was (#364)"
+          "sha": "490b64e4e652",
+          "date": "2026-09-10T11:23:44Z",
+          "message": "explainer: update posted log + analytics [skip ci]"
         },
         {
-          "sha": "b8b97fbecf82",
-          "date": "2026-09-10T03:16:15Z",
-          "message": "Fifteen of twenty-five depictions had no shape, and nothing said so (#363)"
+          "sha": "59df97ec2f6c",
+          "date": "2026-09-10T11:23:25Z",
+          "message": "explainer: posted fifty-years-since-moon-landing [skip ci]"
         },
         {
-          "sha": "2df8fbfd5200",
-          "date": "2026-09-10T03:00:40Z",
-          "message": "A 240pt number, a comment saying when it leads, and it led nothing (#362)"
+          "sha": "bfc65a901849",
+          "date": "2026-09-10T11:15:26Z",
+          "message": "shorts 20260910: producer started"
         },
         {
-          "sha": "7a2aec2e4fe0",
-          "date": "2026-09-10T02:45:43Z",
-          "message": "The voice said a number the picture could not show (#361)"
+          "sha": "978d26586ca5",
+          "date": "2026-09-10T09:39:34Z",
+          "message": "exchange: phase A bundle for 20260910 [skip ci]"
         },
         {
-          "sha": "d798d752dca9",
-          "date": "2026-09-10T02:29:42Z",
-          "message": "The chart showed 2000 vs 2012 while the voice said 92% by 2023 (#360)"
+          "sha": "532097f7f278",
+          "date": "2026-09-10T09:39:26Z",
+          "message": "doctor: evidence pack + backlog 2026-09-10 [skip ci]"
         }
       ],
       "commit": {
-        "sha": "7c79f18ed959",
-        "date": "2026-09-10T03:32:03Z",
-        "message": "`point` is not an animator, and it never was (#364)"
+        "sha": "490b64e4e652",
+        "date": "2026-09-10T11:23:44Z",
+        "message": "explainer: update posted log + analytics [skip ci]"
       },
       "vitals": [
         {
@@ -108,7 +108,7 @@
         },
         {
           "label": "explainer posted",
-          "value": 241
+          "value": 242
         },
         {
           "label": "third posted",
@@ -129,8 +129,8 @@
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-10T03:32:26Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34433697881"
+          "updated_at": "2026-09-10T09:39:41Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34461758649"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
@@ -141,8 +141,8 @@
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-09T19:51:53Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34397414584"
+          "updated_at": "2026-09-10T09:52:00Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34462789122"
         },
         "third.yml": {
           "status": "completed",
@@ -153,8 +153,8 @@
         "explainer.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-10T01:16:52Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34396857801"
+          "updated_at": "2026-09-10T11:23:51Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34461783646"
         },
         "retro.yml": {
           "status": "completed",
@@ -165,8 +165,8 @@
         "doctor.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-09T09:40:12Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34335979983"
+          "updated_at": "2026-09-10T09:39:30Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34461824903"
         }
       },
       "state_files": {
@@ -176,7 +176,7 @@
         },
         "state/explainer_posted_log.json": {
           "exists": true,
-          "bytes": 65805
+          "bytes": 66889
         },
         "state/third_posted_log.json": {
           "exists": true,
@@ -333,19 +333,11 @@
     {
       "repo": "aletheia",
       "github": "Aletheia",
-      "from": "green",
-      "to": "red"
+      "from": "red",
+      "to": "green"
     }
   ],
   "alerts": [
-    {
-      "repo": "aletheia",
-      "github": "Aletheia",
-      "health": "red",
-      "failing": [
-        "ci.yml"
-      ]
-    },
     {
       "repo": "shorts_pipeline",
       "github": "Shorts-pipeline",

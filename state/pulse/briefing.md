@@ -1,34 +1,34 @@
 # Fleet briefing
 
-Generated 2026-09-10T04:50:34Z from fleet registry rev 4 via GitHubSource.
+Generated 2026-09-10T11:27:24Z from fleet registry rev 4 via GitHubSource.
 
-## 🔴 `Aletheia` — hub (active)
+## 🟢 `Aletheia` — hub (active)
 
 The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.
 
-Last commit `378489f96332` at 2026-09-10T04:39:22Z: A 17.8 GB model on a 16 GB laptop, reported as ready
+Last commit `fdae9038f794` at 2026-09-10T07:14:38Z: Setting a reminder was free; cancelling it cost four seconds and permission
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-09-10T04:50:32Z
-- `ci.yml`: failure at 2026-09-10T04:43:04Z
+- `pulse.yml`: in_progress at 2026-09-10T11:27:21Z
+- `ci.yml`: success at 2026-09-10T07:18:26Z
 
 ## 🔴 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `7c79f18ed959` at 2026-09-10T03:32:03Z: `point` is not an animator, and it never was (#364)
+Last commit `490b64e4e652` at 2026-09-10T11:23:44Z: explainer: update posted log + analytics [skip ci]
 
-Vitals — trending posted: 316 · explainer posted: 241 · third posted: 459 · curiosity posted: 1
+Vitals — trending posted: 316 · explainer posted: 242 · third posted: 459 · curiosity posted: 1
 
 Watched workflows:
 - `daily.yml`: failure at 2026-09-09T17:14:37Z
-- `exchange_phase_a.yml`: success at 2026-09-10T03:32:26Z
+- `exchange_phase_a.yml`: success at 2026-09-10T09:39:41Z
 - `exchange_phase_b.yml`: success at 2026-09-09T17:53:06Z
-- `story_forge.yml`: success at 2026-09-09T19:51:53Z
+- `story_forge.yml`: success at 2026-09-10T09:52:00Z
 - `third.yml`: success at 2026-09-09T15:43:36Z
-- `explainer.yml`: success at 2026-09-10T01:16:52Z
+- `explainer.yml`: success at 2026-09-10T11:23:51Z
 - `retro.yml`: success at 2026-09-10T04:46:33Z
-- `doctor.yml`: success at 2026-09-09T09:40:12Z
+- `doctor.yml`: success at 2026-09-10T09:39:30Z
 
 ## 🟢 `schwab-trader` — trading-bot (active)
 
