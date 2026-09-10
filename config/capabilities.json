@@ -1238,7 +1238,7 @@
     },
     {
       "id": "code.merge",
-      "description": "Merge a finished, independently reviewed builder pull request on a project he marked low-risk",
+      "description": "Merge a finished, independently reviewed builder pull request on a project you marked low-risk",
       "provider": "aletheia.local",
       "status": "EXPERIMENTAL",
       "risk_class": "high",
@@ -1250,7 +1250,7 @@
     },
     {
       "id": "project.charter",
-      "description": "Carry a project he has stopped looking at: a charter says what it is becoming, a cloud builder does her steps, and the morning brief asks him for exactly one of his",
+      "description": "Carry a project you have stopped looking at: a charter says what it is becoming, a cloud builder does my steps, and your morning brief asks you for exactly one of yours",
       "provider": "aletheia.local",
       "status": "EXPERIMENTAL",
       "risk_class": "medium",
