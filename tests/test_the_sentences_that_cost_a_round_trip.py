@@ -40,7 +40,14 @@ MUST_NOT_THINK = (
     ("read me my tasks", "tasks"),
     ("tell me my tasks", "tasks"),
     ("what's on my todo list", "tasks"),
-    ("what files do I have", "file_list"),
+    # HIS files, not her workspace. This said `file_list` and passed,
+    # because `file_list` was the only file-listing kind there was — and
+    # it lists the one directory he never puts anything in, so the answer
+    # to "what files do I have" was "(empty)".
+    ("what files do I have", "file_find"),
+    ("what's in my downloads folder", "file_find"),
+    ("where is my lease", "file_find"),
+    ("how big is my downloads folder", "file_size"),
     ("what's my car's mileage", "car"),
     ("how many miles on my car", "car"),
     # answers she holds in a store

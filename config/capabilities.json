@@ -1,5 +1,5 @@
 {
-  "revision": 103,
+  "revision": 106,
   "providers": [
     {
       "id": "aletheia.local",
@@ -239,7 +239,7 @@
     },
     {
       "id": "phone.call",
-      "description": "Place and hold a phone conversation on the operator's behalf (identifies itself as Aletheia)",
+      "description": "Place and hold a phone conversation on your behalf (identifies itself as Aletheia)",
       "provider": "aletheia.local",
       "status": "EXPERIMENTAL",
       "risk_class": "high",
@@ -359,7 +359,7 @@
     },
     {
       "id": "core.serve",
-      "description": "The local Core V0: persistent service on the operator's PC â€” internal API (/api/*), the wall at /, Command Center at /command.html; loopback-only until authentication exists",
+      "description": "The local Core V0: persistent service on your PC â€” internal API (/api/*), the wall at /, Command Center at /command.html; loopback-only until authentication exists",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "medium",
@@ -395,7 +395,7 @@
     },
     {
       "id": "core.close",
-      "description": "Close her the way you close a window — she finishes what she is holding, exits cleanly, and stays shut until he opens her again",
+      "description": "Close me the way you close a window — I finish what I am holding, exit cleanly, and stay shut until you open me again",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "low",
@@ -441,7 +441,7 @@
     },
     {
       "id": "browser.interact",
-      "description": "Act on a web page â€” click, type, select, submit â€” inside the operator's own authenticated session",
+      "description": "Act on a web page â€” click, type, select, submit â€” inside your own authenticated session",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "high",
@@ -838,7 +838,7 @@
     },
     {
       "id": "attention.policy",
-      "description": "When may a notice interrupt Caleb: quiet hours, priority escalation with age, bypass list — classification only, never delivery",
+      "description": "When may a notice interrupt you: quiet hours, priority escalation with age, bypass list — classification only, never delivery",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "low",
@@ -885,7 +885,7 @@
     },
     {
       "id": "reason.infer",
-      "description": "Bounded, tool-less reasoning on the operator's own subscription: proposals only, never actions",
+      "description": "Bounded, tool-less reasoning on your own subscription: proposals only, never actions",
       "provider": "claude.cli",
       "status": "AVAILABLE",
       "risk_class": "read",
@@ -931,7 +931,7 @@
     },
     {
       "id": "finance.hand_off",
-      "description": "Carry a money movement to the §143 boundary and stop: everything prepared, the authorization left to the operator",
+      "description": "Carry a money movement to the §143 boundary and stop: everything prepared, the authorization left to you",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "low",
@@ -954,7 +954,7 @@
     },
     {
       "id": "policy.delegate.consume",
-      "description": "Spend a standing grant so an approval he already gave is not asked again - never for high-risk or operator_always",
+      "description": "Spend a standing grant so an approval you already gave is not asked again - never for high-risk or operator_always",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "medium",
@@ -1025,7 +1025,7 @@
     },
     {
       "id": "perception.screen",
-      "description": "Read what is on the operator's screen from the accessibility tree and answer a question about it",
+      "description": "Read what is on your screen from the accessibility tree and answer a question about it",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "medium",
@@ -1061,7 +1061,7 @@
     },
     {
       "id": "presence.wall",
-      "description": "The live block the wall shows about HER: what needs him, what she is doing, what is next",
+      "description": "The live block the wall shows about me: what needs you, what I am doing, what is next",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "read",
@@ -1107,7 +1107,7 @@
     },
     {
       "id": "setup.audit",
-      "description": "What the operator still has to supply, every item checked live rather than assumed",
+      "description": "What you still have to supply, every item checked live rather than assumed",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "read",
@@ -1131,7 +1131,7 @@
     },
     {
       "id": "work.trust",
-      "description": "Standing LOCAL permission to open bounded Work Sessions automatically, instead of the operator running `work_session on` every day",
+      "description": "Standing LOCAL permission to open bounded Work Sessions automatically, instead of you running `work_session on` every day",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "medium",
@@ -1239,7 +1239,7 @@
     },
     {
       "id": "reason.chatgpt_browser",
-      "description": "The operator's ChatGPT subscription used as a reasoning fallback through a real browser session - no API key",
+      "description": "Your ChatGPT subscription used as a reasoning fallback through a real browser session - no API key",
       "provider": "chatgpt.app",
       "status": "AVAILABLE",
       "risk_class": "medium",
@@ -1299,7 +1299,7 @@
     },
     {
       "id": "file.author",
-      "description": "Create and edit real files - documents, notes, data, captions - inside a workspace she owns, keeping every version she replaces",
+      "description": "Create and edit real files - documents, notes, data, captions - inside a workspace I own, keeping every version I replace",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "low",
@@ -1359,7 +1359,7 @@
     },
     {
       "id": "message.send",
-      "description": "Send a text message (SMS/iMessage) to a person on the operator's behalf",
+      "description": "Send a text message (SMS/iMessage) to a person on your behalf",
       "provider": "aletheia.local",
       "status": "EXPERIMENTAL",
       "risk_class": "high",
@@ -1394,7 +1394,7 @@
     },
     {
       "id": "converse.answer",
-      "description": "Answer a question in conversation, reading any file he names in it — the second half of her, alongside the half that executes",
+      "description": "Answer a question in conversation, reading any file you name in it — the second half of me, alongside the half that executes",
       "provider": "claude.cli",
       "status": "AVAILABLE",
       "risk_class": "read",
@@ -1406,7 +1406,7 @@
     },
     {
       "id": "notification.deliver",
-      "description": "Put an urgent or important notification on his actual screen, where he is",
+      "description": "Put an urgent or important notification on your actual screen, where you are",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "read",
@@ -1439,7 +1439,7 @@
     },
     {
       "id": "demand.ledger",
-      "description": "Count what he asked for and could not have, in his own words, so the roadmap is written by use rather than by guesswork",
+      "description": "Count what you asked for and could not have, in your own words, so the roadmap is written by use rather than by guesswork",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "read",
@@ -1450,7 +1450,7 @@
     },
     {
       "id": "document.compose",
-      "description": "Write a document from named sources and save it in her workspace — the prose authored when the step runs, not pasted by the planner",
+      "description": "Write a document from named sources and save it in my workspace — the prose authored when the step runs, not pasted by the planner",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "low",
@@ -1472,7 +1472,7 @@
     },
     {
       "id": "document.read_any",
-      "description": "Get the words out of a PDF, .docx or text file — his real documents, with no package to install",
+      "description": "Get the words out of a PDF, .docx or text file — your real documents, with no package to install",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "read",
@@ -1482,8 +1482,19 @@
       "notes": "His resume is a PDF and nothing in this system could open it. Everything built on 'read his resume' was reading a .md file that existed only because a test wrote one: workspace.read refuses a suffix it cannot author, and aletheia.documents says in its own docstring that it does not pretend to parse PDFs without the corresponding parser. There was no parser. The most important input in the system was the one input she could not open. STDLIB ONLY on purpose - .docx is a zip of XML and zipfile is stdlib, a PDF's text lives in content streams and zlib is stdlib - because 'pip install pypdf on his PC' makes a feature work on the machine of whoever remembered to run it, which is the same shape as a capability that says AVAILABLE and is not. pypdf is used FIRST when importable and needed never. It refuses honestly: a scan is a picture of words and the refusal names the fix (export a .docx) rather than returning forty characters of ligature soup that would become a cover letter about nobody."
     },
     {
+      "id": "file.find",
+      "description": "Find and list your own files by name — what's in Downloads, where that PDF went, which folder the lease is in",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.intercom file_find (voice: \"what's in my downloads\", \"find my resume\", \"list my files\"); aletheia.applications._find_resume; python -m aletheia.files",
+      "module": "aletheia.files",
+      "notes": "She could read a file he named ANYWHERE (workspace.read anywhere=True) and could not find one. workspace.listing lists the single directory she owns, which is the one directory he never puts anything in - so \"list my files\" answered \"(empty)\", true about a folder he has never opened, and \"what's in my downloads folder\" answered \"I don't have a way to browse your file system\". The precondition for reading was a path, and he does not know the path. That applications.py had already grown a private resume-finder (RESUME_PLACES, RESUME_NAMES, an mtime sort) for one caller is the evidence this belonged in the system rather than in a module about job applications; that finder calls in here now. READ ONLY and bounded: named places (Desktop, Documents, Downloads, Pictures, their OneDrive mirrors, her workspace) rather than the whole disk, depth 3, a scan budget, and never the contents - reading a file is document.read_any, which has its own ceilings. Two capabilities because they are two decisions. Live on his PC 2026-09-09: 648 files listed out of Downloads, five 'resume' matches across Desktop and her workspace."
+    },
+    {
       "id": "profile.answers",
-      "description": "The information he should never type again — name, contact, location, links, work authorization — learned from his resume, private, never committed",
+      "description": "The information you should never type again — name, contact, location, links, work authorization — learned from your resume, private, never committed",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "read",
@@ -1494,7 +1505,7 @@
     },
     {
       "id": "form.fill_plan",
-      "description": "Read any web form and split it: what she can fill from his profile, and what only he can answer",
+      "description": "Read any web form and split it: what I can fill from your profile, and what only you can answer",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "read",
@@ -1505,7 +1516,7 @@
     },
     {
       "id": "application.submit",
-      "description": "Fill a job application, show him the filled form, and send it on one confirmation — the whole thing between 'apply' and 'applied'",
+      "description": "Fill a job application, show you the filled form, and send it on one confirmation — the whole thing between 'apply' and 'applied'",
       "provider": "aletheia.local",
       "status": "EXPERIMENTAL",
       "risk_class": "high",
@@ -1538,7 +1549,7 @@
     },
     {
       "id": "web.task",
-      "description": "Any request that means 'go do this on a website' — look at the page, do one step, look again, using his profile and his own files, stopping at one confirmation before anything commits",
+      "description": "Any request that means 'go do this on a website' — look at the page, do one step, look again, using your profile and your own files, stopping at one confirmation before anything commits",
       "provider": "aletheia.local",
       "status": "EXPERIMENTAL",
       "risk_class": "high",
@@ -1586,7 +1597,7 @@
       "risk_class": "read",
       "approval_policy": "none",
       "provider": "aletheia.local",
-      "description": "What the weather is doing where he is",
+      "description": "What the weather is doing where you are",
       "caller": "aletheia.quick 'weather' pattern (so voice, the phone and typed input); aletheia.weather.spoken",
       "notes": "Registered 2026-09-08 from the same audit. 'What's the weather' is one of the most ordinary things anybody asks an assistant and it was a 25-80s round trip ending in nothing. Answered instantly and counted now. || 2026-09-08 BUILT and PROVEN LIVE on his machine: 'Right now in Hartford, SD: Slight Chance Showers And Thunderstorms then Partly Sunny, 83 degrees.' 0.54s cold, 0.01s cached. NO API KEY ANYWHERE - the US National Weather Service serves anyone sending a User-Agent, and api.zippopotam.us turns his postcode into a point. That matters for the reason doctext gives about itself: a feature needing a key somebody has to remember to obtain is a capability that says AVAILABLE on one machine. His postcode was already on file (57033), so the answer needs nothing from him. US ONLY, and it says so rather than reaching for a provider it cannot verify - a confident forecast for the wrong Hartford is worse than none, and there are at least four. 'Tomorrow' is arithmetic on the period list, not a word match: the service says Today/Tonight/Wednesday, so 'tomorrow' matched nothing and the first draft answered with TODAY's forecast under today's label.",
       "module": "aletheia.weather"

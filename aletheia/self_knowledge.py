@@ -66,13 +66,30 @@ SYNONYMS = {
     "calendar": ("calendar", "availability", "meeting", "schedule"),
     "free": ("availability", "calendar"),
     "write": ("file", "author", "document", "workspace"),
-    "file": ("file", "author", "document", "workspace"),
+    # "file" used to expand to author/document/workspace, which was right
+    # when `file.author` was the ONLY file capability and became a thumb
+    # on the scale the moment there were others: "can you list my files"
+    # scored file.author 6.7 to file.find 5.0, entirely on aliases the
+    # question never contained. A synonym says what a word MEANS, not
+    # which entry used to own it — so the verbs live under the verbs.
+    "file": ("file", "document"),
     "document": ("file", "author", "document"),
     "edit": ("file", "author", "document"),
+    "list": ("list", "find", "file"),
+    "folder": ("folder", "file", "find", "download"),
+    # Keyed by the STEM, because `_query_terms` looks these up after
+    # `_words` has already folded the plural: a "downloads" key is never
+    # reached at all.
+    "download": ("download", "folder", "file", "find"),
     "read": ("read", "browser", "document", "file"),
     "web": ("browser", "research", "read"),
     "internet": ("browser", "research"),
-    "search": ("research", "browser", "journal"),
+    # "search" meant the journal and the web, and nothing on his disk,
+    # which is how "can you search my computer for a file" answered
+    # `journal.search`. One key: a duplicate here is silent — Python keeps
+    # the last one — and `tests/test_the_synonyms_have_one_key_each.py`
+    # now says so out loud, the way the intercom grammar already does.
+    "search": ("research", "browser", "journal", "find", "file"),
     "google": ("research", "browser"),
     "look": ("research", "browser", "observe"),
     "research": ("research", "browser"),
@@ -87,7 +104,10 @@ SYNONYMS = {
     "video": ("media", "edit"),
     "audio": ("media", "audio", "speech"),
     "music": ("room", "media", "audio"),
-    "lights": ("room", "scene"),
+    # "light", not "lights": dead since stemming went in, because
+    # `_query_terms` looks these up after the plural is folded. Nobody says
+    # "turn off the light" to a house, so this key was never reached.
+    "light": ("room", "scene"),
     "house": ("room", "scene", "device"),
     "remember": ("memory", "remember", "recall"),
     "forget": ("memory", "remember"),

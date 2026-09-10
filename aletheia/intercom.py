@@ -93,6 +93,15 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "file_edit":     ({"path", "find", "replace"}, {"why"}),
     "file_read":     ({"path"}, {"anywhere"}),
     "file_list":     (set(), {"subdir"}),
+    # Finding a file of HIS, anywhere he keeps things. `file_list` lists
+    # the one directory she owns and `file_read` needs a path he does not
+    # have; between them there was no way to answer "what's in my
+    # downloads" or "find that lease PDF" at all.
+    "file_find":     (set(), {"query", "place"}),
+    # How much is in one of his folders. Asked out loud she compiled a
+    # two-step File Explorer plan and asked for approval to run it, while
+    # holding every one of those numbers already.
+    "file_size":     ({"place"}, set()),
     # Ordinary file operations she did not have a verb for. Both keep a
     # version first, so both are reversible with `workspace restore`.
     "file_delete":   ({"path"}, {"why"}),
@@ -436,7 +445,8 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                # operator's browser, so it belongs to the PC runner
                "research",
                # the workspace is a directory on his PC; Actions cannot see it
-               "file_write", "file_edit", "file_read", "file_list", "compose",
+               "file_write", "file_edit", "file_read", "file_list", "file_find",
+               "file_size", "compose",
                "file_delete", "file_move",
                # reads the open web and writes into her workspace: both PC
                "apply_prepare", "apply_campaign", "applications",
@@ -491,7 +501,7 @@ READ_ONLY_KINDS = frozenset({
     # reads public pages and writes a document; commits him to nothing
     "research",
     # looking at his own files commits him to nothing
-    "file_read", "file_list",
+    "file_read", "file_list", "file_find", "file_size",
     # looking at his own screen commits him to nothing either
     "computer_observe",
     # and photographing it commits him to nothing: the file stays on the
@@ -1654,7 +1664,31 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             out = workspace.read(cmd["path"], anywhere=bool(cmd.get("anywhere")))
             return out["text"][:2000]
         rows = workspace.listing(cmd.get("subdir", ""))
-        return ", ".join(r["path"] for r in rows[:40]) or "(empty)"
+        if not rows:
+            # An empty store still proves the store: "(empty)" out loud is
+            # a bare parenthesis, and it reads as "you have no files"
+            # rather than "the directory I write into is new".
+            where = cmd.get("subdir") or "her workspace"
+            return (f"nothing in {where} yet - that is the folder she "
+                    f"writes into, not where your own files are")
+        return ", ".join(r["path"] for r in rows[:40])
+
+    if kind == "file_find":
+        from aletheia import files as files_mod
+        try:
+            result = files_mod.search(str(cmd.get("query") or ""),
+                                      place=str(cmd.get("place") or ""))
+        except files_mod.FilesError as exc:
+            # Said in English: this is read out in a room.
+            return str(exc)
+        return files_mod.spoken(result)
+
+    if kind == "file_size":
+        from aletheia import files as files_mod
+        try:
+            return files_mod.size_spoken(files_mod.folder_size(cmd["place"]))
+        except files_mod.FilesError as exc:
+            return str(exc)
 
     if kind == "research":
         from aletheia import research as research_mod

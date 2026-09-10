@@ -56,14 +56,39 @@ class ListingFilesIsInstantCase(unittest.TestCase):
     `converse` does not know she can list a directory, so it replied "no
     FILE HE NAMED was passed with this question"."""
 
-    def test_the_ways_he_would_ask(self):
+    def test_none_of_them_reach_the_planner(self):
+        """The rule this class is named for, stated instead of a string.
+
+        It asserted `{"kind": "file_list"}` for all seven, which froze a
+        WRONG answer for three of them: `file_list` lists HER WORKSPACE,
+        so "list MY files" replied "(empty)" — true about a directory he
+        has never opened, in reply to a question about his own disk. The
+        thing being protected is that none of these cost a round trip.
+        """
         for said in ("what files do you have", "which files are there",
                      "list my files", "list files",
                      "whats in my workspace", "what's in my workspace",
                      "show me my files"):
             with self.subTest(said=said):
                 got = voice.interpret(f"thea {said}")["command"]
-                self.assertEqual(got, {"kind": "file_list"}, said)
+                self.assertNotEqual(got["kind"], "intent",
+                                    f"{said} reached the planner")
+                self.assertIn(got["kind"], ("file_list", "file_find"))
+
+    def test_hers_and_his_are_different_questions(self):
+        """The possessive is the whole signal, and it was being dropped."""
+        for said, kind in (
+                ("what files do you have", "file_list"),
+                ("what's in my workspace", "file_list"),
+                ("list your files", "file_list"),
+                ("list my files", "file_find"),
+                ("show me my files", "file_find"),
+                ("what files do i have", "file_find"),
+                # No possessive at all, said in a room, means his.
+                ("list files", "file_find")):
+            with self.subTest(said=said):
+                got = voice.interpret(f"thea {said}")["command"]
+                self.assertEqual(got["kind"], kind, said)
 
     def test_naming_a_file_is_not_listing_them(self):
         got = voice.interpret("thea what files did dana send me")["command"]

@@ -125,22 +125,27 @@ def find_resume(named: str = "") -> str:
                         return str(candidate)
     # Then by what it LOOKS like: newest first, because the one he last
     # touched is the one he means.
-    found = []
-    for place in RESUME_PLACES:
-        for base in (workspace.root(), _Path.home()):
-            folder = base / place if place else base
-            try:
-                entries = list(folder.iterdir())
-            except Exception:
-                continue
-            for entry in entries:
-                if entry.is_file() and looks_like_a_resume(entry.name):
-                    try:
-                        found.append((entry.stat().st_mtime, str(entry)))
-                    except Exception:
-                        continue
-    if found:
-        return max(found)[1]
+    #
+    # The walk itself is `aletheia.files` now. This function grew its own
+    # — RESUME_PLACES, a one-level iterdir, an mtime sort — because there
+    # was no general way to find one of his files, and a private finder
+    # inside a module about job applications is how that gap stayed
+    # invisible. `files` is that general thing (rule zero: one
+    # implementation), and it is strictly better here: depth three rather
+    # than one, a scan budget, and the same newest-first ordering this
+    # code had already learned the hard way.
+    #
+    # `looks_like_a_resume` stays, because it is the part that is really
+    # about resumes: a WORD match, so "cv" does not catch every file with
+    # those two letters in it.
+    from aletheia import files as _files
+    try:
+        candidates = _files.find("", limit=_files.MAX_SCANNED)
+    except Exception:
+        candidates = []
+    for row in candidates:          # already newest first
+        if looks_like_a_resume(row["name"]):
+            return row["path"]
     raise ApplicationError(
         "she could not find your resume. She looked for anything with "
         "'resume' or 'cv' in its name as .pdf, "

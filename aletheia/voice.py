@@ -425,6 +425,51 @@ def _is_about_himself(captured: str) -> bool:
     return all(word in _DETAIL_WORDS for word in words[1:])
 
 
+#: Words that mean a place on his disk. "what's in my downloads" is a
+#: file question; "what's in my calendar" is not, and the difference is a
+#: named list rather than a guess at everything he might say. A pattern
+#: that swallows too much answers a DIFFERENT question, which is the
+#: failure he cannot detect.
+_HIS_PLACES = {
+    "downloads": "Downloads", "download": "Downloads",
+    "documents": "Documents", "document": "Documents", "docs": "Documents",
+    "desktop": "Desktop", "pictures": "Pictures", "photos": "Pictures",
+    "picture": "Pictures", "images": "Pictures",
+}
+
+
+def _a_place_she_knows(said: str) -> str:
+    """The folder he named, if he named a folder rather than a store."""
+    return _HIS_PLACES.get(" ".join(str(said or "").casefold().split()), "")
+
+
+#: Things "find my ..." can mean that are NOT a file, every one of which
+#: already has a better answer somewhere else. "Find my keys" is not a
+#: file search, and "do I have any reminders" is a store she reads.
+_NOT_A_FILE = frozenset({
+    "keys", "phone", "wallet", "car", "glasses", "charger", "money",
+    "email", "emails", "inbox", "mail", "messages", "texts",
+    "calendar", "schedule", "appointment", "appointments", "meeting",
+    "meetings", "reminder", "reminders", "task", "tasks", "todo", "to do",
+    "contact", "contacts", "number", "phone number", "address",
+    "subscription", "subscriptions", "balance", "account", "accounts",
+    "notification", "notifications", "shopping list", "list", "time",
+})
+
+
+def _not_a_file(said: str) -> bool:
+    """True when "find my X" is not about a file at all."""
+    low = " ".join(str(said or "").casefold().split())
+    if not low:
+        return True
+    if low in _NOT_A_FILE:
+        return True
+    # "any unread emails", "my next meeting" — the store word anywhere in
+    # a short phrase is enough, because none of those are filenames.
+    words = low.split()
+    return len(words) <= 4 and any(w in _NOT_A_FILE for w in words)
+
+
 def _as_he_said(transcript: str, fragment: str) -> str:
     """A matched fragment with his capitals put back.
 
@@ -962,11 +1007,65 @@ def _interpret(transcript: str) -> dict:
     # "no FILE HE NAMED was passed with this question".
     # "What files do I have" — his files, in her workspace — asked the
     # one way the pattern did not have: about himself rather than her.
-    if re.fullmatch(r"(?:what|which) files (?:do you have|do i have|"
-                    r"are there|have you got)|list (?:my |your )?files|"
+    #
+    # And that last line was wrong, found by talking to her: "list my
+    # files" is not a question about her workspace at all. It answered
+    # "(empty)" — true about a directory he has never opened, in reply to
+    # a question about his own disk. The possessive was the whole signal
+    # and it was being thrown away, exactly the way "can you read my
+    # files" was being answered about the web browser. HERS below, HIS
+    # after it.
+    if re.fullmatch(r"(?:what|which) files (?:do you have|are there|"
+                    r"have you got)|list your files|"
                     r"what(?:'s| is|s)? in (?:my |your )?workspace|"
-                    r"show me (?:my |your )?files", low):
+                    r"show me your files", low):
         return {"command": {"kind": "file_list"}, "say": None}
+
+    m = re.fullmatch(
+        r"(?:what(?:'s| is|s)?|show me what(?:'s| is)?) (?:in|inside) "
+        r"(?:my |the )?([a-z][a-z ]{2,20}?)(?: folder| directory)?\s*\??", low)
+    if m and _a_place_she_knows(m.group(1)):
+        return {"command": {"kind": "file_find",
+                            "place": _a_place_she_knows(m.group(1))}, "say": None}
+
+    m = re.fullmatch(
+        r"(?:find|look for|search for|do i have|have i got) "
+        r"(?:a |an |any |my |the )?(?:files? |documents? )?"
+        r"(?:called |named |about )?(.+?)\s*\??", low)
+    if m and not _not_a_file(m.group(1)):
+        return {"command": {"kind": "file_find",
+                            "query": _as_he_said(transcript, m.group(1))},
+                "say": None}
+
+    if re.fullmatch(r"(?:list|show me) (?:my |all my )?files|"
+                    r"what files do i have|my (?:recent )?files", low):
+        return {"command": {"kind": "file_find"}, "say": None}
+
+    # "Where is my lease" reached the planner and came back "I don't have
+    # a lease saved anywhere I can check — no file storage or document
+    # search has come back with anything." She has both. A model asked
+    # about a store nothing in its context mentions DENIES THE STORE
+    # EXISTS, and that is worse than an error: an error sends him back to
+    # her, this sends him off to keep his files somewhere else.
+    m = re.fullmatch(r"where(?:'s| is| are)? (?:my |the )?(.+?)\s*\??", low)
+    if m and not _not_a_file(m.group(1)):
+        return {"command": {"kind": "file_find",
+                            "query": _as_he_said(transcript, m.group(1))},
+                "say": None}
+
+    # "How big is my downloads folder" spent 28 seconds compiling a
+    # two-step plan — open File Explorer, read the properties dialog —
+    # and asked for approval to run it. Every one of those numbers was
+    # already in her hand.
+    m = re.fullmatch(
+        r"how (?:big|large) is (?:my |the )?([a-z ]+?)(?: folder| directory)?"
+        r"\s*\??|how much (?:space|room) (?:is )?in (?:my |the )?"
+        r"([a-z ]+?)(?: folder| directory)?\s*\??", low)
+    if m:
+        where = _a_place_she_knows(m.group(1) or m.group(2) or "")
+        if where:
+            return {"command": {"kind": "file_size", "place": where},
+                    "say": None}
 
     # notifications
     if re.fullmatch(r"(?:check (?:my )?notifications?|any notifications?|"
