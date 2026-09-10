@@ -154,8 +154,32 @@ def pending(path=None) -> list[dict]:
 
 # ---- drafting ---------------------------------------------------------------
 
+def _forgive_shape(value):
+    """Forgive the SHAPE a smaller model gets wrong, never the substance.
+
+    Measured 2026-09-10 on this laptop: qwen3:8b drafted a sound seven-step
+    charter in 100 seconds whose one fault was numbering `needs` from zero.
+    Refusing that would make the bridge refuse its own best work.
+    """
+    if not isinstance(value, dict):
+        return value
+    value = copy.deepcopy(value)
+    steps = value.get("steps")
+    if isinstance(steps, list):
+        rows = [s for s in steps if isinstance(s, dict)]
+        wanted = [n for s in rows for n in (s.get("needs") or []) if type(n) is int]
+        if 0 in wanted:
+            for s in rows:
+                if isinstance(s.get("needs"), list):
+                    s["needs"] = [n + 1 for n in s["needs"] if type(n) is int]
+        if len(steps) > MAX_STEPS:
+            value["steps"] = steps[:MAX_STEPS]
+    return value
+
+
 def _validator(repos: set[str]):
     def validate(value: dict) -> dict:
+        value = _forgive_shape(value)
         if not isinstance(value, dict) or set(value) - {"title", "goal", "repo", "why", "steps"}:
             raise ValueError("invalid charter fields")
         title = str(value.get("title") or "").strip()
@@ -214,14 +238,22 @@ def draft(idea: str, *, fleet: dict, existing: list[dict], think=None,
                   for name, key in sorted(repo_keys.items())],
         "existing_projects": sorted(str(p.get("title") or "") for p in existing if plans.is_charter(p)),
     }
+    validate = _validator(set(repo_keys))
     if think is None:
-        from aletheia import reasoner
-        think = reasoner.subscription_json
-        model = reasoner.PLAN_MODEL
+        # THE BRIDGE. A draft is not code, so when Claude's window is spent
+        # her own model may write it: the gateway's standard policy asks the
+        # subscriptions first and falls to the local model after. He still
+        # says yes before anything happens, and the charter says who drafted it.
+        from aletheia import reasoner, reasoning_gateway
+        result = reasoning_gateway.reason_json(
+            DRAFT_SYSTEM, idea, context=context, policy="standard",
+            model=reasoner.PLAN_MODEL,
+            timeout_s=reasoning_gateway.STANDARD_TOTAL_TIMEOUT_S, validator=validate)
+        value, drafted_by = result.output, result.provider
     else:
-        model = "sonnet"
-    value = think(DRAFT_SYSTEM, idea, context=context, model=model,
-                  validator=_validator(set(repo_keys)))
+        value = think(DRAFT_SYSTEM, idea, context=context, model="sonnet",
+                      validator=validate)
+        drafted_by = "subscription.auto"
     now = _now(now)
     title = _clean(value["title"], 60)
     slug = _slug(title, {str(p.get("slug") or "") for p in existing})
@@ -234,8 +266,13 @@ def draft(idea: str, *, fleet: dict, existing: list[dict], think=None,
         default = str((fleet["repos"][key] or {}).get("default_branch") or "main")
         project.update(base_branch=DEPLOY_BRANCH if github.casefold() == "aletheia" else default,
                        risk="high")
-    project["why"] = (f"Drafted {now.date().isoformat()} from something Caleb asked for; "
-                      "his to correct before or after he says yes.")
+    local = str(drafted_by).startswith("ollama:")
+    project["drafted_by"] = str(drafted_by)[:80]
+    project["why"] = (f"Drafted {now.date().isoformat()} "
+                      + ("by Aletheia's own model while the subscriptions were out, "
+                         if local else "")
+                      + "from something Caleb asked for; his to correct before or "
+                        "after he says yes.")
     steps = []
     for n, step in enumerate(value["steps"], 1):
         text = _clean(step["text"], 220)
@@ -363,6 +400,13 @@ def drain(*, request=gh.request, think=None, fleet: dict | None = None,
         except policy.Halted:
             raise
         except Exception as exc:
+            from aletheia import reasoner as _reasoner
+            if isinstance(exc, _reasoner.ReasonerUnavailable):
+                # Nobody could THINK just now - Claude resting, her own model
+                # busy. That is not the ask failing, so it costs no attempt;
+                # the next cycle tries again.
+                row["why"] = f"{type(exc).__name__}: {exc}"[:200]
+                continue
             row["attempts"] = int(row.get("attempts") or 0) + 1
             row["why"] = f"{type(exc).__name__}: {exc}"[:200]
             if row["attempts"] >= MAX_ATTEMPTS:

@@ -668,6 +668,41 @@ say whose they are.
   version wins. When you write one for something new he mentions, make
   the next step always obvious and make his steps the smallest honest asks.
 
+## When the subscriptions run out, she keeps thinking
+
+His words, 2026-09-10: *"the whole point of building this LLM on my own
+was the bridge ... something that technically will always be able to fix
+something. That'll never run out even if it's not the best."* In the same
+breath: the only things he wants changing his repositories are Claude and
+the best of ChatGPT. Both halves are the rule.
+
+- **Claude says when it is out, so listen.** The CLI prints `You've hit
+  your session limit · resets 4:40pm (UTC)`. `reasoner` remembers the
+  reset (`ClaudeResting`, private state) and does not ask Claude again
+  until it passes — every ask in between used to pay a round trip to learn
+  the same thing. Read the limit only from an ERROR; an answer that
+  mentions a limit is an answer.
+- **The rung that never runs out is her own model, and it must FIT.** The
+  standard policy's local fallback asked only the deep role, whose 27B
+  model needs ~19 GB on a 16 GB laptop — 31 recorded attempts, 31
+  failures — so the bridge had never carried a request. It tries deep and
+  then whatever fits. Never make a fallback that only tries one model.
+- **Her own answers say they are hers.** Conversation falls to
+  `reasoner.local_text` after Claude and ChatGPT, and the answer leads with
+  "Claude's out until 4:40 PM, so this answer is from my own model." An
+  answer he trusts as Claude's and is not is the failure he cannot detect.
+- **Repositories stay with the subscriptions.** Code proposals and merge
+  reviews call `subscription_json` directly and never reach a local model;
+  `tests/test_the_bridge.py` holds that. Charter DRAFTS may be written
+  locally — they are not code, he says yes before anything happens, and
+  the charter carries `drafted_by`.
+- **Nobody able to think is not a failure.** A queued ask whose draft hit
+  `ReasonerUnavailable` costs no attempt; the next cycle tries again.
+
+Measured on this laptop (no GPU): qwen3:8b drafted a charter in 100 s warm,
+188 s cold. That is the price of never running out, and it is paid only
+when the subscriptions are gone.
+
 ## The standing assignment
 
 Every session acts on the playbook rather than re-describing it (§156):

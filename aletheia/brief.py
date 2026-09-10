@@ -172,6 +172,8 @@ def _confirm_text(plan: dict) -> str:
     first = (hers or steps or [{"text": ""}])[0]["text"]
     merge = ("I'll merge its finished work myself once the tests pass and a second model has checked it."
              if (plan.get("project") or {}).get("risk") == "low" else "You merge its work.")
+    if str((plan.get("project") or {}).get("drafted_by") or "").startswith("ollama:"):
+        merge += " My own model drafted this while Claude was out, so give it a closer look."
     return (f"New project drafted: {plan.get('title')}. {plan.get('goal')} "
             f"{_count(len(hers), 'step')} for me and {_count(len(yours), 'step')} for you, "
             f"starting with: {first}. {merge} Reply yes to start it, or no to drop it.")

@@ -123,7 +123,7 @@ def validate_goal(g: dict) -> list[str]:
             "repo": str,                     # fleet registry key
             "base_branch": str,              # where the project actually lives
             "risk": (str, GOAL_PROJECT_RISKS),
-        }, optional={"path": str, "why": str})
+        }, optional={"path": str, "why": str, "drafted_by": str})
     for i, s in enumerate(g.get("steps", []) if isinstance(g, dict) else []):
         problems += _check(s, f"Goal.steps[{i}]", required={
             "n": int, "text": str, "state": (str, GOAL_STEP_STATES),
