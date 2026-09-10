@@ -478,6 +478,28 @@ def spoken_receipt(kind: str, detail: str, *,
 _CLASS_PREFIX = re.compile(r"^[A-Z][A-Za-z0-9_]{2,}:\s+")
 
 
+#: Machine codes worth writing down and never worth saying. Chromium's
+#: net:: codes have different fixes and belong in the log; in a room they
+#: are gibberish. Written once in brackets where raised, removed here.
+_MACHINE_CODE = re.compile(r"\s*\((?:net::)?ERR_[A-Z_]+\)|\bnet::ERR_[A-Z_]+\b")
+
+#: Playwright appends its own trace after the reason.
+_CALL_LOG = re.compile(r"\s*Call log:.*$", re.DOTALL)
+
+#: "Page.goto:", "Frame.click:" - the library method that failed. Useful
+#: in a log, meaningless said aloud, and left behind once the code and the
+#: call log are gone.
+_LIBRARY_METHOD = re.compile(r"^(?:[A-Z][A-Za-z]+\.[a-z_]+:\s*)+")
+
+
+def without_machine_codes(text: str) -> str:
+    """A failure with the codes and traces taken out, for saying aloud."""
+    said = _CALL_LOG.sub("", str(text or ""))
+    said = _MACHINE_CODE.sub("", said)
+    said = _LIBRARY_METHOD.sub("", said.lstrip())
+    return " ".join(said.replace("()", "").split())
+
+
 def plainly(detail: str) -> str:
     """A failure as a reason rather than a traceback.
 
@@ -490,7 +512,7 @@ def plainly(detail: str) -> str:
     One implementation, because `intents.spoken` and `voice.spoken_reply`
     both say these out loud and had drifted into stripping differently.
     """
-    text = " ".join(unmarkdown(str(detail or "")).split())
+    text = without_machine_codes(unmarkdown(str(detail or "")))
     stripped = _CLASS_PREFIX.sub("", text)
     if stripped != text and len(stripped.split()) < 2:
         stripped = text

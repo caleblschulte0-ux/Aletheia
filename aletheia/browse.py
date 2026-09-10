@@ -167,6 +167,10 @@ def reachable(url: str = PROOF_URL, *, fresh: bool = False) -> tuple[bool, str]:
     return result
 
 
+class BrowseError(RuntimeError):
+    """A page would not load, said in English."""
+
+
 NET_CODE = re.compile(r"\b(net::ERR_[A-Z_]+)\b")
 NET_ENGLISH = {
     "net::ERR_CONNECTION_RESET": "the connection was reset",
@@ -203,7 +207,10 @@ def say_reason(why: str) -> str:
     is written once, in brackets, and removed here rather than being
     absent from the audit that needs it.
     """
-    return " ".join(NET_CODE.sub("", str(why or "")).replace("()", "").split())
+    # One implementation: `speech` is the door everything spoken goes
+    # through, and a second copy of this regex here would drift.
+    from aletheia import speech
+    return speech.without_machine_codes(why)
 
 
 def _closed_browser_error(exc: BaseException) -> bool:
@@ -310,13 +317,32 @@ def _guard(what: str) -> None:
         raise RuntimeError(f"cannot {what}: {reason}")
 
 
+def _load(page, url: str, **kwargs) -> None:
+    """`page.goto`, failing in English.
+
+    Playwright raises "Page.goto: net::ERR_NAME_NOT_RESOLVED at <url>
+    Call log: navigating to ..." - a stack trace, and one that reaches
+    the room verbatim through "That failed: ...". `reachable()` already
+    translated it and every other caller did not, so this is the one
+    door: the English reason, with the code kept in brackets for the log
+    that wants it.
+    """
+    try:
+        page.goto(url, **kwargs)
+    except Exception as exc:
+        if _closed_browser_error(exc):
+            raise
+        raise BrowseError(
+            f"could not load {url} - {_network_reason(exc)}") from None
+
+
 def read_page(url: str, timeout_ms: int = DEFAULT_TIMEOUT_MS,
               profile: Path | None = None) -> dict:
     """Observe a page: title, visible text, links. Read-only — no approval."""
     _guard("read a page")
     with _Session(profile=profile) as ctx:
         page = ctx.new_page()
-        page.goto(url, timeout=timeout_ms, wait_until="domcontentloaded")
+        _load(page, url, timeout=timeout_ms, wait_until="domcontentloaded")
         result = {
             "url": page.url,
             "title": page.title(),
@@ -341,7 +367,7 @@ def screenshot(url: str, out_path: str | Path, full_page: bool = True,
     out.parent.mkdir(parents=True, exist_ok=True)
     with _Session(profile=profile) as ctx:
         page = ctx.new_page()
-        page.goto(url, wait_until="domcontentloaded")
+        _load(page, url, wait_until="domcontentloaded")
         page.screenshot(path=str(out), full_page=full_page)
         page.close()
     journal.append("action", "browser:screenshot", f"captured {url} -> {out.name}")
@@ -504,7 +530,7 @@ def interact(url: str, steps: list[dict], approval_id: str,
     done = []
     with _Session(profile=profile) as ctx:
         page = ctx.new_page()
-        page.goto(url, wait_until="domcontentloaded")
+        _load(page, url, wait_until="domcontentloaded")
         for s in steps:
             policy.ensure_not_halted()
             if step_guard is not None:
