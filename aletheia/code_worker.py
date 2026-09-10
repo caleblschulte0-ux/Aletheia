@@ -74,6 +74,9 @@ ALETHEIA_PROTECTED = {
     "aletheia/sync.py",              # what pulls code onto the PC
     "aletheia/project_autostart.py", # what starts the loop
     "aletheia/portfolio.py",         # what the loop is allowed to look at
+    # added 2026-09-10: the one path that merges without him, and the
+    # charters' evidence rule that decides what a merge is credited as
+    "aletheia/project_merge.py", "aletheia/plans.py",
     # the constitution and the playbook it serves: a worker must never
     # propose an edit to the rules it is judged by
     "claude.md", "docs/playbook.md", "docs/architecture.md", "readme.md",
@@ -621,13 +624,34 @@ def prepare_pr(repo_full_name: str, objective: str, *, task_id: str,
     return result
 
 
+# A decline is a judgement about the code as it stood. After this long the
+# code has moved on, and the question is worth asking once more.
+DECLINE_TTL_DAYS = 7
+
+
 def declined(repo_full_name: str, task_id: str) -> bool:
-    """Has the proposer already looked at this task and declined it?"""
+    """Has the proposer looked at this task and declined it — recently?
+
+    Recently, because a decline used to stand forever. Once CI repairs were
+    keyed by failure signature rather than run id (project_loop), a failure
+    declined once would never have been looked at again however much the
+    code under it changed.
+    """
+    import datetime as dt
     try:
         existing = _load_run(repo_full_name, stateio.safe_id(task_id, name="code task id"))
     except ValueError:
         return False
-    return bool(existing and existing.get("status") == "DECLINED")
+    if not (existing and existing.get("status") == "DECLINED"):
+        return False
+    try:
+        when = dt.datetime.fromisoformat(str(existing.get("updated_at") or "").replace("Z", "+00:00"))
+    except ValueError:
+        # No readable date: still a decline. Re-asking is the costly direction.
+        return True
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=dt.timezone.utc)
+    return dt.datetime.now(dt.timezone.utc) - when < dt.timedelta(days=DECLINE_TTL_DAYS)
 
 
 def all_runs() -> list[dict]:

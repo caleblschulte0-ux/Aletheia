@@ -16,6 +16,12 @@ Two sources:
 A repo the source cannot reach is a FINDING in the pulse, never an
 exception and never a silent omission: the pulse always names every repo
 in the registry and says what it could not see.
+
+CHARTERS are read from their OWN branch (`collect_projects`). Until
+2026-09-10 the pulse read default branches only, and listed Money_Machine
+as "Empty stub — nothing but a README" while about five hundred commits of
+Barkly and a hundred and eighty of the Open Range films sat on branches
+beside it. A project is moving or stalled according to where it lives.
 """
 from __future__ import annotations
 
@@ -29,11 +35,15 @@ from aletheia.proc import run as proc_run
 import sys
 import urllib.error
 from pathlib import Path
+from urllib.parse import quote
 
 from aletheia import gh, stateio
 from aletheia.fleet import REPO_ROOT, load_fleet
 
 PULSE_DIR = REPO_ROOT / "state" / "pulse"
+# The cloud builder's branches. A pull request from one of these is work
+# she did; everything else on a project branch is his or his sessions'.
+BUILDER_PREFIX = "claude/thea-"
 
 
 def _utcnow() -> str:
@@ -100,6 +110,38 @@ class GitHubSource:
             return {"exists": True, "kind": "dir"}
         return {"exists": True, "bytes": meta.get("size", 0)}
 
+    def branch_commits(self, gh: str, branch: str, n: int = 30) -> list[dict]:
+        """Newest first. `bot` marks machine commits, which are not anybody
+        moving the project (see `is_machine_commit`)."""
+        rows = self._get(
+            f"/repos/{self.owner}/{gh}/commits?sha={quote(branch, safe='')}&per_page={n}")
+        return [
+            {
+                "date": c["commit"]["committer"]["date"],
+                "bot": is_machine_commit(c),
+                "message": c["commit"]["message"].splitlines()[0][:120],
+            }
+            for c in rows
+        ]
+
+    def pull_requests(self, gh: str, branch: str, state: str) -> list[dict]:
+        rows = self._get(
+            f"/repos/{self.owner}/{gh}/pulls?state={state}&base={quote(branch, safe='')}"
+            "&sort=updated&direction=desc&per_page=30")
+        return [
+            {
+                "number": p["number"],
+                "title": str(p.get("title") or "")[:120],
+                "head": str((p.get("head") or {}).get("ref") or ""),
+                "draft": bool(p.get("draft")),
+                "url": p.get("html_url"),
+                "created_at": p.get("created_at"),
+                "merged_at": p.get("merged_at"),
+                "body": str(p.get("body") or "")[:4000],
+            }
+            for p in rows
+        ]
+
 
 class LocalSource:
     """Reads sibling clones on disk. Workflow runs are honestly unavailable."""
@@ -137,6 +179,12 @@ class LocalSource:
         if not p.is_file():
             return {"exists": False}
         return {"exists": True, "bytes": p.stat().st_size}
+
+    def branch_commits(self, gh: str, branch: str, n: int = 30) -> list[dict]:
+        raise RuntimeError("project branches are unavailable offline")
+
+    def pull_requests(self, gh: str, branch: str, state: str) -> list[dict]:
+        raise RuntimeError("pull requests are unavailable offline")
 
 
 def _dig(data, path: str):
@@ -209,6 +257,129 @@ def _health(record: dict, status: str) -> str:
     return "green"
 
 
+def is_machine_commit(commit: dict) -> bool:
+    """Is this commit a machine writing state rather than someone doing work?
+
+    Two shapes, both seen on 2026-09-10. A GitHub App commits as a Bot
+    account (`github-actions[bot]` rendering Barkly's art). A workflow with
+    its own git identity has NO linked account at all: schwab-trader's
+    `schwab-sell-brain` pushes "update exit decisions [skip ci]" every few
+    hours, and until this check it made a trader with a month-stalled
+    executor read as "moved today". Every state writer in this fleet marks
+    itself `[skip ci]`, so that marker counts too. Claude's real commits are
+    signed by the `claude` user account and are work.
+    """
+    account = commit.get("author") if isinstance(commit.get("author"), dict) else {}
+    body = commit.get("commit") if isinstance(commit.get("commit"), dict) else {}
+    name = str((body.get("author") or {}).get("name") or "")
+    message = str(body.get("message") or "").casefold()
+    return (str(account.get("type") or "") == "Bot"
+            or str(account.get("login") or "").endswith("[bot]")
+            or name.endswith("[bot]")
+            or "[skip ci]" in message or "[ci skip]" in message)
+
+
+def _days_since(stamp: object, now: dt.datetime) -> int | None:
+    if not isinstance(stamp, str) or not stamp:
+        return None
+    try:
+        when = dt.datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=dt.timezone.utc)
+    return max(0, int((now - when).total_seconds() // 86400))
+
+
+def _charter_summary(plan: dict) -> dict:
+    """What the plan itself says: progress, what is next, and whose."""
+    from aletheia import plans as plans_mod
+    done, total = plans_mod.progress(plan)
+    nxt = plans_mod.next_step(plan)
+    yours = plans_mod.next_for(plan, plans_mod.CALEB)
+    hers = plans_mod.next_for(plan, plans_mod.THEA)
+    return {
+        "done": done, "total": total,
+        "next": ({"n": nxt["n"], "text": nxt["text"], "owner": plans_mod.owner(nxt),
+                  "state": nxt["state"]} if nxt else None),
+        "yours": {"n": yours["n"], "text": yours["text"]} if yours else None,
+        "hers": {"n": hers["n"], "text": hers["text"]} if hers else None,
+    }
+
+
+def collect_projects(fleet: dict, source, plan_rows: list[dict] | None = None,
+                     now: dt.datetime | None = None) -> dict:
+    """Every open charter, read from the branch it actually lives on.
+
+    Returns `items` (committed, rendered by the brief) and `evidence`:
+    merged pull requests that name a charter step, which
+    `plans.credit_merged` turns into done steps. A source that cannot read
+    a branch leaves an `error` on that item — never a missing project and
+    never a guessed "quiet".
+    """
+    from aletheia import plans as plans_mod
+    now = now or dt.datetime.now(dt.timezone.utc)
+    rows = plan_rows if plan_rows is not None else plans_mod.all_plans()
+    items, evidence = [], []
+    for plan in rows:
+        if plan.get("state") != "open" or not plans_mod.is_charter(plan):
+            continue
+        project = plan["project"]
+        repo = (fleet.get("repos") or {}).get(project.get("repo")) or {}
+        gh_name, branch = repo.get("github"), str(project.get("base_branch") or "")
+        item = {"slug": plan["slug"], "title": plan["title"], "repo": gh_name,
+                "base_branch": branch, "risk": project.get("risk"),
+                **_charter_summary(plan)}
+        if not gh_name:
+            item["error"] = "the charter's repository is not in the fleet registry"
+            items.append(item)
+            continue
+        try:
+            commits = source.branch_commits(gh_name, branch)
+            work = [c for c in commits if not c.get("bot")]
+            last = work[0]["date"] if work else None
+            item["last_progress_at"] = last
+            item["days_quiet"] = _days_since(last, now)
+            if not work and commits:
+                # Every commit read was a machine's. That is not "no data":
+                # nobody has worked here for AT LEAST as long as the oldest
+                # one read — the trader's last thirty commits are all its
+                # sell-brain writing state.
+                item["days_quiet"] = _days_since(commits[-1]["date"], now)
+                item["quiet_at_least"] = True
+            item["commits_7d"] = sum(
+                1 for c in work if (_days_since(c["date"], now) or 0) < 7)
+        except Exception as exc:
+            item["error"] = f"{type(exc).__name__}: {exc}"[:200]
+        try:
+            item["open_prs"] = [
+                {k: p.get(k) for k in ("number", "title", "head", "draft", "url", "created_at")}
+                for p in source.pull_requests(gh_name, branch, "open")
+            ]
+            for p in source.pull_requests(gh_name, branch, "closed"):
+                if not p.get("merged_at"):
+                    continue
+                for slug, n in plans_mod.CHARTER_STEP.findall(p.get("body") or ""):
+                    if slug.casefold() == plan["slug"]:
+                        evidence.append({"slug": plan["slug"], "n": int(n),
+                                         "pr": p.get("number"), "url": p.get("url"),
+                                         "merged_at": p.get("merged_at"), "base": branch})
+        except Exception as exc:
+            item.setdefault("error", f"{type(exc).__name__}: {exc}"[:200])
+        items.append(item)
+    return {"items": items, "evidence": evidence}
+
+
+def refresh_projects(pulse: dict) -> None:
+    """Re-read progress after steps were credited, so the brief says so today."""
+    from aletheia import plans as plans_mod
+    for item in (pulse.get("projects") or {}).get("items") or []:
+        try:
+            item.update(_charter_summary(plans_mod.load(item["slug"])))
+        except (OSError, KeyError, ValueError):
+            continue
+
+
 def collect(fleet: dict, source) -> dict:
     pulse: dict = {
         "generated_at": _utcnow(),
@@ -253,6 +424,7 @@ def collect(fleet: dict, source) -> dict:
                     record["state_files"][sf] = {"error": f"{type(exc).__name__}: {exc}"}
         record["health"] = _health(record, repo["status"])
         pulse["repos"][rid] = record
+    pulse["projects"] = collect_projects(fleet, source)
     # The numbers go somewhere gitignored, on whichever machine collected
     # them. Best effort: a private store that cannot be written must never
     # stop the pulse, and the committed file is already safe either way.
@@ -440,6 +612,22 @@ def briefing(pulse: dict) -> str:
             lines.append("")
             lines.append("**Missing watched state files:** " + ", ".join(f"`{p}`" for p in missing))
         lines.append("")
+    charters = (pulse.get("projects") or {}).get("items") or []
+    if charters:
+        lines.append("## Charters")
+        lines.append("")
+        for item in charters:
+            where = f"`{item.get('repo')}` @ `{item.get('base_branch')}`"
+            if item.get("error"):
+                lines.append(f"- **{item['title']}** ({where}): unreadable — {item['error']}")
+                continue
+            nxt = item.get("next")
+            lines.append(
+                f"- **{item['title']}** ({where}, {item.get('risk')} risk): "
+                f"{item['done']}/{item['total']} steps; last human or builder commit "
+                f"{item.get('last_progress_at') or 'never'}; "
+                + (f"next step {nxt['n']} ({nxt['owner']}): {nxt['text']}" if nxt else "every step done"))
+        lines.append("")
     return "\n".join(lines)
 
 
@@ -483,6 +671,15 @@ def main(argv: list[str] | None = None) -> int:
             prev = json.loads(prev_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             prev = None
+    # A merged pull request that names a charter step is the evidence that
+    # step is done. Credited before enrich, so the plan summary, the wall
+    # and tomorrow's brief all agree with what landed.
+    from aletheia import plans as plans_mod
+    credited = plans_mod.credit_merged((pulse.get("projects") or {}).get("evidence") or [])
+    if credited:
+        refresh_projects(pulse)
+        for row in credited:
+            print(f"credited {row['slug']} step {row['n']} from merged PR #{row['pr']}")
     enrich(pulse, prev)
     for t in pulse["transitions"]:
         from aletheia import journal

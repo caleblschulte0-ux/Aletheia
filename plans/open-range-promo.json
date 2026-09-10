@@ -1,0 +1,43 @@
+{
+  "slug": "open-range-promo",
+  "title": "Open Range demo films",
+  "goal": "Five demo commercials for Open Range Interactive, each a different treatment with AI overlays, that someone who has never heard of it can watch cold and understand, so Caleb can pick one and send it",
+  "state": "open",
+  "created": "2026-09-10T15:30:00Z",
+  "project": {
+    "repo": "money_machine",
+    "base_branch": "claude/open-range-promo-video-4n7k7o",
+    "path": "handoff",
+    "risk": "low",
+    "why": "Drafted 2026-09-10 from handoff/BRIEF.md (five films, one lead AI capability each) and the branch's round history through r187; his to correct."
+  },
+  "steps": [
+    {
+      "n": 1,
+      "text": "Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open",
+      "state": "todo",
+      "owner": "thea"
+    },
+    {
+      "n": 2,
+      "text": "Look at the five contact sheets and pick the film (or two) worth finishing",
+      "state": "todo",
+      "owner": "caleb",
+      "needs": [1]
+    },
+    {
+      "n": 3,
+      "text": "Finish the chosen film to delivery: master, contact sheet and timeline",
+      "state": "todo",
+      "owner": "thea",
+      "needs": [2]
+    },
+    {
+      "n": 4,
+      "text": "Send the finished film to the first person it's for",
+      "state": "todo",
+      "owner": "caleb",
+      "needs": [3]
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "slug": "holdco-platform",
+  "title": "Holdco platform",
+  "goal": "The first 'shot' offer page on the public internet with signups landing in a real database, so an idea is judged by real visitors instead of by opinion",
+  "state": "open",
+  "created": "2026-09-10T15:30:00Z",
+  "project": {
+    "repo": "money_machine",
+    "base_branch": "claude/ai-holdco-master-playbook-i5q80w",
+    "risk": "low",
+    "why": "Drafted 2026-09-10 from docs/HOLDCO_STRATEGY.md, IMPLEMENTATION_STATUS.md and GO_LIVE.md on the branch, last touched 2026-08-06; his to correct, or to drop if Barkly and the films replace it."
+  },
+  "steps": [
+    {
+      "n": 1,
+      "text": "Pick the one offer to test first and write it as one sentence in docs/NEXT_OFFER.md on the holdco branch (or tell any Claude session to)",
+      "state": "todo",
+      "owner": "caleb"
+    },
+    {
+      "n": 2,
+      "text": "Bring the platform up to date and confirm pnpm test, typecheck and build still pass (last verified 2026-08-06)",
+      "state": "todo",
+      "owner": "thea"
+    },
+    {
+      "n": 3,
+      "text": "Build the shot page for the offer in docs/NEXT_OFFER.md, in apps/shots",
+      "state": "todo",
+      "owner": "thea",
+      "needs": [1]
+    },
+    {
+      "n": 4,
+      "text": "Create the free Postgres database and hosting account (GO_LIVE.md steps 1 and 2, no cost)",
+      "state": "todo",
+      "owner": "caleb"
+    },
+    {
+      "n": 5,
+      "text": "Deploy the shots app, run the GO_LIVE.md smoke test, and send it its first visitors",
+      "state": "todo",
+      "owner": "caleb",
+      "needs": [3, 4]
+    }
+  ]
+}

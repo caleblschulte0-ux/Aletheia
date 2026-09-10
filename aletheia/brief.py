@@ -11,21 +11,40 @@ delivers it two ways:
 
 Run daily by `brief.yml`. Composition is pure (`compose`), so the digest
 is testable without a network; delivery degrades honestly without a token.
+
+THE ONE THING (2026-09-10). He told us how his attention works: a project
+gets a week or two of passion and then drifts. A digest of seven sections
+is a thing a person like that closes unread. So the brief now LEADS with
+exactly one thing that needs him — `pick_one_thing`, placed first in the
+issue comment so it is the line his phone shows — and he answers it by
+replying to the issue from wherever he is (`reply`, run by
+brief-reply.yml): "done", "keep" or "drop". The comment is posted by the
+Actions bot on purpose: GitHub does not notify a person about comments made
+with his own token, which is the token the PC holds.
 """
 from __future__ import annotations
 
 import argparse
 import datetime as dt
 import json
+import re
 import sys
 from pathlib import Path
 
 from aletheia import gh, journal
 from aletheia.fleet import REPO_ROOT
-from aletheia.pulse import PULSE_DIR, STATUS_WORDS
+from aletheia.pulse import BUILDER_PREFIX, PULSE_DIR, STATUS_WORDS
 
 BRIEF_DIR = REPO_ROOT / "state" / "brief"
 BRIEF_TITLE = "☀️ Fleet brief"
+ONE_THING_FILE = "one_thing.json"
+SNOOZE_FILE = "snoozes.json"
+# A charter nobody — him or the builder — has moved in this long gets asked
+# about. Long enough not to nag a project resting for a weekend; short
+# enough to catch the drift he described before it becomes a month.
+DRIFT_DAYS = 7
+# "keep" buys this much quiet before the question comes back.
+SNOOZE_DAYS = 7
 
 
 def previous_pulse(pulse: dict, history_dir: Path | None = None) -> dict | None:
@@ -79,6 +98,132 @@ def _fmt(value, unit: str | None, signed: bool = False) -> str:
     return f"{sign}{value:,g}"
 
 
+# ---- the one thing ----------------------------------------------------------
+
+def _read_state(name: str) -> dict:
+    try:
+        value = json.loads((BRIEF_DIR / name).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _write_state(name: str, value: dict) -> None:
+    BRIEF_DIR.mkdir(parents=True, exist_ok=True)
+    (BRIEF_DIR / name).write_text(
+        json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def _now(now: dt.datetime | None = None) -> dt.datetime:
+    return (now or dt.datetime.now(dt.timezone.utc)).astimezone(dt.timezone.utc)
+
+
+def _stamp(now: dt.datetime) -> str:
+    return now.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _quiet(item: dict) -> int:
+    days = item.get("days_quiet")
+    return days if isinstance(days, int) and not isinstance(days, bool) else -1
+
+
+def _snoozed(snoozes: dict, slug: str, now: dt.datetime) -> bool:
+    until = str((snoozes or {}).get(slug) or "")
+    try:
+        when = dt.datetime.fromisoformat(until.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=dt.timezone.utc)
+    return when > now
+
+
+def _days(n: int) -> str:
+    return "1 day" if n == 1 else f"{n} days"
+
+
+def _charters(pulse: dict) -> list[dict]:
+    return [i for i in ((pulse.get("projects") or {}).get("items") or [])
+            if isinstance(i, dict) and i.get("slug")]
+
+
+def pick_one_thing(pulse: dict, snoozes: dict | None = None,
+                   now: dt.datetime | None = None) -> dict | None:
+    """The ONE thing that needs him today, or None.
+
+    Exactly one, in the order that unblocks the most work otherwise ready
+    to go:
+
+    1. a finished builder pull request only he may merge (a high-risk
+       charter — the trader);
+    2. his next step, on the charter that has sat quiet longest;
+    3. a charter nobody has moved in DRIFT_DAYS: keep it or drop it.
+
+    Low-risk pull requests are not on this list. She merges those herself
+    (aletheia.project_merge) — that is what marking a charter low-risk means.
+    """
+    now = _now(now)
+    items = _charters(pulse)
+    waiting = []
+    for item in items:
+        if item.get("risk") != "high":
+            continue
+        for pr in item.get("open_prs") or []:
+            if (isinstance(pr, dict) and not pr.get("draft")
+                    and str(pr.get("head") or "").startswith(BUILDER_PREFIX)):
+                waiting.append((str(pr.get("created_at") or ""), item, pr))
+    if waiting:
+        _, item, pr = min(waiting, key=lambda w: (w[0], w[1]["slug"]))
+        return {"kind": "merge", "slug": item["slug"], "title": item["title"],
+                "pr": pr.get("number"),
+                "text": (f"{item['title']}: review and merge pull request #{pr.get('number')}, "
+                         f"{pr.get('title')} ({pr.get('url')})")}
+    yours = [i for i in items if isinstance(i.get("yours"), dict)]
+    if yours:
+        item = max(yours, key=lambda i: (_quiet(i), i["slug"]))
+        step = item["yours"]
+        return {"kind": "step", "slug": item["slug"], "title": item["title"],
+                "n": step["n"], "step": step["text"],
+                "text": f"{item['title']}: {step['text']}. Reply done when it is."}
+    stalled = [i for i in items
+               if _quiet(i) >= DRIFT_DAYS and not _snoozed(snoozes or {}, i["slug"], now)]
+    if stalled:
+        item = max(stalled, key=lambda i: (_quiet(i), i["slug"]))
+        at_least = "at least " if item.get("quiet_at_least") else ""
+        return {"kind": "drift", "slug": item["slug"], "title": item["title"],
+                "text": (f"{item['title']} hasn't moved in {at_least}{_days(item['days_quiet'])}. "
+                         "Reply keep or drop.")}
+    return None
+
+
+def _project_line(item: dict) -> str:
+    head = f"**{item.get('title')}** — {item.get('done', 0)}/{item.get('total', 0)} steps"
+    if item.get("error"):
+        return f"{head} · couldn't read its branch ({item['error']})"
+    quiet = _quiet(item)
+    if item.get("quiet_at_least") and quiet >= 0:
+        moved = f"no real work in at least {_days(quiet)} (only machine commits)"
+    else:
+        moved = ("no commits yet" if quiet < 0 else "moved today" if quiet == 0
+                 else f"last moved {_days(quiet)} ago")
+    parts = [head, moved]
+    hers, yours = item.get("hers"), item.get("yours")
+    if hers:
+        parts.append(f"Thea next: {hers['text']}")
+    if yours:
+        parts.append(f"yours next: {yours['text']}")
+    if not item.get("next"):
+        parts.append("every step done")
+    elif not hers and not yours:
+        parts.append(f"waiting on: {item['next']['text']}")
+    builder = [p for p in item.get("open_prs") or []
+               if str((p or {}).get("head") or "").startswith(BUILDER_PREFIX)]
+    if builder:
+        parts.append(f"{len(builder)} open builder pull request"
+                     + ("" if len(builder) == 1 else "s"))
+    return " · ".join(parts)
+
+
 def compose(pulse: dict, prev: dict | None, journal_entries: list[dict],
             new_suggestions: int) -> str:
     day = pulse["generated_at"][:10]
@@ -92,6 +237,19 @@ def compose(pulse: dict, prev: dict | None, journal_entries: list[dict],
     else:
         lines.append("**All quiet.** No faults anywhere in the fleet.")
     lines.append("")
+
+    thing = pick_one_thing(pulse, snoozes=_read_state(SNOOZE_FILE))
+    if thing:
+        lines.append("## 🧭 Your one thing today")
+        lines.append(thing["text"])
+        lines.append("")
+
+    charters = _charters(pulse)
+    if charters:
+        lines.append("## Projects")
+        for item in charters:
+            lines.append("- " + _project_line(item))
+        lines.append("")
 
     for rid, r in pulse["repos"].items():
         if r["status"] != "active":
@@ -162,6 +320,53 @@ def compose(pulse: dict, prev: dict | None, journal_entries: list[dict],
     return "\n".join(lines)
 
 
+def reply(body: str, *, now: dt.datetime | None = None) -> str:
+    """Apply his reply on the brief issue to today's one thing.
+
+    Only the FIRST WORD counts, and only the repository owner's comments
+    reach here (brief-reply.yml checks the author). A word that does not
+    answer today's one thing changes nothing and says so — a reply he meant
+    as a note to himself is never read as an instruction.
+    """
+    now = _now(now)
+    words = str(body or "").strip().split()
+    word = re.sub(r"[^a-z]", "", words[0].casefold()) if words else ""
+    thing = _read_state(ONE_THING_FILE)
+    kind, slug = thing.get("kind"), thing.get("slug")
+    if not kind or not slug:
+        return "There's no one thing on record today, so nothing changed."
+    if thing.get("answered"):
+        return f"Today's one thing was already answered ({thing['answered']}), so nothing changed."
+    from aletheia import plans
+    title = thing.get("title") or slug
+    if kind == "step" and word in {"done", "did", "finished", "complete"}:
+        plans.set_step(slug, int(thing["n"]), "done")
+        journal.append("decision", f"plan:{slug}",
+                       f"step {thing['n']} marked done by his reply on the brief",
+                       actor="operator-issue-comment")
+        nxt = plans.next_for(plans.load(slug), plans.CALEB)
+        outcome = (f"Marked done: {thing.get('step')}."
+                   + (f" Your next one on {title}: {nxt['text']}." if nxt
+                      else f" Nothing else on {title} is yours right now."))
+    elif kind == "drift" and word == "keep":
+        snoozes = _read_state(SNOOZE_FILE)
+        snoozes[slug] = _stamp(now + dt.timedelta(days=SNOOZE_DAYS))
+        _write_state(SNOOZE_FILE, snoozes)
+        journal.append("decision", f"plan:{slug}",
+                       f"kept by his reply; drift check-in quiet for {SNOOZE_DAYS} days",
+                       actor="operator-issue-comment")
+        outcome = f"Keeping {title}. I won't ask about it again for {_days(SNOOZE_DAYS)}."
+    elif kind == "drift" and word in {"drop", "kill"}:
+        plans.set_plan(slug, "dropped", because="he replied drop to the drift check-in")
+        outcome = f"Dropped {title}. The builder will leave it alone."
+    else:
+        takes = {"step": "done", "drift": "keep or drop",
+                 "merge": "a merge on GitHub, not a reply"}.get(kind, "a different answer")
+        return f"That doesn't answer today's one thing (it takes {takes}), so nothing changed."
+    _write_state(ONE_THING_FILE, {**thing, "answered": word, "answered_at": _stamp(now)})
+    return outcome
+
+
 def _count_new_suggestions() -> int:
     from aletheia.suggestions import SUGGESTIONS_DIR, load_verdicts
     verdicts = load_verdicts()
@@ -172,7 +377,8 @@ def _count_new_suggestions() -> int:
     return n
 
 
-def deliver_issue(text: str, day: str, repo_full: str, request=gh.request) -> str:
+def deliver_issue(text: str, day: str, repo_full: str, request=gh.request,
+                  lead: str = "") -> str:
     issues = request("GET", f"/repos/{repo_full}/issues?state=open&per_page=100") or []
     existing = next((i for i in issues
                      if i.get("title", "").startswith(BRIEF_TITLE) and "pull_request" not in i), None)
@@ -181,8 +387,10 @@ def deliver_issue(text: str, day: str, repo_full: str, request=gh.request) -> st
                 {"title": BRIEF_TITLE, "body": text})
         return "opened"
     request("PATCH", f"/repos/{repo_full}/issues/{existing['number']}", {"body": text})
+    # The notification shows the first line, so the one thing goes first.
+    opener = f"**Your one thing today:** {lead}\n\n" if lead else ""
     request("POST", f"/repos/{repo_full}/issues/{existing['number']}/comments",
-            {"body": f"Brief for **{day}**:\n\n{text}"})
+            {"body": f"{opener}Brief for **{day}**:\n\n{text}"})
     return "commented"
 
 
@@ -190,12 +398,22 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Compose (and deliver) the morning fleet brief.")
     ap.add_argument("--repo", help="owner/name for issue delivery; omit to only write files")
     ap.add_argument("--pulse", default=str(PULSE_DIR / "latest.json"))
+    ap.add_argument("--reply", metavar="BODY",
+                    help="apply his reply to today's one thing and print the answer (brief-reply.yml)")
     args = ap.parse_args(argv)
+
+    if args.reply is not None:
+        print(reply(args.reply))
+        return 0
 
     pulse = json.loads(Path(args.pulse).read_text(encoding="utf-8"))
     prev = previous_pulse(pulse)
     text = compose(pulse, prev, journal.since(24), _count_new_suggestions())
     day = pulse["generated_at"][:10]
+    thing = pick_one_thing(pulse, snoozes=_read_state(SNOOZE_FILE))
+    # What "done" in a reply will refer to. A day with nothing on it is
+    # recorded too, so yesterday's step cannot be answered by today's reply.
+    _write_state(ONE_THING_FILE, {**(thing or {}), "day": day})
 
     (BRIEF_DIR / "history").mkdir(parents=True, exist_ok=True)
     (BRIEF_DIR / "latest.md").write_text(text + "\n", encoding="utf-8")
@@ -207,7 +425,7 @@ def main(argv: list[str] | None = None) -> int:
         if not gh.token():
             print("no token — brief written to state/ but not delivered as an issue", file=sys.stderr)
             return 0
-        outcome = deliver_issue(text, day, args.repo)
+        outcome = deliver_issue(text, day, args.repo, lead=(thing or {}).get("text", ""))
         print(f"brief issue: {outcome}")
     return 0
 

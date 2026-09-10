@@ -1,5 +1,5 @@
 {
-  "revision": 4,
+  "revision": 5,
   "fleet": "aletheia",
   "owner": "caleblschulte0-ux",
   "repos": {
@@ -205,13 +205,26 @@
     },
     "money_machine": {
       "github": "Money_Machine",
-      "role": "unbuilt",
-      "status": "stub",
-      "summary": "Empty stub — nothing but a README. No behaviour to observe yet.",
+      "role": "product-ventures",
+      "status": "active",
+      "summary": "Product ventures monorepo. main holds only a README; the work lives on long-running branches (Barkly, the Open Range demo films, the holdco platform), each carried by a charter in plans/.",
       "default_branch": "main",
-      "agents": [],
+      "agents": [
+        {
+          "name": "Claude Code sessions",
+          "kind": "claude",
+          "writes": "the project branches"
+        },
+        {
+          "name": "Thea project builder",
+          "kind": "claude",
+          "writes": "claude/thea-* branches and pull requests; merged by Thea only on low-risk charters"
+        }
+      ],
       "watch": {
-        "workflows": [],
+        "workflows": [
+          "barkly-ci.yml"
+        ],
         "state_files": []
       }
     },

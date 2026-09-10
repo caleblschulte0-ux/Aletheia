@@ -12,6 +12,10 @@ class ProjectLoopCase(unittest.TestCase):
         root = Path(self.tmp.name)
         patch = mock.patch.object(project_loop, "LATEST", root / "latest.json")
         patch.start(); self.addCleanup(patch.stop)
+        # Carrying the charters talks to GitHub; it has its own tests in
+        # test_projects_are_carried.py. Here it must not reach the network.
+        carry = mock.patch.object(project_loop, "_carry_projects", return_value={})
+        carry.start(); self.addCleanup(carry.stop)
 
     def test_no_grant_blocks_before_portfolio_scan(self):
         with mock.patch.object(project_loop.code_trust, "active", return_value=None), \
@@ -102,7 +106,9 @@ class ProjectLoopCase(unittest.TestCase):
             raise AssertionError(path)
         repo = {"full_name": "me/repo", "private": False, "observation_complete": True}
         work = project_loop.choose_work(repo, request=request)
-        self.assertEqual(work["task_id"], "ci-9")
+        # One id per FAILURE, not per run of it (failure_signature).
+        self.assertTrue(work["task_id"].startswith("ci-"))
+        self.assertEqual(work["run_id"], 9)
         # Job, step and workflow names are all repository text a contributor
         # can edit, so they are evidence too — the objective keeps only the
         # run id and our own standing instruction.

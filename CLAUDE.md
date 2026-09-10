@@ -618,6 +618,46 @@ on the path nobody had fixed; `speech.plainly` is shared now. Same reason
 `webtask.would_spend` is one predicate for three gates, and
 `voice.approval_label` is computed by the API for all three interfaces.
 
+## He starts projects hot and drifts. Carry them
+
+His words, 2026-09-10: *"I'll start a project really passionate about it
+for, like, a week or two and then just kinda get bored and forget about
+it ... I just need [her] to be able to take my projects and continue
+building and working on them ... doing it mostly herself, but then also
+keeping me on track too."* Anything that needs him engaged fails at the
+exact moment it matters — once he has drifted. Measured the same day: the
+local code loop had made 150 attempts and opened zero pull requests, there
+were zero project records, and the pulse could not see about 500 commits
+of Barkly because they were not on `main`.
+
+So a project he wants carried is a **charter**: a plan in `plans/` with a
+`project` block (repo, the branch it really lives on, risk) whose steps
+say whose they are.
+
+- **Her steps** go to the cloud builder (the "Thea project builder"
+  routine), which works on `claude/thea-<slug>-s<n>-*` branches and names
+  `Charter-Step: <slug>#<n>` in the pull request.
+- **His steps** reach him ONE at a time, at the top of the morning brief,
+  posted by the Actions bot — GitHub does not notify a person of comments
+  made with his own token, which is the token the PC holds. He answers by
+  replying `done`, `keep` or `drop` (`brief-reply.yml`).
+- **A step is done** when a merged pull request into the charter's branch
+  names it (`plans.credit_merged`, run by the pulse), or when he says so.
+  A worker's "done" is not evidence.
+- **Merging.** His ruling, the option he picked: *"She merges low-risk
+  (Recommended) — She merges projects you mark low-risk (Barkly, promo
+  video) after tests plus an independent review. The trader and
+  Aletheia's own code still wait for you."* `aletheia/project_merge.py` is
+  the only path that merges without him, and it refuses in code rather
+  than by trusting the charter: Aletheia and schwab-trader, default
+  branches, forks, red or absent CI, protected paths, same-model reviews.
+  Do not add a second merge path, and do not widen this one without a new
+  ruling in his words.
+- **Draft charters are drafts.** The first four were written by a Claude
+  session from each repository's own docs. When he corrects one, his
+  version wins. When you write one for something new he mentions, make
+  the next step always obvious and make his steps the smallest honest asks.
+
 ## The standing assignment
 
 Every session acts on the playbook rather than re-describing it (§156):

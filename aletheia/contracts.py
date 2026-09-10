@@ -43,6 +43,10 @@ APPROVAL_STATES = {"PENDING", "APPROVED", "DENIED", "EXPIRED"}
 
 GOAL_STATES = {"open", "done", "dropped"}          # carried by plans/*.json today
 GOAL_STEP_STATES = {"todo", "doing", "done", "blocked"}
+# A charter step is hers (the builder does it) or his (the brief asks him).
+GOAL_STEP_OWNERS = {"thea", "caleb"}
+# low: she may merge finished, reviewed work herself · high: he merges.
+GOAL_PROJECT_RISKS = {"low", "high"}
 
 
 # ---- validator machinery ----------------------------------------------------
@@ -101,15 +105,27 @@ def validate_provider(p: dict) -> list[str]:
 def validate_goal(g: dict) -> list[str]:
     """The Goal contract is carried by plans/*.json today (aletheia.plans):
     slug/title/goal/state/created/steps. This validator IS that schema —
-    one contract, one store."""
+    one contract, one store.
+
+    A goal carrying a `project` block is a CHARTER — a venture carried
+    while his attention is elsewhere (aletheia.plans). Its steps say whose
+    they are and which earlier steps they need, because the one thing a
+    builder cannot do is his part."""
     problems = _check(g, "Goal", required={
         "slug": str, "title": str, "goal": str,
         "state": (str, GOAL_STATES), "created": str, "steps": list,
-    }, optional={})
+    }, optional={"project": dict})
+    project = g.get("project") if isinstance(g, dict) else None
+    if isinstance(project, dict):
+        problems += _check(project, "Goal.project", required={
+            "repo": str,                     # fleet registry key
+            "base_branch": str,              # where the project actually lives
+            "risk": (str, GOAL_PROJECT_RISKS),
+        }, optional={"path": str, "why": str})
     for i, s in enumerate(g.get("steps", []) if isinstance(g, dict) else []):
         problems += _check(s, f"Goal.steps[{i}]", required={
             "n": int, "text": str, "state": (str, GOAL_STEP_STATES),
-        }, optional={"repo": str})
+        }, optional={"repo": str, "owner": (str, GOAL_STEP_OWNERS), "needs": list})
     return problems
 
 

@@ -4,21 +4,30 @@ Each scheduled cycle observes the portfolio, reconciles prior PR evidence, and a
 most once attempts one bounded public-repository repair sourced from a real open
 GitHub issue or a current CI failure. It does not invent product direction, edit
 private repositories, or merge its own pull requests.
+
+Since 2026-09-10 each cycle also CARRIES the charters (`_carry_projects`): it
+opens the pull request for work the cloud builder pushed, and merges the
+low-risk ones that pass every gate in aletheia.project_merge. Direction still
+comes only from the charters he approved, and this loop still never merges a
+change it proposed itself.
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 from urllib.parse import quote
 
 from aletheia import (code_trust, code_worker, gh, mission, policy, portfolio,
-                      stateio)
+                      project_merge, stateio)
 
 ROOT = stateio.private_dir("project-loop")
 LATEST = ROOT / "latest.json"
 DEFAULT_DAILY_LIMIT = 3
 MAX_RECONCILE = 20
+# How many distinct failed runs one cycle looks past before giving up.
+MAX_CI_CANDIDATES = 5
 SKIP_LABELS = {"wontfix", "duplicate", "question", "invalid", "no-auto", "manual-only"}
 # Issues that are not defects. The first live sweeps (2026-09-02) spent
 # every attempt on Aletheia's own fleet alerts, a watchdog's "executor
@@ -136,37 +145,17 @@ def _job_log_tail(encoded: str, job_id: int, *, request_text=None) -> str:
     return "\n".join(window)[-LOG_TAIL_CHARS:]
 
 
-def _ci_work(repo: dict, *, request=gh.request, request_text=None) -> dict | None:
-    encoded = _enc_repo(repo["full_name"])
-    try:
-        data = request("GET", f"/repos/{encoded}/actions/runs?per_page=20")
-    except Exception:
-        return None
-    rows = data.get("workflow_runs", []) if isinstance(data, dict) else []
-    failed = [
-        r for r in rows if isinstance(r, dict)
-        and str(r.get("status") or "") == "completed"
-        and str(r.get("conclusion") or "") in portfolio.FAIL_CONCLUSIONS
-    ]
-    # A run the proposer already looked at and declined is not asked again;
-    # the next failed run (if any) is.
-    failed = [r for r in failed if not (isinstance(r.get("id"), int)
-                                        and code_worker.declined(repo["full_name"], f"ci-{r['id']}"))]
-    if not failed:
-        return None
-    run = failed[0]
-    run_id = run.get("id")
-    if not isinstance(run_id, int):
-        return None
-    details = []
-    log_tail = ""
+def _failed_jobs(encoded: str, run_id: int, *, request=gh.request) -> tuple[list[str], int | None]:
+    """(sanitized "job: step, step" labels, the first failed job's id)."""
+    details: list[str] = []
+    first: int | None = None
     try:
         jobs = request("GET", f"/repos/{encoded}/actions/runs/{run_id}/jobs?per_page=30")
         for job in (jobs.get("jobs", []) if isinstance(jobs, dict) else []):
             if not isinstance(job, dict) or str(job.get("conclusion") or "") == "success":
                 continue
-            if not log_tail and isinstance(job.get("id"), int):
-                log_tail = _job_log_tail(encoded, job["id"], request_text=request_text)
+            if first is None and isinstance(job.get("id"), int):
+                first = job["id"]
             failed_steps = [
                 str(step.get("name") or "") for step in job.get("steps", [])
                 if isinstance(step, dict) and str(step.get("conclusion") or "") == "failure"
@@ -182,20 +171,70 @@ def _ci_work(repo: dict, *, request=gh.request, request_text=None) -> dict | Non
             details.append(label[:300])
     except Exception:
         pass
-    objective = (
-        f"Repair the current failing CI run {run_id} in {repo['full_name']}. "
-        "Do not edit GitHub workflow files; fix only safe application/test code. "
-        "If the root cause requires a protected workflow, credential, policy, or governance path, make no change."
-    )
-    # Job and step names come from the repository's workflow files, which any
-    # contributor may edit — untrusted for the same reason an issue body is.
-    evidence = ("Failing jobs/steps: " + "; ".join(details[:8])) if details else ""
-    if log_tail:
-        # The log is written by the repository's own tools and by whoever
-        # pushed - untrusted for the same reason an issue body is.
-        evidence += ("\n\nLast lines of the failing job's log:\n" + log_tail)
-    return {"task_id": f"ci-{run_id}", "kind": "ci", "objective": objective[:4000],
-            "evidence": code_worker.sanitize_external(evidence)}
+    return details, first
+
+
+def failure_signature(run: dict, details: list[str]) -> str:
+    """One id for one FAILURE, rather than one per run of it.
+
+    Keyed on run ids, a failure that recurs on every push was a brand-new
+    question every half hour. Of the loop's first 150 recorded declines, 39
+    were Money_Machine and 34 Shorts-pipeline — the same few failures on
+    successive runs, each asked of a model and each declined for the same
+    reason. The workflow and its failing job/step names identify a failure;
+    the run id only says when it happened again.
+    """
+    raw = "|".join([str(run.get("name") or run.get("path") or "workflow")] + sorted(details))
+    return "ci-" + hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
+
+
+def _ci_work(repo: dict, *, request=gh.request, request_text=None) -> dict | None:
+    encoded = _enc_repo(repo["full_name"])
+    try:
+        data = request("GET", f"/repos/{encoded}/actions/runs?per_page=20")
+    except Exception:
+        return None
+    rows = data.get("workflow_runs", []) if isinstance(data, dict) else []
+    default = str(repo.get("default_branch") or "")
+    failed = [
+        r for r in rows if isinstance(r, dict)
+        and str(r.get("status") or "") == "completed"
+        and str(r.get("conclusion") or "") in portfolio.FAIL_CONCLUSIONS
+        # A repair pull request targets the DEFAULT branch, so only a failure
+        # ON the default branch is one it can repair. Barkly's CI fails on its
+        # own long-running branch, and a fix aimed at Money_Machine's
+        # README-only main can only ever be declined.
+        and (not default or str(r.get("head_branch") or default) == default)
+    ]
+    for run in failed[:MAX_CI_CANDIDATES]:
+        run_id = run.get("id")
+        if not isinstance(run_id, int):
+            continue
+        # declined under the per-run id, before signatures existed
+        if code_worker.declined(repo["full_name"], f"ci-{run_id}"):
+            continue
+        details, job_id = _failed_jobs(encoded, run_id, request=request)
+        signature = failure_signature(run, details)
+        if code_worker.declined(repo["full_name"], signature):
+            continue
+        log_tail = (_job_log_tail(encoded, job_id, request_text=request_text)
+                    if job_id is not None else "")
+        objective = (
+            f"Repair the current failing CI run {run_id} in {repo['full_name']}. "
+            "Do not edit GitHub workflow files; fix only safe application/test code. "
+            "If the root cause requires a protected workflow, credential, policy, or governance path, make no change."
+        )
+        # Job and step names come from the repository's workflow files, which any
+        # contributor may edit — untrusted for the same reason an issue body is.
+        evidence = ("Failing jobs/steps: " + "; ".join(details[:8])) if details else ""
+        if log_tail:
+            # The log is written by the repository's own tools and by whoever
+            # pushed - untrusted for the same reason an issue body is.
+            evidence += ("\n\nLast lines of the failing job's log:\n" + log_tail)
+        return {"task_id": signature, "kind": "ci", "run_id": run_id,
+                "objective": objective[:4000],
+                "evidence": code_worker.sanitize_external(evidence)}
+    return None
 
 
 def choose_work(repo: dict, *, request=gh.request) -> dict | None:
@@ -229,6 +268,22 @@ def reconcile_prior(*, request=gh.request, limit: int = MAX_RECONCILE) -> list[d
     return out
 
 
+def _carry_projects(*, request=gh.request) -> dict:
+    """Open pull requests for work the builder pushed; merge the low-risk
+    ones that passed every gate. A failure here never costs the repair
+    cycle its turn — but HALT still stops everything."""
+    out: dict = {}
+    for key, step in (("opened", project_merge.open_builder_prs),
+                      ("merges", project_merge.sweep)):
+        try:
+            out[key] = step(request=request)
+        except policy.Halted:
+            raise
+        except Exception as exc:
+            out[f"{key}_error"] = f"{type(exc).__name__}: {exc}"[:200]
+    return out
+
+
 def cycle(*, request=gh.request, daily_limit: int = DEFAULT_DAILY_LIMIT) -> dict:
     if type(daily_limit) is not int or not 1 <= daily_limit <= 20:
         raise ValueError("daily_limit must be 1..20")
@@ -243,10 +298,15 @@ def cycle(*, request=gh.request, daily_limit: int = DEFAULT_DAILY_LIMIT) -> dict
         return result
 
     reconciled = reconcile_prior(request=request)
+    # Before the throttle: carrying the charters claims no PR slot, and a
+    # day spent at the repair limit is no reason to leave finished work
+    # unmerged.
+    carried = _carry_projects(request=request)
     if code_trust.claims_since(hours=24) >= daily_limit:
         result = {
             "version": 1, "status": "THROTTLED", "daily_limit": daily_limit,
-            "reconciled": len(reconciled), "updated_at": stateio.utcnow(),
+            "reconciled": len(reconciled), "carried": carried,
+            "updated_at": stateio.utcnow(),
         }
         stateio.write_json_atomic(LATEST, result)
         return result
@@ -266,20 +326,23 @@ def cycle(*, request=gh.request, daily_limit: int = DEFAULT_DAILY_LIMIT) -> dict
                 "version": 1, "status": "WORKED", "repo": repo["full_name"],
                 "source": work["kind"], "task_id": work["task_id"],
                 "work_status": run.get("status"), "pr_url": run.get("pr_url"),
-                "reconciled": len(reconciled), "updated_at": stateio.utcnow(),
+                "reconciled": len(reconciled), "carried": carried,
+                "updated_at": stateio.utcnow(),
             }
         except Exception as exc:
             result = {
                 "version": 1, "status": "ERROR", "repo": repo["full_name"],
                 "source": work["kind"], "task_id": work["task_id"],
                 "reason": type(exc).__name__, "detail": str(exc)[:200],
-                "reconciled": len(reconciled), "updated_at": stateio.utcnow(),
+                "reconciled": len(reconciled), "carried": carried,
+                "updated_at": stateio.utcnow(),
             }
         stateio.write_json_atomic(LATEST, result)
         return result
 
     result = {
         "version": 1, "status": "IDLE", "reconciled": len(reconciled),
+        "carried": carried,
         "scanned": snapshot.get("counts", {}).get("total", len(public)),
         "updated_at": stateio.utcnow(),
     }

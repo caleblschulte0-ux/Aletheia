@@ -56,7 +56,10 @@ class ACiRepairSeesTheLog(Isolated):
             return "\n".join(lines)
 
         work = project_loop._ci_work(REPO, request=request, request_text=request_text)
-        self.assertEqual(work["task_id"], "ci-77")
+        # The id names the FAILURE, not the run (project_loop.failure_signature);
+        # the run it was seen on is still carried.
+        self.assertTrue(work["task_id"].startswith("ci-"))
+        self.assertEqual(work["run_id"], 77)
         self.assertIn("AssertionError: expected 2 got 1", work["evidence"])
         self.assertNotIn("2026-09-02T10:03:20", work["evidence"], "timestamps stripped")
         self.assertNotIn("line 5\n", work["evidence"], "only the window around the error")
