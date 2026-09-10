@@ -1661,7 +1661,31 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                                  why=cmd.get("why", ""))
             return f"edited {out['path']} ({out['replacements']} change)"
         if kind == "file_read":
-            out = workspace.read(cmd["path"], anywhere=bool(cmd.get("anywhere")))
+            want = str(cmd.get("path") or "")
+            try:
+                out = workspace.read(want, anywhere=bool(cmd.get("anywhere")))
+            except Exception as exc:
+                # A NAME IS NOT A PATH, and he only ever has the name. She
+                # writes code into `<workspace>/code/`, then offered "say
+                # read rename_files.py" — and reading it failed, because
+                # the name resolves against the workspace ROOT. An OFFER
+                # is a claim about ability. `file.find` is how she turns a
+                # name into a path now; if it finds nothing, the original
+                # refusal is the honest one and is what he hears.
+                from aletheia import files as files_mod
+                found = files_mod.newest(want)
+                if not found:
+                    raise
+                out = workspace.read(found["path"], anywhere=True)
+            # A PROGRAM IS NOT PROSE, on the way back either. Reciting
+            # fifteen lines of Python is the same two minutes of nothing
+            # that `codeblocks` exists to stop, arriving through the other
+            # door — and "go through it" means what it does, not every
+            # character of it. A .md or .txt is a document and is read.
+            from aletheia import codeblocks
+            name = str(out.get("path") or want).replace("\\", "/").split("/")[-1]
+            if codeblocks.is_code(name):
+                return codeblocks.describe(out["text"], name)
             return out["text"][:2000]
         rows = workspace.listing(cmd.get("subdir", ""))
         if not rows:

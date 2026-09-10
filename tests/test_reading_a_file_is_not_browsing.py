@@ -19,12 +19,32 @@ from aletheia import voice
 
 
 class AFileIsNotADomainCase(unittest.TestCase):
-    def test_a_file_he_names_reaches_the_planner(self):
+    def test_a_file_he_names_is_never_browsed_to(self):
+        """The rule this class is named for.
+
+        It asserted `kind == "intent"`, which was the CONSEQUENCE of the
+        rule when it was written — nothing could handle a filename, so it
+        fell through to the planner — rather than the rule. The planner is
+        six seconds and a guess for a sentence with a filename in it, and
+        "read rename.py" is the sentence her own answer tells him to say
+        after she writes a script. What must never happen is that
+        `notes.md` is treated as a host and opened in a browser.
+        """
         for said in ("read notes.md", "read my resume.pdf",
                      "open report.docx", "read the budget.xlsx"):
             with self.subTest(said=said):
                 got = voice.interpret(f"thea {said}")["command"]
-                self.assertEqual(got["kind"], "intent", said)
+                self.assertNotEqual(got["kind"], "browse_read", said)
+                self.assertEqual(got["kind"], "file_read", said)
+
+    def test_the_file_he_named_is_the_file_she_opens(self):
+        for said, path in (("read notes.md", "notes.md"),
+                           ("read my resume.pdf", "resume.pdf"),
+                           ("open report.docx", "report.docx"),
+                           ("read the budget.xlsx", "budget.xlsx")):
+            with self.subTest(said=said):
+                got = voice.interpret(f"thea {said}")["command"]
+                self.assertEqual(got["path"], path)
 
     def test_a_real_address_still_opens(self):
         for said, url in (("read example.com", "https://example.com"),

@@ -1,5 +1,5 @@
 {
-  "revision": 106,
+  "revision": 108,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1118,6 +1118,17 @@
       "verification": "tests/test_setup.py asserts the checklist covers every NEEDS_CONFIGURATION capability, that a failing verifier is reported rather than raised, and that the phone is not 'done' until a call has actually happened"
     },
     {
+      "id": "machine.headroom",
+      "description": "Know what this computer can actually run before asking it to — a model bigger than its memory is refused, not attempted",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.local_model_pool.run_json refuses a role whose model will not fit; aletheia.setup._local_ai reports it in the audit; aletheia.local_model_pool.room_for_role",
+      "module": "aletheia.machine",
+      "notes": "CLAUDE.md: INSTALLED IS NOT WORKING, and a readiness check that confuses them is the worst kind of lie, because it is wrong precisely where he is trusting it. browse.available() was that once - True from an import and a file on disk, about a browser that could not load a page. local_model_pool.reachable() was the same shape one lane over: it returns True when Ollama answers /api/tags, which proves Ollama is running and nothing else. The deep role resolves by default to qwen3.6:27b, 17.8 GB, on a 16 GB machine with integrated graphics and no discrete GPU, and choose_role sends anything to it that mentions debug, root cause, architecture or code review, or is simply longer than 1,200 characters. MEASURED LIVE 2026-09-09 while it was resident: commit charge 32,329 MB of a 32,841 MB limit (98.4%), 1,026 MB of physical memory free, while every process working set together came to 4,156 MB. At that point Windows starts killing things, and what it killed was this repository's own test suite, mid-run. The check now runs BEFORE the model loads, reads the size from Ollama's own listing and the memory from the OS, leaves 3 GB for everything he has open, and fails over to the role that fits or to his Claude subscription - he has one laptop and a subscription, and the subscription is not the scarce thing. Fails OPEN where the platform will not report its memory: ignorance is not evidence that a model is too big. Stdlib ctypes, like screen.capture, so it works on the machine of whoever did not run pip."
+    },
+    {
       "id": "work.session",
       "description": "A bounded workstation session: an expiry, an action budget, and one approval that every action inside it is charged against",
       "provider": "aletheia.local",
@@ -1308,6 +1319,17 @@
       "module": "aletheia.workspace",
       "notes": "One root (~/Documents/Aletheia by default; ALETHEIA_WORKSPACE overrides), every path RESOLVED before it is checked so `../` and symlinks out of the workspace fail the same test, absolute paths refused, a root that resolves to his home/Desktop/Documents refused as 'everything under it', and - found live 2026-09-02 - a root that is a source repository refused: the old default (~/Aletheia) WAS this repository's checkout, so the first write was refused as 'the workspace already holds 2000 files' and anything she wrote would have blocked the Core's sync as a person's uncommitted work. Every overwrite keeps the previous version in .versions/; reading is deliberately wider than writing; text formats only. 2026-09-03: DELETE and MOVE exist now. 'Delete summary.md' had no matching kind at all - file_write/file_edit/file_read/file_list was the whole vocabulary - so the planner claimed file.author was missing (refused: the registry said otherwise) and fell through to the SCRIPT SANDBOX to do an ordinary file operation. Both new verbs keep a version FIRST, so both are undoable with restore: a delete that cannot lose anything is a shelf, not a shredder, which is what makes them routine rather than approval-gated. Moving onto an existing file keeps what was there, the same rule as write.",
       "verification": "Live 2026-09-02: write, list and read against the real workspace on the operator's PC (test.md, hands-plan.json, clips/). tests/test_workspace.py: 21 tests on the boundary; tests/test_hands_and_do_task.py: the repository and any git checkout refused as a root."
+    },
+    {
+      "id": "code.keep",
+      "description": "Keep a program I write for you as a real file, named the way my own instructions name it, instead of reading it out loud",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "aletheia.intents (every conversational answer passes through codeblocks.save/prose_only); aletheia.intercom file_read describes rather than recites a code file",
+      "module": "aletheia.codeblocks",
+      "notes": "\"Write me a python script that renames files\" was answered with sixty lines of Python READ OUT LOUD - \"import os. import argparse. def rename_files(folder, mode, find=None...\" - two minutes long, unusable, and gone at the end of it. One line caused it: speech.unmarkdown strips ``` fence MARKERS, which is right for every other kind of markup and exactly wrong for this one, because it does not tidy the code, it PROMOTES it into prose. Underneath that was a capability with no path to it - file.author has been AVAILABLE the whole time, versioned, inside a workspace with a hard edge, and there was no way to get from a model's answer to one, so every program she wrote was composed, spoken and thrown away. Now: fenced blocks of four lines or more are written into <workspace>/code/, named by what the ANSWER calls them (she said \"run it with python rename.py\" and filed it as renames-files.py, so the command she gave him did not work); two lines he would type stay in the sentence where he can hear them; and reading one back describes it - lines, language, what it defines, whether it runs from the command line - rather than reciting it, which is the same defect through the other door. RUNS NOTHING: script.run is the sandbox and remains the only thing that executes. Live 2026-09-09: 18.6s of spoken code became a 9.6s answer plus rename_files.py, 33 lines, and \"read rename_files.py\" answers in one call."
     },
     {
       "id": "computer.observe",

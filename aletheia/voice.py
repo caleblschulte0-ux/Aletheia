@@ -1021,6 +1021,18 @@ def _interpret(transcript: str) -> dict:
                     r"show me your files", low):
         return {"command": {"kind": "file_list"}, "say": None}
 
+    # "Read rename_files.py" — the sentence her OWN answer tells him to
+    # say after she writes a script. It reached the planner, which is six
+    # seconds and a guess, for something she can do in one call. A
+    # filename is unmistakable: it has a suffix and no spaces, so this
+    # cannot swallow "read me my tasks" or "read example.com".
+    m = re.fullmatch(r"(?:read|open|show me)(?: me)? (?:the |my )?"
+                     r"([\w.-]+\.[a-z0-9]{1,5})\s*\??", low)
+    if m and not _spoken_url(m.group(1)):
+        return {"command": {"kind": "file_read",
+                            "path": _as_he_said(transcript, m.group(1)),
+                            "anywhere": True}, "say": None}
+
     m = re.fullmatch(
         r"(?:what(?:'s| is|s)?|show me what(?:'s| is)?) (?:in|inside) "
         r"(?:my |the )?([a-z][a-z ]{2,20}?)(?: folder| directory)?\s*\??", low)

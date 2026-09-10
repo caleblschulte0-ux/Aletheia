@@ -142,7 +142,22 @@ def _speak_answer(record: dict, request: str) -> dict:
         # your desktop live (computer.observe/control)" was a real answer,
         # with an asterisk pair that is silence out loud and an identifier
         # that is gibberish. `spoken_prose` is all of it in one place.
-        record["spoken"] = speech.spoken_prose(converse.answer(request)["answer"])
+        answered = converse.answer(request)["answer"]
+        # A PROGRAM IS A FILE, NOT A SENTENCE. `unmarkdown` strips ```
+        # fence markers, which is right for every other kind of markup and
+        # exactly wrong for this one: it does not tidy the code, it
+        # PROMOTES it into prose. "Write me a python script that renames
+        # files" was answered with sixty lines read out loud — "import os.
+        # import argparse. def rename_files(folder, mode, find=None..." —
+        # two minutes long, unusable, and gone at the end of it. She has
+        # had `file.author` all along and no path from an answer to it.
+        from aletheia import codeblocks
+        saved = codeblocks.save(answered, asked=request)
+        record["spoken"] = speech.spoken_prose(codeblocks.prose_only(answered))
+        if saved:
+            record["files"] = [row["path"] for row in saved]
+            record["spoken"] = (record["spoken"].rstrip() + " "
+                                + codeblocks.spoken(saved)).strip()
     except converse.ConverseError as exc:
         # Its message already names the real reason and the fix ("Claude
         # CLI is not on PATH"). Rewriting that into a class name is how an
