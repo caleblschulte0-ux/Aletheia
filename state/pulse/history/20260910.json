@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-10T16:29:18Z",
-  "fleet_revision": 4,
+  "generated_at": "2026-09-10T20:55:37Z",
+  "fleet_revision": 5,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
   "repos": {
@@ -46,14 +46,14 @@
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-09-10T16:29:15Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/34502388353"
+          "updated_at": "2026-09-10T20:55:35Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/34529236041"
         },
         "ci.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-10T07:18:26Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/34449004000"
+          "updated_at": "2026-09-10T20:42:21Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/34527599532"
         }
       },
       "state_files": {
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "94327070b1f2",
-          "date": "2026-09-10T16:22:34Z",
-          "message": "watchdog: chatgpt task verdicts 20260910 [skip ci]"
+          "sha": "f44ccec8a1db",
+          "date": "2026-09-10T20:14:24Z",
+          "message": "explainer: update posted log + analytics [skip ci]"
         },
         {
-          "sha": "743f4119a9e8",
-          "date": "2026-09-10T15:19:00Z",
-          "message": "third: analytics [skip ci]"
-        },
-        {
-          "sha": "6e1d4558de65",
-          "date": "2026-09-10T15:18:51Z",
-          "message": "third: update posted log + analytics [skip ci]"
-        },
-        {
-          "sha": "ec99832b826e",
-          "date": "2026-09-10T15:18:45Z",
-          "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
-        },
-        {
-          "sha": "cfaaefa2e961",
-          "date": "2026-09-10T15:15:35Z",
+          "sha": "f8bb0080b88c",
+          "date": "2026-09-10T19:54:48Z",
           "message": "exchange: phase A bundle for 20260910 [skip ci]"
+        },
+        {
+          "sha": "04ec02902090",
+          "date": "2026-09-10T19:53:46Z",
+          "message": "graph_race: fix the four defects that blocked today's whole chart slate (#369)"
+        },
+        {
+          "sha": "43084ce8b07a",
+          "date": "2026-09-10T18:48:41Z",
+          "message": "explainer: update posted log + analytics [skip ci]"
+        },
+        {
+          "sha": "a47bb9308a39",
+          "date": "2026-09-10T18:48:32Z",
+          "message": "explainer: posted bald-eagle-population-rebound [skip ci]"
         }
       ],
       "commit": {
-        "sha": "94327070b1f2",
-        "date": "2026-09-10T16:22:34Z",
-        "message": "watchdog: chatgpt task verdicts 20260910 [skip ci]"
+        "sha": "f44ccec8a1db",
+        "date": "2026-09-10T20:14:24Z",
+        "message": "explainer: update posted log + analytics [skip ci]"
       },
       "vitals": [
         {
@@ -108,7 +108,7 @@
         },
         {
           "label": "explainer posted",
-          "value": 242
+          "value": 244
         },
         {
           "label": "third posted",
@@ -129,20 +129,20 @@
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-10T15:15:42Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34494336602"
+          "updated_at": "2026-09-10T19:54:53Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34523103920"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-10T11:38:02Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34472256959"
+          "updated_at": "2026-09-10T17:45:52Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34510178145"
         },
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-10T09:52:00Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34462789122"
+          "updated_at": "2026-09-10T19:49:53Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34522478501"
         },
         "third.yml": {
           "status": "completed",
@@ -153,8 +153,8 @@
         "explainer.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-10T11:23:51Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34461783646"
+          "updated_at": "2026-09-10T20:14:32Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34521727927"
         },
         "retro.yml": {
           "status": "completed",
@@ -176,7 +176,7 @@
         },
         "state/explainer_posted_log.json": {
           "exists": true,
-          "bytes": 66889
+          "bytes": 68746
         },
         "state/third_posted_log.json": {
           "exists": true,
@@ -188,7 +188,7 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 684265
+          "bytes": 686679
         },
         "config/channel_registry.json": {
           "exists": true,
@@ -203,6 +203,11 @@
       "status": "active",
       "summary": "Guardrailed paper-trading system. The SELL brain and executor watchdog are active; the subscription-backed BUY brain and trade executor are intentionally paused until the operator resumes them.",
       "commits": [
+        {
+          "sha": "0ba895d6ab02",
+          "date": "2026-09-10T18:36:43Z",
+          "message": "sell-brain: update exit decisions [skip ci]"
+        },
         {
           "sha": "800b1f6d6341",
           "date": "2026-09-10T12:36:55Z",
@@ -222,16 +227,11 @@
           "sha": "6605f2909cea",
           "date": "2026-09-08T15:38:35Z",
           "message": "sell-brain: update exit decisions [skip ci]"
-        },
-        {
-          "sha": "38a6e639ddf6",
-          "date": "2026-09-08T12:36:38Z",
-          "message": "sell-brain: update exit decisions [skip ci]"
         }
       ],
       "commit": {
-        "sha": "800b1f6d6341",
-        "date": "2026-09-10T12:36:55Z",
+        "sha": "0ba895d6ab02",
+        "date": "2026-09-10T18:36:43Z",
         "message": "sell-brain: update exit decisions [skip ci]"
       },
       "vitals": [],
@@ -245,15 +245,15 @@
       "workflows": {
         "sell-brain.yml": {
           "status": "completed",
-          "conclusion": "failure",
-          "updated_at": "2026-09-10T15:35:25Z",
-          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/34496595743"
+          "conclusion": "success",
+          "updated_at": "2026-09-10T18:36:48Z",
+          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/34515232335"
         },
         "watchdog.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-09T21:56:24Z",
-          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/34409602156"
+          "updated_at": "2026-09-10T19:22:23Z",
+          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/34519991966"
         }
       },
       "state_files": {
@@ -274,13 +274,13 @@
           "bytes": 4429
         }
       },
-      "health": "red"
+      "health": "green"
     },
     "money_machine": {
       "github": "Money_Machine",
-      "role": "unbuilt",
-      "status": "stub",
-      "summary": "Empty stub \u2014 nothing but a README. No behaviour to observe yet.",
+      "role": "product-ventures",
+      "status": "active",
+      "summary": "Product ventures monorepo. main holds only a README; the work lives on long-running branches (Barkly, the Open Range demo films, the holdco platform), each carried by a charter in plans/.",
       "commits": [
         {
           "sha": "53c6507f6afe",
@@ -294,9 +294,16 @@
         "message": "Initial commit"
       },
       "vitals": [],
-      "workflows": {},
+      "workflows": {
+        "barkly-ci.yml": {
+          "status": "completed",
+          "conclusion": "failure",
+          "updated_at": "2026-09-10T19:35:37Z",
+          "url": "https://github.com/caleblschulte0-ux/Money_Machine/actions/runs/34519701634"
+        }
+      },
       "state_files": {},
-      "health": "dormant"
+      "health": "red"
     },
     "etsy_maker": {
       "github": "etsy_maker",
@@ -329,38 +336,182 @@
       "health": "dormant"
     }
   },
+  "projects": {
+    "items": [
+      {
+        "slug": "barkly",
+        "title": "Barkly",
+        "repo": "Money_Machine",
+        "base_branch": "claude/barkley-mvp-mobile-qbegtj",
+        "risk": "low",
+        "done": 0,
+        "total": 8,
+        "next": {
+          "n": 1,
+          "text": "Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push",
+          "owner": "thea",
+          "state": "todo"
+        },
+        "yours": {
+          "n": 2,
+          "text": "Turn on GitHub Pages for Money_Machine (Settings, Pages, Source: GitHub Actions) so the playtest link goes live"
+        },
+        "hers": {
+          "n": 1,
+          "text": "Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push"
+        },
+        "last_progress_at": "2026-09-10T19:19:14Z",
+        "days_quiet": 0,
+        "commits_7d": 16,
+        "open_prs": [
+          {
+            "number": 5,
+            "title": "Barkly: premium dialogue surface polish",
+            "head": "chatgpt/barkly-dialogue-premium-20260830-0505",
+            "draft": true,
+            "url": "https://github.com/caleblschulte0-ux/Money_Machine/pull/5",
+            "created_at": "2026-08-30T10:07:09Z"
+          }
+        ]
+      },
+      {
+        "slug": "holdco-platform",
+        "title": "Holdco platform",
+        "repo": "Money_Machine",
+        "base_branch": "claude/ai-holdco-master-playbook-i5q80w",
+        "risk": "low",
+        "done": 0,
+        "total": 5,
+        "next": {
+          "n": 1,
+          "text": "Pick the one offer to test first and write it as one sentence in docs/NEXT_OFFER.md on the holdco branch (or tell any Claude session to)",
+          "owner": "caleb",
+          "state": "todo"
+        },
+        "yours": {
+          "n": 1,
+          "text": "Pick the one offer to test first and write it as one sentence in docs/NEXT_OFFER.md on the holdco branch (or tell any Claude session to)"
+        },
+        "hers": {
+          "n": 2,
+          "text": "Bring the platform up to date and confirm pnpm test, typecheck and build still pass (last verified 2026-08-06)"
+        },
+        "last_progress_at": "2026-08-06T02:51:23Z",
+        "days_quiet": 35,
+        "commits_7d": 0,
+        "open_prs": []
+      },
+      {
+        "slug": "open-range-promo",
+        "title": "Open Range demo films",
+        "repo": "Money_Machine",
+        "base_branch": "claude/open-range-promo-video-4n7k7o",
+        "risk": "low",
+        "done": 0,
+        "total": 4,
+        "next": {
+          "n": 1,
+          "text": "Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open",
+          "owner": "thea",
+          "state": "todo"
+        },
+        "yours": null,
+        "hers": {
+          "n": 1,
+          "text": "Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open"
+        },
+        "last_progress_at": "2026-09-10T20:30:35Z",
+        "days_quiet": 0,
+        "commits_7d": 30,
+        "open_prs": []
+      },
+      {
+        "slug": "schwab-trader",
+        "title": "Schwab trader",
+        "repo": "schwab-trader",
+        "base_branch": "main",
+        "risk": "high",
+        "done": 0,
+        "total": 5,
+        "next": {
+          "n": 1,
+          "text": "Answer the sell approval waiting since June 26 (schwab-trader issue #5): comment approve, hold, or close it",
+          "owner": "caleb",
+          "state": "todo"
+        },
+        "yours": {
+          "n": 1,
+          "text": "Answer the sell approval waiting since June 26 (schwab-trader issue #5): comment approve, hold, or close it"
+        },
+        "hers": {
+          "n": 3,
+          "text": "Make the watchdog say which of the two likely causes a stall is (no trigger runs at all, or runs that fail) so the next stall names itself"
+        },
+        "last_progress_at": null,
+        "days_quiet": 17,
+        "quiet_at_least": true,
+        "commits_7d": 0,
+        "open_prs": []
+      }
+    ],
+    "evidence": []
+  },
   "transitions": [
     {
-      "repo": "shorts_pipeline",
-      "github": "Shorts-pipeline",
+      "repo": "schwab_trader",
+      "github": "schwab-trader",
       "from": "red",
       "to": "green"
     },
     {
-      "repo": "schwab_trader",
-      "github": "schwab-trader",
-      "from": "green",
+      "repo": "money_machine",
+      "github": "Money_Machine",
+      "from": "dormant",
       "to": "red"
     }
   ],
   "alerts": [
     {
-      "repo": "schwab_trader",
-      "github": "schwab-trader",
+      "repo": "money_machine",
+      "github": "Money_Machine",
       "health": "red",
       "failing": [
-        "sell-brain.yml"
+        "barkly-ci.yml"
       ]
     }
   ],
   "plans": {
-    "open": 1,
+    "open": 5,
     "items": [
+      {
+        "slug": "barkly",
+        "title": "Barkly",
+        "done": 0,
+        "total": 8
+      },
+      {
+        "slug": "holdco-platform",
+        "title": "Holdco platform",
+        "done": 0,
+        "total": 5
+      },
       {
         "slug": "light-up-the-wall",
         "title": "Light up the wall",
         "done": 3,
         "total": 4
+      },
+      {
+        "slug": "open-range-promo",
+        "title": "Open Range demo films",
+        "done": 0,
+        "total": 4
+      },
+      {
+        "slug": "schwab-trader",
+        "title": "Schwab trader",
+        "done": 0,
+        "total": 5
       }
     ]
   },

@@ -115,3 +115,6 @@
 {"ts": "2026-09-10T16:29:32Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:shorts_pipeline", "text": "health red -> green"}
 {"ts": "2026-09-10T16:29:32Z", "kind": "alert", "actor": "aletheia", "subject": "repo:schwab_trader", "text": "health green -> red"}
 {"ts": "2026-09-10T16:29:34Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue updated — schwab-trader"}
+{"ts": "2026-09-10T20:55:47Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:schwab_trader", "text": "health red -> green"}
+{"ts": "2026-09-10T20:55:47Z", "kind": "alert", "actor": "aletheia", "subject": "repo:money_machine", "text": "health dormant -> red"}
+{"ts": "2026-09-10T20:55:48Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue updated — Money_Machine"}
