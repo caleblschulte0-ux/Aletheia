@@ -109,7 +109,7 @@ class CampaignCase(unittest.TestCase):
     def run_campaign(self, **kw):
         return campaign.run("engineer", finder=self.finder(),
                             reader=self.reader(), opener=self.opener(),
-                            stager=self.stager(), **kw)
+                            stager=self.stager(), json_think=False, **kw)
 
 
 class OneSentenceDoesTheWholeThing(CampaignCase):
@@ -130,7 +130,7 @@ class OneSentenceDoesTheWholeThing(CampaignCase):
         out = campaign.run("engineer", count=2, finder=self.finder(),
                            reader=self.reader(),
                            opener=self.opener(apply_link=False),
-                           stager=self.stager())
+                           stager=self.stager(), json_think=False)
         self.assertEqual(out["ready"] + out["blocked"], [])
         self.assertTrue(out["failed"])
         self.assertIn("no application form", out["failed"][0]["why"])
@@ -140,11 +140,14 @@ class OneSentenceDoesTheWholeThing(CampaignCase):
         self.assertTrue(campaign._is_application_form(FORM_FIELDS))
 
     def test_ten_is_the_ceiling(self):
-        out = campaign.run("engineer", count=99, finder=self.finder(n=40),
+        out = campaign.run("engineer", count=99, finder=self.finder(n=60),
                            reader=self.reader(), opener=self.opener(),
-                           stager=self.stager())
+                           stager=self.stager(), json_think=False)
+        # READY is the count (2026-09-10): at most ten ready, and the forms
+        # still waiting on him are bounded by the attempts behind those ten.
+        self.assertLessEqual(len(out["ready"]), campaign.MAX_JOBS)
         self.assertLessEqual(len(out["ready"]) + len(out["blocked"]),
-                             campaign.MAX_JOBS)
+                             campaign.MAX_JOBS * campaign.TRIES_PER_READY)
 
 
 class HeAnswersTheSameQuestionOnce(CampaignCase):
@@ -165,8 +168,11 @@ class HeAnswersTheSameQuestionOnce(CampaignCase):
         so ten applications waiting on the same three questions left no
         trace to collect them from: it asked him nothing and produced
         nothing."""
-        self.run_campaign(count=2)
-        self.assertEqual(len(apply_run.all_runs("NEEDS_YOU")), 2)
+        out = self.run_campaign(count=2)
+        # READY is the count (2026-09-10), so a run with nothing ready keeps
+        # trying; every blocked form it touched must still be on disk.
+        self.assertGreaterEqual(len(out["blocked"]), 2)
+        self.assertEqual(len(apply_run.all_runs("NEEDS_YOU")), len(out["blocked"]))
 
     def test_one_answer_unblocks_every_job_that_asked(self):
         self.run_campaign(count=3)
@@ -181,11 +187,11 @@ class HeAnswersTheSameQuestionOnce(CampaignCase):
             self.assertEqual(filled["Have you been convicted of a felony?"], "No")
 
     def test_answering_again_does_not_leave_a_second_copy_waiting(self):
-        self.run_campaign(count=2)
+        out = self.run_campaign(count=2)
         campaign.answer_all({"Have you been convicted of a felony?": "No",
                              "I certify the above is true.": True},
                             stager=self.stager())
-        self.assertEqual(len(apply_run.all_runs("AWAITING_YOU")), 2)
+        self.assertEqual(len(apply_run.all_runs("AWAITING_YOU")), len(out["blocked"]))
         self.assertEqual(len(apply_run.all_runs("NEEDS_YOU")), 0)
 
     def test_the_same_question_on_two_sites_is_one_question(self):
@@ -225,7 +231,8 @@ class NothingIsSentHere(CampaignCase):
         with self.assertRaises(Exception):
             campaign.run("engineer", finder=lambda q, limit=9:
                          touched.append(1) or [], reader=self.reader(),
-                         opener=self.opener(), stager=self.stager())
+                         opener=self.opener(), stager=self.stager(),
+                         json_think=False)
         self.assertEqual(touched, [])
 
     def test_he_can_just_say_it(self):

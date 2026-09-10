@@ -749,6 +749,9 @@ def interpret(transcript: str) -> dict:
 def _interpret(transcript: str) -> dict:
     text = strip_wake_word(transcript)
     low = _without_preamble(text.lower().strip().rstrip(".?!"))
+    # "hey thea, apply to jobs for me": the filler hid her name from the
+    # strip above, and her name then hid the sentence from every pattern.
+    low = re.sub(r"^(?:%s)\b[\s,.!?:;]*" % "|".join(WAKE_WORDS), "", low) or low
     if not low:
         return {"command": None, "say": "I'm listening."}
 
@@ -888,6 +891,29 @@ def _interpret(transcript: str) -> dict:
     if m and len(m.group(1)) < 40 and not _is_about_himself(m.group(1)):
         return {"command": {"kind": "contacts", "which": m.group(1).strip()},
                 "say": None}
+    # "APPLY TO JOBS FOR ME" is a sentence he will say, and it went to the
+    # planner for 25-80 seconds to become the one verb there is for it. No
+    # role is needed: she works out what fits from his resume (campaign).
+    m = re.fullmatch(
+        r"(?:(?:can you|could you|please|go|hey) )?(?:find and )?apply (?:me )?(?:to|for) "
+        r"(?:(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|a few|some|a bunch of) )?"
+        r"(?:(.+?) )?(?:jobs?|positions?|roles?|openings?)"
+        r"(?: for me)?(?: (?:with|using) (?:my|this|the) (?:resume|cv))?(?: for me)?", low)
+    if m:
+        words = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+                 "seven": 7, "eight": 8, "nine": 9, "ten": 10, "a few": 3,
+                 "some": 5, "a bunch of": 8}
+        said_count = m.group(1) or ""
+        count = int(said_count) if said_count.isdigit() else words.get(said_count, 5)
+        kind_of = [w for w in (m.group(2) or "").split()
+                   if w not in ("a", "the", "some", "new", "more", "good", "any", "few",
+                                "remote", "me", "of", "bunch")]
+        command = {"kind": "apply_campaign", "count": max(1, min(count, 10))}
+        if kind_of:
+            command["role"] = _as_he_said(transcript, " ".join(kind_of))
+        if "remote" in (m.group(2) or "").split():
+            command["where"] = "remote"
+        return {"command": command, "say": None}
     if re.fullmatch(r"(what|which) (jobs?|applications?) have i applied (to|for)"
                     r"|what have i applied (to|for)"
                     r"|(what|which) (jobs?|applications?) did (you|u) apply (to|for)"

@@ -65,6 +65,7 @@ READER_FOR = {
     "project_drop": "projects",
     "apply_prepare": "applications",
     "apply_campaign": "applications",
+    "apply_answer": "applications",
     # She wrote it into the workspace; `file_list` is how he sees it is
     # there, and `file_read` cannot read a .docx back as text.
     "doc_make": "file_list",

@@ -124,6 +124,20 @@ PORTAL = """<form method="POST" action="/session">
 <label for="p">Password</label><input id="p" name="password" type="password">
 <button type="submit">Sign in</button></form>"""
 
+# The shape of Stripe's Greenhouse form, read live 2026-09-10: a country
+# question that is one required checkbox PER COUNTRY sharing a name, and a
+# styled dropdown whose only input has no id, no name and no label.
+GREENHOUSE = """<form method="POST" action="/submit">
+<div class="field"><label for="fn">First Name *</label>
+  <input id="fn" name="first_name" required></div>
+<div class="field"><label>Which countries do you anticipate working in? *</label>
+  <label><input type="checkbox" id="c_au" name="question_1[]" value="AU" required> Australia</label>
+  <label><input type="checkbox" id="c_be" name="question_1[]" value="BE" required> Belgium</label>
+  <label><input type="checkbox" id="c_us" name="question_1[]" value="US" required> US</label></div>
+<div class="field"><label>Please select the country where you currently reside *</label>
+  <div class="select__control"><div>Select...</div><input type="text" required></div></div>
+<button type="submit">Submit application</button></form>"""
+
 
 def _site(base: str, got: dict):
     pages = {"/apply": f'<h1>Job</h1><iframe src="{base}/embed"></iframe>',
@@ -131,7 +145,7 @@ def _site(base: str, got: dict):
              "/": f'<h1>Careers</h1><a href="{base}/apply" target="_blank" '
                   'rel="noopener">Apply for this job</a>',
              "/w1": W1, "/w2": W2, "/w3": W3, "/late": LATE,
-             "/account": ACCOUNT, "/a1": A1, "/a2": A2}
+             "/account": ACCOUNT, "/a1": A1, "/a2": A2, "/greenhouse": GREENHOUSE}
 
     class H(http.server.BaseHTTPRequestHandler):
         def log_message(self, *a):
@@ -363,6 +377,39 @@ class AFormMadeOfDIVS(RealPageCase):
         self.assertEqual(out["state"], webtask.ASK)
         self.assertIn("yours to answer", out["say"])
         self.assertIn("protected veteran", out["say"])
+
+
+@needs_browser
+class AQuestionThePageRaisesIsOneHeCanAnswer(RealPageCase):
+    """Live on Stripe 2026-09-10 the page's own verdict came back as thirty
+    unticked countries after US was ticked, and three questions called "a
+    field" with no selector - which crashed the whole run."""
+
+    def blocking_on(self, path, before=None):
+        with browse._Session() as ctx:
+            page = ctx.new_page()
+            page.goto(self.base + path, wait_until="domcontentloaded")
+            if before:
+                before(page)
+            return webtask.formfill.blocking(page)
+
+    def test_one_ticked_box_answers_the_whole_group(self):
+        rows = self.blocking_on("/greenhouse", lambda page: page.check("#c_us"))
+        labels = [r["label"] for r in rows]
+        self.assertFalse(any("countries" in l or l in ("Australia", "Belgium")
+                             for l in labels), labels)
+
+    def test_an_unanswered_group_is_one_question_with_its_choices(self):
+        rows = [r for r in self.blocking_on("/greenhouse")
+                if "countries" in r["label"] or r["label"] in ("Australia", "Belgium", "US")]
+        self.assertEqual(len(rows), 1, rows)
+        self.assertEqual(rows[0]["options"], ["Australia", "Belgium", "US"])
+        self.assertTrue(rows[0].get("selector"))
+
+    def test_a_dropdown_with_no_label_is_named_by_its_question(self):
+        labels = [r["label"] for r in self.blocking_on("/greenhouse")]
+        self.assertIn("Please select the country where you currently reside *", labels)
+        self.assertNotIn("a field", labels)
 
 
 @needs_browser

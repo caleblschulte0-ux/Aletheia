@@ -174,7 +174,9 @@ class TheOpeningsAreREAL(JobsCase):
     def test_the_campaign_uses_it_rather_than_a_search_engine(self):
         body = (Path(__file__).parent.parent / "aletheia" / "campaign.py"
                 ).read_text(encoding="utf-8")
-        self.assertIn("jobs.search(", body)
+        # search_many since 2026-09-10: the roles come from the resume, and
+        # every one of them is searched against the same public boards.
+        self.assertIn("jobs.search_many", body)
 
 
 class ARealEmployersForm(unittest.TestCase):

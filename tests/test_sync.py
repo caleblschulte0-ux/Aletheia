@@ -213,5 +213,60 @@ class GitSyncCase(unittest.TestCase):
         self.assertNotIn("rebase in progress", out)
 
 
+class TheCoresOwnConflictDoesNotWedgeIt(GitSyncCase):
+    """Live 2026-09-10 15:56: the autostash pop conflicted on the pulse, git
+    left it unmerged with no MERGE_HEAD, and every pull and commit after that
+    failed on "unmerged files" until a person cleared it."""
+
+    PULSE = "state/pulse/latest.json"
+
+    def unmerged(self):
+        return subprocess.run(["git", "ls-files", "-u"], cwd=str(self.pc),
+                              capture_output=True, text=True).stdout.strip()
+
+    def conflict_the_pulse(self):
+        pulse = self.relay / self.PULSE
+        pulse.parent.mkdir(parents=True, exist_ok=True)
+        pulse.write_text('{"beat": 0}\n')
+        run(["git", "add", "."], self.relay)
+        run(["git", "commit", "-m", "pulse 0"], self.relay)
+        run(["git", "push", "origin", "main"], self.relay)
+        self.assertTrue(self.sync.pull()[0])
+        (self.pc / self.PULSE).write_text('{"beat": "pc"}\n')
+        self.relay_pushes(self.PULSE, '{"beat": "cloud"}\n')
+        ok, detail = self.sync.pull()
+        self.assertFalse(ok)
+        self.assertIn("autostash conflict", detail)
+        self.assertTrue(self.unmerged(), "the scenario did not reproduce")
+
+    def test_the_next_beat_heals_it_and_sync_resumes(self):
+        self.conflict_the_pulse()
+        (self.pc / self.PULSE).write_text('{"beat": "pc-next"}\n')
+        self.relay_pushes("command.json")
+        ok, detail = self.sync.pull()
+        self.assertTrue(ok, detail)
+        self.assertEqual(self.unmerged(), "")
+        self.assertTrue((self.pc / "command.json").exists())
+        ok, detail = self.sync.commit([self.PULSE], "core: checkpoint")
+        self.assertTrue(ok, detail)
+
+    def test_conflict_markers_are_never_committed(self):
+        self.conflict_the_pulse()
+        self.assertEqual(self.sync.heal_owned_conflicts(), [])
+        self.assertTrue(self.unmerged())
+
+    def test_a_persons_conflicted_file_is_left_for_them(self):
+        (self.pc / "seed.txt").write_text("his edit\n")
+        run(["git", "stash"], self.pc)
+        self.relay_pushes("seed.txt", "cloud edit\n")
+        run(["git", "pull", "origin", "main"], self.pc)
+        subprocess.run(["git", "stash", "pop"], cwd=str(self.pc),
+                       capture_output=True, text=True)
+        (self.pc / "seed.txt").write_text("resolved by hand, not by the Core\n")
+        self.assertTrue(self.unmerged(), "the scenario did not reproduce")
+        self.assertEqual(self.sync.heal_owned_conflicts(), [])
+        self.assertTrue(self.unmerged())
+
+
 if __name__ == "__main__":
     unittest.main()

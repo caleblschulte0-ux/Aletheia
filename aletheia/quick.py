@@ -593,7 +593,7 @@ _HE_CAN_ASK_FOR = {
     "your projects and repos": ("projects", "plan_new", "plan_add_step",
                                 "plan_step", "plan_set", "issue", "dispatch",
                                 "project_new", "project_step", "project_drop"),
-    "job applications": ("jobs", "apply_prepare", "apply_campaign",
+    "job applications": ("jobs", "apply_prepare", "apply_campaign", "apply_answer",
                          "applications"),
     "money you spend": ("money", "subscriptions", "subscription_cancel"),
     "your car and journeys": ("car", "travel_time"),

@@ -160,17 +160,46 @@ def is_never_autofill(field: dict) -> bool:
     return any(phrase in hay for phrase in profile.NEVER_AUTOFILL)
 
 
+# A question he answers yes or no is not asking for his city or his job
+# title, whatever words are in it. Live 2026-09-10, once those were on file:
+# "employed by Coinbase in any CAPACITY" got Hartford, "are you a CURRENT
+# government official" got his job title, "do you accept the salary range
+# for this POSITION" got it again, and "I confirm that I reside in the
+# United STATES" got SD. A sentence like that takes only a yes-or-no fact.
+_YES_NO_LEAD = re.compile(
+    r"^[^a-z0-9]*(?:(?:are|am|is|do|does|did|have|has|had|will|would|were|was|"
+    r"can|could|should|may)\b|to your knowledge\b|please confirm\b|"
+    r"i (?:confirm|understand|certify|agree|acknowledge|consent|attest)\b)")
+YES_NO_FIELDS = frozenset({"work_authorization", "needs_sponsorship",
+                           "willing_to_relocate"})
+
+
+def _says(phrase: str, text: str) -> bool:
+    """The phrase as words: "city" is not in "capacity"."""
+    return re.search(r"(?<![a-z0-9])" + re.escape(phrase) + r"(?![a-z0-9])",
+                     text) is not None
+
+
 def match_field(field: dict) -> str | None:
     """Which profile answer this form field is asking for, if any.
 
     Longest phrase wins: "first name" must beat "name", or every name box
-    on the internet gets his full legal name.
+    on the internet gets his full legal name. The LABEL is what a person
+    reads, so it is matched as words; a field's name and id are code
+    ("postalCode", "question_8812") and are read only when nothing is
+    labelled at all.
     """
-    hay = _haystack(field)
+    label = str(field.get("label") or "").casefold()
+    yes_no = bool(_YES_NO_LEAD.match(label))
+    codes = " ".join(str(field.get(k) or "") for k in ("name", "id")).casefold()
     best, best_len = None, 0
     for key, spec in profile.FIELDS.items():
+        if yes_no and key not in YES_NO_FIELDS:
+            continue
         for phrase in spec["asks"]:
-            if phrase in hay and len(phrase) > best_len:
+            if len(phrase) <= best_len:
+                continue
+            if _says(phrase, label) or (not label.strip() and phrase in codes):
                 best, best_len = key, len(phrase)
     return best
 
@@ -694,11 +723,49 @@ READY_JS = r"""() => {
     if (wrap && wrap.innerText.trim()) return wrap.innerText.trim().slice(0, 90);
     return (el.getAttribute('aria-label') || el.name || el.id || '').slice(0, 90);
   };
+  const selectorFor = (el) => {
+    if (el.id) return `#${CSS.escape(el.id)}`;
+    if (el.name) return `${el.tagName.toLowerCase()}[name="${CSS.escape(el.name)}"]`;
+    return '';
+  };
+  // A styled dropdown's search box has no label of its own - it says
+  // "Select..." - and the question is the label in the block above it.
+  // Live on Stripe's Greenhouse form 2026-09-10 these came back as three
+  // questions called "a field", which he could never have answered.
+  const questionAbove = (el) => {
+    let box = el.parentElement;
+    for (let i = 0; box && i < 6; i++, box = box.parentElement) {
+      for (const l of box.querySelectorAll('label, legend')) {
+        const text = (l.innerText || '').trim();
+        if (text && !l.contains(el) && !l.querySelector('input, select, textarea'))
+          return text.split('\n')[0].slice(0, 90);
+      }
+    }
+    return '';
+  };
   const invalid = [];
+  const groupsAsked = new Set();
   for (const el of document.querySelectorAll('input, select, textarea')) {
     if (typeof el.checkValidity !== 'function') continue;
     if (el.disabled || el.type === 'hidden' || el.checkValidity()) continue;
-    invalid.push({label: label(el), name: el.name || el.id || '',
+    if (el.type === 'checkbox' && el.name) {
+      // "Which countries?" is thirty required boxes sharing one name, and
+      // the browser calls every unticked box invalid even after US is
+      // ticked - so the form could never read as ready. One ticked box
+      // answers the group; an unanswered group is ONE question.
+      const mates = [...document.getElementsByName(el.name)];
+      if (mates.length > 1) {
+        if (mates.some(m => m.checked) || groupsAsked.has(el.name)) continue;
+        groupsAsked.add(el.name);
+        invalid.push({label: questionAbove(el) || label(el), name: el.name,
+                      selector: selectorFor(el), why: 'pick at least one',
+                      options: mates.map(m => label(m)).filter(Boolean).slice(0, 40)});
+        if (invalid.length > 20) break;
+        continue;
+      }
+    }
+    invalid.push({label: label(el) || questionAbove(el), name: el.name || el.id || '',
+                  selector: selectorFor(el),
                   why: (el.validationMessage || 'required').slice(0, 90)});
     if (invalid.length > 20) break;
   }
@@ -758,7 +825,7 @@ def blocking(page) -> list[dict]:
     cannot go is a QUESTION, not a pending approval.
     """
     out: list[dict] = []
-    for frame in frames(page):
+    for index, frame in enumerate(frames(page)):
         try:
             got = frame.evaluate(READY_JS)
             invalid = list(got.get("invalid") or [])
@@ -766,8 +833,15 @@ def blocking(page) -> list[dict]:
         except Exception:
             continue
         for row in invalid:
-            out.append({"label": row.get("label") or row.get("name") or "a field",
-                        "why": row.get("why", "required"), "required": True})
+            item = {"label": row.get("label") or row.get("name") or "a field",
+                    "why": row.get("why", "required"), "required": True}
+            # Tagged the way `read_all` tags them, so his answer to a question
+            # the page itself raised lands on the field that raised it.
+            if row.get("selector"):
+                item["selector"] = tag(index, row["selector"])
+            if row.get("options"):
+                item["options"] = list(row["options"])
+            out.append(item)
         for row in groups:
             out.append({"label": row.get("question") or "a required choice",
                         "why": "nothing is selected", "required": True,

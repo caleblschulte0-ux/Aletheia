@@ -139,7 +139,9 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "contacts":      (set(), {"which"}),
     "watches":       (set(), set()),
     # "apply to ten jobs with this resume" — the whole thing, one call.
-    "apply_campaign": ({"role"}, {"count", "where", "resume"}),
+    "apply_campaign": (set(), {"role", "count", "where", "resume"}),
+    # His answer to one question the staged applications wait on.
+    "apply_answer": ({"question", "answer"}, set()),
     # The catch-all for "go do this on a website" — any number of steps.
     "web_task":      ({"goal"}, {"url", "budget"}),
     # "try that again" after a site refused one — the ONLY case where
@@ -384,10 +386,18 @@ KIND_NOTES: dict[str, str] = {
         'each one for his confirmation — asking the questions only he can '
         'answer ONCE across all of them rather than once per job. It submits '
         'nothing: each application waits as an ordinary approval he taps. '
-        'role is the kind of job, count at most 10, where an optional '
-        'location or "remote", resume a path (omit and she finds it). Prefer '
+        'role is OPTIONAL: omit it and she works out the jobs that fit from his '
+        'resume. count at most 10, where an optional location, "remote" or '
+        '"anywhere", resume a path (omit and she finds it). It runs in the '
+        'background and tells him when the applications are ready. Prefer '
         'this over apply_prepare, which only writes a packet and does not '
         'touch the form.'),
+    "apply_answer": (
+        'His answer to ONE question the staged job applications are waiting '
+        'on ("the relocation question is yes", "tell them I have a bachelor\'s '
+        'degree"). question is the question in his words, answer is his answer. '
+        'It is matched to the waiting question and every application that asked '
+        'it is filled and brought back for his confirmation.'),
     "apply_prepare": (
         'Use for "apply to N jobs for me". It finds real postings, reads '
         'them, and writes a PACKET per job into her workspace — the posting '
@@ -467,7 +477,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                "file_size", "compose",
                "file_delete", "file_move",
                # reads the open web and writes into her workspace: both PC
-               "apply_prepare", "apply_campaign", "applications",
+               "apply_prepare", "apply_campaign", "apply_answer", "applications",
                "web_task", "web_task_retry",
                "subscription_cancel", "web_task_answer",
                "computer_observe",
@@ -591,6 +601,9 @@ ROUTINE_KINDS = frozenset({
     # Filling forms and staging approvals. It sends nothing on its own:
     # every application still waits for the approval he taps, per job.
     "apply_campaign",
+    # His answer, put into the waiting forms: they come back for his
+    # confirmation exactly as before, and nothing is sent.
+    "apply_answer",
     # Media edits always write a NEW file and never touch the source, so
     # the worst case is a spare file in her workspace.
     "media_trim", "media_join", "media_audio", "media_captions",
@@ -1839,14 +1852,21 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return webtask.spoken(record)
     if kind == "apply_campaign":
         from aletheia import campaign
-        out = campaign.run(cmd["role"], count=int(cmd.get("count", 5)),
-                           where=cmd.get("where", ""),
-                           resume=cmd.get("resume", ""))
-        said = campaign.spoken(out)
-        if out["questions"]:
-            said += " I need: " + "; ".join(
-                q["label"] for q in out["questions"][:6])
-        return said
+        # IN ITS OWN PROCESS. Ten real forms take far longer than a sentence
+        # is waited on, so she starts it, says so, and tells him when the
+        # applications are ready (campaign.start). A rehearsal starts
+        # nothing: it would open real employer pages.
+        if rehearsing():
+            return ("This is a rehearsal, so I didn't start: a job search opens "
+                    "real employer pages and fills real forms.")
+        started = campaign.start(cmd.get("role", ""), count=int(cmd.get("count", 5)),
+                                 where=cmd.get("where", ""), resume=cmd.get("resume", ""))
+        return campaign.started_words(started)
+    if kind == "apply_answer":
+        from aletheia import campaign
+        if rehearsing():
+            return "This is a rehearsal, so I didn't change any application."
+        return campaign.answer_words(campaign.start_answer(cmd["question"], cmd["answer"]))
     if kind == "apply_prepare":
         from aletheia import applications
         out = applications.prepare(

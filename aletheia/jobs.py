@@ -161,12 +161,8 @@ def _score(job: dict, terms: list[str], where: str) -> float:
     return value
 
 
-def search(role: str, *, where: str = "", limit: int = 10,
-           fetcher=None) -> dict:
-    """Real openings she can really apply to, most relevant first."""
-    terms = _terms(role)
-    if not terms:
-        raise ValueError("say what kind of role")
+def _gather(fetcher=None) -> tuple[list[dict], list[dict], int]:
+    """Every open job on every configured board, and the boards that failed."""
     rows = boards()
     if not rows:
         raise JobsError(
@@ -188,7 +184,7 @@ def search(role: str, *, where: str = "", limit: int = 10,
             # matched" and "the network refused me" are different answers.
             return board, [], f"{type(exc).__name__}: {exc}"[:120]
 
-    found, failures = [], []
+    everything, failures = [], []
     with ThreadPoolExecutor(MAX_WORKERS) as pool:
         for board, jobs, problem in pool.map(one, rows):
             if problem:
@@ -198,20 +194,113 @@ def search(role: str, *, where: str = "", limit: int = 10,
                                  "gone": problem.startswith("GONE:"),
                                  "why": problem})
                 continue
-            for job in jobs:
-                value = _score(job, terms, where)
-                if value > 0:
-                    found.append((value, job))
+            everything.extend(jobs)
+    _say_a_board_is_gone([f for f in failures if f["gone"]])
+    return everything, failures, len(rows)
+
+
+def search(role: str, *, where: str = "", limit: int = 10,
+           fetcher=None) -> dict:
+    """Real openings she can really apply to, most relevant first."""
+    return search_many([role], where=where, limit=limit, fetcher=fetcher)
+
+
+def search_many(roles: list[str], *, where: str = "", limit: int = 10,
+                fetcher=None, discover: bool = False, http=None) -> dict:
+    """Openings for ANY of these roles, each scored by the role it fits best.
+
+    `discover` adds openings on boards nobody configured: a web search for
+    each role on Greenhouse and Lever, whose public forms need no login. The
+    configured list is where she starts, never where she stops - "it should
+    be able to apply to any job" was his rule, and twenty-four tech
+    companies are not any job.
+    """
+    term_sets = [terms for terms in (_terms(r) for r in roles or []) if terms]
+    if not term_sets:
+        raise ValueError("say what kind of role")
+    everything, failures, searched = _gather(fetcher)
+    found = []
+    for job in everything:
+        value = max(_score(job, terms, where) for terms in term_sets)
+        if value > 0:
+            found.append((value, job))
     found.sort(key=lambda row: row[0], reverse=True)
-    matches = [job for _v, job in found[:max(1, min(int(limit), MAX_RESULTS))]]
+    cap = max(1, min(int(limit), MAX_RESULTS))
+    matches = [job for _v, job in found[:cap]]
+    discovered = []
+    if discover and len(matches) < cap:
+        seen = {job["apply_url"] for job in matches}
+        for job in discover_openings(roles, limit=cap - len(matches), http=http):
+            if job["apply_url"] not in seen:
+                seen.add(job["apply_url"])
+                matches.append(job)
+                discovered.append(job)
     journal.append("action", "jobs",
-                   f"searched {speech.count_phrase(len(rows), 'board')} for {role!r}: "
-                   f"{speech.count_phrase(len(found), 'match')}, "
+                   f"searched {speech.count_phrase(searched, 'board')} for "
+                   f"{', '.join(roles)!r}: {speech.count_phrase(len(found), 'match')}, "
+                   f"{len(discovered)} more by web search, "
                    f"{speech.count_phrase(len(failures), 'board')} failed",
                    actor=ACTOR)
-    _say_a_board_is_gone([f for f in failures if f["gone"]])
-    return {"role": role, "where": where, "matches": matches,
-            "searched": len(rows), "matched": len(found), "failed": failures}
+    return {"role": ", ".join(roles), "roles": list(roles), "where": where,
+            "matches": matches, "searched": searched, "matched": len(found),
+            "discovered": len(discovered), "failed": failures}
+
+
+_GREENHOUSE_JOB = re.compile(
+    r"https?://(?:boards|job-boards)\.greenhouse\.io/([A-Za-z0-9_-]+)/jobs/(\d+)")
+_LEVER_JOB = re.compile(
+    r"https?://jobs\.lever\.co/([A-Za-z0-9_.-]+)/([0-9a-fA-F-]{36})")
+
+
+def discover_openings(roles: list[str], *, limit: int = 10, http=None) -> list[dict]:
+    """Openings on ANY company's Greenhouse or Lever board that a web search finds.
+
+    One plain HTTP search per role per provider (research.http_search -
+    Bing's RSS answers a document fetch where a headless browser is
+    challenged). A result is kept only when its address is a real job on
+    one of those boards, and it is turned into the same public, login-free
+    application form the configured boards use.
+    """
+    if http is None:
+        from aletheia import research
+        http = research.http_search
+    out, seen = [], set()
+    for role in roles or []:
+        for site in ("boards.greenhouse.io", "jobs.lever.co"):
+            if len(out) >= limit:
+                return out
+            try:
+                page = http(f'site:{site} "{role}"')
+            except Exception:
+                continue
+            for link in (page or {}).get("links") or []:
+                href = str(link.get("href") or "")
+                title = " ".join(str(link.get("text") or "").split())[:120]
+                green, lever = _GREENHOUSE_JOB.search(href), _LEVER_JOB.search(href)
+                if green:
+                    token, jid = green.group(1), green.group(2)
+                    job = {"title": title or role, "company": token, "location": "",
+                           "posting_url": href,
+                           "apply_url": ("https://boards.greenhouse.io/embed/job_app"
+                                         f"?for={urllib.parse.quote(token)}&token={jid}"),
+                           "provider": "greenhouse", "board": token, "id": jid,
+                           "found_by": "web search"}
+                elif lever:
+                    token, jid = lever.group(1), lever.group(2)
+                    job = {"title": title or role, "company": token, "location": "",
+                           "posting_url": href,
+                           "apply_url": f"https://jobs.lever.co/{urllib.parse.quote(token)}/{jid}/apply",
+                           "provider": "lever", "board": token, "id": jid,
+                           "found_by": "web search"}
+                else:
+                    continue
+                if job["apply_url"] in seen:
+                    continue
+                seen.add(job["apply_url"])
+                out.append(job)
+                if len(out) >= limit:
+                    return out
+    return out
 
 
 def _say_a_board_is_gone(gone: list[dict]) -> None:

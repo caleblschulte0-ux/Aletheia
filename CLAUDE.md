@@ -703,6 +703,35 @@ Measured on this laptop (no GPU): qwen3:8b drafted a charter in 100 s warm,
 188 s cold. That is the price of never running out, and it is paid only
 when the subscriptions are gone.
 
+## Applying to jobs is end to end, and fluid
+
+His words, 2026-09-10: *"tonight when I ask this to apply to jobs for me it
+needs to be able to do it end to end"* and *"everything should be fluid
+... it'll listen to the résumé I give and apply to jobs based off of that
+... don't hardcode this stuff."* The pipeline had every piece and had never
+once run for real on his PC. Its first live run against two real Stripe
+forms staged nothing: the chosen resume PDF did not read, and with the
+.docx both forms stopped on twelve required questions each.
+
+- **Use the resume that READS**, not the first one found
+  (`campaign.read_resume`).
+- **A resume teaches the profile through a model** (`campaign.learn_more`):
+  title, employer, school, degree. Patterns lift an email, not a job. The
+  sensitive fields (work authorization, sponsorship, pay) are his to say.
+- **No role is required.** The roles come from the resume
+  (`campaign.roles_for`). Openings come from `config/job_boards.json` AND
+  from any Greenhouse or Lever board a web search finds
+  (`jobs.discover_openings`). Never hardcode roles or companies.
+- **A form's own required questions his facts settle are answered from
+  them** (`campaign.answer_from_facts`), every value visible in the
+  confirmation. `profile.NEVER_AUTOFILL` is untouched, and checked again
+  on whatever a model returns.
+- **READY is the count.** It keeps trying openings until N applications
+  are ready to approve, runs in its own process (`campaign.start`), and
+  notifies him. `apply_answer` finishes what is left.
+- **One approval per application stays.** His own spec: "it comes to me
+  and it says confirm you wanna apply to this job, that's fine."
+
 ## The standing assignment
 
 Every session acts on the playbook rather than re-describing it (§156):

@@ -288,6 +288,15 @@ _SITE = re.compile(r"https?://[\w.-]+\.[a-z]{2,}(?:/\S*)?", re.I)
 _CITY_STATE = re.compile(r"\b([A-Z][a-zA-Z .'-]{2,24}),\s*([A-Z]{2})\b")
 
 
+def _broken_by_spacing(words: list[str], email: str) -> bool:
+    """Does his email say two of these words are one word, split by spacing?"""
+    local = re.sub(r"[^a-z]", "", str(email).split("@", 1)[0].casefold())
+    if len(words) < 3 or not local:
+        return False
+    return any(len(a + b) >= 5 and (a + b).casefold() in local
+               for a, b in zip(words, words[1:]))
+
+
 def learn_from_resume(text: str, *, source: str = "resume") -> dict:
     """Take what is really there. Fill nothing that is not.
 
@@ -317,6 +326,11 @@ def learn_from_resume(text: str, *, source: str = "resume") -> dict:
     if place:
         found.setdefault("city", place.group(1).strip())
         found.setdefault("state", place.group(2))
+        # "Hartford, SD 57033": the ZIP is on the same line, and Samsara's
+        # form asked for it live 2026-09-10 as a thing she did not know.
+        zip_code = re.match(r"\s+([0-9]{5}(?:-[0-9]{4})?)\b", text[place.end():])
+        if zip_code:
+            found.setdefault("postal_code", zip_code.group(1))
     # The name is the first line that is a name and not a heading — the
     # weakest of these guesses, so it is only taken when it is clean.
     for line in text.splitlines():
@@ -327,10 +341,19 @@ def learn_from_resume(text: str, *, source: str = "resume") -> dict:
             continue
         words = line.split()
         if 2 <= len(words) <= 4 and all(w[:1].isupper() for w in words if w):
-            found["legal_name"] = line
-            parts = line.split()
-            found.setdefault("first_name", parts[0])
-            found.setdefault("last_name", parts[-1])
+            if _broken_by_spacing(words, email.group(0) if email else ""):
+                # "CALEB SCHU LTE": a title letter-spaced with REAL spaces in
+                # his own .docx went onto a Stripe application 2026-09-10 as
+                # last name "LTE". Which spaces belong to the name is not in
+                # the text, so this guess is not taken; the model's reading
+                # (campaign.learn_more) or the form's own question settles it.
+                break
+            if line.isupper():
+                words = [re.sub(r"[A-Za-z]+", lambda m: m.group(0).capitalize(), w)
+                         for w in words]
+            found["legal_name"] = " ".join(words)
+            found.setdefault("first_name", words[0])
+            found.setdefault("last_name", words[-1])
         break
 
     have = known()

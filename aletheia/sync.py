@@ -158,6 +158,41 @@ class GitSync:
             "MERGE_HEAD", "REBASE_HEAD", "rebase-merge", "rebase-apply",
             "CHERRY_PICK_HEAD", "REVERT_HEAD"))
 
+    def heal_owned_conflicts(self) -> list[str]:
+        """Mark the Core's own conflicted files resolved, as they are on disk.
+
+        `rebase --autostash` replays the Core's dirty pulse over upstream's
+        and can conflict. Git then leaves the path unmerged with no MERGE_HEAD,
+        so nothing above calls it a merge, and every later rebase and commit
+        refuses with "you have unmerged files". Observed live 2026-09-10 15:56:
+        the Core stopped pulling and pushing over its own heartbeat file.
+
+        Once the Core has rewritten the file (no conflict markers left), the
+        copy on disk is its newest write and is the resolution. A file still
+        holding markers is left alone so they are never committed, and a
+        conflicted file anyone else owns is theirs.
+        """
+        if self.merge_in_progress():
+            return []
+        code, out = _git(["diff", "--name-only", "--diff-filter=U"], self.root)
+        if code != 0:
+            return []
+        conflicted = [p.strip() for p in out.splitlines() if p.strip()]
+        if not conflicted or not all(p.startswith(OWNED_PATHS) for p in conflicted):
+            return []
+        for rel in conflicted:
+            try:
+                text = (self.root / rel).read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                return []
+            if re.search(r"^(<{7}|>{7}) ", text, re.MULTILINE):
+                return []
+        code, _ = _git(["add", "--", *conflicted], self.root)
+        if code != 0:
+            return []
+        _git(["reset", "-q", "--", *conflicted], self.root)
+        return conflicted
+
     def recover_editor_only_upstream_merge(self) -> tuple[bool | None, str]:
         """Abort only the harmless merge state created by plain ``git pull``.
 
@@ -233,6 +268,7 @@ class GitSync:
         recovered, recovery_detail = self.recover_editor_only_upstream_merge()
         if recovered is False:
             return False, recovery_detail
+        healed = self.heal_owned_conflicts()
         blocked = self.blocking_reason()
         if blocked:
             return False, blocked
@@ -248,9 +284,10 @@ class GitSync:
             # autostash pop conflicted: dirty file vs upstream — callers
             # avoid this by committing local state BEFORE pulling
             return False, f"autostash conflict: {out[-200:]}"
-        if recovered:
-            return True, f"{recovery_detail}; up to date with remote"
-        return True, "up to date with remote"
+        notes = [recovery_detail] if recovered else []
+        if healed:
+            notes.append("kept the Core's own copy of " + ", ".join(healed))
+        return True, "; ".join(notes + ["up to date with remote"])
 
     def commit(self, paths: list[Path | str], message: str) -> tuple[bool, str]:
         """Stage exactly `paths` and commit if anything changed — no push.
@@ -267,6 +304,7 @@ class GitSync:
         # unmerged files" each time. Committing mid-merge would be worse than
         # the noise — `git add` on a conflicted path stages the conflict
         # markers as if they were resolved.
+        self.heal_owned_conflicts()
         if self.merge_in_progress():
             return True, "merge in progress — checkpoint skipped"
         rels = [str(p) for p in paths if (self.root / p).exists()]
