@@ -117,7 +117,13 @@ class ApprovalByVoiceCase(unittest.TestCase):
     def test_one_pending_high_risk_thing_is_refused_by_voice(self):
         out = self.approve("approve", APPROVALS[1:2])
         self.assertIsNone(out["command"])
-        self.assertIn("email.send", out["say"])
+        # It must name WHICH one it is refusing. This asserted the
+        # capability id, which is an identifier read out in a room
+        # standing in for something real - the label the wall already
+        # shows, and the id he must actually type at the keyboard.
+        self.assertIn("the email", out["say"])
+        self.assertIn("mail-a1e1957d0f", out["say"])
+        self.assertNotIn("email.send", out["say"], "an id, read out loud")
 
     def test_nothing_pending_says_so(self):
         self.assertIn("Nothing is waiting", self.approve("approve", [])["say"])
@@ -135,15 +141,17 @@ class ApprovalByVoiceCase(unittest.TestCase):
         # and the risk guard must then refuse the one it picked.
         first = self.approve("approve the first")
         self.assertIsNone(first["command"])
-        self.assertIn("intent.execute", first["say"])
+        self.assertIn(APPROVALS[0]["id"], first["say"],
+                      "it names the one it picked")
         last = self.approve("approve the last")
-        self.assertIn("calendar.write", last["say"])
+        self.assertIsNone(last["command"])
+        self.assertIn(APPROVALS[-1]["id"], last["say"])
 
     def test_he_can_pick_by_name_and_the_pick_is_still_gated(self):
         out = self.approve("approve the email")
         self.assertIsNone(out["command"])
-        self.assertIn("email.send", out["say"])
         self.assertIn("mail-a1e1957d0f", out["say"], "it names the one it picked")
+        self.assertIn("the email", out["say"], "and says which in English")
 
     def test_picking_a_low_risk_one_out_of_several_still_approves(self):
         out = self.approve("approve the plants", APPROVALS + [LOW_RISK])

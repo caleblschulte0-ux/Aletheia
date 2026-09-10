@@ -168,6 +168,18 @@ def validate_approval(ap: dict) -> list[str]:
         # (`aletheia.authority`), and it is what an audit of "why was this
         # allowed" actually wants to read months later.
         "capability": str,
+        # WHEN SHE LAST READ IT BACK TO HIM, which is not when it was
+        # requested. A bare "approve" must not run a four-day-old
+        # irreversible thing he has forgotten, so she reads it out and
+        # waits — but the test for "does he know what this is" was
+        # written against `requested_at`, so "approve that" produced the
+        # same sentence again, and so did every other phrasing. A stale
+        # approval had become unapprovable by voice at all. This is the
+        # moment he was TOLD; `requested_at` stays the age he is told.
+        # Bookkeeping, not authority: it never makes an approval usable,
+        # only answerable, and `decide()` is still the only thing that
+        # changes state.
+        "surfaced_at": str,
     })
 
 

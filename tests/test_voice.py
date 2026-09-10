@@ -76,8 +76,14 @@ class InterpretCase(unittest.TestCase):
                        capability="email.send")
         out = voice.interpret("Thea, approve")
         self.assertIsNone(out["command"])
-        self.assertIn("won't approve that one by voice", out["say"])
-        self.assertIn("email.send", out["say"])
+        self.assertIn("won't approve that by voice", out["say"])
+        # It has to name WHICH thing it is refusing. This asserted the
+        # capability id, `email.send` - an identifier read out in a room,
+        # standing in for something real. The consequence is what tells
+        # him which, and the keyboard command carries the id he must type.
+        self.assertIn("the email", out["say"])
+        self.assertIn("ap-hi", out["say"])
+        self.assertNotIn("email.send", out["say"], "an id, read out loud")
 
     def test_an_approval_with_no_capability_fails_closed(self):
         policy.request("ap-x", "mystery", "why", "unknown", True)
@@ -112,7 +118,8 @@ class InterpretCase(unittest.TestCase):
         policy.request("ap-2", "send", "r", "c", False, capability="email.send")
         out = voice.interpret("Thea, approve the second")
         self.assertIsNone(out["command"])
-        self.assertIn("won't approve that one by voice", out["say"])
+        self.assertIn("won't approve that by voice", out["say"])
+        self.assertIn("ap-2", out["say"], "it names the one it picked")
 
     def test_new_task_by_voice(self):
         out = voice.interpret("Thea, add a task to water the plants")

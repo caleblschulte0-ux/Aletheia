@@ -1579,10 +1579,35 @@ def _interpret(transcript: str) -> dict:
             # ONE pending is unambiguous about WHICH, not evidence that he
             # knows what it is. Read it back with its age and let him say
             # yes to the thing itself.
+            #
+            # AND RECORD THAT HE HAS BEEN TOLD, or this is a loop: the
+            # guard asked whether the approval was REQUESTED recently, so
+            # "approve that" came back with the same sentence, and so did
+            # every other phrasing. She was telling him to say something
+            # that did nothing. The age he hears stays the age of the
+            # REQUEST — five days old is the fact that matters — and only
+            # the "does he know what this is" test moves.
+            #
+            # AND AN OFFER IS A CLAIM ABOUT ABILITY. "Say approve that if
+            # you still want it" was wrong a second way: his real pending
+            # one is `intent.execute`, which is operator_always and may
+            # NEVER be approved by voice — so the sentence sent him down a
+            # path that ends in a refusal for a different reason. Ask the
+            # gate first and say the true thing, including the thing she
+            # CAN do: denying needs no gate, because denying is the safe
+            # direction and refusing to deny would leave it sitting.
+            allowed, why_not = approvable_by_voice(only)
+            head = (f"The only thing waiting is from {_how_long_ago(only)}: "
+                    f"{approval_label(only)}.")
+            if not allowed:
+                return {"command": None,
+                        "say": (f"{head} I can't approve that one by voice - "
+                                f"{why_not}, and anything in the room could "
+                                f"say it. Approve it at the keyboard, or say "
+                                f"deny that and I'll clear it.")}
+            surfaced(only)
             return {"command": None,
-                    "say": (f"The only thing waiting is from "
-                            f"{_how_long_ago(only)}: {approval_label(only)}. "
-                            f"Say approve that if you still want it.")}
+                    "say": f"{head} Say approve that if you still want it."}
         chosen = _pick_approval(pending, m.group("ord"), m.group("what"))
         if chosen is not None:
             return _approve_by_voice(chosen)
@@ -1683,16 +1708,65 @@ ORDINALS = speech.ORDINALS
 ANSWERING_WINDOW_MINUTES = 10
 
 
+def surfaced(approval: dict) -> dict:
+    """Record that she has just read this one back to him.
+
+    THE GUARD ATE ITS OWN EXIT. `_asked_recently` asked "was this
+    REQUESTED recently", which is the same question as "has he just been
+    told about it" for a fresh approval and a different one for an old
+    one. So the four-day-old "Fully shut down Aletheia" answered a bare
+    "approve" with "the only thing waiting is from 5 days ago... say
+    approve that if you still want it" — and "approve that" gave the
+    identical sentence. So did "approve it", "yes to that", "approve the
+    first one". Every route in, and no route through: a stale approval had
+    become unapprovable by voice at all, and she was telling him to say a
+    sentence that did nothing.
+
+    The question the guard actually wants is whether he KNOWS WHAT HE IS
+    APPROVING, so this stamps the moment he was told. The loop terminates
+    in one turn and nothing runs on a bare word he did not aim.
+
+    Never raises — failing to write the stamp costs him one repeat, and
+    breaking the approval path costs him the approval — but it does not
+    fail SILENTLY. The first version caught everything and returned, and
+    the contract was rejecting `surfaced_at` as an unknown field, so the
+    loop was still a loop and the code looked correct. A swallowed write
+    is how a fix ships as a no-op.
+    """
+    import datetime as dt
+
+    from aletheia import journal, policy
+
+    try:
+        stored = policy.load(approval["id"])
+        stored["surfaced_at"] = dt.datetime.now(dt.timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ")
+        policy.save(stored)
+        return stored
+    except Exception as exc:
+        try:
+            journal.append(
+                "event", "aletheia-voice",
+                f"could not record that an approval was read back "
+                f"({type(exc).__name__}: {exc})"[:200], actor="aletheia-voice")
+        except Exception:
+            pass
+        return approval
+
+
 def _asked_recently(approval: dict,
                     now: "dt.datetime | None" = None) -> bool:
     """Was this put to him recently enough that "approve" means it?
 
-    Unreadable or missing timestamps count as NOT recent: the safe
-    mistake is asking him which one, never running the wrong thing.
+    Either because it was just requested, or because she just read it back
+    — see `surfaced`. Unreadable or missing timestamps count as NOT
+    recent: the safe mistake is asking him which one, never running the
+    wrong thing.
     """
     import datetime as dt
 
-    stamp = approval.get("requested_at") or approval.get("created_at")
+    stamp = (approval.get("surfaced_at") or approval.get("requested_at")
+             or approval.get("created_at"))
     if not stamp:
         return False
     try:
@@ -1793,10 +1867,21 @@ def approvable_by_voice(approval: dict) -> tuple[bool, str]:
         entry = capabilities.get(capability)
     except Exception:
         return False, f"I cannot read the risk of {capability} right now"
+    # NEITHER THE ID NOR THE DESCRIPTION. These sentences are read out in
+    # a room, and this one said `intent.execute always needs you, not the
+    # room` — an identifier, out loud, in the exchange where he most needs
+    # to understand what he is being refused. Expanding it through the
+    # registry is worse, not better: the descriptions are clauses written
+    # for a reader, so it became "run an approved plan later, bound to a
+    # sha256 of exactly the plan that was approved always needs you". He
+    # does not need the name of the capability here. He is already being
+    # told the CONSEQUENCE in the same breath ("Fully shut down
+    # Aletheia"); what is missing is only why she will not take his word
+    # for it from across the room. The id stays in the journal.
     if entry.get("approval_policy") == "operator_always":
-        return False, f"{capability} always needs you, not the room"
+        return False, "that kind of thing always needs you in person"
     if entry.get("risk_class") == VOICE_MAY_NOT_APPROVE:
-        return False, f"{capability} is high-risk"
+        return False, "that one is high-risk"
     return True, ""
 
 
@@ -1804,9 +1889,18 @@ def _approve_by_voice(approval: dict):
     ok, why = approvable_by_voice(approval)
     if ok:
         return {"command": {"kind": "approve", "id": approval["id"]}, "say": None}
+    # NAME THE THING SHE IS REFUSING. This said "I won't approve that ONE
+    # by voice — email.send is high-risk", and a test asserted the id was
+    # in the sentence — using an identifier read out loud as the proxy for
+    # something real: that he can tell WHICH thing was refused. Taking the
+    # id out without putting the answer back left "I won't approve that
+    # one by voice - that kind of thing always needs you in person", which
+    # names nothing at all. `approval_label` is what the wall and the
+    # Command Center already show for the same approval.
     return {"command": None,
-            "say": (f"I won't approve that one by voice — {why}. Anything in "
-                    f"the room could say it. Decide it at the keyboard: "
+            "say": (f"I won't approve that by voice: {approval_label(approval)}. "
+                    f"{why[0].upper()}{why[1:]}, and anything in the room could "
+                    f"say it. Approve it at the keyboard: "
                     f"python -m aletheia.policy decide {approval['id']} APPROVED")}
 
 
