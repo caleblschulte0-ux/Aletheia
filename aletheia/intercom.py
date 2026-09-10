@@ -254,7 +254,10 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "shopping_list":   (set(), set()),
     "shopping_off":    ({"item"}, set()),
     "subscriptions":   (set(), set()),
-    "money":           (set(), set()),
+    # `about` says which half of the same store he asked about — balance
+    # or spending — so the empty-store answer does not report a balance to
+    # a man who asked what he spent.
+    "money":           (set(), {"about"}),
     "car":             (set(), {"vehicle"}),
     "projects":        (set(), set()),
     # Reading what she may do without asking. Deliberately read-only: see
@@ -2171,9 +2174,16 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             # implies there are accounts and they are empty. An empty
             # store still proves the store - it says which of the two
             # this is, and what would change it.
-            said = ("You haven't got any accounts recorded, so I don't have "
-                    "a balance to give you. There's no bank connected - "
-                    "I can only hold what you or I record.")
+            #
+            # "A balance to give you" presumes the question. Spending
+            # questions arrive here too now, and answering "I don't have a
+            # balance" to "what did I spend this month" is the small
+            # version of the same defect: an answer to a question he did
+            # not ask.
+            about = "spending" if cmd.get("about") == "spending" else "balance"
+            said = (f"You haven't got any accounts recorded, so I have no "
+                    f"{about} to report. There's no bank connected - "
+                    f"I can only hold what you or I record.")
         else:
             said = (f"Assets {worth['assets']:,.2f}, liabilities "
                     f"{worth['liabilities']:,.2f}, net {worth['net']:,.2f} "

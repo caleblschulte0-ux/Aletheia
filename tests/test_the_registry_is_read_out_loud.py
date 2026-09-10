@@ -62,6 +62,46 @@ class SaidToHimCase(unittest.TestCase):
         self.assertIn(entry["description"].rstrip("."), said)
 
 
+#: A slash between two words. Out loud it is either silence or the word
+#: "slash", and neither is English.
+_SLASH = re.compile(r"\w/\w")
+
+
+class ASlashIsNotAWordCase(unittest.TestCase):
+    """Twenty of these were written for somebody reading a specification.
+
+        > can you buy me a monitor
+          Yes - Private requirements/candidates/selection workflow ending
+          in an approval-bounded purchase proposal.
+
+    `read/ack`, `one-time/interval/daily/weekly`, `mic/speaker/virtual
+    cable`, `(create/update/cancel)`. Every one of them is spoken.
+    """
+
+    def test_no_description_carries_a_slash(self):
+        offenders = []
+        for entry in capabilities.load_registry()["capabilities"]:
+            found = _SLASH.search(entry["description"])
+            if found:
+                offenders.append(f"{entry['id']}: ...{found.group(0)}...")
+        self.assertEqual(offenders, [], "\n".join(
+            ["said out loud, a slash is silence or the word 'slash':"]
+            + offenders))
+
+    def test_notes_may_keep_every_engineering_word(self):
+        """The precision is not lost, it is moved somewhere nobody speaks.
+
+        A rule that forced `notes` into plain English would cost the
+        engineering record its meaning, and `notes` is never read out.
+        """
+        registry = capabilities.load_registry()
+        self.assertTrue(
+            any(_SLASH.search(str(e.get("notes") or ""))
+                for e in registry["capabilities"]),
+            "if this ever goes false the rule above may have been "
+            "applied to notes as well, which is not the rule")
+
+
 class TheOtherFieldsCase(unittest.TestCase):
     def test_notes_and_callers_may_stay_in_the_third_person(self):
         """They are never spoken, and rewriting them would lose meaning.

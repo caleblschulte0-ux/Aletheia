@@ -101,7 +101,17 @@ class IntentCase(unittest.TestCase):
         # read out loud (§145), and it was going straight into the room.
         said = intents.spoken(record)
         self.assertNotIn("purchase.execute", said)
-        self.assertIn("purchase with money", said)
+        # READ FROM THE REGISTRY, not frozen. This asserted the literal
+        # "purchase with money" and went red when the description was
+        # rewritten to say the truth - which is an improvement, and a
+        # regression test that fails for improvements is a copy of the
+        # implementation with an assert around it. The rule is that she
+        # names the thing in the registry's own English.
+        from aletheia import capabilities
+        # Case-insensitive: `spoken` lowercases the first letter to fit
+        # "I can't ... yet", which is rendering, not the rule.
+        self.assertIn(capabilities.get("purchase.execute")["description"].lower(),
+                      said.lower())
 
     # ---- chatter must not become a queue ----------------------------
 
@@ -321,7 +331,11 @@ class IntentCase(unittest.TestCase):
         self.assertIn("Say approve", said)
         self.assertNotIn(record["approval"], said)
         self.assertNotIn("purchase.execute", said)
-        self.assertIn("purchase with money", said)
+        from aletheia import capabilities
+        # Case-insensitive: `spoken` lowercases the first letter to fit
+        # "I can't ... yet", which is rendering, not the rule.
+        self.assertIn(capabilities.get("purchase.execute")["description"].lower(),
+                      said.lower())
         self.assertIn("only you can do", said)
         # and no intercom vocabulary either — an executable step carries no
         # capability, so naming the steps could only read back a kind

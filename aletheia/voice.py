@@ -1317,6 +1317,23 @@ def _interpret(transcript: str) -> dict:
                     r"|my (?:accounts|balances))", low):
         return {"command": {"kind": "money"}, "say": None}
 
+    # AND THE SAME INVENTED SENTENCE CAME BACK FOR SPENDING. The comment
+    # above records "I have read-only access to your balances and
+    # transactions" being fixed for BALANCE phrasings; asked "what did I
+    # spend this month" she said it again, word for word, about a store
+    # holding zero accounts — and then offered to go and use that access.
+    # An OFFER is a claim about ability, and inventing a SOURCE sounds
+    # like helpfulness, which makes it harder to catch than inventing an
+    # answer. Same store, same door.
+    if re.fullmatch(r"(?:what (?:did|have) i spen[dt](?: .*)?"
+                    r"|how much (?:did|have) i spen[dt](?: .*)?"
+                    r"|what(?:'s| is| are)? my (?:spending|expenses|"
+                    r"transactions)(?: .*)?"
+                    r"|show me my (?:spending|transactions|expenses)(?: .*)?"
+                    r"|where (?:did|is) my money (?:go|going)(?: .*)?)"
+                    r"\s*\??", low):
+        return {"command": {"kind": "money", "about": "spending"}, "say": None}
+
     if re.fullmatch(r"(?:when is the car due|car service|"
                     r"does the car need anything|check the car|"
                     # Mileage is the number on the record she already

@@ -1,5 +1,5 @@
 {
-  "revision": 108,
+  "revision": 112,
   "providers": [
     {
       "id": "aletheia.local",
@@ -111,7 +111,7 @@
     },
     {
       "id": "sentinel.alert",
-      "description": "Notice health transitions; open/comment/close the rolling fleet-alert issue",
+      "description": "Notice when a repo's health changes and keep one running alert issue up to date - opening it, adding to it, closing it",
       "provider": "github.actions",
       "status": "AVAILABLE",
       "risk_class": "low",
@@ -194,7 +194,7 @@
     },
     {
       "id": "suggestion.rule",
-      "description": "Record a ruling on a ChatGPT suggestion (doing/not_doing/later/in_progress/done)",
+      "description": "Record what you decided about a ChatGPT suggestion: doing it, not doing it, later, in progress or done",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "low",
@@ -204,7 +204,7 @@
     },
     {
       "id": "intercom.relay",
-      "description": "Operator speaks to ChatGPT (voice/text, no API keys); commands relayed as JSON, executed through registry gates, receipts written back",
+      "description": "Talk to ChatGPT by voice or text with no API key, and have what it asks for run through the same gates as everything else, with receipts written back",
       "provider": "chatgpt.app",
       "status": "NEEDS_CONFIGURATION",
       "risk_class": "medium",
@@ -216,7 +216,7 @@
     },
     {
       "id": "agent.delegate",
-      "description": "Hand a durable task to an AI worker (Claude builds; ChatGPT reviews/authors) and track it",
+      "description": "Hand a lasting job to an AI worker - Claude builds, ChatGPT reviews and writes - and keep track of it",
       "provider": "github.actions",
       "status": "EXPERIMENTAL",
       "risk_class": "medium",
@@ -340,7 +340,7 @@
     },
     {
       "id": "memory.remember",
-      "description": "Structured memory with provenance (identity/preferences/people/organizations); corrections overwrite but record what they replaced",
+      "description": "Remember things with their source: who you are, what you prefer, people, places you deal with. A correction overwrites, and keeps a record of what it replaced",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "low",
@@ -417,7 +417,7 @@
     },
     {
       "id": "voice.wall",
-      "description": "Talk to the page itself: the wall/Command Center hear 'Thea, ...' and speak the answer â€” no side app",
+      "description": "Talk to the page itself: the wall and the Command Center hear 'Thea, ...' and speak the answer, with no separate app",
       "provider": "aletheia.local",
       "status": "NEEDS_CONFIGURATION",
       "risk_class": "low",
@@ -499,7 +499,7 @@
     },
     {
       "id": "automation.define",
-      "description": "Define timezone-aware one-time/interval/daily/weekly schedules privately",
+      "description": "Set up private schedules in your own timezone - once, every so often, daily or weekly",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "low",
@@ -522,7 +522,7 @@
     },
     {
       "id": "contacts.resolve",
-      "description": "Private exact/alias contact resolution with ambiguity refusal",
+      "description": "Find exactly one person from a name or a nickname, and refuse to guess when two of them match",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "read",
@@ -562,7 +562,7 @@
     },
     {
       "id": "notification.center",
-      "description": "Private deduped operator notifications with read/ack state",
+      "description": "Private notifications that know what you have already seen, and never show you the same thing twice",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "low",
@@ -603,7 +603,7 @@
     },
     {
       "id": "recovery.plan",
-      "description": "Classify failures and plan bounded retry/wait/escalation without executing retries",
+      "description": "Work out what a failure was and what to do about it - try again, wait, or bring it to you - without retrying anything by itself",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "low",
@@ -623,7 +623,7 @@
     },
     {
       "id": "capability.gap.materialize",
-      "description": "Turn missing/configuration/verification gaps into durable work",
+      "description": "Turn something I could not do into real work: whether it is missing, unconfigured, or built but never proven",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "low",
@@ -645,7 +645,7 @@
     },
     {
       "id": "proactive.evaluate",
-      "description": "Evaluate bounded event rules into proposals with cooldown/dedupe",
+      "description": "Turn a noticed event into a proposal, without repeating itself or raising the same thing twice in a row",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "low",
@@ -677,7 +677,7 @@
     },
     {
       "id": "device.registry",
-      "description": "Private provider-neutral room/device identity, abilities and observed online state",
+      "description": "A private record of the rooms and devices you have, what each one can do, and which are online - whoever makes them",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "low",
@@ -718,7 +718,7 @@
     },
     {
       "id": "shopping.plan",
-      "description": "Private requirements/candidates/selection workflow ending in an approval-bounded purchase proposal",
+      "description": "Work out what you actually need, find real options, and bring you one to say yes to - privately, and stopping before any money moves",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "low",
@@ -729,19 +729,19 @@
     },
     {
       "id": "purchase.execute",
-      "description": "Execute an actual purchase with money",
+      "description": "Spend your money at a real checkout",
       "provider": "aletheia.local",
-      "status": "EXPERIMENTAL",
+      "status": "UNAVAILABLE",
       "risk_class": "high",
       "approval_policy": "operator_always",
       "caller": "python -m aletheia.errands new --kind purchase; aletheia.runtime.tick runs authorized errands each Core beat",
-      "notes": "aletheia.errands: one approval-bound, evidence-verified web errand executed through the existing browser gate (browse.interact refuses before the browser opens unless the approval is APPROVED). Authorization binds to a sha256 of {site, kind, steps, ceiling}; a step or a ceiling edited afterwards is refused, not adapted. §143 boundaries - bank step-up, one-time codes, CAPTCHA, signatures, ID checks, biometrics, consent - stop the errand and hand the operator the remainder. A purchase additionally declares a spending ceiling, and the LARGEST money figure observed on the page is checked against it before anything is clicked. EXPERIMENTAL until the first real merchant checkout completes with a receipt: 22 hermetic tests drive it, no live purchase has been made. 2026-09-03 security review (ChatGPT-authored, verified line by line against the code before any of it was acted on): the spending path had a real money defect. The ceiling was compared with the largest figure on the page BEFORE the step sequence ran, and then the ENTIRE sequence — the irreversible click included — executed with no re-read; only a §143 boundary check followed. A $40 cart that becomes $75 at checkout (shipping, tax, a tip default) passed the check and then spent $75, and the module docstring's claim that the ceiling was 'checked twice' was false. Spending errands are now REFUSED at run time until a two-phase checkout verifier exists: execute up to the committing step, re-read merchant/items/shipping/tax/total/currency, compare the EXACT transaction against the authorization, then click. Nothing was lost — no spending errand had ever run live.",
+      "notes": "STATUS CORRECTED 2026-09-10. Asked \"can you buy me a monitor\" she answered \"Yes, but it is experimental: Execute an actual purchase with money\" - which is wrong twice. The notes below already say spending errands are REFUSED AT RUN TIME until a two-phase checkout verifier exists, and no spending errand has ever run live; a capability that is refused unconditionally is not EXPERIMENTAL, it is UNAVAILABLE, and EXPERIMENTAL reads as 'nearly, if you are brave'. On top of that his one permanent rule is 'no spending money', enforced at three gates sharing one predicate (intents._asks_to_spend, planner.SPENDING_KINDS, webtask.walk), so every instruction form is refused at the door in half a second. The registry was the one place still saying otherwise, and it is the place the spoken answer comes from. aletheia.errands: one approval-bound, evidence-verified web errand executed through the existing browser gate (browse.interact refuses before the browser opens unless the approval is APPROVED). Authorization binds to a sha256 of {site, kind, steps, ceiling}; a step or a ceiling edited afterwards is refused, not adapted. §143 boundaries - bank step-up, one-time codes, CAPTCHA, signatures, ID checks, biometrics, consent - stop the errand and hand the operator the remainder. A purchase additionally declares a spending ceiling, and the LARGEST money figure observed on the page is checked against it before anything is clicked. EXPERIMENTAL until the first real merchant checkout completes with a receipt: 22 hermetic tests drive it, no live purchase has been made. 2026-09-03 security review (ChatGPT-authored, verified line by line against the code before any of it was acted on): the spending path had a real money defect. The ceiling was compared with the largest figure on the page BEFORE the step sequence ran, and then the ENTIRE sequence — the irreversible click included — executed with no re-read; only a §143 boundary check followed. A $40 cart that becomes $75 at checkout (shipping, tax, a tip default) passed the check and then spent $75, and the module docstring's claim that the ceiling was 'checked twice' was false. Spending errands are now REFUSED at run time until a two-phase checkout verifier exists: execute up to the committing step, re-read merchant/items/shipping/tax/total/currency, compare the EXACT transaction against the authorization, then click. Nothing was lost — no spending errand had ever run live.",
       "module": "aletheia.errands",
       "verification": "tests/test_errands.py: over-ceiling pages abandoned before the click, tampered plans refused, every §143 boundary class recognised"
     },
     {
       "id": "subscription.track",
-      "description": "Private recurring charge/renewal visibility and cancellation proposals",
+      "description": "See what is charging you and when it renews, and prepare the cancellation for you to approve",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "read",
@@ -763,7 +763,7 @@
     },
     {
       "id": "finance.visibility",
-      "description": "Private read-only balances/transactions snapshots and net-worth aggregation",
+      "description": "A read-only look at your balances and what has gone through, added up into what you are worth",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "read",
@@ -805,7 +805,7 @@
     },
     {
       "id": "reservation.plan",
-      "description": "Private reservation candidate/selection workflow with confirmation truth",
+      "description": "Find real options for a booking and bring you one to choose, privately, and say plainly whether it was actually confirmed",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "low",
@@ -826,7 +826,7 @@
     },
     {
       "id": "calendar.write",
-      "description": "Change a live external calendar (create/update/cancel) through a provider adapter",
+      "description": "Change a live calendar - add something, move it, or cancel it",
       "module": "aletheia.calendar_live",
       "provider": "aletheia.local",
       "risk_class": "high",
@@ -850,7 +850,7 @@
     },
     {
       "id": "audio.route",
-      "description": "Phase 11: logical audio routing plans (mic/speaker/virtual cable) — approval-bound, verified by evidence, no raw audio handled",
+      "description": "Phase 11: plan where sound goes - microphone, speakers, a virtual cable - bound to your approval, proven by evidence, and never handling the audio itself",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "medium",
@@ -1381,7 +1381,7 @@
     },
     {
       "id": "message.send",
-      "description": "Send a text message (SMS/iMessage) to a person on your behalf",
+      "description": "Send a text message to a person on your behalf, by SMS or iMessage",
       "provider": "aletheia.local",
       "status": "EXPERIMENTAL",
       "risk_class": "high",

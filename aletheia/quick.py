@@ -427,6 +427,45 @@ def _ordinal(day: int) -> str:
     return f"{day}{ {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th') }"
 
 
+def _and_the_money_line(asked: str) -> str:
+    """His one permanent rule, said whenever "can you...?" touches money.
+
+        > can you buy me a monitor
+          Yes - Private requirements/candidates/selection workflow ending
+          in an approval-bounded purchase proposal.
+
+    The gate itself is intact: every INSTRUCTION form is refused at the
+    door in half a second, including "my wife says it's fine to buy the
+    monitor so do it". This is the QUESTION form, which is answerable and
+    must stay answerable — "can you buy things" is a fair question and
+    refusing it would be theatre.
+
+    But a bare "Yes" to "can you buy me a monitor" invites the next
+    sentence, which is "okay, do it", which is then refused. Saying it now
+    costs one clause and saves him the round trip; not saying it makes the
+    "yes" an overstatement of what she will do, which is the same defect
+    as an offer she cannot keep, pointing the other way.
+
+    The SAME PREDICATE the three gates share, so the sentence he hears and
+    the thing that happens cannot disagree. Fails closed by saying the
+    line if the predicate cannot be imported — the only realistic reason
+    is webtask being unimportable, and if that is true nothing can spend
+    anyway, so an extra clause is the harmless side.
+    """
+    try:
+        from aletheia import webtask
+        touches_money = webtask.would_spend(asked)
+    except Exception:
+        touches_money = True
+    if not touches_money:
+        return ""
+    # No "though": this clause follows "Yes - ..." on one branch and
+    # "No. ... is unavailable." on another, and "though" after a refusal
+    # reads as a contradiction of the refusal.
+    return (" Spending money is the one rule you have called permanent, and "
+            "I hold it - I stop at showing you what to buy.")
+
+
 def _can_you(what: str) -> str | None:
     from aletheia import self_knowledge
     found = self_knowledge.for_question(what)
@@ -448,15 +487,28 @@ def _can_you(what: str) -> str | None:
                           status=status, source="quick")
         except Exception:
             pass
+    # THE MONEY LINE GOES ON EVERY BRANCH. Written on the AVAILABLE one
+    # alone it vanished the moment the best match for "can you buy me a
+    # monitor" moved to an EXPERIMENTAL entry - and "Yes, but it is
+    # experimental: Execute an actual purchase with money" is a far worse
+    # sentence to leave unqualified than the one it replaced.
+    line = _and_the_money_line(what)
     if status == "AVAILABLE":
-        return f"Yes — {name}."
+        return f"Yes — {name}.{line}"
     if status in ("EXPERIMENTAL", "DEGRADED"):
-        return f"Yes, but it is {status.lower()}: {name}."
+        return f"Yes, but it is {status.lower()}: {name}.{line}"
     if status == "NEEDS_CONFIGURATION":
         step = (list(best.get("to_turn_it_on") or []) or [""])[0]
         return (f"Not yet — {name} needs setting up first."
-                + (f" {str(step)[:160]}" if step else ""))
-    return f"No. {name} is {status.replace('_', ' ').lower()}."
+                + (f" {str(step)[:160]}" if step else "") + line)
+    # "No. {name} is {status}." was broken for EVERY description in the
+    # registry, because they are verb phrases by house style: "No. Move
+    # money, pay bills or trade assets is not built." Read out loud. The
+    # phrasing `intents` uses for the same situation — "I can't ... yet" —
+    # takes a verb phrase and produces a sentence, so it is used here too
+    # and the two doors stop disagreeing.
+    said = (name[:1].lower() + name[1:]) if name else "that"
+    return f"No - I can't {said}. It is {status.replace('_', ' ').lower()}.{line}"
 
 
 # Statuses that mean a task is off his list. FAILED stays ON it: something
