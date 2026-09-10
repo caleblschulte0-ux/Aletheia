@@ -1,5 +1,5 @@
 {
-  "revision": 102,
+  "revision": 103,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1037,7 +1037,7 @@
     },
     {
       "id": "screen.capture",
-      "description": "Photograph the desktop and save the picture on the PC",
+      "description": "Take a screenshot: photograph the desktop and save the picture on the PC",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "read",

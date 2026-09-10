@@ -43,6 +43,11 @@ from aletheia import capabilities
 # here is a phrase somebody would really say out loud; this is not a
 # thesaurus, it is the gap between his vocabulary and the registry's.
 SYNONYMS = {
+    # He says "screenshot"; the registry says screen, capture,
+    # photograph. A capability nobody can find by name is one she
+    # will deny having.
+    "screenshot": ("screen", "capture", "desktop"),
+    "screengrab": ("screen", "capture", "desktop"),
     "email": ("mail", "inbox", "gmail", "message"),
     "mail": ("email", "inbox"),
     "text": ("message", "sms", "phone"),
@@ -151,8 +156,36 @@ def _registry() -> dict:
         return {"capabilities": []}
 
 
+#: Words whose trailing "s" is part of the word, not a plural.
+_NOT_A_PLURAL = frozenset({
+    "status", "address", "access", "press", "business", "progress", "class",
+    "https", "pass", "less", "process", "success", "bus", "gas", "os", "is",
+    "as", "was", "has", "this", "yes", "news", "always", "plus", "focus",
+})
+
+
+def _stem(word: str) -> str:
+    """Fold a simple English plural so "files" and "file" are one word.
+
+    He says "files"; the registry says `file.author` and "...or text
+    file". They never matched, so the capabilities that ARE about files
+    scored only on the other words in the question - which is how "can
+    you read my files" came back describing the web browser.
+
+    Deliberately crude. A real stemmer would fold "business" to "busines"
+    and "address" to "addres"; the short exception list above is cheaper
+    and does not surprise anybody reading it.
+    """
+    if len(word) > 3 and word.endswith("s") and word not in _NOT_A_PLURAL:
+        if word.endswith("ies"):
+            return word[:-3] + "y"
+        if not word.endswith("ss"):
+            return word[:-1]
+    return word
+
+
 def _words(text: str) -> list[str]:
-    return [w for w in re.split(r"[^a-z0-9]+", str(text).casefold()) if w]
+    return [_stem(w) for w in re.split(r"[^a-z0-9]+", str(text).casefold()) if w]
 
 
 def _query_terms(question: str) -> dict[str, float]:
@@ -167,8 +200,11 @@ def _query_terms(question: str) -> dict[str, float]:
         if word in STOP or len(word) < 3:
             continue
         terms[word] = max(terms.get(word, 0.0), 1.0)
+        # Synonyms are listed under the word as written, so look them up
+        # by both: `_words` has already folded "reservations" to
+        # "reservation" by the time it arrives here.
         for alias in SYNONYMS.get(word, ()):
-            terms[alias] = max(terms.get(alias, 0.0), 0.7)
+            terms[_stem(alias)] = max(terms.get(_stem(alias), 0.0), 0.7)
     return terms
 
 
@@ -226,9 +262,20 @@ def relevant(question: str, *, limit: int = DEFAULT_LIMIT,
         value = _score(entry, terms)
         if value >= FLOOR:
             scored.append((value, entry))
-    # Highest score first; ties broken so a thing she can really do outranks
-    # one she cannot, because that is the more useful sentence to be told.
-    scored.sort(key=lambda row: (row[0], row[1]["status"] == "AVAILABLE"),
+    # Highest score first; ties broken so a thing she can really do
+    # outranks one she cannot, because that is the more useful sentence to
+    # be told - and then so that a capability whose ID carries one of HIS
+    # words outranks one that merely shares a verb.
+    #
+    # `browser.read` and `document.read_any` both scored 4.44 for "can you
+    # read my files", and with only status to separate them the winner was
+    # whichever came first in the file. She answered "yes" and described
+    # the web browser. A tie decided by file position is not a match.
+    def _named_by_him(entry: dict) -> int:
+        return sum(1 for word in _words(entry.get("id", "")) if word in terms)
+
+    scored.sort(key=lambda row: (row[0], row[1]["status"] == "AVAILABLE",
+                                 _named_by_him(row[1])),
                 reverse=True)
     return [_shape(entry, with_steps=True) for _value, entry in scored[:limit]]
 
