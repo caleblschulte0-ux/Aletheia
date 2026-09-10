@@ -166,10 +166,16 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
                 "I ran out of thinking time before an answer came back"
             ) from None
         try:
+            # DEEP FIRST, THEN WHATEVER FITS. On this laptop the deep model
+            # (27B, about 19 GB) has never once run - 31 recorded attempts, 31
+            # failures - because it does not fit in 16 GB, and with failover
+            # off this bridge had never carried a single request. His words,
+            # 2026-09-10: something "that'll never run out even if it's not
+            # the best". The fast model fits; not the best is the point.
             local = local_model_pool.auto_json(
                 system_prompt, text, context=ctx, validator=checked,
                 preferred_role="deep",
-                allow_failover=False,
+                allow_failover=True,
                 timeout_s=max(0.5, remaining()),
             )
             return GatewayResult(

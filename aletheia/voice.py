@@ -1365,6 +1365,35 @@ def _interpret(transcript: str) -> dict:
                     r"project status)", low):
         return {"command": {"kind": "projects"}, "say": None}
 
+    # HIS PROJECTS, BY SAYING SO (aletheia.charters). His words, 2026-09-10:
+    # "Is it fluid tho I don't need a hard coded barkly area". So a new
+    # project is a sentence, and so are a step and a drop. A step or a drop
+    # must name a charter that EXISTS: "add eggs to the list" and "drop it"
+    # are other sentences, and asking the store is how they are told apart —
+    # the same reason "got the milk" asks the shopping list.
+    m = re.fullmatch(r"(?:(?:start|make|create) )?(?:a )?new project"
+                     r"(?: called| about| for| to)?[:,]? (.{3,})"
+                     r"|(?:i (?:want|wanna|would like) to )?start (?:a )?(?:new )?project"
+                     r"(?: called| about| for| to)?[:,]? (.{3,})", low)
+    if m:
+        idea = m.group(1) or m.group(2)
+        return {"command": {"kind": "project_new", "idea": _as_he_said(transcript, idea)},
+                "say": None}
+    from aletheia import plans as _plans
+    m = re.fullmatch(r"add (?:a step )?(.+?) (?:to|for) (?:the |my )?(.+?)"
+                     r"(?: project| charter)?", low)
+    if m:
+        found, _why = _plans.find_charter(m.group(2))
+        if found is not None:
+            return {"command": {"kind": "project_step", "project": found["slug"],
+                                "text": _as_he_said(transcript, m.group(1))}, "say": None}
+    m = re.fullmatch(r"(?:drop|shelve|abandon|stop working on) (?:the |my )?(.+?)"
+                     r"(?: project| charter)?", low)
+    if m:
+        found, _why = _plans.find_charter(m.group(1))
+        if found is not None:
+            return {"command": {"kind": "project_drop", "project": found["slug"]}, "say": None}
+
     # "Cancel my gym membership." HIGH-RISK and operator_always, so
     # reaching the verb means she PREPARES it and asks him — which is
     # exactly what should happen. The alternative was the planner

@@ -618,6 +618,91 @@ on the path nobody had fixed; `speech.plainly` is shared now. Same reason
 `webtask.would_spend` is one predicate for three gates, and
 `voice.approval_label` is computed by the API for all three interfaces.
 
+## He starts projects hot and drifts. Carry them
+
+His words, 2026-09-10: *"I'll start a project really passionate about it
+for, like, a week or two and then just kinda get bored and forget about
+it ... I just need [her] to be able to take my projects and continue
+building and working on them ... doing it mostly herself, but then also
+keeping me on track too."* Anything that needs him engaged fails at the
+exact moment it matters — once he has drifted. Measured the same day: the
+local code loop had made 150 attempts and opened zero pull requests, there
+were zero project records, and the pulse could not see about 500 commits
+of Barkly because they were not on `main`.
+
+So a project he wants carried is a **charter**: a plan in `plans/` with a
+`project` block (repo, the branch it really lives on, risk) whose steps
+say whose they are.
+
+- **Her steps** go to the cloud builder (the "Thea project builder"
+  routine), which works on `claude/thea-<slug>-s<n>-*` branches and names
+  `Charter-Step: <slug>#<n>` in the pull request.
+- **His steps** reach him ONE at a time, at the top of the morning brief,
+  posted by the Actions bot — GitHub does not notify a person of comments
+  made with his own token, which is the token the PC holds. He answers by
+  replying `done`, `keep` or `drop` (`brief-reply.yml`).
+- **A step is done** when a merged pull request into the charter's branch
+  names it (`plans.credit_merged`, run by the pulse), or when he says so.
+  A worker's "done" is not evidence.
+- **Merging.** His ruling, the option he picked: *"She merges low-risk
+  (Recommended) — She merges projects you mark low-risk (Barkly, promo
+  video) after tests plus an independent review. The trader and
+  Aletheia's own code still wait for you."* `aletheia/project_merge.py` is
+  the only path that merges without him, and it refuses in code rather
+  than by trusting the charter: Aletheia and schwab-trader, default
+  branches, forks, red or absent CI, protected paths, same-model reviews.
+  Do not add a second merge path, and do not widen this one without a new
+  ruling in his words.
+- **A new project is a sentence.** He asked for it fluid — *"I don't need
+  a hard coded barkly area"* — so "new project: ...", "add sound effects
+  to Barkly" and "drop the holdco thing" work by voice, phone or a reply
+  on the brief. `aletheia/charters.py` queues them; the project loop
+  drafts with a model and writes `plans/<slug>.json` as `proposed`
+  straight onto `live` through the contents API (the Core's sync never
+  pushes `plans/`), then dispatches brief.yml so the bot asks him now.
+  Nothing reads a proposed charter, and `plans.confirm` — reached only by
+  his "yes" — is the one door to `open`. Never hardcode a project into
+  code; a charter file is the whole of a project's existence.
+- **Draft charters are drafts.** The first four were written by a Claude
+  session from each repository's own docs. When he corrects one, his
+  version wins. When you write one for something new he mentions, make
+  the next step always obvious and make his steps the smallest honest asks.
+
+## When the subscriptions run out, she keeps thinking
+
+His words, 2026-09-10: *"the whole point of building this LLM on my own
+was the bridge ... something that technically will always be able to fix
+something. That'll never run out even if it's not the best."* In the same
+breath: the only things he wants changing his repositories are Claude and
+the best of ChatGPT. Both halves are the rule.
+
+- **Claude says when it is out, so listen.** The CLI prints `You've hit
+  your session limit · resets 4:40pm (UTC)`. `reasoner` remembers the
+  reset (`ClaudeResting`, private state) and does not ask Claude again
+  until it passes — every ask in between used to pay a round trip to learn
+  the same thing. Read the limit only from an ERROR; an answer that
+  mentions a limit is an answer.
+- **The rung that never runs out is her own model, and it must FIT.** The
+  standard policy's local fallback asked only the deep role, whose 27B
+  model needs ~19 GB on a 16 GB laptop — 31 recorded attempts, 31
+  failures — so the bridge had never carried a request. It tries deep and
+  then whatever fits. Never make a fallback that only tries one model.
+- **Her own answers say they are hers.** Conversation falls to
+  `reasoner.local_text` after Claude and ChatGPT, and the answer leads with
+  "Claude's out until 4:40 PM, so this answer is from my own model." An
+  answer he trusts as Claude's and is not is the failure he cannot detect.
+- **Repositories stay with the subscriptions.** Code proposals and merge
+  reviews call `subscription_json` directly and never reach a local model;
+  `tests/test_the_bridge.py` holds that. Charter DRAFTS may be written
+  locally — they are not code, he says yes before anything happens, and
+  the charter carries `drafted_by`.
+- **Nobody able to think is not a failure.** A queued ask whose draft hit
+  `ReasonerUnavailable` costs no attempt; the next cycle tries again.
+
+Measured on this laptop (no GPU): qwen3:8b drafted a charter in 100 s warm,
+188 s cold. That is the price of never running out, and it is paid only
+when the subscriptions are gone.
+
 ## The standing assignment
 
 Every session acts on the playbook rather than re-describing it (§156):

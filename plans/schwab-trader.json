@@ -1,0 +1,47 @@
+{
+  "slug": "schwab-trader",
+  "title": "Schwab trader",
+  "goal": "Prove on paper, with a real closed-trade track record, whether the two-brain strategy has an edge, before a single real dollar is at risk",
+  "state": "open",
+  "created": "2026-09-10T15:30:00Z",
+  "project": {
+    "repo": "schwab_trader",
+    "base_branch": "main",
+    "risk": "high",
+    "why": "Drafted 2026-09-10 from README.md, STRATEGY.md and its open issues: the executor watchdog has reported a stall for over a month (#15), a sell approval has waited since June 26 (#5), and the BUY brain is paused. High risk: every change waits for Caleb to merge."
+  },
+  "steps": [
+    {
+      "n": 1,
+      "text": "Answer the sell approval waiting since June 26 (schwab-trader issue #5): comment approve, hold, or close it",
+      "state": "todo",
+      "owner": "caleb"
+    },
+    {
+      "n": 2,
+      "text": "Find out why the executor hasn't run in over a month (issue #15): the cron-job.org trigger stopped, or SCHWAB_REFRESH_TOKEN expired, and only you can log in to either",
+      "state": "todo",
+      "owner": "caleb"
+    },
+    {
+      "n": 3,
+      "text": "Make the watchdog say which of the two likely causes a stall is (no trigger runs at all, or runs that fail) so the next stall names itself",
+      "state": "todo",
+      "owner": "thea"
+    },
+    {
+      "n": 4,
+      "text": "Decide whether to resume the BUY brain, paused when its Claude quota ran out",
+      "state": "todo",
+      "owner": "caleb",
+      "needs": [2]
+    },
+    {
+      "n": 5,
+      "text": "Once 30 paper trades have closed, write the edge report (win rate, expectancy, by signal) and say plainly whether the strategy has earned the right to trade real money",
+      "state": "todo",
+      "owner": "thea",
+      "needs": [4]
+    }
+  ]
+}

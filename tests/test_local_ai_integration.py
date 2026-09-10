@@ -251,7 +251,9 @@ class GatewayRoutingCase(unittest.TestCase):
         self.assertEqual(result.local_role, "deep")
         self.assertIn("subscriptions unavailable", result.degraded)
         self.assertEqual(local.call_args.kwargs["preferred_role"], "deep")
-        self.assertFalse(local.call_args.kwargs["allow_failover"])
+        # Deep first, then whatever FITS: the deep model has never run on
+        # his 16 GB laptop, and a bridge that only tries it carries nothing.
+        self.assertTrue(local.call_args.kwargs["allow_failover"])
 
     def test_disabled_standard_never_silently_uses_local(self):
         with mock.patch.dict(os.environ, {"ALETHEIA_LOCAL_AI_ENABLED": "0"}), \

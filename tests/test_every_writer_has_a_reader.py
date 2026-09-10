@@ -55,6 +55,11 @@ READER_FOR = {
     "plan_add_step": "projects",
     "plan_step": "projects",
     "plan_set": "projects",
+    # What he asked about his projects shows up in "my projects" at once,
+    # as still to draft, then as a draft waiting for his yes, then carried.
+    "project_new": "projects",
+    "project_step": "projects",
+    "project_drop": "projects",
     "apply_prepare": "applications",
     "apply_campaign": "applications",
     # She wrote it into the workspace; `file_list` is how he sees it is

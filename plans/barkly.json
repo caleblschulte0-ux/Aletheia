@@ -1,0 +1,67 @@
+{
+  "slug": "barkly",
+  "title": "Barkly",
+  "goal": "Barkly on real iPhones through TestFlight, with people who aren't Caleb saying whether he feels like a specific little dog rather than ChatGPT in a dog skin",
+  "state": "open",
+  "created": "2026-09-10T15:30:00Z",
+  "project": {
+    "repo": "money_machine",
+    "base_branch": "claude/barkley-mvp-mobile-qbegtj",
+    "path": "barkly",
+    "risk": "low",
+    "why": "An AI-powered virtual dog: mobile app first, a physical toy later. Drafted 2026-09-10 from barkly/README.md, docs/APP_STORE_RELEASE.md and docs/PLAYTESTING.md; his to correct."
+  },
+  "steps": [
+    {
+      "n": 1,
+      "text": "Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push",
+      "state": "todo",
+      "owner": "thea"
+    },
+    {
+      "n": 2,
+      "text": "Turn on GitHub Pages for Money_Machine (Settings, Pages, Source: GitHub Actions) so the playtest link goes live",
+      "state": "todo",
+      "owner": "caleb"
+    },
+    {
+      "n": 3,
+      "text": "Fix the useBarkly.goTo() dev-flag mismatch noted in barkly/docs/APP_STORE_RELEASE.md (pass devRef.current to areaUnlocked)",
+      "state": "todo",
+      "owner": "thea"
+    },
+    {
+      "n": 4,
+      "text": "Choose Barkly's final iOS bundle identifier and Android application id",
+      "state": "todo",
+      "owner": "caleb"
+    },
+    {
+      "n": 5,
+      "text": "Make npm run release:check pass for everything that is code, and write down exactly what is left that only Caleb can supply",
+      "state": "todo",
+      "owner": "thea",
+      "needs": [4]
+    },
+    {
+      "n": 6,
+      "text": "Decide where Barkly's production backend proxy runs and create that account (it keeps the model key off the phone)",
+      "state": "todo",
+      "owner": "caleb"
+    },
+    {
+      "n": 7,
+      "text": "Put the TestFlight build on your own iPhone and run the physical QA list in barkly/docs/APP_STORE_RELEASE.md",
+      "state": "todo",
+      "owner": "caleb",
+      "needs": [5, 6]
+    },
+    {
+      "n": 8,
+      "text": "Send the playtest link to three people who aren't you and ask one question: does he feel like a specific dog?",
+      "state": "todo",
+      "owner": "caleb",
+      "needs": [7]
+    }
+  ]
+}

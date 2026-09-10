@@ -1,0 +1,77 @@
+name: brief-reply
+
+# His answer to the morning brief's one thing, by replying to the brief
+# issue from his phone: "done" marks his step done, "keep" quiets a drift
+# check-in for a week, "drop" drops the charter. Only the first word
+# counts, and only the repository owner's comments reach the script. A word
+# that answers nothing changes nothing, and the reply says so.
+#
+# The answer is committed BEFORE it is posted, so a push that fails can
+# never leave a reply on his phone claiming something that did not land.
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: brief-reply
+  cancel-in-progress: false
+
+jobs:
+  reply:
+    if: >
+      startsWith(github.event.issue.title, '☀️ Fleet brief') &&
+      github.event.comment.user.login == github.repository_owner
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: live
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Apply the reply
+        id: apply
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          OUT=$(python -m aletheia.brief --reply "$COMMENT_BODY")
+          echo "$OUT"
+          {
+            echo "outcome<<EOF_OUTCOME"
+            echo "$OUT"
+            echo "EOF_OUTCOME"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Commit what changed
+        run: |
+          git config user.name "aletheia-brief"
+          git config user.email "actions@users.noreply.github.com"
+          git add state plans
+          if git diff --cached --quiet; then
+            echo "nothing changed"
+          else
+            git commit -m "brief: his reply applied"
+            git pull --rebase origin live
+            git push origin live
+          fi
+
+      - name: Answer on the issue
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.issue.number }}
+          OUTCOME: ${{ steps.apply.outputs.outcome }}
+        run: |
+          python - <<'EOF'
+          import os
+          from aletheia import gh
+          repo = os.environ["GITHUB_REPOSITORY"]
+          gh.request("POST", f"/repos/{repo}/issues/{os.environ['NUMBER']}/comments",
+                     {"body": os.environ["OUTCOME"]})
+          EOF

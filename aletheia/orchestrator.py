@@ -100,6 +100,12 @@ def run_all(worker: str | None = None) -> list[dict]:
     for plan in plans.all_plans():
         if plan["state"] != "open":
             continue
+        # A CHARTER is carried by its builder and credited by merged pull
+        # requests (plans.credit_merged), not compiled into tasks. A task per
+        # step for four ventures put twenty placeholders at the top of every
+        # brief, above the one thing that actually needed him.
+        if plans.is_charter(plan):
+            continue
         compile_goal(plan["slug"], worker=worker)
         out.append(sync_goal(plan["slug"]))
     return out

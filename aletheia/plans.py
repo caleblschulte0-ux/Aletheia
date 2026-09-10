@@ -6,7 +6,23 @@ not `state/`), have a lifecycle, and every mutation is journaled. The
 pulse embeds a summary so the wall and the morning brief both show what
 is in motion — a plan nobody can see is a plan nobody chases.
 
-States: plan open|done|dropped; step todo|doing|done|blocked.
+CHARTERS. A plan with a `project` block is a charter: a venture he wants
+carried while his attention is somewhere else. His words, 2026-09-10:
+*"I'll start a project really passionate about it for, like, a week or two
+and then just kinda get bored and forget about it ... I just need [her] to
+be able to take my projects and continue building ... and keeping me on
+track too."* A charter is what lets that happen without guessing. It names
+the repository and the BRANCH the project really lives on (Barkly's ~500
+commits are not on Money_Machine's `main`, which holds a README), how much
+a merge risks, and — step by step — whose each step is. Hers go to the
+cloud builder; his go into the morning brief, one at a time. A step is
+credited by a merged pull request that names it (`credit_merged`) or by
+him, never by a worker saying it finished (§68).
+
+A charter he asks for by saying so (aletheia.charters) arrives "proposed"
+and nothing works on it until his yes (`confirm`) opens it.
+
+States: plan proposed|open|done|dropped; step todo|doing|done|blocked.
 """
 from __future__ import annotations
 
@@ -18,11 +34,23 @@ import sys
 from pathlib import Path
 
 from aletheia.fleet import REPO_ROOT, load_fleet
-from aletheia import journal
+from aletheia import contracts, journal
 
 PLANS_DIR = REPO_ROOT / "plans"
-PLAN_STATES = {"open", "done", "dropped"}
-STEP_STATES = {"todo", "doing", "done", "blocked"}
+PLAN_STATES = contracts.GOAL_STATES
+STEP_STATES = contracts.GOAL_STEP_STATES
+STEP_OWNERS = contracts.GOAL_STEP_OWNERS
+PROJECT_RISKS = contracts.GOAL_PROJECT_RISKS
+THEA, CALEB = "thea", "caleb"
+# How a pull request says which charter step it builds. It is the only
+# thing that turns a merge into credit, so it is matched exactly.
+CHARTER_STEP = re.compile(r"Charter-Step:\s*([a-z0-9][a-z0-9-]*)#(\d+)", re.IGNORECASE)
+# How he says a step is HIS: about himself, or a decision, a purchase, a
+# person to contact. Everything else he adds to a project is work for her.
+_HIS_STEP = re.compile(
+    r"^(?:i|i'm|i'll|i've|i need|me|my|for me|remind me|caleb)\b"
+    r"|^(?:decide|choose|pick|buy|pay|purchase|sign up|subscribe|call|phone|meet|"
+    r"visit|send|approve|log in|login|film|record)\b", re.IGNORECASE)
 
 
 def _now() -> str:
@@ -65,6 +93,20 @@ def validate_plan(plan: dict, fleet: dict) -> list[str]:
         problems.append(f"state {plan.get('state')!r} not in {sorted(PLAN_STATES)}")
     if "slug" in plan and not re.fullmatch(r"[a-z0-9][a-z0-9-]*", plan["slug"]):
         problems.append(f"slug {plan['slug']!r} must be lowercase-kebab")
+    project = plan.get("project")
+    if project is not None:
+        if not isinstance(project, dict):
+            problems.append("project must be an object")
+        else:
+            if project.get("repo") not in fleet["repos"]:
+                problems.append(f"project.repo {project.get('repo')!r} not in the fleet registry")
+            if not str(project.get("base_branch") or "").strip():
+                problems.append("project.base_branch: a charter names the branch the project lives on")
+            if project.get("risk") not in PROJECT_RISKS:
+                problems.append(f"project.risk {project.get('risk')!r} not in {sorted(PROJECT_RISKS)}")
+    elif plan.get("state") == "proposed":
+        problems.append("only a charter can be proposed")
+    numbers = {s.get("n") for s in plan.get("steps", []) if isinstance(s, dict)}
     for i, step in enumerate(plan.get("steps", [])):
         if not step.get("text"):
             problems.append(f"steps[{i}]: needs text")
@@ -73,7 +115,104 @@ def validate_plan(plan: dict, fleet: dict) -> list[str]:
         repo = step.get("repo")
         if repo and repo != "fleet" and repo not in fleet["repos"]:
             problems.append(f"steps[{i}]: repo {repo!r} not in the fleet registry")
+        if step.get("owner") is not None and step.get("owner") not in STEP_OWNERS:
+            problems.append(f"steps[{i}]: owner {step.get('owner')!r} not in {sorted(STEP_OWNERS)}")
+        for need in step.get("needs") or []:
+            if need not in numbers or not isinstance(step.get("n"), int) or need >= step["n"]:
+                problems.append(f"steps[{i}]: needs {need!r} must name an EARLIER step")
     return problems
+
+
+def is_charter(plan: dict) -> bool:
+    return isinstance(plan, dict) and isinstance(plan.get("project"), dict)
+
+
+def owner(step: dict) -> str:
+    """Whose step this is. Unmarked steps are hers: a charter that forgot to
+    say should still move, and HIS steps are the ones that must be named,
+    because they are the ones the brief will ask him for."""
+    return str(step.get("owner") or THEA)
+
+
+def next_step(plan: dict) -> dict | None:
+    """The first step not done, whoever it belongs to — the project's "next"."""
+    for step in plan.get("steps", []):
+        if step.get("state") != "done":
+            return step
+    return None
+
+
+def next_for(plan: dict, who: str) -> dict | None:
+    """The first step `who` can actually do now.
+
+    Not simply the next step. The builder should not stand still while a
+    step of his sits undone, and he should not be asked for something that
+    is still waiting on her. A step is doable when it is neither done nor
+    blocked and every step it `needs` is done.
+    """
+    done = {s.get("n") for s in plan.get("steps", []) if s.get("state") == "done"}
+    for step in plan.get("steps", []):
+        if step.get("state") in ("done", "blocked") or owner(step) != who:
+            continue
+        if all(n in done for n in step.get("needs") or []):
+            return step
+    return None
+
+
+def infer_owner(text: str) -> str:
+    """Whose a step he just added is, from the way he said it.
+
+    "Add sound effects to Barkly" is work for her; "add I need to film the
+    intro" and "add buy a domain" are his. A step that spends money is his
+    whatever the words — the money line is not a guess to get wrong.
+    """
+    words = " ".join(str(text or "").split())
+    if _HIS_STEP.search(words):
+        return CALEB
+    try:
+        from aletheia import webtask
+        if webtask.would_spend(words):
+            return CALEB
+    except Exception:
+        pass
+    return THEA
+
+
+def _words(value: object) -> str:
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", str(value or "").casefold()).split())
+
+
+def find_charter(name: str, rows: list[dict] | None = None) -> tuple[dict | None, str]:
+    """The one open or drafted charter he means by `name`, or why not.
+
+    By what he CALLS it — "Barkly", "the holdco thing", "open range" — never
+    by a slug he should not have to know. Two that fit is a question, not a
+    guess, and none is said plainly rather than filed somewhere.
+    """
+    wanted = _words(name)
+    for lead in ("the ", "my ", "that "):
+        if wanted.startswith(lead):
+            wanted = wanted[len(lead):]
+    for tail in (" project", " charter", " thing", " one"):
+        if wanted.endswith(tail):
+            wanted = wanted[: -len(tail)]
+    if not wanted:
+        return None, "Which project?"
+    live = [p for p in (rows if rows is not None else all_plans())
+            if is_charter(p) and p.get("state") in ("open", "proposed")]
+    exact = [p for p in live if wanted in (_words(p.get("slug")), _words(p.get("title")))]
+    if len(exact) == 1:
+        return exact[0], ""
+    close = exact or [p for p in live
+                      if _words(p.get("title")).startswith(wanted)
+                      or _words(p.get("slug")).startswith(wanted)
+                      or set(wanted.split()) <= set(_words(p.get("title")).split())]
+    if len(close) == 1:
+        return close[0], ""
+    if close:
+        names = [str(p.get("title")) for p in close[:3]]
+        return None, "Which one, " + " or ".join(names) + "?"
+    return None, f"I don't have a project called {name}."
 
 
 def new_plan(slug: str, title: str, goal: str) -> dict:
@@ -86,11 +225,17 @@ def new_plan(slug: str, title: str, goal: str) -> dict:
     return plan
 
 
-def add_step(slug: str, text: str, repo: str | None = None) -> dict:
+def add_step(slug: str, text: str, repo: str | None = None,
+             owner: str | None = None) -> dict:
     plan = load(slug)
-    step = {"n": len(plan["steps"]) + 1, "text": text, "state": "todo"}
+    step = {"n": max((int(s.get("n") or 0) for s in plan["steps"]), default=0) + 1,
+            "text": text, "state": "todo"}
     if repo:
         step["repo"] = repo
+    if owner:
+        if owner not in STEP_OWNERS:
+            raise ValueError(f"step owner must be one of {sorted(STEP_OWNERS)}")
+        step["owner"] = owner
     plan["steps"].append(step)
     save(plan)
     journal.append("plan", f"plan:{slug}", f"step {step['n']} added — {text}")
@@ -114,10 +259,58 @@ def set_plan(slug: str, state: str, because: str = "") -> dict:
     if state not in PLAN_STATES:
         raise ValueError(f"plan state must be one of {sorted(PLAN_STATES)}")
     plan = load(slug)
+    # A DRAFT STARTS ON HIS YES AND NOTHING ELSE. `plan_set` is reachable by
+    # voice and by the planner, and a model that could set a drafted
+    # project to "open" could start work he has not agreed to.
+    if is_charter(plan) and plan.get("state") == "proposed" and state == "open":
+        raise ValueError("a drafted project starts only when he says yes to it")
     plan["state"] = state
     save(plan)
     journal.append("plan", f"plan:{slug}", f"-> {state}" + (f" — {because}" if because else ""))
     return plan
+
+
+def confirm(slug: str, *, words: str, via: str) -> dict:
+    """His yes to a drafted project: the ONE door from proposed to open."""
+    plan = load(slug)
+    if not is_charter(plan) or plan.get("state") != "proposed":
+        raise ValueError(f"{slug} is not a drafted project waiting for a yes")
+    plan["state"] = "open"
+    plan["confirmed"] = {"at": _now(), "via": via,
+                         "words": " ".join(str(words or "").split())[:200]}
+    save(plan)
+    journal.append("decision", f"plan:{slug}", f"started on his yes: {plan['title']}", actor=via)
+    return plan
+
+
+def credit_merged(evidence: list[dict]) -> list[dict]:
+    """Mark charter steps done on the one kind of evidence that counts.
+
+    A merged pull request, into the branch the charter says the project
+    lives on, whose body names the step (`Charter-Step: <slug>#<n>`). A
+    worker saying it finished is not that (§68); nor is a pull request
+    closed unmerged, or one merged into some other branch. Idempotent — a
+    step already done is left alone, so the pulse runs this every time.
+    """
+    credited = []
+    for row in evidence or []:
+        try:
+            slug, n = str(row["slug"]), int(row["n"])
+            plan = load(slug)
+        except (KeyError, TypeError, ValueError, OSError, json.JSONDecodeError):
+            continue
+        if not is_charter(plan) or plan.get("state") != "open":
+            continue
+        if not row.get("merged_at") or row.get("base") != plan["project"].get("base_branch"):
+            continue
+        step = next((s for s in plan["steps"] if s.get("n") == n), None)
+        if step is None or step.get("state") == "done":
+            continue
+        set_step(slug, n, "done")
+        journal.append("plan", f"plan:{slug}",
+                       f"step {n} credited by merged PR #{row.get('pr')} ({row.get('url')})")
+        credited.append({"slug": slug, "n": n, "pr": row.get("pr")})
+    return credited
 
 
 def progress(plan: dict) -> tuple[int, int]:
@@ -157,7 +350,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{plan['title']} [{plan['state']}] {done}/{total}\n  goal: {plan['goal']}")
         for s in plan["steps"]:
             mark = {"done": "x", "doing": ">", "blocked": "!", "todo": " "}[s["state"]]
-            print(f"  [{mark}] {s['n']}. {s['text']}" + (f"  ({s['repo']})" if s.get("repo") else ""))
+            print(f"  [{mark}] {s['n']}. {s['text']}"
+                  + (f"  ({s['repo']})" if s.get("repo") else "")
+                  + ("  (yours)" if is_charter(plan) and owner(s) == CALEB else ""))
     elif args.cmd == "validate":
         fleet = load_fleet()
         bad = 0
@@ -171,7 +366,7 @@ def main(argv: list[str] | None = None) -> int:
     else:  # list
         for plan in all_plans():
             done, total = progress(plan)
-            print(f"[{plan['state']:7}] {plan['slug']:24} {done}/{total}  {plan['title']}")
+            print(f"[{plan['state']:8}] {plan['slug']:24} {done}/{total}  {plan['title']}")
     return 0
 
 

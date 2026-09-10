@@ -8,9 +8,11 @@ routine policy, while deep planning remains subscription-first.
 """
 from __future__ import annotations
 
+import datetime as dt
 import json
 import math
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -56,6 +58,151 @@ SHADOW_TIMEOUT_S = 90.0
 
 class ReasonerUnavailable(RuntimeError):
     """No configured reasoning provider was usable."""
+
+
+# ---- when Claude's window is spent -------------------------------------------
+#
+# His subscription has a usage window, and when it is spent the CLI says so
+# in plain words and says when it comes back:
+#
+#     You've hit your session limit · resets 4:40pm (UTC)
+#
+# (seen verbatim in schwab-trader's sell-brain runs on 2026-09-08, 09 and 10).
+# Until 2026-09-10 that sentence became "Claude CLI exited 1" and every ask
+# in the next hours paid a round trip to learn the same thing again. Now the
+# reset is remembered and Claude is not asked until it passes, so the ladder
+# goes straight to the next rung - ChatGPT while he is waiting, her own model
+# otherwise (reasoning_gateway, converse).
+
+class ClaudeResting(ReasonerUnavailable):
+    """Claude's usage window is spent, and it said when it resets."""
+
+    def __init__(self, until: "dt.datetime"):
+        self.until = until
+        super().__init__(f"Claude is out until {spoken_time(until)}")
+
+
+_LIMIT_SAID = re.compile(
+    r"(?:hit|reached|used up|exceeded)\s+(?:your|the)\s+[\w\s-]{0,24}?limit"
+    r"|usage limit reached", re.IGNORECASE)
+_RESETS = re.compile(
+    r"resets?\s+(?:at\s+)?"
+    r"(?:(?P<month>[A-Za-z]{3,9})\s+(?P<day>\d{1,2}),?\s+(?:at\s+)?)?"
+    r"(?P<hour>\d{1,2})(?::(?P<minute>\d{2}))?\s*(?P<ampm>am|pm)?"
+    r"\s*(?:\((?P<tz>[^)]+)\))?", re.IGNORECASE)
+_MONTHS = {name: n for n, name in enumerate(
+    ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"), 1)}
+#: A limit that did not say when it resets is tried again after this long.
+REST_FALLBACK = dt.timedelta(minutes=30)
+#: Weekly limits exist; nothing longer is believed.
+REST_MAX = dt.timedelta(days=8)
+
+
+def _zone(name: str | None):
+    label = str(name or "").strip()
+    if not label or label.upper() in ("UTC", "GMT", "Z"):
+        return dt.timezone.utc
+    try:
+        from zoneinfo import ZoneInfo
+        return ZoneInfo(label)
+    except Exception:
+        from aletheia import localtime
+        return localtime.operator_tz()
+
+
+def limit_reset(text: str, now: "dt.datetime | None" = None) -> "dt.datetime | None":
+    """When Claude's own words say its window comes back, or None if they
+    do not describe a spent limit at all. Only ever read from an ERROR - a
+    real answer that mentions a limit is an answer."""
+    said = str(text or "")
+    if not _LIMIT_SAID.search(said):
+        return None
+    now = (now or dt.datetime.now(dt.timezone.utc)).astimezone(dt.timezone.utc)
+    found = _RESETS.search(said)
+    if not found:
+        return now + REST_FALLBACK
+    try:
+        zone = _zone(found.group("tz"))
+        local_now = now.astimezone(zone)
+        hour, minute = int(found.group("hour")), int(found.group("minute") or 0)
+        ampm = (found.group("ampm") or "").lower()
+        if ampm == "pm" and hour != 12:
+            hour += 12
+        elif ampm == "am" and hour == 12:
+            hour = 0
+        if found.group("month"):
+            month = _MONTHS.get(found.group("month")[:3].casefold())
+            if not month:
+                return now + REST_FALLBACK
+            candidate = dt.datetime(local_now.year, month, int(found.group("day")),
+                                    hour, minute, tzinfo=zone)
+            if candidate < local_now - dt.timedelta(days=1):
+                candidate = candidate.replace(year=local_now.year + 1)
+        else:
+            candidate = local_now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            if candidate <= local_now:
+                candidate += dt.timedelta(days=1)
+    except (ValueError, OverflowError):
+        return now + REST_FALLBACK
+    return min(candidate.astimezone(dt.timezone.utc), now + REST_MAX)
+
+
+def _rest_path():
+    from aletheia import stateio
+    return stateio.private_dir("reasoning") / "claude-rest.json"
+
+
+def resting_until(now: "dt.datetime | None" = None) -> "dt.datetime | None":
+    """The moment Claude's window comes back, while it has not yet."""
+    try:
+        value = json.loads(_rest_path().read_text(encoding="utf-8"))
+        until = dt.datetime.fromisoformat(str(value.get("until")).replace("Z", "+00:00"))
+    except (OSError, ValueError, AttributeError):
+        return None
+    if until.tzinfo is None:
+        until = until.replace(tzinfo=dt.timezone.utc)
+    now = (now or dt.datetime.now(dt.timezone.utc)).astimezone(dt.timezone.utc)
+    return until if until > now else None
+
+
+def spoken_time(when: "dt.datetime") -> str:
+    """"4:40 PM", or "Saturday 9 AM" when it is not today - in HIS zone."""
+    try:
+        from aletheia import localtime
+        zone = localtime.operator_tz()
+    except Exception:
+        zone = dt.timezone.utc
+    local = when.astimezone(zone)
+    today = dt.datetime.now(zone).date()
+    clock = local.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ")
+    return clock if local.date() == today else f"{local.strftime('%A')} {clock}"
+
+
+def _rest(until: "dt.datetime", said: str) -> None:
+    first = resting_until() is None
+    path = _rest_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({
+        "until": until.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "noted_at": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "said": " ".join(str(said or "").split())[:200],
+    }, indent=2) + "\n", encoding="utf-8")
+    if first:
+        try:
+            from aletheia import journal
+            journal.append("event", "reasoning",
+                           f"Claude's usage window is spent until {spoken_time(until)}; "
+                           "ChatGPT answers while he is asking, my own model otherwise",
+                           actor="aletheia-reasoner")
+        except Exception:
+            pass
+
+
+def _raise_if_limited(text: str) -> None:
+    until = limit_reset(text)
+    if until is not None:
+        _rest(until, text)
+        raise ClaudeResting(until)
 
 
 def cli_path() -> str | None:
@@ -196,6 +343,11 @@ def _sweep_stale_workdirs(now: float | None = None) -> int:
 
 def _run_cli(system_prompt: str, user_prompt: str, model: str,
              timeout_s: float = TIMEOUT_S) -> str:
+    # A spent window is KNOWN, so Claude is not asked until it resets:
+    # every ask in between would pay a round trip to learn it again.
+    until = resting_until()
+    if until is not None:
+        raise ClaudeResting(until)
     path = cli_path()
     if not path:
         raise ReasonerUnavailable("Claude CLI is not on PATH")
@@ -229,6 +381,7 @@ def _run_cli(system_prompt: str, user_prompt: str, model: str,
     finally:
         _discard_workdir(workdir)
     if proc.returncode != 0:
+        _raise_if_limited(f"{proc.stdout or ''}\n{proc.stderr or ''}")
         detail = (proc.stderr or "").strip()[:300]
         suffix = f": {detail}" if detail else ""
         raise ReasonerUnavailable(f"Claude CLI exited {proc.returncode}{suffix}")
@@ -238,6 +391,8 @@ def _run_cli(system_prompt: str, user_prompt: str, model: str,
     except json.JSONDecodeError as exc:
         raise ReasonerUnavailable("Claude CLI returned an invalid envelope") from exc
     if envelope.get("is_error"):
+        _raise_if_limited(" ".join(str(envelope.get(key) or "")
+                                   for key in ("result", "error", "subtype")))
         raise ReasonerUnavailable("Claude CLI reported an unavailable/error state")
     result = envelope.get("result")
     if not isinstance(result, str) or not result.strip():
@@ -347,6 +502,32 @@ def subscription_text(system_prompt: str, text: str, *,
             "both subscription paths are unavailable: the Claude CLI could not "
             f"answer and the browser session could not either ({type(exc).__name__})"
         ) from None
+
+
+def local_text(system_prompt: str, text: str, *,
+               timeout_s: float = TIMEOUT_S) -> tuple[str, str]:
+    """Prose from her OWN model: the rung that never runs out. (text, provider).
+
+    His words, 2026-09-10: "the whole point of building this LLM on my
+    own was the bridge ... something that'll never run out even if it's
+    not the best." The fast model is asked first because it is the one
+    that fits on this laptop; the deep one is tried only if it does.
+    """
+    from aletheia import local_model_pool, model_pool_config
+    if not (model_pool_config.enabled() and local_model_pool.reachable()):
+        raise ReasonerUnavailable("my own model is switched off or not running")
+    try:
+        run = local_model_pool.auto_json(
+            system_prompt + "\n\nReply with ONE JSON object and nothing else: "
+            '{"answer": "<your entire reply, as a single string>"}',
+            text, preferred_role="fast", allow_failover=True,
+            timeout_s=max(0.5, min(float(timeout_s), 300.0)))
+    except local_model_pool.LocalPoolUnavailable as exc:
+        raise ReasonerUnavailable(f"my own model could not answer either ({exc})") from None
+    said = run.output.get("answer") if isinstance(run.output, dict) else None
+    if not isinstance(said, str) or not said.strip():
+        raise ReasonerUnavailable("my own model returned no answer")
+    return said, f"ollama:{run.model}"
 
 
 def _subscription_json_with_provider(system_prompt: str, text: str, *, context: dict | None,

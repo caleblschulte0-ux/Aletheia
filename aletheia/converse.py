@@ -656,6 +656,27 @@ def _fit(context: dict, limit: int = MAX_CONTEXT_CHARS) -> str:
                 dropped.append("an older exchange")
 
 
+def _from_my_own_model(prompt: str) -> tuple[str, str] | None:
+    """The rung that never runs out: an answer from her own model, said as such.
+
+    Conversation had Claude and ChatGPT and nothing under them, so a spent
+    window with no ChatGPT session answered "I could not reach a model".
+    Her own model is slower and plainer, and the answer SAYS where it came
+    from: an answer he trusts as Claude's and is not is the failure he
+    cannot detect.
+    """
+    try:
+        said, provider = reasoner.local_text(SYSTEM, prompt, timeout_s=TIMEOUT_S)
+    except Exception:
+        return None
+    until = reasoner.resting_until()
+    lead = (f"Claude's out until {reasoner.spoken_time(until)}, so this answer is "
+            "from my own model. " if until else
+            "Claude and ChatGPT can't answer right now, so this answer is from my "
+            "own model. ")
+    return lead + said, provider
+
+
 def answer(question: str, *, think=None, include_thread: bool = True,
            read_files: bool = True) -> dict:
     """One question, one answer. Nothing is executed."""
@@ -673,6 +694,7 @@ def answer(question: str, *, think=None, include_thread: bool = True,
     # two paths since they were written; conversation had one, so an expired
     # Claude login would have taken out the only half of her he talks to
     # while everything else carried on normally.
+    injected = think is not None
     think = think or reasoner.subscription_text
 
     context = {"now": stateio.utcnow(), "situation": situation()}
@@ -786,16 +808,19 @@ def answer(question: str, *, think=None, include_thread: bool = True,
         if isinstance(said, tuple) and len(said) == 2:
             said, provider = said
     except Exception as exc:
-        # The reason is CARRIED, not swallowed into a type name. "Claude CLI
-        # is not on PATH" tells him what to do; "ReasonerUnavailable" tells
-        # him a class exists. Found while hardening this path: the old
-        # message printed only the type and dropped the one useful sentence.
-        why = str(exc).strip() or type(exc).__name__
-        raise ConverseError(f"I could not reach a model to answer that: {why}."
-                            + (" Sign the Claude CLI in on this machine and "
-                               "ask again." if "PATH" in why or "CLI" in why
-                               else "")
-                            + " Everything else still works.") from None
+        local = None if injected else _from_my_own_model(prompt)
+        if local is None:
+            # The reason is CARRIED, not swallowed into a type name. "Claude CLI
+            # is not on PATH" tells him what to do; "ReasonerUnavailable" tells
+            # him a class exists. Found while hardening this path: the old
+            # message printed only the type and dropped the one useful sentence.
+            why = str(exc).strip() or type(exc).__name__
+            raise ConverseError(f"I could not reach a model to answer that: {why}."
+                                + (" Sign the Claude CLI in on this machine and "
+                                   "ask again." if "PATH" in why or "CLI" in why
+                                   else "")
+                                + " Everything else still works.") from None
+        said, provider = local
     said = str(said or "").strip()[:MAX_ANSWER_CHARS]
     if not said:
         raise ConverseError("the model returned nothing")
