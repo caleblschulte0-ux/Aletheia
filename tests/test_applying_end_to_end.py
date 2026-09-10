@@ -213,6 +213,50 @@ class OneEmployerDoesNotTakeEveryTryCase(PrivateProfile):
         self.assertIn("https://x/other", tried)
 
 
+class FoundOnHisRealResumeCase(PrivateProfile):
+    """The live run on his real resume, 2026-09-10."""
+
+    def test_it_asks_the_boards_for_enough_to_skip_a_crowded_employer(self):
+        seen = {}
+
+        def searcher(roles, **kw):
+            seen.update(kw)
+            return {"matches": [{"apply_url": "https://x/1", "title": "Job", "company": "Co"}],
+                    "searched": 1}
+        with mock.patch.object(campaign, "read_resume", return_value=("resume.pdf", RESUME)), \
+             mock.patch.object(apply_run, "all_runs", return_value=[]):
+            campaign.run("Operations", count=2, json_think=False, searcher=searcher,
+                         stager=lambda url, **kw: {"id": url, "url": url, "state": "NEEDS_YOU",
+                                                   "questions": []},
+                         draft_essays_too=False)
+        self.assertGreaterEqual(seen["limit"],
+                                2 * campaign.TRIES_PER_READY * campaign.PER_COMPANY)
+
+    def test_tries_stay_bounded_however_many_openings_come_back(self):
+        pages = {"matches": [{"apply_url": f"https://x/{i}", "title": "Job", "company": f"Co {i}"}
+                             for i in range(40)], "searched": 1}
+        tried = []
+        with mock.patch.object(campaign, "read_resume", return_value=("resume.pdf", RESUME)), \
+             mock.patch.object(apply_run, "all_runs", return_value=[]):
+            campaign.run("Operations", count=2, json_think=False,
+                         searcher=lambda roles, **kw: pages,
+                         stager=lambda url, **kw: tried.append(url) or {
+                             "id": url, "url": url, "state": "NEEDS_YOU", "questions": []},
+                         draft_essays_too=False)
+        self.assertEqual(len(tried), 2 * campaign.TRIES_PER_READY)
+
+    def test_city_and_state_together_is_not_one_of_them(self):
+        match = campaign.formfill.match_field
+        self.assertIsNone(match({"label": "If located in the US, in what city and state do you reside?*"}))
+        self.assertEqual(match({"label": "In which state do you currently reside?*"}), "state")
+        self.assertEqual(match({"label": "Location (City)*"}), "city")
+
+    def test_what_he_hears_counts_what_stops_them(self):
+        said = campaign.spoken({"blocked": [{}], "questions": [
+            {"label": "Remote?*", "required": True}, {"label": "Gender", "required": False}]})
+        self.assertIn("need 1 answer from you", said)
+
+
 class AFactGoesOnlyWhereItIsAskedForCase(unittest.TestCase):
     """Live 2026-09-10, once his title, employer, school and city were on
     file, a keyword anywhere in a question put them into it."""

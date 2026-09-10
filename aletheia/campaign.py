@@ -443,7 +443,11 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
     roles = [role] if role else roles_for(text, think=json_think)
     want = count * TRIES_PER_READY
     if finder is None:
-        hits = (searcher or jobs.search_many)(roles, where=where, limit=want, discover=True)
+        # Ask for more than it will try: PER_COMPANY skips the rest of an
+        # employer that crowds the top, and live 2026-09-10 eight matches that
+        # were all Stripe left three tries and no other employer at all.
+        hits = (searcher or jobs.search_many)(roles, where=where, limit=want * PER_COMPANY,
+                                              discover=True)
         pages = [{"url": j["apply_url"], "title": f"{j['title']} — {j['company']}",
                   "posting": j.get("posting_url") or j["apply_url"],
                   "company": j.get("company", ""),
@@ -468,6 +472,7 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
 
     staged, needs_you, failed = [], [], []
     tried: dict[str, int] = {}
+    attempts = 0
     for page in pages:
         # READY is what he asked for. A form still waiting on him is kept
         # and reported, and does not count toward the number.
@@ -476,6 +481,9 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         company = " ".join(str(page.get("company") or "").casefold().split())
         if company and tried.get(company, 0) >= PER_COMPANY:
             continue
+        if attempts >= want:
+            break
+        attempts += 1
         if company:
             tried[company] = tried.get(company, 0) + 1
         policy.ensure_not_halted()
@@ -802,8 +810,10 @@ def spoken(out: dict) -> str:
                     "waiting for you to confirm")
     if blocked:
         questions = out.get("questions") or []
-        said.append(f"{blocked} more that need {len(questions)} answer"
-                    f"{'s' if len(questions) != 1 else ''} from you first")
+        # What stops them, not every optional box on the page.
+        needed = [q for q in questions if q.get("required")] or questions
+        said.append(f"{blocked} more that need {len(needed)} answer"
+                    f"{'s' if len(needed) != 1 else ''} from you first")
     if failed:
         said.append(f"{failed} I could not reach a form on")
     used = f" I used {_resume_said(out['resume'])}." if out.get("resume") else ""

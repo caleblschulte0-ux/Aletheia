@@ -206,6 +206,10 @@ def match_field(field: dict) -> str | None:
                 continue
             if _says(phrase, label) or (not label.strip() and phrase in codes):
                 best, best_len = key, len(phrase)
+    # "In what city AND state do you reside?" is neither fact alone: live it
+    # got "SD". Left for the facts step, which writes "Hartford, SD".
+    if best in ("city", "state") and _says("city", label) and _says("state", label):
+        return None
     return best
 
 
