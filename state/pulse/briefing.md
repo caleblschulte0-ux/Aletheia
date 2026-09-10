@@ -1,33 +1,33 @@
 # Fleet briefing
 
-Generated 2026-09-09T20:59:05Z from fleet registry rev 4 via GitHubSource.
+Generated 2026-09-10T04:50:34Z from fleet registry rev 4 via GitHubSource.
 
-## 🟢 `Aletheia` — hub (active)
+## 🔴 `Aletheia` — hub (active)
 
 The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.
 
-Last commit `ee2fced4f7a8` at 2026-09-09T20:42:30Z: The Core's sync was blocked by a lost space
+Last commit `378489f96332` at 2026-09-10T04:39:22Z: A 17.8 GB model on a 16 GB laptop, reported as ready
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-09-09T20:59:01Z
-- `ci.yml`: success at 2026-09-09T20:46:10Z
+- `pulse.yml`: in_progress at 2026-09-10T04:50:32Z
+- `ci.yml`: failure at 2026-09-10T04:43:04Z
 
 ## 🔴 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `2d709420bdc3` at 2026-09-09T20:07:13Z: exchange: phase A bundle for 20260909 [skip ci]
+Last commit `7c79f18ed959` at 2026-09-10T03:32:03Z: `point` is not an animator, and it never was (#364)
 
-Vitals — trending posted: 316 · explainer posted: 239 · third posted: 459 · curiosity posted: 1
+Vitals — trending posted: 316 · explainer posted: 241 · third posted: 459 · curiosity posted: 1
 
 Watched workflows:
 - `daily.yml`: failure at 2026-09-09T17:14:37Z
-- `exchange_phase_a.yml`: success at 2026-09-09T20:07:17Z
+- `exchange_phase_a.yml`: success at 2026-09-10T03:32:26Z
 - `exchange_phase_b.yml`: success at 2026-09-09T17:53:06Z
 - `story_forge.yml`: success at 2026-09-09T19:51:53Z
 - `third.yml`: success at 2026-09-09T15:43:36Z
-- `explainer.yml`: pending at 2026-09-09T19:44:48Z
-- `retro.yml`: success at 2026-09-09T04:46:21Z
+- `explainer.yml`: success at 2026-09-10T01:16:52Z
+- `retro.yml`: success at 2026-09-10T04:46:33Z
 - `doctor.yml`: success at 2026-09-09T09:40:12Z
 
 ## 🟢 `schwab-trader` — trading-bot (active)
@@ -39,7 +39,7 @@ Vitals withheld (5, on his own screen): realized P&L, win rate, closed trades, o
 
 Watched workflows:
 - `sell-brain.yml`: success at 2026-09-09T18:37:40Z
-- `watchdog.yml`: success at 2026-09-09T19:35:03Z
+- `watchdog.yml`: success at 2026-09-09T21:56:24Z
 
 ## 💤 `Money_Machine` — unbuilt (stub)
 
