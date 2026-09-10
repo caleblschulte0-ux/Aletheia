@@ -1354,9 +1354,19 @@ def _interpret(transcript: str) -> dict:
                         "for you. Press MIC in the Command Center and I'll "
                         "start listening.")}
 
-    if re.fullmatch(r"(?:is (?:the |your )?(?:microphone|mic) on"
-                    r"|are (?:you|u) listening"
-                    r"|(?:microphone|mic) status)", low):
+    # "Are you listening TO ME RIGHT NOW" is how the question is really
+    # asked, and `are you listening` had to match the whole sentence, so
+    # it reached the planner: nine and a half seconds, and an answer about
+    # being a chat model — "whatever you say gets converted to text and
+    # handed to me at the moment you send it" — which is plausible, is not
+    # about Aletheia, and is not an answer about HIS microphone. He ruled
+    # on this one himself; it is a question he is entitled to answer to
+    # instantly, whatever else is happening.
+    if re.fullmatch(r"(?:is (?:the |your )?(?:microphone|mic) (?:on|off|live|open)"
+                    r"|are (?:you|u) listening(?: to me)?(?: right now| now)?"
+                    r"|can (?:you|u) hear me(?: right now| now)?"
+                    r"|(?:is )?(?:the |your )?(?:microphone|mic)(?: status| live)?"
+                    r"|are (?:you|u) recording(?: me)?)\s*\??", low):
         return {"command": {"kind": "mic"}, "say": None}
 
     # MUSIC. Transport only, and the difference is said out loud rather

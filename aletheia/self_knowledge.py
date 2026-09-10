@@ -123,11 +123,37 @@ SYNONYMS = {
     "subscription": ("subscription", "finance"),
     "stop": ("halt", "policy"),
     "halt": ("halt", "policy"),
+    # HER OFF SWITCH, asked the way a person asks. "How do I turn you off"
+    # matched `finance.hand_off` — because "off" is inside "hand_off" —
+    # and "can you shut down" matched nothing at all, so a model answered
+    # both from memory and said "I don't have a built-in shutdown command
+    # myself, that's not something in my registry as a capability". It is:
+    # `core.close`, AVAILABLE, whose description he had just been told.
+    # Denying her own kill switch is the worst thing in this file to get
+    # wrong, and she then sent him to Task Manager.
+    "off": ("close", "core", "halt", "shutdown"),
+    "shutdown": ("close", "core", "halt", "shutdown"),
+    # "shut down" is TWO WORDS when he says it, and `_words` splits on
+    # anything that is not alphanumeric, so a one-word "shutdown" key was
+    # never reached by the phrasing a person actually uses.
+    "shut": ("close", "core", "halt", "shutdown"),
+    "close": ("close", "core", "shutdown"),
+    "quit": ("close", "core", "shutdown", "halt"),
+    "exit": ("close", "core", "shutdown"),
+    # And her ears, which he has ruled on explicitly.
+    "listening": ("voice", "wake", "microphone", "mic"),
+    "microphone": ("voice", "wake", "microphone", "mic", "audio"),
+    "mic": ("voice", "wake", "microphone", "audio"),
+    "hear": ("voice", "wake", "microphone", "mic"),
     "approve": ("approve", "policy", "delegate"),
     "delegate": ("delegate", "policy", "agent"),
     "talk": ("converse", "speech", "voice"),
     "speak": ("speech", "voice", "announce"),
-    "listen": ("voice", "wake", "audio"),
+    # "microphone" and "mic" folded in here rather than written as a
+    # second "listen" key forty lines up, which is exactly what
+    # `test_the_synonyms_have_one_key_each` was written this afternoon to
+    # catch — and caught, within the hour, doing it to me.
+    "listen": ("voice", "wake", "audio", "microphone", "mic"),
     "notify": ("notification", "announce", "deliver"),
     "notification": ("notification", "deliver", "announce"),
     "github": ("github", "workflow", "issue"),
