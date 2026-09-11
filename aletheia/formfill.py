@@ -858,6 +858,177 @@ def blocking(page) -> list[dict]:
     return out
 
 
+# ---- search-as-you-type dropdowns -----------------------------------------------
+#
+# Greenhouse's current forms, and most React forms: Country, City, School,
+# Degree and every yes/no question are an <input role=combobox> whose menu
+# of [role=option] exists only while it is open. Typing the answer and moving
+# on chooses NOTHING - the widget throws the text away - and live 2026-09-10
+# a Stripe form she had "filled" still had nine required answers empty.
+
+COMBOBOX_JS = r"""(css) => {
+  const el = document.querySelector(css);
+  return !!el && (el.getAttribute('role') === 'combobox'
+                  || el.getAttribute('aria-autocomplete') === 'list');
+}"""
+VISIBLE_OPTIONS_JS = r"""() => [...document.querySelectorAll('[role=option]')]
+  .filter(o => o.offsetParent !== null)
+  .map(o => (o.innerText || '').trim()).filter(Boolean).slice(0, 400)"""
+# The VISIBLE option whose text is exactly the choice. A text-contains match
+# found "No" inside a hidden option left over from another menu and waited
+# thirty seconds to click something that could not be clicked.
+FIND_OPTION_JS = r"""(text) => [...document.querySelectorAll('[role=option]')]
+  .find(o => o.offsetParent !== null && (o.innerText || '').trim() === text) || null"""
+
+US_STATE_NAMES = {
+    "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas", "CA": "California",
+    "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware", "FL": "Florida", "GA": "Georgia",
+    "HI": "Hawaii", "ID": "Idaho", "IL": "Illinois", "IN": "Indiana", "IA": "Iowa",
+    "KS": "Kansas", "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland",
+    "MA": "Massachusetts", "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi",
+    "MO": "Missouri", "MT": "Montana", "NE": "Nebraska", "NV": "Nevada", "NH": "New Hampshire",
+    "NJ": "New Jersey", "NM": "New Mexico", "NY": "New York", "NC": "North Carolina",
+    "ND": "North Dakota", "OH": "Ohio", "OK": "Oklahoma", "OR": "Oregon", "PA": "Pennsylvania",
+    "RI": "Rhode Island", "SC": "South Carolina", "SD": "South Dakota", "TN": "Tennessee",
+    "TX": "Texas", "UT": "Utah", "VT": "Vermont", "VA": "Virginia", "WA": "Washington",
+    "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming", "DC": "District of Columbia",
+}
+# One country, several names. Only names that cannot mean anything else.
+_SAME_COUNTRY = (
+    frozenset({"united states", "united states of america", "usa", "u s a", "us", "u s"}),
+    frozenset({"united kingdom", "uk", "u k", "great britain"}),
+)
+
+
+def _norm(text) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", str(text or "").casefold()).strip()
+
+
+def _degree_level(value) -> str:
+    """"B.B.A." is a bachelor's degree; the list says "Bachelor's Degree"."""
+    v = _norm(value)
+    flat = v.replace(" ", "")
+    if v.startswith("bachelor") or re.fullmatch(r"b(a|s|ba|bs|sc|fa|eng|arch|ed)", flat):
+        return "bachelor"
+    if v.startswith("master") or re.fullmatch(r"m(a|s|ba|sc|fa|eng|ed|pa|ph)", flat):
+        return "master"
+    if v.startswith("associate") or re.fullmatch(r"a(a|s|as)", flat):
+        return "associate"
+    if v.startswith(("doctor", "phd")) or flat in ("phd", "md", "jd", "edd"):
+        return "doctor"
+    return ""
+
+
+def _best_option(value, options: list[str], known: dict | None = None) -> str | None:
+    """The one option that IS the answer, or None. Never a guess between two."""
+    known = known or {}
+    v = _norm(value)
+    if not v or not options:
+        return None
+    normed = [(o, _norm(o)) for o in options]
+    wants = {v}
+    for same in _SAME_COUNTRY:
+        if v in same:
+            wants |= same
+    exact = [o for o, n in normed if n in wants]
+    if exact:
+        return exact[0]
+    # "United States +1": the answer, then something that is not another answer.
+    lead = [o for o, n in normed if any(n.startswith(w + " ") for w in wants)]
+    if len(lead) == 1:
+        return lead[0]
+    # A place: the city he lives in, in the state he lives in.
+    state = str(known.get("state") or "").strip().upper()
+    in_state = {_norm(state), _norm(US_STATE_NAMES.get(state, ""))} - {""}
+    if in_state:
+        placed = [o for o, n in normed
+                  if _says(v, n) and any(_says(s, n) for s in in_state)]
+        if len(placed) == 1:
+            return placed[0]
+    level = _degree_level(value)
+    if level:
+        by_level = [o for o, n in normed if _says(level, n)]
+        if len(by_level) == 1:
+            return by_level[0]
+        plain = [o for o in by_level if not _says("of", _norm(o))]
+        if len(plain) == 1:
+            return plain[0]
+    words = [o for o, n in normed if _says(v, n)]
+    return words[0] if len(words) == 1 else None
+
+
+def is_combobox(page, selector: str) -> bool:
+    try:
+        where, css = resolve(page, selector)
+        return bool(where.evaluate(COMBOBOX_JS, css))
+    except Exception:
+        return False                      # a test double, or no such element
+
+
+def _visible_options(where, settle_ms: int) -> list[str]:
+    wait = getattr(where, "wait_for_timeout", None)
+    seen: list[str] = []
+    for _ in range(max(1, settle_ms // 250)):
+        try:
+            seen = list(where.evaluate(VISIBLE_OPTIONS_JS) or [])
+        except Exception:
+            return []
+        if seen:
+            if wait:
+                wait(300)                 # a menu that fetches is still arriving
+                try:
+                    seen = list(where.evaluate(VISIBLE_OPTIONS_JS) or seen)
+                except Exception:
+                    pass
+            return seen
+        if wait:
+            wait(250)
+    return seen
+
+
+def pick_option(page, selector: str, value, *, known: dict | None = None,
+                settle_ms: int = 2500) -> str:
+    """Choose `value` in a search-as-you-type dropdown.
+
+    Returns the option clicked, or "" when no option clearly is the answer.
+    Then it stays empty, and the page's own verdict (`blocking`) makes it a
+    question for him instead of a wrong answer in his name.
+    """
+    known = profile.known() if known is None else known
+    value = str(value or "").strip()
+    if not value:
+        return ""
+    where, css = resolve(page, selector)
+    queries = [value]
+    state = str(known.get("state") or "").strip().upper()
+    if state and _norm(value) == _norm(known.get("city")):
+        # "Hartford" offered Connecticut, Wisconsin and Vermont, not his.
+        queries.append(f"{value}, {US_STATE_NAMES.get(state, state)}")
+    queries.append("")                    # the whole list: "B.B.A." vs "Bachelor's Degree"
+    for query in queries:
+        try:
+            where.click(css)
+            where.fill(css, query)
+        except Exception:
+            return ""
+        choice = _best_option(value, _visible_options(where, settle_ms), known)
+        if not choice:
+            continue
+        try:
+            element = where.evaluate_handle(FIND_OPTION_JS, choice).as_element()
+            if element is not None:
+                element.click(timeout=5000)
+                return choice
+        except Exception:
+            continue
+    try:
+        where.fill(css, "")
+        page.keyboard.press("Escape")
+    except Exception:
+        pass
+    return ""
+
+
 def survey(url: str, *, reader=None) -> dict:
     """Read a form and say what she could fill and what she must ask."""
     fields = read_form(url, reader=reader)

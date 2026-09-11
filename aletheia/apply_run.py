@@ -271,6 +271,10 @@ def _apply_steps(page, steps: list[dict]) -> None:
             page.keyboard.press(str(step["value"]))
         elif action == "wait_for":
             page.wait_for_selector(step["selector"])
+        elif formfill.is_combobox(page, step["selector"]):
+            # A search-as-you-type dropdown keeps nothing that is only typed.
+            # The option is chosen, or it is left empty for him to answer.
+            formfill.pick_option(page, step["selector"], step["value"])
         else:
             page.fill(step["selector"], str(step["value"]))
 

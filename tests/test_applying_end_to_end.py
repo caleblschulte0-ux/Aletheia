@@ -257,6 +257,38 @@ class FoundOnHisRealResumeCase(PrivateProfile):
         self.assertIn("need 1 answer from you", said)
 
 
+class ChoosingFromADropdownCase(unittest.TestCase):
+    """What Stripe's dropdowns actually offered, live 2026-09-10."""
+
+    def best(self, value, options, known=None):
+        return campaign.formfill._best_option(value, options, known)
+
+    def test_the_answer_it_offers_is_the_one_chosen(self):
+        self.assertEqual(self.best("United States", ["United States +1"]), "United States +1")
+        self.assertEqual(self.best("No", ["Yes", "No"]), "No")
+        self.assertEqual(self.best("University of South Dakota", ["University of South Dakota"]),
+                         "University of South Dakota")
+
+    def test_the_same_country_by_another_name(self):
+        self.assertEqual(self.best("United States", ["Canada", "United States of America", "Mexico"]),
+                         "United States of America")
+
+    def test_a_degree_by_its_level(self):
+        self.assertEqual(self.best("B.B.A.", ["Associate's Degree", "Bachelor's Degree",
+                                              "Master's Degree"]), "Bachelor's Degree")
+
+    def test_the_city_in_his_state_or_nothing(self):
+        offered = ["Hartford, Connecticut, United States", "Hartford, Wisconsin, United States",
+                   "Hartford, South Dakota, United States"]
+        self.assertEqual(self.best("Hartford", offered, {"state": "SD"}),
+                         "Hartford, South Dakota, United States")
+        self.assertIsNone(self.best("Hartford", offered[:2], {"state": "SD"}))
+
+    def test_a_guess_between_two_is_never_made(self):
+        self.assertIsNone(self.best("Yes", ["Yes, I am authorized", "Yes, with sponsorship"]))
+        self.assertIsNone(self.best("Harvard", ["University of South Dakota"]))
+
+
 class AFactGoesOnlyWhereItIsAskedForCase(unittest.TestCase):
     """Live 2026-09-10, once his title, employer, school and city were on
     file, a keyword anywhere in a question put them into it."""

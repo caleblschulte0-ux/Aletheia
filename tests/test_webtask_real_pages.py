@@ -138,6 +138,33 @@ GREENHOUSE = """<form method="POST" action="/submit">
   <div class="select__control"><div>Select...</div><input type="text" required></div></div>
 <button type="submit">Submit application</button></form>"""
 
+# A search-as-you-type dropdown the way Greenhouse builds one: the menu exists
+# only while typing, clicking an option is what sets the value, and text that
+# was only typed is thrown away when the box loses focus.
+REACT_SELECT = """<form method="POST" action="/submit">
+<label for="school">School *</label>
+<input id="school" role="combobox" aria-autocomplete="list" required autocomplete="off">
+<input type="hidden" name="school_value">
+<div id="menu"></div>
+<button type="submit">Submit application</button></form>
+<script>
+const box = document.getElementById('school'), menu = document.getElementById('menu');
+const hid = document.querySelector('[name=school_value]');
+const all = ['University of South Dakota', 'South Dakota State University', 'University of Iowa'];
+box.addEventListener('input', () => {
+  menu.innerHTML = '';
+  for (const name of all.filter(n => n.toLowerCase().includes(box.value.toLowerCase()))) {
+    const o = document.createElement('div');
+    o.setAttribute('role', 'option');
+    o.innerText = name;
+    o.addEventListener('click', () => {
+      hid.value = name; box.required = false; box.value = ''; menu.innerHTML = ''; });
+    menu.appendChild(o);
+  }
+});
+box.addEventListener('blur', () => setTimeout(() => { if (!hid.value) box.value = ''; }, 150));
+</script>"""
+
 
 def _site(base: str, got: dict):
     pages = {"/apply": f'<h1>Job</h1><iframe src="{base}/embed"></iframe>',
@@ -145,7 +172,8 @@ def _site(base: str, got: dict):
              "/": f'<h1>Careers</h1><a href="{base}/apply" target="_blank" '
                   'rel="noopener">Apply for this job</a>',
              "/w1": W1, "/w2": W2, "/w3": W3, "/late": LATE,
-             "/account": ACCOUNT, "/a1": A1, "/a2": A2, "/greenhouse": GREENHOUSE}
+             "/account": ACCOUNT, "/a1": A1, "/a2": A2, "/greenhouse": GREENHOUSE,
+             "/react-select": REACT_SELECT}
 
     class H(http.server.BaseHTTPRequestHandler):
         def log_message(self, *a):
@@ -377,6 +405,49 @@ class AFormMadeOfDIVS(RealPageCase):
         self.assertEqual(out["state"], webtask.ASK)
         self.assertIn("yours to answer", out["say"])
         self.assertIn("protected veteran", out["say"])
+
+
+@needs_browser
+class ADropdownKeepsOnlyWhatIsChosen(RealPageCase):
+    """Live on Stripe 2026-09-10: Country, School, Degree and the yes/no
+    questions were typed into, nothing was chosen, and the page called them
+    empty."""
+
+    def on_page(self, act):
+        with browse._Session() as ctx:
+            page = ctx.new_page()
+            page.goto(self.base + "/react-select", wait_until="domcontentloaded")
+            got = act(page)
+            # Leave the box the way a person does, so text that was only
+            # typed is thrown away. (Clicking Submit here navigated away.)
+            page.evaluate("() => document.activeElement && document.activeElement.blur()")
+            page.wait_for_timeout(400)
+            chosen = page.evaluate("() => document.querySelector('[name=school_value]').value")
+            blocking = [b["label"] for b in webtask.formfill.blocking(page)]
+        return got, chosen, blocking
+
+    def test_typing_alone_chooses_nothing(self):
+        _, chosen, blocking = self.on_page(
+            lambda page: page.fill("#school", "University of South Dakota"))
+        self.assertEqual(chosen, "")
+        self.assertIn("School *", blocking)
+
+    def test_the_answer_is_chosen(self):
+        got, chosen, blocking = self.on_page(lambda page: webtask.formfill.pick_option(
+            page, "#school", "University of South Dakota", known={}))
+        self.assertEqual((got, chosen), ("University of South Dakota",) * 2)
+        self.assertNotIn("School *", blocking)
+
+    def test_no_clear_answer_chooses_nothing(self):
+        got, chosen, _ = self.on_page(lambda page: webtask.formfill.pick_option(
+            page, "#school", "Harvard", known={}, settle_ms=600))
+        self.assertEqual((got, chosen), ("", ""))
+
+    def test_the_application_filler_chooses_it(self):
+        from aletheia import apply_run
+        _, chosen, _ = self.on_page(lambda page: apply_run._apply_steps(page, [
+            {"action": "type", "selector": "#school", "value": "University of South Dakota"}]))
+        self.assertEqual(chosen, "University of South Dakota")
 
 
 @needs_browser
