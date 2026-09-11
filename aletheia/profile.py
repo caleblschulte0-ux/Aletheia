@@ -125,6 +125,18 @@ FIELDS: dict[str, dict] = {
                        "means": "how he heard about the job"},
     "twitter":        {"asks": ("twitter", "x profile", "x.com"),
                        "means": "his Twitter"},
+    # Protected characteristics. Filled ONLY from what he said himself
+    # (formfill.declared_choice): never from a resume, a page or a model.
+    # 2026-09-11: "the gender, I'm a man. The race, I'm a white, non Hispanic."
+    "gender":         {"asks": ("gender", "gender identity", "sex"),
+                       "means": "his gender, as he stated it",
+                       "sensitive": True, "declared": True},
+    "race":           {"asks": ("race", "racial", "race/ethnicity"),
+                       "means": "his race, as he stated it",
+                       "sensitive": True, "declared": True},
+    "hispanic_latino": {"asks": ("hispanic", "latino", "latina", "latinx", "latine"),
+                        "means": "whether he is Hispanic or Latino, as he stated it",
+                        "sensitive": True, "declared": True},
 }
 
 # Never filled automatically, whatever the profile happens to contain.

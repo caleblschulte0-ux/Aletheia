@@ -158,7 +158,11 @@ def _haystack(field: dict) -> str:
 def is_never_autofill(field: dict) -> bool:
     """Protected characteristics and legal declarations, always his."""
     hay = _haystack(field)
-    return any(phrase in hay for phrase in profile.NEVER_AUTOFILL)
+    if any(phrase in hay for phrase in profile.NEVER_AUTOFILL):
+        return True
+    # A protected characteristic asked in words the list does not contain
+    # ("Sex", "Are you Hispanic/Latino?") is still one.
+    return bool(_declared_category(str(field.get("label") or "")))
 
 
 # A question he answers yes or no is not asking for his city or his job
@@ -305,6 +309,97 @@ def _from_profile(group: dict, known: dict) -> dict | None:
     return None
 
 
+# Words that make a demographic question one he always answers himself,
+# whatever else it mentions.
+_DECLARED_NEVER = re.compile(
+    r"\b(?:sexual|orientation|transgender|veteran|disabilit|pronoun|lgbt)", re.I)
+_SAID_NO = ("no", "false", "not hispanic", "not hispanic or latino", "non hispanic")
+_SAID_YES = ("yes", "true", "hispanic", "hispanic or latino", "latino", "latina")
+
+
+def _declared_category(label: str) -> str:
+    """"gender", "race" or "hispanic_latino" when that is what a question asks."""
+    if _DECLARED_NEVER.search(str(label or "")):
+        return ""
+    low = _norm(label)
+    hispanic = any(_says(w, low) for w in ("hispanic", "latino", "latina", "latinx", "latine"))
+    race = any(_says(w, low) for w in ("race", "racial", "ethnicity", "ethnic"))
+    gender = _says("gender", low) or _says("sex", low)
+    if gender and not (race or hispanic):
+        return "gender"
+    if race:
+        return "race"
+    if hispanic:
+        return "hispanic_latino"
+    return ""
+
+
+def _his_word(stored: dict, field: str) -> str:
+    row = stored.get(field)
+    if isinstance(row, dict) and row.get("source") == "operator":
+        return _norm(row.get("value"))
+    return ""
+
+
+def _hispanic_choice(options: list[str], said: str) -> str | None:
+    no, yes = said in _SAID_NO, said in _SAID_YES
+    if not (no or yes):
+        return None
+    plain = [c for c in options if _norm(c) == ("no" if no else "yes")]
+    if len(plain) == 1:
+        return plain[0]
+    named = [c for c in options
+             if (_says("hispanic", _norm(c)) or _says("latino", _norm(c)))
+             and _says("not", _norm(c)) == no and not _says("decline", _norm(c))]
+    return named[0] if len(named) == 1 else None
+
+
+def declared_choice(label: str, choices: list[str], *, stored: dict | None = None) -> str | None:
+    """The option that says what HE said about himself, or None.
+
+    Gender, race and Hispanic/Latino only, and only from his own words
+    (source "operator"): never read off a resume or a page, never a model's
+    guess. An option that does not plainly say it means asking him, and
+    veteran status, disability and orientation stay his to answer.
+    """
+    category = _declared_category(label)
+    if not category:
+        return None
+    stored = profile.load() if stored is None else stored
+    options = [str(c) for c in (choices or []) if str(c).strip()]
+    if not options:
+        return None
+    if category == "gender":
+        said = _his_word(stored, "gender")
+        male, female = said in ("male", "man", "m"), said in ("female", "woman", "f")
+        if not (male or female):
+            exact = [c for c in options if _norm(c) == said] if said else []
+            return exact[0] if len(exact) == 1 else None
+        want = {"male", "man", "men"} if male else {"female", "woman", "women"}
+        other = ({"female", "woman", "women"} if male else {"male", "man", "men"}) | {
+            "trans", "transgender", "non", "nonbinary", "binary"}
+        hits = [c for c in options if set(_norm(c).split()) & want
+                and not set(_norm(c).split()) & other]
+        if len(hits) > 1:
+            hits = [c for c in hits if _norm(c) in want] or hits
+        return hits[0] if len(hits) == 1 else None
+    hispanic = _his_word(stored, "hispanic_latino")
+    if category == "race":
+        race = _his_word(stored, "race")
+        if race:
+            hits = [c for c in options if _says(race, _norm(c)) and not _says("two", _norm(c))]
+            if len(hits) > 1 and hispanic:
+                no = hispanic in _SAID_NO
+                hits = [c for c in hits if _says("not", _norm(c)) == no] or hits
+            if len(hits) > 1:
+                hits = [c for c in hits if _norm(c) == race] or hits
+            if len(hits) == 1:
+                return hits[0]
+        # An ethnicity-only list: "Hispanic or Latino" / "Not Hispanic or Latino".
+        return _hispanic_choice(options, hispanic) if hispanic else None
+    return _hispanic_choice(options, hispanic) if hispanic else None
+
+
 def plan(fields: list[dict], *, answers: dict | None = None) -> dict:
     """Split a form into what she can fill and what he has to answer."""
     answers = known = (answers if answers is not None else profile.known())
@@ -316,6 +411,14 @@ def plan(fields: list[dict], *, answers: dict | None = None) -> dict:
         # of divs on a modern form and a pair of radios on an old one, and
         # either way the answer has been in his profile the whole time —
         # she was handing it back to him on every application.
+        declared = declared_choice(group["label"],
+                                   [o["label"] for o in group["options"] if o["label"]])
+        if declared is not None:
+            option = next(o for o in group["options"] if o["label"] == declared)
+            fill.append({"action": "click", "selector": option["selector"],
+                         "label": group["label"], "value": declared,
+                         "profile_field": _declared_category(group["label"])})
+            continue
         picked = _from_profile(group, known)
         if picked is not None:
             fill.append({"action": "click", "selector": picked["selector"],
@@ -348,7 +451,25 @@ def plan(fields: list[dict], *, answers: dict | None = None) -> dict:
             continue
         if is_never_autofill(field):
             # Even if the profile holds it. An answer invented on his
-            # behalf here is a lie in a file an employer keeps.
+            # behalf here is a lie in a file an employer keeps. The one
+            # exception is his own words about himself (declared_choice).
+            choices = ([o["text"] for o in field.get("options") or []]
+                       if field.get("tag") == "select" else list(field.get("choices") or []))
+            declared = declared_choice(label, choices)
+            if declared is not None:
+                category = _declared_category(label)
+                if field.get("tag") == "select":
+                    option = next((o["value"] for o in field.get("options") or []
+                                   if o["text"] == declared), None)
+                    if option is not None:
+                        fill.append({"action": "select", "selector": field["selector"],
+                                     "value": option, "label": label,
+                                     "profile_field": category})
+                        continue
+                else:
+                    fill.append({"action": "type", "selector": field["selector"],
+                                 "value": declared, "label": label, "profile_field": category})
+                    continue
             row["why"] = "this one is yours to answer, always"
             ask.append(row)
             continue

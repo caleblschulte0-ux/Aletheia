@@ -49,6 +49,81 @@ class ProfileCase(unittest.TestCase):
             p.start(); self.addCleanup(p.stop)
 
 
+class HisOwnWordsAboutHimself(ProfileCase):
+    """2026-09-11: "the gender, I'm a man. The race, I'm a white, non Hispanic."
+    Filled from exactly that and nothing else: never a resume, a page or a guess."""
+
+    def said(self, **answers):
+        for key, value in answers.items():
+            profile.set_answer(key, value, source="operator")
+
+    def planned(self, *fields):
+        out = formfill.plan(list(fields))
+        return {f["label"]: f["value"] for f in out["fill"]}, [a["label"] for a in out["ask"]]
+
+    def test_unsaid_is_still_asked(self):
+        filled, asked = self.planned(
+            field("#g", "Gender", tag="select",
+                  options=[{"value": "m", "text": "Male"}, {"value": "f", "text": "Female"}]),
+            field("#s", "Sex", tag="select",
+                  options=[{"value": "m", "text": "Male"}, {"value": "f", "text": "Female"}]))
+        self.assertEqual(filled, {})
+        self.assertEqual(sorted(asked), ["Gender", "Sex"])
+
+    def test_what_he_said_is_chosen_in_whatever_shape_the_form_asks(self):
+        self.said(gender="Male", race="White", hispanic_latino="No")
+        filled, asked = self.planned(
+            field("#g", "Gender", tag="select",
+                  options=[{"value": "f", "text": "Female"}, {"value": "m", "text": "Male"},
+                           {"value": "d", "text": "Decline To Self Identify"}]),
+            field("#gi", "How do you identify? (gender identity)*", role="combobox",
+                  choices=["Woman", "Man", "Non-binary", "I prefer not to answer"]),
+            field("#r", "Race", role="combobox",
+                  choices=["Hispanic or Latino", "White (Not Hispanic or Latino)",
+                           "Two or More Races (Not Hispanic or Latino)"]),
+            field("#h", "Are you Hispanic/Latino?", tag="select",
+                  options=[{"value": "y", "text": "Yes"}, {"value": "n", "text": "No"},
+                           {"value": "d", "text": "Decline To Self Identify"}]))
+        self.assertEqual(filled["Gender"], "m")
+        self.assertEqual(filled["How do you identify? (gender identity)*"], "Man")
+        self.assertEqual(filled["Race"], "White (Not Hispanic or Latino)")
+        self.assertEqual(filled["Are you Hispanic/Latino?"], "n")
+        self.assertEqual(asked, [])
+
+    def test_a_radio_question_is_clicked_on_his_answer(self):
+        self.said(gender="Male")
+        out = formfill.plan([
+            field("#m", "Male", type="radio", group="gender", question="Gender", option="Male"),
+            field("#f", "Female", type="radio", group="gender", question="Gender", option="Female")])
+        self.assertEqual([(f["selector"], f["value"]) for f in out["fill"]], [("#m", "Male")])
+
+    def test_a_resume_or_a_page_is_never_his_word(self):
+        profile.set_answer("gender", "Male", source="resume")
+        filled, asked = self.planned(field("#g", "Gender", tag="select", options=[
+            {"value": "m", "text": "Male"}, {"value": "f", "text": "Female"}]))
+        self.assertEqual(filled, {})
+        self.assertIn("Gender", asked)
+
+    def test_veteran_disability_and_orientation_stay_his(self):
+        self.said(gender="Male", race="White", hispanic_latino="No")
+        filled, asked = self.planned(
+            field("#v", "Veteran Status", tag="select",
+                  options=[{"value": "1", "text": "I am not a protected veteran"}]),
+            field("#d", "Disability Status", tag="select",
+                  options=[{"value": "1", "text": "No, I do not have a disability"}]),
+            field("#o", "Sexual orientation", tag="select",
+                  options=[{"value": "1", "text": "Heterosexual"}]))
+        self.assertEqual(filled, {})
+        self.assertEqual(sorted(asked), ["Disability Status", "Sexual orientation", "Veteran Status"])
+
+    def test_no_option_that_plainly_says_it_means_asking(self):
+        self.said(gender="Male")
+        filled, asked = self.planned(field("#g", "Gender", role="combobox",
+                                           choices=["Option A", "Option B"]))
+        self.assertEqual(filled, {})
+        self.assertIn("Gender", asked)
+
+
 class SheLearnsHimRatherThanInterrogatingHim(ProfileCase):
     def test_the_resume_already_has_most_of_it(self):
         got = profile.learn_from_resume(RESUME)
