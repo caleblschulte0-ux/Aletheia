@@ -92,6 +92,73 @@ def all_runs(state: str | None = None) -> list[dict]:
     return out
 
 
+# What the record keeps about the JOB, beside what it keeps about the form.
+REMEMBERED = ("job_title", "company", "posting", "found_on", "answered_for_you")
+# What an employer did about an application he sent, in his words. "No
+# answer yet" is not one: that is the absence of an outcome, not an outcome.
+OUTCOMES = ("replied", "interview", "offer", "rejected", "closed")
+
+
+def remember(run_id: str, **fields) -> dict:
+    """Keep what the campaign knows about the JOB on the saved record.
+
+    Found 2026-09-11: the campaign set job_title, posting and found_on on
+    the record it was holding and never wrote them back, so every saved
+    application knew the form's URL and nothing about the job — "what have
+    I applied to" could only read back a page title. Only these fields, and
+    never over a state, an approval or a timestamp.
+    """
+    record = load_run(run_id)
+    for name, value in fields.items():
+        if name not in REMEMBERED:
+            raise ApplyError(f"an application record does not keep {name!r}")
+        if value not in (None, ""):
+            record[name] = value
+    stateio.write_json_atomic(_record_path(run_id), record)
+    return record
+
+
+def mark(run_id: str, outcome: str, *, note: str = "", when: str = "") -> dict:
+    """Record what the employer did about an application, keeping the history."""
+    key = " ".join(str(outcome or "").casefold().split())
+    if key not in OUTCOMES:
+        raise ApplyError(f"{outcome!r} is not one of: {', '.join(OUTCOMES)}")
+    record = load_run(run_id)
+    entry = {"outcome": key, "note": " ".join(str(note or "").split())[:300],
+             "at": when or stateio.utcnow()}
+    record.setdefault("outcomes", []).append(entry)
+    record["outcome"] = key
+    stateio.write_json_atomic(_record_path(run_id), record)
+    journal.append("note", "apply",
+                   f"{run_id}: {key}" + (f" — {entry['note']}" if entry["note"] else ""),
+                   actor=ACTOR)
+    return record
+
+
+def describe(record: dict) -> str:
+    """One application, the way he would name it: the job, then the employer."""
+    title = " ".join(str(record.get("job_title") or "").split())
+    company = " ".join(str(record.get("company") or "").split())
+    if title and company and company.casefold() not in title.casefold():
+        return f"{title} at {company}"
+    return (title or company
+            or " ".join(str(record.get("page_title") or "").split())
+            or str(record.get("url") or record.get("id") or "an application"))
+
+
+def find(which: str) -> list[dict]:
+    """The applications he means by a few words: an employer, a job, an id."""
+    key = " ".join(str(which or "").casefold().split())
+    if not key:
+        return []
+    rows = all_runs()
+    exact = [r for r in rows if key == str(r.get("id") or "").casefold()]
+    if exact:
+        return exact
+    return [r for r in rows
+            if key in " ".join((describe(r), str(r.get("url") or ""))).casefold()]
+
+
 def _submit_selector(buttons: list[dict]) -> str | None:
     """The one button that finishes it, by what it SAYS.
 

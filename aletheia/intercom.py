@@ -142,6 +142,9 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "apply_campaign": (set(), {"role", "count", "where", "resume"}),
     # His answer to one question the staged applications wait on.
     "apply_answer": ({"question", "answer"}, set()),
+    # What an employer DID about one he sent. His words, 2026-09-11: "it
+    # should track the application as well not just apply".
+    "apply_outcome": ({"which", "outcome"}, {"note"}),
     # The catch-all for "go do this on a website" — any number of steps.
     "web_task":      ({"goal"}, {"url", "budget"}),
     # "try that again" after a site refused one — the ONLY case where
@@ -406,6 +409,13 @@ KIND_NOTES: dict[str, str] = {
         'background and tells him when the applications are ready. Prefer '
         'this over apply_prepare, which only writes a packet and does not '
         'touch the form.'),
+    "apply_outcome": (
+        'What an employer did about an application he already sent. which names '
+        'it the way he does (the employer, the job, or the application id); '
+        'outcome is one of replied, interview, offer, rejected, closed; note is '
+        'anything he said about it ("Tuesday at 10"). Use it for "Tebra rejected '
+        'my application", "I have an interview with Gong". It never sends '
+        'anything and never changes an application\'s own state.'),
     "apply_answer": (
         'His answer to ONE question the staged job applications are waiting '
         'on ("the relocation question is yes", "tell them I have a bachelor\'s '
@@ -498,6 +508,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                "file_delete", "file_move",
                # reads the open web and writes into her workspace: both PC
                "apply_prepare", "apply_campaign", "apply_answer", "applications",
+               "apply_outcome",
                "web_task", "web_task_retry",
                "subscription_cancel", "web_task_answer",
                "computer_observe",
@@ -629,6 +640,9 @@ ROUTINE_KINDS = frozenset({
     # His answer, put into the waiting forms: they come back for his
     # confirmation exactly as before, and nothing is sent.
     "apply_answer",
+    # A note on his own record of what an employer did. Sends nothing,
+    # changes no application's state.
+    "apply_outcome",
     # Media edits always write a NEW file and never touch the source, so
     # the worst case is a spare file in her workspace.
     "media_trim", "media_join", "media_audio", "media_captions",
@@ -1211,8 +1225,13 @@ def _applications_answer() -> str:
     waiting = [r for r in rows if r.get("state") != "SUBMITTED"]
 
     def where(record):
-        title = str(record.get("page_title") or "").strip()
-        return (title or speech.tidy(str(record.get("url") or record.get("id"))))[:60]
+        # the JOB, now that the campaign keeps it: "Account Executive at
+        # Tebra", not the form's page title. An outcome he told her about
+        # belongs with it - that is the difference between a list of things
+        # he did and a record of where each one stands.
+        said = apply_run.describe(record)[:60]
+        outcome = str(record.get("outcome") or "")
+        return f"{said} — {outcome}" if outcome else said
 
     parts = []
     if sent:
@@ -1223,7 +1242,28 @@ def _applications_answer() -> str:
             len(waiting), "application")
         parts.append(f"{lead} staged and waiting on you: "
                      + speech.and_list([where(r) for r in waiting[-5:]]))
+    # WHEN, said the way a person says it, and only once: a date inside every
+    # item would put commas inside an and_list, which is unparseable by ear.
+    newest = max(rows, key=lambda r: str(r.get("submitted_at") or r.get("staged_at") or ""))
+    when = _day_words(newest.get("submitted_at") or newest.get("staged_at"))
+    if when:
+        parts.append(f"The most recent was {apply_run.describe(newest)[:60]} {when}")
     return ". ".join(parts) + "."
+
+
+def _day_words(stamp: object) -> str:
+    """"today", "yesterday", "on 9 September" — never a timestamp out loud."""
+    import datetime as _dt
+    try:
+        day = _dt.datetime.fromisoformat(str(stamp).replace("Z", "+00:00")).date()
+    except (TypeError, ValueError):
+        return ""
+    today = _dt.date.today()
+    if day == today:
+        return "today"
+    if (today - day).days == 1:
+        return "yesterday"
+    return "on " + f"{day.day} {day.strftime('%B')}"
 
 
 SHOPPING_OPEN = ("RESEARCHING", "SELECTED", "PURCHASE_PROPOSED")
@@ -1887,6 +1927,19 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         started = campaign.start(cmd.get("role", ""), count=int(cmd.get("count", 5)),
                                  where=cmd.get("where", ""), resume=cmd.get("resume", ""))
         return campaign.started_words(started)
+    if kind == "apply_outcome":
+        from aletheia import apply_run
+        matches = apply_run.find(cmd["which"])
+        if not matches:
+            return (f"I don't have an application matching {cmd['which']!r}. "
+                    "Ask me what you have applied to and name it the way I say it.")
+        if len(matches) > 1:
+            return ("More than one matches — "
+                    + speech.or_list([apply_run.describe(m) for m in matches[:4]]) + "?")
+        record = apply_run.mark(matches[0]["id"], cmd["outcome"], note=cmd.get("note", ""))
+        last = record["outcomes"][-1]
+        return (f"Noted on {apply_run.describe(record)}: {last['outcome']}"
+                + (f" — {last['note']}" if last["note"] else "") + ".")
     if kind == "apply_answer":
         from aletheia import campaign
         if rehearsing():
@@ -1897,7 +1950,10 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         out = applications.prepare(
             cmd["role"], count=int(cmd.get("count", 5)),
             where=cmd.get("where", ""),
-            resume=cmd.get("resume", "resume.md"))
+            # NOT "resume.md": that file was a fiction from a test, and live
+            # 2026-09-11 the packet path died on it while `find_resume` was
+            # sitting there able to find his actual resume.
+            resume=cmd.get("resume", ""))
         return applications.spoken(out)
     if kind == "file_delete":
         from aletheia import workspace

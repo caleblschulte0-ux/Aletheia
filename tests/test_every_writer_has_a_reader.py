@@ -66,6 +66,9 @@ READER_FOR = {
     "apply_prepare": "applications",
     "apply_campaign": "applications",
     "apply_answer": "applications",
+    # What an employer did about one he sent shows up in "what have I
+    # applied to" beside the application itself.
+    "apply_outcome": "applications",
     # She wrote it into the workspace; `file_list` is how he sees it is
     # there, and `file_read` cannot read a .docx back as text.
     "doc_make": "file_list",

@@ -914,6 +914,24 @@ def _interpret(transcript: str) -> dict:
         if "remote" in (m.group(2) or "").split():
             command["where"] = "remote"
         return {"command": command, "say": None}
+    # WHAT AN EMPLOYER DID about one he sent. Narrow on purpose: "I heard
+    # back from Dana" is not about a job, and a pattern that swallows too
+    # much answers a different question than the one he asked.
+    for pattern, fixed in (
+            (r"(?:mark )?(?:my |the )?application (?:at|with|to) (?P<who>.+?) as "
+             r"(?P<said>replied|interview|offer|rejected|closed)", None),
+            (r"(?P<who>.+?) (?:rejected|turned down) (?:my|the) application", "rejected"),
+            (r"(?P<who>.+?) (?:replied|got back to me) about (?:my|the) (?:job )?application",
+             "replied"),
+            (r"i (?:have|got) an interview (?:with|at) (?P<who>.+)", "interview"),
+            (r"i got an offer from (?P<who>.+)", "offer"),
+            (r"(?:my |the )?application (?:at|with|to) (?P<who>.+?) is closed", "closed")):
+        hit = re.fullmatch(pattern, low)
+        if hit:
+            return {"command": {"kind": "apply_outcome",
+                                "which": _as_he_said(transcript, hit.group("who")),
+                                "outcome": fixed or hit.group("said")},
+                    "say": None}
     if re.fullmatch(r"(what|which) (jobs?|applications?) have i applied (to|for)"
                     r"|what have i applied (to|for)"
                     r"|(what|which) (jobs?|applications?) did (you|u) apply (to|for)"

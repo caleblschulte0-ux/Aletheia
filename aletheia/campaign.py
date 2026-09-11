@@ -445,6 +445,31 @@ def _seniority_to_leave_out(known: dict) -> frozenset:
     return jobs.SENIOR_TITLE_WORDS if early else frozenset()
 
 
+def _keep_the_job(record: dict, page: dict, **extra_fields) -> dict:
+    """Write what the JOB is onto the SAVED application, not just onto the
+    copy in hand.
+
+    Until 2026-09-11 the campaign set job_title, posting and found_on on the
+    record it was holding and never wrote them back, so a finished campaign
+    left records that knew the form's URL and nothing about the job he
+    applied for — and "what have I applied to" could only read back a page
+    title. He asked for the opposite: "it should track the application as
+    well, not just apply".
+    """
+    from aletheia import apply_run
+    fields = {"job_title": page.get("title", ""),
+              "company": page.get("company", ""),
+              "posting": page.get("posting") or page.get("url", ""),
+              "found_on": page.get("found_on", ""), **extra_fields}
+    try:
+        return apply_run.remember(record["id"], **fields)
+    except Exception:
+        # a staged record that is not on disk (a test double): keep them in
+        # hand so the run still reports the job it applied to
+        record.update({key: value for key, value in fields.items() if value not in (None, "")})
+        return record
+
+
 def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         finder=None, reader=None, opener=None, stager=None, writer=None,
         json_think=None, searcher=None, draft_essays_too: bool = True) -> dict:
@@ -532,9 +557,7 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         except Exception as exc:
             failed.append({"url": form_url, "why": f"{type(exc).__name__}: {exc}"[:160]})
             continue
-        record["job_title"] = page.get("title", "")
-        record["posting"] = page.get("posting") or page["url"]
-        record["found_on"] = page.get("found_on", "")
+        record = _keep_the_job(record, page)
         if record["state"] == "NEEDS_YOU":
             # What his facts settle is answered from them; long answers are
             # written from his resume. Both show up in the confirmation.
@@ -544,10 +567,7 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
             if extra:
                 try:
                     record = stage(form_url, resume=resume_path, extra=extra, note=note)
-                    record["job_title"] = page.get("title", "")
-                    record["posting"] = page.get("posting") or page["url"]
-                    record["found_on"] = page.get("found_on", "")
-                    record["answered_for_you"] = len(extra)
+                    record = _keep_the_job(record, page, answered_for_you=len(extra))
                 except Exception:
                     pass
         (needs_you if record["state"] == "NEEDS_YOU" else staged).append(record)

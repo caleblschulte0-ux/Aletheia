@@ -1,0 +1,116 @@
+"""An application is a thing with a life, not a form that was filled once.
+
+His words, 2026-09-11: *"That's smart it should track the application as
+well not just apply"*. Two defects were in the way:
+
+- the campaign knew the job title, the employer, the posting link and where
+  it found the job, set them on the record it was holding, and never wrote
+  them back — so every saved application knew the form's URL and nothing
+  about the job;
+- nothing could record what an employer then did about it.
+"""
+import os
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+from aletheia import apply_run, campaign, journal, stateio
+
+
+class Tracked(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        d = Path(self.tmp.name)
+        env = mock.patch.dict(os.environ, {"ALETHEIA_PRIVATE_STATE": str(d)})
+        env.start()
+        self.addCleanup(env.stop)
+        p = mock.patch.object(journal, "JOURNAL_PATH", d / "j.jsonl")
+        p.start()
+        self.addCleanup(p.stop)
+
+    def staged(self, run_id="apply-1", **fields):
+        record = {"id": run_id, "state": "AWAITING_YOU", "url": "https://boards.x.co/form",
+                  "page_title": "Application", "staged_at": stateio.utcnow(), **fields}
+        apply_run.staged_dir().mkdir(parents=True, exist_ok=True)
+        stateio.write_json_atomic(apply_run._record_path(run_id), record)
+        return record
+
+    # ---- what the job was --------------------------------------------
+
+    def test_the_job_is_written_onto_the_saved_record(self):
+        self.staged()
+        campaign._keep_the_job({"id": "apply-1"},
+                               {"title": "Account Executive", "company": "Tebra",
+                                "url": "https://boards.x.co/form",
+                                "posting": "https://tebra.com/jobs/1",
+                                "found_on": "the company's own careers page"})
+        saved = apply_run.load_run("apply-1")
+        self.assertEqual(saved["job_title"], "Account Executive")
+        self.assertEqual(saved["company"], "Tebra")
+        self.assertEqual(saved["posting"], "https://tebra.com/jobs/1")
+        self.assertEqual(saved["found_on"], "the company's own careers page")
+        self.assertEqual(saved["state"], "AWAITING_YOU", "nothing else was touched")
+
+    def test_a_record_that_is_not_on_disk_still_reports_its_job(self):
+        held = campaign._keep_the_job({"id": "never-staged"},
+                                      {"title": "SDR", "company": "Gong",
+                                       "url": "https://x.co/f"})
+        self.assertEqual(held["job_title"], "SDR")
+        self.assertEqual(held["company"], "Gong")
+
+    def test_it_keeps_only_what_an_application_record_keeps(self):
+        self.staged()
+        with self.assertRaises(apply_run.ApplyError):
+            apply_run.remember("apply-1", state="SUBMITTED")
+        self.assertEqual(apply_run.load_run("apply-1")["state"], "AWAITING_YOU")
+
+    def test_naming_one_reads_like_a_person(self):
+        self.assertEqual(
+            apply_run.describe({"job_title": "Account Executive", "company": "Tebra"}),
+            "Account Executive at Tebra")
+        self.assertEqual(
+            apply_run.describe({"job_title": "Tebra — Account Executive", "company": "Tebra"}),
+            "Tebra — Account Executive", "never Tebra at Tebra")
+        self.assertEqual(apply_run.describe({"page_title": "Job Application"}), "Job Application")
+        self.assertEqual(apply_run.describe({"url": "https://boards.x.co/1"}),
+                         "https://boards.x.co/1")
+
+    # ---- what happened next ------------------------------------------
+
+    def test_he_can_say_what_an_employer_did(self):
+        self.staged(job_title="Account Executive", company="Tebra")
+        apply_run.mark("apply-1", "replied", note="asked for a screening call")
+        record = apply_run.mark("apply-1", "interview", note="Tuesday 10am")
+        self.assertEqual(record["outcome"], "interview")
+        self.assertEqual([o["outcome"] for o in record["outcomes"]], ["replied", "interview"])
+        self.assertEqual(record["outcomes"][0]["note"], "asked for a screening call")
+        self.assertTrue(record["outcomes"][1]["at"], "every outcome is dated")
+        self.assertEqual(apply_run.load_run("apply-1")["outcome"], "interview")
+
+    def test_an_outcome_she_does_not_understand_is_refused(self):
+        self.staged()
+        with self.assertRaises(apply_run.ApplyError):
+            apply_run.mark("apply-1", "maybe someday")
+        self.assertNotIn("outcome", apply_run.load_run("apply-1"))
+
+    def test_the_outcome_is_journaled_so_it_shows_in_what_she_did(self):
+        self.staged(job_title="Account Executive", company="Tebra")
+        apply_run.mark("apply-1", "rejected")
+        self.assertTrue(any("rejected" in str(e.get("text")) for e in journal.entries()))
+
+    # ---- finding the one he means -------------------------------------
+
+    def test_he_names_an_employer_not_an_id(self):
+        self.staged("apply-1", job_title="Account Executive", company="Tebra")
+        self.staged("apply-2", job_title="SDR", company="Gong")
+        self.assertEqual([r["id"] for r in apply_run.find("tebra")], ["apply-1"])
+        self.assertEqual([r["id"] for r in apply_run.find("sdr")], ["apply-2"])
+        self.assertEqual([r["id"] for r in apply_run.find("apply-2")], ["apply-2"])
+        self.assertEqual(apply_run.find("a company he never applied to"), [])
+        self.assertEqual(apply_run.find(""), [])
+
+
+if __name__ == "__main__":
+    unittest.main()
