@@ -243,6 +243,27 @@ class WebPageCase(unittest.TestCase):
         self.assertEqual(box.value, "Everyone")
         self.assertEqual(result["selected"], "Everyone")
 
+    def test_a_label_that_starts_a_longer_name_is_found_last(self):
+        lead = computer._control_candidates({"title": "Caption"})[2]["title_re"]
+        self.assertTrue(re.match(lead, "Caption 178/2200"))
+        self.assertTrue(re.match(lead, "caption"))
+        self.assertFalse(re.match(lead, "Captions off"), "a whole word, not part of one")
+        self.assertFalse(re.match(lead, "Add caption"), "the start of the name, not anywhere")
+        card = Element("Urban Growth Just Hit A 50-Year Low Of 1.36%", "Button", invoke=True)
+        backend, window = self.backend(card)
+        backend.perform(self.step("Urban Growth Just Hit A 50-Year Low"))
+        self.assertTrue(card.invoked)
+        self.assertEqual([sorted(asked) for asked in window.asked[:3]],
+                         [["title"], ["title_re"], ["title_re"]], "exact first, then loose, then lead")
+
+    def test_an_exact_name_still_wins_over_a_longer_one(self):
+        save = Element("Save", "Button", invoke=True)
+        save_as = Element("Save as", "Button", invoke=True)
+        backend, _ = self.backend(save_as, save)
+        backend.perform(self.step("Save"))
+        self.assertTrue(save.invoked)
+        self.assertFalse(save_as.invoked)
+
     def test_the_loose_title_is_still_the_whole_name(self):
         loose = computer._control_candidates({"title": "Play"})[1]["title_re"]
         self.assertTrue(re.match(loose, " play "))

@@ -417,7 +417,15 @@ def _control_candidates(selector: dict) -> list[dict]:
         # loose one is still the WHOLE name, never a part of it.
         loose = {key: value for key, value in selector.items() if key != "title"}
         loose["title_re"] = r"(?i)^\s*" + re.escape(selector["title"].strip()) + r"\s*$"
-        return [dict(selector), loose]
+        # ...and a visible label is often the START of a longer name: a text
+        # box's label carries its counter ("Caption 178/2200") and a card is
+        # named by its whole title where a plan writes the headline (her
+        # plan for the TikTok take, 2026-09-11). Word-bounded, tried last,
+        # and the guard still reads the name of whatever is found before
+        # anything is pressed.
+        lead = {key: value for key, value in selector.items() if key != "title"}
+        lead["title_re"] = r"(?i)^\s*" + re.escape(selector["title"].strip()) + r"(?!\w)"
+        return [dict(selector), loose, lead]
     return [dict(selector)]
 
 
