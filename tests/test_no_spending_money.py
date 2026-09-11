@@ -29,7 +29,9 @@ class WhatCountsAsSpendingCase(unittest.TestCase):
     def test_the_act_of_paying(self):
         for goal in ("buy the cheapest monitor", "pay the invoice",
                      "check out with my saved card", "donate £20",
-                     "transfer funds to savings", "place order"):
+                     "transfer funds to savings", "place order",
+                     "go to checkout", "check out amazon.com/cart with my card",
+                     "git checkout main then buy the cheapest monitor"):
             with self.subTest(goal=goal):
                 self.assertTrue(webtask.would_spend(goal), goal)
 
@@ -51,7 +53,12 @@ class WhatCountsAsSpendingCase(unittest.TestCase):
                      "book a meeting with dana",
                      "book a table for two on friday",
                      "cancel my gym membership",
-                     "download my bank statement"):
+                     "download my bank statement",
+                     # 2026-09-11: a recording brief refused as spending over this
+                     "git checkout claude/tiktok-review-demo",
+                     "checkout claude/tiktok-review-demo",
+                     "check out the demo branch",
+                     "git fetch origin then git checkout -b feature/x"):
             with self.subTest(goal=goal):
                 self.assertFalse(webtask.would_spend(goal), goal)
 

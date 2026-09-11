@@ -169,6 +169,11 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # all of it and fitting the long edge into 1024 gave a 1024x192
     # smear. "What is on my screen" means the one he is looking at.
     "screenshot":    (set(), {"monitor"}),
+    # Recording ONE window to a video file on the PC (2026-09-11). window is
+    # its title or a unique part of it; the file is never uploaded.
+    "screen_record": ({"window"}, {"name", "max_seconds"}),
+    "screen_record_stop": (set(), set()),
+    "recording":     (set(), set()),
     "email_check":   (set(), set()),
     # the text of ONE unread message, named by sender or subject; exactly
     # one match or a question back, never a guess (2026-09-02)
@@ -299,6 +304,15 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # generated from KIND_ARGS and these together, so the model learns the
 # shape of a step list from the registry rather than from a guess.
 KIND_NOTES: dict[str, str] = {
+    "screen_record": (
+        "Start recording ONE window to an MP4 on this PC - never the whole desktop, never "
+        "uploaded. window is its title or a unique part of it (computer_observe lists them); "
+        "name is the file name; max_seconds caps it at 300. Bring the window up and "
+        "full-screen it BEFORE starting: what is recorded is that window's rectangle."),
+    "screen_record_stop": (
+        "Stop the recording that is running; says where the file is and how long it is."),
+    "recording": (
+        "Whether a screen recording is running, of which window, and to which file."),
     "notify_snooze": (
         'Put a notification away and bring it BACK. minutes is how long; '
         'which is optional and defaults to the most recent unread one, '
@@ -462,6 +476,8 @@ KIND_NOTES: dict[str, str] = {
 # no receipt is honestly PENDING: the PC hasn't picked it up (Core off or
 # offline), and ChatGPT should say exactly that, not invent an outcome.
 LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email_read", "email_draft",
+               # a recording is a process and a file on this PC
+               "screen_record", "screen_record_stop", "recording",
                # the workspace is a directory on his PC
                "doc_make",
                # what he asks about his projects queues in private state on the PC
@@ -535,6 +551,8 @@ READ_ONLY_KINDS = frozenset({
     # and photographing it commits him to nothing: the file stays on the
     # PC under cache/, which is gitignored, exactly like browse_shot's
     "screenshot",
+    # whether a recording is running changes nothing
+    "recording",
     # reading what a media file IS changes nothing
     "media_probe",
     "email_check", "email_read", "screen_ask", "authority_status", "setup_status",
@@ -546,6 +564,9 @@ READ_ONLY_KINDS = frozenset({
 # Nothing here spends, sends, publishes, or binds him to anything.
 ROUTINE_KINDS = frozenset({
     "task_new", "task_status", "plan_new", "plan_add_step", "plan_step",
+    # Starting and stopping a capped recording of one window, to a file on
+    # his PC that goes nowhere.
+    "screen_record", "screen_record_stop",
     "plan_set", "remind_at", "remind_daily", "remind_weekly",
     # Queuing what he said about his projects: one private local file, and
     # nothing new starts from it until he says yes to the draft it becomes.
@@ -2111,6 +2132,32 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         browse.screenshot(cmd["url"], target)
         # media never enters git — the capture stays on the PC, named here
         return f"screenshot of {cmd['url']} saved on the PC at {target}"
+    if kind == "screen_record":
+        from aletheia import screenrec
+        try:
+            out = screenrec.start(str(cmd.get("window") or ""), name=str(cmd.get("name") or ""),
+                                  max_seconds=int(cmd.get("max_seconds") or screenrec.MAX_SECONDS))
+        except (screenrec.RecordingError, ValueError) as exc:
+            return f"I couldn't start recording - {exc}."
+        if not out.get("started"):
+            return (f"I'm already recording {out['already'].get('window')!r}; "
+                    "say stop recording first.")
+        return (f"Recording {out['window']!r} to {out['path']}. It stops by itself after "
+                f"{out['max_seconds']} seconds, or when you say stop recording.")
+    if kind == "screen_record_stop":
+        from aletheia import screenrec
+        out = screenrec.stop()
+        if not out.get("stopped"):
+            return "I'm not recording anything."
+        length = f", {out['seconds']:.0f} seconds long" if out.get("seconds") else ""
+        return f"Stopped. The video is at {out['path']}{length}."
+    if kind == "recording":
+        from aletheia import screenrec
+        running = screenrec.current()
+        if not running:
+            return "I'm not recording anything."
+        return (f"I'm recording {running.get('window')!r} to {running.get('path')}, "
+                f"started {running.get('started_at')}.")
     if kind == "screenshot":
         from aletheia import screen
         wanted = str(cmd.get("monitor") or "active").strip().lower()

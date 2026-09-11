@@ -69,6 +69,9 @@ SAFE_HOTKEYS = {
     "pageup": "{PGUP}", "pagedown": "{PGDN}",
     "up": "{UP}", "down": "{DOWN}", "left": "{LEFT}", "right": "{RIGHT}",
     "f3": "{F3}",
+    # View-only keys a screen-recorded demo needs (2026-09-11): full screen,
+    # hard refresh, and zoom back to 100%. None submits, sends or closes.
+    "f11": "{F11}", "ctrl+shift+r": "^+r", "ctrl+0": "^0",
 }
 MAX_VALUE_CHARS = 256
 WINDOW_SELECTOR_FIELDS = {"title", "title_re", "class_name", "auto_id", "control_type"}

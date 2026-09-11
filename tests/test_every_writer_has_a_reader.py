@@ -93,6 +93,9 @@ READER_FOR = {
     # ROUTINE - it falls through to world-tier and is forbidden to the
     # planner besides.)
     "eyes_off": "eyes",
+    # "Are you recording" is how he checks a recording started or stopped.
+    "screen_record": "recording",
+    "screen_record_stop": "recording",
 }
 
 

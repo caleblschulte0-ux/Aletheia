@@ -132,13 +132,26 @@ SPENDS_BY_VERB = re.compile(
     re.I)
 
 
+# "git checkout claude/tiktok-review-demo" switches a code branch. Live
+# 2026-09-11 that one line made her refuse a whole screen-recording brief as
+# spending money. Only the software sense is removed before the check - the
+# command with its branch name, or "check out the ... branch/repo" - so a store
+# checkout anywhere else in the same text is still read, and still refused.
+SOFTWARE_CHECKOUT = re.compile(
+    r"\bgit\s+check\s*out(?:\s+-[bB])?(?:\s+[\w./-]+)?"
+    r"|\bcheck\s*out\s+(?:-[bB]\s+)?[A-Za-z0-9_-]+/[\w./-]+"
+    r"|\bcheck\s*out\s+(?:the|this|that|a|an|our|my|his|your)?\s*(?:[\w.-]+\s+){0,2}"
+    r"(?:branch|repo|repository|code|commit|pull\s+request|pr|tag|worktree)(?:es|s)?\b",
+    re.I)
+
+
 def would_spend(goal: str) -> bool:
     """Does this ask commit money, by the same reading the runner uses?
 
     One predicate, used by the planner AND by the run, so the sentence he
     hears and the thing that actually happens cannot disagree.
     """
-    text = str(goal or "")
+    text = SOFTWARE_CHECKOUT.sub(" ", str(goal or ""))
     return bool(MONEY_WORDS.search(text) or SPENDS_BY_VERB.search(text))
 
 SYSTEM = """You are driving a web browser for Caleb, one step at a time, to

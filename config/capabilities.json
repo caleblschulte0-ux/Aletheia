@@ -1,5 +1,5 @@
 {
-  "revision": 115,
+  "revision": 116,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1057,6 +1057,18 @@
       "module": "aletheia.screen",
       "notes": "The desktop half of what browse.screenshot does for a web page. Stdlib only - ctypes talks to user32/gdi32 the way desktop_context already does, and zlib plus struct are a complete PNG encoder for one colour type - so it does not depend on anybody having remembered to pip install an imaging library. GDI does the downscaling via StretchBlt with HALFTONE, because resampling two million pixels in a Python loop would put the cost back where the point was to remove it. Defaults to the ACTIVE monitor, decided by measurement rather than taste: this PC runs three screens as one 5760x1080 desktop, and capturing all of it scaled the long edge to 1024 and produced a 1024x192 smear with no readable text. 'What is on my screen' means the one holding the focused window. LOOKING IS NOT PRESSING, as in perception.screen: there is no click, key or focus call in the module - absent by construction, not refused by a check. Captures land in cache/, which is gitignored, so a picture of his screen never enters the repo.",
       "verification": "Live on the PC 2026-09-08: captured the active monitor at 1024x576 in 112 ms and the image was read back and inspected - a sharp, legible Firefox window, not the black rectangle every byte-count check would also have passed. Voice phrasings verified to fire on ten imperative forms and to leave questions alone ('did you take a screenshot' and 'what's on my screen' still route to the planner and to perception.screen)."
+    },
+    {
+      "id": "screen.record",
+      "description": "Record one window on your screen to a video file on this PC, and stop",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "intercom kinds 'screen_record' (window, name, max_seconds), 'screen_record_stop', 'recording' (LOCAL); python -m aletheia.screenrec start WINDOW | stop | status | windows",
+      "module": "aletheia.screenrec",
+      "notes": "Added 2026-09-11 so she could make TikTok's app-review demo video herself. ONE WINDOW, NEVER THE DESKTOP: this PC runs three screens as one wide desktop, so a recording names a window and only that window's drawn rectangle (DWM extended frame bounds) is captured - by grabbing the desktop cropped to it, because grabbing a browser by its own handle comes back black on a GPU-composited window. Hard cap of 300 seconds, one recording at a time, file in the workspace under recordings/ and never uploaded; a minimized, unknown or ambiguous window is refused with what is open. Written as fragmented MP4 so a hard stop leaves a playable file, then rewritten as an ordinary MP4 and measured on stop. It presses and types nothing.",
+      "verification": "tests/test_the_screen_is_recorded.py: the ffmpeg call crops the desktop to the window and never takes the whole desktop, the cap holds, minimized/unknown/ambiguous windows are refused, one at a time, stop reports path and length. Live on the PC 2026-09-11 before building: a cropped desktop grab measured a real picture (luma 57), and grabbing a minimized browser by title produced a 214x28 strip."
     },
     {
       "id": "perception.pixels",
