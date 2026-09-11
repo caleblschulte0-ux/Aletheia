@@ -359,6 +359,16 @@ class AFactGoesOnlyWhereItIsAskedForCase(unittest.TestCase):
         self.assertEqual(self.match("Are you willing to relocate?"), "willing_to_relocate")
         self.assertEqual(self.match("", name="email", id="email"), "email")
 
+    def test_a_follow_up_question_and_the_verb_state_get_nothing(self):
+        """Live on Brex 2026-09-10."""
+        for label in (
+                "If you heard about us through a referral, please state the Brex employee's name",
+                "If you're not authorized to work at the stated location, what is your status?",
+                "If you currently work, or have previously worked, at Capital One, please list the company",
+                "Please state your reason for applying"):
+            self.assertIsNone(self.match(label), label)
+        self.assertEqual(self.match("In which state do you currently reside?*"), "state")
+
 
 class OnlyRealQuestionsReachHimCase(PrivateProfile):
     def test_a_search_box_and_a_captcha_are_not_questions(self):

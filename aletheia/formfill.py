@@ -190,6 +190,12 @@ def match_field(field: dict) -> str | None:
     labelled at all.
     """
     label = str(field.get("label") or "").casefold()
+    # "If you're not authorized to work at the stated location, what..." asks
+    # something that depends on an earlier answer, not a fact on file. Live on
+    # Brex 2026-09-10 it got "Yes", and "If you have worked at Capital One..."
+    # got his current employer.
+    if re.match(r"^[^a-z0-9]*if\b", label):
+        return None
     yes_no = bool(_YES_NO_LEAD.match(label))
     codes = " ".join(str(field.get(k) or "") for k in ("name", "id")).casefold()
     best, best_len = None, 0
@@ -200,6 +206,10 @@ def match_field(field: dict) -> str | None:
         # live it got 6, counting six years of construction.
         if key == "years_experience" and re.search(
                 r"experience\b.*\b(?:in|with|as|doing|using|on|at)\b", label):
+            continue
+        # "Please state the employee's name" is the verb: live it got "SD".
+        if key == "state" and re.search(
+                r"\bstate\s+(?:the|your|a|an|any|why|how|what|which|who|if|whether)\b", label):
             continue
         for phrase in spec["asks"]:
             if len(phrase) <= best_len:
