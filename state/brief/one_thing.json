@@ -1,0 +1,9 @@
+{
+  "kind": "step",
+  "slug": "holdco-platform",
+  "title": "Holdco platform",
+  "n": 1,
+  "step": "Pick the one offer to test first and write it as one sentence in docs/NEXT_OFFER.md on the holdco branch (or tell any Claude session to)",
+  "text": "Holdco platform: Pick the one offer to test first and write it as one sentence in docs/NEXT_OFFER.md on the holdco branch (or tell any Claude session to). Reply done when it is.",
+  "day": "2026-09-11"
+}
