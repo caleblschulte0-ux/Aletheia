@@ -98,25 +98,44 @@ def _norm(text: str) -> str:
     return " ".join(re.sub(r"[\u200b-\u200f\ufeff]", "", str(text or "")).casefold().split())
 
 
+def _on_screen(window: dict) -> bool:
+    return not window.get("minimized") and window["width"] >= 200 and window["height"] >= 200
+
+
 def find_window(named: str, *, listing: list[dict] | None = None) -> dict:
-    """The ONE visible window whose title is, or contains, `named`."""
-    want = _norm(named)
-    if not want:
+    """The ONE window on screen that `named` means.
+
+    `named` may give alternatives separated by "|": her first plan
+    (2026-09-11) named the demo "localhost|Shorts|Edge", the way a window
+    pattern is written everywhere else in her grammar. They are tried in
+    order, and the first that names exactly one window on screen wins; one
+    that names several is skipped for the next. Only windows actually on
+    screen count, so a minimized "New tab" does not make "Edge" ambiguous.
+    When nothing settles it, the refusal says why rather than guessing.
+    """
+    wants = [w for w in (_norm(re.sub(r"^\^?(?:\.\*)?|(?:\.\*)?\$?$", "", part.strip()))
+                         for part in str(named or "").split("|")) if w]
+    if not wants:
         raise RecordingError("say which window to record")
     rows = [w for w in (windows() if listing is None else listing) if str(w.get("title") or "").strip()]
-    exact = [w for w in rows if _norm(w["title"]) == want]
-    hits = exact or [w for w in rows if want in _norm(w["title"])]
-    if not hits:
-        raise RecordingError(f"no open window is called {named!r}; open now: "
-                             + "; ".join(sorted({w['title'] for w in rows})[:8]))
-    if len(hits) > 1:
-        raise RecordingError(f"{len(hits)} windows match {named!r} ("
-                             + "; ".join(w["title"] for w in hits[:6]) + ") - say which")
-    window = hits[0]
-    if window.get("minimized") or window["width"] < 200 or window["height"] < 200:
-        raise RecordingError(f"{window['title']!r} is minimized or too small to record - "
+    usable = [w for w in rows if _on_screen(w)]
+    crowded: list[dict] = []
+    hidden: list[dict] = []
+    for want in wants:
+        exact = [w for w in usable if _norm(w["title"]) == want]
+        hits = exact if len(exact) == 1 else (exact or [w for w in usable if want in _norm(w["title"])])
+        if len(hits) == 1:
+            return hits[0]
+        crowded += [w for w in hits if w not in crowded]
+        hidden += [w for w in rows if not _on_screen(w) and want in _norm(w["title"]) and w not in hidden]
+    if crowded:
+        raise RecordingError(f"{len(crowded)} windows match {named!r} ("
+                             + "; ".join(w["title"] for w in crowded[:6]) + ") - say which")
+    if hidden:
+        raise RecordingError(f"{hidden[0]['title']!r} is minimized or too small to record - "
                              "bring it up on screen first")
-    return window
+    raise RecordingError(f"no open window is called {named!r}; open now: "
+                         + "; ".join(sorted({w['title'] for w in rows})[:8]))
 
 
 def current() -> dict | None:

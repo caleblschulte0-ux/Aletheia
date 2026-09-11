@@ -65,11 +65,28 @@ class OnlyTheWindowCase(RecordingCase):
         self.assertEqual(out["window"], WINDOWS[0]["title"])
 
     def test_minimized_unknown_or_ambiguous_is_refused_not_guessed(self):
-        for named in ("New tab", "Nothing like this", "Edge"):
+        for named in ("New tab", "Nothing like this", "|"):
             with self.subTest(named=named):
                 with self.assertRaises(screenrec.RecordingError):
                     self.start(named)
+        two = WINDOWS + [dict(WINDOWS[0], title="Inbox - Profile 1 - Microsoft​ Edge", left=0)]
+        with self.assertRaises(screenrec.RecordingError) as caught:
+            screenrec.find_window("Edge", listing=two)
+        self.assertIn("say which", str(caught.exception))
         self.assertEqual(self.spawned, [])
+
+    def test_a_minimized_window_does_not_make_a_name_ambiguous(self):
+        # "Edge" is in two titles, and one of those windows is minimized.
+        self.assertEqual(screenrec.find_window("Edge", listing=WINDOWS), WINDOWS[0])
+
+    def test_alternatives_the_way_a_planner_writes_them(self):
+        """Her first plan named the window "localhost|Shorts|Edge" (2026-09-11)."""
+        out = self.start("localhost|Shorts|Edge", name="take")
+        self.assertEqual(out["window"], WINDOWS[0]["title"])
+        self.assertEqual(screenrec.find_window("^.*Shorts Media.*$", listing=WINDOWS), WINDOWS[0])
+        # the first alternative that names ONE window wins; a crowded one is skipped
+        two = WINDOWS + [dict(WINDOWS[1], title="Olathea notes")]
+        self.assertEqual(screenrec.find_window("Olathea|Shorts", listing=two), WINDOWS[0])
 
     def test_it_stops_by_itself(self):
         self.start("Shorts Media", max_seconds=9999)

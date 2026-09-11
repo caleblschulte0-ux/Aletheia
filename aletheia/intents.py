@@ -24,6 +24,7 @@ Private storage: an intent record contains the operator's own words.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import re
@@ -283,6 +284,7 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
 
     fleet = fleet if fleet is not None else load_fleet()
     plan = planner.compile(request, fleet=fleet, **compile_kw)
+    presses = _bind_committing_presses(plan, fleet)
     # SAY THE PLAN THE MOMENT IT EXISTS. His shape for a long request is
     # "I know that she's working on it fast, and then I'll hear the plan
     # fast, and then the results, they'll come when they come." Between
@@ -331,6 +333,8 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
         "gap_tasks": gap_tasks,
         "proposed_at": stateio.utcnow(),
     }
+    if presses:
+        record["presses"] = presses
     if read_only(plan):
         receipts = planner.execute(plan, fleet=fleet, quote=quote or request)
         record["state"] = EXECUTED
@@ -376,6 +380,24 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
                        f"refused: asks to spend money — {request[:120]}",
                        actor=ACTOR)
         return record
+    # A PLAN WHOSE HANDS WERE REFUSED IS NOT "N STEPS READY".
+    #
+    # 2026-09-11, the TikTok review take: the sixteen clicks were refused and
+    # the approval on his phone still offered the other five steps — open
+    # Edge, start recording, stop recording, report — which is a video of
+    # nothing under the summary of the video he asked for. The steps around
+    # the hands only mean something if the hands run.
+    hands = next((s for s in plan.steps if s.status == planner.REFUSED
+                  and (s.command or {}).get("kind") in _HANDS_KINDS), None)
+    if hands is not None:
+        record["state"] = RETIRED
+        record["refused_hands"] = {"n": hands.n, "kind": hands.command["kind"],
+                                   "detail": str(hands.detail or "")[:400]}
+        journal.append("decision", "intent",
+                       f"refused: step {hands.n} ({hands.command['kind']}) cannot run "
+                       f"as planned, so nothing is queued — {request[:120]}",
+                       actor=ACTOR)
+        return record
 
     stateio.write_json_atomic(_record_path(intent_id), record)
 
@@ -385,12 +407,17 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
         record["tier"] = tier
         capability = ("intent.execute.routine" if tier == intercom.TIER_ROUTINE
                       else "intent.execute")
+        # He is approving a PRESS, so the approval names it where he reads it.
+        labels = [label for bound in presses for label in bound["presses"]]
         approval = policy.request(
             approval_id,
-            requested_action=f"run {len(plan.executable)} step(s): " + ", ".join(kinds),
+            requested_action=f"run {len(plan.executable)} step(s): " + ", ".join(kinds)
+            + (f"; presses {', '.join(repr(l) for l in labels)} on the screen" if labels else ""),
             reason=f'operator said: "{(quote or request)[:200]}"',
-            consequence=plan.summary or "see the plan",
-            reversible=tier == intercom.TIER_ROUTINE, capability=capability)
+            consequence=(plan.summary or "see the plan") + (
+                f" — it will press {speech.and_list(labels)} on your screen, once, "
+                "as part of this exact plan" if labels else ""),
+            reversible=tier == intercom.TIER_ROUTINE and not labels, capability=capability)
         record["approval_state"] = approval.get("state")
     # SAYABLE. This line is read back out of her journal by "what did you
     # do today", and "1 executable, 0 blocked" is a log entry, not a
@@ -403,6 +430,67 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
                    f"{plan.summary or request[:120]}",
                    actor=ACTOR)
     return record
+
+
+# The kinds that are a plan's hands: when one is refused, what is left is not
+# a smaller version of the ask.
+_HANDS_KINDS = frozenset({"computer_do", "screen_record"})
+
+
+def _bind_committing_presses(plan: planner.Plan, fleet: dict) -> list[dict]:
+    """Offer a desktop step refused ONLY for its committing presses as part
+    of the plan he approves, naming each press.
+
+    The grammar gate refuses a computer_do that presses Post, Send or
+    Delete, because unattended hands never press those, and that stays
+    true: a step converted here runs only inside `computer.approved_presses`,
+    which `_run_approved` enters after HIS approval of this exact plan hash,
+    and each press is read again on screen before it is made. Every other
+    refusal (a shell, a close, an unlabelled control, a bad field) stays
+    refused.
+    """
+    from aletheia import computer
+    bound: list[dict] = []
+    for i, step in enumerate(plan.steps):
+        command = step.command or {}
+        if step.status != planner.REFUSED or command.get("kind") != "computer_do":
+            continue
+        steps = intercom._steps_of(command)
+        if not isinstance(steps, list) or computer.validate_steps(steps):
+            continue
+        try:
+            presses = computer.committing_presses(steps)
+        except computer.ApprovalRequired:
+            continue
+        if not presses:
+            continue
+        try:
+            computer.check_act_plan(steps)
+            continue
+        except computer.ApprovalRequired as exc:
+            committing = f"computer_do: {exc}"
+        # Nothing else about the step may be wrong: the committing press has
+        # to be the grammar gate's ONLY objection.
+        if intercom.validate_kind_args(command, fleet) != [committing]:
+            continue
+        labels = [p["label"] for p in presses]
+        plan.steps[i] = planner.PlannedStep(
+            step.n, planner.EXECUTABLE,
+            "presses " + ", ".join(repr(l) for l in labels)
+            + " — only inside his approval of this exact plan",
+            command=step.command, capability=step.capability)
+        bound.append({"n": step.n, "presses": labels})
+    return bound
+
+
+def _hands_refused(hands: dict) -> str:
+    """Why a plan was not offered, in words he can act on."""
+    why = re.sub(r"^\w+:\s*", "", str(hands.get("detail") or ""))
+    why = re.split(r" — |; allowed:", why)[0]
+    why = speech.tidy(speech.strip_ids(speech.spoken_prose(why)))[:220].rstrip(" .;")
+    return ("I can't run that plan as written"
+            + (f": step {hands.get('n')} was refused — {why}." if why else ".")
+            + " Nothing is queued; tell me what to change and I'll plan it again.")
 
 
 def spoken(record: dict) -> str:
@@ -480,6 +568,8 @@ def spoken(record: dict) -> str:
              if str(s.get("detail", "")).startswith(_SPENDING_REFUSAL)]
     if money:
         return _SPENDING_REFUSAL + " Nothing is queued."
+    if record.get("refused_hands"):
+        return _hands_refused(record["refused_hands"])
 
     parts = []
     if runnable:
@@ -496,6 +586,13 @@ def spoken(record: dict) -> str:
         ready = speech.count_phrase(len(runnable), "step") + " ready"
         summary = speech.spoken_prose(str(record.get("summary") or ""))
         said = f"{ready} — {summary}." if summary else f"{ready}."
+        labels = [label for bound in record.get("presses") or []
+                  for label in bound.get("presses") or []]
+        if labels:
+            # He is approving a press, so the sentence names it. The approval
+            # is not a licence: it covers this exact plan, once.
+            said += (f" It will press {speech.and_list(labels[:4])} on your screen, "
+                     "and only as part of this exact plan.")
         if record.get("approval_state") == "APPROVED":
             # A standing grant already covered it, so there is nothing for
             # him to approve — and "say approve to run it" would send him
@@ -922,10 +1019,21 @@ def _run_approved(fleet: dict | None = None, executor=None) -> list[dict]:
             record.pop("current_kind", None)
             stateio.write_json_atomic(_record_path(record["id"]), record)
 
-        receipts = planner.execute(plan, fleet=fleet,
-                                   quote=record.get("operator_quote", ""),
-                                   executor=executor, before_step=before_step,
-                                   after_step=after_step)
+        bound = {b.get("n") for b in record.get("presses") or []}
+        pressing = contextlib.nullcontext()
+        if bound:
+            # The committing presses HE approved, in this plan's own steps
+            # only: computer.act may make each once, reading the label on
+            # screen first.
+            from aletheia import computer
+            pressing = computer.approved_presses(approval_id, [
+                intercom._steps_of(s["command"]) for s in runnable
+                if s["n"] in bound and (s.get("command") or {}).get("kind") == "computer_do"])
+        with pressing:
+            receipts = planner.execute(plan, fleet=fleet,
+                                       quote=record.get("operator_quote", ""),
+                                       executor=executor, before_step=before_step,
+                                       after_step=after_step)
         record["receipts"] = receipts
         record["state"] = (FAILED if any(
             r["outcome"] != "done" for r in receipts) else EXECUTED)

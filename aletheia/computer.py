@@ -23,6 +23,7 @@ CLI::
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -55,6 +56,10 @@ ACTION_FIELDS = {
     # a combo box or list item.
     "hotkey": {"action", "window", "keys", "timeout_s"},
     "select": {"action", "window", "control", "value", "timeout_s"},
+    # 2026-09-11: a screen-recorded demo says "pause 3s so the reviewer can
+    # read it", and she had no way to wait. Nothing is touched; the seconds
+    # count toward the plan's wait budget and HALT is read while it waits.
+    "pause": {"action", "seconds"},
 }
 # Hotkeys unattended hands may send, and how pywinauto spells them. Enter,
 # Delete, Alt+F4, Ctrl+Enter, Ctrl+W/Q are absent on purpose: each one
@@ -86,6 +91,7 @@ MAX_SELECTOR_CHARS = 256
 MAX_OBSERVATIONS = 200
 MAX_FILENAME_CHARS = 120
 MAX_PLAN_WAIT_S = 300.0
+MAX_PAUSE_S = 10.0
 WAIT_POLL_S = 0.5
 CAPTURE_DIR = REPO_ROOT / "cache" / "computer-captures"
 ACTOR = "aletheia-computer"
@@ -233,9 +239,17 @@ def validate_steps(steps: object) -> list[str]:
                         problems.append(
                             f"{label}.arguments[{arg_index}]: control characters "
                             "are not accepted")
-        elif action != "list_windows":
+        elif action not in ("list_windows", "pause"):
             problems += _selector(step.get("window"), f"{label}.window",
                                   WINDOW_SELECTOR_FIELDS)
+        if action == "pause":
+            seconds = step.get("seconds")
+            if (isinstance(seconds, bool) or not isinstance(seconds, (int, float))
+                    or not 0 < float(seconds) <= MAX_PAUSE_S):
+                problems.append(
+                    f"{label}.seconds: expected a number of seconds from 0 to {MAX_PAUSE_S:g}")
+            else:
+                total_wait_s += float(seconds)
         if action in ("list_windows", "inspect_controls"):
             maximum = step.get("max_results", 50)
             if (isinstance(maximum, bool) or not isinstance(maximum, int)
@@ -908,7 +922,7 @@ def observe(steps: object, backend: ComputerBackend | None = None,
 #   - HALT is re-read between every step.
 
 ACT_ACTIONS = frozenset({"open_app", "wait_window", "focus_window", "set_text", "invoke",
-                         "hotkey", "select"})
+                         "hotkey", "select", "pause"})
 
 COMMITTING_PATTERN = re.compile(
     r"\b(?:send|delete|pay|purchase|buy|confirm|submit|format|uninstall|"
@@ -1007,6 +1021,101 @@ def check_act_plan(steps: list[dict]) -> None:
                 + approval_path)
 
 
+_sleep = time.sleep
+
+
+def _pause(step: dict) -> dict:
+    """Wait the seconds a step names, touching nothing. HALT is read between
+    short slices, so a pause is never a window in which a stop is ignored."""
+    seconds = float(step["seconds"])
+    remaining = seconds
+    while remaining > 0:
+        policy.ensure_not_halted()
+        chunk = min(WAIT_POLL_S, remaining)
+        _sleep(chunk)
+        remaining -= chunk
+    policy.ensure_not_halted()
+    return {"action": "pause", "verified": f"waited {seconds:g}s"}
+
+
+def committing_presses(steps: list[dict]) -> list[dict]:
+    """The committing controls a plan presses, when they are ALL that keeps
+    it from unattended hands.
+
+    2026-09-11: the TikTok review take ends on the demo's sandbox "Post to
+    TikTok" button. The guard refused the whole take, correctly for
+    unattended hands, and the only other road, a hand-written
+    `computer.execute` plan, is not one a compiled plan can reach. So a
+    desktop step refused for nothing but LABELLED committing presses can be
+    offered to him as one approval of the exact plan, naming each press.
+    Anything else the guard refuses (a shell, a close, a control with no
+    readable label) raises here and stays refused: a press nobody can name
+    is not a press he can approve.
+    """
+    presses = []
+    for index, step in enumerate(steps):
+        try:
+            check_act_plan([step])
+        except CommittingControl:
+            action = step.get("action")
+            label = (str(step.get("value") or "") if action == "select"
+                     else _control_label(step.get("control") or {}))
+            word = committing_label(label)
+            if not label.strip() or not word:
+                raise
+            presses.append({"index": index, "action": action,
+                            "label": label.strip(), "word": word})
+    return presses
+
+
+_APPROVED = threading.local()
+
+
+@contextlib.contextmanager
+def approved_presses(approval_id: str, plans: list[list[dict]]):
+    """Let act() make the committing presses of these exact plans, once each.
+
+    Entered only by `intents._run_approved`, after his approval is APPROVED
+    and the intent's plan hash still matches, and only around that intent's
+    own steps. Thread-local, so nothing else running in the Core borrows it;
+    each plan is claimed at most once, so an approval is one take and not a
+    standing licence to press Post.
+    """
+    previous = getattr(_APPROVED, "grant", None)
+    _APPROVED.grant = {"approval": str(approval_id),
+                       "digests": [plan_digest(p) for p in plans]}
+    try:
+        yield
+    finally:
+        _APPROVED.grant = previous
+
+
+def _claim_presses(steps: list[dict]) -> tuple[str, dict[int, dict]] | None:
+    """His approval of THIS plan, consumed, with its presses by step index."""
+    grant = getattr(_APPROVED, "grant", None)
+    if not grant:
+        return None
+    digest = plan_digest(steps)
+    if digest not in grant["digests"]:
+        return None
+    try:
+        presses = committing_presses(steps)
+    except ApprovalRequired:
+        return None
+    if not presses:
+        return None
+    grant["digests"].remove(digest)
+    return grant["approval"], {p["index"]: p for p in presses}
+
+
+def _approved_here(press: dict | None, live_name: str, hit: str) -> bool:
+    """Is the committing label on screen the press he approved at this step?"""
+    if not press or press["word"].casefold() != hit.casefold():
+        return False
+    planned, live = _normalized(press["label"]), _normalized(live_name)
+    return bool(planned and live and (planned in live or live in planned))
+
+
 def act(steps: object, backend: ComputerBackend | None = None,
         backend_factory=None, requested_by: str = "agenda") -> dict:
     """Do something on the desktop without a per-plan approval.
@@ -1022,12 +1131,25 @@ def act(steps: object, backend: ComputerBackend | None = None,
     problems = validate_steps(steps)
     if problems:
         raise ValueError("; ".join(problems))
-    check_act_plan(steps)
+    approved = None
+    try:
+        check_act_plan(steps)
+    except CommittingControl:
+        # ...unless he approved this exact plan, presses named, and this is
+        # the run his approval is for (`approved_presses`).
+        approved = _claim_presses(steps)
+        if approved is None:
+            raise
     policy.ensure_not_halted()
     run_id = f"hands-{uuid.uuid4().hex[:12]}"
+    presses = approved[1] if approved else {}
     journal.append("action", "computer:act",
-                   f"STARTED run={run_id} requested_by={requested_by} steps={len(steps)}",
-                   actor=ACTOR, refs=[f"run:{run_id}"])
+                   f"STARTED run={run_id} requested_by={requested_by} steps={len(steps)}"
+                   + (f" approval={approved[0]} presses="
+                      + json.dumps([p["label"] for p in presses.values()], ensure_ascii=False)
+                      if approved else ""),
+                   actor=ACTOR,
+                   refs=[f"run:{run_id}"] + ([f"approval:{approved[0]}"] if approved else []))
     driver = backend or (backend_factory() if backend_factory else WindowsUIABackend())
     results = []
     for index, step in enumerate(steps):
@@ -1038,7 +1160,7 @@ def act(steps: object, backend: ComputerBackend | None = None,
                 live = describe(step)
                 name = str((live or {}).get("name") or "")
                 hit = committing_label(name)
-                if hit:
+                if hit and not _approved_here(presses.get(index), name, hit):
                     journal.append(
                         "action", "computer:act",
                         f"REFUSED run={run_id} step={index} the control on screen is "
@@ -1051,7 +1173,8 @@ def act(steps: object, backend: ComputerBackend | None = None,
                         "Pressing it needs an approval bound to this exact plan "
                         "(python -m aletheia.computer request/run).")
         try:
-            evidence = driver.perform(step)
+            evidence = (_pause(step) if step["action"] == "pause"
+                        else driver.perform(step))
             if not isinstance(evidence, dict):
                 raise VerificationFailed(
                     f"backend returned non-object evidence for {step['action']}")
@@ -1092,7 +1215,8 @@ def execute(steps: object, approval_id: str, backend: ComputerBackend | None = N
     for index, step in enumerate(steps):
         policy.ensure_not_halted()
         try:
-            evidence = driver.perform(step)
+            evidence = (_pause(step) if step["action"] == "pause"
+                        else driver.perform(step))
             if not isinstance(evidence, dict):
                 raise VerificationFailed(
                     f"backend returned non-object evidence for {step['action']}")

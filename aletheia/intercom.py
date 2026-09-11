@@ -452,11 +452,14 @@ KIND_NOTES: dict[str, str] = {
         '{"action":"invoke","window":{...},"control":{"title":"Save"}} | '
         '{"action":"hotkey","window":{...},"keys":"ctrl+s"} (safe keys only: clipboard, '
         'undo, find, save, navigation, escape, tab — never enter/delete/alt+f4) | '
-        '{"action":"select","window":{...},"control":{"control_type":"ComboBox"},"value":"UTF-8"}. '
+        '{"action":"select","window":{...},"control":{"control_type":"ComboBox"},"value":"UTF-8"} | '
+        '{"action":"pause","seconds":3} (waits up to 10 seconds, touches nothing, names no window). '
         "Selectors use title, title_re, class_name, auto_id, control_type (a control "
-        "also best_match) — never screen coordinates. A window title_re matches anywhere in the title, ignoring case. A text area is control_type Edit or Document (either finds it). Windows 11 Notepad reopens its last tabs on launch: to write fresh text, send hotkey ctrl+n after wait_window, then set_text. A control labelled Send, "
-        "Delete, Pay, Purchase, Confirm, Submit, Format, Uninstall or Empty Trash "
-        "is refused and needs his approval; do not plan around it."),
+        "also best_match) — never screen coordinates. A window title_re matches anywhere in the title, ignoring case. A text area is control_type Edit or Document (either finds it). set_text REPLACES the control's whole text: to add to what is there, write the whole new text. Windows 11 Notepad reopens its last tabs on launch: to write fresh text, send hotkey ctrl+n after wait_window, then set_text. A control labelled Send, "
+        "Delete, Pay, Purchase, Confirm, Submit, Post, Format, Uninstall or Empty Trash "
+        "is never pressed on its own: a plan that presses one becomes ONE approval he "
+        "gives for that exact plan, naming the press. Name such a control by its visible "
+        "title, and do not plan around it."),
     "do_task": (
         "request is the ask in plain words. She writes a small Python program "
         "(standard library only, no network, no subprocess, workspace files only) "
