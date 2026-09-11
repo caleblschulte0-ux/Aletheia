@@ -207,8 +207,7 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
                   "approval": "", "steps": steps, "resume": resume,
                   "questions": (plan["ask"] + stopped)[:MAX_QUESTIONS_SHOWN],
                   "not_filled": (plan["ask"] + stopped)[:MAX_QUESTIONS_SHOWN],
-                  "would_fill": [{"label": f["label"], "value": f["value"]}
-                                 for f in plan["fill"]],
+                  "would_fill": _as_chosen(plan["fill"], filled.get("chosen") or {}),
                   "filled": [], "skipped": plan["skipped"],
                   "screenshot": str(shot) if shot.exists() else "",
                   "staged_at": stateio.utcnow(),
@@ -239,8 +238,8 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
 
     record = {"id": run_id, "state": "AWAITING_YOU", "url": url,
               "approval": approval_id, "steps": steps,
-              "filled": ([{"label": f["label"], "value": f["value"]}
-                          for f in plan["fill"]] + answered["filled"]),
+              "filled": _as_chosen(plan["fill"] + answered["filled"],
+                                   filled.get("chosen") or {}),
               "not_filled": plan["ask"], "skipped": plan["skipped"],
               "resume": resume, "screenshot": str(shot) if shot.exists() else "",
               "page_title": filled.get("title", ""),
@@ -252,7 +251,26 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
     return record
 
 
-def _apply_steps(page, steps: list[dict]) -> None:
+def _as_chosen(rows: list[dict], chosen: dict) -> list[dict]:
+    """What is ON the form, not what she meant to put there.
+
+    A dropdown she typed "B.B.A." into chose "Bachelor's Degree", and the
+    confirmation he approves said B.B.A. (live 2026-09-10). A dropdown that
+    chose nothing is not listed as filled at all.
+    """
+    out = []
+    for row in rows:
+        selector = row.get("selector")
+        value = row.get("value")
+        if selector in chosen:
+            if not chosen[selector]:
+                continue
+            value = chosen[selector]
+        out.append({"label": row["label"], "value": value})
+    return out
+
+
+def _apply_steps(page, steps: list[dict]) -> dict:
     """One place that knows how to perform a step.
 
     Staging and submitting both type the same list, and they had their own
@@ -261,6 +279,7 @@ def _apply_steps(page, steps: list[dict]) -> None:
     carries no `value`, and `page.fill(selector, step["value"])` raised
     KeyError in the staging copy alone.
     """
+    chosen: dict[str, str] = {}
     for step in steps:
         action = step["action"]
         if action == "select":
@@ -274,9 +293,11 @@ def _apply_steps(page, steps: list[dict]) -> None:
         elif formfill.is_combobox(page, step["selector"]):
             # A search-as-you-type dropdown keeps nothing that is only typed.
             # The option is chosen, or it is left empty for him to answer.
-            formfill.pick_option(page, step["selector"], step["value"])
+            chosen[step["selector"]] = formfill.pick_option(
+                page, step["selector"], step["value"])
         else:
             page.fill(step["selector"], str(step["value"]))
+    return chosen
 
 
 def _fill_and_capture(url: str, steps: list[dict], resume: str, shot: Path) -> dict:
@@ -293,12 +314,12 @@ def _fill_and_capture(url: str, steps: list[dict], resume: str, shot: Path) -> d
         page = ctx.new_page()
         page.goto(url, wait_until="domcontentloaded")
         formfill.settle(page)
-        _apply_steps(page, steps)
+        chosen = _apply_steps(page, steps)
         if resume:
             _attach_resume(page, resume)
         page.screenshot(path=str(shot), full_page=True)
         result = {"title": page.title(), "url": page.url,
-                  "blocking": formfill.blocking(page)}
+                  "blocking": formfill.blocking(page), "chosen": chosen}
         page.close()
     return result
 

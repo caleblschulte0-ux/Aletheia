@@ -137,6 +137,29 @@ class SheAsksBeforeSheFills(ApplyCase):
                       [q["why"] for q in out["questions"]][0])
 
 
+class WhatIsOnTheFormIsWhatHeApproves(ApplyCase):
+    """A dropdown she typed "B.B.A." into chose "Bachelor's Degree", and the
+    confirmation he approves said B.B.A. (live 2026-09-10)."""
+
+    def stage_choosing(self, pick):
+        def fake(url, steps, resume, shot):
+            shot.parent.mkdir(parents=True, exist_ok=True)
+            shot.write_bytes(b"png")
+            first = next(s["selector"] for s in steps if s["action"] == "type")
+            return {"title": "Apply", "url": url, "chosen": {first: pick}}
+        return apply_run.stage("https://jobs.example.com/1", reader=self.reader(None),
+                               filler=fake, extra={"#felony": "No", "#cert": True})
+
+    def test_the_option_it_chose_is_what_the_confirmation_says(self):
+        out = self.stage_choosing("The option it chose")
+        self.assertIn("The option it chose", [f["value"] for f in out["filled"]])
+
+    def test_a_dropdown_that_chose_nothing_is_not_listed_as_filled(self):
+        chosen = self.stage_choosing("The option it chose")
+        nothing = self.stage_choosing("")
+        self.assertEqual(len(nothing["filled"]), len(chosen["filled"]) - 1)
+
+
 class WhatHeApprovesIsWhatIsTyped(ApplyCase):
     def ready(self):
         return self.staged(extra={"#felony": "No", "#cert": True})

@@ -427,20 +427,20 @@ def apply_answers(out: dict, fields: list[dict], answers: dict) -> dict:
                 continue
             steps_out.append({"action": "select", "selector": selector,
                               "value": option})
-            filled.append({"label": label, "value": option})
+            filled.append({"label": label, "value": option, "selector": selector})
         elif field.get("type") in ("checkbox", "radio"):
             # A checkbox is clicked, never filled — and only when he said
             # yes. "No" on a checkbox means leave it alone, not click it.
             if value is True or str(value).strip().casefold() in (
                     "yes", "true", "1", "on", "checked", "i agree"):
                 steps_out.append({"action": "click", "selector": selector})
-                filled.append({"label": label, "value": "ticked"})
+                filled.append({"label": label, "value": "ticked", "selector": selector})
             else:
-                filled.append({"label": label, "value": "left unticked"})
+                filled.append({"label": label, "value": "left unticked", "selector": selector})
         else:
             steps_out.append({"action": "type", "selector": selector,
                               "value": str(value)})
-            filled.append({"label": label, "value": str(value)})
+            filled.append({"label": label, "value": str(value), "selector": selector})
     out["ask"] = still_asked
     return {"steps": steps_out, "filled": filled, "refused": refused}
 
