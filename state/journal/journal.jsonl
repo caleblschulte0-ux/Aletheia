@@ -119,3 +119,5 @@
 {"ts": "2026-09-10T20:55:47Z", "kind": "alert", "actor": "aletheia", "subject": "repo:money_machine", "text": "health dormant -> red"}
 {"ts": "2026-09-10T20:55:48Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue updated — Money_Machine"}
 {"ts": "2026-09-11T14:47:06Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-09-11"}
+{"ts": "2026-09-11T21:01:36Z", "kind": "alert", "actor": "aletheia", "subject": "repo:shorts_pipeline", "text": "health green -> red"}
+{"ts": "2026-09-11T21:01:38Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue updated — Shorts-pipeline, Money_Machine"}
