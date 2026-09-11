@@ -653,6 +653,7 @@ class WindowsUIABackend:
         candidates = _control_candidates(step["control"])
         condition = "exists visible enabled ready"
         deadline = time.monotonic() + self._timeout(step)
+        next_scroll = 0.0
         while True:
             policy.ensure_not_halted()
             remaining = deadline - time.monotonic()
@@ -671,6 +672,45 @@ class WindowsUIABackend:
                     if chosen is None:
                         raise
                     return _Found(chosen)
+            # Nothing named that is on screen yet. On a long page it may be
+            # there and simply below the fold, which UI Automation reports as
+            # not visible: scroll it into view the way a person would, then
+            # look again. Tried every two seconds, not on every slice.
+            if time.monotonic() >= next_scroll:
+                next_scroll = time.monotonic() + 2.0
+                self._scroll_into_view(window, candidates, step.get("action", ""))
+
+    @staticmethod
+    def _scroll_into_view(window, candidates: list[dict], action: str) -> bool:
+        """Scroll the ONE control a step names into view, if it is off screen.
+
+        Live, 2026-09-11, his real take in full-screen Edge: "Branded content"
+        appears below "Disclose video content", 150px under the bottom of the
+        screen, so the wait for a visible control timed out while the control
+        sat right there. Scrolling presses nothing; the guard still reads the
+        label of whatever is found. A name that matches a label and a control
+        scrolls to the one that can do the step; anything less exact does not
+        scroll at all.
+        """
+        wanted = ACTION_PATTERNS.get(action, ())
+        try:
+            everything = window.descendants()
+        except Exception:
+            return False
+        for selector in candidates:
+            try:
+                matches = [e for e in everything if _selector_matches(e, selector)]
+            except Exception:
+                continue
+            able = [e for e in matches if any(_has_pattern(e, name) for name in wanted)] or matches
+            if len(able) != 1 or not _has_pattern(able[0], "scroll_item"):
+                continue
+            try:
+                able[0].iface_scroll_item.ScrollIntoView()
+                return True
+            except Exception:
+                return False
+        return False
 
     @staticmethod
     def _the_one_that_can(window, selector: dict, action: str):

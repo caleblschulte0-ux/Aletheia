@@ -78,7 +78,8 @@ class Spec:
 
     def wait(self, condition, timeout):
         self.window.asked.append(dict(self.selector))
-        hits = [e for e in self.window.elements if computer._selector_matches(e, self.selector)]
+        hits = [e for e in self.window.elements if computer._selector_matches(e, self.selector)
+                and not getattr(e, "offscreen", False)]
         if not hits:
             raise FakeUIATimeout("not there")
         if len(hits) > 1:
@@ -298,6 +299,41 @@ class WebPageCase(unittest.TestCase):
                          "control": {"control_type": "ComboBox"}, "value": "Everyone",
                          "timeout_s": 1})
         self.assertEqual(box.value, "Everyone")
+
+    def test_a_control_below_the_fold_is_scrolled_into_view(self):
+        """His real take: "Branded content" existed 150px below the screen."""
+        scrolled = []
+
+        def below_the_fold(name, control_type, **kw):
+            element = Element(name, control_type, **kw)
+            element.offscreen = True
+
+            def into_view():
+                scrolled.append((name, control_type))
+                element.offscreen = False
+
+            element.iface_scroll_item = types.SimpleNamespace(ScrollIntoView=into_view)
+            return element
+
+        label = below_the_fold("Branded content", "Text")
+        box = below_the_fold("Branded content", "CheckBox", toggle=Toggle(0))
+        backend, _ = self.backend(label, box)
+        result = backend.perform(self.step("Branded content"))
+        self.assertEqual(scrolled, [("Branded content", "CheckBox")], "scrolled to the one that can do it")
+        self.assertEqual(box.iface_toggle.CurrentToggleState, 1)
+        self.assertIn("Toggle", result["verified"])
+
+    def test_nothing_is_scrolled_when_the_name_is_not_exact_enough(self):
+        scrolled = []
+        one = Element("Save", "Button", invoke=True)
+        two = Element("Save", "Button", invoke=True)
+        for element in (one, two):
+            element.offscreen = True
+            element.iface_scroll_item = types.SimpleNamespace(ScrollIntoView=lambda: scrolled.append(1))
+        backend, _ = self.backend(one, two)
+        with self.assertRaises(FakeUIATimeout):
+            backend.perform(self.step("Save"))
+        self.assertEqual(scrolled, [])
 
     def test_the_loose_title_is_still_the_whole_name(self):
         loose = computer._control_candidates({"title": "Play"})[1]["title_re"]

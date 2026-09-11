@@ -202,6 +202,9 @@ class TheTakeAsAPlan(NoSleep):
         self.assertEqual(approval["state"], "PENDING", "a spent approval is never reused")
         self.assertIn("Post to TikTok", approval["requested_action"])
         self.assertEqual(intents.load(record["id"])["state"], intents.FAILED)
+        said = intents.spoken(again)
+        self.assertNotIn("Say approve", said, "a desktop plan is approved on the phone")
+        self.assertIn("Post to TikTok", said)
 
         desk = FakeDesktop()
 

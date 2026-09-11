@@ -1077,7 +1077,10 @@ def retry(intent_id: str, quote: str = "") -> dict:
                                         "plan_sha256", "provider", "degraded", "steps",
                                         "presses", "tier") if key in old}
     record.update({"id": new_id, "state": PROPOSED, "approval": new_id,
-                   "retry_of": old["id"], "gap_tasks": [], "proposed_at": stateio.utcnow()})
+                   "retry_of": old["id"], "gap_tasks": [], "proposed_at": stateio.utcnow(),
+                   # the tier decides WHERE he can approve it; without it the
+                   # sentence told him to "say approve" to a desktop plan
+                   "tier": intercom.plan_tier([s["command"]["kind"] for s in runnable])})
     stateio.write_json_atomic(_record_path(new_id), record)
     kinds = ", ".join(s["command"]["kind"] for s in runnable)
     approval = policy.request(
