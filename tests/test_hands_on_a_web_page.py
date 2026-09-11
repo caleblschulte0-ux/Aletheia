@@ -77,13 +77,16 @@ class Spec:
         self.window, self.selector, self.found = window, selector, None
 
     def wait(self, condition, timeout):
+        # like pywinauto: several matches are ambiguous whatever their
+        # visibility; a single match off screen is simply not ready yet
         self.window.asked.append(dict(self.selector))
-        hits = [e for e in self.window.elements if computer._selector_matches(e, self.selector)
-                and not getattr(e, "offscreen", False)]
+        hits = [e for e in self.window.elements if computer._selector_matches(e, self.selector)]
         if not hits:
             raise FakeUIATimeout("not there")
         if len(hits) > 1:
             raise FakeAmbiguous("several")
+        if getattr(hits[0], "offscreen", False):
+            raise FakeUIATimeout("not visible")
         self.found = hits[0]
         return self
 
@@ -315,13 +318,33 @@ class WebPageCase(unittest.TestCase):
             element.iface_scroll_item = types.SimpleNamespace(ScrollIntoView=into_view)
             return element
 
-        label = below_the_fold("Branded content", "Text")
         box = below_the_fold("Branded content", "CheckBox", toggle=Toggle(0))
-        backend, _ = self.backend(label, box)
+        backend, _ = self.backend(box)
         result = backend.perform(self.step("Branded content"))
-        self.assertEqual(scrolled, [("Branded content", "CheckBox")], "scrolled to the one that can do it")
+        self.assertEqual(scrolled, [("Branded content", "CheckBox")])
         self.assertEqual(box.iface_toggle.CurrentToggleState, 1)
         self.assertIn("Toggle", result["verified"])
+
+    def test_an_exact_name_below_the_fold_beats_a_longer_one_on_screen(self):
+        """His real retake: the "Branded content" checkbox was below the fold while
+        "Branded Content Policy" (a link) and a hint line starting with the same
+        words were on screen, and the take stopped as ambiguous."""
+        scrolled = []
+        box = Element("Branded content", "CheckBox", toggle=Toggle(1))
+        box.offscreen = True
+
+        def into_view():
+            scrolled.append("checkbox")
+            box.offscreen = False
+
+        box.iface_scroll_item = types.SimpleNamespace(ScrollIntoView=into_view)
+        policy_link = Element("Branded Content Policy", "Hyperlink", invoke=True)
+        hint = Element("Branded content can't be private, so choose again", "Text")
+        backend, _ = self.backend(hint, policy_link, box)
+        backend.perform(self.step("Branded content"))
+        self.assertEqual(box.iface_toggle.CurrentToggleState, 0, "the checkbox was the one pressed")
+        self.assertFalse(policy_link.invoked, "never the link that merely starts with the words")
+        self.assertEqual(scrolled, ["checkbox"], "and it was brought on screen first")
 
     def test_nothing_is_scrolled_when_the_name_is_not_exact_enough(self):
         scrolled = []
@@ -331,7 +354,7 @@ class WebPageCase(unittest.TestCase):
             element.offscreen = True
             element.iface_scroll_item = types.SimpleNamespace(ScrollIntoView=lambda: scrolled.append(1))
         backend, _ = self.backend(one, two)
-        with self.assertRaises(FakeUIATimeout):
+        with self.assertRaises(FakeAmbiguous, msg="still refused, and said to be ambiguous"):
             backend.perform(self.step("Save"))
         self.assertEqual(scrolled, [])
 

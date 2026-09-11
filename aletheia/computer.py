@@ -488,6 +488,13 @@ def _has_pattern(element, name: str) -> bool:
         return False
 
 
+def _is_offscreen(element) -> bool:
+    try:
+        return bool(element.element_info.element.CurrentIsOffscreen)
+    except Exception:
+        return bool(getattr(element, "offscreen", False))
+
+
 class _Found:
     """A control already resolved, in the shape a WindowSpecification is used."""
 
@@ -654,10 +661,13 @@ class WindowsUIABackend:
         condition = "exists visible enabled ready"
         deadline = time.monotonic() + self._timeout(step)
         next_scroll = 0.0
+        ambiguous = None
         while True:
             policy.ensure_not_halted()
             remaining = deadline - time.monotonic()
             if remaining <= 0:
+                if ambiguous is not None:
+                    raise ambiguous
                 raise self._TimeoutError(
                     f"timed out waiting for UIA condition {condition!r}")
             for selector in candidates:
@@ -667,11 +677,19 @@ class WindowsUIABackend:
                     return control
                 except self._TimeoutError:
                     continue
-                except self._AmbiguousError:
-                    chosen = self._the_one_that_can(window, selector, step.get("action", ""))
-                    if chosen is None:
-                        raise
-                    return _Found(chosen)
+                except self._AmbiguousError as exc:
+                    chosen = self._the_one_that_can(window, selector, step.get("action", ""),
+                                                    title=step["control"].get("title"))
+                    if chosen is not None:
+                        return _Found(chosen)
+                    # Several match and more than one could do the step. A
+                    # looser name must not end the search while the exact one
+                    # is merely off screen (his real retake, 2026-09-11:
+                    # "Branded content" below the fold, "Branded Content
+                    # Policy" and a hint line on screen). Keep looking and
+                    # scrolling until the deadline, then say it was ambiguous.
+                    ambiguous = exc
+                    continue
             # Nothing named that is on screen yet. On a long page it may be
             # there and simply below the fold, which UI Automation reports as
             # not visible: scroll it into view the way a person would, then
@@ -713,7 +731,7 @@ class WindowsUIABackend:
         return False
 
     @staticmethod
-    def _the_one_that_can(window, selector: dict, action: str):
+    def _the_one_that_can(window, selector: dict, action: str, title: str | None = None):
         """Two elements carry the name the plan gave; which did he mean?
 
         Live, 2026-09-11, the TikTok demo's post sheet: "Post to TikTok" is
@@ -728,7 +746,22 @@ class WindowsUIABackend:
         except Exception:
             return None
         able = [e for e in matches if any(_has_pattern(e, name) for name in wanted)]
-        return able[0] if len(able) == 1 else None
+        if len(able) > 1 and isinstance(title, str) and title.strip():
+            # a control named EXACTLY what the plan said beats one whose name
+            # only starts with it ("Branded content" over "Branded Content Policy")
+            exact = [e for e in able if _normalized(_quiet(e.window_text)) == _normalized(title)]
+            if len(exact) == 1:
+                able = exact
+        if len(able) != 1:
+            return None
+        chosen = able[0]
+        if _is_offscreen(chosen) and _has_pattern(chosen, "scroll_item"):
+            # pressed where the viewer can see it, not below the fold
+            try:
+                chosen.iface_scroll_item.ScrollIntoView()
+            except Exception:
+                pass
+        return chosen
 
     @staticmethod
     def _owned_dialog(desktop, selector: dict):
