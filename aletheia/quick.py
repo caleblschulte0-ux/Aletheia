@@ -595,7 +595,7 @@ _HE_CAN_ASK_FOR = {
                                 "plan_step", "plan_set", "issue", "dispatch",
                                 "project_new", "project_step", "project_drop"),
     "job applications": ("jobs", "apply_prepare", "apply_campaign", "apply_answer",
-                         "applications"),
+                         "applications", "apply_outcome"),
     "money you spend": ("money", "subscriptions", "subscription_cancel"),
     "your car and journeys": ("car", "travel_time"),
     "media files": ("media_probe", "media_trim", "media_join", "media_audio",
