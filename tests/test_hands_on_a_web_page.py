@@ -272,5 +272,63 @@ class WebPageCase(unittest.TestCase):
         self.assertEqual(computer._control_candidates({"title_re": "Play"}), [{"title_re": "Play"}])
 
 
+EDGE = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+
+
+class AnInstalledProgramIsFound(unittest.TestCase):
+    """His approved take failed on its first action: "msedge.exe" is not on
+    PATH, and CreateProcess does not read App Paths (2026-09-11)."""
+
+    @staticmethod
+    def registered(name):
+        return EDGE if name == "msedge.exe" else ""
+
+    def test_a_registered_program_is_found_by_its_name(self):
+        for asked in ("msedge.exe", "msedge", ' "msedge.exe" '):
+            with self.subTest(asked=asked):
+                self.assertEqual(computer.resolve_app(asked, app_paths=self.registered,
+                                                      which=lambda name: None), EDGE)
+
+    def test_a_path_is_used_as_written_and_path_is_asked_first(self):
+        refuse = mock.Mock(side_effect=AssertionError("a path is not looked up"))
+        self.assertEqual(computer.resolve_app(r"C:\Tools\app.exe", app_paths=refuse, which=refuse),
+                         r"C:\Tools\app.exe")
+        # what started before still starts the same way: PATH wins over App Paths
+        self.assertEqual(computer.resolve_app(
+            "notepad.exe", app_paths=lambda n: r"C:\Program Files\WindowsApps\Notepad\Notepad.exe",
+            which=lambda n: r"C:\Windows\System32\notepad.exe"),
+            r"C:\Windows\System32\notepad.exe")
+        self.assertEqual(computer.resolve_app("nowhere.exe", app_paths=lambda n: "",
+                                              which=lambda n: None), "nowhere.exe")
+
+    def backend(self):
+        started = []
+        app = types.SimpleNamespace(start=lambda command: started.append(command)
+                                    or types.SimpleNamespace(process=4242))
+        module = types.SimpleNamespace(Application=lambda backend: app, Desktop=lambda backend: None)
+        for patch in (mock.patch.object(computer, "available", return_value=(True, "ready")),
+                      mock.patch.dict(sys.modules, {
+                          "pywinauto": module,
+                          "pywinauto.timings": types.SimpleNamespace(TimeoutError=FakeUIATimeout)})):
+            patch.start()
+            self.addCleanup(patch.stop)
+        return computer.WindowsUIABackend(), started
+
+    def test_the_program_found_is_the_one_started(self):
+        backend, started = self.backend()
+        with mock.patch.object(computer, "resolve_app", return_value=EDGE):
+            backend.perform({"action": "open_app", "app": "msedge.exe",
+                             "arguments": ["http://localhost:8770/"]})
+        self.assertEqual(started, [f'"{EDGE}" http://localhost:8770/'])
+
+    def test_a_name_that_resolves_to_a_shell_is_never_started(self):
+        backend, started = self.backend()
+        with mock.patch.object(computer, "resolve_app",
+                               return_value=r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"):
+            with self.assertRaises(computer.ApprovalRequired):
+                backend.perform({"action": "open_app", "app": "harmless.exe"})
+        self.assertEqual(started, [])
+
+
 if __name__ == "__main__":
     unittest.main()

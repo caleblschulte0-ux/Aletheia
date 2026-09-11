@@ -28,6 +28,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -173,6 +174,46 @@ def _app_name(app: str) -> str:
     raw = app.strip().strip('"').replace("\\", "/")
     name = PurePosixPath(raw).name.casefold()
     return name[:-4] if name.endswith((".exe", ".com", ".bat", ".cmd")) else name
+
+
+def _app_paths(name: str) -> str:
+    """Where the Windows App Paths registry says `name` lives, or ''."""
+    if os.name != "nt":
+        return ""
+    try:
+        import winreg
+    except ImportError:
+        return ""
+    key = "Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\" + name
+    for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+        try:
+            with winreg.OpenKey(hive, key) as handle:
+                value, _ = winreg.QueryValueEx(handle, "")
+        except OSError:
+            continue
+        value = os.path.expandvars(str(value or "").strip().strip('"'))
+        if value and os.path.isfile(value):
+            return value
+    return ""
+
+
+def resolve_app(app: str, *, app_paths=None, which=None) -> str:
+    """The program to start, found the way the Windows Run box finds it.
+
+    2026-09-11, the first action of his approved TikTok take: "msedge.exe" is
+    not on PATH, so CreateProcess could not find it and the take failed
+    before anything was recorded. Windows registers installed programs under
+    App Paths, which the Run box reads and CreateProcess does not. PATH is
+    still asked FIRST, so anything that started before starts the same way
+    (notepad.exe stays System32's, not the Store package's inner executable
+    that App Paths names); App Paths only fills in what PATH cannot find. A
+    path that is already a path is used as written.
+    """
+    raw = str(app or "").strip().strip('"')
+    if os.path.isabs(raw) or "\\" in raw or "/" in raw:
+        return raw
+    name = raw if raw.lower().endswith(".exe") else raw + ".exe"
+    return (which or shutil.which)(raw) or (app_paths or _app_paths)(name) or raw
 
 
 def validate_steps(steps: object) -> list[str]:
@@ -707,7 +748,13 @@ class WindowsUIABackend:
     def perform(self, step: dict) -> dict:
         action = step["action"]
         if action == "open_app":
-            command = subprocess.list2cmdline([step["app"], *step.get("arguments", [])])
+            program = resolve_app(step["app"])
+            if _app_name(program) in FORBIDDEN_APPS:
+                # the name was checked as written; what it resolves to is checked too
+                raise ApprovalRequired(
+                    f"{step['app']!r} resolves to {program!r}, a shell, interpreter or "
+                    "system tool, which is never started")
+            command = subprocess.list2cmdline([program, *step.get("arguments", [])])
             app = self._Application(backend="uia").start(command)
             self._opened.add(app.process)
             return {"action": action, "process_id": app.process}
