@@ -185,6 +185,40 @@ class TheTakeAsAPlan(NoSleep):
         with self.assertRaises(computer.CommittingControl):
             computer.act(take(), backend=FakeDesktop())
 
+    def test_a_failed_take_is_offered_again_unchanged_under_a_new_approval(self):
+        record = self.propose({"kind": "computer_do", "steps": take()})
+        policy.decide(record["approval"], "APPROVED", via="test")
+
+        def broken(cmd, fleet, quote=""):
+            raise RuntimeError("the program was not found")
+
+        self.assertEqual(intents.run_approved(FLEET, executor=broken)[0]["outcome"], intents.FAILED)
+        again = intents.retry(record["id"], quote="try that again")
+        self.assertEqual(again["id"], record["id"] + "-r2")
+        self.assertEqual(again["state"], intents.PROPOSED)
+        self.assertEqual(again["steps"], intents.load(record["id"])["steps"])
+        self.assertEqual(again["presses"], record["presses"])
+        approval = policy.load(again["approval"])
+        self.assertEqual(approval["state"], "PENDING", "a spent approval is never reused")
+        self.assertIn("Post to TikTok", approval["requested_action"])
+        self.assertEqual(intents.load(record["id"])["state"], intents.FAILED)
+
+        desk = FakeDesktop()
+
+        def run(cmd, fleet, quote=""):
+            return computer.act(cmd["steps"], backend=desk, requested_by="test")["steps_done"]
+
+        self.assertEqual(intents.run_approved(FLEET, executor=run), [], "nothing runs unapproved")
+        policy.decide(again["approval"], "APPROVED", via="test")
+        self.assertEqual(intents.run_approved(FLEET, executor=run)[0]["outcome"], intents.EXECUTED)
+        self.assertEqual(desk.performed, ["focus_window", "invoke", "invoke", "invoke"])
+        self.assertEqual(intents.retry(record["id"])["id"], record["id"] + "-r3")
+
+    def test_only_a_failed_or_interrupted_plan_is_offered_again(self):
+        record = self.propose({"kind": "computer_do", "steps": take()})
+        with self.assertRaises(ValueError):
+            intents.retry(record["id"])
+
     def test_a_take_whose_hands_are_refused_is_not_offered(self):
         for hands in ({"kind": "computer_do", "steps": [
                           {"action": "hotkey", "window": EDGE, "keys": "enter"}]},

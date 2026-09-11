@@ -93,6 +93,10 @@ MAX_OBSERVATIONS = 200
 MAX_FILENAME_CHARS = 120
 MAX_PLAN_WAIT_S = 300.0
 MAX_PAUSE_S = 10.0
+# How many 0.1s re-reads a browser gets to show what it was just asked to
+# do (a toggled switch, typed text, an opened list's options, a chosen
+# option). Three seconds: his real take ran on a PC with 1 GB free.
+SETTLE_READS = 30
 WAIT_POLL_S = 0.5
 CAPTURE_DIR = REPO_ROOT / "cache" / "computer-captures"
 ACTOR = "aletheia-computer"
@@ -813,7 +817,7 @@ class WindowsUIABackend:
             # a moment after UI Automation hands it over (the TikTok demo's
             # caption, 2026-09-11, read back its OLD text on the first try).
             wanted = _line_endings(step["text"])
-            for _ in range(15):
+            for _ in range(SETTLE_READS):
                 if _line_endings(self._read_text(wrapper)) == wanted:
                     return {"action": action, "verified": True}
                 _sleep(0.1)
@@ -834,7 +838,7 @@ class WindowsUIABackend:
                         f"control could not select {choice!r} ({type(exc).__name__})") from exc
             key = _normalized(wanted)
             observed = ""
-            for _ in range(15):
+            for _ in range(SETTLE_READS):
                 observed = self._selected_text(wrapper)
                 # a web list reports its chosen option as its Value
                 if key in _normalized(observed) or key in _normalized(self._read_text(wrapper)):
@@ -852,12 +856,20 @@ class WindowsUIABackend:
             wrapper.iface_expand_collapse.Expand()
         except Exception:
             pass
-        try:
-            items = [c for c in wrapper.children()
-                     if c.element_info.control_type == "ListItem"
-                     and _normalized(c.window_text()) == _normalized(choice)]
-        except Exception:
-            items = []
+        # The options appear a moment AFTER the list opens, and later still on
+        # a loaded PC: his real take (2026-09-11, 1 GB free) read the list
+        # before Edge had filled it and gave up on an option that was there.
+        items: list = []
+        for _ in range(SETTLE_READS):
+            try:
+                items = [c for c in wrapper.children()
+                         if c.element_info.control_type == "ListItem"
+                         and _normalized(c.window_text()) == _normalized(choice)]
+            except Exception:
+                items = []
+            if items:
+                break
+            _sleep(0.1)
         if len(items) != 1:
             return False
         item = items[0]
@@ -894,7 +906,7 @@ class WindowsUIABackend:
             before = wrapper.iface_toggle.CurrentToggleState
             wrapper.iface_toggle.Toggle()
             # A browser applies the click a moment later; read until it lands.
-            for _ in range(15):
+            for _ in range(SETTLE_READS):
                 after = wrapper.iface_toggle.CurrentToggleState
                 if after != before:
                     return ("UI Automation Toggle pattern completed "

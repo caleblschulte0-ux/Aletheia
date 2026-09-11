@@ -1046,6 +1046,57 @@ def _run_approved(fleet: dict | None = None, executor=None) -> list[dict]:
     return done
 
 
+def retry(intent_id: str, quote: str = "") -> dict:
+    """Offer a FAILED or INTERRUPTED plan again, unchanged, under a NEW approval.
+
+    2026-09-11: his approved TikTok take failed twice on things then fixed
+    in her hands (Edge not on PATH; a list read before it had filled).
+    Asking the planner again gave a different plan each time, and two of
+    three were refused by the step checker. The plan he already saw, and
+    that was rehearsed, is the one to offer back: under a fresh approval,
+    never by replaying the spent one, because automatic replay stays refused.
+    """
+    old = load(intent_id)
+    if old.get("state") not in (FAILED, INTERRUPTED):
+        raise ValueError(f"{intent_id} is {old.get('state')}; only a failed or "
+                         "interrupted plan is offered again")
+    runnable = [s for s in old.get("steps") or []
+                if s.get("status") == planner.EXECUTABLE and s.get("command")]
+    if not runnable:
+        raise ValueError(f"{intent_id} has no step that could run")
+    base = re.sub(r"-r\d+$", "", old["id"])
+    n = 2
+    while _record_path(f"{base}-r{n}").exists():
+        n += 1
+    new_id = f"{base}-r{n}"
+    try:
+        spent = policy.load(old.get("approval") or old["id"])
+    except (OSError, json.JSONDecodeError, KeyError):
+        spent = {}
+    record = {key: old[key] for key in ("request", "operator_quote", "summary", "intent",
+                                        "plan_sha256", "provider", "degraded", "steps",
+                                        "presses", "tier") if key in old}
+    record.update({"id": new_id, "state": PROPOSED, "approval": new_id,
+                   "retry_of": old["id"], "gap_tasks": [], "proposed_at": stateio.utcnow()})
+    stateio.write_json_atomic(_record_path(new_id), record)
+    kinds = ", ".join(s["command"]["kind"] for s in runnable)
+    approval = policy.request(
+        new_id,
+        requested_action=spent.get("requested_action") or f"run {len(runnable)} step(s): {kinds}",
+        reason=f"offered again after {old['id']} {str(old['state']).lower()}"
+               + (f' — operator said: "{quote[:200]}"' if quote else ""),
+        consequence=spent.get("consequence") or old.get("summary") or "see the plan",
+        reversible=bool(spent.get("reversible", False)),
+        capability=spent.get("capability") or "intent.execute")
+    record["approval_state"] = approval.get("state")
+    stateio.write_json_atomic(_record_path(new_id), record)
+    journal.append("plan", "intent",
+                   f"{new_id}: the same plan offered again after {old['id']} "
+                   f"{str(old['state']).lower()} — {str(old.get('summary') or '')[:120]}",
+                   actor=ACTOR)
+    return record
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Durable arbitrary asks.")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -1058,8 +1109,17 @@ def main(argv: list[str] | None = None) -> int:
     p_show = sub.add_parser("show")
     p_show.add_argument("id")
     sub.add_parser("run", help="execute every approved intent")
+    p_retry = sub.add_parser("retry", help="offer a failed or interrupted plan again, "
+                                           "unchanged, under a new approval")
+    p_retry.add_argument("id")
+    p_retry.add_argument("--quote", default="")
     args = ap.parse_args(argv)
 
+    if args.cmd == "retry":
+        record = retry(args.id, quote=args.quote)
+        print(record["id"])
+        print(spoken(record))
+        return 0
     if args.cmd == "new":
         record = propose(args.request, quote=args.quote)
         print(spoken(record))

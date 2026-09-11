@@ -264,6 +264,41 @@ class WebPageCase(unittest.TestCase):
         self.assertTrue(save.invoked)
         self.assertFalse(save_as.invoked)
 
+    def test_a_list_that_fills_a_moment_after_it_opens_is_read_again(self):
+        class Option(Element):
+            def __init__(self, name, box):
+                super().__init__(name, "ListItem")
+                self.iface_selection_item = types.SimpleNamespace(Select=lambda: setattr(box, "value", name))
+
+        class SlowList(Element):
+            def __init__(self):
+                super().__init__("Who can view this video", "ComboBox", expand=Expand())
+                self.value = "Select who can view this video…"
+                self.options = [Option(n, self) for n in ("Followers", "Everyone")]
+                self.looks = 0
+
+            def children(self):
+                if not self.iface_expand_collapse.expanded:
+                    return []
+                self.looks += 1
+                return self.options if self.looks > 3 else []
+
+            def descendants(self, control_type=None):
+                return []
+
+            def select(self, item):
+                raise IndexError("the options could not be read")
+
+            def get_value(self):
+                return self.value
+
+        box = SlowList()
+        backend, _ = self.backend(box)
+        backend.perform({"action": "select", "window": {"title": "Shorts Media"},
+                         "control": {"control_type": "ComboBox"}, "value": "Everyone",
+                         "timeout_s": 1})
+        self.assertEqual(box.value, "Everyone")
+
     def test_the_loose_title_is_still_the_whole_name(self):
         loose = computer._control_candidates({"title": "Play"})[1]["title_re"]
         self.assertTrue(re.match(loose, " play "))
