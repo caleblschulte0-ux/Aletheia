@@ -289,6 +289,46 @@ class ChoosingFromADropdownCase(unittest.TestCase):
         self.assertIsNone(self.best("Harvard", ["University of South Dakota"]))
 
 
+class HisCountryHisLevelCase(PrivateProfile):
+    def test_it_searches_his_country_at_his_level(self):
+        profile.set_answer("country", "United States", source="operator")
+        profile.set_answer("current_title", "Business Development Associate", source="operator")
+        seen = {}
+
+        def searcher(roles, **kw):
+            seen.update(kw)
+            return {"matches": [], "searched": 1}
+        with mock.patch.object(campaign, "read_resume", return_value=("resume.pdf", RESUME)), \
+             mock.patch.object(apply_run, "all_runs", return_value=[]):
+            with self.assertRaises(campaign.CampaignError):
+                campaign.run("Business Development", count=1, json_think=False,
+                             searcher=searcher, draft_essays_too=False)
+        self.assertEqual(seen["country"], "United States")
+        self.assertTrue({"senior", "director", "head"} <= set(seen["exclude"]))
+
+    def test_the_roles_it_picks_stay_at_his_level(self):
+        self.assertIn("one step up at most", " ".join(campaign.ROLES_BRIEF.split()))
+
+
+class WhatHeAnswersOnceStaysAnsweredCase(PrivateProfile):
+    def answer(self, answers):
+        with mock.patch.object(campaign, "open_questions", return_value=[]), \
+             mock.patch.object(apply_run, "all_runs", return_value=[]):
+            campaign.answer_all(answers)
+
+    def test_a_plain_fact_he_gives_is_remembered_for_the_next_form(self):
+        self.answer({"Linkedin Profile URL*": "https://linkedin.com/in/caleb"})
+        self.assertEqual(profile.answer("linkedin"), "https://linkedin.com/in/caleb")
+
+    def test_a_declaration_a_status_or_a_per_job_answer_is_not(self):
+        self.answer({"Have you been convicted of a felony?": "No",
+                     "How did you hear about this job?*": "LinkedIn",
+                     "Are you legally authorized to work in the US?*": "Yes"})
+        known = profile.known()
+        for field in ("heard_about", "work_authorization"):
+            self.assertNotIn(field, known)
+
+
 class AFactGoesOnlyWhereItIsAskedForCase(unittest.TestCase):
     """Live 2026-09-10, once his title, employer, school and city were on
     file, a keyword anywhere in a question put them into it."""

@@ -58,6 +58,30 @@ UA = "Mozilla/5.0 (compatible; Aletheia/1.0; personal job search)"
 STOP = frozenset("""a an and for in of on the to with senior junior staff lead
 principal i ii iii jobs job role roles remote hybrid onsite""".split())
 
+# Words nearly every title has. A role's OTHER words must be in the title:
+# live 2026-09-10 "Account Manager" matched "Accounts Receivable Manager" and
+# "Operations Manager" matched "Corporate Accounting Manager", because
+# "manager" counted as a hit and "account" was found inside "accounts".
+GENERIC_TITLE_WORDS = frozenset("""manager management associate specialist
+coordinator analyst representative rep executive officer assistant consultant
+administrator generalist""".split())
+# What a title says about level. Left out only when the caller says so
+# (campaign, for someone early in his field), never by default.
+SENIOR_TITLE_WORDS = frozenset("""senior sr staff principal lead director head vp
+vice chief""".split())
+
+# Places outside the United States, to tell "Remote - EMEA" from "Remote".
+# A US state, a state code or "US" in the location settles it first.
+_ABROAD = re.compile(
+    r"\b(?:emea|europe|apac|latam|uk|united kingdom|england|london|ireland|dublin|"
+    r"germany|berlin|munich|france|paris|spain|madrid|barcelona|netherlands|amsterdam|"
+    r"poland|warsaw|portugal|lisbon|sweden|stockholm|switzerland|zurich|india|bengaluru|"
+    r"bangalore|hyderabad|pune|singapore|japan|tokyo|korea|seoul|china|hong kong|taiwan|"
+    r"australia|sydney|melbourne|canada|toronto|vancouver|montreal|mexico|brazil|"
+    r"sao paulo|argentina|colombia|israel|tel aviv|philippines|manila|uae|dubai)\b")
+_US_WORD = re.compile(r"(?:^|[^a-z])(?:us|usa|u\.s\.a?\.?|united states)(?:[^a-z]|$)")
+_US_NAMES = ("united states", "united states of america", "usa", "us")
+
 
 class JobsError(RuntimeError):
     pass
@@ -145,12 +169,47 @@ def _terms(role: str) -> list[str]:
     return [w for w in words if w and w not in STOP and len(w) > 1]
 
 
-def _score(job: dict, terms: list[str], where: str) -> float:
-    title = job["title"].casefold()
-    hits = sum(1 for t in terms if t in title)
-    if not hits:
+def _title_words(title: str) -> set[str]:
+    return {w for w in re.split(r"[^a-z0-9+#]+", str(title).casefold()) if w}
+
+
+def _in_country(location: str, country: str) -> bool:
+    """Is this job somewhere he can work without sponsorship?
+
+    He needs none in the United States, and live 2026-09-10 the top matches
+    were in Dublin, Bengaluru, Singapore and Mexico City. An empty location
+    is not ruled out; "Hybrid" with no place in it is.
+    """
+    loc = " ".join(str(location or "").split())
+    want = " ".join(str(country or "").casefold().split())
+    if not want or not loc:
+        return True
+    low = loc.casefold()
+    if want not in _US_NAMES:
+        return want in low
+    from aletheia.formfill import US_STATE_NAMES
+    if _US_WORD.search(low):
+        return True
+    if re.search(r",\s*(?:" + "|".join(US_STATE_NAMES) + r")\b", loc):
+        return True
+    if any(re.search(r"\b" + re.escape(name.casefold()) + r"\b", low)
+           for name in US_STATE_NAMES.values()):
+        return True
+    if _ABROAD.search(low):
+        return False
+    return "remote" in low or "anywhere" in low
+
+
+def _score(job: dict, terms: list[str], where: str, *, exclude=frozenset()) -> float:
+    words = _title_words(job["title"])
+    if exclude and words & exclude:
         return 0.0
-    value = hits / max(1, len(terms))
+    # Whole words, and every word that is not generic: "account" is not in
+    # "accounts receivable", and "manager" alone is not a match.
+    needed = [t for t in terms if t not in GENERIC_TITLE_WORDS] or list(terms)
+    if not all(t in words for t in needed):
+        return 0.0
+    value = sum(1 for t in terms if t in words) / max(1, len(terms))
     if where:
         place = where.casefold()
         loc = job["location"].casefold()
@@ -206,7 +265,8 @@ def search(role: str, *, where: str = "", limit: int = 10,
 
 
 def search_many(roles: list[str], *, where: str = "", limit: int = 10,
-                fetcher=None, discover: bool = False, http=None) -> dict:
+                fetcher=None, discover: bool = False, http=None,
+                country: str = "", exclude=()) -> dict:
     """Openings for ANY of these roles, each scored by the role it fits best.
 
     `discover` adds openings on boards nobody configured: a web search for
@@ -218,23 +278,44 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
     term_sets = [terms for terms in (_terms(r) for r in roles or []) if terms]
     if not term_sets:
         raise ValueError("say what kind of role")
+    exclude = frozenset(str(w).casefold() for w in exclude or ())
     everything, failures, searched = _gather(fetcher)
     found = []
     for job in everything:
-        value = max(_score(job, terms, where) for terms in term_sets)
+        if country and not _in_country(job.get("location", ""), country):
+            continue
+        value = max(_score(job, terms, where, exclude=exclude) for terms in term_sets)
         if value > 0:
             found.append((value, job))
     found.sort(key=lambda row: row[0], reverse=True)
     cap = max(1, min(int(limit), MAX_RESULTS))
-    matches = [job for _v, job in found[:cap]]
-    discovered = []
-    if discover and len(matches) < cap:
-        seen = {job["apply_url"] for job in matches}
-        for job in discover_openings(roles, limit=cap - len(matches), http=http):
-            if job["apply_url"] not in seen:
-                seen.add(job["apply_url"])
-                matches.append(job)
-                discovered.append(job)
+    board = [job for _v, job in found]
+    web = []
+    if discover:
+        # The web search always runs. It ran only when the boards came up
+        # short, and thirty-six big tech boards never do: live 2026-09-10
+        # every slot went to Stripe and Databricks, and no other employer
+        # was ever looked for.
+        seen = {job["apply_url"] for job in board[:cap]}
+        for job in discover_openings(roles, limit=cap, http=http):
+            if job["apply_url"] in seen:
+                continue
+            if country and not _in_country(job.get("location", ""), country):
+                continue
+            if max(_score(job, terms, "", exclude=exclude) for terms in term_sets) <= 0:
+                continue
+            seen.add(job["apply_url"])
+            web.append(job)
+    # Two from the boards, then one the web found, so both get tried.
+    matches, b, w = [], 0, 0
+    while len(matches) < cap and (b < len(board) or w < len(web)):
+        if w < len(web) and (len(matches) % 3 == 2 or b >= len(board)):
+            matches.append(web[w])
+            w += 1
+        else:
+            matches.append(board[b])
+            b += 1
+    discovered = [job for job in matches if job.get("found_by") == "web search"]
     journal.append("action", "jobs",
                    f"searched {speech.count_phrase(searched, 'board')} for "
                    f"{', '.join(roles)!r}: {speech.count_phrase(len(found), 'match')}, "

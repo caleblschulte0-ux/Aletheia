@@ -308,7 +308,10 @@ def learn_more(text: str, *, think=None) -> dict:
 
 ROLES_BRIEF = (
     "From this resume, name the job titles this person is a realistic candidate "
-    "for right now: titles an employer would actually post, not skills. Return "
+    "for right now: titles an employer would actually post, not skills. "
+    "Stay at the level the resume supports today: the most recent title's level, "
+    "or one step up at most. Never Senior, Lead, Principal, Director or Head for "
+    "someone with only a few years in that field. Return "
     'ONE JSON object: {"roles": [up to 5 short job titles, most fitting first]}.')
 
 
@@ -425,6 +428,23 @@ def answer_from_facts(record: dict, resume_text: str, *, think=None) -> dict:
 
 # ---- the run ---------------------------------------------------------------------
 
+# Titles that say someone is early in a field. Anything above them is a
+# stretch he has not asked for.
+EARLY_TITLE_WORDS = frozenset("""associate coordinator specialist representative rep
+assistant analyst intern junior jr entry trainee""".split())
+
+
+def _seniority_to_leave_out(known: dict) -> frozenset:
+    """Senior, Lead, Director and Head, when his own title says he is early."""
+    words = set(re.split(r"[^a-z0-9]+", str(known.get("current_title") or "").casefold()))
+    try:
+        years = float(known.get("years_experience") or 99)
+    except (TypeError, ValueError):
+        years = 99.0
+    early = bool(words & EARLY_TITLE_WORDS) or years < 3
+    return jobs.SENIOR_TITLE_WORDS if early else frozenset()
+
+
 def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         finder=None, reader=None, opener=None, stager=None, writer=None,
         json_think=None, searcher=None, draft_essays_too: bool = True) -> dict:
@@ -446,8 +466,12 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         # Ask for more than it will try: PER_COMPANY skips the rest of an
         # employer that crowds the top, and live 2026-09-10 eight matches that
         # were all Stripe left three tries and no other employer at all.
-        hits = (searcher or jobs.search_many)(roles, where=where, limit=want * PER_COMPANY,
-                                              discover=True)
+        known = profile.known()
+        hits = (searcher or jobs.search_many)(
+            roles, where=where, limit=want * PER_COMPANY, discover=True,
+            # Only where he can work without sponsorship, and at his level.
+            country=str(known.get("country") or ""),
+            exclude=_seniority_to_leave_out(known))
         pages = [{"url": j["apply_url"], "title": f"{j['title']} — {j['company']}",
                   "posting": j.get("posting_url") or j["apply_url"],
                   "company": j.get("company", ""),
@@ -597,6 +621,19 @@ def answer_all(answers: dict, *, resume: str = "", stager=None) -> dict:
     facts = {k: v for k, v in answers.items() if k in profile.FIELDS}
     for field, value in facts.items():
         profile.set_answer(field, value, source="operator")
+    # A plain fact he gives once is his for every form after. Live 2026-09-10
+    # Coinbase and Flexport both required his LinkedIn, and the next batch
+    # would have asked again. Never a sensitive, protected or yes/no answer,
+    # and never how he heard about ONE job.
+    for label, value in answers.items():
+        if label in facts or not isinstance(value, str) or not value.strip():
+            continue
+        key = formfill.match_field({"label": label})
+        if (key and key not in facts and key != "heard_about"
+                and not profile.FIELDS[key].get("sensitive")
+                and key not in formfill.YES_NO_FIELDS
+                and not formfill.is_never_autofill({"label": label})):
+            profile.set_answer(key, value.strip(), source="operator")
 
     per_run: dict[str, dict] = {}
     unmatched = []

@@ -53,6 +53,53 @@ class JobsCase(unittest.TestCase):
         return fetch
 
 
+class TheRightJobsForHimCase(JobsCase):
+    """Live 2026-09-10, for a Business Development Associate in South Dakota,
+    the top matches were "Accounts Receivable Manager" and "Fraud Operations
+    Manager (Mandarin-speaking)", in Dublin, Bengaluru and Singapore."""
+
+    def rows(self, *titles_and_places):
+        return [{"title": title, "company": f"Co{i}", "location": place,
+                 "apply_url": f"u{i}"}
+                for i, (title, place) in enumerate(titles_and_places)]
+
+    def search(self, roles, rows, **kw):
+        with mock.patch.object(jobs, "boards",
+                               return_value=[{"provider": "greenhouse", "token": "t"}]):
+            return jobs.search_many(roles, fetcher=lambda board: rows, limit=10, **kw)
+
+    def test_a_generic_word_alone_is_not_a_match(self):
+        out = self.search(["Account Manager"], self.rows(
+            ("Accounts Receivable Manager", ""), ("Account Manager, SMB", ""),
+            ("Corporate Accounting Manager", "")))
+        self.assertEqual([j["title"] for j in out["matches"]], ["Account Manager, SMB"])
+
+    def test_only_jobs_in_his_country(self):
+        out = self.search(["Account Manager"], self.rows(
+            ("Account Manager", "Dublin"), ("Account Manager", "Bengaluru, India"),
+            ("Account Manager", "Austin, TX"), ("Account Manager", "Remote - US"),
+            ("Account Manager", "Remote - EMEA"), ("Account Manager", "New York, New York"),
+            ("Account Manager", "Hybrid")), country="United States")
+        self.assertEqual(sorted(j["location"] for j in out["matches"]),
+                         sorted(["Austin, TX", "Remote - US", "New York, New York"]))
+
+    def test_too_senior_titles_are_left_out_when_asked(self):
+        out = self.search(["Business Development"], self.rows(
+            ("Senior Business Development Manager", ""),
+            ("Business Development Representative", ""),
+            ("Head of Business Development", "")), exclude=jobs.SENIOR_TITLE_WORDS)
+        self.assertEqual([j["title"] for j in out["matches"]],
+                         ["Business Development Representative"])
+
+    def test_web_found_employers_always_get_a_share(self):
+        rows = self.rows(*[("Account Manager", "") for _ in range(20)])
+        page = {"links": [{"href": f"https://boards.greenhouse.io/other{i}/jobs/{100 + i}",
+                           "text": "Account Manager"} for i in range(5)]}
+        out = self.search(["Account Manager"], rows, discover=True, http=lambda q: page)
+        self.assertGreaterEqual(out["discovered"], 3)
+        self.assertEqual(out["matches"][2].get("found_by"), "web search")
+
+
 class TheOpeningsAreREAL(JobsCase):
     def test_a_greenhouse_job_carries_a_form_url_that_needs_no_login(self):
         with mock.patch.object(jobs, "_fetch", return_value=GH):
