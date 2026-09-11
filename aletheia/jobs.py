@@ -172,6 +172,15 @@ def _terms(role: str) -> list[str]:
     return [w for w in words if w and w not in STOP and len(w) > 1]
 
 
+# A title that manages the people doing the job. "Manager, Account Management"
+# asked for five years and two managing a team, and live 2026-09-10 it was
+# offered to someone a year into business development.
+_MANAGES_PEOPLE = re.compile(
+    r"^\s*manager\b|\bmanager\s+of\b|\bpeople manager\b|"
+    r"\bmanager,\s+\w+\s+(?:management|managers|executives|representatives|development|team)\b",
+    re.I)
+
+
 def _title_words(title: str) -> set[str]:
     return {w for w in re.split(r"[^a-z0-9+#]+", str(title).casefold()) if w}
 
@@ -216,7 +225,7 @@ def _in_country(location: str, country: str) -> bool:
 
 def _score(job: dict, terms: list[str], where: str, *, exclude=frozenset()) -> float:
     words = _title_words(job["title"])
-    if exclude and words & exclude:
+    if exclude and (words & exclude or _MANAGES_PEOPLE.search(str(job["title"]))):
         return 0.0
     # Whole words, and every word that is not generic: "account" is not in
     # "accounts receivable", and "manager" alone is not a match.

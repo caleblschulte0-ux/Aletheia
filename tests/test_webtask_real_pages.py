@@ -166,6 +166,25 @@ box.addEventListener('focus', () => box.dispatchEvent(new Event('input')));
 box.addEventListener('blur', () => setTimeout(() => { if (!hid.value) box.value = ''; }, 150));
 </script>"""
 
+# A resume upload the way Greenhouse does one: the file name appears on the
+# page only once the upload finishes, a moment after the file is handed over.
+UPLOAD = """<form method="POST" action="/submit">
+<label for="fn">First name *</label><input id="fn" name="first_name" required>
+<label for="resume">Resume/CV *</label><input type="file" id="resume" accept=".pdf">
+<div id="shown"></div>
+<button type="submit">Submit application</button></form>
+<script>
+document.getElementById('resume').addEventListener('change', (e) => {
+  const name = e.target.files[0] ? e.target.files[0].name : '';
+  setTimeout(() => { document.getElementById('shown').innerText = name; }, 800);
+});
+</script>"""
+# The same form with an upload that never finishes.
+UPLOAD_STUCK = """<form method="POST" action="/submit">
+<label for="fn">First name *</label><input id="fn" name="first_name" required>
+<label for="resume">Resume/CV *</label><input type="file" id="resume" accept=".pdf">
+<button type="submit">Submit application</button></form>"""
+
 
 def _site(base: str, got: dict):
     pages = {"/apply": f'<h1>Job</h1><iframe src="{base}/embed"></iframe>',
@@ -174,7 +193,8 @@ def _site(base: str, got: dict):
                   'rel="noopener">Apply for this job</a>',
              "/w1": W1, "/w2": W2, "/w3": W3, "/late": LATE,
              "/account": ACCOUNT, "/a1": A1, "/a2": A2, "/greenhouse": GREENHOUSE,
-             "/react-select": REACT_SELECT}
+             "/react-select": REACT_SELECT, "/upload": UPLOAD,
+             "/upload-stuck": UPLOAD_STUCK}
 
     class H(http.server.BaseHTTPRequestHandler):
         def log_message(self, *a):
@@ -406,6 +426,33 @@ class AFormMadeOfDIVS(RealPageCase):
         self.assertEqual(out["state"], webtask.ASK)
         self.assertIn("yours to answer", out["say"])
         self.assertIn("protected veteran", out["say"])
+
+
+@needs_browser
+class TheResumeIsOnTheFormBeforeAnythingHappens(RealPageCase):
+    """Live on Flexport 2026-09-10 the picture he would have approved showed an
+    empty progress bar under Resume/CV, and Submit presses just as fast."""
+
+    def stage(self, path):
+        from aletheia import apply_run
+        resume = Path(self.tmp.name) / "My_Resume.pdf"
+        resume.write_bytes(b"%PDF-1.4 resume")
+        profile.set_answer("first_name", "Caleb", source="operator")
+        staged = Path(self.tmp.name) / "applications"
+        staged.mkdir(exist_ok=True)
+        with mock.patch.object(apply_run, "staged_dir", lambda: staged), \
+             mock.patch.object(apply_run, "UPLOAD_SETTLE_MS", 2500):
+            return apply_run.stage(self.base + path, resume=str(resume))
+
+    def test_it_waits_for_the_page_to_take_the_file(self):
+        record = self.stage("/upload")
+        self.assertEqual(record["state"], "AWAITING_YOU", record.get("questions"))
+        self.assertIn({"label": "Resume", "value": "My_Resume.pdf"}, record["filled"])
+
+    def test_an_upload_that_never_finishes_is_a_question_not_a_ready_form(self):
+        record = self.stage("/upload-stuck")
+        self.assertEqual(record["state"], "NEEDS_YOU")
+        self.assertIn("Resume/CV", [q["label"] for q in record["questions"]])
 
 
 @needs_browser

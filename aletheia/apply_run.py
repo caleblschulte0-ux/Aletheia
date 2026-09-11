@@ -238,8 +238,10 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
 
     record = {"id": run_id, "state": "AWAITING_YOU", "url": url,
               "approval": approval_id, "steps": steps,
-              "filled": _as_chosen(plan["fill"] + answered["filled"],
-                                   filled.get("chosen") or {}),
+              "filled": (_as_chosen(plan["fill"] + answered["filled"],
+                                    filled.get("chosen") or {})
+                         + ([{"label": "Resume", "value": Path(resume).name}]
+                            if filled.get("resume_attached") else [])),
               "not_filled": plan["ask"], "skipped": plan["skipped"],
               "resume": resume, "screenshot": str(shot) if shot.exists() else "",
               "page_title": filled.get("title", ""),
@@ -315,13 +317,49 @@ def _fill_and_capture(url: str, steps: list[dict], resume: str, shot: Path) -> d
         page.goto(url, wait_until="domcontentloaded")
         formfill.settle(page)
         chosen = _apply_steps(page, steps)
-        if resume:
-            _attach_resume(page, resume)
+        landed = stuck = False
+        if resume and _attach_resume(page, resume):
+            # Wait for the page to TAKE the file before photographing it: live
+            # on Flexport the picture he would approve showed an empty
+            # progress bar under Resume/CV.
+            landed = _resume_landed(page, resume)
+            stuck = not landed
         page.screenshot(path=str(shot), full_page=True)
-        result = {"title": page.title(), "url": page.url,
-                  "blocking": formfill.blocking(page), "chosen": chosen}
+        blocking = formfill.blocking(page)
+        if stuck:
+            blocking.append({"label": "Resume/CV", "required": True,
+                             "why": "the resume upload did not finish on the page"})
+        result = {"title": page.title(), "url": page.url, "blocking": blocking,
+                  "chosen": chosen, "resume_attached": landed}
         page.close()
     return result
+
+
+UPLOAD_SETTLE_MS = 10_000
+UPLOADED_JS = r"""(name) => ((document.body && document.body.innerText) || '').includes(name)"""
+
+
+def _resume_landed(page, resume: str, *, wait_ms: int | None = None) -> bool:
+    """Has the page taken the file? An upload box shows the file's name once it has.
+
+    Live on Flexport 2026-09-10 the picture he would have approved showed an
+    empty progress bar under Resume/CV: it was taken the instant the file was
+    handed over, and Submit was pressed just as fast.
+    """
+    name = Path(resume).name
+    wait = getattr(page, "wait_for_timeout", None)
+    budget = UPLOAD_SETTLE_MS if wait_ms is None else wait_ms
+    for _ in range(max(1, budget // 500)):
+        for frame in formfill.frames(page):
+            try:
+                if frame.evaluate(UPLOADED_JS, name):
+                    return True
+            except Exception:
+                continue
+        if wait is None:
+            return False
+        wait(500)
+    return False
 
 
 def _attach_resume(page, resume: str) -> bool:
@@ -433,8 +471,12 @@ def _refill_and_submit(record: dict) -> dict:
         page.goto(record["url"], wait_until="domcontentloaded")
         formfill.settle(page)
         _apply_steps(page, record["steps"])
-        if record.get("resume"):
-            _attach_resume(page, record["resume"])
+        if record.get("resume") and _attach_resume(page, record["resume"]):
+            if not _resume_landed(page, record["resume"]):
+                # Pressing Submit with the upload still running sends his
+                # application without the resume, or has it refused.
+                raise ApplyError("the resume upload did not finish on the page - "
+                                 "nothing was pressed")
         button = _submit_selector(page.evaluate(BUTTONS_JS))
         if button is None:
             raise ApplyError(

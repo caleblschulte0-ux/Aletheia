@@ -145,6 +145,13 @@ class TheRightJobsForHimCase(JobsCase):
             ("Account Executive, SMB", "")), exclude=jobs.SENIOR_TITLE_WORDS)
         self.assertEqual([j["title"] for j in out["matches"]], ["Account Executive, SMB"])
 
+    def test_a_title_that_manages_the_team_is_left_out_for_someone_early(self):
+        out = self.search(["Account Manager"], self.rows(
+            ("Manager, Account Management", ""),
+            ("Sales Manager, Account Executives - Startups", ""),
+            ("Account Manager, SMB", "")), exclude=jobs.SENIOR_TITLE_WORDS)
+        self.assertEqual([j["title"] for j in out["matches"]], ["Account Manager, SMB"])
+
     def test_one_from_each_employer_before_a_second_from_any(self):
         rows = [{"title": "Account Manager", "company": "Big", "location": "",
                  "apply_url": f"b{i}"} for i in range(5)]
