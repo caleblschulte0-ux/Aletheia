@@ -117,6 +117,7 @@ READ_FORM_JS = r"""() => {
     const row = {
       selector, tag, type,
       name: el.name || '', id: el.id || '',
+      role: el.getAttribute('role') || '',
       label: labelFor(el),
       required: !!(el.required || el.getAttribute('aria-required') === 'true'),
       value: (el.value || '').slice(0, 200),
@@ -335,6 +336,10 @@ def plan(fields: list[dict], *, answers: dict | None = None) -> dict:
                  field.get("id") or field["selector"])[:MAX_LABEL_CHARS]
         row = {"selector": field["selector"], "label": label,
                "required": bool(field.get("required")), "type": field.get("type")}
+        if field.get("choices"):
+            # A dropdown's own options, read off its open menu: the answer has
+            # to be one of them, or the picker has nothing to click.
+            row["choices"] = list(field["choices"])
         if field.get("type") in SKIP_TYPES:
             row["why"] = ("a file upload is yours to choose"
                           if field.get("type") == "file"
@@ -652,6 +657,32 @@ def read_all(page) -> list[dict]:
     return rows
 
 
+MAX_DROPDOWNS_READ = 20
+
+
+def read_dropdown_choices(page, fields: list[dict], *, settle_ms: int = 1500) -> None:
+    """Open each search-as-you-type dropdown and note what it offers.
+
+    Live 2026-09-10 "How did you first hear about Flexport?" stayed empty with
+    the right answer in hand: the model answered in its own words and no
+    option in the menu was those words. With the options in front of it, its
+    answer is one of them, and the picker clicks exactly that. A menu that
+    shows nothing until something is typed (a city search) gets no choices.
+    """
+    dropdowns = [f for f in fields if f.get("role") == "combobox"]
+    dropdowns.sort(key=lambda f: not f.get("required"))
+    for field in dropdowns[:MAX_DROPDOWNS_READ]:
+        try:
+            where, css = resolve(page, field["selector"])
+            where.click(css)
+            options = _visible_options(where, settle_ms)
+            page.keyboard.press("Escape")
+        except Exception:
+            continue
+        if options:
+            field["choices"] = options[:80]
+
+
 def read_form(url: str, *, reader=None) -> list[dict]:
     """Every field on the page, as a person would read it."""
     policy.ensure_not_halted()
@@ -666,6 +697,7 @@ def read_form(url: str, *, reader=None) -> list[dict]:
         page.goto(url, wait_until="domcontentloaded")
         settle(page)
         found = read_all(page)
+        read_dropdown_choices(page, found)
         page.close()
     journal.append("action", "formfill", f"read {speech.count_phrase(len(found), 'field')} on {url}",
                    actor=ACTOR)

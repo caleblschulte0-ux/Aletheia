@@ -162,6 +162,7 @@ box.addEventListener('input', () => {
     menu.appendChild(o);
   }
 });
+box.addEventListener('focus', () => box.dispatchEvent(new Event('input')));
 box.addEventListener('blur', () => setTimeout(() => { if (!hid.value) box.value = ''; }, 150));
 </script>"""
 
@@ -425,6 +426,18 @@ class ADropdownKeepsOnlyWhatIsChosen(RealPageCase):
             chosen = page.evaluate("() => document.querySelector('[name=school_value]').value")
             blocking = [b["label"] for b in webtask.formfill.blocking(page)]
         return got, chosen, blocking
+
+    def test_reading_the_form_notes_what_a_dropdown_offers(self):
+        """Live on Flexport the model answered "how did you hear" in its own
+        words, no option matched, and the question stayed empty."""
+        fields = webtask.formfill.read_form(self.base + "/react-select")
+        school = next(f for f in fields if f.get("selector") == "#school")
+        self.assertEqual(school.get("choices"), ["University of South Dakota",
+                                                 "South Dakota State University",
+                                                 "University of Iowa"])
+        asked = webtask.formfill.plan(fields, answers={})["ask"]
+        row = next(r for r in asked if r["selector"] == "#school")
+        self.assertIn("University of Iowa", row.get("choices") or [])
 
     def test_typing_alone_chooses_nothing(self):
         _, chosen, blocking = self.on_page(
