@@ -100,6 +100,77 @@ class Tracked(unittest.TestCase):
         apply_run.mark("apply-1", "rejected")
         self.assertTrue(any("rejected" in str(e.get("text")) for e in journal.entries()))
 
+    # ---- two answers, one form ----------------------------------------
+
+    def test_a_second_answer_does_not_drop_the_first(self):
+        """Live 2026-09-11: a form asking two things could never be finished.
+        His "yes" to the certification was staged, his LinkedIn re-staged
+        without it, and the form was blocked on the certification again."""
+        form = [{"selector": "#certify", "label": "I certify the above is true.",
+                 "name": "", "id": "certify", "tag": "input", "type": "checkbox",
+                 "required": True, "value": ""},
+                {"selector": "#li", "label": "LinkedIn profile", "name": "", "id": "li",
+                 "tag": "input", "type": "text", "required": True, "value": ""},
+                {"selector": "#em", "label": "Email address", "name": "", "id": "em",
+                 "tag": "input", "type": "email", "required": True, "value": ""}]
+        captured = []
+
+        def filler(url, steps, resume, shot):
+            captured.append(list(steps))
+            return {"title": "Apply", "blocking": [], "resume_attached": True, "chosen": {}}
+
+        with mock.patch.object(apply_run.formfill, "read_form", return_value=form), \
+             mock.patch.object(apply_run.profile, "known",
+                               return_value={"email": "caleblschulte0@gmail.com"}):
+            first = apply_run.stage("https://boards.x.co/form", extra={"#certify": "Yes"},
+                                    filler=filler)
+            self.assertEqual(first["state"], "NEEDS_YOU", "his LinkedIn is still missing")
+            second = apply_run.stage("https://boards.x.co/form",
+                                     extra={"#li": "https://linkedin.com/in/caleb"},
+                                     filler=filler)
+        self.assertEqual(second["state"], "AWAITING_YOU",
+                         "both of his answers were applied, so nothing blocks it")
+        selectors = {step["selector"] for step in captured[-1]}
+        self.assertIn("#certify", selectors, "the tick he gave first still goes on")
+        self.assertIn("#li", selectors)
+        self.assertEqual(apply_run.load_run(second["id"])["answers_given"],
+                         {"#certify": "Yes", "#li": "https://linkedin.com/in/caleb"})
+
+    def test_answering_a_question_does_not_throw_away_the_job(self):
+        """Staging rebuilds the record from the form, so answering a question
+        used to strip the job title, employer and posting the campaign had
+        attached — and the tracker fell back to naming it after the form's
+        page title (live 2026-09-11)."""
+        form = [{"selector": "#certify", "label": "I certify the above is true.",
+                 "name": "", "id": "certify", "tag": "input", "type": "checkbox",
+                 "required": True, "value": ""},
+                {"selector": "#em", "label": "Email address", "name": "", "id": "em",
+                 "tag": "input", "type": "email", "required": True, "value": ""},
+                {"selector": "#fn", "label": "First name", "name": "", "id": "fn",
+                 "tag": "input", "type": "text", "required": True, "value": ""}]
+
+        def filler(url, steps, resume, shot):
+            return {"title": "Job Application", "blocking": [], "resume_attached": True,
+                    "chosen": {}}
+
+        with mock.patch.object(apply_run.formfill, "read_form", return_value=form), \
+             mock.patch.object(apply_run.profile, "known",
+                               return_value={"email": "caleblschulte0@gmail.com",
+                                             "first_name": "Caleb"}):
+            blocked = apply_run.stage("https://boards.x.co/form", filler=filler)
+            self.assertEqual(blocked["state"], "NEEDS_YOU")
+            campaign._keep_the_job(blocked, {"title": "Account Executive", "company": "Tebra",
+                                             "url": "https://boards.x.co/form",
+                                             "posting": "https://tebra.com/jobs/1"})
+            ready = apply_run.stage("https://boards.x.co/form", extra={"#certify": "Yes"},
+                                    filler=filler)
+        self.assertEqual(ready["state"], "AWAITING_YOU")
+        saved = apply_run.load_run(ready["id"])
+        self.assertEqual(saved["job_title"], "Account Executive")
+        self.assertEqual(saved["company"], "Tebra")
+        self.assertEqual(saved["posting"], "https://tebra.com/jobs/1")
+        self.assertEqual(apply_run.describe(saved), "Account Executive at Tebra")
+
     # ---- finding the one he means -------------------------------------
 
     def test_he_names_an_employer_not_an_id(self):

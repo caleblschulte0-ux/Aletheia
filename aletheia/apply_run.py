@@ -220,14 +220,29 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
     # The second is deliberate. "Have you been convicted of a felony" is a
     # question he answers, not a fact she files away and reuses on a form
     # that may be asking something subtly different.
-    per_form = {}
+    # And they ACCUMULATE. Found live 2026-09-11: a form asking him two
+    # things could never be finished, because each answer re-staged with
+    # only itself — his "yes" to the certification was on the record, then
+    # his LinkedIn re-staged without it and the form was blocked on the
+    # certification again, forever. Every answer he has given this form is
+    # applied to every re-stage of it.
+    run_id = f"apply-{_tag(url)}"
+    try:
+        before = load_run(run_id)
+    except (OSError, ValueError, KeyError):
+        before = {}
+    per_form = dict(before.get("answers_given") or {})
+    # What the JOB is survives a re-stage too. Staging rebuilds the record
+    # from the form, so answering a question threw away the job title, the
+    # employer and the posting the campaign had attached — and the tracker
+    # was left naming the application after the form's page title.
+    kept_job = {name: before[name] for name in REMEMBERED if before.get(name)}
     for field, value in (extra or {}).items():
         if field in profile.FIELDS:
             profile.set_answer(field, value, source="operator")
         else:
             per_form[str(field)] = value
 
-    run_id = f"apply-{_tag(url)}"
     fields = formfill.read_form(url, reader=reader)
     plan = formfill.plan(fields)
     answered = formfill.apply_answers(plan, fields, per_form)
@@ -250,6 +265,7 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
                   "would_fill": [{"label": f["label"], "value": f["value"]}
                                  for f in plan["fill"]],
                   "filled": [], "skipped": plan["skipped"],
+                  "answers_given": per_form, **kept_job,
                   "staged_at": stateio.utcnow(),
                   "say": (f"{speech.count_phrase(len(blocking), 'thing')} on that form only you can "
                           "answer. Tell me those and I will fill the rest and "
@@ -276,6 +292,7 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
                   "not_filled": (plan["ask"] + stopped)[:MAX_QUESTIONS_SHOWN],
                   "would_fill": _as_chosen(plan["fill"], filled.get("chosen") or {}),
                   "filled": [], "skipped": plan["skipped"],
+                  "answers_given": per_form, **kept_job,
                   "screenshot": str(shot) if shot.exists() else "",
                   "staged_at": stateio.utcnow(),
                   "say": ("I filled what I could, and the form still will not "
@@ -312,6 +329,7 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
               "not_filled": plan["ask"], "skipped": plan["skipped"],
               "resume": resume, "screenshot": str(shot) if shot.exists() else "",
               "page_title": filled.get("title", ""),
+              "answers_given": per_form, **kept_job,
               "staged_at": stateio.utcnow()}
     stateio.write_json_atomic(_record_path(run_id), record)
     journal.append("action", "apply",
