@@ -410,7 +410,39 @@ def _control_candidates(selector: dict) -> list[dict]:
     if set(selector) == {"control_type"} and selector["control_type"] in TEXT_ENTRY_TYPES:
         other = next(t for t in TEXT_ENTRY_TYPES if t != selector["control_type"])
         return [dict(selector), {"control_type": other}]
+    if isinstance(selector.get("title"), str) and "title_re" not in selector:
+        # Case and surrounding space are not what a person means: a plan says
+        # "Play" and Chromium names the video's button "play" (the TikTok
+        # demo, 2026-09-11). The exact title is still tried first, and the
+        # loose one is still the WHOLE name, never a part of it.
+        loose = {key: value for key, value in selector.items() if key != "title"}
+        loose["title_re"] = r"(?i)^\s*" + re.escape(selector["title"].strip()) + r"\s*$"
+        return [dict(selector), loose]
     return [dict(selector)]
+
+
+# What a control must support for a step to act on it, by UIA pattern.
+ACTION_PATTERNS = {"invoke": ("invoke", "toggle", "expand_collapse"),
+                   "set_text": ("value", "text"),
+                   "select": ("expand_collapse", "selection", "value")}
+
+
+def _has_pattern(element, name: str) -> bool:
+    try:
+        getattr(element, "iface_" + name)
+        return True
+    except Exception:
+        return False
+
+
+class _Found:
+    """A control already resolved, in the shape a WindowSpecification is used."""
+
+    def __init__(self, wrapper):
+        self._wrapper = wrapper
+
+    def wrapper_object(self):
+        return self._wrapper
 
 
 def _selector_matches(element, selector: dict) -> bool:
@@ -581,6 +613,29 @@ class WindowsUIABackend:
                     return control
                 except self._TimeoutError:
                     continue
+                except self._AmbiguousError:
+                    chosen = self._the_one_that_can(window, selector, step.get("action", ""))
+                    if chosen is None:
+                        raise
+                    return _Found(chosen)
+
+    @staticmethod
+    def _the_one_that_can(window, selector: dict, action: str):
+        """Two elements carry the name the plan gave; which did he mean?
+
+        Live, 2026-09-11, the TikTok demo's post sheet: "Post to TikTok" is
+        both the sheet's heading and its button, and "Who can view this
+        video" is both a label and the list. A person pressing it means the
+        one that can be pressed, so when exactly ONE match supports what the
+        step does, that one is used. Two that both could is still refused.
+        """
+        wanted = ACTION_PATTERNS.get(action, ())
+        try:
+            matches = [e for e in window.descendants() if _selector_matches(e, selector)]
+        except Exception:
+            return None
+        able = [e for e in matches if any(_has_pattern(e, name) for name in wanted)]
+        return able[0] if len(able) == 1 else None
 
     @staticmethod
     def _owned_dialog(desktop, selector: dict):
@@ -696,29 +751,107 @@ class WindowsUIABackend:
         control = self._control(window, step)
         wrapper = control.wrapper_object()
         if action == "invoke":
-            wrapper.invoke()
-            return {"action": action, "verified": "UI Automation Invoke pattern completed"}
+            return {"action": action, "verified": self._press(wrapper)}
         if action == "set_text":
             self._set_text(wrapper, step["text"])
-            observed = self._read_text(wrapper)
-            if _line_endings(observed) != _line_endings(step["text"]):
-                raise VerificationFailed(
-                    "set_text completed but exact text verification failed")
-            return {"action": action, "verified": True}
+            # Exact, but not impatient: a browser's text box takes the value
+            # a moment after UI Automation hands it over (the TikTok demo's
+            # caption, 2026-09-11, read back its OLD text on the first try).
+            wanted = _line_endings(step["text"])
+            for _ in range(15):
+                if _line_endings(self._read_text(wrapper)) == wanted:
+                    return {"action": action, "verified": True}
+                _sleep(0.1)
+            raise VerificationFailed(
+                "set_text completed but exact text verification failed")
         if action == "select":
             wanted = step["value"]
             choice = self._choice_on(wrapper, wanted)
             try:
                 wrapper.select(choice)
             except Exception as exc:
-                raise VerificationFailed(
-                    f"control could not select {choice!r} ({type(exc).__name__})") from exc
-            observed = self._selected_text(wrapper)
-            if _normalized(wanted) not in _normalized(observed):
-                raise VerificationFailed(
-                    f"select completed but the control now reads {observed[:80]!r}")
-            return {"action": action, "verified": True, "selected": choice}
+                # A browser's <select> (the TikTok demo's privacy list,
+                # 2026-09-11) lists its options only while it is open, and
+                # pywinauto's own select could not read them. Choose the
+                # option through its own SelectionItem pattern instead.
+                if not self._select_item(wrapper, choice):
+                    raise VerificationFailed(
+                        f"control could not select {choice!r} ({type(exc).__name__})") from exc
+            key = _normalized(wanted)
+            observed = ""
+            for _ in range(15):
+                observed = self._selected_text(wrapper)
+                # a web list reports its chosen option as its Value
+                if key in _normalized(observed) or key in _normalized(self._read_text(wrapper)):
+                    return {"action": action, "verified": True, "selected": choice}
+                _sleep(0.1)
+            raise VerificationFailed(
+                f"select completed but the control now reads {observed[:80]!r}")
         raise AssertionError(f"validated action was not implemented: {action}")
+
+    @staticmethod
+    def _select_item(wrapper, choice: str) -> bool:
+        """Open a list and choose the ONE option named `choice` through the
+        option's own pattern. False when that cannot be done exactly."""
+        try:
+            wrapper.iface_expand_collapse.Expand()
+        except Exception:
+            pass
+        try:
+            items = [c for c in wrapper.children()
+                     if c.element_info.control_type == "ListItem"
+                     and _normalized(c.window_text()) == _normalized(choice)]
+        except Exception:
+            items = []
+        if len(items) != 1:
+            return False
+        item = items[0]
+        if _has_pattern(item, "selection_item"):
+            item.iface_selection_item.Select()
+        elif _has_pattern(item, "invoke"):
+            item.invoke()
+        else:
+            return False
+        try:
+            wrapper.iface_expand_collapse.Collapse()
+        except Exception:
+            pass
+        return True
+
+    @staticmethod
+    def _press(wrapper) -> str:
+        """Press a control the way its kind is pressed.
+
+        A button is invoked. A checkbox or switch has no Invoke pattern, only
+        Toggle, and a drop-down only ExpandCollapse: on the TikTok demo's
+        post sheet (2026-09-11) Comment, Disclose video content and the
+        privacy list are all of those, and "invoke" failed on each. Still
+        never a mouse click: every route here is a UI Automation pattern on
+        the control the step named, whose label the guard has already read.
+        """
+        try:
+            wrapper.invoke()
+            return "UI Automation Invoke pattern completed"
+        except Exception as exc:
+            if type(exc).__name__ != "NoPatternInterfaceError":
+                raise
+        if _has_pattern(wrapper, "toggle"):
+            before = wrapper.iface_toggle.CurrentToggleState
+            wrapper.iface_toggle.Toggle()
+            # A browser applies the click a moment later; read until it lands.
+            for _ in range(15):
+                after = wrapper.iface_toggle.CurrentToggleState
+                if after != before:
+                    return ("UI Automation Toggle pattern completed "
+                            f"({'on' if after == 1 else 'off'})")
+                _sleep(0.1)
+            raise VerificationFailed("toggled, but the switch on screen did not change")
+        if _has_pattern(wrapper, "expand_collapse"):
+            wrapper.iface_expand_collapse.Expand()
+            return "UI Automation ExpandCollapse pattern opened it"
+        raise VerificationFailed(
+            "the control named has nothing to press (no Invoke, Toggle or "
+            "ExpandCollapse pattern): name the button, switch or list itself")
 
     @staticmethod
     def _items(wrapper) -> list[str]:
