@@ -42,7 +42,7 @@ import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
-from aletheia import journal, speech
+from aletheia import journal, speech, stateio
 from aletheia.fleet import REPO_ROOT
 
 ACTOR = "aletheia-jobs"
@@ -91,13 +91,67 @@ class JobsError(RuntimeError):
 
 
 def boards() -> list[dict]:
-    """The company boards she can reach. Data, not a literal."""
+    """The company boards she can reach: the configured list, then every
+    employer a web search has turned up since. Data, not a literal."""
     try:
         value = json.loads(BOARDS_PATH.read_text(encoding="utf-8"))
+        rows = value.get("boards") if isinstance(value, dict) else value
+    except (OSError, ValueError):
+        rows = []
+    configured = [r for r in (rows or []) if isinstance(r, dict) and r.get("token")]
+    known = {(r.get("provider"), r["token"]) for r in configured}
+    learned = [r for r in _learned_boards()
+               if (r.get("provider"), r.get("token")) not in known]
+    return configured + learned
+
+
+MAX_LEARNED_BOARDS = 400
+
+
+def _learned_path():
+    return stateio.private_dir("jobs") / "learned_boards.json"
+
+
+def _learned_boards() -> list[dict]:
+    try:
+        rows = json.loads(_learned_path().read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
-    rows = value.get("boards") if isinstance(value, dict) else value
-    return [r for r in (rows or []) if isinstance(r, dict) and r.get("token")]
+    if not isinstance(rows, list):
+        return []
+    return [r for r in rows if isinstance(r, dict) and r.get("token") and r.get("provider")]
+
+
+def _learn_boards(found: list[dict]) -> int:
+    """Keep every employer a web search turned up, so the next search reads
+    its board directly. Live 2026-09-10 the web search worked for a few
+    queries and then DuckDuckGo answered everything with its challenge page:
+    an employer found once should not depend on being found again."""
+    rows = _learned_boards()
+    have = {(r["provider"], r["token"]) for r in rows}
+    added = 0
+    for job in found:
+        key = (job.get("provider"), job.get("board"))
+        if not all(key) or key in have:
+            continue
+        have.add(key)
+        rows.append({"provider": key[0], "token": key[1],
+                     "company": job.get("company") or key[1],
+                     "learned": True, "from": "web search"})
+        added += 1
+    if added:
+        path = _learned_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        stateio.write_json_atomic(path, rows[-MAX_LEARNED_BOARDS:])
+    return added
+
+
+def _forget_boards(gone: list[dict]) -> None:
+    drop = {(f.get("provider"), f.get("board")) for f in gone}
+    rows = [r for r in _learned_boards() if (r["provider"], r["token"]) not in drop]
+    path = _learned_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    stateio.write_json_atomic(path, rows)
 
 
 class BoardGone(JobsError):
@@ -274,10 +328,16 @@ def _gather(fetcher=None) -> tuple[list[dict], list[dict], int]:
                                  "company": board.get("company", ""),
                                  "provider": board.get("provider", ""),
                                  "gone": problem.startswith("GONE:"),
+                                 "learned": bool(board.get("learned")),
                                  "why": problem})
                 continue
             everything.extend(jobs)
-    _say_a_board_is_gone([f for f in failures if f["gone"]])
+    # A board he configured that is gone is worth telling him about. One she
+    # picked up from a web search is simply forgotten.
+    _say_a_board_is_gone([f for f in failures if f["gone"] and not f["learned"]])
+    learned_gone = [f for f in failures if f["gone"] and f["learned"]]
+    if learned_gone:
+        _forget_boards(learned_gone)
     return everything, failures, len(rows)
 
 
@@ -338,6 +398,7 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
                 continue
             seen.add(job["apply_url"])
             web.append(job)
+        _learn_boards(web)
     # Two from the boards, then one the web found, so both get tried.
     matches, b, w = [], 0, 0
     while len(matches) < cap and (b < len(board) or w < len(web)):
@@ -359,6 +420,7 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
             "discovered": len(discovered), "failed": failures}
 
 
+MAX_ROLES_PER_SEARCH = 5
 _GREENHOUSE_JOB = re.compile(
     r"https?://(?:boards|job-boards)\.greenhouse\.io/([A-Za-z0-9_-]+)/jobs/(\d+)")
 _LEVER_JOB = re.compile(
@@ -368,7 +430,7 @@ _LEVER_JOB = re.compile(
 def discover_openings(roles: list[str], *, limit: int = 10, http=None) -> list[dict]:
     """Openings on ANY company's Greenhouse or Lever board that a web search finds.
 
-    One plain HTTP search per role per provider (research.http_search -
+    One plain HTTP search per board site for all the roles at once (research.http_search -
     Bing's RSS answers a document fetch where a headless browser is
     challenged). A result is kept only when its address is a real job on
     one of those boards, and it is turned into the same public, login-free
@@ -378,16 +440,28 @@ def discover_openings(roles: list[str], *, limit: int = 10, http=None) -> list[d
         from aletheia import research
         http = research.http_search
     out, seen = [], set()
-    for role in roles or []:
+    roles = [str(r) for r in roles or [] if str(r).strip()]
+    # ONE search per board site for every role, OR'd together. One per role per
+    # site was fifteen searches a campaign, and live 2026-09-10 DuckDuckGo
+    # answered everything after the first few with its challenge page.
+    wanted = " OR ".join(f'"{r}"' for r in roles[:MAX_ROLES_PER_SEARCH])
+    if len(roles[:MAX_ROLES_PER_SEARCH]) > 1:
+        wanted = f"({wanted})"
+    for role in roles[:1]:
         # Greenhouse moved most boards to job-boards.greenhouse.io; both are searched.
         for site in ("job-boards.greenhouse.io", "boards.greenhouse.io", "jobs.lever.co"):
             if len(out) >= limit:
                 return out
             try:
-                page = http(f'site:{site} "{role}"')
+                page = http(f'site:{site} {wanted}')
             except Exception:
                 continue
-            for link in (page or {}).get("links") or []:
+            links = (page or {}).get("links") or []
+            if not links and "202" in str((page or {}).get("error") or ""):
+                # Every engine refused. Asking again right away only
+                # lengthens the refusal.
+                return out
+            for link in links:
                 # DuckDuckGo wraps each result in its own redirect; the job's
                 # address is inside it, encoded.
                 href = urllib.parse.unquote(str(link.get("href") or ""))

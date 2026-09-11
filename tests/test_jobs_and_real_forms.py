@@ -32,6 +32,10 @@ LV = [{"id": "abc", "text": "Software Engineer, Platform",
        "hostedUrl": "https://jobs.lever.co/acme/abc"}]
 
 
+# The real function, before any test replaces it with a fixed list.
+REAL_BOARDS = jobs.boards
+
+
 class JobsCase(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -43,6 +47,11 @@ class JobsCase(unittest.TestCase):
                        {"provider": "lever", "token": "acme", "company": "Acme"}]
         b = mock.patch.object(jobs, "boards", lambda: self.boards)
         b.start(); self.addCleanup(b.stop)
+        # Employers a web search turns up are remembered in private state;
+        # a test must never write fake ones into the real file.
+        learned = mock.patch.object(jobs, "_learned_path",
+                                    lambda: Path(self.tmp.name) / "learned_boards.json")
+        learned.start(); self.addCleanup(learned.stop)
 
     def fetcher(self, fail=()):
         def fetch(board):
@@ -151,6 +160,53 @@ class TheRightJobsForHimCase(JobsCase):
             ("Sales Manager, Account Executives - Startups", ""),
             ("Account Manager, SMB", "")), exclude=jobs.SENIOR_TITLE_WORDS)
         self.assertEqual([j["title"] for j in out["matches"]], ["Account Manager, SMB"])
+
+    def test_one_search_per_board_site_for_every_role(self):
+        asked = []
+        jobs.discover_openings(["Account Executive", "Account Manager"], limit=5,
+                               http=lambda q: asked.append(q) or {"links": []})
+        self.assertEqual(len(asked), 3)
+        self.assertTrue(all('"Account Executive" OR "Account Manager"' in q for q in asked), asked)
+
+    def test_a_refused_search_is_not_asked_again_straight_away(self):
+        asked = []
+        refused = {"links": [], "error": "duckduckgo-html: HTTP 202, 0 links; "
+                                         "duckduckgo-lite: HTTP 202, 0 links"}
+        jobs.discover_openings(["Account Executive"], limit=5,
+                               http=lambda q: asked.append(q) or refused)
+        self.assertEqual(len(asked), 1)
+
+    def test_an_employer_found_on_the_web_is_remembered(self):
+        rows = self.rows(*[("Account Manager", "") for _ in range(3)])
+        page = {"links": [{"href": "https://job-boards.greenhouse.io/tebra/jobs/42",
+                           "text": "Job Application for Account Manager at Tebra"}]}
+        self.search(["Account Manager"], rows, discover=True, http=lambda q: page)
+        self.assertEqual([(r["provider"], r["token"], r["company"])
+                          for r in jobs._learned_boards()],
+                         [("greenhouse", "tebra", "Tebra")])
+
+    def test_learned_employers_join_the_configured_boards_once(self):
+        config = Path(self.tmp.name) / "boards.json"
+        config.write_text(json.dumps({"boards": [
+            {"provider": "greenhouse", "token": "acme", "company": "Acme"}]}), encoding="utf-8")
+        jobs._learn_boards([{"provider": "greenhouse", "board": "acme", "company": "Acme"},
+                            {"provider": "lever", "board": "nitra", "company": "nitra"}])
+        with mock.patch.object(jobs, "BOARDS_PATH", config):
+            rows = REAL_BOARDS()
+        self.assertEqual([(r["provider"], r["token"]) for r in rows],
+                         [("greenhouse", "acme"), ("lever", "nitra")])
+
+    def test_a_learned_employer_that_is_gone_is_forgotten_without_a_notice(self):
+        jobs._learn_boards([{"provider": "greenhouse", "board": "oldco", "company": "OldCo"}])
+        self.boards = [{"provider": "greenhouse", "token": "oldco", "company": "OldCo",
+                        "learned": True}]
+
+        def gone(board):
+            raise jobs.BoardGone("404")
+        with mock.patch("aletheia.notifications.publish") as told:
+            jobs.search("account manager", fetcher=gone)
+        self.assertFalse(told.called)
+        self.assertEqual(jobs._learned_boards(), [])
 
     def test_one_from_each_employer_before_a_second_from_any(self):
         rows = [{"title": "Account Manager", "company": "Big", "location": "",
