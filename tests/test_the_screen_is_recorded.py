@@ -123,6 +123,26 @@ class StartAndStopCase(RecordingCase):
         self.assertTrue(done["path"].endswith("shorts-media-tiktok-review.mp4"))
         self.assertIsNone(screenrec.current())
 
+    @unittest.skipUnless(os.name == "nt", "console windows are a Windows thing")
+    def test_no_helper_process_opens_a_console_window_on_camera(self):
+        """His real retake ended with a black tasklist window over the app."""
+        calls = []
+
+        def fake_run(args, **kwargs):
+            calls.append((args[0], kwargs.get("creationflags", 0)))
+            return mock.Mock(stdout="", stderr="", returncode=0)
+
+        with mock.patch.object(screenrec.subprocess, "run", fake_run):
+            screenrec._alive(4242)
+            screenrec._kill(4242)
+            video = Path(self.tmp.name) / "take.mp4"
+            video.write_bytes(b"not really a video")
+            screenrec._finish(video)
+        self.assertEqual({name for name, _ in calls} >= {"tasklist", "taskkill"}, True)
+        for name, flags in calls:
+            with self.subTest(process=name):
+                self.assertTrue(flags & screenrec.subprocess.CREATE_NO_WINDOW, name)
+
     def test_stopping_nothing_says_so(self):
         self.assertFalse(screenrec.stop()["stopped"])
 

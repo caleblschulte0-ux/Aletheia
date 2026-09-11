@@ -39,6 +39,12 @@ from aletheia import journal, stateio, workspace
 ACTOR = "aletheia-screenrec"
 MAX_SECONDS = 300
 TAIL_S = 2.5
+# Every helper process runs with no console window. His real retake
+# (2026-09-11) ended with a black "C:\WINDOWS\SYSTEM32\tasklist" window over
+# the app: stop() checks the recorder with tasklist while the recording is
+# still running, and a console popping up is exactly what the recording must
+# never show.
+_NO_WINDOW = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
 DEFAULT_FPS = 30
 FOLDER = "recordings"
 _WINGET_FFMPEG = os.path.join("Microsoft", "WinGet", "Packages", "*FFmpeg*", "*", "bin", "ffmpeg.exe")
@@ -158,7 +164,7 @@ def _alive(pid: int) -> bool:
         except OSError:
             return False
     out = subprocess.run(["tasklist", "/FI", f"PID eq {int(pid)}", "/NH"],
-                         capture_output=True, text=True, errors="replace")
+                         capture_output=True, text=True, errors="replace", **_NO_WINDOW)
     return str(int(pid)) in (out.stdout or "")
 
 
@@ -231,7 +237,7 @@ def start(window: str, *, name: str = "", max_seconds: int = MAX_SECONDS,
 
 def _kill(pid: int) -> None:
     if sys.platform == "win32":
-        subprocess.run(["taskkill", "/PID", str(int(pid)), "/F"], capture_output=True)
+        subprocess.run(["taskkill", "/PID", str(int(pid)), "/F"], capture_output=True, **_NO_WINDOW)
     else:
         try:
             os.kill(pid, 15)
@@ -248,7 +254,7 @@ def _finish(path: Path) -> float | None:
     try:
         done = subprocess.run([binary, "-hide_banner", "-loglevel", "error", "-y",
                                "-i", str(path), "-c", "copy", "-movflags", "+faststart", str(tidy)],
-                              capture_output=True, timeout=300)
+                              capture_output=True, timeout=300, **_NO_WINDOW)
         if done.returncode == 0 and tidy.exists() and tidy.stat().st_size > 0:
             os.replace(tidy, path)
     except Exception:
@@ -261,7 +267,8 @@ def _finish(path: Path) -> float | None:
                 pass
     try:
         info = subprocess.run([binary, "-hide_banner", "-i", str(path)],
-                              capture_output=True, text=True, errors="replace", timeout=60).stderr
+                              capture_output=True, text=True, errors="replace", timeout=60,
+                              **_NO_WINDOW).stderr
         m = _DURATION.search(info or "")
         return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3)) if m else None
     except Exception:
