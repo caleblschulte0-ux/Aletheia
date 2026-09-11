@@ -88,6 +88,13 @@ class OnlyTheWindowCase(RecordingCase):
         two = WINDOWS + [dict(WINDOWS[1], title="Olathea notes")]
         self.assertEqual(screenrec.find_window("Olathea|Shorts", listing=two), WINDOWS[0])
 
+    def test_a_hard_stop_loses_at_most_a_second(self):
+        """Her first full take lost its last ~20s to x264's 250-frame keyframes."""
+        self.start("Shorts Media")
+        self.assertEqual(self.arg("-g"), str(screenrec.DEFAULT_FPS))
+        self.assertEqual(self.arg("-tune"), "zerolatency")
+        self.assertIn("+frag_keyframe", self.arg("-movflags"))
+
     def test_it_stops_by_itself(self):
         self.start("Shorts Media", max_seconds=9999)
         self.assertEqual(self.arg("-t"), str(screenrec.MAX_SECONDS))
@@ -103,11 +110,14 @@ class StartAndStopCase(RecordingCase):
 
     def test_stop_says_where_the_file_is_and_how_long(self):
         out = self.start("Shorts Media", name="shorts-media-tiktok-review")
-        killed = []
+        order = []
         with mock.patch.object(screenrec, "_alive", return_value=True):
-            done = screenrec.stop(killer=killed.append, finisher=lambda path: 71.0)
+            done = screenrec.stop(killer=lambda pid: order.append(("kill", pid)),
+                                  sleeper=lambda s: order.append(("wait", s)),
+                                  finisher=lambda path: 71.0)
         self.assertTrue(done["stopped"])
-        self.assertEqual(killed, [4242])
+        self.assertEqual(order, [("wait", screenrec.TAIL_S), ("kill", 4242)],
+                         "the last moment on screen gets written before the hard stop")
         self.assertEqual(done["seconds"], 71.0)
         self.assertEqual(done["path"], out["path"])
         self.assertTrue(done["path"].endswith("shorts-media-tiktok-review.mp4"))

@@ -31,12 +31,14 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from aletheia import journal, stateio, workspace
 
 ACTOR = "aletheia-screenrec"
 MAX_SECONDS = 300
+TAIL_S = 2.5
 DEFAULT_FPS = 30
 FOLDER = "recordings"
 _WINGET_FFMPEG = os.path.join("Microsoft", "WinGet", "Packages", "*FFmpeg*", "*", "bin", "ffmpeg.exe")
@@ -185,6 +187,12 @@ def command(window: dict, out: Path, *, seconds: int, fps: int = DEFAULT_FPS,
             "-video_size", f"{width}x{height}", "-i", "desktop",
             "-t", str(int(seconds)), "-an",
             "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
+            # A keyframe every second and no encoder lookahead, so a fragment
+            # lands on disk every second. Her first full take (2026-09-11)
+            # lost its last ~20s (Submitted, Done, Recent posts): with x264's
+            # defaults nothing after the last 250-frame keyframe was written
+            # before the hard stop.
+            "-g", str(int(fps)), "-tune", "zerolatency",
             # A recording stopped hard is still a playable file.
             "-movflags", "+frag_keyframe+empty_moov+default_base_moof",
             str(out)]
@@ -260,13 +268,16 @@ def _finish(path: Path) -> float | None:
         return None
 
 
-def stop(*, killer=None, finisher=None) -> dict:
+def stop(*, killer=None, finisher=None, sleeper=None, tail_s: float = TAIL_S) -> dict:
     """End the running recording and say where the file is and how long."""
     running = current()
     if not running:
         return {"stopped": False, "why": "nothing is being recorded"}
     pid = int(running.get("pid") or 0)
     if _alive(pid):
+        # the last thing on screen is usually the point (a "Posted" note), so
+        # it gets a moment to land in a written fragment before the hard stop
+        (sleeper or time.sleep)(tail_s)
         (killer or _kill)(pid)
     try:
         _state_path().unlink()
