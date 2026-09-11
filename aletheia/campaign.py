@@ -655,6 +655,15 @@ def answer_all(answers: dict, *, resume: str = "", stager=None) -> dict:
                 and not formfill.is_never_autofill({"label": label})):
             profile.set_answer(key, value.strip(), source="operator")
 
+    # And an answer that fits none of her fields is still his answer to that
+    # QUESTION: kept, so the next employer asking it is answered instead of
+    # asking him twice. Declarations and protected questions are refused
+    # inside remember_question - those stay his on every form.
+    for label, value in answers.items():
+        if label in facts or formfill.match_field({"label": label}) is not None:
+            continue  # a field of hers, handled above on its own terms
+        profile.remember_question(label, value, source="operator")
+
     per_run: dict[str, dict] = {}
     unmatched = []
     for label, value in answers.items():

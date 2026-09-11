@@ -479,6 +479,17 @@ def plan(fields: list[dict], *, answers: dict | None = None) -> dict:
             continue
         key = match_field(field)
         if key is None:
+            # He answered this exact question once, on somebody else's form.
+            # Asking him again is the thing he asked not to happen: "if it
+            # don't know somthing about me it can ask 1 time after that it
+            # should know". Never a declaration or a protected question —
+            # is_never_autofill has already taken those out above.
+            told = profile.answer_for(label)
+            if told:
+                fill.append({"action": "type", "selector": field["selector"],
+                             "value": told, "label": label,
+                             "profile_field": "asked_once"})
+                continue
             row["why"] = "she could not tell what this is asking for"
             ask.append(row)
             continue

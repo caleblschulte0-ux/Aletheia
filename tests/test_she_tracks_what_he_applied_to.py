@@ -171,6 +171,68 @@ class Tracked(unittest.TestCase):
         self.assertEqual(saved["posting"], "https://tebra.com/jobs/1")
         self.assertEqual(apply_run.describe(saved), "Account Executive at Tebra")
 
+    # ---- asked once, never again --------------------------------------
+
+    def test_an_answer_that_fits_no_field_is_still_known_next_time(self):
+        """His words: "if it don't know somthing about me it can ask 1 time
+        after that it should know". The long tail of form questions fits none
+        of her fields, so his answer was used once and the next employer
+        asked again."""
+        from aletheia import formfill, profile
+        asked = {"selector": "#shift", "label": "What is your preferred shift?",
+                 "name": "", "id": "shift", "tag": "input", "type": "text",
+                 "required": True, "value": ""}
+        self.assertIsNone(formfill.match_field(asked), "no field of hers answers this")
+        first = formfill.plan([asked])
+        self.assertEqual([q["label"] for q in first["ask"]], ["What is your preferred shift?"])
+
+        profile.remember_question("What is your preferred shift?", "Days")
+
+        # the same question, worded the way another employer words it
+        elsewhere = dict(asked, selector="#ps", id="ps",
+                         label="Please tell us your preferred shift")
+        second = formfill.plan([elsewhere])
+        self.assertEqual(second["ask"], [], "she does not ask him twice")
+        self.assertEqual([(f["selector"], f["value"]) for f in second["fill"]],
+                         [("#ps", "Days")])
+        self.assertEqual(profile.answer_for("preferred shift?"), "Days")
+
+    def test_answering_keeps_the_open_question_and_not_the_one_job_one(self):
+        """`answer_all` is the door his answers come through. What fits a
+        field of hers is set as a fact there; what fits none is kept as an
+        answer to that question — except "how did you hear about this role",
+        which is true of one job and a lie on the next."""
+        from aletheia import campaign, profile
+        with mock.patch.object(campaign, "open_questions", return_value=[]), \
+             mock.patch.object(campaign.apply_run, "all_runs", return_value=[]):
+            campaign.answer_all({"What is your preferred shift?": "Days",
+                                 "How did you hear about this role?": "A friend",
+                                 "I certify the above is true.": "Yes"})
+        self.assertEqual(profile.answer_for("What is your preferred shift?"), "Days")
+        self.assertEqual(profile.answer_for("How did you hear about this role?"), "",
+                         "true of one job, a lie on the next")
+        self.assertEqual(profile.answer_for("I certify the above is true."), "",
+                         "a declaration is his on every form")
+
+    def test_a_declaration_is_never_kept_for_the_next_form(self):
+        """Ticking "I certify this is true" on one employer's form is not
+        consent to tick it on another's — his own standing rule."""
+        from aletheia import profile
+        for question in ("I certify that the information above is true.",
+                         "Are you Hispanic or Latino?",
+                         "I agree to the terms and conditions"):
+            with self.subTest(question=question):
+                self.assertIsNone(profile.remember_question(question, "Yes"))
+                self.assertEqual(profile.answer_for(question), "")
+
+    def test_what_he_was_asked_once_can_be_read_back(self):
+        from aletheia import profile
+        profile.remember_question("How many years selling into healthcare?", "Four")
+        rows = profile.questions_on_file()
+        self.assertEqual([(r["question"], r["value"]) for r in rows],
+                         [("How many years selling into healthcare?", "Four")])
+        self.assertTrue(rows[0]["at"])
+
     # ---- finding the one he means -------------------------------------
 
     def test_he_names_an_employer_not_an_id(self):

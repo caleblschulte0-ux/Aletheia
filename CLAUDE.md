@@ -731,6 +731,20 @@ forms staged nothing: the chosen resume PDF did not read, and with the
   notifies him. `apply_answer` finishes what is left.
 - **One approval per application stays.** His own spec: "it comes to me
   and it says confirm you wanna apply to this job, that's fine."
+- **Asked once is once.** 2026-09-11: *"if it don't know somthing about me
+  it can ask 1 time after that it should know."* An answer matching a field
+  of hers became a fact already; an answer matching NO field was used on
+  that one form and the next employer asked again, because it was stored
+  against a selector. `profile.remember_question` keys it by what the
+  question ASKS — content words, filler and punctuation gone — so "What is
+  your preferred shift?" and "Please tell us your preferred shift" are one
+  question, and `formfill.plan` fills it instead of asking. Three things
+  are deliberately NOT kept: anything `is_never_autofill` (declarations,
+  signatures, protected characteristics — his on every form, and the
+  refusal is inside the store so no caller can forget), anything that maps
+  to a field of hers (that path has its own sensitive/yes-no rules), and
+  `heard_about`, which is true of one job and a lie on the next. The
+  journal records the QUESTION, never his answer.
 
 ## The standing assignment
 

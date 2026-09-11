@@ -168,6 +168,83 @@ def save(answers: dict) -> dict:
     return answers
 
 
+def asked_path():
+    return stateio.private_dir("profile") / "questions.json"
+
+
+def _asked_key(question: str) -> str:
+    """A question by what it ASKS, so two employers wording it differently
+    are one question: lowercase content words, in order, punctuation gone."""
+    words = re.sub(r"[^a-z0-9 ]", " ", str(question or "").casefold()).split()
+    return " ".join(w for w in words if w not in _QUESTION_FILLER)[:200]
+
+
+# Words that carry no meaning in a form label. "Please tell us your notice
+# period*" and "What is your notice period?" are the same question.
+_QUESTION_FILLER = frozenset({
+    "the", "a", "an", "your", "you", "yours", "please", "us", "we", "our",
+    "is", "are", "do", "does", "did", "what", "which", "tell", "enter",
+    "provide", "give", "select", "choose", "required", "optional", "field",
+    "this", "that", "of", "for", "to", "in", "on", "at", "and", "or", "if",
+    "me", "my", "i", "it", "be", "have", "has", "will", "would", "can"})
+
+
+def remember_question(question: str, value, *, source: str = "operator") -> dict | None:
+    """An answer that fits no field of hers, kept by what the question asks.
+
+    His words, 2026-09-11: "if it don't know somthing about me it can ask 1
+    time after that it should know ... don't hard code that into there". Her
+    FIELDS cover the things every form asks; the long tail ("how many years
+    selling into healthcare", "what is your notice period") fitted none of
+    them, so the answer was used on that one form and the next employer
+    asked again. This is the tail, and it is deliberately NOT a field: it is
+    his answer to a question, reused only where the same question is asked.
+
+    Declarations, signatures, certifications and protected characteristics
+    are never kept here — those are his to answer on every form, which is
+    his own standing rule, so they are refused at the door.
+    """
+    from aletheia import formfill
+    text = " ".join(str(question or "").split())
+    if not text or formfill.is_never_autofill({"label": text}):
+        return None
+    if not isinstance(value, str) or not value.strip():
+        return None
+    key = _asked_key(text)
+    if not key:
+        return None
+    asked = _load_asked()
+    asked[key] = {"question": text[:MAX_VALUE_CHARS],
+                  "value": value.strip()[:MAX_VALUE_CHARS],
+                  "source": str(source)[:80], "at": stateio.utcnow()}
+    stateio.write_json_atomic(asked_path(), asked)
+    # The QUESTION, never his answer: the value is his and does not travel.
+    journal.append("note", "profile", f"his answer to {text[:80]!r} is on file",
+                   actor=ACTOR)
+    return asked[key]
+
+
+def _load_asked() -> dict:
+    try:
+        value = stateio.read_json(asked_path())
+    except (OSError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def answer_for(question: str) -> str:
+    """What he already told her about this question, or ""."""
+    held = _load_asked().get(_asked_key(question))
+    return str(held.get("value") or "") if isinstance(held, dict) else ""
+
+
+def questions_on_file() -> list[dict]:
+    """Everything he has been asked once, for "what do you know about me"."""
+    return [{"question": v.get("question", k), "value": v.get("value", ""),
+             "at": v.get("at", "")}
+            for k, v in sorted(_load_asked().items()) if isinstance(v, dict)]
+
+
 def set_answer(field: str, value, *, source: str = "operator") -> dict:
     """One answer, with where it came from. Provenance matters here: a
     thing she read off a resume is not the same as a thing he told her."""
