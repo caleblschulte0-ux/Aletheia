@@ -79,9 +79,14 @@ class TheRightJobsForHimCase(JobsCase):
             ("Account Manager", "Dublin"), ("Account Manager", "Bengaluru, India"),
             ("Account Manager", "Austin, TX"), ("Account Manager", "Remote - US"),
             ("Account Manager", "Remote - EMEA"), ("Account Manager", "New York, New York"),
-            ("Account Manager", "Hybrid")), country="United States")
+            ("Account Manager", "Hybrid"), ("Account Manager", "CA-Toronto, CA-Montreal"),
+            ("Account Manager", "Chicago, Seattle, NYC, San Francisco"),
+            ("Account Manager", "Sioux Falls"), ("Account Manager", "Vancouver, WA")),
+            country="United States")
         self.assertEqual(sorted(j["location"] for j in out["matches"]),
-                         sorted(["Austin, TX", "Remote - US", "New York, New York"]))
+                         sorted(["Austin, TX", "Remote - US", "New York, New York",
+                                 "Chicago, Seattle, NYC, San Francisco", "Sioux Falls",
+                                 "Vancouver, WA"]))
 
     def test_too_senior_titles_are_left_out_when_asked(self):
         out = self.search(["Business Development"], self.rows(
@@ -90,6 +95,63 @@ class TheRightJobsForHimCase(JobsCase):
             ("Head of Business Development", "")), exclude=jobs.SENIOR_TITLE_WORDS)
         self.assertEqual([j["title"] for j in out["matches"]],
                          ["Business Development Representative"])
+
+    def test_a_site_search_answered_with_other_sites_tries_the_next_engine(self):
+        """Bing's RSS ignores site: (live 2026-09-10: Investopedia and Indeed
+        for site:boards.greenhouse.io), so no job was ever found by searching."""
+        from aletheia import research
+
+        class Answer:
+            def __init__(self, body):
+                self.status, self.body = 200, body.encode()
+
+            def read(self, n=-1):
+                return self.body
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        def opener(request, timeout=0):
+            if "format=rss" in request.full_url:
+                return Answer("<rss><item><title>Indeed</title><link>https://www.indeed.com/q</link>"
+                              "<description>jobs</description></item></rss>")
+            return Answer('<a class="result__a" href="https://job-boards.greenhouse.io/acme/jobs/123">'
+                          'Account Executive - Acme</a>')
+        got = research.http_search('site:job-boards.greenhouse.io "Account Executive"', opener=opener)
+        self.assertEqual(got["engine"], "duckduckgo-html")
+        self.assertEqual([link["href"] for link in got["links"]],
+                         ["https://job-boards.greenhouse.io/acme/jobs/123"])
+
+    def test_a_result_wrapped_in_a_redirect_is_still_a_job(self):
+        page = {"links": [{"href": "//duckduckgo.com/l/?uddg=https%3A%2F%2Fjob-boards.greenhouse.io"
+                                   "%2Facme%2Fjobs%2F555&rut=x", "text": "Account Executive"}]}
+        found = jobs.discover_openings(["Account Executive"], limit=5, http=lambda q: page)
+        self.assertEqual([j["apply_url"] for j in found],
+                         ["https://boards.greenhouse.io/embed/job_app?for=acme&token=555"])
+
+    def test_a_search_result_title_is_the_job_and_its_employer(self):
+        page = {"links": [{"href": "https://job-boards.greenhouse.io/tebra/jobs/42",
+                           "text": "Job Application for Account Executive, Growth at Tebra"}]}
+        found = jobs.discover_openings(["Account Executive"], limit=5, http=lambda q: page)
+        self.assertEqual((found[0]["title"], found[0]["company"]),
+                         ("Account Executive, Growth", "Tebra"))
+
+    def test_enterprise_and_strategic_are_left_out_for_someone_early(self):
+        out = self.search(["Account Executive"], self.rows(
+            ("Enterprise Account Executive", ""), ("Strategic Account Executive", ""),
+            ("Account Executive, SMB", "")), exclude=jobs.SENIOR_TITLE_WORDS)
+        self.assertEqual([j["title"] for j in out["matches"]], ["Account Executive, SMB"])
+
+    def test_one_from_each_employer_before_a_second_from_any(self):
+        rows = [{"title": "Account Manager", "company": "Big", "location": "",
+                 "apply_url": f"b{i}"} for i in range(5)]
+        rows.append({"title": "Account Manager", "company": "Small", "location": "",
+                     "apply_url": "s0"})
+        out = self.search(["Account Manager"], rows)
+        self.assertEqual([j["company"] for j in out["matches"][:2]], ["Big", "Small"])
 
     def test_web_found_employers_always_get_a_share(self):
         rows = self.rows(*[("Account Manager", "") for _ in range(20)])

@@ -68,7 +68,10 @@ administrator generalist""".split())
 # What a title says about level. Left out only when the caller says so
 # (campaign, for someone early in his field), never by default.
 SENIOR_TITLE_WORDS = frozenset("""senior sr staff principal lead director head vp
-vice chief""".split())
+vice chief enterprise strategic""".split())
+# "Enterprise" and "Strategic" account roles carry the largest deals and ask
+# for years of closing; live 2026-09-10 they were most of what an Associate
+# a year into business development was offered.
 
 # Places outside the United States, to tell "Remote - EMEA" from "Remote".
 # A US state, a state code or "US" in the location settles it first.
@@ -173,6 +176,15 @@ def _title_words(title: str) -> set[str]:
     return {w for w in re.split(r"[^a-z0-9+#]+", str(title).casefold()) if w}
 
 
+# Cities a US posting names without a state: "Chicago, Seattle, NYC, San
+# Francisco" was ruled out live because nothing in it said "US".
+_US_CITY = re.compile(
+    r"\b(?:new york|nyc|san francisco|sf|bay area|chicago|seattle|boston|austin|"
+    r"los angeles|denver|atlanta|miami|dallas|houston|philadelphia|portland|san diego|"
+    r"minneapolis|sioux falls|phoenix|salt lake city|nashville|raleigh|charlotte|"
+    r"detroit|pittsburgh|st\.? louis|kansas city|omaha|des moines|washington,? d\.?c\.?)\b")
+
+
 def _in_country(location: str, country: str) -> bool:
     """Is this job somewhere he can work without sponsorship?
 
@@ -188,12 +200,14 @@ def _in_country(location: str, country: str) -> bool:
     if want not in _US_NAMES:
         return want in low
     from aletheia.formfill import US_STATE_NAMES
-    if _US_WORD.search(low):
-        return True
-    if re.search(r",\s*(?:" + "|".join(US_STATE_NAMES) + r")\b", loc):
+    if _US_WORD.search(low) or _US_CITY.search(low):
         return True
     if any(re.search(r"\b" + re.escape(name.casefold()) + r"\b", low)
            for name in US_STATE_NAMES.values()):
+        return True
+    # A state code, but not Greenhouse's country prefix: live "CA-Toronto,
+    # CA-Montreal" was read as California.
+    if re.search(r",\s*(?:" + "|".join(US_STATE_NAMES) + r")(?![-\w])", loc):
         return True
     if _ABROAD.search(low):
         return False
@@ -289,7 +303,16 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
             found.append((value, job))
     found.sort(key=lambda row: row[0], reverse=True)
     cap = max(1, min(int(limit), MAX_RESULTS))
-    board = [job for _v, job in found]
+    # One opening from each employer before a second from any: live the top
+    # sixty were Databricks, Stripe and Brex, and three tries each ran out of
+    # employers after nine.
+    queues: dict[str, list] = {}
+    for _v, job in found:
+        queues.setdefault(str(job.get("company") or "").casefold(), []).append(job)
+    board, waiting = [], list(queues.values())
+    while waiting:
+        board += [queue.pop(0) for queue in waiting]
+        waiting = [queue for queue in waiting if queue]
     web = []
     if discover:
         # The web search always runs. It ran only when the boards came up
@@ -347,7 +370,8 @@ def discover_openings(roles: list[str], *, limit: int = 10, http=None) -> list[d
         http = research.http_search
     out, seen = [], set()
     for role in roles or []:
-        for site in ("boards.greenhouse.io", "jobs.lever.co"):
+        # Greenhouse moved most boards to job-boards.greenhouse.io; both are searched.
+        for site in ("job-boards.greenhouse.io", "boards.greenhouse.io", "jobs.lever.co"):
             if len(out) >= limit:
                 return out
             try:
@@ -355,12 +379,23 @@ def discover_openings(roles: list[str], *, limit: int = 10, http=None) -> list[d
             except Exception:
                 continue
             for link in (page or {}).get("links") or []:
-                href = str(link.get("href") or "")
-                title = " ".join(str(link.get("text") or "").split())[:120]
+                # DuckDuckGo wraps each result in its own redirect; the job's
+                # address is inside it, encoded.
+                href = urllib.parse.unquote(str(link.get("href") or ""))
+                title = " ".join(str(link.get("text") or "").split())[:160]
+                # A result reads "Job Application for Account Executive, Growth
+                # at Tebra": the job is the part between, the employer the part
+                # after, not the board token "tebra" or "gongio".
+                employer = ""
+                cleaned = re.sub(r"(?i)^job application for\s+", "", title)
+                named = re.match(r"(?i)^(.*\S)\s+at\s+(.+)$", cleaned)
+                if cleaned != title and named:
+                    cleaned, employer = named.group(1), named.group(2)
+                title = cleaned[:120]
                 green, lever = _GREENHOUSE_JOB.search(href), _LEVER_JOB.search(href)
                 if green:
                     token, jid = green.group(1), green.group(2)
-                    job = {"title": title or role, "company": token, "location": "",
+                    job = {"title": title or role, "company": employer or token, "location": "",
                            "posting_url": href,
                            "apply_url": ("https://boards.greenhouse.io/embed/job_app"
                                          f"?for={urllib.parse.quote(token)}&token={jid}"),
@@ -368,7 +403,7 @@ def discover_openings(roles: list[str], *, limit: int = 10, http=None) -> list[d
                            "found_by": "web search"}
                 elif lever:
                     token, jid = lever.group(1), lever.group(2)
-                    job = {"title": title or role, "company": token, "location": "",
+                    job = {"title": title or role, "company": employer or token, "location": "",
                            "posting_url": href,
                            "apply_url": f"https://jobs.lever.co/{urllib.parse.quote(token)}/{jid}/apply",
                            "provider": "lever", "board": token, "id": jid,

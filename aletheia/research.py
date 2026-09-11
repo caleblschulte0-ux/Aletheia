@@ -287,6 +287,28 @@ def _parse_ddg_html(html: str) -> list[dict]:
     return links
 
 
+# DuckDuckGo's lite page: the same results, and it answered 2026-09-10 when
+# the HTML page was the one throttling.
+DDG_LITE_URL = "https://lite.duckduckgo.com/lite/?q={}"
+_LITE_A = re.compile(r"<a\b([^>]*)>(.*?)</a>", re.S)
+_SITE_OP = re.compile(r"\bsite:(\S+)", re.I)
+
+
+def _parse_ddg_lite(html: str) -> list[dict]:
+    links = []
+    for attrs, inner in _LITE_A.findall(html):
+        if "result-link" not in attrs:
+            continue
+        found = re.search(r"""href=["']([^"']+)["']""", attrs)
+        if not found:
+            continue
+        href = found.group(1).replace("&amp;", "&")
+        if href.startswith("//"):
+            href = "https:" + href
+        links.append({"href": href, "text": _clean(inner)[:160], "snippet": ""})
+    return links
+
+
 def http_search(query: str, *, opener=None) -> dict:
     """The search-results page fetched as a plain document, not driven.
 
@@ -301,29 +323,39 @@ def http_search(query: str, *, opener=None) -> dict:
 
     Returns the same shape `browse.read_page` does, so `_results` needs no
     special case, and never raises: an engine that refuses costs this
-    attempt, not the question. `error` names the last refusal.
+    attempt, not the question. `error` names every refusal, in order.
     """
     encoded = quote_plus(query)
-    last_error = ""
+    # A site: search answered with pages from OTHER sites is not an answer.
+    # Bing's RSS ignores the operator: live 2026-09-10 "site:boards.greenhouse.io
+    # Account Executive" came back as Investopedia, Indeed and Wikipedia, so
+    # no Greenhouse or Lever job was ever found by searching.
+    site = _SITE_OP.search(query)
+    host = site.group(1).strip('"').lower() if site else ""
+    refused: list[str] = []
     for engine, url, parse in (("bing-rss", BING_RSS_URL.format(encoded), _parse_bing_rss),
-                               ("duckduckgo-html", DDG_HTML_URL.format(encoded), _parse_ddg_html)):
+                               ("duckduckgo-html", DDG_HTML_URL.format(encoded), _parse_ddg_html),
+                               ("duckduckgo-lite", DDG_LITE_URL.format(encoded), _parse_ddg_lite)):
         try:
             status, body = _fetch(url, opener)
         except Exception as exc:
-            last_error = f"{engine}: {type(exc).__name__}"
+            refused.append(f"{engine}: {type(exc).__name__}")
             continue
         links = parse(body)
+        if host:
+            from urllib.parse import unquote
+            links = [link for link in links if host in unquote(link["href"]).lower()]
         if status != 200 or not links:
             from aletheia import speech
-            last_error = (f"{engine}: HTTP {status}, "
-                          f"{speech.count_phrase(len(links), 'link')}")
+            refused.append(f"{engine}: HTTP {status}, "
+                           f"{speech.count_phrase(len(links), 'link')}")
             continue
         # `_results` treats a page with almost no text as a challenge; the
         # titles and snippets are the text a person would see.
         text = "\n".join(f"{l['text']} — {l['snippet']}" for l in links)
         return {"url": url, "title": f"{engine} results", "text": text,
                 "links": links, "engine": engine}
-    return {"url": "", "title": "", "text": "", "links": [], "error": last_error}
+    return {"url": "", "title": "", "text": "", "links": [], "error": "; ".join(refused)}
 
 
 def find_sources(query: str, *, limit: int = MAX_SOURCES,
