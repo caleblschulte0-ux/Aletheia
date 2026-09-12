@@ -342,12 +342,20 @@ class ApprovingOnHisPhoneSendsIt(ApplyCase):
         self.assertEqual(policy.load(out["approval"])["state"], "PENDING")
 
     def test_approving_it_sends_it_on_the_next_beat(self):
+        """The press moved into its own process on 2026-09-12 — the beat
+        runs in an asyncio loop and Playwright's sync API refuses to run
+        inside one, so every unattended send failed silently. The rule is
+        unchanged; only where the button is pressed moved."""
         from aletheia import notifications, runtime
         out = self.ready()
         policy.decide(out["approval"], "APPROVED", via="phone")
-        with mock.patch.object(apply_run, "_refill_and_submit",
-                               return_value={"verdict": "confirmed",
-                                             "note": "received"}):
+
+        def press(run_id, runner=None):
+            apply_run.submit(run_id, submitter=lambda _rec: {
+                "verdict": "confirmed", "note": "received"})
+            return apply_run.load_run(run_id)
+
+        with mock.patch.object(runtime, "_submit_in_its_own_process", press):
             sent = runtime.send_approved_applications()
         self.assertEqual([s["application"] for s in sent], [out["id"]])
         self.assertEqual(apply_run.load_run(out["id"])["state"], "SUBMITTED")
@@ -355,22 +363,54 @@ class ApprovingOnHisPhoneSendsIt(ApplyCase):
                             for n in notifications.all_notifications()))
 
     def test_it_is_sent_once_however_many_beats_run(self):
-        from aletheia import runtime
         out = self.ready()
         policy.decide(out["approval"], "APPROVED", via="phone")
-        with mock.patch.object(apply_run, "_refill_and_submit",
-                               return_value={"verdict": "confirmed",
-                                             "note": "ok"}) as pressed:
+        from aletheia import runtime
+        presses = []
+
+        def press(run_id, runner=None):
+            presses.append(run_id)
+            apply_run.submit(run_id, submitter=lambda _rec: {
+                "verdict": "confirmed", "note": "ok"})
+            return apply_run.load_run(run_id)
+
+        with mock.patch.object(runtime, "_submit_in_its_own_process", press):
             for _ in range(4):
                 runtime.send_approved_applications()
-        self.assertEqual(pressed.call_count, 1)
+        self.assertEqual(len(presses), 1)
+
+    def test_a_url_already_applied_to_is_never_sent_again(self):
+        """The ledger, not the record. Live 2026-09-12 a campaign re-staged
+        three already-confirmed applications — `stage` rebuilds a record
+        keyed by the url's hash — so the record's own "already submitted"
+        guard was reading the thing that had just been overwritten, and a
+        second copy would have gone to Stripe, Databricks and Samsara."""
+        out = self.ready()
+        policy.decide(out["approval"], "APPROVED", via="phone")
+        apply_run.accept(out["id"])
+        apply_run.submit(out["id"], submitter=lambda _rec: {
+            "verdict": "confirmed", "note": "received"})
+        self.assertIsNotNone(apply_run.was_sent(out["url"]))
+        # the record is wiped back to a fresh application, as a re-stage does
+        record = apply_run.load_run(out["id"])
+        record["state"] = "APPROVED"
+        record.pop("result", None)
+        from aletheia import stateio
+        stateio.write_json_atomic(apply_run._record_path(out["id"]), record)
+        with self.assertRaises(apply_run.ApplyError) as caught:
+            apply_run.submit(out["id"], submitter=lambda _rec: {"verdict": "confirmed"})
+        self.assertIn("already went", str(caught.exception))
 
     def test_a_failure_tells_him_rather_than_retrying(self):
         from aletheia import notifications, runtime
         out = self.ready()
         policy.decide(out["approval"], "APPROVED", via="phone")
-        with mock.patch.object(apply_run, "_refill_and_submit",
-                               side_effect=RuntimeError("page went away")):
+
+        def press(run_id, runner=None):
+            apply_run.submit(run_id, submitter=lambda _rec: (_ for _ in ()).throw(
+                RuntimeError("page went away")))
+
+        with mock.patch.object(runtime, "_submit_in_its_own_process", press):
             self.assertEqual(runtime.send_approved_applications(), [])
         titles = [n["title"] for n in notifications.all_notifications()]
         self.assertIn("An application could not be sent", titles)

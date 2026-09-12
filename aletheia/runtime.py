@@ -427,6 +427,21 @@ def surface_due_tasks(*, now: dt.datetime | None = None) -> list[dict]:
     return out
 
 
+def _submit_in_its_own_process(run_id: str, runner=None) -> dict:
+    """`apply_run submit <id>`, out of reach of this process's event loop."""
+    import subprocess
+    import sys as _sys
+    from aletheia import apply_run
+    run = runner or subprocess.run
+    done = run([_sys.executable, "-m", "aletheia.apply_run", "submit", run_id],
+               capture_output=True, text=True, timeout=900)
+    if getattr(done, "returncode", 1) != 0:
+        raise RuntimeError(
+            (getattr(done, "stderr", "") or "the submit process failed"
+             ).strip().splitlines()[-1][:200])
+    return apply_run.load_run(run_id)
+
+
 def send_approved_applications() -> list[dict]:
     """Send what he confirmed, once each.
 
@@ -451,7 +466,14 @@ def send_approved_applications() -> list[dict]:
             # the approval, which would mean the check for his approval was
             # the thing granting it.
             apply_run.accept(record["id"])
-            done = apply_run.submit(record["id"])
+            # IN ITS OWN PROCESS. This runs on the Core's beat, which is an
+            # asyncio loop, and Playwright's sync API refuses to run inside
+            # one: live 2026-09-12 every unattended send since his standing
+            # grant went live died with "Playwright Sync API inside the
+            # asyncio loop" — his grant was decorative and the failures were
+            # only visible in the records. `campaign` has spawned its own
+            # process for exactly this reason since it was written.
+            done = _submit_in_its_own_process(record["id"])
         except Exception as exc:
             notifications.publish(
                 "An application could not be sent",
