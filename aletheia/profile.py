@@ -98,9 +98,16 @@ FIELDS: dict[str, dict] = {
                                  "year graduated", "end date of education"),
                         "means": "the year he finished"},
     "education":      {"asks": ("education",), "means": "his education"},
+    # "Your authorization to work in the country where you live" (Vercel,
+    # live 2026-09-12) contains none of the older phrases as written - it
+    # says "authorization to work", not "authorized to work" - so after the
+    # guard stopped `country` claiming it, nothing matched it at all. A
+    # wrong answer became no answer, which is better and still not right.
     "work_authorization": {"asks": ("authorized to work", "work authorization",
-                                    "legally authorized", "right to work",
-                                    "eligible to work"),
+                                    "authorization to work", "authorisation to work",
+                                    "legally authorized", "legally authorised",
+                                    "right to work", "eligible to work",
+                                    "legally able to work", "work eligibility"),
                            "means": "whether he is authorized to work",
                            "sensitive": True},
     "needs_sponsorship": {"asks": ("sponsorship", "visa", "require sponsorship",
@@ -169,14 +176,19 @@ NEVER_AUTOFILL = ("gender", "race", "ethnicity", "veteran", "disability",
                   "date of birth", "birth date", "social security", "ssn",
                   "salary history", "current salary", "signature", "sign here",
                   "i certify", "i agree", "terms and conditions",
-                  # 2026-09-12, the one box he named himself: "the only thing
-                  # that I wouldn't want you to ever auto click on is
-                  # something like, hey. You'll go to jail if you use AI on
-                  # this." Samsara and Anthropic both ask it. Until now it
-                  # reached him only because she could not parse it, which is
-                  # luck rather than a rule.
-                  "ai policy", "artificial intelligence", "chatgpt",
-                  "large language model", "generative ai")
+                  )
+# An AI POLICY box is not in that list any more, and the reason is his.
+# 2026-09-12, first ruling: "the only thing that I wouldn't want you to ever
+# auto click on is something like, hey. You'll go to jail if you use AI on
+# this." Then, once he saw the boxes actually say "AI Policy for
+# Application" with Yes/No: *"if yes is an answer, just hit yes. Like, why
+# lie? Yes. We helped you, the AI, to do this."*
+#
+# Both rulings are the same rule underneath - never put a false statement on
+# a form in his name - and they point opposite ways only because the first
+# assumed the box asserts AI was NOT used. Where it does assert that,
+# `formfill._NEVER_TICK` still refuses it. Where it asks him to acknowledge
+# a policy, yes is simply true.
 
 MAX_VALUE_CHARS = 400
 

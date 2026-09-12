@@ -638,6 +638,40 @@ ESSAY_BRIEF = (
 MAX_DRAFTS_PER_JOB = 4
 
 
+def _any_model_writes(system_prompt: str, text: str, *,
+                      timeout_s: float = 120.0) -> str:
+    """Prose from whichever model can answer — subscription, then her own.
+
+    A DRAFT THAT FAILS IS NOT A QUESTION FOR HIM. Live 2026-09-12 Claude was
+    out of session, `subscription_text` raised, `draft_essays` swallowed it
+    and returned {}, and "Why do you want to join Figma?" and "Why
+    Anthropic?" arrived on his screen as things only he could answer. That
+    is the exact opposite of his ruling: *"I don't need to give the go ahead
+    to draft a why you want to join ... every company's gonna probably have
+    something like that. I would ask AI to write that anyway. So just have
+    AI write it off the bat. It does not need to check-in with me."*
+
+    So it walks the same ladder the rest of her walks, her own model
+    included — the rung that never runs out. Only when nothing at all can
+    think does the question go back to him, and then it is because there
+    was no model on the machine, not because one of them was busy.
+    """
+    from aletheia import reasoner
+    # `draft_essays` passes timeout_s, and a helper that does not accept it
+    # raises TypeError into a bare `except: continue` — which is how every
+    # essay silently became a question for him on 2026-09-12. The signature
+    # is part of the contract, not decoration.
+    try:
+        said, _provider = reasoner.subscription_text(system_prompt, text,
+                                                     timeout_s=timeout_s)
+        if said.strip():
+            return said
+    except Exception:
+        pass
+    said, _provider = reasoner.local_text(system_prompt, text, timeout_s=timeout_s)
+    return said
+
+
 def draft_essays(record: dict, resume_text: str, *, think=None) -> dict:
     """Write the long-answer questions instead of handing them back.
 
@@ -652,8 +686,7 @@ def draft_essays(record: dict, resume_text: str, *, think=None) -> dict:
     """
     if think is False:
         return {}
-    from aletheia import reasoner
-    think = think or reasoner.subscription_text
+    think = think or _any_model_writes
     drafted = {}
     for question in record.get("questions") or []:
         if len(drafted) >= MAX_DRAFTS_PER_JOB:

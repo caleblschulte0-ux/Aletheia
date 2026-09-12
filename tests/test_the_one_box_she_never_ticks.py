@@ -67,16 +67,26 @@ class RoutinePaperworkCase(unittest.TestCase):
                     formfill.routine_consent(label, choices or [label]),
                     "this is paperwork, and it was blocking real applications")
 
-    def test_the_ai_declaration_is_never_ticked(self):
-        """The one he named. Both Samsara and Anthropic ask it."""
-        for label in ("AI Policy for Application*",
-                      "AI Policy for Interviewers*",
-                      "I certify that I did not use AI tools to complete this "
+    def test_an_ai_policy_he_acknowledges_is_answered_yes(self):
+        """His second ruling, once he saw what the boxes actually say:
+        *"if yes is an answer, just hit yes. Like, why lie? Yes. We helped
+        you, the AI, to do this."* An application written with AI, disclosed
+        as written with AI, is true — and refusing to answer is the
+        dishonest option, not the careful one."""
+        for label in ("AI Policy for Application*", "AI Policy for Interviewers*",
+                      "Do you agree to our AI policy?"):
+            with self.subTest(label=label[:44]):
+                self.assertEqual(formfill.routine_consent(label, ["Yes", "No"]), "Yes")
+
+    def test_a_claim_that_he_did_not_use_ai_is_still_refused(self):
+        """The same rule underneath both of his rulings: never a false
+        statement on a form in his name."""
+        for label in ("I certify that I did not use AI tools to complete this "
                       "application.",
                       "I confirm this application was completed without "
                       "artificial intelligence assistance.",
-                      "I agree not to use ChatGPT or any large language model "
-                      "during the interview process."):
+                      "AI was not used in preparing this application.",
+                      "I have not used ChatGPT or any large language model here."):
             with self.subTest(label=label[:44]):
                 self.assertIsNone(formfill.routine_consent(label, ["Yes", "No"]))
                 self.assertIsNone(formfill.routine_consent(label, ["I agree"]))
@@ -111,15 +121,18 @@ class RoutinePaperworkCase(unittest.TestCase):
             "accurate and truthful.", ["Yes", "No"])
         self.assertEqual(chosen, "Yes")
 
-    def test_the_plan_ticks_paperwork_and_still_asks_about_ai(self):
+    def test_the_plan_ticks_paperwork_and_the_ai_policy_too(self):
         form = [_box("Processing of Personal Data*", ["Acknowledge/Confirm"],
                      selector="#data"),
-                _box("AI Policy for Application*", ["Yes", "No"], selector="#ai")]
+                _box("AI Policy for Application*", ["Yes", "No"], selector="#ai"),
+                _box("I certify that I did not use AI to complete this application.",
+                     ["Yes", "No"], selector="#noai")]
         out = formfill.plan(form, answers={})
         filled = {step["selector"] for step in out["fill"]}
         asked = {row["selector"] for row in out["ask"]}
         self.assertIn("#data", filled)
-        self.assertIn("#ai", asked, "the AI declaration is always his")
+        self.assertIn("#ai", filled, "acknowledging a policy is answerable")
+        self.assertIn("#noai", asked, "claiming he did not use AI is always his")
 
 
 if __name__ == "__main__":

@@ -598,7 +598,7 @@ def code_in(text: str) -> str:
     return ""
 
 
-def _emailed_code(employer: str = "", reader=None) -> str:
+def _emailed_code(employer: str = "", reader=None, since: float = 0.0) -> str:
     """The code the site just emailed, out of the inbox SHE can read.
 
     His ruling, 2026-09-12: *"If we have an option to fill an email, we just
@@ -643,6 +643,20 @@ def _emailed_code(employer: str = "", reader=None) -> str:
         # because each had exactly one unread code, where oldest and newest
         # are the same message.
         mine.sort(key=_when, reverse=True)
+        # AND NEWER THAN THE CLICK THAT ASKED FOR IT. Proved from his own
+        # inbox, 2026-09-12: Reddit pressed submit at 16:26:52 and its code
+        # arrived at 16:27:11 - NINETEEN SECONDS LATER. The lookup ran in
+        # between and took the newest code that existed then, which was the
+        # previous attempt's, from 16:07. Databricks was the same twice over.
+        # Stripe, GitLab and Scale AI only worked because they had no earlier
+        # code to be stale - so sorting was necessary and never sufficient,
+        # and every test passed because no fixture had a prior code in it.
+        #
+        # A code older than the click is not this page's code. Wait for one
+        # that is, rather than typing a stale one and reading "Incorrect
+        # security code" off the form.
+        if since:
+            mine = [m for m in mine if _when(m) >= since - 5.0]
         for message in mine:
             try:
                 body = mail.SmtpImapTransport().fetch_body(
@@ -703,6 +717,10 @@ def _refill_and_submit(record: dict) -> dict:
                 "she could not find the button that submits this form — "
                 "nothing was pressed. It may be a multi-step application, "
                 "which she does not drive yet.")
+        # The instant the button is pressed: any verification code this page
+        # wants is emailed AFTER this, and anything older belongs to an
+        # earlier attempt.
+        asked_at = time.time()
         page.click(button)
         page.wait_for_load_state("domcontentloaded")
         try:
@@ -730,7 +748,7 @@ def _refill_and_submit(record: dict) -> dict:
             # it "Security code for your application to Databricks", and
             # typing Databricks' code into Reddit's form fails in a way that
             # looks exactly like a wrong code.
-            code = _emailed_code(record.get("company") or "")
+            code = _emailed_code(record.get("company") or "", since=asked_at)
             if not code:
                 # Never a silent success. He is told the application is
                 # sitting one code away rather than being counted as sent.
