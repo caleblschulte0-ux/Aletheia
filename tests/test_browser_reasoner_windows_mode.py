@@ -99,9 +99,17 @@ class EveryAlwaysOnEntryPointDropsTheLease(unittest.TestCase):
     def test_the_registry_still_names_the_entry_points_we_think_it_does(self):
         self.assertEqual(
             self.always_on_modules(),
-            ["aletheia.core", "aletheia.project_loop", "aletheia.supervisor",
-             "aletheia.voice_room"],
+            ["aletheia.apply_forever", "aletheia.core", "aletheia.project_loop",
+             "aletheia.supervisor", "aletheia.voice_room"],
             "an always-on entry point was added or renamed — check it drops the lease")
+
+    # aletheia.apply_forever joined this list on 2026-09-12, when he went AFK
+    # and said "make sure it dont stop looking and applying end to end until i
+    # say stop". It is a Windows task like the others, so Task Scheduler hands
+    # it the user's environment and it must scrub the lease itself — the same
+    # day a readiness check that skipped that was putting ChatGPT windows over
+    # his work every two minutes. This test fired the moment the task was
+    # added, which is exactly what it is for.
 
     def test_each_always_on_main_drops_the_lease_before_doing_anything(self):
         import importlib

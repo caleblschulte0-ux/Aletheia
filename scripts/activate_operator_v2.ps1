@@ -122,7 +122,7 @@ $script:pyFlags = @($python.Flags)
 # unless the operator explicitly asks. state/private/ is gitignored and is
 # never touched by any of this - grants, keys and secrets survive a reset.
 function Stop-AletheiaTasks {
-  foreach ($name in @("Aletheia", "AletheiaVoice", "AletheiaProjects")) {
+  foreach ($name in @("Aletheia", "AletheiaVoice", "AletheiaProjects", "AletheiaApply")) {
     Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue |
       Stop-ScheduledTask -ErrorAction SilentlyContinue
   }
