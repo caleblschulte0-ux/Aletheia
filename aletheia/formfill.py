@@ -763,8 +763,16 @@ def plan(fields: list[dict], *, answers: dict | None = None) -> dict:
         # fixed the same day: an order he gave has to beat a default.
         consent = (None if field["selector"] in answers
                    else routine_consent(label, list(field.get("choices") or []) or [label]))
-        if consent is not None and field.get("type") in ("checkbox", "radio"):
-            fill.append({"action": "click", "selector": field["selector"],
+        if consent is not None:
+            # Live 2026-09-12: Brex, Datadog, Vercel, Samsara and Asana all
+            # came back blocked on consents this rule ANSWERS correctly -
+            # because Greenhouse renders them as `type=text` pickers with an
+            # options list, not as checkboxes, and this hook only clicked
+            # checkboxes. The predicate was right and the hand was in the
+            # wrong shape.
+            action = ("click" if field.get("type") in ("checkbox", "radio")
+                      else "select" if field.get("tag") == "select" else "type")
+            fill.append({"action": action, "selector": field["selector"],
                          "label": label, "value": consent,
                          "profile_field": "routine_consent"})
             continue
