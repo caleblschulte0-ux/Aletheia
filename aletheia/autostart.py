@@ -66,6 +66,16 @@ TASKS: dict[str, TaskSpec] = {
     "voice": TaskSpec(
         key="voice", name="AletheiaVoice", module="aletheia.voice_room",
         description="Aletheia room voice - local wake word listener."),
+    # 2026-09-12, going AFK: "make sure it dont stop looking and applying end
+    # to end until i say stop." Sending already never stopped - the Core's
+    # beat sends anything approved, and his standing grant approves it. This
+    # is the other half: something that keeps LOOKING after a campaign ends.
+    # It belongs here rather than in a script because a loop started from a
+    # terminal dies with that terminal, and the first attempt at this did.
+    "apply": TaskSpec(
+        key="apply", name="AletheiaApply", module="aletheia.apply_forever",
+        description="Aletheia job hunt - keeps finding and filling "
+                    "applications until he says stop."),
 }
 
 
