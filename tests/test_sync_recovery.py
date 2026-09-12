@@ -101,7 +101,16 @@ class RecoveryScriptContractCase(unittest.TestCase):
         self.assertNotIn("reset --hard", lower)
         self.assertNotIn("checkout -f", lower)
         self.assertIn('merge", "--abort', script)
-        self.assertIn('@("rebase", "--autostash", "origin/main")', script)
+        # The RULE is an autostashing rebase onto the reviewed upstream, and
+        # this line used to freeze the literal `origin/main`. The Core moved
+        # to `live` on 2026-09-08; the script did not, and on 2026-09-11 his
+        # own "start her up" command stopped Aletheia and threw
+        # "checkout is on 'live', not main" - leaving her dead. The branch it
+        # is ON is the branch it rebases onto, so the target is now a
+        # variable, and a hardcoded one is what this test forbids.
+        self.assertIn('@("rebase", "--autostash", "origin/$branch")', script)
+        self.assertNotIn('origin/main', script)
+        self.assertIn('$deployBranch = "live"', script)
         self.assertIn('config", "pull.rebase", "true', script)
         self.assertIn("Foreign-Working-Paths", script)
         self.assertIn('"AletheiaProjects"', script)

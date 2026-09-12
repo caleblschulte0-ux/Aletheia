@@ -31,15 +31,26 @@ class FakeSession:
 
 
 class ChatGPTSessionCase(unittest.TestCase):
+    """`--open` is the flow he runs himself to prove the sign-in.
+
+    It really loads ChatGPT and really looks for the prompt box, which is
+    the only way to know the profile is signed in. What changed on
+    2026-09-12 is that this is no longer what a PROBE does: the Command
+    Center polls /api/setup every two minutes, that called status(), and
+    a headed ChatGPT window kept appearing over his work. The default
+    check now opens nothing; this door stays, and obeys the lease.
+    """
+
     def test_status_is_read_only_and_accepts_prompt_box(self):
         page = FakePage()
         profile_type = type(chatgpt_session.browse.PROFILE_DIR)
         with mock.patch.object(chatgpt_session.browse, "available", return_value=(True, "ready")), \
              mock.patch.object(profile_type, "exists", return_value=True), \
+             mock.patch.object(chatgpt_session.browser_reasoner, "available", return_value=(True, "leased")), \
              mock.patch.object(chatgpt_session.browse, "_Session", return_value=FakeSession(page)), \
              mock.patch.object(chatgpt_session.browser_reasoner, "_host_ok", return_value=True), \
              mock.patch.object(chatgpt_session.browser_reasoner, "_editor", return_value=FakeEditor()) as editor:
-            result = chatgpt_session.status()
+            result = chatgpt_session.status(open_a_window=True)
         self.assertTrue(result["ready"])
         editor.assert_called_once_with(page)
         self.assertTrue(page.closed)
@@ -49,9 +60,10 @@ class ChatGPTSessionCase(unittest.TestCase):
         profile_type = type(chatgpt_session.browse.PROFILE_DIR)
         with mock.patch.object(chatgpt_session.browse, "available", return_value=(True, "ready")), \
              mock.patch.object(profile_type, "exists", return_value=True), \
+             mock.patch.object(chatgpt_session.browser_reasoner, "available", return_value=(True, "leased")), \
              mock.patch.object(chatgpt_session.browse, "_Session", return_value=FakeSession(page)), \
              mock.patch.object(chatgpt_session.browser_reasoner, "_host_ok", return_value=False):
-            result = chatgpt_session.status()
+            result = chatgpt_session.status(open_a_window=True)
         self.assertFalse(result["ready"])
 
 

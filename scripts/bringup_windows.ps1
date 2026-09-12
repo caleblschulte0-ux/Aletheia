@@ -63,6 +63,31 @@ Write-Host "`n  ALETHEIA — SAFE WINDOWS BRING-UP" -ForegroundColor Cyan
 
 # Containment first. A stale watchdog must not resurrect old code while the repo
 # and dependencies are being repaired. Missing tasks are fine on a first install.
+function Restore-AletheiaCore {
+  # This script KILLS the running Core for containment. Every throw between
+  # that kill and "Core: UP" used to end with her simply dead - which is what
+  # happened on 2026-09-11: the update step threw on a branch check and the
+  # operator's own "start her up" command left him with nothing running.
+  # Only the Core comes back; the microphone stays a button he presses.
+  if ((Get-ScheduledTask -TaskName "Aletheia" -ErrorAction SilentlyContinue) -and
+      (Get-ScheduledTask -TaskName "Aletheia").State -ne "Disabled") {
+    Start-ScheduledTask -TaskName "Aletheia" -ErrorAction SilentlyContinue
+  }
+  if (Wait-ForCore 5) { return $true }
+  $pythonw = $null
+  if ($script:PyExe) { $pythonw = $script:PyExe -replace 'python\.exe$','pythonw.exe' }
+  if (-not $pythonw -or -not (Test-Path $pythonw)) {
+    $pythonw = (Get-Command pythonw.exe -ErrorAction SilentlyContinue).Source
+  }
+  if ($pythonw -and (Test-Path $dest)) {
+    Write-Host "  Bringing the Core back after a failed bring-up ..." -ForegroundColor Yellow
+    Start-Process -FilePath $pythonw -ArgumentList '-m','aletheia.supervisor' `
+                  -WorkingDirectory $dest -WindowStyle Hidden
+    return (Wait-ForCore 20)
+  }
+  return $false
+}
+
 foreach ($name in @("AletheiaVoice", "Aletheia")) {
   Stop-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
   Disable-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
@@ -72,6 +97,8 @@ Get-CimInstance Win32_Process | Where-Object {
 } | ForEach-Object {
   Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
 }
+
+try {
 
 if (-not (Have git)) {
   if (-not (Have winget)) {
@@ -177,6 +204,18 @@ Invoke-AletheiaPython -PyArgs @("-m","aletheia.local_ai","status")
 & $script:PyExe @script:PyFlags -c "from aletheia import policy; h=policy.halted(); print('policy: HALTED - ' + h.get('reason','') if h else 'policy: running'); raise SystemExit(2 if h else 0)"
 if ($LASTEXITCODE -ne 0) {
   throw "Aletheia is healthy but the repo kill switch is still ON. The installer will not override it."
+}
+
+} catch {
+  # She was killed at the top of this script. Whatever went wrong, he gets
+  # his Aletheia back before he gets the error.
+  $failure = $_
+  if (Restore-AletheiaCore) {
+    Write-Host "  Bring-up failed, but the Core is back up on http://127.0.0.1:8777/" -ForegroundColor Yellow
+  } else {
+    Write-Warning "Bring-up failed AND the Core is down. Start her with: pythonw -m aletheia.supervisor"
+  }
+  throw $failure
 }
 
 Write-Host "`n  ALETHEIA IS UP." -ForegroundColor Green

@@ -486,28 +486,55 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
 
     # 2. What it is for, and REAL openings for that.
     roles = [role] if role else roles_for(text, think=json_think)
+    ignored_role = ""
     want = count * TRIES_PER_READY
     if finder is None:
         # Ask for more than it will try: PER_COMPANY skips the rest of an
         # employer that crowds the top, and live 2026-09-10 eight matches that
         # were all Stripe left three tries and no other employer at all.
         known = profile.known()
-        hits = (searcher or jobs.search_many)(
-            roles, where=where, limit=want * PER_COMPANY, discover=True,
-            # Only where he can work without sponsorship, and at his level.
-            country=str(known.get("country") or ""),
-            exclude=_seniority_to_leave_out(known))
-        pages = [{"url": j["apply_url"], "title": f"{j['title']} — {j['company']}",
-                  "posting": j.get("posting_url") or j["apply_url"],
-                  "company": j.get("company", ""),
-                  # Where she found it is a FACT, and "how did you hear about
-                  # this job" asks exactly that. It blocked most forms live.
-                  "found_on": ("a web search" if j.get("found_by")
-                               else "the company's own careers page"),
-                  "direct": True} for j in hits["matches"]]
+
+        def _openings(for_roles: list[str]) -> tuple[dict, list[dict]]:
+            found = (searcher or jobs.search_many)(
+                for_roles, where=where, limit=want * PER_COMPANY, discover=True,
+                # Only where he can work without sponsorship, and at his level.
+                country=str(known.get("country") or ""),
+                exclude=_seniority_to_leave_out(known))
+            return found, [{"url": j["apply_url"], "title": f"{j['title']} — {j['company']}",
+                            "posting": j.get("posting_url") or j["apply_url"],
+                            "company": j.get("company", ""),
+                            # Where she found it is a FACT, and "how did you hear
+                            # about this job" asks exactly that. It blocked most
+                            # forms live.
+                            "found_on": ("a web search" if j.get("found_by")
+                                         else "the company's own careers page"),
+                            "direct": True} for j in found["matches"]]
+
+        hits, pages = _openings(roles)
+        if not pages and role:
+            # A role he SAID is a FILTER, never a requirement. Live 2026-09-11
+            # "apply to a real job" reached her as the role "A1 real", so she
+            # searched 44 boards for a job title that does not exist and came
+            # back with nothing - and his evening was over. His words:
+            # "simple typos and mistakes like that cannot affect ... this not
+            # always gonna be perfect."
+            #
+            # So a role that matches nothing falls back to what the RESUME is
+            # for, exactly as if he had named no role at all. It is not a guess
+            # about what he meant - she never invents a job title - and she
+            # says what she did, because quietly applying to jobs he did not
+            # ask for is the one thing worse than finding none.
+            try:
+                fallback = roles_for(text, think=json_think)
+            except CampaignError:
+                fallback = []
+            if fallback and [r.casefold() for r in fallback] != [r.casefold() for r in roles]:
+                ignored_role, roles = role, fallback
+                hits, pages = _openings(roles)
         if not pages:
+            tried = f"{ignored_role!r} or " if ignored_role else ""
             raise CampaignError(
-                f"no openings matched {', '.join(roles)} across "
+                f"no openings matched {tried}{', '.join(roles)} across "
                 f"{hits.get('searched', 0)} boards or a web search.")
     else:
         reader = reader or applications.research.read_sources
@@ -578,6 +605,7 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
                    "nothing submitted", actor=ACTOR)
     return {"role": role, "roles": roles, "resume": resume_path, "learned": sorted(learned),
             "ready": staged, "blocked": needs_you, "failed": failed,
+            "ignored_role": ignored_role,
             "questions": open_questions(), "submitted": 0}
 
 
@@ -883,9 +911,17 @@ def spoken(out: dict) -> str:
     if failed:
         said.append(f"{failed} I could not reach a form on")
     used = f" I used {_resume_said(out['resume'])}." if out.get("resume") else ""
+    # She never widens a search in silence. If what she heard matched nothing
+    # and she went by the resume instead, that is the first thing she says -
+    # he can tell her the real job title in one sentence.
+    instead = ""
+    if out.get("ignored_role"):
+        instead = (f" Nothing matched \"{out['ignored_role']}\", so I went by your "
+                   f"resume and looked for {speech.and_list(out.get('roles') or [])}. "
+                   "Tell me the job title if that is not what you meant.")
     if not said:
-        return "Nothing to apply to — no openings had a form she could read." + used
-    return ". ".join(said) + ". Nothing has been sent." + used
+        return "Nothing to apply to — no openings had a form she could read." + used + instead
+    return ". ".join(said) + ". Nothing has been sent." + used + instead
 
 
 def main(argv: list[str] | None = None) -> int:

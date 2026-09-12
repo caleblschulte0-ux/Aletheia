@@ -51,6 +51,29 @@ LONG_ANSWER_TYPES = ("textarea",)
 SKIP_TYPES = ("file", "password", "hidden", "submit", "button", "image",
               "reset")
 
+# The furniture of a widget is not a question. Live 2026-09-11, four real
+# applications (Stripe, Databricks, Brex, Samsara) each came back asking him
+# "List of countries" - every country on earth with its dial code, offered as
+# a multiple-choice question - and "Search". Both are the inside of the PHONE
+# NUMBER country picker (intl-tel-input, `iti-0__*`), which opens because she
+# fills the phone field. The reCAPTCHA's hidden answer box arrived the same
+# way. None was required by any employer; all three were handed to him as
+# things only he could answer.
+#
+# Matched on the SELECTOR, never the label: "Search" and "List of countries"
+# are plausible words for a real question, and an employer who genuinely asks
+# "which countries can you work in?" must still reach him.
+WIDGET_SELECTORS = ("#iti-", "#g-recaptcha-response", "#recaptcha")
+
+
+def is_widget_furniture(field: dict) -> bool:
+    """The inside of a picker or a captcha, not something he was asked."""
+    selector = str(field.get("selector") or "").casefold()
+    if any(selector.startswith(prefix) for prefix in WIDGET_SELECTORS):
+        return True
+    name = str(field.get("name") or field.get("id") or "").casefold()
+    return name.startswith("g-recaptcha-response")
+
 # The JS that runs in the page. Reading a form means reading what a PERSON
 # sees, so the label matters more than the name attribute: `q_31415926` is
 # what Workday calls "Are you legally authorized to work?".
@@ -406,6 +429,12 @@ def plan(fields: list[dict], *, answers: dict | None = None) -> dict:
     fields, choices = _group_choices(list(fields)[:MAX_FIELDS])
     fill, ask, skipped = [], [], []
     for group in choices:
+        if is_widget_furniture(group):
+            # The phone picker's country list. Not a question anybody asked.
+            skipped.append({"selector": group["selector"], "label": group["label"],
+                            "required": group["required"], "type": group["type"],
+                            "why": "part of a picker on the page, not a question"})
+            continue
         # A SINGLE-answer question she already has on file is answered, not
         # asked. "Are you legally authorized to work in the US?" is a pair
         # of divs on a modern form and a pair of radios on an old one, and
@@ -447,6 +476,10 @@ def plan(fields: list[dict], *, answers: dict | None = None) -> dict:
             row["why"] = ("a file upload is yours to choose"
                           if field.get("type") == "file"
                           else f"she does not type into a {field.get('type')} field")
+            skipped.append(row)
+            continue
+        if is_widget_furniture(field):
+            row["why"] = "part of a picker on the page, not a question"
             skipped.append(row)
             continue
         if is_never_autofill(field):

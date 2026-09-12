@@ -9,6 +9,53 @@ $dest = Join-Path $HOME "Aletheia"
 $taskNames = @("Aletheia", "AletheiaVoice", "AletheiaProjects")
 $ownedPrefixes = @("state/", "exchange/commands/", "exchange/receipts/", "cache/")
 $legacyJournal = "state/journal/journal.jsonl"
+# The branch the Core is deployed on and reads its state from. It moved from
+# main to live on 2026-09-08 and this script did not move with it, so on
+# 2026-09-11 the operator's own "start her up" command stopped Aletheia, threw
+# "checkout is on 'live', not main", and left her dead. Kept in step with
+# DEPLOY_BRANCH in tests/test_ci_writes_where_she_reads.py.
+$deployBranch = "live"
+# Everything this script stopped comes back EXCEPT the microphone, which is
+# a button he presses and never a thing a repair script switches on (his
+# ruling, 2026-09-07). $coreTask is the one whose door can also be opened
+# directly, because it is the one he notices missing.
+$coreTask = "Aletheia"
+$restartTasks = @("Aletheia", "AletheiaProjects")
+
+function Resume-AletheiaCore {
+  # A repair that leaves her dead is worse than the fault it repaired. The
+  # scheduled task is the normal door, and it is a NO-OP when the task is
+  # disabled or missing - which is exactly the state bringup_windows.ps1
+  # puts it in before calling this script. So prove she answers, and launch
+  # the supervisor the way the task would when she does not.
+  foreach ($name in $restartTasks) {
+    $task = Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
+    if ($task -and $task.State -ne "Disabled") {
+      Start-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
+    }
+  }
+  for ($i = 0; $i -lt 20; $i++) {
+    try {
+      if ((Invoke-WebRequest -UseBasicParsing -TimeoutSec 1 `
+            "http://127.0.0.1:8777/api/status").StatusCode -eq 200) { return $true }
+    } catch {}
+    if ($i -eq 4) {
+      $pythonw = (Get-Command pythonw.exe -ErrorAction SilentlyContinue).Source
+      if (-not $pythonw) {
+        $guess = Join-Path $env:LOCALAPPDATA "Programs\Python\Python312\pythonw.exe"
+        if (Test-Path $guess) { $pythonw = $guess }
+      }
+      if ($pythonw) {
+        Write-Host "  Bringing the Core back directly ..." -ForegroundColor Yellow
+        Start-Process -FilePath $pythonw -ArgumentList '-m','aletheia.supervisor' `
+                      -WorkingDirectory $dest -WindowStyle Hidden
+      }
+    }
+    Start-Sleep -Seconds 1
+  }
+  Write-Warning "Aletheia is NOT answering on 127.0.0.1:8777. Start her with: pythonw -m aletheia.supervisor"
+  return $false
+}
 
 function Invoke-GitCapture {
   param([Parameter(Mandatory=$true)][string[]]$GitArgs)
@@ -155,8 +202,11 @@ try {
 
   $branchResult = Invoke-GitCapture -GitArgs @("rev-parse", "--abbrev-ref", "HEAD")
   $branch = $branchResult.Text.Trim()
-  if ($branchResult.Code -ne 0 -or $branch -ne "main") {
-    throw "Aletheia checkout is on '$branch', not main. Refusing to rewrite another branch."
+  # The deploy branch first, main second: a checkout on either is a checkout
+  # this script owns. Anything else (a claude/* working branch) is somebody's
+  # work and is still refused.
+  if ($branchResult.Code -ne 0 -or $branch -notin @($deployBranch, "main")) {
+    throw "Aletheia checkout is on '$branch', not '$deployBranch' or main. Refusing to rewrite another branch."
   }
 
   $foreign = @(Foreign-Working-Paths)
@@ -170,29 +220,32 @@ try {
   $null = Invoke-Git -GitArgs @("config", "pull.rebase", "true")
   $null = Invoke-Git -GitArgs @("config", "rebase.autoStash", "true")
 
-  Write-Host "  Fetching reviewed main and rebasing local Aletheia state ..." -ForegroundColor Yellow
-  $null = Invoke-Git -GitArgs @("fetch", "origin", "main") -ShowOutput
-  $rebase = Invoke-GitCapture -GitArgs @("rebase", "--autostash", "origin/main")
+  # The branch it is ON is the branch it is brought up to date with. Fetching
+  # main onto a live checkout is how the 2026-09-08 stale-state defect happened
+  # one layer up, in the workflows.
+  Write-Host "  Fetching reviewed '$branch' and rebasing local Aletheia state ..." -ForegroundColor Yellow
+  $null = Invoke-Git -GitArgs @("fetch", "origin", $branch) -ShowOutput
+  $rebase = Invoke-GitCapture -GitArgs @("rebase", "--autostash", "origin/$branch")
   if ($rebase.Code -ne 0 -and -not (Resolve-Legacy-Journal-Rebase)) {
     $null = Invoke-GitCapture -GitArgs @("rebase", "--abort")
     throw "Rebase conflicted and was aborted. No local commit was deleted."
   }
 
   $ancestor = Invoke-GitCapture -GitArgs @(
-    "merge-base", "--is-ancestor", "origin/main", "HEAD"
+    "merge-base", "--is-ancestor", "origin/$branch", "HEAD"
   )
   if ($ancestor.Code -ne 0) {
-    throw "Recovery finished Git operations but current HEAD does not contain origin/main."
+    throw "Recovery finished Git operations but current HEAD does not contain origin/$branch."
   }
 
-  Write-Host "  Checkout recovered and current main is present." -ForegroundColor Green
+  Write-Host "  Checkout recovered and current '$branch' is present." -ForegroundColor Green
 } finally {
+  # Never leave on a throw. The old version called Start-ScheduledTask on
+  # tasks the caller had just DISABLED, so the net caught nothing and she
+  # stayed down; and it started the voice task, which his ruling says is a
+  # button he presses.
   if ($env:ALETHEIA_RECOVERY_KEEP_STOPPED -ne "1") {
-    foreach ($name in $taskNames) {
-      if (Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue) {
-        Start-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
-      }
-    }
+    $null = Resume-AletheiaCore
   }
 }
 
