@@ -298,10 +298,14 @@ class AFieldSheDoesNotKnowIsAQuestion(ProfileCase):
             self.assertEqual([s["profile_field"] for s in out["fill"]],
                              ["routine_consent"], label)
 
-    def test_the_ai_declaration_is_the_one_he_kept(self):
-        """*"You'll go to jail if you use AI on this ... that's the only
-        thing that you should never auto click on."*"""
-        out = formfill.plan([field("#ai", "AI Policy for Application*",
+    def test_a_claim_that_he_did_not_use_ai_is_the_one_he_kept(self):
+        """His rule is about TRUTH, not about the letters A and I. An AI
+        policy he acknowledges is answered yes ("why lie? We helped you,
+        the AI, to do this"); a box asserting he did not use AI is a false
+        statement and stays his forever."""
+        out = formfill.plan([field("#noai",
+                                   "I certify that I did not use AI to complete "
+                                   "this application.",
                                    type="checkbox", required=True)])
         self.assertEqual(out["fill"], [])
         self.assertIn("yours to answer, always", out["ask"][0]["why"])

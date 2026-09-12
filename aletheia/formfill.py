@@ -211,6 +211,11 @@ def _says(phrase: str, text: str) -> bool:
 # "require/need sponsorship", "require a visa", "need us to sponsor you" -
 # the question about NEEDING it, however much authorization vocabulary the
 # rest of the sentence carries.
+# A question about being ALLOWED to work, however much geography it names.
+_AUTHORIZED_TO_WORK = re.compile(
+    r"\bauthoriz\w*\s+to\s+work\b|\bwork\s+authoriz\w*\b|\blegally\s+(?:able|allowed)"
+    r"\s+to\s+work\b|\bright\s+to\s+work\b|\beligib\w*\s+to\s+work\b", re.I)
+
 _WANTS_SPONSORSHIP = re.compile(
     r"\b(?:require|requires|requiring|need|needs|needing|seek|seeking|request"
     r"|requesting)\b[^.?]{0,60}?\b(?:sponsorship|sponsor|visa|work permit)\b"
@@ -260,6 +265,15 @@ def match_field(field: dict) -> str | None:
         # Asking whether he NEEDS something settles it, whatever other words
         # the sentence contains.
         if key == "work_authorization" and _WANTS_SPONSORSHIP.search(label):
+            continue
+        # "Your authorization to work in the country where you live" is a
+        # question about AUTHORIZATION that happens to contain the word
+        # country - and longest-phrase-wins handed it to `country`, so
+        # Vercel would have been told "United States" when it asked whether
+        # he may legally work. The same shape as the sponsorship bug: the
+        # right words, the wrong fact. His note, 2026-09-12: "The Versa one,
+        # that sounds like an issue that you need to fix."
+        if key in ("country", "city", "state") and _AUTHORIZED_TO_WORK.search(label):
             continue
         for phrase in spec["asks"]:
             if len(phrase) <= best_len:
@@ -556,11 +570,25 @@ def declared_choice(label: str, choices: list[str], *, stored: dict | None = Non
 # offered to the thing writing it - and a false one is his problem, not
 # hers, for as long as he works there.
 _NEVER_TICK = re.compile(
-    r"\b(?:a\.?i\.?|artificial intelligence|chatgpt|llm|large language model|"
-    r"generative|automated tool|bot)\b"
+    # A declaration that AI was NOT used. He is applying through an AI, so
+    # this one is a lie whichever way it is worded, and it is the only AI
+    # box still refused. His ruling, 2026-09-12: "if yes is an answer, just
+    # hit yes. Like, why lie? Yes. We helped you, the AI, to do this."
+    r"\b(?:did not|have not|didn'?t|haven'?t|without|no)\b[^.?]{0,40}"
+    r"\b(?:a\.?i\.?|artificial intelligence|chatgpt|llm|large language model"
+    r"|generative|automated tool)\b"
+    r"|\b(?:a\.?i\.?|artificial intelligence|chatgpt|llm)\b[^.?]{0,30}"
+    r"\b(?:was not|were not|not used|prohibited|not permitted)\b"
     r"|penalty of perjury|under oath|sworn|prosecut|criminal|fraud"
-    r"|background check|credit check|drug (?:test|screen)"
-    r"|i (?:did not|have not) use", re.I)
+    r"|background check|credit check|drug (?:test|screen)", re.I)
+
+# An AI policy he ACKNOWLEDGES or discloses under is routine paperwork like
+# any other: "AI Policy for Application", "AI Policy for Interviewers", "Do
+# you agree to our AI policy". Answered Yes, because yes is true - the
+# application really was written with AI, and he would rather say so.
+_AI_POLICY = re.compile(
+    r"\b(?:a\.?i\.?|artificial intelligence)\b[^.?]{0,40}\bpolic",
+    re.I)
 
 # What a routine box actually is: permission to consider his application,
 # an acknowledgement that he read something, or a statement that what he
@@ -608,7 +636,9 @@ def routine_consent(label: str, options: list[str]) -> str | None:
     from here.
     """
     text = str(label or "")
-    if _NEVER_TICK.search(text) or not _ROUTINE_CONSENT.search(text):
+    if _NEVER_TICK.search(text):
+        return None
+    if not (_ROUTINE_CONSENT.search(text) or _AI_POLICY.search(text)):
         return None
     real = [str(c) for c in (options or []) if str(c).strip()]
     if not real:
