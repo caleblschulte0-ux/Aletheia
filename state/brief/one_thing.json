@@ -1,9 +1,8 @@
 {
-  "kind": "step",
-  "slug": "holdco-platform",
-  "title": "Holdco platform",
-  "n": 1,
-  "step": "Pick the one offer to test first and write it as one sentence in docs/NEXT_OFFER.md on the holdco branch (or tell any Claude session to)",
-  "text": "Holdco platform: Pick the one offer to test first and write it as one sentence in docs/NEXT_OFFER.md on the holdco branch (or tell any Claude session to). Reply done when it is.",
-  "day": "2026-09-11"
+  "kind": "merge",
+  "slug": "schwab-trader",
+  "title": "Schwab trader",
+  "pr": 16,
+  "text": "Schwab trader: review and merge pull request #16, watchdog: name which of the two likely causes a stall is (https://github.com/caleblschulte0-ux/schwab-trader/pull/16)",
+  "day": "2026-09-12"
 }
