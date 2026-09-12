@@ -6,7 +6,7 @@
 
 $ErrorActionPreference = "Stop"
 $dest = Join-Path $HOME "Aletheia"
-$taskNames = @("Aletheia", "AletheiaVoice", "AletheiaProjects")
+$taskNames = @("Aletheia", "AletheiaVoice", "AletheiaProjects", "AletheiaApply")
 $ownedPrefixes = @("state/", "exchange/commands/", "exchange/receipts/", "cache/")
 $legacyJournal = "state/journal/journal.jsonl"
 # The branch the Core is deployed on and reads its state from. It moved from
@@ -20,7 +20,7 @@ $deployBranch = "live"
 # ruling, 2026-09-07). $coreTask is the one whose door can also be opened
 # directly, because it is the one he notices missing.
 $coreTask = "Aletheia"
-$restartTasks = @("Aletheia", "AletheiaProjects")
+$restartTasks = @("Aletheia", "AletheiaProjects", "AletheiaApply")
 
 function Resume-AletheiaCore {
   # A repair that leaves her dead is worse than the fault it repaired. The

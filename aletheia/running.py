@@ -43,7 +43,7 @@ PARTS = (
 )
 
 # The Windows scheduled tasks that start them at logon.
-TASKS = ("Aletheia", "AletheiaVoice", "AletheiaProjects")
+TASKS = ("Aletheia", "AletheiaVoice", "AletheiaProjects", "AletheiaApply")
 
 # `ConvertTo-Json` serialises the TaskState enum as its NUMBER, so the
 # status read "AletheiaVoice 3" — which is precisely the kind of thing
