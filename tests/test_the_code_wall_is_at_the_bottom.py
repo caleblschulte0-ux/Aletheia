@@ -115,7 +115,7 @@ class TheCodeWallIsAtTheBottomCase(unittest.TestCase):
         """The live shape: everything, then the code sentence, at the end."""
         page = FakePage([FILLER + WALL, CONFIRMED])
         self.assertGreater(len(FILLER), 4000, "the fixture must outrun the old slice")
-        out = self._run(page, lambda **kw: "X7K9P2M4")
+        out = self._run(page, lambda *a, **kw: "X7K9P2M4")
         self.assertEqual(len(page.clicks), 2, "submit, then submit again after the code")
         self.assertEqual(page.filled,
                          [(f"#code{i}", ch) for i, ch in enumerate("X7K9P2M4")])
@@ -124,7 +124,7 @@ class TheCodeWallIsAtTheBottomCase(unittest.TestCase):
     def test_no_code_in_the_inbox_is_a_refusal_not_a_send(self):
         page = FakePage([FILLER + WALL])
         with self.assertRaises(apply_run.ApplyError) as caught:
-            self._run(page, lambda **kw: "")
+            self._run(page, lambda *a, **kw: "")
         self.assertIn("verification code", str(caught.exception))
         self.assertEqual(len(page.clicks), 1, "it never pressed submit a second time")
 
@@ -133,7 +133,7 @@ class TheCodeWallIsAtTheBottomCase(unittest.TestCase):
         from the WHOLE page — the confirmation here sits past the 600
         characters the record stores, which is the point of the split."""
         page = FakePage([FILLER + CONFIRMED])
-        out = self._run(page, lambda **kw: "SHOULDNOT")
+        out = self._run(page, lambda *a, **kw: "SHOULDNOT")
         self.assertEqual(page.filled, [], "no code was typed")
         self.assertEqual(len(page.clicks), 1)
         self.assertNotEqual(out.get("verdict"), "rejected",
@@ -142,7 +142,7 @@ class TheCodeWallIsAtTheBottomCase(unittest.TestCase):
     def test_the_stored_evidence_is_still_short(self):
         """It is rendered and read out; the DECISION reads the whole page."""
         page = FakePage([FILLER + WALL, CONFIRMED])
-        out = self._run(page, lambda **kw: "X7K9P2M4")
+        out = self._run(page, lambda *a, **kw: "X7K9P2M4")
         self.assertLessEqual(len(out["evidence"]), 600)
 
 
