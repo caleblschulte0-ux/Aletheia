@@ -646,7 +646,15 @@ def _refill_and_submit(record: dict) -> dict:
             page.wait_for_timeout(1500)     # let a confirmation render
         except Exception:
             pass
-        body = (page.inner_text("body") or "")[:4000]
+        # THE WHOLE PAGE for the decision, a slice of it for the record.
+        # Live 2026-09-12 this read `[:4000]` and the check below never once
+        # fired on a real form: a Greenhouse application runs to six thousand
+        # characters and the verification sentence is the LAST thing on it,
+        # so the detector was handed a page with the evidence cut off and
+        # correctly found nothing. Truncate what is STORED, never what is
+        # examined.
+        whole = page.inner_text("body") or ""
+        body = whole[:4000]
         # THE LAST GATE, and it is not a defect in the form. Live 2026-09-12
         # six applications were filled perfectly and none was accepted:
         # Greenhouse ends with "A verification code was sent to <address>.
@@ -654,7 +662,7 @@ def _refill_and_submit(record: dict) -> dict:
         # you're a human", and the button stays dead until it is typed. The
         # code is bound to THIS page, so it has to be done here, in the
         # session that pressed the button - reopening earns a fresh code.
-        if _wants_a_code(body):
+        if _wants_a_code(whole):
             code = _emailed_code()
             if not code:
                 # Never a silent success. He is told the application is
@@ -670,7 +678,13 @@ def _refill_and_submit(record: dict) -> dict:
                 page.wait_for_timeout(1500)
             except Exception:
                 pass
-            body = (page.inner_text("body") or "")[:4000]
+            # The same rule on the way out. A "Thank you for applying"
+            # banner sits at the top, but the OUTCOME is read from this
+            # text, and a page that hands the form back puts its complaint
+            # wherever it likes - truncating here is how a real acceptance
+            # gets reported as "unconfirmed".
+            whole = page.inner_text("body") or ""
+            body = whole[:4000]
         page.screenshot(path=str(shot), full_page=True)
         landed = page.url
         title = page.title()
