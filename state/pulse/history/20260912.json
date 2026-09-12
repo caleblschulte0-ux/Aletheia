@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-12T04:41:37Z",
+  "generated_at": "2026-09-12T10:53:47Z",
   "fleet_revision": 5,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -46,8 +46,8 @@
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-09-12T04:41:33Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/34673670206"
+          "updated_at": "2026-09-12T10:53:45Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/34689632642"
         },
         "ci.yml": {
           "status": "completed",
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "e4135d864a6c",
-          "date": "2026-09-11T21:36:44Z",
-          "message": "exchange: phase A bundle for 20260911 [skip ci]"
-        },
-        {
-          "sha": "5e7a34d32621",
-          "date": "2026-09-11T21:36:16Z",
-          "message": "Subject coverage: 169 -> 362 of the 384 pictures the channel asks for (#376)"
-        },
-        {
-          "sha": "a44c383fde44",
-          "date": "2026-09-11T19:44:51Z",
-          "message": "exchange: phase A bundle for 20260911 [skip ci]"
-        },
-        {
-          "sha": "abd1c9b59019",
-          "date": "2026-09-11T19:44:12Z",
-          "message": "Data is in every beat, not just the ones a chart draws him into (#375)"
-        },
-        {
-          "sha": "2026cc79bc6b",
-          "date": "2026-09-11T19:12:07Z",
+          "sha": "fd82e1e8c3ab",
+          "date": "2026-09-12T10:14:51Z",
           "message": "explainer: update posted log + analytics [skip ci]"
+        },
+        {
+          "sha": "d9494258752a",
+          "date": "2026-09-12T09:38:17Z",
+          "message": "exchange: phase A bundle for 20260912 [skip ci]"
+        },
+        {
+          "sha": "ffa0f2d84975",
+          "date": "2026-09-12T09:37:31Z",
+          "message": "daily packages 2026-09-12 (#378)"
+        },
+        {
+          "sha": "8eb66f63333d",
+          "date": "2026-09-12T09:15:44Z",
+          "message": "doctor: evidence pack + backlog 2026-09-12 [skip ci]"
+        },
+        {
+          "sha": "c67141ef8202",
+          "date": "2026-09-12T05:25:47Z",
+          "message": "doctor: evidence pack + backlog 2026-09-12 [skip ci]"
         }
       ],
       "commit": {
-        "sha": "e4135d864a6c",
-        "date": "2026-09-11T21:36:44Z",
-        "message": "exchange: phase A bundle for 20260911 [skip ci]"
+        "sha": "fd82e1e8c3ab",
+        "date": "2026-09-12T10:14:51Z",
+        "message": "explainer: update posted log + analytics [skip ci]"
       },
       "vitals": [
         {
@@ -129,8 +129,8 @@
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-11T21:36:48Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34650190891"
+          "updated_at": "2026-09-12T09:38:20Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34686344503"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
@@ -141,8 +141,8 @@
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-11T19:50:44Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34640809607"
+          "updated_at": "2026-09-12T09:28:02Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34685824695"
         },
         "third.yml": {
           "status": "completed",
@@ -152,9 +152,9 @@
         },
         "explainer.yml": {
           "status": "completed",
-          "conclusion": "failure",
-          "updated_at": "2026-09-11T19:51:11Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34640053581"
+          "conclusion": "success",
+          "updated_at": "2026-09-12T10:15:01Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34686355957"
         },
         "retro.yml": {
           "status": "completed",
@@ -165,8 +165,8 @@
         "doctor.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-11T09:37:04Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34585098176"
+          "updated_at": "2026-09-12T09:15:47Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34685375532"
         }
       },
       "state_files": {
@@ -188,7 +188,7 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 698914
+          "bytes": 702417
         },
         "config/channel_registry.json": {
           "exists": true,
@@ -429,7 +429,7 @@
           "n": 1,
           "text": "Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open"
         },
-        "last_progress_at": "2026-09-12T00:12:31Z",
+        "last_progress_at": "2026-09-12T09:45:38Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": []
@@ -481,8 +481,7 @@
       "github": "Shorts-pipeline",
       "health": "red",
       "failing": [
-        "daily.yml",
-        "explainer.yml"
+        "daily.yml"
       ]
     },
     {
