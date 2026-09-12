@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-12T10:53:47Z",
+  "generated_at": "2026-09-12T15:35:42Z",
   "fleet_revision": 5,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,55 +11,55 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
-          "sha": "fdae9038f794",
-          "date": "2026-09-10T07:14:38Z",
-          "message": "Setting a reminder was free; cancelling it cost four seconds and permission"
+          "sha": "f852c4f73a49",
+          "date": "2026-09-12T15:04:11Z",
+          "message": "Merge pull request #86 from caleblschulte0-ux/claude/apply-end-to-end"
         },
         {
-          "sha": "e775df6eaf18",
-          "date": "2026-09-10T06:50:52Z",
-          "message": "The registry was the last place still saying she would spend his money"
+          "sha": "5f963a1d2ba9",
+          "date": "2026-09-12T14:50:44Z",
+          "message": "The last gate was a human check, and she could not read the mailbox it wrote to"
         },
         {
-          "sha": "ae6795b1b9d9",
-          "date": "2026-09-10T06:12:01Z",
-          "message": "The second item cost him four seconds and an approval"
+          "sha": "a1c658ad85c4",
+          "date": "2026-09-12T13:56:04Z",
+          "message": "Merge pull request #85 from caleblschulte0-ux/claude/apply-end-to-end"
         },
         {
-          "sha": "737df7a64094",
-          "date": "2026-09-10T05:56:37Z",
-          "message": "An empty calendar and the wrong calendar give the same answer"
+          "sha": "70e3720f5356",
+          "date": "2026-09-12T13:49:40Z",
+          "message": "brief: 2026-09-12"
         },
         {
-          "sha": "b012f9d8279d",
-          "date": "2026-09-10T05:42:26Z",
-          "message": "CI found a test of mine that was about the machine it ran on"
+          "sha": "7c322e658eef",
+          "date": "2026-09-12T13:43:37Z",
+          "message": "A lone checkbox is still a checkbox \u2014 it is just no longer his to tick"
         }
       ],
       "commit": {
-        "sha": "fdae9038f794",
-        "date": "2026-09-10T07:14:38Z",
-        "message": "Setting a reminder was free; cancelling it cost four seconds and permission"
+        "sha": "f852c4f73a49",
+        "date": "2026-09-12T15:04:11Z",
+        "message": "Merge pull request #86 from caleblschulte0-ux/claude/apply-end-to-end"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-09-12T10:53:45Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/34689632642"
+          "updated_at": "2026-09-12T15:35:37Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/34702695982"
         },
         "ci.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-12T01:01:30Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/34663289310"
+          "updated_at": "2026-09-12T15:28:45Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/34702126497"
         }
       },
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 12424
+          "bytes": 18148
         }
       },
       "health": "green"
@@ -71,40 +71,40 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "fd82e1e8c3ab",
-          "date": "2026-09-12T10:14:51Z",
-          "message": "explainer: update posted log + analytics [skip ci]"
+          "sha": "94b82a1e0249",
+          "date": "2026-09-12T15:29:59Z",
+          "message": "watchdog: chatgpt task verdicts 20260912 [skip ci]"
         },
         {
-          "sha": "d9494258752a",
-          "date": "2026-09-12T09:38:17Z",
-          "message": "exchange: phase A bundle for 20260912 [skip ci]"
+          "sha": "bd1375515946",
+          "date": "2026-09-12T15:29:28Z",
+          "message": "third: analytics [skip ci]"
         },
         {
-          "sha": "ffa0f2d84975",
-          "date": "2026-09-12T09:37:31Z",
-          "message": "daily packages 2026-09-12 (#378)"
+          "sha": "de0299746ce3",
+          "date": "2026-09-12T15:29:20Z",
+          "message": "third: update posted log + analytics [skip ci]"
         },
         {
-          "sha": "8eb66f63333d",
-          "date": "2026-09-12T09:15:44Z",
-          "message": "doctor: evidence pack + backlog 2026-09-12 [skip ci]"
+          "sha": "ec6243e95465",
+          "date": "2026-09-12T15:29:16Z",
+          "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
         },
         {
-          "sha": "c67141ef8202",
-          "date": "2026-09-12T05:25:47Z",
-          "message": "doctor: evidence pack + backlog 2026-09-12 [skip ci]"
+          "sha": "92061415fd71",
+          "date": "2026-09-12T15:22:40Z",
+          "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
         }
       ],
       "commit": {
-        "sha": "fd82e1e8c3ab",
-        "date": "2026-09-12T10:14:51Z",
-        "message": "explainer: update posted log + analytics [skip ci]"
+        "sha": "94b82a1e0249",
+        "date": "2026-09-12T15:29:59Z",
+        "message": "watchdog: chatgpt task verdicts 20260912 [skip ci]"
       },
       "vitals": [
         {
           "label": "trending posted",
-          "value": 320
+          "value": 321
         },
         {
           "label": "explainer posted",
@@ -112,7 +112,7 @@
         },
         {
           "label": "third posted",
-          "value": 480
+          "value": 492
         },
         {
           "label": "curiosity posted",
@@ -123,20 +123,20 @@
         "daily.yml": {
           "status": "completed",
           "conclusion": "failure",
-          "updated_at": "2026-09-11T17:22:45Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34625808525"
+          "updated_at": "2026-09-12T11:58:46Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34691009963"
         },
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-12T09:38:20Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34686344503"
+          "updated_at": "2026-09-12T13:08:38Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34695552762"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-11T17:47:52Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34629688767"
+          "updated_at": "2026-09-12T11:25:18Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34690989105"
         },
         "story_forge.yml": {
           "status": "completed",
@@ -147,8 +147,8 @@
         "third.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-11T16:25:49Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34613200721"
+          "updated_at": "2026-09-12T15:29:37Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34698021100"
         },
         "explainer.yml": {
           "status": "completed",
@@ -172,7 +172,7 @@
       "state_files": {
         "state/posted_log.json": {
           "exists": true,
-          "bytes": 98396
+          "bytes": 98730
         },
         "state/explainer_posted_log.json": {
           "exists": true,
@@ -180,7 +180,7 @@
         },
         "state/third_posted_log.json": {
           "exists": true,
-          "bytes": 261081
+          "bytes": 267387
         },
         "state/curiosity_posted_log.json": {
           "exists": true,
@@ -188,7 +188,7 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 702417
+          "bytes": 710342
         },
         "config/channel_registry.json": {
           "exists": true,
@@ -296,14 +296,14 @@
       "vitals": [],
       "workflows": {
         "barkly-ci.yml": {
-          "status": "completed",
-          "conclusion": "failure",
-          "updated_at": "2026-09-12T01:47:38Z",
-          "url": "https://github.com/caleblschulte0-ux/Money_Machine/actions/runs/34665137231"
+          "status": "in_progress",
+          "conclusion": null,
+          "updated_at": "2026-09-12T15:30:05Z",
+          "url": "https://github.com/caleblschulte0-ux/Money_Machine/actions/runs/34702395820"
         }
       },
       "state_files": {},
-      "health": "red"
+      "health": "unknown"
     },
     "etsy_maker": {
       "github": "etsy_maker",
@@ -360,9 +360,9 @@
           "n": 1,
           "text": "Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push"
         },
-        "last_progress_at": "2026-09-12T01:32:39Z",
+        "last_progress_at": "2026-09-12T15:29:44Z",
         "days_quiet": 0,
-        "commits_7d": 17,
+        "commits_7d": 16,
         "open_prs": [
           {
             "number": 5,
@@ -429,7 +429,7 @@
           "n": 1,
           "text": "Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open"
         },
-        "last_progress_at": "2026-09-12T09:45:38Z",
+        "last_progress_at": "2026-09-12T15:35:35Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": []
@@ -457,7 +457,7 @@
           "text": "Make the watchdog say which of the two likely causes a stall is (no trigger runs at all, or runs that fail) so the next stall names itself"
         },
         "last_progress_at": null,
-        "days_quiet": 17,
+        "days_quiet": 18,
         "quiet_at_least": true,
         "commits_7d": 0,
         "open_prs": [
@@ -474,7 +474,14 @@
     ],
     "evidence": []
   },
-  "transitions": [],
+  "transitions": [
+    {
+      "repo": "money_machine",
+      "github": "Money_Machine",
+      "from": "red",
+      "to": "unknown"
+    }
+  ],
   "alerts": [
     {
       "repo": "shorts_pipeline",
@@ -482,14 +489,6 @@
       "health": "red",
       "failing": [
         "daily.yml"
-      ]
-    },
-    {
-      "repo": "money_machine",
-      "github": "Money_Machine",
-      "health": "red",
-      "failing": [
-        "barkly-ci.yml"
       ]
     }
   ],
