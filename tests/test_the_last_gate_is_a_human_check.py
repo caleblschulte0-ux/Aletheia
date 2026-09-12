@@ -65,29 +65,50 @@ class TheCodeWallIsRecognisedCase(unittest.TestCase):
 
 
 class TheCodeIsReadOutOfTheInboxCase(unittest.TestCase):
-    def test_it_finds_the_code_greenhouse_sends(self):
-        mail = {"text": "Your verification code is X7K9P2M4. It expires in "
-                        "15 minutes."}
-        self.assertEqual(apply_run._emailed_code(reader=lambda _n: mail), "X7K9P2M4")
+    #: Verbatim, from the five that landed in his inbox on 2026-09-12.
+    GREENHOUSE = ("Hi Caleb, Copy and paste this code into the security code "
+                  "field on your application: {} After you enter the code, "
+                  "resubmit your application. (c) 2026 Greenhouse 18 West "
+                  "18th Street, 11th Floor, New York")
+    REAL_CODES = ("ApHIj2MW", "gOF5SXbK", "kwsGIRvz", "WCVS0dDj", "1GBUyU9G")
+
+    def test_it_finds_every_real_code_greenhouse_sent(self):
+        """The first version matched [A-Z0-9] and every real code is mixed
+        case — and worse, it captured the word "security" itself and typed
+        THAT into the form, five times out of five."""
+        for code in self.REAL_CODES:
+            with self.subTest(code=code):
+                self.assertEqual(apply_run.code_in(self.GREENHOUSE.format(code)),
+                                 code)
+
+    def test_the_words_around_it_are_never_the_code(self):
+        for text in ("Copy this into the security code field on your application.",
+                     "Your application was received.",
+                     "Unsubscribe here. Greenhouse 18 West 18th Street"):
+            with self.subTest(text=text[:40]):
+                self.assertEqual(apply_run.code_in(text), "")
 
     def test_it_does_not_grab_a_tracking_id_from_the_footer(self):
-        mail = {"text": "Thanks for your interest. Reference 99XZ8814 in the "
-                        "footer. Unsubscribe here."}
-        with mock.patch.object(apply_run, "CODE_WAIT_TRIES", 1), \
-             mock.patch.object(apply_run, "CODE_WAIT_S", 0):
-            self.assertEqual(apply_run._emailed_code(reader=lambda _n: mail), "")
+        self.assertEqual(apply_run.code_in(
+            "Thanks for your interest. Reference 99XZ8814 in the footer."), "")
 
     def test_no_mail_is_an_empty_answer_not_a_guess(self):
         with mock.patch.object(apply_run, "CODE_WAIT_TRIES", 1), \
              mock.patch.object(apply_run, "CODE_WAIT_S", 0):
-            self.assertEqual(apply_run._emailed_code(reader=lambda _n: {}), "")
+            self.assertEqual(
+                apply_run._emailed_code("Databricks", reader=lambda **kw: ""), "")
 
-    def test_an_unreadable_inbox_does_not_raise(self):
-        def angry(_name):
-            raise RuntimeError("IMAP is down")
-        with mock.patch.object(apply_run, "CODE_WAIT_TRIES", 1), \
-             mock.patch.object(apply_run, "CODE_WAIT_S", 0):
-            self.assertEqual(apply_run._emailed_code(reader=angry), "")
+    def test_the_employer_is_carried_to_the_lookup(self):
+        """Codes are per application: Databricks' code in Reddit's form
+        fails, and looks exactly like a wrong code from the outside."""
+        seen = {}
+
+        def reader(employer=""):
+            seen["employer"] = employer
+            return "ApHIj2MW"
+
+        self.assertEqual(apply_run._emailed_code("Reddit", reader=reader), "ApHIj2MW")
+        self.assertEqual(seen["employer"], "Reddit")
 
 
 class TypingTheCodeCase(unittest.TestCase):

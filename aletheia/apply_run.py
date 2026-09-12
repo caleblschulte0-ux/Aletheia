@@ -554,12 +554,24 @@ _CODE_WALL = re.compile(
     r"verification code was sent|enter the [0-9]+-character code"
     r"|confirm you(?:'|’)?re a human|code we (?:just )?(?:e-?mailed|sent)",
     re.I)
-#: Eight characters in a row, which is what Greenhouse sends. Anchored on the
-#: words around it so a tracking id in the footer cannot be mistaken for it.
+#: The code itself, taken from the sentence that hands it over. Greenhouse
+#: writes: "Copy and paste this code into the security code field on your
+#: application: ApHIj2MW".
+#:
+#: Two things the first version got wrong, both proved against his real mail
+#: on 2026-09-12. It matched `[A-Z0-9]` and every real code is MIXED case
+#: (ApHIj2MW, gOF5SXbK, kwsGIRvz) - and worse, `(?:code|verification)\D{0,40}`
+#: let the capture land on the word "security" itself, so it returned
+#: 'security' for all five and typed that into the form. A pattern that
+#: matches something is not a pattern that matches the right thing.
 _CODE_IN_MAIL = re.compile(
-    r"(?:code|verification)\D{0,40}\b([A-Z0-9]{6,10})\b"
-    r"|\b([A-Z0-9]{8})\b(?=[^A-Za-z0-9]{0,40}(?:is your|to (?:submit|confirm)))",
-    re.I)
+    r"(?:code|codes?)\s*(?:field[^:]{0,30})?[:\s]\s*([A-Za-z0-9]{6,10})\b"
+    r"|\b([A-Za-z0-9]{8})\b(?=[^A-Za-z0-9]{0,40}(?:is your|after you enter"
+    r"|to (?:submit|confirm)))")
+#: Words that are never the code, however the sentence is shaped.
+_NOT_A_CODE = frozenset({
+    "security", "greenhouse", "application", "resubmit", "verification",
+    "password", "continue"})
 CODE_WAIT_TRIES = 20
 CODE_WAIT_S = 15
 
@@ -568,7 +580,16 @@ def _wants_a_code(body: str) -> bool:
     return bool(_CODE_WALL.search(str(body or "")))
 
 
-def _emailed_code(reader=None) -> str:
+def code_in(text: str) -> str:
+    """The code out of one email's text, or "" — the words are never it."""
+    for hit in _CODE_IN_MAIL.finditer(str(text or "")):
+        found = (hit.group(1) or hit.group(2) or "").strip()
+        if found and found.casefold() not in _NOT_A_CODE:
+            return found
+    return ""
+
+
+def _emailed_code(employer: str = "", reader=None) -> str:
     """The code the site just emailed, out of the inbox SHE can read.
 
     His ruling, 2026-09-12: *"If we have an option to fill an email, we just
@@ -576,19 +597,42 @@ def _emailed_code(reader=None) -> str:
     email is if it's not something inappropriate?"* The address is not the
     point — being able to READ it is. Sent to his personal inbox, the code
     is unreachable and every application stops one field short.
+
+    THE NEWEST ONE, FOR THIS EMPLOYER. `mail.read_body` refuses when more
+    than one unread message matches, which is correct for "what did the
+    dentist say" and useless here: a retry earns another code, and by the
+    fourth attempt his inbox held four unread "Security code for your
+    application to Databricks" emails, so the lookup threw every time and
+    the gate reported that nothing had arrived. Codes are also per
+    application — typing Databricks' code into Reddit's form fails, and
+    looks from the outside exactly like a wrong code.
     """
     from aletheia import mail
-    read = reader or mail.read_body
+    if reader is not None:
+        for _ in range(CODE_WAIT_TRIES):
+            found = reader(employer=employer)
+            if found:
+                return found
+            time.sleep(CODE_WAIT_S)
+        return ""
+    wanted = " ".join(str(employer or "").split()).casefold()
     for _ in range(CODE_WAIT_TRIES):
-        for named in ("verification code", "Greenhouse", "application"):
+        try:
+            unread = mail.SmtpImapTransport().fetch_unread(30)
+        except Exception:
+            unread = []
+        mine = [m for m in unread
+                if "security code" in str(m.get("subject", "")).casefold()
+                and (not wanted or wanted in str(m.get("subject", "")).casefold())]
+        for message in reversed(mine):          # newest last out of IMAP
             try:
-                found = read(named)
+                body = mail.SmtpImapTransport().fetch_body(
+                    message.get("message_id", ""))
             except Exception:
                 continue
-            text = str((found or {}).get("text") or (found or {}).get("body") or "")
-            hit = _CODE_IN_MAIL.search(text)
-            if hit:
-                return (hit.group(1) or hit.group(2) or "").upper()
+            found = code_in(str((body or {}).get("text") or ""))
+            if found:
+                return found
         time.sleep(CODE_WAIT_S)
     return ""
 
@@ -663,7 +707,11 @@ def _refill_and_submit(record: dict) -> dict:
         # code is bound to THIS page, so it has to be done here, in the
         # session that pressed the button - reopening earns a fresh code.
         if _wants_a_code(whole):
-            code = _emailed_code()
+            # Named, because the code is per application: Greenhouse titles
+            # it "Security code for your application to Databricks", and
+            # typing Databricks' code into Reddit's form fails in a way that
+            # looks exactly like a wrong code.
+            code = _emailed_code(record.get("company") or "")
             if not code:
                 # Never a silent success. He is told the application is
                 # sitting one code away rather than being counted as sent.
