@@ -271,9 +271,11 @@ def _proxy_from_environment() -> dict | None:
 class _Session:
     """A persistent-profile Playwright context. Context manager."""
 
-    def __init__(self, headed: bool = False, profile: Path | None = None):
+    def __init__(self, headed: bool = False, profile: Path | None = None,
+                 args: list[str] | None = None):
         self.headed = headed
         self.profile = Path(profile or PROFILE_DIR)
+        self.args = list(args or [])
         self._pw = None
         self.context = None
 
@@ -282,6 +284,8 @@ class _Session:
         self.profile.mkdir(parents=True, exist_ok=True)
         self._pw = sync_playwright().start()
         kwargs = {"headless": not self.headed}
+        if self.args:
+            kwargs["args"] = list(self.args)
         proxy = _proxy_from_environment()
         if proxy:
             kwargs["proxy"] = proxy

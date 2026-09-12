@@ -15,7 +15,8 @@ class WindowsSubscriptionModeCase(unittest.TestCase):
              mock.patch.object(browser_reasoner.browse, "_Session", return_value=sentinel) as session:
             result = browser_reasoner._subscription_session()
         self.assertIs(result, sentinel)
-        session.assert_called_once_with(headed=True)
+        self.assertTrue(session.call_args.kwargs["headed"],
+                        "headless Chrome gets a different site experience")
 
     def test_non_windows_keeps_hidden_subscription_browser(self):
         sentinel = object()
@@ -23,7 +24,18 @@ class WindowsSubscriptionModeCase(unittest.TestCase):
              mock.patch.object(browser_reasoner.browse, "_Session", return_value=sentinel) as session:
             result = browser_reasoner._subscription_session()
         self.assertIs(result, sentinel)
-        session.assert_called_once_with(headed=False)
+        self.assertFalse(session.call_args.kwargs["headed"])
+
+    def test_the_window_is_headed_but_not_over_his_work(self):
+        """2026-09-12: "if there's a way for it to do that without taking my
+        main screen and blocking it for a couple seconds, that would be
+        awesome." Headed is required; ON HIS MONITOR is not."""
+        with mock.patch.object(browser_reasoner.os, "name", "nt"), \
+             mock.patch.object(browser_reasoner.browse, "_Session") as session:
+            browser_reasoner._subscription_session()
+        args = " ".join(session.call_args.kwargs.get("args") or [])
+        self.assertIn("--window-position=-32000,-32000", args)
+        self.assertIn("--no-startup-window-focus", args)
 
 
 if __name__ == "__main__":

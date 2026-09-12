@@ -27,6 +27,9 @@ from aletheia import brain, browse
 CHATGPT_URL = "https://chatgpt.com/"
 ALLOWED_HOSTS = {"chatgpt.com", "www.chatgpt.com"}
 ALLOW_ENV = "ALETHEIA_ALLOW_CHATGPT_BROWSER_REASONING"
+# Off the edge of every monitor, never focused. Chrome honours both.
+OFFSCREEN_ARGS = ["--window-position=-32000,-32000", "--window-size=1200,900",
+                  "--no-startup-window-focus"]
 MAX_PROMPT_CHARS = 30_000
 MAX_RESPONSE_CHARS = 256_000
 TIMEOUT_S = 120.0
@@ -68,6 +71,21 @@ def operator_lease_enabled() -> bool:
     """
     if os.environ.get(ALLOW_ENV, "").strip() == "1":
         return True
+    # "STOP" BEATS "HE IS WAITING". He said it twice on 2026-09-12 -
+    # "thea Stop opening up ChatGPT windows", then "thea I said stop
+    # opening ChatGPT windows" - and both times the revoke was written and
+    # both times windows kept appearing, because the very next thing he
+    # said was an ATTENDED request and attended was checked first. The
+    # order of these two checks was the whole bug: an order he gave could
+    # never outlive the sentence he gave it in.
+    #
+    # Only an EXPLICIT off counts. Never-asked is still permissive, which
+    # is his 2026-09-08 ruling (he should not have to switch ChatGPT on
+    # for a question he asked out loud) and is what `attended()` below is
+    # for. With this off, the ladder simply skips the rung and answers
+    # from her own model - no window, nothing on his screen.
+    if _explicitly_off():
+        return False
     # HE IS WAITING FOR THIS ONE. His ruling: he should not have to turn
     # ChatGPT on for a question he asked out loud. The lease exists to
     # stop an UNATTENDED loop quietly driving his personal account, and a
@@ -87,6 +105,20 @@ def operator_lease_enabled() -> bool:
     try:
         from aletheia import second_opinion
         return second_opinion.granted()
+    except Exception:
+        return False
+
+
+def _explicitly_off() -> bool:
+    """Did he TURN IT OFF, as opposed to never having turned it on?
+
+    `second_opinion.granted()` answers "may I", and returns False for
+    both. Only the first is an order, and only an order outranks a
+    request he is waiting on.
+    """
+    try:
+        from aletheia import second_opinion
+        return second_opinion.state().get("on") is False
     except Exception:
         return False
 
@@ -163,7 +195,13 @@ def _subscription_session():
     Chrome through the existing persistent profile. This does not change login,
     cookie, or authority handling; it only changes whether the browser is headed.
     """
-    return browse._Session(headed=(os.name == "nt"))
+    # Headed, but NOT over his work. His words, 2026-09-12: "if there's a
+    # way for it to do that without taking my main screen and blocking it
+    # for a couple seconds, that would be awesome." The window must exist
+    # (headless Chrome gets a different site experience on the same
+    # profile, which is why this is headed at all) - it does not have to
+    # be on a monitor he is looking at, or take his keyboard.
+    return browse._Session(headed=(os.name == "nt"), args=OFFSCREEN_ARGS)
 
 
 def _host_ok(url: str) -> bool:
