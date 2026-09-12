@@ -45,6 +45,7 @@ import datetime as dt
 import json
 import re
 import sys
+import time
 from pathlib import Path
 
 from aletheia import browse, formfill, journal, policy, profile, speech, stateio
@@ -546,6 +547,69 @@ def submit(run_id: str, *, submitter=None) -> dict:
     return record
 
 
+#: The page telling him a human check is in the way, in the words the real
+#: forms use. Matched on the SENTENCE, never on the word "code" alone: a job
+#: description that mentions writing code is not a verification wall.
+_CODE_WALL = re.compile(
+    r"verification code was sent|enter the [0-9]+-character code"
+    r"|confirm you(?:'|’)?re a human|code we (?:just )?(?:e-?mailed|sent)",
+    re.I)
+#: Eight characters in a row, which is what Greenhouse sends. Anchored on the
+#: words around it so a tracking id in the footer cannot be mistaken for it.
+_CODE_IN_MAIL = re.compile(
+    r"(?:code|verification)\D{0,40}\b([A-Z0-9]{6,10})\b"
+    r"|\b([A-Z0-9]{8})\b(?=[^A-Za-z0-9]{0,40}(?:is your|to (?:submit|confirm)))",
+    re.I)
+CODE_WAIT_TRIES = 20
+CODE_WAIT_S = 15
+
+
+def _wants_a_code(body: str) -> bool:
+    return bool(_CODE_WALL.search(str(body or "")))
+
+
+def _emailed_code(reader=None) -> str:
+    """The code the site just emailed, out of the inbox SHE can read.
+
+    His ruling, 2026-09-12: *"If we have an option to fill an email, we just
+    put open range interactive email ... who gives a shit what my personal
+    email is if it's not something inappropriate?"* The address is not the
+    point — being able to READ it is. Sent to his personal inbox, the code
+    is unreachable and every application stops one field short.
+    """
+    from aletheia import mail
+    read = reader or mail.read_body
+    for _ in range(CODE_WAIT_TRIES):
+        for named in ("verification code", "Greenhouse", "application"):
+            try:
+                found = read(named)
+            except Exception:
+                continue
+            text = str((found or {}).get("text") or (found or {}).get("body") or "")
+            hit = _CODE_IN_MAIL.search(text)
+            if hit:
+                return (hit.group(1) or hit.group(2) or "").upper()
+        time.sleep(CODE_WAIT_S)
+    return ""
+
+
+CODE_BOXES_JS = """() => Array.from(document.querySelectorAll(
+  "input[autocomplete='one-time-code'], input[name*='security'], "
+  + "input[id*='security'], input[name*='verification'], input[id*='verification']"
+)).filter(el => el.offsetParent !== null).map((el, i) => el.id
+  ? '#' + CSS.escape(el.id) : "input[name='" + el.name + "']:nth-of-type(" + (i+1) + ")")"""
+
+
+def _type_the_code(page, code: str) -> None:
+    """One box per character, or one box for the lot — both are out there."""
+    boxes = page.evaluate(CODE_BOXES_JS) or []
+    if len(boxes) <= 1:
+        page.fill(boxes[0] if boxes else "input[autocomplete='one-time-code']", code)
+        return
+    for selector, character in zip(boxes, code):
+        page.fill(selector, character)
+
+
 def _refill_and_submit(record: dict) -> dict:
     """Re-open, re-fill exactly the approved steps, press the button.
 
@@ -583,6 +647,30 @@ def _refill_and_submit(record: dict) -> dict:
         except Exception:
             pass
         body = (page.inner_text("body") or "")[:4000]
+        # THE LAST GATE, and it is not a defect in the form. Live 2026-09-12
+        # six applications were filled perfectly and none was accepted:
+        # Greenhouse ends with "A verification code was sent to <address>.
+        # To submit your application, enter the 8-character code to confirm
+        # you're a human", and the button stays dead until it is typed. The
+        # code is bound to THIS page, so it has to be done here, in the
+        # session that pressed the button - reopening earns a fresh code.
+        if _wants_a_code(body):
+            code = _emailed_code()
+            if not code:
+                # Never a silent success. He is told the application is
+                # sitting one code away rather than being counted as sent.
+                raise ApplyError(
+                    "the site emailed a verification code to confirm a human "
+                    "is applying, and it has not arrived in the inbox she can "
+                    "read — nothing was submitted")
+            _type_the_code(page, code)
+            page.click(_submit_selector(page.evaluate(BUTTONS_JS)) or button)
+            page.wait_for_load_state("domcontentloaded")
+            try:
+                page.wait_for_timeout(1500)
+            except Exception:
+                pass
+            body = (page.inner_text("body") or "")[:4000]
         page.screenshot(path=str(shot), full_page=True)
         landed = page.url
         title = page.title()
