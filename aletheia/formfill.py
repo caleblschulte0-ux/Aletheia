@@ -208,6 +208,15 @@ def _says(phrase: str, text: str) -> bool:
                      text) is not None
 
 
+# "require/need sponsorship", "require a visa", "need us to sponsor you" -
+# the question about NEEDING it, however much authorization vocabulary the
+# rest of the sentence carries.
+_WANTS_SPONSORSHIP = re.compile(
+    r"\b(?:require|requires|requiring|need|needs|needing|seek|seeking|request"
+    r"|requesting)\b[^.?]{0,60}?\b(?:sponsorship|sponsor|visa|work permit)\b"
+    r"|\bsponsor(?:ship)?\s+(?:is\s+)?(?:required|needed)\b")
+
+
 def match_field(field: dict) -> str | None:
     """Which profile answer this form field is asking for, if any.
 
@@ -238,6 +247,19 @@ def match_field(field: dict) -> str | None:
         # "Please state the employee's name" is the verb: live it got "SD".
         if key == "state" and re.search(
                 r"\bstate\s+(?:the|your|a|an|any|why|how|what|which|who|if|whether)\b", label):
+            continue
+        # THE TWO ANSWERS ARE OPPOSITES, so picking the wrong field does not
+        # leave a blank - it states the reverse of the truth on a real
+        # application. Live on Scale AI 2026-09-12: "Will you now or in the
+        # future require company SPONSORSHIP to retain or extend your WORK
+        # AUTHORIZATION...?" carries both vocabularies, longest-phrase-wins
+        # chose `work authorization` (his Yes), and the form went to
+        # AWAITING_YOU saying he needs sponsorship. His `needs_sponsorship`
+        # was "No" the whole time and was never consulted.
+        #
+        # Asking whether he NEEDS something settles it, whatever other words
+        # the sentence contains.
+        if key == "work_authorization" and _WANTS_SPONSORSHIP.search(label):
             continue
         for phrase in spec["asks"]:
             if len(phrase) <= best_len:
@@ -332,18 +354,34 @@ def _from_profile(group: dict, known: dict) -> dict | None:
     return None
 
 
-# Words that make a demographic question one he always answers himself,
-# whatever else it mentions.
-_DECLARED_NEVER = re.compile(
-    r"\b(?:sexual|orientation|transgender|veteran|disabilit|pronoun|lgbt)", re.I)
+# Categories he has declared IN HIS OWN WORDS and that may therefore be
+# reused. 2026-09-12: veteran status and disability status blocked twelve of
+# thirteen live applications, and he had answered both out loud - "I am not
+# a protected veteran", "I have no disabilities" - with nowhere to keep it.
+# Orientation and transgender resolve to a DECLINE, which is also his own
+# answer: "I don't think they can ask that. If they do, but I'm not
+# answering."
+_ORIENTATION = re.compile(r"\b(?:sexual|orientation|transgender|lgbt)", re.I)
+_VETERAN = re.compile(r"\b(?:veteran|armed forces|military)", re.I)
+_DISABILITY = re.compile(r"\b(?:disabilit|disabled|chronic condition)", re.I)
+_PRONOUNS = re.compile(r"\bpronoun", re.I)
 _SAID_NO = ("no", "false", "not hispanic", "not hispanic or latino", "non hispanic")
 _SAID_YES = ("yes", "true", "hispanic", "hispanic or latino", "latino", "latina")
 
 
 def _declared_category(label: str) -> str:
-    """"gender", "race" or "hispanic_latino" when that is what a question asks."""
-    if _DECLARED_NEVER.search(str(label or "")):
-        return ""
+    """The self-identification category a question asks about, or ""."""
+    text = str(label or "")
+    # Most specific first: "Are you a veteran/have you served in the
+    # military?" and "gender identity survey" both mention other words.
+    if _ORIENTATION.search(text):
+        return "self_id_decline"
+    if _VETERAN.search(text):
+        return "veteran_status"
+    if _DISABILITY.search(text):
+        return "disability_status"
+    if _PRONOUNS.search(text):
+        return "pronouns"
     low = _norm(label)
     hispanic = any(_says(w, low) for w in ("hispanic", "latino", "latina", "latinx", "latine"))
     race = any(_says(w, low) for w in ("race", "racial", "ethnicity", "ethnic"))
@@ -377,13 +415,49 @@ def _hispanic_choice(options: list[str], said: str) -> str | None:
     return named[0] if len(named) == 1 else None
 
 
+def _plain_choice(options: list[str], want: tuple[str, ...],
+                  avoid: tuple[str, ...] = ()) -> str | None:
+    """The one option that plainly says `want` and none of `avoid`."""
+    hits = [c for c in options
+            if any(_says(w, _norm(c)) for w in want)
+            and not any(_says(a, _norm(c)) for a in avoid)]
+    if len(hits) > 1:
+        exact = [c for c in hits if _norm(c) in want]
+        hits = exact or hits
+    return hits[0] if len(hits) == 1 else None
+
+
+_DECLINE_WORDS = ("i don't wish to answer", "i do not wish to answer",
+                  "i dont wish to answer", "i prefer not to answer",
+                  "i don't want to answer", "i do not want to answer",
+                  "decline to self identify", "decline to answer",
+                  "prefer not to say", "i don't wish to disclose")
+
+
+def _decline_choice(options: list[str]) -> str | None:
+    """"I don't wish to answer" - his answer to a question he won't answer."""
+    for option in options:
+        if _norm(option) in _DECLINE_WORDS:
+            return option
+    hits = [c for c in options
+            if ("wish" in _norm(c) or "prefer" in _norm(c) or "decline" in _norm(c))
+            and ("not" in _norm(c) or "don t" in _norm(c) or "dont" in _norm(c))]
+    return hits[0] if len(hits) == 1 else None
+
+
 def declared_choice(label: str, choices: list[str], *, stored: dict | None = None) -> str | None:
     """The option that says what HE said about himself, or None.
 
-    Gender, race and Hispanic/Latino only, and only from his own words
-    (source "operator"): never read off a resume or a page, never a model's
-    guess. An option that does not plainly say it means asking him, and
-    veteran status, disability and orientation stay his to answer.
+    Only from his own words (source "operator"): never read off a resume or
+    a page, never a model's guess. An option that does not plainly say it
+    means asking him.
+
+    2026-09-12 this grew from three categories to seven. Thirteen live
+    applications stalled at once and twelve were blocked on veteran status
+    and disability - which he had already answered out loud ("I am not a
+    protected veteran", "I have no disabilities") with nowhere to keep it.
+    Orientation and transgender resolve to the decline HE chose: "I don't
+    think they can ask that. If they do, but I'm not answering."
     """
     category = _declared_category(label)
     if not category:
@@ -392,6 +466,56 @@ def declared_choice(label: str, choices: list[str], *, stored: dict | None = Non
     options = [str(c) for c in (choices or []) if str(c).strip()]
     if not options:
         return None
+    if category == "self_id_decline":
+        # He has to have SAID he declines; silence is still silence.
+        return _decline_choice(options) if _his_word(stored, "self_id_decline") else None
+    if category == "pronouns":
+        said = _his_word(stored, "pronouns")
+        if not said:
+            return None
+        want = tuple(part for part in re.split(r"[\s/,]+", said) if part)
+        exact = [c for c in options if _norm(c).replace(" ", "") == said.replace(" ", "")]
+        if len(exact) == 1:
+            return exact[0]
+        return _plain_choice(options, want, avoid=("she", "her", "hers", "they", "them", "theirs")
+                             if "he" in want else ())
+    if category == "veteran_status":
+        said = _his_word(stored, "veteran_status")
+        if not said:
+            return None
+        real = [c for c in options if _decline_choice([c]) is None]
+        if said in _SAID_NO or "not a" in said or "not protected" in said:
+            # WHAT is negated, not merely that something is. Asana offers
+            # "I am not a veteran (I did not serve in the military)" AND
+            # "I am a veteran and I do NOT belong to a classification of
+            # protected veterans" - both contain "not", and only the first
+            # says he is not one. Live 2026-09-12 a bare "not" matched both
+            # and answered neither.
+            hits = [c for c in real
+                    if re.search(r"\bnot\s+(?:a|an)?\s*(?:protected\s+)?veteran\b",
+                                 _norm(c))]
+            return hits[0] if len(hits) == 1 else None
+        hits = [c for c in real
+                if _says("veteran", _norm(c))
+                and not re.search(r"\bnot\s+(?:a|an)?\s*(?:protected\s+)?veteran\b",
+                                  _norm(c))]
+        return hits[0] if len(hits) == 1 else None
+    if category == "disability_status":
+        said = _his_word(stored, "disability_status")
+        if not said:
+            return None
+        # "I do not want to answer" also contains "not": a decline is never
+        # the same as an answer, so those come out first.
+        real = [c for c in options
+                if _decline_choice([c]) is None and not _says("describe", _norm(c))]
+        no_disability = re.compile(
+            r"\b(?:no|not|don t|dont|never)\b[^.]{0,40}\bdisabilit", re.I)
+        if said in _SAID_NO or said.startswith("no") or "not" in said:
+            hits = [c for c in real if no_disability.search(_norm(c))]
+        else:
+            hits = [c for c in real
+                    if _says("yes", _norm(c)) and not no_disability.search(_norm(c))]
+        return hits[0] if len(hits) == 1 else None
     if category == "gender":
         said = _his_word(stored, "gender")
         male, female = said in ("male", "man", "m"), said in ("female", "woman", "f")
@@ -423,6 +547,93 @@ def declared_choice(label: str, choices: list[str], *, stored: dict | None = Non
     return _hispanic_choice(options, hispanic) if hispanic else None
 
 
+# The one thing she must never tick, whatever else he has allowed. His
+# ruling, 2026-09-12: "the only thing that I wouldn't want you to ever auto
+# click on is something like, hey. You'll go to jail if you use AI on this.
+# Like, that's the only thing that you should never auto click on in my
+# mind." Samsara and Anthropic both carry an "AI Policy for Application"
+# box - a declaration about how the application itself was written, being
+# offered to the thing writing it - and a false one is his problem, not
+# hers, for as long as he works there.
+_NEVER_TICK = re.compile(
+    r"\b(?:a\.?i\.?|artificial intelligence|chatgpt|llm|large language model|"
+    r"generative|automated tool|bot)\b"
+    r"|penalty of perjury|under oath|sworn|prosecut|criminal|fraud"
+    r"|background check|credit check|drug (?:test|screen)"
+    r"|i (?:did not|have not) use", re.I)
+
+# What a routine box actually is: permission to consider his application,
+# an acknowledgement that he read something, or a statement that what he
+# typed is true - which HE confirms, because every application is shown to
+# him before it is sent and nothing goes without his approval.
+# Keyed on the SUBJECT, never on "acknowledge" or "I agree" alone. Live
+# 2026-09-12 the verb-shaped version swallowed "This role requires in-office
+# work three days per week. Do you acknowledge and agree to this
+# requirement?" - which is not paperwork at all, it is a real commitment
+# about his week, and he answers it himself.
+_ROUTINE_CONSENT = re.compile(
+    r"personal (?:data|information)|data (?:protection|processing)"
+    r"|processing of personal|demographic data|gdpr|ccpa"
+    r"|privacy (?:notice|policy|statement)|applicant privacy|candidate privacy"
+    r"|privacy|arbitrat|terms and conditions"
+    r"|information (?:i |you )?(?:have )?provided|information provided above"
+    r"|accurate|accuracy|truthful|reviewed and confirmed"
+    r"|processing my responses|assessing my candidacy|assessing your candidacy"
+    # "I certify...", "I agree..." - said in the first person, which is a
+    # form being signed. "Do you acknowledge and agree to work in the office
+    # three days a week" is not, and stays his.
+    r"|\bi (?:certify|agree|consent|acknowledge|understand|accept)\b",
+    re.I)
+
+_AFFIRMS = ("i agree", "agree", "yes", "consent", "i consent", "acknowledge",
+            "acknowledge/confirm", "confirm", "i confirm", "i understand",
+            "understand", "accept", "i accept")
+
+
+def routine_consent(label: str, options: list[str]) -> str | None:
+    """The affirmative option on a routine agreement, or None.
+
+    2026-09-12: thirteen applications, and several were held up by boxes
+    that are not questions about him at all - "may we process your data",
+    "I have read the privacy notice", "I confirm the information above is
+    accurate", an arbitration agreement. His ruling: *"I don't really get
+    what the consent and certifications is. Just figure out a way around
+    it. It's not that big a deal."* and then, on arbitration specifically:
+    *"what would I ever wanna sue anthropic for? I'm just trying to apply
+    my job."*
+
+    His approval is what makes the accuracy certifications true: he reads
+    every application before it is sent, and nothing is ever sent without
+    him. `_NEVER_TICK` is the line he drew himself and it is not moveable
+    from here.
+    """
+    text = str(label or "")
+    if _NEVER_TICK.search(text) or not _ROUTINE_CONSENT.search(text):
+        return None
+    real = [str(c) for c in (options or []) if str(c).strip()]
+    if not real:
+        return None
+    if len(real) == 1:
+        # A lone tickbox. The LABEL already said this is paperwork; the one
+        # option is just the box's own words ("Acknowledge/Confirm",
+        # "Consent", "I agree", or the sentence repeated). It only has to
+        # not be a refusal. Live 2026-09-12 requiring it to re-qualify left
+        # "Processing of Personal Data" and Vercel's privacy notice blocking
+        # real applications.
+        only = _norm(real[0])
+        refuses = (_decline_choice(real) is not None
+                   or only in ("no", "i do not agree", "i disagree", "decline"))
+        return None if refuses else real[0]
+    hits = [c for c in real if _norm(c) in _AFFIRMS]
+    if len(hits) == 1:
+        return hits[0]
+    hits = [c for c in real
+            if any(_says(word, _norm(c)) for word in ("agree", "consent", "acknowledge",
+                                                      "confirm", "accept", "reviewed"))
+            and not _says("not", _norm(c)) and not _says("no", _norm(c))]
+    return hits[0] if len(hits) == 1 else None
+
+
 def plan(fields: list[dict], *, answers: dict | None = None) -> dict:
     """Split a form into what she can fill and what he has to answer."""
     answers = known = (answers if answers is not None else profile.known())
@@ -447,6 +658,14 @@ def plan(fields: list[dict], *, answers: dict | None = None) -> dict:
             fill.append({"action": "click", "selector": option["selector"],
                          "label": group["label"], "value": declared,
                          "profile_field": _declared_category(group["label"])})
+            continue
+        consent = routine_consent(group["label"],
+                                  [o["label"] for o in group["options"] if o["label"]])
+        if consent is not None:
+            option = next(o for o in group["options"] if o["label"] == consent)
+            fill.append({"action": "click", "selector": option["selector"],
+                         "label": group["label"], "value": consent,
+                         "profile_field": "routine_consent"})
             continue
         picked = _from_profile(group, known)
         if picked is not None:
@@ -503,8 +722,51 @@ def plan(fields: list[dict], *, answers: dict | None = None) -> dict:
                     fill.append({"action": "type", "selector": field["selector"],
                                  "value": declared, "label": label, "profile_field": category})
                     continue
+            # Routine paperwork: "may we process your data", "I have read
+            # the privacy notice", "I confirm the above is accurate", an
+            # arbitration agreement. His ruling, 2026-09-12. Never an AI
+            # declaration or anything with legal jeopardy - see _NEVER_TICK.
+            consent = (None if field["selector"] in answers
+                       else routine_consent(label, choices or [label]))
+            if consent is not None:
+                if field.get("tag") == "select":
+                    option = next((o["value"] for o in field.get("options") or []
+                                   if o["text"] == consent), None)
+                    if option is not None:
+                        fill.append({"action": "select", "selector": field["selector"],
+                                     "value": option, "label": label,
+                                     "profile_field": "routine_consent"})
+                        continue
+                elif field.get("type") in ("checkbox", "radio"):
+                    fill.append({"action": "click", "selector": field["selector"],
+                                 "label": label, "value": consent,
+                                 "profile_field": "routine_consent"})
+                    continue
+                else:
+                    fill.append({"action": "type", "selector": field["selector"],
+                                 "value": consent, "label": label,
+                                 "profile_field": "routine_consent"})
+                    continue
             row["why"] = "this one is yours to answer, always"
             ask.append(row)
+            continue
+        # Paperwork that is not phrased as a certification. "Processing of
+        # Personal Data", "Applicant Privacy Notice" carry none of the
+        # NEVER_AUTOFILL words, so they fall past the branch above and used
+        # to arrive as "she could not tell what this is asking for" -
+        # blocking real applications on a box that asks nothing about him.
+        # Everything protected, and every AI declaration, was taken out
+        # above this line.
+        # HIS ANSWER OUTRANKS THE RULE. If he has said something about this
+        # box - including "no" - that is the answer, and routine paperwork
+        # never ticks over the top of it. Same shape as the ChatGPT lease
+        # fixed the same day: an order he gave has to beat a default.
+        consent = (None if field["selector"] in answers
+                   else routine_consent(label, list(field.get("choices") or []) or [label]))
+        if consent is not None and field.get("type") in ("checkbox", "radio"):
+            fill.append({"action": "click", "selector": field["selector"],
+                         "label": label, "value": consent,
+                         "profile_field": "routine_consent"})
             continue
         if field.get("type") in LONG_ANSWER_TYPES and not match_field(field):
             row["why"] = "a written answer, not a fact she has on file"

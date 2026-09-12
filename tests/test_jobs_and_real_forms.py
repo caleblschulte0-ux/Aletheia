@@ -492,15 +492,38 @@ class HeAnswersAChoiceQuestion(unittest.TestCase):
         self.assertTrue(got["refused"])
 
     def test_a_lone_checkbox_stays_a_checkbox(self):
-        """The certification tickbox is not a question with one option."""
+        """The certification tickbox is not a question with one option.
+
+        The SHAPE is the rule: one checkbox is one checkbox, ticked with a
+        click, never folded into a multiple-choice question that happens to
+        have a single option. What changed on 2026-09-12 is who answers it
+        — routine paperwork is ticked rather than handed back to him
+        ("just figure out a way around it") — so the shape is asserted
+        where the box now goes.
+        """
         fields = [{"selector": "#cert", "label": "I certify this is true",
                    "option": "I certify this is true", "question": "",
                    "group": "cert", "name": "cert", "id": "cert",
                    "tag": "input", "type": "checkbox", "required": True,
                    "value": ""}]
         out = formfill.plan(fields)
+        self.assertEqual(out["ask"], [], "routine paperwork is not his to tick")
+        step = out["fill"][0]
+        self.assertEqual(step["selector"], "#cert")
+        self.assertEqual(step["action"], "click", "a checkbox is clicked, not typed")
+        self.assertEqual(step["profile_field"], "routine_consent")
+        self.assertNotIn("choices", step)
+
+    def test_a_lone_checkbox_he_answered_is_still_his(self):
+        """And his own "no" outranks the default tick."""
+        fields = [{"selector": "#cert", "label": "I certify this is true",
+                   "option": "I certify this is true", "question": "",
+                   "group": "cert", "name": "cert", "id": "cert",
+                   "tag": "input", "type": "checkbox", "required": True,
+                   "value": ""}]
+        out = formfill.plan(fields, answers={"#cert": "no"})
+        self.assertEqual(out["fill"], [])
         self.assertEqual(out["ask"][0]["label"], "I certify this is true")
-        self.assertNotIn("choices", out["ask"][0])
 
 
 class SheWritesTheEssayInsteadOfAskingIt(unittest.TestCase):
