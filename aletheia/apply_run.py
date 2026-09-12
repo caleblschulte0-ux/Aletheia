@@ -580,6 +580,15 @@ def _wants_a_code(body: str) -> bool:
     return bool(_CODE_WALL.search(str(body or "")))
 
 
+def _when(message: dict) -> float:
+    """When an email was sent, as a number. Unreadable dates sort oldest."""
+    from email.utils import parsedate_to_datetime
+    try:
+        return parsedate_to_datetime(str(message.get("date", ""))).timestamp()
+    except Exception:
+        return 0.0
+
+
 def code_in(text: str) -> str:
     """The code out of one email's text, or "" — the words are never it."""
     for hit in _CODE_IN_MAIL.finditer(str(text or "")):
@@ -624,7 +633,17 @@ def _emailed_code(employer: str = "", reader=None) -> str:
         mine = [m for m in unread
                 if "security code" in str(m.get("subject", "")).casefold()
                 and (not wanted or wanted in str(m.get("subject", "")).casefold())]
-        for message in reversed(mine):          # newest last out of IMAP
+        # NEWEST FIRST, BY THE DATE HEADER, never by the order IMAP happens
+        # to return. Live 2026-09-12 this read `reversed(mine)` on the belief
+        # that IMAP hands back oldest-first; it hands back NEWEST-first, so
+        # the walk went to the staleest code every time. Reddit was sent the
+        # code from 15:46 when the page had just asked with the one from
+        # 16:07, and Databricks got the oldest of five - both came back
+        # "Incorrect security code". Stripe, GitLab and Scale AI worked only
+        # because each had exactly one unread code, where oldest and newest
+        # are the same message.
+        mine.sort(key=_when, reverse=True)
+        for message in mine:
             try:
                 body = mail.SmtpImapTransport().fetch_body(
                     message.get("message_id", ""))
