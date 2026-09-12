@@ -353,6 +353,7 @@ Rules:
 - Answer ONLY what the facts or the resume settle. Leave every other question out.
 - When a question lists choices, answer with one of those choices exactly, or several for a question that allows more than one.
 - Never answer anything about gender, race, ethnicity, veteran status, disability, criminal history, date of birth, pronouns or salary, and never tick anything that certifies, agrees, consents or signs. Leave those out.
+- "How many years of experience do you have in X" is COUNTED FROM THE RESUME: the dates on the roles where he did X, added up, rounded down to whole years. One year is the floor, never the default — his words, 2026-09-12: "make sure that for experience, it's not always putting one year because some things I have more than one year of experience of per my resume." Never zero, and never a number the resume cannot support.
 - "Have you ever worked for <this company>" is No unless the resume names that company.
 - Opt-ins to marketing, texts or WhatsApp messages are No.
 - "How did you hear about this job" is answered from found_this_job_on: the choice that says that (the company's website or careers page, or an online or web search), or those few words. Never a person, a referral or an event.
@@ -624,12 +625,22 @@ ESSAY_BRIEF = (
     "always answerable: say plainly what the company does, connect it to "
     "real work on his resume, and keep it short and human. Never answer "
     "CANNOT WRITE to one of those.\n"
-    # Same ruling: "make sure it never says I have zero experience in
-    # anything. I always have at least one year experience and everything."
-    "NEVER write that he has no experience, zero years, or has not done "
-    "something. If the resume is thin on it, say he has worked with it for "
-    "about a year and name the closest real thing he did. Never claim a "
-    "language, a certification or a named tool his resume does not show.\n"
+    # Two of his rulings, and the second corrects the first. 2026-09-12:
+    # "make sure it never says I have zero experience in anything. I always
+    # have at least one year experience and everything." Then, seeing "1
+    # year" typed into a closing-role question: "make sure, though, that for
+    # experience, it's not always putting one year because some things I
+    # have more than one year of experience of per my resume."
+    #
+    # So one year is the FLOOR, never the answer. Count what the resume
+    # actually shows and say that.
+    "For a question about how long he has done something, COUNT IT FROM THE "
+    "RESUME: the dates on the roles where he did it, added up, rounded down "
+    "to whole years. Say that number. Only when the resume shows no trace "
+    "of it at all may you fall back to about a year, and then name the "
+    "closest real thing he did. NEVER write that he has no experience, zero "
+    "years, or has not done something. Never claim a language, a "
+    "certification or a named tool his resume does not show.\n"
     "For anything else his resume does not support, reply with exactly "
     "CANNOT WRITE and nothing else — a made-up answer on a job "
     "application is worse than a blank one.\n\nTHE JOB: {job}\n\n"
