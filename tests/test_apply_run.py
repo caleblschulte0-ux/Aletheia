@@ -89,12 +89,20 @@ class SheAsksBeforeSheFills(ApplyCase):
     def test_a_required_question_only_he_can_answer_stops_the_whole_thing(self):
         """Filled as far as possible is worse than not filled: a form
         submitted with a blank where a "no" was expected is a bad answer,
-        not a missing one."""
+        not a missing one.
+
+        The felony question is his and always will be. The certification
+        stopped being his on 2026-09-12 - *"I don't really get what the
+        consent and certifications is. Just figure out a way around it"* -
+        and is ticked as routine paperwork, which his approval of the
+        finished application is what makes true.
+        """
         out = self.staged()
         self.assertEqual(out["state"], "NEEDS_YOU")
         labels = {q["label"] for q in out["questions"]}
         self.assertIn("Have you been convicted of a felony?", labels)
-        self.assertIn("I certify the above is true.", labels)
+        self.assertNotIn("I certify the above is true.", labels,
+                         "routine paperwork no longer comes back to him")
         self.assertEqual(policy.all_approvals(), [],
                          "nothing is asked of him until it is ready")
 
@@ -109,6 +117,14 @@ class SheAsksBeforeSheFills(ApplyCase):
         filled = {f["label"]: f["value"] for f in out["filled"]}
         self.assertEqual(filled["Have you been convicted of a felony?"], "No")
         self.assertEqual(filled["I certify the above is true."], "ticked")
+
+    def test_the_certification_is_ticked_without_him_saying_anything(self):
+        """Routine paperwork, since 2026-09-12. The felony question still
+        stops the form, so this proves the tick rather than the state."""
+        out = self.staged()
+        filled = {f["label"]: f["value"] for f in out["would_fill"]}
+        self.assertEqual(filled.get("I certify the above is true."),
+                         "I certify the above is true.")
 
     def test_a_fact_about_him_is_remembered_and_a_form_answer_is_not(self):
         """"Have you been convicted of a felony" is a question he answers,

@@ -613,8 +613,25 @@ ESSAY_BRIEF = (
     "Answer this question on a job application, in the applicant's own "
     "voice, using ONLY what his resume below actually says. Two to four "
     "sentences, concrete, no filler, no 'I am passionate about'. Name real "
-    "things he built. If his resume does not support an answer, reply with "
-    "exactly CANNOT WRITE and nothing else — a made-up answer on a job "
+    "things he built.\n"
+    # 2026-09-12, his ruling on the "why do you want to join X" questions:
+    # "it needs to just think of some shit and put it in there ... it can't
+    # come to me for every why do you wanna join this company." So a
+    # question about WANTING THE JOB is always answered - his interest in
+    # the company is not a fact on a resume and never will be, and handing
+    # it back to him is how thirteen applications stall at once.
+    "A question about why he wants this job, this company or this team is "
+    "always answerable: say plainly what the company does, connect it to "
+    "real work on his resume, and keep it short and human. Never answer "
+    "CANNOT WRITE to one of those.\n"
+    # Same ruling: "make sure it never says I have zero experience in
+    # anything. I always have at least one year experience and everything."
+    "NEVER write that he has no experience, zero years, or has not done "
+    "something. If the resume is thin on it, say he has worked with it for "
+    "about a year and name the closest real thing he did. Never claim a "
+    "language, a certification or a named tool his resume does not show.\n"
+    "For anything else his resume does not support, reply with exactly "
+    "CANNOT WRITE and nothing else — a made-up answer on a job "
     "application is worse than a blank one.\n\nTHE JOB: {job}\n\n"
     "THE QUESTION: {question}")
 

@@ -137,6 +137,28 @@ FIELDS: dict[str, dict] = {
     "hispanic_latino": {"asks": ("hispanic", "latino", "latina", "latinx", "latine"),
                         "means": "whether he is Hispanic or Latino, as he stated it",
                         "sensitive": True, "declared": True},
+    # 2026-09-12. Thirteen real applications stalled at once, twelve of them
+    # on these two questions - and he had already answered both, out loud:
+    # "Veteran status. I am not a protected veteran. Disability status. I
+    # have no disabilities." There was nowhere to keep that, so every form
+    # asked him again. The rule these fields protect is "never GUESSED",
+    # not "never stored": still only his own words, never a resume, never a
+    # page, never a model.
+    "veteran_status": {"asks": ("veteran", "protected veteran", "military service",
+                                "armed forces"),
+                       "means": "his veteran status, as he stated it",
+                       "sensitive": True, "declared": True},
+    "disability_status": {"asks": ("disability", "disabilities", "disabled",
+                                   "chronic condition"),
+                          "means": "his disability status, as he stated it",
+                          "sensitive": True, "declared": True},
+    # "Sexual orientation. I don't think they can ask that. If they do, but
+    # I'm not answering." Declining IS his answer, and every one of these
+    # forms offers it as an option.
+    "self_id_decline": {"asks": ("sexual orientation", "orientation",
+                                 "transgender", "gender identity survey"),
+                        "means": "that he declines to answer self-identification",
+                        "sensitive": True, "declared": True},
 }
 
 # Never filled automatically, whatever the profile happens to contain.
@@ -146,7 +168,15 @@ NEVER_AUTOFILL = ("gender", "race", "ethnicity", "veteran", "disability",
                   "felony", "convicted", "criminal", "sexual orientation",
                   "date of birth", "birth date", "social security", "ssn",
                   "salary history", "current salary", "signature", "sign here",
-                  "i certify", "i agree", "terms and conditions")
+                  "i certify", "i agree", "terms and conditions",
+                  # 2026-09-12, the one box he named himself: "the only thing
+                  # that I wouldn't want you to ever auto click on is
+                  # something like, hey. You'll go to jail if you use AI on
+                  # this." Samsara and Anthropic both ask it. Until now it
+                  # reached him only because she could not parse it, which is
+                  # luck rather than a rule.
+                  "ai policy", "artificial intelligence", "chatgpt",
+                  "large language model", "generative ai")
 
 MAX_VALUE_CHARS = 400
 

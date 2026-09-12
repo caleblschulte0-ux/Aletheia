@@ -244,7 +244,15 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
             per_form[str(field)] = value
 
     fields = formfill.read_form(url, reader=reader)
-    plan = formfill.plan(fields)
+    # HIS ANSWERS GO IN WITH THE FACTS, not one line later. `plan` decides
+    # what she fills on her own initiative, and it has to know which fields
+    # he has already spoken about: since 2026-09-12 it ticks routine
+    # paperwork by default, and with only the profile in hand it happily
+    # ticked a certification he had explicitly answered "no" to. An answer
+    # he gave outranks anything she would do by default - the same rule as
+    # the ChatGPT lease, learned the same day. Profile facts are keyed by
+    # field name and his answers by selector, so they cannot collide.
+    plan = formfill.plan(fields, answers={**profile.known(), **per_form})
     answered = formfill.apply_answers(plan, fields, per_form)
     steps = formfill.steps(plan["fill"]) + answered["steps"]
 

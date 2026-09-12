@@ -141,7 +141,10 @@ class Tracked(unittest.TestCase):
         used to strip the job title, employer and posting the campaign had
         attached — and the tracker fell back to naming it after the form's
         page title (live 2026-09-11)."""
-        form = [{"selector": "#certify", "label": "I certify the above is true.",
+        # The blocker is one that is ALWAYS his: since 2026-09-12 routine
+        # paperwork (privacy consents, accuracy certifications) is ticked,
+        # but a declaration about whether AI wrote the application never is.
+        form = [{"selector": "#certify", "label": "AI Policy for Application*",
                  "name": "", "id": "certify", "tag": "input", "type": "checkbox",
                  "required": True, "value": ""},
                 {"selector": "#em", "label": "Email address", "name": "", "id": "em",

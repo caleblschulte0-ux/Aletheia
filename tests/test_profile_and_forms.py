@@ -269,18 +269,42 @@ class AFieldSheDoesNotKnowIsAQuestion(ProfileCase):
         self.assertIn("written answer", out["ask"][0]["why"])
 
     def test_protected_characteristics_are_ALWAYS_his(self):
-        """Even when the profile holds an answer. There is no setting."""
-        profile.set_answer("pronouns", "he/him", source="operator")
+        """A characteristic she has not been TOLD is never guessed.
+
+        Gender, race, veteran status and disability can be filled from his
+        own words since 2026-09-12 (`declared_choice`), and only from them:
+        with nothing stored, or a value learned from a resume, every one of
+        these still goes back to him. Criminal history, date of birth,
+        social security and salary are never his answer to give twice.
+        """
         for label in ("Gender", "Race / Ethnicity", "Protected veteran status",
                       "Do you have a disability?",
                       "Have you ever been convicted of a felony?",
                       "Date of birth", "Social Security Number",
-                      "What is your current salary?",
-                      "I certify the above is true and complete.",
-                      "I agree to the terms and conditions"):
+                      "What is your current salary?"):
             out = formfill.plan([field("#x", label)])
             self.assertEqual(out["fill"], [], label)
             self.assertIn("yours to answer, always", out["ask"][0]["why"], label)
+
+    def test_routine_paperwork_is_no_longer_handed_back_to_him(self):
+        """His ruling, 2026-09-12: *"I don't really get what the consent and
+        certifications is. Just figure out a way around it."* His approval
+        is what makes an accuracy certification true - he reads every
+        application and nothing is sent without him."""
+        for label in ("I certify the above is true and complete.",
+                      "I agree to the terms and conditions"):
+            out = formfill.plan([field("#x", label, type="checkbox")])
+            self.assertEqual(out["ask"], [], label)
+            self.assertEqual([s["profile_field"] for s in out["fill"]],
+                             ["routine_consent"], label)
+
+    def test_the_ai_declaration_is_the_one_he_kept(self):
+        """*"You'll go to jail if you use AI on this ... that's the only
+        thing that you should never auto click on."*"""
+        out = formfill.plan([field("#ai", "AI Policy for Application*",
+                                   type="checkbox", required=True)])
+        self.assertEqual(out["fill"], [])
+        self.assertIn("yours to answer, always", out["ask"][0]["why"])
 
     def test_a_file_upload_is_his_to_choose(self):
         out = formfill.plan([field("#cv", "Resume/CV", type="file",
