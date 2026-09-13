@@ -443,24 +443,68 @@ def _submit_in_its_own_process(run_id: str, runner=None) -> dict:
 
 
 def send_approved_applications() -> list[dict]:
-    """Send what he confirmed, once each.
+    """Send what he authorized, once each.
 
-    The whole loop he asked for ends here: she fills the application, it
-    waits as a normal approval, he taps Approve on his phone, and the next
-    beat presses submit. A failure is recorded on the run and surfaced —
-    never retried, because the failure mode of a retry loop on this
-    particular button is several copies of his application in somebody's
-    inbox.
+    A failure is recorded on the run and surfaced — never retried, because
+    the failure mode of a retry loop on this particular button is several
+    copies of his application in somebody's inbox.
+
+    Two things authorize a send, and the second one is the whole point:
+
+    - the application's own approval is APPROVED (he tapped it), or
+    - a standing grant covers `application.submit`.
+
+    It was the first one alone until 2026-09-12, and his ruling retired
+    that: *"No one approval per application. I want this thing just to be
+    applying to jobs, nonstop."* Requiring a tap per application is exactly
+    the shape that fails him, because it fails at the moment he has gone
+    away — which is the moment he built this for. Two fully answered
+    applications (GitLab, Figma) sat at AWAITING_YOU with zero blocking
+    questions and no tap coming, and would have sat there forever.
+
+    The grant is not a bypass. `authority.satisfy` re-reads the registry,
+    checks expiry and the use count, and writes a claim receipt naming the
+    application — so every unattended send is still attributable to a
+    specific authorization he gave, and the grant runs out rather than
+    being permanent. A high-risk capability could not be delegated this
+    way at all; `application.submit` is `registry_grant` precisely because
+    he decided it should be.
     """
-    from aletheia import apply_run
+    from aletheia import apply_run, authority
     sent = []
     for record in apply_run.all_runs("AWAITING_YOU"):
         try:
             approval = policy.load(record["approval"])
         except Exception:
-            continue
+            approval = {}
         if approval.get("state") != "APPROVED":
-            continue
+            # His standing grant. The action id names THIS application, so
+            # the receipt says what the use was spent on — a probe with a
+            # made-up id would spend a use and record a fiction.
+            claim = authority.satisfy(
+                "application.submit", f"apply:{record['id']}")
+            if claim is None:
+                continue
+            # And then GRANT the approval, in his name, citing the grant.
+            # Not because the gate is inconvenient: `accept` and `submit`
+            # both re-check `policy.usable(record["approval"])`, so a run
+            # carrying a standing grant and an ungranted approval would
+            # have died two functions later with "it needs your
+            # confirmation" — the same stall, moved somewhere harder to
+            # see. Deciding the approval here keeps both of those checks
+            # exactly as strict as they were and leaves one auditable
+            # record of WHY it was sent without him.
+            try:
+                apply_run.confirm(
+                    record["id"], via="standing-grant",
+                    because=f"{claim}: he said send stuff, nonstop")
+            except Exception as exc:
+                notifications.publish(
+                    "An application could not be authorized",
+                    f"{record['url']} — {type(exc).__name__}: {exc}"[:400],
+                    priority="IMPORTANT", source="apply",
+                    dedupe_key=f"apply-grant-failed:{record['id']}")
+                continue
         try:
             # accept, NOT confirm: he has already decided. `confirm` GRANTS
             # the approval, which would mean the check for his approval was
