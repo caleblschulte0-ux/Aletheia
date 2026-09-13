@@ -268,6 +268,75 @@ def _proxy_from_environment() -> dict | None:
     return proxy
 
 
+#: How long to wait for another session to finish with the profile. Long
+#: enough for a whole application to be filled and submitted.
+PROFILE_LOCK_WAIT_S = 900.0
+
+
+class _ProfileLock:
+    """A cross-process lock on the browser profile directory.
+
+    A plain lock file, taken with O_EXCL, released on exit, and stolen only
+    when it is older than the longest session could possibly be — otherwise
+    one crashed run would leave her unable to open a browser ever again.
+    """
+
+    #: A lock older than this belonged to a run that died without releasing
+    #: it. Separate from `wait_s` on purpose: a caller that only waits two
+    #: seconds must not therefore treat a two-second-old lock as abandoned,
+    #: which is exactly how the first version of this let two sessions into
+    #: the same profile while reporting that it could not happen.
+    STALE_AFTER_S = PROFILE_LOCK_WAIT_S
+
+    def __init__(self, path: Path, wait_s: float = PROFILE_LOCK_WAIT_S,
+                 stale_after_s: float | None = None):
+        self.path = path
+        self.wait_s = float(wait_s)
+        self.stale_after_s = float(
+            self.STALE_AFTER_S if stale_after_s is None else stale_after_s)
+        self.held = False
+
+    def acquire(self) -> bool:
+        import time as _time
+        deadline = _time.monotonic() + self.wait_s
+        while True:
+            try:
+                fd = os.open(str(self.path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.write(fd, str(os.getpid()).encode("ascii", "ignore"))
+                os.close(fd)
+                self.held = True
+                return True
+            except FileExistsError:
+                try:
+                    stale = (_time.time() - self.path.stat().st_mtime) > self.stale_after_s
+                except OSError:
+                    stale = False
+                if stale:
+                    try:
+                        self.path.unlink()
+                    except OSError:
+                        pass
+                    continue
+                if _time.monotonic() >= deadline:
+                    # Never block for ever: the caller gets a browser and the
+                    # collision is visible, rather than a run that hangs.
+                    return False
+                _time.sleep(1.0)
+
+    def release(self) -> None:
+        if not self.held:
+            return
+        self.held = False
+        try:
+            self.path.unlink()
+        except OSError:
+            pass
+
+
+def _profile_lock(profile: Path) -> "_ProfileLock":
+    return _ProfileLock(Path(profile).parent / (Path(profile).name + ".lock"))
+
+
 class _Session:
     """A persistent-profile Playwright context. Context manager."""
 
@@ -282,6 +351,14 @@ class _Session:
     def __enter__(self):
         from playwright.sync_api import sync_playwright
         self.profile.mkdir(parents=True, exist_ok=True)
+        # ONE BROWSER AT A TIME. Every session shares one persistent profile
+        # directory, and Chrome will not have two processes in it: live
+        # 2026-09-12 the Core's beat pressed submit while a campaign was
+        # hunting, and six of seven sends died with TargetClosedError. They
+        # queue now instead of colliding, which is what makes unattended
+        # sending survive running alongside the hunt.
+        self._lock = _profile_lock(self.profile)
+        self._lock.acquire()
         self._pw = sync_playwright().start()
         kwargs = {"headless": not self.headed}
         if self.args:
@@ -306,6 +383,9 @@ class _Session:
                     if not _closed_browser_error(close_exc):
                         raise
         finally:
+            lock = getattr(self, "_lock", None)
+            if lock is not None:
+                lock.release()
             if self._pw:
                 try:
                     self._pw.stop()

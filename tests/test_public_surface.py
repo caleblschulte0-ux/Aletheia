@@ -197,11 +197,64 @@ class NOTHING_PRIVATE_IS_IN_THE_TRACKED_TREE(unittest.TestCase):
                 continue          # the registry DECLARES the labels
             text = path.read_text(encoding="utf-8", errors="ignore")
             for label in labels:
-                # The label plus a number after it — the label alone is
+                # The label plus HIS MONEY after it — the label alone is
                 # fine (the pulse names what it is holding back).
-                if re.search(re.escape(label) + r"[^\n]{0,4}[-+$\d]", text):
+                #
+                # It read `[-+$\d]` until 2026-09-12, which counts a
+                # hyphen as a figure, so the fleet's own pulse turned red
+                # on a schwab-trader commit headline:
+                #
+                #     "explainer: posted cash-payments-decade-decline"
+                #
+                # A hyphen in a headline is not his balance. A guard that
+                # cries wolf on prose gets read as noise and then gets
+                # switched off, which is how the thing it protects
+                # eventually ships — so the sign is optional and a DIGIT
+                # is required. Every real shape still fails closed:
+                # "cash $2.50", "cash: -40.82", '"cash": 2.50'.
+                if re.search(re.escape(label) + r"[^\n]{0,4}[-+$]?\d", text):
                     offenders.append(f"{path}: {label}")
         self.assertEqual(offenders, [], "private figures in tracked files")
+
+    def test_a_hyphen_in_a_headline_is_not_his_balance(self):
+        """The guard cried wolf on the fleet's own pulse.
+
+        2026-09-12: every pull request went red on
+
+            state/pulse/latest.json: cash
+            state/pulse/history/20260912.json: cash
+
+        and the offending text was a schwab-trader commit MESSAGE the
+        pulse had faithfully collected — "explainer: posted
+        cash-payments-decade-decline". The pattern was `[-+$\\d]`, so the
+        hyphen in a headline read as a figure.
+
+        This is not a cosmetic failure. A guard over the one permanent
+        rule that goes red on prose gets read as noise, and a guard read
+        as noise gets switched off — which is how the thing it protects
+        eventually ships. It has to be wrong approximately never.
+
+        So: the sign is optional, a digit is required. Held closed in
+        both directions here, because loosening a money guard is exactly
+        the edit that deserves a test saying what it may still catch.
+        """
+        labels = self.private_labels()
+        self.assertIn("cash", labels)
+
+        def offends(text):
+            return any(re.search(re.escape(l) + r"[^\n]{0,4}[-+$]?\d", text)
+                       for l in labels)
+
+        # What broke it, and what it was holding back correctly.
+        self.assertFalse(offends(
+            '"message": "explainer: posted cash-payments-decade-decline"'))
+        self.assertFalse(offends('"private_vitals": ["open positions", "cash"]'))
+
+        # And every shape that IS his money still fails closed.
+        self.assertTrue(offends(
+            "realized P&L -$40.82 · win rate 14.3% · cash $2.50"))
+        self.assertTrue(offends('"cash": 2.50'))
+        self.assertTrue(offends("cash: -40.82"))
 
     def test_the_committed_journal_holds_only_fleet_telemetry(self):
         path = Path("state/journal/journal.jsonl")
