@@ -109,8 +109,8 @@ ROOM_MODULE = "aletheia.voice_room"
 def room_is_running() -> bool:
     """Is a listener process alive? Never raises."""
     try:
-        import subprocess
-        out = subprocess.run(
+        from aletheia import proc
+        out = proc.run(
             ["powershell", "-NoProfile", "-Command",
              "(Get-CimInstance Win32_Process -Filter \"Name like 'pythonw%'\" "
              "| Where-Object { $_.CommandLine -match 'voice_room' } "
@@ -137,6 +137,7 @@ def start_room() -> tuple[bool, str]:
         pythonw = str(Path(sys.executable).with_name("pythonw.exe"))
         if not Path(pythonw).exists():
             pythonw = sys.executable
+        from aletheia import proc
         subprocess.Popen(
             [pythonw, "-m", ROOM_MODULE],
             cwd=str(stateio.REPO_ROOT) if hasattr(stateio, "REPO_ROOT") else None,
@@ -153,8 +154,8 @@ def start_room() -> tuple[bool, str]:
 def stop_room() -> tuple[bool, str]:
     """Stop the listener. Always allowed, never raises."""
     try:
-        import subprocess
-        subprocess.run(
+        from aletheia import proc
+        proc.run(
             ["powershell", "-NoProfile", "-Command",
              "Get-CimInstance Win32_Process -Filter \"Name like 'pythonw%'\" "
              "| Where-Object { $_.CommandLine -match 'voice_room' } "

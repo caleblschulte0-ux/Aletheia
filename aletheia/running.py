@@ -34,6 +34,7 @@ import argparse
 import json
 import subprocess
 import sys
+from aletheia import proc
 
 from aletheia.proc import hidden_flags
 
@@ -58,7 +59,7 @@ def _powershell(script: str) -> str:
     """Never raises: a status command that dies is a status command that
     lies about the thing it could not see."""
     try:
-        done = subprocess.run(
+        done = proc.run(
             ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
             capture_output=True, text=True, timeout=25, creationflags=hidden_flags())
         return done.stdout or ""
@@ -151,7 +152,7 @@ def tasks() -> dict[str, str]:
     found = {}
     for name in TASKS:
         try:
-            done = subprocess.run(
+            done = proc.run(
                 ["schtasks.exe", "/query", "/TN", name, "/FO", "CSV", "/NH"],
                 capture_output=True, text=True, timeout=20, creationflags=hidden_flags())
         except Exception:
