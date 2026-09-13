@@ -577,10 +577,59 @@ def _keep_the_job(record: dict, page: dict, **extra_fields) -> dict:
         return record
 
 
+#: How many companies' own websites one run may read. A board is one API
+#: call for every job it has; a careers page is a page read per company,
+#: so this is the difference between a search and an evening.
+CAREERS_PAGES_PER_RUN = 6
+
+
+def _careers_page_openings(hits: dict, roles: list[str], want: int, *,
+                           reader=None, http=None) -> list[dict]:
+    """Openings from companies' own websites, when the boards came up short.
+
+    The employers asked are the ones already in hand — the boards she knows
+    and whatever the web search named. That is deliberate: inventing
+    company names to look up would be a guess, and a guess here costs a
+    page read and returns somebody else's business.
+    """
+    if want <= 0:
+        return []
+    from aletheia import careers
+    employers, seen = [], set()
+    for job in (hits or {}).get("matches", []):
+        name = " ".join(str(job.get("company") or "").split())
+        key = name.casefold()
+        if name and key not in seen:
+            seen.add(key)
+            employers.append(name)
+    out: list[dict] = []
+    for name in employers[:CAREERS_PAGES_PER_RUN]:
+        if len(out) >= want:
+            break
+        try:
+            found = careers.find_careers_page(name, http=http, reader=reader)
+        except Exception:
+            continue
+        if found.get("state") != "ok":
+            continue
+        for job in careers.as_openings(found["openings"], company=name):
+            out.append({"url": job["apply_url"],
+                        "title": f"{job['title']} — {name}",
+                        "posting": job["posting_url"], "company": name,
+                        # The honest answer to "how did you hear about this
+                        # job", which blocked most forms live.
+                        "found_on": "the company's own careers page",
+                        "direct": True})
+            if len(out) >= want:
+                break
+    return out
+
+
 def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         finder=None, reader=None, opener=None, stager=None, writer=None,
         json_think=None, searcher=None, draft_essays_too: bool = True,
-        fit_think=None, describer=None) -> dict:
+        fit_think=None, describer=None,
+        careers_reader=None, careers_http=None) -> dict:
     """Make `count` applications ready with `resume`. Stages them all; sends nothing.
 
     `fit_think` judges whether each job is realistic (False: rules only);
@@ -644,11 +693,27 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
             if fallback and [r.casefold() for r in fallback] != [r.casefold() for r in roles]:
                 ignored_role, roles = role, fallback
                 hits, pages = _openings(roles)
+        # THE COMPANIES THAT ARE NOT ON AN APPLICANT-TRACKING SYSTEM. His
+        # words, 2026-09-13: "there are companies all over the country that
+        # only have [jobs] on their website ... I've never heard of that I
+        # probably would like to work at." Six ATSs reach thousands of
+        # employers and every one of them is an employer who bought an ATS;
+        # the manufacturer in town has a careers page and nothing else.
+        #
+        # Asked LAST and only when the boards came up short, because it
+        # costs a page read per company where a board costs one API call
+        # for all of them. Bounded by CAREERS_PAGES_PER_RUN so a campaign
+        # cannot spend its whole evening reading websites.
+        if len(pages) < want:
+            pages += _careers_page_openings(
+                hits, roles, want - len(pages),
+                reader=careers_reader, http=careers_http)
         if not pages:
             tried = f"{ignored_role!r} or " if ignored_role else ""
             raise CampaignError(
                 f"no openings matched {tried}{', '.join(roles)} across "
-                f"{hits.get('searched', 0)} boards or a web search.")
+                f"{hits.get('searched', 0)} boards, a web search, or the "
+                f"companies' own careers pages.")
     else:
         reader = reader or applications.research.read_sources
         candidates = finder(f"{roles[0]} job openings{(' ' + where) if where else ''}",
