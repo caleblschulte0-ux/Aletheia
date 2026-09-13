@@ -390,6 +390,12 @@ def match_field(field: dict) -> str | None:
     codes = " ".join(str(field.get(k) or "") for k in ("name", "id")).casefold()
     best, best_len = None, 0
     for key, spec in profile.FIELDS.items():
+        # A signup-only fact never reaches an employer. His Google Voice
+        # number exists so an ACCOUNT can be made; an application carries
+        # his real number. The field also has no `asks` phrases, so this is
+        # the second of two locks, not the only one.
+        if key in profile.SIGNUP_ONLY:
+            continue
         if yes_no and key not in YES_NO_FIELDS:
             continue
         # "Years of experience IN sales operations" is not his total years:

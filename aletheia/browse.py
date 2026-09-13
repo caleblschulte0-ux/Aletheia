@@ -42,7 +42,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from aletheia import journal, policy
+from aletheia import journal, policy, proc
 from aletheia.fleet import REPO_ROOT
 
 PROFILE_DIR = REPO_ROOT / "cache" / "browser-profile"

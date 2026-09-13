@@ -162,10 +162,15 @@ class TheRightJobsForHimCase(JobsCase):
         self.assertEqual([j["title"] for j in out["matches"]], ["Account Manager, SMB"])
 
     def test_one_search_per_board_site_for_every_role(self):
+        """The rule is ONE search per site carrying every role, not one per
+        role per site — that was fifteen searches a campaign and DuckDuckGo
+        answered the later ones with its challenge page. Counted against
+        SEARCH_SITES rather than a frozen number, so adding a system she
+        can reach widens the sweep without going red."""
         asked = []
         jobs.discover_openings(["Account Executive", "Account Manager"], limit=5,
                                http=lambda q: asked.append(q) or {"links": []})
-        self.assertEqual(len(asked), 3)
+        self.assertEqual(len(asked), len(jobs.SEARCH_SITES))
         self.assertTrue(all('"Account Executive" OR "Account Manager"' in q for q in asked), asked)
 
     def test_a_refused_search_is_not_asked_again_straight_away(self):

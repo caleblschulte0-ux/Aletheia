@@ -1,0 +1,90 @@
+# The charter loop, said out loud every three hours.
+#
+# On 2026-09-13 the loop had run daily for three days, succeeded every
+# time, and produced nothing — and nobody knew, because nothing anywhere
+# said what it had decided or why. Silence is the defect this job fixes.
+# It decides nothing and merges nothing; it reports.
+#
+# Two things it reports:
+#
+#   * WHAT IS NEXT, from `aletheia.charter_work` — and, for every charter
+#     it passed over, why. The old rules lived as prose in the cloud
+#     builder's routine prompt, where they could not be tested, and one of
+#     them skipped any charter whose base branch had been committed to in
+#     the last twelve hours. Caleb's other loops commit to exactly those
+#     branches, so three of four charters were permanently ineligible.
+#
+#   * WHETHER FINISHED WORK CAN BE HANDED OVER. The pull request for a
+#     pushed builder branch is `project_merge.open_builder_prs` — it
+#     already exists, tested, with its halt check and its machine-bound
+#     `code_trust` grant. It has never run against these charters because
+#     `project_loop` runs only on Caleb's PC, as a Windows Scheduled Task,
+#     and that PC has not been switched on.
+#
+# This job does NOT open the pull request. `open_builder_prs` is gated on a
+# code-work grant bound to the machine that minted it; running it here
+# would mean weakening that gate, which is a ruling for Caleb and not a
+# side effect of a workflow. Until he rules, the job's whole value is that
+# a branch sitting unopened becomes visible within three hours instead of
+# never.
+name: charter
+
+on:
+  schedule:
+    - cron: "23 */3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: charter
+  cancel-in-progress: false
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # FLEET_TOKEN is documented read-only (contents + actions), which is
+      # all this needs: it looks at branches and pull requests and writes
+      # nothing. Without it the charters in sibling repos read as empty,
+      # which is recorded honestly rather than as "nothing to do".
+      - name: What is next, and why not the rest
+        id: next
+        env:
+          FLEET_TOKEN: ${{ secrets.FLEET_TOKEN }}
+        run: |
+          if [ -z "${FLEET_TOKEN:-}" ]; then
+            echo "::warning::No FLEET_TOKEN — the charter repos are in other repositories, so branches and pull requests there cannot be seen and every charter will read as untouched."
+          fi
+          python -m aletheia.charter_work --live | tee "$GITHUB_STEP_SUMMARY"
+
+      # A pushed branch with no pull request is finished work nobody can
+      # see. Name it every run; it is the thing that went unnoticed for
+      # three days.
+      - name: Is finished work waiting for a door?
+        env:
+          FLEET_TOKEN: ${{ secrets.FLEET_TOKEN }}
+        run: |
+          python - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import json
+          from aletheia import charter_work, gh, plans
+          from aletheia.fleet import load_fleet
+
+          charters = [p for p in plans.all_plans() if plans.is_charter(p)]
+          result = charter_work.survey(charters, load_fleet(), request=gh.request)
+          d = result.decision
+          if d is not None and d.action == charter_work.FINISH_PR:
+              print(f"::warning::{d.branch} is pushed with no pull request "
+                    f"({d.slug} step {d.n}). project_merge.open_builder_prs opens "
+                    "it, but runs only on the PC Core, behind the code_trust "
+                    "grant. Nothing here will open it.")
+          else:
+              print("No finished builder branch is waiting for a pull request.")
+          PY
