@@ -30,12 +30,30 @@ the record past the beat's gate and left its approval ungranted, so it
 died two functions later with "it needs your confirmation" — the same
 stall, moved somewhere harder to see. The grant path decides the
 approval, so those two checks stay exactly as strict as they were.
+
+And one about testing, paid for twice in CI: this file first mocked the
+two modules through `sys.modules`, passed on its own, and failed all four
+assertions in the full suite on both platforms. `from aletheia import
+apply_run` reads an ATTRIBUTE of the package; Python only falls back to
+`sys.modules` when that attribute is missing. Run alone, nothing had
+imported the real module yet, so the fallback found the mock. Run in the
+suite, an earlier test had imported it, the attribute was there, and the
+real module answered with no runs — every send silently became zero. A
+green run of one file proves less than it looks like: if the thing under
+test resolves a name at call time, patch where it will actually LOOK.
 """
 from __future__ import annotations
 
 import unittest
 from unittest import mock
 
+import aletheia
+# Imported for the side effect, and the noqa is load-bearing: the function
+# under test does `from aletheia import apply_run, authority`, which reads an
+# ATTRIBUTE of the package — so the attribute has to exist before setUp can
+# patch it. See the note on test order in the docstring above.
+from aletheia import apply_run as _real_apply_run  # noqa: F401
+from aletheia import authority as _real_authority  # noqa: F401
 from aletheia import runtime
 
 
@@ -70,18 +88,22 @@ class HeDoesNotTapApproveOnEveryJobCase(unittest.TestCase):
             self.sent.append(run_id)
             return {"result": {"verdict": "confirmed", "note": "sent"}}
 
-        apply_run = mock.Mock()
-        apply_run.all_runs.return_value = self.runs
-        apply_run.confirm.side_effect = confirm
-        apply_run.accept.side_effect = lambda run_id: {"id": run_id}
+        fake_apply_run = mock.Mock()
+        fake_apply_run.all_runs.return_value = self.runs
+        fake_apply_run.confirm.side_effect = confirm
+        fake_apply_run.accept.side_effect = lambda run_id: {"id": run_id}
+        self.apply_run = fake_apply_run
 
-        self.apply_run = apply_run
-        authority = mock.Mock()
-        authority.satisfy.side_effect = satisfy
+        fake_authority = mock.Mock()
+        fake_authority.satisfy.side_effect = satisfy
 
-        modules = {"aletheia.apply_run": apply_run, "aletheia.authority": authority}
-        patch = mock.patch.dict("sys.modules", modules)
-        patch.start(); self.addCleanup(patch.stop)
+        # The PACKAGE ATTRIBUTES, not sys.modules — see the docstring. A
+        # sys.modules patch is only consulted when the attribute is absent,
+        # so it worked alone and did nothing in the suite.
+        for name, fake in (("apply_run", fake_apply_run),
+                           ("authority", fake_authority)):
+            p = mock.patch.object(aletheia, name, fake)
+            p.start(); self.addCleanup(p.stop)
 
         patch2 = mock.patch.object(
             runtime, "policy",
