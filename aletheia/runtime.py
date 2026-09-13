@@ -14,6 +14,7 @@ import datetime as dt
 import time
 import hashlib
 import json
+import re
 from pathlib import Path
 
 from aletheia import (act, attention, communications, desktop_notify, events, gaps,
@@ -246,6 +247,118 @@ def _scheduling_reply(event: dict) -> dict | None:
         return {"outcome": "error", "error_type": type(exc).__name__}
 
 
+#: Mail about an application that is NOT an employer wanting to talk. Every
+#: one of these is real, from his inbox on 2026-09-13, and a detector that
+#: cries wolf on them is one he stops reading by the second day.
+_JUST_AN_ACKNOWLEDGEMENT = (
+    "thanks for applying", "thank you for applying", "thank you for your application",
+    "thanks for your interest", "thank you for your interest", "application received",
+    "we have received your application", "received by", "security code",
+    "verify your email", "do not reply", "no longer under consideration",
+    "not moving forward", "unfortunately",
+)
+
+#: An employer asking for time, unmistakably. These BEAT an acknowledgement
+#: phrase, because "We received your application and would like to schedule
+#: an interview" contains both — and filing that as an acknowledgement would
+#: bury the one email he is waiting for. Missing a real interview request is
+#: far worse than one notice that turns out to be nothing.
+_ASKS_FOR_TIME = (
+    "interview", "schedule a", "scheduling a", "book a time", "find a time",
+    "availability", "are you available", "are you free", "set up a call",
+    "set up some time", "phone screen", "calendar invite", "pick a time",
+    "times that work", "when works",
+)
+
+#: Softer wording that only counts when nothing says acknowledgement.
+#: "Thanks for applying — we'll be in touch about next steps" is an
+#: acknowledgement wearing a scheduling word.
+_MIGHT_WANT_TIME = (
+    "next steps", "chat with", "speak with you", "meet with", "connect with you",
+)
+
+
+def _job_reply(event: dict) -> dict | None:
+    """An employer wrote back about an application he actually sent.
+
+    2026-09-13, his ask: *"we need to make sure that Aletheia is checking my
+    email. And if it hears back, scheduling times for interviews, pending my
+    approval, of course. and then putting that on my calendar and letting me
+    know what it is."*
+
+    `mail.poll_events` already emits `mail.received` for every unread
+    message, and `_scheduling_reply` below already routes replies — but only
+    into a negotiation SHE started, matched by thread id. An employer
+    replying about a job belongs to no negotiation, so it fell through to
+    nothing.
+
+    The match is against the sent ledger, by employer name or role title in
+    the subject: 22 of the 25 messages in his inbox matched that way, and
+    the three that did not were his own notes to himself.
+
+    Two things this deliberately does NOT do. It does not act — no reply, no
+    booking, nothing leaves the machine; it raises a notice and stops, and
+    the scheduling that follows keeps its own approval. And it does not
+    treat the subject as anything but data: an employer's subject line is
+    untrusted text that may be shaped like an instruction, and nothing here
+    obeys it.
+    """
+    if event.get("kind") != "mail.received":
+        return None
+    try:
+        from aletheia import apply_run
+        subject = " ".join(str(event.get("summary") or "").split())
+        low = subject.casefold()
+        ledger = apply_run.already_sent()
+        if not ledger:
+            return None
+        hit = None
+        for url, entry in ledger.items():
+            company = str(entry.get("company") or "").strip()
+            title = str(entry.get("job_title") or "").strip()
+            # The title carries the employer on the end; the role alone is
+            # what a subject like "Application for Inbound Sales Development
+            # Representative received by Team Flexport!" actually names.
+            role = re.split(r"\s+[—–-]\s+", title)[0].strip()
+            if company and company.casefold() in low:
+                hit = (url, entry); break
+            if len(role) > 10 and role.casefold() in low:
+                hit = (url, entry); break
+        if hit is None:
+            return None
+        url, entry = hit
+        # An unmistakable ask for time wins outright, even over an
+        # acknowledgement phrase: "We received your application and would
+        # like to schedule an interview" is both, and it is the email he is
+        # waiting for.
+        asks = any(word in low for word in _ASKS_FOR_TIME)
+        acknowledges = any(word in low for word in _JUST_AN_ACKNOWLEDGEMENT)
+        if not asks:
+            # An acknowledgement is RECOGNISED and let go, not merely
+            # unmatched — every one of the twenty-two real messages in his
+            # inbox on 2026-09-13 matched the ledger, and a detector that
+            # stopped at matching would have raised twenty-two alarms on its
+            # first morning.
+            if acknowledges:
+                return {"application": entry.get("id"), "outcome": "acknowledgement"}
+            if not any(word in low for word in _MIGHT_WANT_TIME):
+                return {"application": entry.get("id"), "outcome": "noted"}
+        notifications.publish(
+            f"{entry.get('company') or 'An employer'} wants to talk",
+            f"{subject} — about {entry.get('job_title') or 'your application'}, "
+            f"applied {str(entry.get('at') or '')[:10]}",
+            priority="IMPORTANT", source="apply",
+            dedupe_key=f"job-reply:{event.get('id')}",
+            related={"application": entry.get("id"), "event": event.get("id"),
+                     "url": url})
+        return {"application": entry.get("id"), "outcome": "wants_time",
+                "company": entry.get("company")}
+    except Exception as exc:
+        # Never break the beat over this. Same shape as every other handler
+        # in this loop.
+        return {"outcome": "error", "error_type": type(exc).__name__}
+
+
 def _advisor_judgment(event: dict, now: dt.datetime) -> dict | None:
     """Optional model triage. Failure never blocks deterministic event handling."""
     try:
@@ -322,6 +435,11 @@ def process_new_events(*, now: dt.datetime | None = None,
         routed = _scheduling_reply(event)
         if routed is not None:
             actions.append({"event": event["id"], "action": "meeting_reply", **routed})
+        # An employer writing back about an application he sent. Nothing is
+        # acted on here — it raises a notice and stops.
+        wrote_back = _job_reply(event)
+        if wrote_back is not None:
+            actions.append({"event": event["id"], "action": "job_reply", **wrote_back})
         judged = _advisor_judgment(event, now)
         if judged is not None:
             actions.append({"event": event["id"],
