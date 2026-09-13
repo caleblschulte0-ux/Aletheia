@@ -70,6 +70,47 @@ def staged_dir():
     return stateio.private_dir("applications")
 
 
+def sent_path():
+    """Every url an application has actually gone to. Never rewritten by a re-stage."""
+    return stateio.private_dir("applications") / "already-sent.json"
+
+
+def already_sent() -> dict:
+    try:
+        value = stateio.read_json(sent_path())
+    except (OSError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def was_sent(url: str) -> dict | None:
+    """What is already in an employer's inbox for this url, if anything.
+
+    THE RECORD CANNOT BE ITS OWN EVIDENCE. Live 2026-09-12: a campaign
+    re-staged jobs that had already been submitted — `stage()` keys a
+    record by a hash of the url and rebuilds it in place — so three
+    applications the employers had already confirmed by email came back as
+    fresh AWAITING_YOU records. `submit()`'s "already submitted" guard
+    reads the record it just overwrote, so it would have sent a SECOND
+    copy of his application to Stripe, Databricks and Samsara. The only
+    thing that cannot be clobbered by a re-stage is a separate ledger.
+    """
+    return already_sent().get(str(url or "").strip()) or None
+
+
+def remember_sent(record: dict) -> None:
+    """Write the url down the moment it really goes, and never forget it."""
+    url = str(record.get("url") or "").strip()
+    if not url:
+        return
+    ledger = already_sent()
+    ledger[url] = {"id": record.get("id"), "at": record.get("submitted_at"),
+                   "job_title": record.get("job_title", ""),
+                   "company": record.get("company", ""),
+                   "verdict": (record.get("result") or {}).get("verdict", "")}
+    stateio.write_json_atomic(sent_path(), ledger)
+
+
 def _record_path(run_id: str):
     return staged_dir() / f"{stateio.safe_id(run_id, name='application id')}.json"
 
@@ -228,6 +269,14 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
     # certification again, forever. Every answer he has given this form is
     # applied to every re-stage of it.
     run_id = f"apply-{_tag(url)}"
+    # A job he has already applied to is not a job to fill in again. The
+    # campaign re-staged three of them on 2026-09-12 and turned confirmed
+    # applications back into fresh ones waiting to be sent.
+    gone = was_sent(url)
+    if gone:
+        raise ApplyError(
+            f"an application already went to {url} at {gone.get('at')} "
+            f"({gone.get('job_title') or 'that job'}) — not applying twice")
     try:
         before = load_run(run_id)
     except (OSError, ValueError, KeyError):
@@ -517,6 +566,16 @@ def submit(run_id: str, *, submitter=None) -> dict:
     if record["state"] == "SUBMITTED":
         raise ApplyError(f"{run_id} was already submitted at "
                          f"{record.get('submitted_at')} — not sending it again")
+    # And the same question asked of the LEDGER, which a re-stage cannot
+    # rewrite. The check above reads the record, and on 2026-09-12 a
+    # campaign rebuilt three already-sent records from scratch, which would
+    # have put a second copy of his application in front of Stripe,
+    # Databricks and Samsara. An employer cannot unsee that.
+    gone = was_sent(record.get("url", ""))
+    if gone:
+        raise ApplyError(
+            f"{run_id}: an application already went to {record.get('url')} at "
+            f"{gone.get('at')} — not sending a second copy")
     if record["state"] != "APPROVED":
         raise ApplyError(f"{run_id} is {record['state']}; it needs your "
                          "confirmation before anything is sent")
@@ -541,6 +600,7 @@ def submit(run_id: str, *, submitter=None) -> dict:
 
     record.update({"state": "SUBMITTED", "result": outcome})
     stateio.write_json_atomic(_record_path(record["id"]), record)
+    remember_sent(record)
     journal.append("action", "apply",
                    f"submitted {record['id']} to {record['url']} — "
                    f"{outcome.get('verdict')}", actor=ACTOR)
