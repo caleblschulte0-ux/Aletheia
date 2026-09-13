@@ -1284,6 +1284,18 @@
       "verification": "tests/test_projects_are_carried.py: the contract, next_for skipping his steps and unmet needs, charters skipped by the orchestrator, activity read from the charter's own branch with bot commits ignored, credit only from a merge into that branch, the one-thing order and snooze, replies done/keep/drop and a non-answer changing nothing"
     },
     {
+      "id": "charter.next",
+      "description": "Say which charter step is next and, for every charter passed over, why - so a loop that decides nothing stops doing it silently",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "charter.yml every three hours (python -m aletheia.charter_work --live); the 'Thea project builder' cloud routine is meant to run it instead of re-deriving its rules from its own prompt",
+      "module": "aletheia.charter_work",
+      "verification": "tests/test_charter_work.py: a base branch committed to one minute ago is still eligible, a pushed branch with no pull request is finished rather than rebuilt, his steps are never picked for her, every skipped charter gives a reason, and the module issues only GETs",
+      "notes": "Built 2026-09-13 after measuring the loop: the cloud builder had run daily for three days, succeeded every time and opened zero pull requests. Its rules lived as prose in its routine prompt, where nothing could test them, and one of them skipped any charter whose BASE branch had a real commit in the last twelve hours - meant as 'do not collide', but the builder never works on the base branch, it branches off it and opens a pull request back into it. Caleb's other loops commit to exactly those branches (the AI_HANDOFF loop touches open-range-promo's base every hour), so three of four charters were permanently ineligible and the fourth had a branch pushed on 2026-09-11 that no path ever opened. This module decides; it opens nothing. The pull request for a pushed branch is project_merge.open_builder_prs, which already exists with its halt check and machine-bound code_trust grant, and has never run against these charters because project_loop runs only as a Windows Scheduled Task on a PC that has not been switched on."
+    },
+    {
       "id": "reason.local",
       "description": "Offline local models (Ollama) as a reasoning provider when the subscription clients are unavailable",
       "provider": "aletheia.local",
