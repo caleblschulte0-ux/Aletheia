@@ -731,17 +731,39 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
         # every slot went to Stripe and Databricks, and no other employer
         # was ever looked for.
         seen = {job["apply_url"] for job in board[:cap]}
-        for job in discover_openings(roles, limit=cap, http=http):
-            if job["apply_url"] in seen:
-                continue
-            if country and not _in_country(job.get("location", ""), country):
-                continue
-            value = max(_score(job, terms, "", exclude=exclude) for terms in term_sets)
-            if value <= 0:
-                continue
-            job["score"] = round(value, 3)
-            seen.add(job["apply_url"])
-            web.append(job)
+        # ONE SWEEP PER PLACE, interleaved. The search carried no geography
+        # at all — `site:greenhouse.io "Account Executive"` and whatever the
+        # engine felt like ranking, which is San Francisco and New York. A
+        # place cannot be recovered by filtering afterwards: a filter can
+        # only throw away what the engine already returned, and the jobs
+        # down the road were never asked for. So the place goes in the
+        # QUERY, once per place, and the places come from his profile.
+        places = places_to_search(_where_from_profile(where))
+        by_place: list[list[dict]] = []
+        for place in places:
+            got = []
+            for job in discover_openings(roles, where=place, limit=cap, http=http):
+                if job["apply_url"] in seen:
+                    continue
+                if country and not _in_country(job.get("location", ""), country):
+                    continue
+                value = max(_score(job, terms, "", exclude=exclude) for terms in term_sets)
+                if value <= 0:
+                    continue
+                job["score"] = round(value, 3)
+                seen.add(job["apply_url"])
+                got.append(job)
+            if got:
+                by_place.append(got)
+        # Round-robin again, for the same reason the board sites are: the
+        # first place asked must not take every slot, or "remote" (always
+        # last) would never appear and neither would the second town.
+        while by_place and len(web) < cap:
+            for queue in list(by_place):
+                if len(web) >= cap:
+                    break
+                web.append(queue.pop(0))
+            by_place = [q for q in by_place if q]
         # An employer known only by its board token is named by its board,
         # once per board, before it is remembered or applied to. Only on a
         # real search: a test's own fetcher never reaches the network here.
@@ -1059,26 +1081,89 @@ def learn_board_urls(seen: list[dict], *, source: str) -> int:
         return 0
 
 
-def discover_openings(roles: list[str], *, limit: int = 10, http=None) -> list[dict]:
-    """Openings on ANY company's Greenhouse or Lever board that a web search finds.
+#: How many places one sweep may ask about. Each place is another search,
+#: and the engines answer the later ones with a challenge page.
+MAX_PLACES_PER_SWEEP = 4
 
-    One plain HTTP search per board site for all the roles at once (research.http_search -
-    Bing's RSS answers a document fetch where a headless browser is
-    challenged). A result is kept only when its address is a real job on
-    one of those boards, and it is turned into the same public, login-free
-    application form the configured boards use.
+
+
+def places_to_search(known: dict | None = None) -> list[str]:
+    """Where to look, from HIS profile — never a list in code.
+
+    The search used to carry no geography at all: `site:greenhouse.io
+    "Account Executive"` and whatever the engine felt like ranking, which
+    is San Francisco and New York. A man in South Dakota got a list of
+    jobs he cannot take, and the ones down the road were never asked for.
+
+    "Remote" is always included and always last, so it fills what is left
+    rather than crowding out the places he could drive to.
+    """
+    known = dict(known if known is not None else {})
+    out: list[str] = []
+    city = " ".join(str(known.get("home_city") or known.get("city") or "").split())
+    state = " ".join(str(known.get("state") or "").split())
+    if city and state:
+        out.append(f"{city}, {state}")
+    elif city:
+        out.append(city)
+    if state and state not in out:
+        out.append(state)
+    for extra in (known.get("also_search") or ()):
+        extra = " ".join(str(extra).split())
+        if extra and extra not in out:
+            out.append(extra)
+    out = out[:MAX_PLACES_PER_SWEEP - 1]
+    out.append("remote")
+    return out
+
+
+def _where_from_profile(where: str = "") -> dict:
+    """Where he is, for the sweep. An explicit `where` wins; otherwise his
+    profile decides, and if neither says anything the sweep is just
+    "remote" — which is honest, not a guess about where he lives."""
+    if str(where or "").strip():
+        return {"home_city": str(where).strip()}
+    try:
+        from aletheia import profile
+        return profile.known()
+    except Exception:
+        return {}
+
+
+def discover_openings(roles: list[str], *, where: str = "", limit: int = 10,
+                      http=None) -> list[dict]:
+    """Openings on ANY company's public board that a web search finds.
+
+    One plain HTTP search per board site for all the roles at once
+    (research.http_search — Bing's RSS answers a document fetch where a
+    headless browser is challenged). A result is kept only when its address
+    is a real job on one of those boards, and it is turned into the same
+    public, login-free application form the configured boards use.
+
+    `where` goes INTO the query. It is not a filter applied afterwards,
+    because a filter cannot recover a local job the engine never returned.
+
+    **The location of a web-found job is genuinely unknown.** A search
+    result gives a title and an address and nothing else, so `location`
+    stays empty and `location_known` says so — rather than an empty string
+    that `_in_country` reads as "not ruled out" and everything downstream
+    reads as "fine". `found_for_place` records which place query surfaced
+    it, which is evidence and not a claim.
     """
     if http is None:
         from aletheia import research
         http = research.http_search
     out, seen = [], set()
     roles = [str(r) for r in roles or [] if str(r).strip()]
+    where = " ".join(str(where or "").split())
     # ONE search per board site for every role, OR'd together. One per role per
     # site was fifteen searches a campaign, and live 2026-09-10 DuckDuckGo
     # answered everything after the first few with its challenge page.
     wanted = " OR ".join(f'"{r}"' for r in roles[:MAX_ROLES_PER_SEARCH])
     if len(roles[:MAX_ROLES_PER_SEARCH]) > 1:
         wanted = f"({wanted})"
+    if where:
+        wanted = wanted + ' "' + where + '"'
     # Each site gets its OWN bucket and they are interleaved at the end.
     # They used to share one list with an early return at `limit`, and the
     # two Greenhouse hosts are searched before Lever — so Greenhouse filled
@@ -1128,7 +1213,8 @@ def discover_openings(roles: list[str], *, limit: int = 10, http=None) -> list[d
                 # became a table; carried here so it holds for every system
                 # rather than only the two that used to be written out.
                 job = {"title": title or role, "company": employer or token,
-                       "location": "", "posting_url": href,
+                       "location": "", "location_known": False,
+                       "found_for_place": where, "posting_url": href,
                        "apply_url": ats.apply(token, jid),
                        "provider": ats.provider, "board": token, "id": jid,
                        "direct": ats.form,
