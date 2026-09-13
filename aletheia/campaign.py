@@ -350,7 +350,14 @@ ANSWER_BRIEF = """You answer the questions on ONE online job application for the
 Return ONE JSON object: {"answers": [{"selector": "<a selector you were given>", "answer": "<text>" or ["<choice>", ...]}]}
 
 Rules:
-- Answer ONLY what the facts or the resume settle. Leave every other question out.
+- ANSWER THE QUESTION. If a reasonable person with these facts and this resume in front of them could answer it, answer it. That includes what the facts plainly imply, not only what they state word for word:
+  * "Can you submit verification of your legal right to work?" — yes, if work_authorization says he is authorized. A commitment he can obviously keep is answerable.
+  * "Current location", "where are you based", "which state do you reside in" — assemble it from the facts' city, state and country.
+  * "Do you have any personal or familial relationship with an employee of this company?" — No, unless the resume names that company.
+  * "Are you willing to ..." / "Do you agree to work ..." — answer from what he has already said about relocating, remote work and travel.
+  * "When can you start?" — two weeks from today unless the facts say otherwise.
+  A question left blank stops the whole application and reaches him instead, which is the thing he most asked not to happen. Leave one out only when you would be INVENTING the answer.
+- Never invent a number, an employer, a school, a certification, a language or a tool that the resume does not show. A wrong fact on an application is worse than a blank one; a missing obvious answer is worse than both.
 - When a question lists choices, answer with one of those choices exactly, or several for a question that allows more than one.
 - Never answer anything about gender, race, ethnicity, veteran status, disability, criminal history, date of birth, pronouns or salary, and never tick anything that certifies, agrees, consents or signs. Leave those out.
 - "How many years of experience do you have in X" is COUNTED FROM THE RESUME: the dates on the roles where he did X, added up, rounded down to whole years. One year is the floor, never the default — his words, 2026-09-12: "make sure that for experience, it's not always putting one year because some things I have more than one year of experience of per my resume." Never zero, and never a number the resume cannot support.

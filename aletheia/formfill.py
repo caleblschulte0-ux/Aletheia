@@ -498,6 +498,17 @@ def declared_choice(label: str, choices: list[str], *, stored: dict | None = Non
         if not said:
             return None
         real = [c for c in options if _decline_choice([c]) is None]
+        # "No military service" is how Robinhood and Reddit word the answer
+        # he already gave, and it contains neither "not" nor "veteran" — so
+        # the chooser below found nothing and the question reached him with
+        # his own answer sitting on file. Live 2026-09-13.
+        if said in _SAID_NO or "no military" in said or "never served" in said:
+            hits = [c for c in options
+                    if re.search(r"\bno\b[^.]{0,20}\b(?:military|service|served)\b"
+                                 r"|\bnot\b[^.]{0,20}\b(?:a |an )?(?:protected\s+)?veteran\b"
+                                 r"|\bdid not serve\b", _norm(c))]
+            if len(hits) == 1:
+                return hits[0]
         if said in _SAID_NO or "not a" in said or "not protected" in said:
             # WHAT is negated, not merely that something is. Asana offers
             # "I am not a veteran (I did not serve in the military)" AND

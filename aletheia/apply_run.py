@@ -70,6 +70,16 @@ def staged_dir():
     return stateio.private_dir("applications")
 
 
+#: What a browser says when a required box is empty. Never a question.
+_BROWSER_COMPLAINTS = frozenset({
+    "please fill out this field.", "please fill out this field",
+    "please select an item in the list.", "please select an item in the list",
+    "this field is required.", "this field is required",
+    "please check this box if you want to proceed.",
+    "please enter a valid email address.", "please tick this box to proceed.",
+})
+
+
 def sent_path():
     """Every url an application has actually gone to. Never rewritten by a re-stage.
 
@@ -300,6 +310,15 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
             per_form[str(field)] = value
 
     fields = formfill.read_form(url, reader=reader)
+    # The BROWSER's complaint is not a question she failed to answer. Live
+    # 2026-09-12 Datadog's record listed two blockers reading "Please fill
+    # out this field." with no type — the page's own validation text, caught
+    # after a submit — and one of them was a question she already had an
+    # answer for on file. Stale validation kept applications blocked that
+    # nothing was actually wrong with.
+    fields = [f for f in fields
+              if " ".join(str(f.get("label") or "").split()).casefold()
+              not in _BROWSER_COMPLAINTS]
     # HIS ANSWERS GO IN WITH THE FACTS, not one line later. `plan` decides
     # what she fills on her own initiative, and it has to know which fields
     # he has already spoken about: since 2026-09-12 it ticks routine
