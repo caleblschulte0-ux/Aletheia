@@ -660,7 +660,7 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
             # Where she found it travels with the form: "how did you hear
             # about this job" is answered from it on the first read.
             record = stage(form_url, resume=resume_path, note=note,
-                           found_on=page.get("found_on", ""))
+                           **_where_found(stage, page.get("found_on", "")))
         except Exception as exc:
             failed.append({"url": form_url, "why": f"{type(exc).__name__}: {exc}"[:160]})
             continue
@@ -890,6 +890,21 @@ def answer_one(question: str, answer: str, *, stager=None) -> dict:
     return out
 
 
+def _where_found(stage, found_on: str) -> dict:
+    """`found_on=` for a stager that takes it, nothing for one that does not.
+
+    The real `apply_run.stage` does; a stand-in written before it did would
+    raise TypeError, be caught as a failed form, and turn a whole run into
+    "could not be reached"."""
+    import inspect
+    try:
+        params = inspect.signature(stage).parameters.values()
+    except (TypeError, ValueError):
+        return {}
+    takes = any(p.name == "found_on" or p.kind is inspect.Parameter.VAR_KEYWORD for p in params)
+    return {"found_on": found_on} if takes and found_on else {}
+
+
 def retry_waiting(*, resume: str = "", stager=None, json_think=None, writer=None,
                   limit: int = 60) -> dict:
     """Every application waiting on him, read again with what she knows NOW.
@@ -916,13 +931,14 @@ def retry_waiting(*, resume: str = "", stager=None, json_think=None, writer=None
         url = record.get("url") or ""
         used = record.get("resume") or resume_path
         found_on = record.get("found_on") or ""
+        where = _where_found(stage, found_on)
         try:
-            fresh = stage(url, resume=used, found_on=found_on)
+            fresh = stage(url, resume=used, **where)
             if fresh.get("state") == "NEEDS_YOU" and text:
                 extra = answer_from_facts(fresh, text, think=json_think)
                 extra.update(draft_essays(fresh, text, think=writer))
                 if extra:
-                    fresh = stage(url, resume=used, extra=extra, found_on=found_on)
+                    fresh = stage(url, resume=used, extra=extra, **where)
         except Exception as exc:
             failed.append({"url": url, "why": f"{type(exc).__name__}: {exc}"[:160]})
             continue

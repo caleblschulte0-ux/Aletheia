@@ -336,10 +336,11 @@ def _unpicked(fill: list[dict], chosen: dict, fields: list[dict],
         if selector not in chosen or chosen[selector]:
             continue
         field = by_selector.get(selector, {})
-        complained = any(_same_question(s.get("label", ""), row.get("label", ""))
-                         for s in stopped)
-        if not (field.get("required") or complained):
-            continue                       # optional and empty: the form still goes
+        # THE PAGE'S VERDICT decides, as everywhere else here: a dropdown left
+        # empty that the page does not complain about is not stopping anything,
+        # and it is simply not listed as filled.
+        if not any(_same_question(s.get("label", ""), row.get("label", "")) for s in stopped):
+            continue
         question = {"selector": selector, "label": row.get("label", ""),
                     "required": True, "type": field.get("type") or "text",
                     "why": (f"none of its options plainly says {row.get('value')!r}"
