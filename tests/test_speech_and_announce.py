@@ -107,6 +107,13 @@ LOW_RISK = {"id": "note-plants", "state": "PENDING", "capability": "journal.appe
 
 class ApprovalByVoiceCase(unittest.TestCase):
     def approve(self, phrase, pending=APPROVALS):
+        # Asked NOW, at the moment of the test. `_JUST_ASKED` is stamped when
+        # the module loads, and a full suite takes forty minutes to reach this
+        # class, by which time "just asked" is too old to answer blind and the
+        # voice path correctly refuses it - a frozen time beside a moving clock.
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        pending = [{**a, "requested_at": now} if a.get("requested_at") else a
+                   for a in pending]
         with mock.patch.object(policy, "all_approvals", return_value=pending):
             return voice.interpret(f"thea {phrase}")
 
