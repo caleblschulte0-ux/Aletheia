@@ -46,6 +46,7 @@ import json
 import re
 import sys
 import time
+import urllib.parse
 from pathlib import Path
 
 from aletheia import browse, formfill, journal, policy, profile, speech, stateio
@@ -327,6 +328,29 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
     # he gave outranks anything she would do by default - the same rule as
     # the ChatGPT lease, learned the same day. Profile facts are keyed by
     # field name and his answers by selector, so they cannot collide.
+    # AN ACCOUNT WALL IS NOT AN APPLICATION. `formfill` drops password
+    # inputs (SKIP_TYPES), which is right for a real application and means
+    # a Workday login page reads as a form whose only real inputs vanish —
+    # so it staged a record with nothing in it that could never be
+    # submitted. Named now, with the host, so the account can be made
+    # instead of the application being pretended.
+    from aletheia import signup as _signup
+    if _signup.is_signup_form(fields):
+        host = urllib.parse.urlparse(url).netloc
+        decision = _signup.prepare(fields, host=host)
+        record = {"id": run_id, "state": "NEEDS_ACCOUNT", "url": url,
+                  "host": host, "signup": decision.get("state"),
+                  "why": decision.get("why") or
+                         "this page wants an account before it will take an "
+                         "application",
+                  "not_filled": [], "skipped": [], "filled": [],
+                  "staged_at": stateio.utcnow(), **kept_job}
+        stateio.write_json_atomic(_record_path(run_id), record)
+        journal.append("action", "apply",
+                       f"{url} wants an account before it will take an "
+                       f"application ({decision.get('state')})", actor=ACTOR)
+        return record
+
     plan = formfill.plan(fields, answers={**profile.known(), **per_form})
     answered = formfill.apply_answers(plan, fields, per_form)
     steps = formfill.steps(plan["fill"]) + answered["steps"]
