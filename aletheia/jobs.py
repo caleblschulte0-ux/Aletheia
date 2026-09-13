@@ -423,6 +423,11 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
 MAX_ROLES_PER_SEARCH = 5
 _GREENHOUSE_JOB = re.compile(
     r"https?://(?:boards|job-boards)\.greenhouse\.io/([A-Za-z0-9_-]+)/jobs/(\d+)")
+#: The board hosts the web search sweeps. Greenhouse moved most boards to
+#: job-boards.greenhouse.io, so both of its hosts are searched.
+SEARCH_SITES = ("job-boards.greenhouse.io", "boards.greenhouse.io",
+                "jobs.lever.co")
+
 _LEVER_JOB = re.compile(
     r"https?://jobs\.lever\.co/([A-Za-z0-9_.-]+)/([0-9a-fA-F-]{36})")
 
@@ -447,11 +452,18 @@ def discover_openings(roles: list[str], *, limit: int = 10, http=None) -> list[d
     wanted = " OR ".join(f'"{r}"' for r in roles[:MAX_ROLES_PER_SEARCH])
     if len(roles[:MAX_ROLES_PER_SEARCH]) > 1:
         wanted = f"({wanted})"
+    # Each site gets its OWN bucket and they are interleaved at the end.
+    # They used to share one list with an early return at `limit`, and the
+    # two Greenhouse hosts are searched before Lever — so Greenhouse filled
+    # the quota and jobs.lever.co was usually never reached at all. That is
+    # the same starvation the comment above `discover_openings`'s caller
+    # describes one level up, where thirty-six configured boards were
+    # crowding out the web search entirely. Being third in a list is not a
+    # reason to be invisible.
+    buckets: dict[str, list[dict]] = {site: [] for site in SEARCH_SITES}
     for role in roles[:1]:
-        # Greenhouse moved most boards to job-boards.greenhouse.io; both are searched.
-        for site in ("job-boards.greenhouse.io", "boards.greenhouse.io", "jobs.lever.co"):
-            if len(out) >= limit:
-                return out
+        for site in SEARCH_SITES:
+            found = buckets[site]
             try:
                 page = http(f'site:{site} {wanted}')
             except Exception:
@@ -460,7 +472,7 @@ def discover_openings(roles: list[str], *, limit: int = 10, http=None) -> list[d
             if not links and "202" in str((page or {}).get("error") or ""):
                 # Every engine refused. Asking again right away only
                 # lengthens the refusal.
-                return out
+                break
             for link in links:
                 # DuckDuckGo wraps each result in its own redirect; the job's
                 # address is inside it, encoded.
@@ -496,10 +508,20 @@ def discover_openings(roles: list[str], *, limit: int = 10, http=None) -> list[d
                 if job["apply_url"] in seen:
                     continue
                 seen.add(job["apply_url"])
-                out.append(job)
-                if len(out) >= limit:
-                    return out
-    return out
+                found.append(job)
+                if len(found) >= limit:
+                    break
+
+    # Round-robin, so a site with three results is represented next to one
+    # with thirty instead of being cut off behind it.
+    waiting = [b for b in buckets.values() if b]
+    while waiting and len(out) < limit:
+        for bucket in list(waiting):
+            if len(out) >= limit:
+                break
+            out.append(bucket.pop(0))
+        waiting = [b for b in waiting if b]
+    return out[:limit]
 
 
 def _say_a_board_is_gone(gone: list[dict]) -> None:
