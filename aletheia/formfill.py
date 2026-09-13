@@ -160,6 +160,52 @@ READ_FORM_JS = r"""() => {
       row.question = questionFor(el);
       // Radios share a name; Greenhouse's checkbox groups do too.
       row.group = (el.name || '').replace(/\[\]$/, '') || row.question;
+      // ...except where they do NOT. Spotify gives every option in a survey
+      // its own name — surveysResponses[uuid][field0], [field1], [field2] —
+      // so each radio became a group of one, which is demoted back to a
+      // standalone field labelled with its only option. Live 2026-09-13 that
+      // put twelve questions in front of him reading "Woman", "He/him", "EN",
+      // "Any other ethnic group": every one an OPTION wearing a question's
+      // clothes, and four of them things he had already answered.
+      //
+      // When a name is unique to one control, fall back to the nearest
+      // container that holds several of them. Named groups are untouched, so
+      // Greenhouse (whose radios genuinely share a name) is unaffected.
+      // CLIMB to the container that holds the other options. `closest` on a
+      // list of likely selectors finds the per-option <li>, which holds one
+      // input — so the first version of this never fired at all, and the
+      // test said so.
+      let holder = null;
+      for (let box = el.parentElement, up = 0; box && up < 6;
+           box = box.parentElement, up++) {
+        const kin = box.querySelectorAll(`input[type="${type}"]`);
+        if (kin.length <= 1) continue;
+        // Only when this control's own name is unique among them. A group
+        // that names itself properly (Greenhouse) is already grouped by the
+        // line above and must not be touched: this may only ever ADD.
+        if ([...kin].filter(k => k.name === el.name).length === 1) holder = box;
+        break;
+      }
+      if (holder) {
+        if (!row.question) {
+          // The heading can sit OUTSIDE the list that holds the options —
+          // Spotify renders `div.field > div.label` followed by `ul > li >
+          // input` — so the parent is searched too. Anything inside an <li>
+          // or a <label> is an option's own text, never the question.
+          for (const scope of [holder, holder.parentElement]) {
+            if (!scope) continue;
+            for (const h of scope.querySelectorAll(
+                   'legend, .label, [class*="label"], h1, h2, h3, h4')) {
+              if (h.closest('li') || h.tagName === 'LABEL') continue;
+              const t = (h.innerText || '').trim();
+              if (t) { row.question = t.slice(0, 110); break; }
+            }
+            if (row.question) break;
+          }
+        }
+        row.group = row.question
+          || ('box:' + (el.name || '').replace(/\d+\]?\]?$/, ''));
+      }
     }
     if (tag === 'select') {
       row.options = Array.from(el.options)
