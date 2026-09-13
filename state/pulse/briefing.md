@@ -1,6 +1,6 @@
 # Fleet briefing
 
-Generated 2026-09-13T16:24:34Z from fleet registry rev 5 via GitHubSource.
+Generated 2026-09-13T20:54:18Z from fleet registry rev 5 via GitHubSource.
 
 ## 🟢 `Aletheia` — hub (active)
 
@@ -9,24 +9,24 @@ The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT 
 Last commit `c8089d98c3d9` at 2026-09-13T15:52:48Z: Apply anywhere: her texts, four more systems, and no more black boxes
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-09-13T16:24:31Z
-- `ci.yml`: success at 2026-09-13T16:21:45Z
+- `pulse.yml`: in_progress at 2026-09-13T20:54:14Z
+- `ci.yml`: success at 2026-09-13T20:16:40Z
 
-## 🟢 `Shorts-pipeline` — youtube-automation (active)
+## 🔴 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `0d617cd4bd7a` at 2026-09-13T16:24:19Z: The judge the gate defers to was unreachable, so the gate held everything (#392)
+Last commit `585afd5ea070` at 2026-09-13T20:34:46Z: explainer: update posted log + analytics [skip ci]
 
-Vitals — trending posted: 322 · explainer posted: 247 · third posted: 510 · curiosity posted: 1
+Vitals — trending posted: 322 · explainer posted: 248 · third posted: 510 · curiosity posted: 1
 
 Watched workflows:
-- `daily.yml`: success at 2026-09-13T14:56:51Z
-- `exchange_phase_a.yml`: in_progress at 2026-09-13T16:24:28Z
-- `exchange_phase_b.yml`: success at 2026-09-13T11:29:43Z
-- `story_forge.yml`: success at 2026-09-13T10:23:55Z
+- `daily.yml`: failure at 2026-09-13T19:36:21Z
+- `exchange_phase_a.yml`: success at 2026-09-13T17:45:43Z
+- `exchange_phase_b.yml`: success at 2026-09-13T17:29:11Z
+- `story_forge.yml`: success at 2026-09-13T19:33:32Z
 - `third.yml`: success at 2026-09-13T15:01:12Z
-- `explainer.yml`: in_progress at 2026-09-13T16:24:38Z
+- `explainer.yml`: success at 2026-09-13T20:34:53Z
 - `retro.yml`: success at 2026-09-13T04:52:02Z
 - `doctor.yml`: success at 2026-09-13T10:12:57Z
 
