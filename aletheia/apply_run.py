@@ -91,12 +91,50 @@ def sent_path():
     return stateio.private_dir("applications-sent") / "already-sent.json"
 
 
+def _legacy_sent_path():
+    """Where the ledger lived before f2465aed moved it (2026-09-12 19:41 CDT)."""
+    return staged_dir() / "already-sent.json"
+
+
+#: A record in either of these states went to the employer, or may have:
+#: SUBMITTING is a press whose answer was never recorded (live 2026-09-13
+#: Amtech and Carta hung there when the machine was restarted).
+PRESSED_STATES = ("SUBMITTED", "SUBMITTING")
+
+
 def already_sent() -> dict:
+    """Every url an application went to, from EVERY place that says so.
+
+    Live 2026-09-12 the ledger moved to its own directory at 00:41:50Z and
+    the file that already held twenty sends stayed behind. Thirty-nine
+    seconds later a campaign re-staged Stripe's "Account Executive, AI
+    Sales" — sent at 19:11Z — found the new ledger empty, and pressed
+    Submit on a second copy. Chrome crashing is the only reason Stripe did
+    not receive it. So both files are read, and so is every record that
+    already pressed the button: a move of the ledger can never again make
+    her forget what she sent.
+    """
+    merged: dict = {}
+    for path in (_legacy_sent_path(), sent_path()):
+        try:
+            value = stateio.read_json(path)
+        except (OSError, ValueError):
+            continue
+        if isinstance(value, dict):
+            merged.update(value)
     try:
-        value = stateio.read_json(sent_path())
-    except (OSError, ValueError):
-        return {}
-    return value if isinstance(value, dict) else {}
+        records = all_runs()
+    except Exception:
+        records = []
+    for record in records:
+        url = str(record.get("url") or "").strip()
+        if url and url not in merged and record.get("state") in PRESSED_STATES:
+            merged[url] = {"id": record.get("id"), "at": record.get("submitted_at"),
+                           "job_title": record.get("job_title", ""),
+                           "company": record.get("company", ""),
+                           "verdict": ((record.get("result") or {}).get("verdict")
+                                       or "pressed, no answer recorded")}
+    return merged
 
 
 def was_sent(url: str) -> dict | None:
@@ -156,6 +194,38 @@ def was_applied_to_role(company: str, job_title: str) -> dict | None:
     return None
 
 
+role_key = _role_key
+
+
+def role_taken(company: str, job_title: str, url: str = "") -> dict | None:
+    """The same job at the same employer, already sent OR already waiting.
+
+    `was_applied_to_role` only reads what went, and only at the moment of
+    sending — so a role posted to three locations was STAGED three times
+    and asked him the same questions three times (Brex "People Business
+    Partner, GTM", 2026-09-13 04:29Z, 04:34Z, 04:46Z), and a role already
+    sent under one link was filled in again under another eighteen minutes
+    later (Impact.com "Business Development Representative, Inbound").
+    The same form at the same url is not a duplicate: that is a re-stage.
+    """
+    if not str(company or "").strip() or not str(job_title or "").strip():
+        return None
+    sent = was_applied_to_role(company, job_title)
+    if sent:
+        return {**sent, "state": "SUBMITTED"}
+    want = _role_key(company, job_title)
+    here = str(url or "").strip()
+    for record in all_runs():
+        if record.get("state") in (CLOSED, "FAILED"):
+            continue
+        if here and str(record.get("url") or "").strip() == here:
+            continue
+        if _role_key(record.get("company", ""), record.get("job_title", "")) == want:
+            return {"id": record.get("id"), "at": record.get("staged_at"),
+                    "state": record.get("state"), "url": record.get("url")}
+    return None
+
+
 def remember_sent(record: dict) -> None:
     """Write the url down the moment it really goes, and never forget it."""
     url = str(record.get("url") or "").strip()
@@ -187,13 +257,50 @@ def all_runs(state: str | None = None) -> list[dict]:
             value = stateio.read_json(path)
         except (OSError, ValueError):
             continue
+        # The old sent ledger still sits in this directory on his PC, and it
+        # is a map of urls, not an application.
+        if not isinstance(value, dict) or "state" not in value:
+            continue
         if state is None or value.get("state") == state:
             out.append(value)
     return out
 
 
+#: An application she decided not to send — a duplicate, or a job that is
+#: not realistic for him — with the reason on the record.
+CLOSED = "CLOSED"
+
+
+def close(run_id: str, why: str, *, via: str = "aletheia") -> dict:
+    """Retire a waiting application without applying, and say why.
+
+    Never one that already went: that is a fact about an employer's inbox,
+    and closing the record would only hide it.
+    """
+    record = load_run(run_id)
+    if record.get("state") in PRESSED_STATES:
+        raise ApplyError(f"{run_id} already went to the employer; it cannot be closed")
+    if record.get("state") == CLOSED:
+        return record
+    reason = " ".join(str(why or "").split())[:300]
+    record.update({"state": CLOSED, "closed_at": stateio.utcnow(),
+                   "closed_because": reason, "closed_by": via})
+    stateio.write_json_atomic(_record_path(run_id), record)
+    journal.append("decision", "apply",
+                   f"closed {run_id} without applying ({describe(record)}): {reason}",
+                   actor=ACTOR)
+    return record
+
+
+def _close_quietly(run_id: str, why: str) -> None:
+    try:
+        close(run_id, why)
+    except Exception:
+        pass
+
+
 # What the record keeps about the JOB, beside what it keeps about the form.
-REMEMBERED = ("job_title", "company", "posting", "found_on", "answered_for_you")
+REMEMBERED = ("job_title", "company", "posting", "found_on", "answered_for_you", "fit")
 # What an employer did about an application he sent, in his words. "No
 # answer yet" is not one: that is the absence of an outcome, not an outcome.
 OUTCOMES = ("replied", "interview", "offer", "rejected", "closed")
@@ -760,6 +867,9 @@ def submit(run_id: str, *, submitter=None) -> dict:
     # Databricks and Samsara. An employer cannot unsee that.
     gone = was_sent(record.get("url", ""))
     if gone:
+        # CLOSED as well as refused. Refused alone left the record waiting,
+        # and the beat asked the same question of it every minute.
+        _close_quietly(run_id, "an application already went to this form")
         raise ApplyError(
             f"{run_id}: an application already went to {record.get('url')} at "
             f"{gone.get('at')} — not sending a second copy")
@@ -773,10 +883,19 @@ def submit(run_id: str, *, submitter=None) -> dict:
     same = was_applied_to_role(record.get("company", ""),
                                record.get("job_title", ""))
     if same and same.get("id") != record.get("id"):
+        _close_quietly(run_id, "the same job was already applied for under a different link")
         raise ApplyError(
             f"{run_id}: {record.get('job_title') or 'that job'} at "
             f"{record.get('company')} was already applied for at "
             f"{same.get('at')} — the same job under a different link")
+    # And never a job that is not realistic for him, however many of its
+    # questions have since been answered. His words, 2026-09-13: "shoot high
+    # and shoot low. But it should be realistic."
+    from aletheia import job_fit
+    unfit = job_fit.quick_reason(record)
+    if unfit:
+        _close_quietly(run_id, f"not realistic: {unfit}")
+        raise ApplyError(f"{run_id}: not sent — {unfit}")
     if record["state"] != "APPROVED":
         raise ApplyError(f"{run_id} is {record['state']}; it needs your "
                          "confirmation before anything is sent")
