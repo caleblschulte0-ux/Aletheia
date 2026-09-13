@@ -131,5 +131,65 @@ class WhenTheEnginesRefuse(unittest.TestCase):
         self.assertTrue(all(j["provider"] == "greenhouse" for j in out))
 
 
+
+class AddingASystemIsARow(unittest.TestCase):
+    """Greenhouse and Lever were two hardcoded regexes and two hardcoded
+    URL shapes, so a third system meant editing the search list, the
+    matcher and the converter in three places. That is how "she only
+    applies on Greenhouse" happens."""
+
+    def test_the_search_sites_are_derived_from_the_table(self):
+        """Two lists to keep in step is one list to forget."""
+        self.assertEqual(set(jobs.SEARCH_SITES), {a.site for a in jobs.ATS})
+
+    def test_she_can_reach_more_than_greenhouse_and_lever(self):
+        providers = {a.provider for a in jobs.ATS}
+        self.assertGreaterEqual(len(providers), 5)
+        self.assertIn("greenhouse", providers)
+        self.assertIn("lever", providers)
+
+    def test_a_job_url_on_each_system_is_recognised(self):
+        cases = {
+            "https://job-boards.greenhouse.io/acme/jobs/4001": "greenhouse",
+            "https://boards.greenhouse.io/acme/jobs/4002": "greenhouse",
+            "https://jobs.lever.co/acme/00000000-0000-4000-8000-000000000001": "lever",
+            "https://jobs.ashbyhq.com/acme/00000000-0000-4000-8000-000000000002": "ashby",
+            "https://apply.workable.com/acme/j/ABCD1234/": "workable",
+            "https://jobs.smartrecruiters.com/Acme/744000012345": "smartrecruiters",
+            "https://acme.recruitee.com/o/sales-rep": "recruitee",
+        }
+        for url, provider in cases.items():
+            with self.subTest(url=url):
+                found = jobs.job_from_url(url)
+                self.assertIsNotNone(found, url)
+                self.assertEqual(found[0].provider, provider)
+
+    def test_a_page_that_is_not_a_job_is_not_one(self):
+        for url in ("https://example.com/careers/123",
+                    "https://jobs.lever.co/acme",
+                    "https://www.linkedin.com/jobs/view/123456",
+                    ""):
+            with self.subTest(url=url):
+                self.assertIsNone(jobs.job_from_url(url))
+
+    def test_every_system_builds_an_apply_url_for_its_own_job(self):
+        """A row whose apply shape is wrong sends her to a page that is not
+        an application, and the failure looks like a broken form."""
+        for ats in jobs.ATS:
+            with self.subTest(provider=ats.provider):
+                url = ats.apply("acme", "12345678-0000-4000-8000-000000000001")
+                self.assertTrue(url.startswith("https://"), url)
+                self.assertIn("acme", url)
+
+    def test_a_new_system_widens_the_sweep_without_other_edits(self):
+        """The point of the table: one row, and discovery finds it."""
+        found = jobs.discover_openings(
+            ["Sales Rep"], limit=6,
+            http=lambda q: {"links": [{
+                "href": "https://jobs.ashbyhq.com/acme/"
+                        "00000000-0000-4000-8000-000000000002",
+                "text": "Sales Rep at Acme"}]} if "ashbyhq" in q else {"links": []})
+        self.assertTrue(any(j["provider"] == "ashby" for j in found))
+
 if __name__ == "__main__":
     unittest.main()

@@ -779,6 +779,32 @@ def _emailed_code(employer: str = "", reader=None, since: float = 0.0) -> str:
     return ""
 
 
+def _texted_code(since: float = 0.0) -> str:
+    """The code the site just TEXTED, out of his Google Voice messages.
+
+    A fallback, not a replacement: email is tried first because that is
+    where most of them arrive and because reading a page costs a browser.
+    Returns "" for every failure — no browser, not signed in, nothing
+    fresh — because the caller's next line already says the honest thing
+    ("it reached neither the inbox nor the texts she can read"), and a
+    traceback out of here would reach the room as a log line.
+    """
+    try:
+        from aletheia import gvoice
+        found = gvoice.latest_code()
+    except Exception:
+        return ""
+    if not found:
+        return ""
+    # Newer than the click that asked for it, the same rule the inbox
+    # follows: a code from the previous attempt fails in a way that looks
+    # exactly like a wrong code.
+    if since and found.get("age_s") is not None:
+        if time.time() - float(found["age_s"]) < since - 5.0:
+            return ""
+    return str(found.get("code") or "")
+
+
 CODE_BOXES_JS = """() => Array.from(document.querySelectorAll(
   "input[autocomplete='one-time-code'], input[name*='security'], "
   + "input[id*='security'], input[name*='verification'], input[id*='verification']"
@@ -859,12 +885,20 @@ def _refill_and_submit(record: dict) -> dict:
             # looks exactly like a wrong code.
             code = _emailed_code(record.get("company") or "", since=asked_at)
             if not code:
+                # SOME SITES TEXT IT INSTEAD. The signup number is a Google
+                # Voice line, so a code sent to it is one she can read —
+                # and without this the application stops one field short
+                # with the code sitting in a tab, which is the failure this
+                # whole path exists to avoid. The same freshness rule
+                # applies: gvoice refuses anything older than ten minutes.
+                code = _texted_code(since=asked_at)
+            if not code:
                 # Never a silent success. He is told the application is
                 # sitting one code away rather than being counted as sent.
                 raise ApplyError(
-                    "the site emailed a verification code to confirm a human "
-                    "is applying, and it has not arrived in the inbox she can "
-                    "read — nothing was submitted")
+                    "the site sent a verification code to confirm a human is "
+                    "applying, and it has reached neither the inbox nor the "
+                    "texts she can read — nothing was submitted")
             _type_the_code(page, code)
             page.click(_submit_selector(page.evaluate(BUTTONS_JS)) or button)
             page.wait_for_load_state("domcontentloaded")

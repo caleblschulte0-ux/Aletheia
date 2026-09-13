@@ -1632,14 +1632,14 @@
     },
     {
       "id": "jobs.search",
-      "description": "Real open jobs from the systems that publish them — Greenhouse and Lever public boards — each with an application form that needs no login",
+      "description": "Real open jobs from the systems that publish them - Greenhouse, Lever, Ashby, Workable, SmartRecruiters and Recruitee public boards, plus any of their boards a web search finds",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "read",
       "approval_policy": "none",
       "caller": "aletheia.campaign.run; python -m aletheia.jobs <role>",
       "module": "aletheia.jobs",
-      "notes": "The campaign was proved against a job board I wrote myself, and on the real internet it found NOTHING: research.find_sources drives a headless browser at a search engine, and a search engine answers a headless browser with a challenge page. Zero openings, everything downstream theatre. That is the difference between a demo and a thing that works. Greenhouse and Lever publish their boards as public JSON with no key and host the real application form at a public URL with no login - which is what makes them the right source rather than merely a working one, because a posting she can find but not apply to is a link he could have found himself. 24 company boards in config/job_boards.json (data he can add to), ~4,300 live openings measured 2026-09-03. A board that did not answer is reported FAILED per board: 'no jobs matched' and 'the network refused me' are different answers."
+      "notes": "The campaign was proved against a job board I wrote myself, and on the real internet it found NOTHING: research.find_sources drives a headless browser at a search engine, and a search engine answers a headless browser with a challenge page. Zero openings, everything downstream theatre. That is the difference between a demo and a thing that works. Greenhouse and Lever publish their boards as public JSON with no key and host the real application form at a public URL with no login - which is what makes them the right source rather than merely a working one, because a posting she can find but not apply to is a link he could have found himself. 24 company boards in config/job_boards.json (data he can add to), ~4,300 live openings measured 2026-09-03. A board that did not answer is reported FAILED per board: 'no jobs matched' and 'the network refused me' are different answers. 2026-09-13: the systems she can reach are a TABLE (jobs.ATS) rather than two hardcoded regexes and two hardcoded URL shapes, and the search hosts are derived from it, so adding one is a row instead of an edit in three places - which is how 'she only applies on Greenhouse' happened. The entry requirement is a PUBLIC application form: a system that wants an account is reached through account.create, which is a different path with a different gate. More hosts also means more searches a campaign, and the engines answer the later ones with a challenge page, so a refusal stops the sweep rather than hammering it and whatever earlier sites found is kept."
     },
     {
       "id": "web.task",
@@ -1705,6 +1705,18 @@
       "description": "Play a particular song, album or artist by name",
       "caller": "ticket - needs the Spotify Web API and his account: an OAuth consent like calendar_auth's, then search + play on his active device. He has Premium, which the playback endpoints require",
       "notes": "Registered 2026-09-08 alongside media.play, which does transport with no key at all. Kept SEPARATE on purpose: one entry covering both would say AVAILABLE about a capability that cannot do what its own description promises, and 'play some music' answering by resuming Thursday's queue is not what he asked for. Until this exists, naming something to play is answered honestly - aletheia.music.cannot_choose."
+    },
+    {
+      "id": "sms.read",
+      "description": "Read the texts sent to your Google Voice number, so a verification code that arrives by text is one I can use instead of one you have to go and fetch",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.apply_run._texted_code, after the inbox comes up empty on a page asking for a verification code; python -m aletheia.gvoice check/recent/code",
+      "module": "aletheia.gvoice",
+      "verification": "tests/test_gvoice.py: every real SMS code shape is read where the email extractor caught one of six, a year or a price is refused, a signed-out page says NOT SIGNED IN rather than reporting no messages, a code older than ten minutes or one she cannot date is refused, and an AST walk holds that she reads and never replies",
+      "notes": "Built 2026-09-13. The signup number is a Google Voice line, and half of what she signs up for sends its code by TEXT - so an account got as far as 'we sent you a code' and stopped, with the code in a tab he would have to read himself. Read through the authorized Chrome profile browse already uses, because Google Voice has no public API for a personal account and there are no API keys anywhere. UNPROVEN against the real voice.google.com: the parsing is written from the page's visible text and Google changes that without notice, so a run that finds nothing reports 'nothing readable' rather than 'no messages'. Codes are refused when older than ten minutes, the lesson from 2026-09-12 on the mail path, where an hour-old code was typed in and the form's refusal read like a broken form rather than a stale code. She reads and never sends: replying as him is a different capability with a different risk."
     }
   ]
 }
