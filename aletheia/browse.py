@@ -311,6 +311,16 @@ class _ProfileLock:
                     stale = (_time.time() - self.path.stat().st_mtime) > self.stale_after_s
                 except OSError:
                     stale = False
+                # Or the holder is simply gone. Age alone meant a crashed
+                # run held her browser for the full fifteen minutes: live
+                # 2026-09-13 a dead pid sat on the profile and every
+                # session queued behind it with nothing to wait for. The
+                # pid was already being written into the file and never
+                # read back. This only ever NARROWS the steal — dead AND
+                # nameable, so a live holder is still untouchable and the
+                # two-sessions bug cannot come back through it.
+                if not stale and self._holder_is_gone():
+                    stale = True
                 if stale:
                     try:
                         self.path.unlink()
@@ -322,6 +332,43 @@ class _ProfileLock:
                     # collision is visible, rather than a run that hangs.
                     return False
                 _time.sleep(1.0)
+
+    def _holder_is_gone(self) -> bool:
+        """True only when the file names a pid that is provably not running.
+
+        Fails CLOSED in every uncertain case — an unreadable file, an empty
+        one, a pid that is not a number, our own pid, or any error asking
+        the OS. "I could not tell" must mean "leave it alone", because the
+        cost of a wrong yes is two browsers in one profile (the bug this
+        class exists to prevent) while the cost of a wrong no is waiting,
+        which the age check already bounds.
+        """
+        try:
+            holder = self.path.read_text(encoding="utf-8", errors="ignore").strip()
+        except OSError:
+            return False
+        if not holder.isdigit() or int(holder) == os.getpid():
+            return False
+        pid = int(holder)
+        try:
+            if os.name == "nt":
+                import subprocess
+                out = subprocess.run(
+                    ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
+                    capture_output=True, text=True, timeout=10).stdout
+                # tasklist prints "INFO: No tasks are running..." when absent,
+                # and never prints the pid. Requiring the pid to be ABSENT
+                # from real output keeps an unexpected format from reading as
+                # "gone" — an empty result is not proof of death.
+                return bool(out.strip()) and str(pid) not in out
+            os.kill(pid, 0)          # POSIX: raises if it is not there
+            return False
+        except ProcessLookupError:
+            return True
+        except PermissionError:
+            return False             # alive and owned by somebody else
+        except Exception:
+            return False
 
     def release(self) -> None:
         if not self.held:

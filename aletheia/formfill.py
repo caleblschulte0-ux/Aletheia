@@ -63,7 +63,11 @@ SKIP_TYPES = ("file", "password", "hidden", "submit", "button", "image",
 # Matched on the SELECTOR, never the label: "Search" and "List of countries"
 # are plausible words for a real question, and an employer who genuinely asks
 # "which countries can you work in?" must still reach him.
-WIDGET_SELECTORS = ("#iti-", "#g-recaptcha-response", "#recaptcha")
+WIDGET_SELECTORS = ("#iti-", "#g-recaptcha-response", "#recaptcha",
+                    # hCaptcha's hidden response field, which reached him
+                    # twice on one Nitra form as "a written answer, not a
+                    # fact she has on file". Nobody asked him anything.
+                    "#h-captcha-response", "#hcaptcha")
 
 
 def is_widget_furniture(field: dict) -> bool:
@@ -380,6 +384,20 @@ _VETERAN = re.compile(r"\b(?:veteran|armed forces|military)", re.I)
 _DISABILITY = re.compile(r"\b(?:disabilit|disabled|chronic condition)", re.I)
 _PRONOUNS = re.compile(r"\bpronoun", re.I)
 _SAID_NO = ("no", "false", "not hispanic", "not hispanic or latino", "non hispanic")
+
+#: Why an optional box she has no fact for is skipped rather than asked.
+#: Said the way he would say it, because it is read out and it appears in
+#: the confirmation he scans before anything is sent.
+_LEAVE_IT_BLANK = "optional, and nothing on file to put in it — left blank"
+
+#: The fields where HAVING NOTHING IS THE ANSWER. He does not have a
+#: Twitter or a personal site; an optional box asking for one is complete
+#: when it is empty, so stopping on it asks him to come back and type
+#: nothing. Everything else that is optional and unanswered still reaches
+#: him: "Desired salary" sits in an optional box on plenty of forms and is
+#: a real question, and the difference between "he has no value for this"
+#: and "she could not work out what this is" is the whole distinction.
+_BLANK_IS_AN_ANSWER = frozenset({"website", "twitter", "github", "linkedin"})
 _SAID_YES = ("yes", "true", "hispanic", "hispanic or latino", "latino", "latina")
 
 
@@ -487,6 +505,13 @@ def declared_choice(label: str, choices: list[str], *, stored: dict | None = Non
         said = _his_word(stored, "pronouns")
         if not said:
             return None
+        if not options:
+            # A free-text pronoun box — Spotify's "Write here..." beside its
+            # Custom checkbox, Asana's '[Optional, if "other" is selected
+            # above] My pronouns are'. There is nothing to choose between,
+            # and he has told her the answer: type it. Returning None here
+            # sent a question back to him whose answer was on file.
+            return said
         want = tuple(part for part in re.split(r"[\s/,]+", said) if part)
         exact = [c for c in options if _norm(c).replace(" ", "") == said.replace(" ", "")]
         if len(exact) == 1:
@@ -502,24 +527,39 @@ def declared_choice(label: str, choices: list[str], *, stored: dict | None = Non
         # he already gave, and it contains neither "not" nor "veteran" — so
         # the chooser below found nothing and the question reached him with
         # his own answer sitting on file. Live 2026-09-13.
-        if said in _SAID_NO or "no military" in said or "never served" in said:
-            hits = [c for c in options
-                    if re.search(r"\bno\b[^.]{0,20}\b(?:military|service|served)\b"
-                                 r"|\bnot\b[^.]{0,20}\b(?:a |an )?(?:protected\s+)?veteran\b"
-                                 r"|\bdid not serve\b", _norm(c))]
-            if len(hits) == 1:
-                return hits[0]
-        if said in _SAID_NO or "not a" in said or "not protected" in said:
+        # One question asked in two vocabularies, and the answer is the same
+        # answer. Greenhouse asks "Protected Veteran Status" and offers "I am
+        # not a protected veteran"; Robinhood asks "What is your military
+        # status?" and offers "No military service". This was two branches,
+        # each testing HIS wording and then searching only for options in its
+        # own dialect — so neither could see the other's. Live 2026-09-13,
+        # with "I am not a protected veteran" sitting on file since the 12th,
+        # Robinhood returned None: his word took the second branch ("not a"),
+        # which looked for `not ... veteran`, found nothing among "No military
+        # service / Veteran / Active duty", and RETURNED rather than falling
+        # through to the branch that knew the words.
+        #
+        # What matters is settled once: he said no. Then read every negative
+        # phrasing of it.
+        if (said in _SAID_NO or "no military" in said or "never served" in said
+                or "not a" in said or "not protected" in said):
             # WHAT is negated, not merely that something is. Asana offers
             # "I am not a veteran (I did not serve in the military)" AND
             # "I am a veteran and I do NOT belong to a classification of
             # protected veterans" - both contain "not", and only the first
             # says he is not one. Live 2026-09-12 a bare "not" matched both
-            # and answered neither.
+            # and answered neither. `\bno\b` does not match "not", so the
+            # first alternative cannot reach the trap option either.
             hits = [c for c in real
-                    if re.search(r"\bnot\s+(?:a|an)?\s*(?:protected\s+)?veteran\b",
-                                 _norm(c))]
-            return hits[0] if len(hits) == 1 else None
+                    if re.search(r"\bno\b[^.]{0,20}\b(?:military|service|served)\b"
+                                 r"|\bnot\b[^.]{0,20}\b(?:a |an )?(?:protected\s+)?veteran\b"
+                                 r"|\bdid not serve\b", _norm(c))]
+            if len(hits) == 1:
+                return hits[0]
+            # "Are you a protected veteran? Yes / No." The negative is the
+            # whole option, with nothing to negate and no dialect to read.
+            bare = [c for c in real if _norm(c) in _SAID_NO]
+            return bare[0] if len(bare) == 1 and len(real) <= 3 else None
         hits = [c for c in real
                 if _says("veteran", _norm(c))
                 and not re.search(r"\bnot\s+(?:a|an)?\s*(?:protected\s+)?veteran\b",
@@ -537,6 +577,18 @@ def declared_choice(label: str, choices: list[str], *, stored: dict | None = Non
             r"\b(?:no|not|don t|dont|never)\b[^.]{0,40}\bdisabilit", re.I)
         if said in _SAID_NO or said.startswith("no") or "not" in said:
             hits = [c for c in real if no_disability.search(_norm(c))]
+            if not hits:
+                # "Do you have a disability or chronic condition? Yes / No."
+                # The negation IS the option, with no noun to negate, so a
+                # pattern requiring the word "disabilit" in the answer finds
+                # nothing. Live 2026-09-13 this was fourteen blocked
+                # questions across Vercel, Tebra, Gusto and Coinbase, with
+                # his "No" on file since the 12th. Same shape as the veteran
+                # dialect fix, one category over.
+                hits = [c for c in real if _norm(c) in _SAID_NO]
+                if len(real) > 3:
+                    hits = []          # a long list means the bare word is
+                    #                    one of several, not the answer
         else:
             hits = [c for c in real
                     if _says("yes", _norm(c)) and not no_disability.search(_norm(c))]
@@ -838,6 +890,22 @@ def plan(fields: list[dict], *, answers: dict | None = None) -> dict:
             ask.append(row)
             continue
         if key not in known:
+            if not row["required"] and key in _BLANK_IS_AN_ANSWER:
+                # Twitter. Portfolio. Personal Website. He does not have
+                # them, the form does not require them, and a blank optional
+                # box is a complete application — so stopping on one asks him
+                # to come back and type nothing.
+                #
+                # Narrow on purpose, and it was wider for about ten minutes:
+                # skipping EVERY optional field she could not answer also
+                # swallowed "Desired salary" and "Section 4b", which are real
+                # questions that happen to sit in optional boxes. Two tests
+                # said so by name. A thing he has no value for is not the
+                # same as a thing she has no idea about.
+                row["why"] = _LEAVE_IT_BLANK
+                row["profile_field"] = key
+                skipped.append(row)
+                continue
             row["why"] = f"she does not know {profile.FIELDS[key]['means']}"
             row["profile_field"] = key
             ask.append(row)
