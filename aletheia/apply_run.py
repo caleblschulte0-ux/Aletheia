@@ -739,6 +739,33 @@ def code_in(text: str) -> str:
     return ""
 
 
+#: Words a company's name carries that the email naming it may not.
+_COMPANY_FILLER = frozenset({
+    "inc", "llc", "ltd", "co", "corp", "corporation", "company", "technologies",
+    "technology", "labs", "the", "com", "io", "hq", "group", "holdings"})
+
+
+def names_the_employer(subject: str, employer: str) -> bool:
+    """Whether an email's subject names this employer, the way people write it.
+
+    Live 2026-09-13 a code arrived about a minute after the click, in the
+    inbox she reads, and she reported it never came: the record called the
+    company "Acme ..." (a board name cut short) and the email said "Acme
+    Technologies", and a SUBSTRING of one in the other is neither. The same
+    gap sat under "Acme" / "Acme.io", "Acme" / "Acme, Inc." and "ACM" /
+    "-ACM-", which only worked because they happened to be substrings.
+    Compared as WORDS, legal suffixes and punctuation aside: every
+    real word of the employer's name must be a word of the subject. An
+    employer she cannot name at all does not narrow the search.
+    """
+    words = [w for w in re.findall(r"[a-z0-9]+", str(employer or "").casefold())
+             if w not in _COMPANY_FILLER]
+    if not words:
+        return True
+    said = set(re.findall(r"[a-z0-9]+", str(subject or "").casefold()))
+    return all(w in said for w in words)
+
+
 def _emailed_code(employer: str = "", reader=None, since: float = 0.0) -> str:
     """The code the site just emailed, out of the inbox SHE can read.
 
@@ -765,7 +792,6 @@ def _emailed_code(employer: str = "", reader=None, since: float = 0.0) -> str:
                 return found
             time.sleep(CODE_WAIT_S)
         return ""
-    wanted = " ".join(str(employer or "").split()).casefold()
     for _ in range(CODE_WAIT_TRIES):
         try:
             unread = mail.SmtpImapTransport().fetch_unread(30)
@@ -773,7 +799,7 @@ def _emailed_code(employer: str = "", reader=None, since: float = 0.0) -> str:
             unread = []
         mine = [m for m in unread
                 if "security code" in str(m.get("subject", "")).casefold()
-                and (not wanted or wanted in str(m.get("subject", "")).casefold())]
+                and names_the_employer(str(m.get("subject", "")), employer)]
         # NEWEST FIRST, BY THE DATE HEADER, never by the order IMAP happens
         # to return. Live 2026-09-12 this read `reversed(mine)` on the belief
         # that IMAP hands back oldest-first; it hands back NEWEST-first, so

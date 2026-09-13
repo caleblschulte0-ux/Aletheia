@@ -213,6 +213,34 @@ def _body_text(msg) -> str:
     return re.sub(r"\n{3,}", "\n\n", text).strip()[:MAX_READ_CHARS]
 
 
+def one_line(value) -> str:
+    """Text with every control character gone and its whitespace collapsed.
+
+    A header, a subject, a sender: things that are ONE line by nature and
+    that the event bus rightly refuses to store with a carriage return in.
+    """
+    return " ".join(re.sub(r"[\x00-\x1f\x7f]+", " ", str(value or "")).split())
+
+
+def _header(msg, name: str, default: str = "") -> str:
+    """One header, decoded, UNFOLDED, on one line.
+
+    Live 2026-09-13 an acknowledgement arrived with its subject folded
+    across two header lines ("...received by\\r\\n Team Acme!").
+    `make_header` keeps the fold, `events.emit` refuses a summary with a
+    carriage return in it, and the exception ended the whole poll before
+    it saved what it had seen - so every beat, all night, re-emitted the
+    message before it and never reached a single message after it.
+    """
+    from email.header import decode_header, make_header
+    raw = msg.get(name, default)
+    try:
+        value = str(make_header(decode_header(str(raw))))
+    except Exception:
+        value = str(raw)
+    return one_line(value)
+
+
 class SmtpImapTransport:
     """The real thing: IMAP4_SSL to read, SMTP+STARTTLS to send. Stdlib only."""
     def __init__(self) -> None:
@@ -224,7 +252,6 @@ class SmtpImapTransport:
     def fetch_unread(self, limit: int) -> list[dict]:
         import imaplib
         from email import message_from_bytes
-        from email.header import decode_header, make_header
         out: list[dict] = []
         with imaplib.IMAP4_SSL(self.cfg["imap_host"], timeout=NETWORK_TIMEOUT_S) as imap:
             imap.login(self.cfg["address"], self.cfg["password"])
@@ -235,8 +262,8 @@ class SmtpImapTransport:
                 _, msg_data = imap.fetch(mid, "(BODY.PEEK[HEADER])")
                 msg = message_from_bytes(msg_data[0][1])
                 out.append({
-                    "from": str(make_header(decode_header(msg.get("From", "?")))),
-                    "subject": str(make_header(decode_header(msg.get("Subject", "(no subject)")))),
+                    "from": _header(msg, "From", "?"),
+                    "subject": _header(msg, "Subject", "(no subject)"),
                     "date": msg.get("Date", ""),
                     "message_id": msg.get("Message-ID", ""),
                 })
@@ -261,8 +288,8 @@ class SmtpImapTransport:
             _, msg_data = imap.fetch(ids[-1], "(BODY.PEEK[])")
             msg = message_from_bytes(msg_data[0][1])
         return {
-            "from": str(make_header(decode_header(msg.get("From", "?")))),
-            "subject": str(make_header(decode_header(msg.get("Subject", "(no subject)")))),
+            "from": _header(msg, "From", "?"),
+            "subject": _header(msg, "Subject", "(no subject)"),
             "date": msg.get("Date", ""),
             "message_id": mid,
             "text": _body_text(msg),
@@ -508,50 +535,74 @@ def poll_events(limit: int = 50, transport: MailTransport | None = None) -> list
         fp = _fingerprint(message)
         if fp in seen:
             continue
-        display, sender = parseaddr(str(message.get("from", "")))
-        sender = sender.strip().casefold()
-        subject = str(message.get("subject", "(no subject)"))[:500]
-        label = display or sender or "unknown sender"
-        occurred = _occurred_at(message)
-        emitted = events.emit(
-            "mail.received", f"email:{sender or 'unknown'}", f"{subject} — from {label}",
-            source="mail", occurred_at=occurred,
-            attributes={"sender": sender, "fingerprint": fp[:24]},
-        )
-        actions.append({"action": "received", "event": emitted["event"]["id"], "fingerprint": fp})
-        if sender:
-            candidates = _reply_candidates(sender, subject)
-            if len(candidates) == 1:
-                expectation = candidates[0]
-                message_id = f"mail-{fp[:24]}"
-                try:
-                    communications.record_message(
-                        message_id, thread_id=expectation["thread_id"], direction="INBOUND",
-                        channel="email", participant=expectation["from_participant"],
-                        summary=subject, external_id=str(message.get("message_id") or fp),
-                        occurred_at=occurred,
-                    )
-                except FileExistsError:
-                    pass
-                reply = events.emit(
-                    "mail.reply", f"thread:{expectation['thread_id']}",
-                    f"Reply from {expectation['from_participant']}: {subject}", source="mail",
-                    occurred_at=occurred,
-                    attributes={"thread_id": expectation["thread_id"],
-                                "expectation_id": expectation["id"], "fingerprint": fp[:24]},
-                )
-                actions.append({"action": "reply", "event": reply["event"]["id"],
-                                "expectation": expectation["id"]})
-            elif len(candidates) > 1:
-                ambiguous = events.emit(
-                    "mail.reply_ambiguous", f"email:{sender}",
-                    f"New mail from {label} matches {len(candidates)} waiting conversations; no thread chosen.",
-                    source="mail", occurred_at=occurred,
-                    attributes={"match_count": len(candidates), "fingerprint": fp[:24]},
-                )
-                actions.append({"action": "ambiguous", "event": ambiguous["event"]["id"],
-                                "matches": len(candidates)})
+        # ONE message is never the whole poll. It used to be: a single subject
+        # the event bus refused raised out of this loop before the seen set was
+        # saved, so the messages before it were emitted again on every beat and
+        # the messages after it were never read at all - eight hours of that on
+        # 2026-09-13. A message that cannot become an event is recorded, marked
+        # seen so it is not retried every minute for ever, and the poll goes on.
+        try:
+            actions.extend(_observe(message, fp))
+        except Exception as exc:
+            actions.append({"action": "skipped", "fingerprint": fp,
+                            "error_type": type(exc).__name__})
+            journal.append("alert", "mail:poll",
+                           f"one unread email could not be read into an event "
+                           f"({type(exc).__name__}); the rest of the inbox was still read",
+                           actor=ACTOR)
         seen.add(fp); seen_order.append(fp)
     write_json_atomic(state_path, {"version": 1, "seen": seen_order[-POLL_SEEN_LIMIT:],
                                    "updated_at": utcnow()})
+    return actions
+
+
+def _observe(message: dict, fp: str) -> list[dict]:
+    """One unread message onto the event bus, and into a thread it answers."""
+    actions: list[dict] = []
+    # One line each, whatever transport handed them over: the bus refuses a
+    # summary with a control character in it, and says so by raising.
+    display, sender = parseaddr(one_line(message.get("from", "")))
+    sender = sender.strip().casefold()
+    subject = (one_line(message.get("subject", "")) or "(no subject)")[:500]
+    label = one_line(display) or sender or "unknown sender"
+    occurred = _occurred_at(message)
+    emitted = events.emit(
+        "mail.received", f"email:{sender or 'unknown'}", f"{subject} — from {label}",
+        source="mail", occurred_at=occurred,
+        attributes={"sender": sender, "fingerprint": fp[:24]},
+    )
+    actions.append({"action": "received", "event": emitted["event"]["id"], "fingerprint": fp})
+    if not sender:
+        return actions
+    candidates = _reply_candidates(sender, subject)
+    if len(candidates) == 1:
+        expectation = candidates[0]
+        message_id = f"mail-{fp[:24]}"
+        try:
+            communications.record_message(
+                message_id, thread_id=expectation["thread_id"], direction="INBOUND",
+                channel="email", participant=expectation["from_participant"],
+                summary=subject, external_id=str(message.get("message_id") or fp),
+                occurred_at=occurred,
+            )
+        except FileExistsError:
+            pass
+        reply = events.emit(
+            "mail.reply", f"thread:{expectation['thread_id']}",
+            f"Reply from {expectation['from_participant']}: {subject}", source="mail",
+            occurred_at=occurred,
+            attributes={"thread_id": expectation["thread_id"],
+                        "expectation_id": expectation["id"], "fingerprint": fp[:24]},
+        )
+        actions.append({"action": "reply", "event": reply["event"]["id"],
+                        "expectation": expectation["id"]})
+    elif len(candidates) > 1:
+        ambiguous = events.emit(
+            "mail.reply_ambiguous", f"email:{sender}",
+            f"New mail from {label} matches {len(candidates)} waiting conversations; no thread chosen.",
+            source="mail", occurred_at=occurred,
+            attributes={"match_count": len(candidates), "fingerprint": fp[:24]},
+        )
+        actions.append({"action": "ambiguous", "event": ambiguous["event"]["id"],
+                        "matches": len(candidates)})
     return actions
