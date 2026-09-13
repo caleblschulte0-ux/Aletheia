@@ -364,6 +364,10 @@ Rules:
   * "Do you have any personal or familial relationship with an employee of this company?" — No, unless the resume names that company.
   * "Are you willing to ..." / "Do you agree to work ..." — answer from what he has already said about relocating, remote work and travel.
   * "When can you start?" — two weeks from today unless the facts say otherwise.
+  * "Do you live in, or plan to relocate to, <a named place>?", "I'm willing and able to commute to <a named place>", "Are you open to working in the office in <a city>?" — from willing_to_relocate: if he will relocate, the answer is the choice that says he will relocate or commute (yes), never the one claiming he already lives there.
+  * "Do you reside in the <named city> area?" — compare it with his city and state: Hartford, South Dakota is not Denver, so No.
+  * "Are you at least 18?" — from over_18.
+  * "Which AI tools or LLMs do you use?" — from ai_tools, when it is in the facts.
   A question left blank stops the whole application and reaches him instead, which is the thing he most asked not to happen. Leave one out only when you would be INVENTING the answer.
 - A question that only applies IF something is true, when that thing is false, is answered "N/A" or left out - never answered as though it were true. "If you are not authorized to work here, what sponsorship would you need?" when he IS authorized is N/A. "If you heard about us through a referral, name the employee" when nobody referred him is N/A. Naming a sponsorship or an employee there would be a false statement on an application.
 - Never invent a number, an employer, a school, a certification, a language or a tool that the resume does not show. A wrong fact on an application is worse than a blank one; a missing obvious answer is worse than both.
@@ -392,9 +396,10 @@ def _answers_validator(questions: dict):
             answer = row.get("answer")
             if question is None or answer in (None, "", []):
                 continue
-            if formfill.is_never_autofill({"label": question.get("label", "")}):
-                continue
             choices = question.get("choices") or []
+            if formfill.is_never_autofill({"label": question.get("label", ""),
+                                           "choices": choices}):
+                continue
             if choices:
                 wanted = answer if isinstance(answer, list) else [answer]
                 picked = [c for c in choices
@@ -437,7 +442,8 @@ def answer_from_facts(record: dict, resume_text: str, *, think=None) -> dict:
     questions = {q["selector"]: q for q in (record.get("questions") or [])
                  if q.get("selector")
                  and q.get("type") not in ("search", "textarea", "file")
-                 and not formfill.is_never_autofill({"label": q.get("label", "")})}
+                 and not formfill.is_never_autofill({"label": q.get("label", ""),
+                                                     "choices": q.get("choices") or []})}
     # Bounded, because a form that offers a 39-language list and an 81-entry
     # country picker will otherwise spend the whole context on menus.
     # Required first, so if anything is dropped it is the optional tail.
@@ -458,14 +464,43 @@ def answer_from_facts(record: dict, resume_text: str, *, think=None) -> dict:
     }
     try:
         if think is None:
-            from aletheia import reasoner
-            think = reasoner.subscription_json
+            think = _any_model_answers
         result = think(ANSWER_BRIEF, str(resume_text)[:6000], context=context,
                        validator=_answers_validator(questions),
                        max_context_bytes=48 * 1024)
     except Exception:
         return {}
     return dict((result or {}).get("answers") or {})
+
+
+def _any_model_answers(system_prompt: str, text: str, *, context: dict,
+                       validator, max_context_bytes: int) -> dict:
+    """The form's questions, answered by whichever model can think — the
+    subscriptions first, then her own.
+
+    Live 2026-09-13 about a third of the stuck applications carried NO
+    answers from the facts at all (`answered_for_you` absent): Claude was out
+    of session, `subscription_json` raised, this returned {} and "Have you
+    ever worked at Gusto?" went to him. `draft_essays` already walked the
+    ladder to her own model; the short answers, which matter more, did not.
+    Everything the local model says passes the same validator — its choice
+    must be one of the form's own options and protected questions are dropped
+    — so the rung that never runs out cannot put anything new on a form.
+    """
+    from aletheia import reasoner
+    try:
+        return reasoner.subscription_json(system_prompt, text, context=context,
+                                          validator=validator,
+                                          max_context_bytes=max_context_bytes)
+    except Exception:
+        pass
+    from aletheia import local_model_pool, model_pool_config
+    if not (model_pool_config.enabled() and local_model_pool.reachable()):
+        return {}
+    run_ = local_model_pool.auto_json(system_prompt, text, context=context,
+                                      validator=validator, preferred_role="fast",
+                                      allow_failover=True, timeout_s=300.0)
+    return run_.output if isinstance(run_.output, dict) else {}
 
 
 # ---- the run ---------------------------------------------------------------------
@@ -622,7 +657,10 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
             continue
         note = f"Apply: {page.get('title') or role or 'job'} — {page.get('posting') or page['url']}"
         try:
-            record = stage(form_url, resume=resume_path, note=note)
+            # Where she found it travels with the form: "how did you hear
+            # about this job" is answered from it on the first read.
+            record = stage(form_url, resume=resume_path, note=note,
+                           found_on=page.get("found_on", ""))
         except Exception as exc:
             failed.append({"url": form_url, "why": f"{type(exc).__name__}: {exc}"[:160]})
             continue
@@ -852,6 +890,51 @@ def answer_one(question: str, answer: str, *, stager=None) -> dict:
     return out
 
 
+def retry_waiting(*, resume: str = "", stager=None, json_think=None, writer=None,
+                  limit: int = 60) -> dict:
+    """Every application waiting on him, read again with what she knows NOW.
+
+    Nothing did this. A record went to NEEDS_YOU with the facts and the code
+    of that moment and stayed there: 2026-09-13 his desired pay had been on
+    file since 02:53 while three applications staged before it still waited
+    on "what is your expected compensation", and every fix to how questions
+    are read reached only forms read after it. `answer_all` re-staged them,
+    but only when he answered something — which is the thing he is away for.
+
+    Stages only. Sending is still the grant's or his, on the Core's beat, and
+    a job already sent is refused by `stage` itself.
+    """
+    policy.ensure_not_halted()
+    stage = stager or apply_run.stage
+    try:
+        resume_path, text = read_resume(resume)
+    except CampaignError:
+        resume_path, text = resume, ""
+    ready, blocked, failed = [], [], []
+    for record in list(apply_run.all_runs("NEEDS_YOU"))[:max(0, int(limit))]:
+        policy.ensure_not_halted()
+        url = record.get("url") or ""
+        used = record.get("resume") or resume_path
+        found_on = record.get("found_on") or ""
+        try:
+            fresh = stage(url, resume=used, found_on=found_on)
+            if fresh.get("state") == "NEEDS_YOU" and text:
+                extra = answer_from_facts(fresh, text, think=json_think)
+                extra.update(draft_essays(fresh, text, think=writer))
+                if extra:
+                    fresh = stage(url, resume=used, extra=extra, found_on=found_on)
+        except Exception as exc:
+            failed.append({"url": url, "why": f"{type(exc).__name__}: {exc}"[:160]})
+            continue
+        (blocked if fresh.get("state") == "NEEDS_YOU" else ready).append(fresh)
+    journal.append("action", "campaign",
+                   f"read {speech.count_phrase(len(ready) + len(blocked), 'waiting application')} "
+                   f"again: {len(ready)} ready, {len(blocked)} still waiting on him, "
+                   f"{len(failed)} could not be read; nothing submitted", actor=ACTOR)
+    return {"ready": ready, "blocked": blocked, "failed": failed,
+            "questions": open_questions(), "submitted": 0, "roles": [], "role": ""}
+
+
 # ---- in its own process ----------------------------------------------------------
 
 def running(now: dt.datetime | None = None) -> dict | None:
@@ -1038,6 +1121,9 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--notify", action="store_true",
                        help="tell him when it is done, and release the run lock")
     sub.add_parser("questions")
+    p_retry = sub.add_parser("retry", help="read every waiting application again with "
+                                           "what she knows now; sends nothing")
+    p_retry.add_argument("--limit", type=int, default=60)
     p_ans = sub.add_parser("answer")
     p_ans.add_argument("pairs", nargs="+", metavar="QUESTION=ANSWER")
     p_one = sub.add_parser("answer-one")
@@ -1082,6 +1168,11 @@ def main(argv: list[str] | None = None) -> int:
             if args.notify:
                 _notify(title, body, f"campaign-answer:{stamp}")
             print(body)
+        elif args.cmd == "retry":
+            out = retry_waiting(limit=args.limit)
+            print(spoken(out))
+            for row in out["failed"]:
+                print(f"  (could not read {row['url']}: {row['why']})", file=sys.stderr)
         elif args.cmd == "questions":
             for q in open_questions():
                 print(f"{'*' if q['required'] else ' '} {q['label']}  "
