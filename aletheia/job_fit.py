@@ -100,8 +100,27 @@ _NOT_SELLING = re.compile(
 _COLD_CALLING = re.compile(
     r"cold[- ]?call|outbound prospecting|prospect(?:ing)?\s+(?:for\s+)?new\s+"
     r"(?:business|customers|clients|accounts|logos)|\b\d{2,3}\+?\s*(?:calls|dials)\b|"
-    r"high[- ]volume (?:outbound|calling|calls)|new[- ]logo acquisition|quota[- ]carrying|"
-    r"carry(?:ing)? an? (?:sales |individual )?quota", re.I)
+    r"high[- ]volume (?:outbound|calling|calls)|new[- ]logo acquisition", re.I)
+#: A job built around chasing a number. His words, 2026-09-13: "I'm not
+#: trying to chase quotas all day." Business development without a quota is
+#: fine, so this reads the DUTIES, never the title.
+_QUOTA = re.compile(
+    r"quota[- ]carrying|carry(?:ing)? an? (?:\w+ )?quota|quota attainment|"
+    r"(?:%|percent) of (?:\w+ )?quota|"
+    r"\b(?:meet|exceed|achiev|hit|surpass|attain|crush|beat)\w*\b[^.;\n]{0,40}?\bquotas?\b|"
+    r"\b(?:monthly|quarterly|annual|individual|sales|revenue|activity|booking)\s+quotas?\b",
+    re.I)
+_NO_QUOTA = re.compile(r"\b(?:no|not|non|without|never)\b[\s-]*(?:\w+[\s-]+){0,2}$", re.I)
+
+
+def _asks_for_quota(text: str) -> bool:
+    text = str(text or "")
+    for found in _QUOTA.finditer(text):
+        if not _NO_QUOTA.search(text[max(0, found.start() - 30): found.start()]):
+            return True
+    return False
+
+
 UNWANTED_KINDS = (
     ("sales",
      lambda title, text: bool(_SALES_TITLE.search(title)) and not _NOT_SELLING.search(title),
@@ -109,6 +128,9 @@ UNWANTED_KINDS = (
     ("cold call",
      lambda title, text: bool(_COLD_CALLING.search(text)),
      "the job involves cold calling or outbound prospecting, which he will not do"),
+    ("quota",
+     lambda title, text: _asks_for_quota(text),
+     "the job is built around hitting a quota, which he will not chase"),
 )
 
 

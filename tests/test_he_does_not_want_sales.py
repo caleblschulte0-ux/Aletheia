@@ -48,7 +48,7 @@ class SalesTitlesAreClosedWhenHeSaysSo(unittest.TestCase):
     def test_cold_calling_in_the_duties_closes_a_friendly_title(self):
         self.assertIn("cold calling", self.reason(
             "Account Manager", "You will make 60+ calls per day, cold calling local businesses."))
-        self.assertIn("cold calling", self.reason(
+        self.assertIn("quota", self.reason(
             "Partnerships Associate", "This is a quota-carrying role focused on new logos."))
         self.assertEqual(self.reason(
             "Account Manager", "Own relationships with existing clients and renewals."), "")
@@ -61,6 +61,44 @@ class SalesTitlesAreClosedWhenHeSaysSo(unittest.TestCase):
             self.assertIn("sales", job_fit.quick_reason(
                 {"job_title": "Commercial Account Executive, Greenfield — Vercel",
                  "company": "Vercel"}))
+
+
+# Later the same day he let up: *"the business development ... I'm fine
+# doing that. I just don't want to cold calling or ... have to hit quotas ...
+# the only harder rules, no cold calling, and ... I'm not trying to chase
+# quotas all day."*
+NO_COLD_CALLS_OR_QUOTAS = {
+    "work_wanted": "business development, partnerships, account management, customer "
+                   "success, operations; sales-adjacent roles are fine",
+    "work_not_wanted": "cold calling, and jobs built around chasing quotas (quota-carrying roles)",
+}
+
+
+class OnlyColdCallingAndQuotasAreHardLines(unittest.TestCase):
+    def reason(self, title, text=""):
+        return job_fit.hard_reason(title, text, known=NO_COLD_CALLS_OR_QUOTAS)
+
+    def test_a_business_development_title_is_fine_on_its_own(self):
+        for title in ("Business Development Manager", "Business Development Associate",
+                      "Account Executive", "Partnerships Manager"):
+            self.assertEqual(self.reason(title), "", title)
+
+    def test_quota_language_in_the_duties_closes_it(self):
+        for text in ("Consistently meet or exceed quarterly quota.",
+                     "Track record of 110% quota attainment.",
+                     "You will own a monthly quota for new bookings.",
+                     "Achieve and exceed your individual quota."):
+            self.assertIn("quota", self.reason("Business Development Manager", text), text)
+
+    def test_a_job_that_says_there_is_no_quota_is_not(self):
+        for text in ("This is a non-quota role focused on partner success.",
+                     "No quota - you support existing partners.",
+                     "There is not a sales quota attached to this position."):
+            self.assertEqual(self.reason("Partnerships Manager", text), "", text)
+
+    def test_cold_calling_is_still_a_hard_line(self):
+        self.assertIn("cold calling", self.reason(
+            "Business Development Associate", "Cold calling prospects is 60% of the day."))
 
 
 class TheModelHearsWhatHeSaid(unittest.TestCase):
