@@ -84,6 +84,14 @@ CANDIDATE_FACTOR = 3
 # trying exactly N gives fewer than N.
 TRIES_PER_READY = 4
 MAX_ROLES = 5
+
+#: How many of a form's questions are put in front of the model at once.
+#: Optional questions count now (2026-09-13), which on a long Greenhouse
+#: form means a 39-language list and an 81-entry country picker would
+#: otherwise eat the whole context before reaching the four questions that
+#: matter. Required ones and short ones are offered first, so anything
+#: dropped is the optional tail.
+MAX_QUESTIONS_ASKED = 40
 # Live 2026-09-10 every one of eight tries was Stripe: the best-scoring
 # board crowded out every other employer. A few per company, then move on.
 PER_COMPANY = 3
@@ -357,6 +365,7 @@ Rules:
   * "Are you willing to ..." / "Do you agree to work ..." — answer from what he has already said about relocating, remote work and travel.
   * "When can you start?" — two weeks from today unless the facts say otherwise.
   A question left blank stops the whole application and reaches him instead, which is the thing he most asked not to happen. Leave one out only when you would be INVENTING the answer.
+- A question that only applies IF something is true, when that thing is false, is answered "N/A" or left out - never answered as though it were true. "If you are not authorized to work here, what sponsorship would you need?" when he IS authorized is N/A. "If you heard about us through a referral, name the employee" when nobody referred him is N/A. Naming a sponsorship or an employee there would be a false statement on an application.
 - Never invent a number, an employer, a school, a certification, a language or a tool that the resume does not show. A wrong fact on an application is worse than a blank one; a missing obvious answer is worse than both.
 - When a question lists choices, answer with one of those choices exactly, or several for a question that allows more than one.
 - Never answer anything about gender, race, ethnicity, veteran status, disability, criminal history, date of birth, pronouns or salary, and never tick anything that certifies, agrees, consents or signs. Leave those out.
@@ -408,10 +417,35 @@ def answer_from_facts(record: dict, resume_text: str, *, think=None) -> dict:
     is sent. What stays his is unchanged: a protected or legal question is
     dropped here AND refused again by the validator, whatever a model says.
     """
+    # OPTIONAL QUESTIONS COUNT TOO. This read `q.get("required")` until
+    # 2026-09-13, and a brief cannot answer a question it is never shown:
+    # 27 of the questions sitting in his queue were things a person answers
+    # without thinking — "Are you 18 years of age or older?", "This role
+    # requires in-office work three days per week. Do you agree?", "Do you
+    # currently reside in the New York, NY or San Francisco, CA area?",
+    # "Have you previously worked at Capital One?" — every one of them
+    # marked optional by the form, so every one of them withheld.
+    #
+    # Optional is not the same as unimportant: Greenhouse marks plenty of
+    # real questions optional, and a blank one still reads as an incomplete
+    # application to whoever opens it.
+    #
+    # Nothing is weakened by this. `is_never_autofill` still removes the
+    # protected and legal ones here AND again in the validator, the
+    # validator drops any selector that was not offered, and a question with
+    # choices may only be answered with one of its own choices.
     questions = {q["selector"]: q for q in (record.get("questions") or [])
-                 if q.get("selector") and q.get("required")
+                 if q.get("selector")
                  and q.get("type") not in ("search", "textarea", "file")
                  and not formfill.is_never_autofill({"label": q.get("label", "")})}
+    # Bounded, because a form that offers a 39-language list and an 81-entry
+    # country picker will otherwise spend the whole context on menus.
+    # Required first, so if anything is dropped it is the optional tail.
+    if len(questions) > MAX_QUESTIONS_ASKED:
+        ordered = sorted(questions.items(),
+                         key=lambda kv: (not kv[1].get("required"),
+                                         len(kv[1].get("choices") or [])))
+        questions = dict(ordered[:MAX_QUESTIONS_ASKED])
     if not questions or think is False:
         return {}
     context = {
