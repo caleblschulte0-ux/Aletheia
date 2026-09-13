@@ -41,6 +41,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
+from typing import Callable
 
 from aletheia import journal, speech, stateio
 from aletheia.fleet import REPO_ROOT
@@ -425,6 +427,70 @@ _GREENHOUSE_JOB = re.compile(
     r"https?://(?:boards|job-boards)\.greenhouse\.io/([A-Za-z0-9_-]+)/jobs/(\d+)")
 _LEVER_JOB = re.compile(
     r"https?://jobs\.lever\.co/([A-Za-z0-9_.-]+)/([0-9a-fA-F-]{36})")
+_ASHBY_JOB = re.compile(
+    r"https?://jobs\.ashbyhq\.com/([A-Za-z0-9_.-]+)/([0-9a-fA-F-]{36})")
+_WORKABLE_JOB = re.compile(
+    r"https?://apply\.workable\.com/([A-Za-z0-9_.-]+)/j/([A-Z0-9]{8,})")
+_SMARTRECRUITERS_JOB = re.compile(
+    r"https?://jobs\.smartrecruiters\.com/([A-Za-z0-9_.-]+)/(\d{6,})")
+_RECRUITEE_JOB = re.compile(
+    r"https?://([A-Za-z0-9-]+)\.recruitee\.com/o/([A-Za-z0-9_-]+)")
+
+
+@dataclass(frozen=True)
+class Ats:
+    """One applicant-tracking system she can reach.
+
+    ADDING ONE IS A ROW. Greenhouse and Lever were two hardcoded regexes
+    and two hardcoded URL shapes, so a third system meant editing the
+    search list, the matcher and the converter in three places — which is
+    how "she only applies on Greenhouse" happens. The search sites, the
+    matchers and the apply-URL shapes are all derived from this table now.
+
+    Every system here hosts its application form at a PUBLIC URL. That is
+    the whole entry requirement and it is not negotiable: one that needs an
+    account is reached through `signup`, which is a different path with a
+    different gate, not by adding a row here.
+    """
+    provider: str
+    site: str                       # the host a site: search sweeps
+    job: "re.Pattern"               # a job URL -> (token, id)
+    apply: "Callable[[str, str], str]"
+
+
+def _gh_apply(token: str, jid: str) -> str:
+    return ("https://boards.greenhouse.io/embed/job_app"
+            f"?for={urllib.parse.quote(token)}&token={jid}")
+
+
+#: Public, login-free application forms, in the order a sweep meets them.
+#: Two hosts for Greenhouse because it moved most boards to job-boards.
+ATS: tuple[Ats, ...] = (
+    Ats("greenhouse", "job-boards.greenhouse.io", _GREENHOUSE_JOB, _gh_apply),
+    Ats("greenhouse", "boards.greenhouse.io", _GREENHOUSE_JOB, _gh_apply),
+    Ats("lever", "jobs.lever.co", _LEVER_JOB,
+        lambda t, j: f"https://jobs.lever.co/{urllib.parse.quote(t)}/{j}/apply"),
+    Ats("ashby", "jobs.ashbyhq.com", _ASHBY_JOB,
+        lambda t, j: f"https://jobs.ashbyhq.com/{urllib.parse.quote(t)}/{j}/application"),
+    Ats("workable", "apply.workable.com", _WORKABLE_JOB,
+        lambda t, j: f"https://apply.workable.com/{urllib.parse.quote(t)}/j/{j}/apply/"),
+    Ats("smartrecruiters", "jobs.smartrecruiters.com", _SMARTRECRUITERS_JOB,
+        lambda t, j: f"https://jobs.smartrecruiters.com/{urllib.parse.quote(t)}/{j}"),
+    Ats("recruitee", "recruitee.com", _RECRUITEE_JOB,
+        lambda t, j: f"https://{urllib.parse.quote(t)}.recruitee.com/o/{j}/c/new"),
+)
+
+#: The hosts a sweep searches, derived so the two cannot drift apart.
+SEARCH_SITES = tuple(dict.fromkeys(a.site for a in ATS))
+
+
+def job_from_url(href: str) -> tuple[Ats, str, str] | None:
+    """(system, token, id) for a job URL on any system she can reach."""
+    for ats in ATS:
+        found = ats.job.search(str(href or ""))
+        if found:
+            return ats, found.group(1), found.group(2)
+    return None
 
 
 def discover_openings(roles: list[str], *, limit: int = 10, http=None) -> list[dict]:
@@ -447,11 +513,18 @@ def discover_openings(roles: list[str], *, limit: int = 10, http=None) -> list[d
     wanted = " OR ".join(f'"{r}"' for r in roles[:MAX_ROLES_PER_SEARCH])
     if len(roles[:MAX_ROLES_PER_SEARCH]) > 1:
         wanted = f"({wanted})"
+    # Each site gets its OWN bucket and they are interleaved at the end.
+    # They used to share one list with an early return at `limit`, and the
+    # two Greenhouse hosts are searched before Lever — so Greenhouse filled
+    # the quota and jobs.lever.co was usually never reached at all. That is
+    # the same starvation the comment above `discover_openings`'s caller
+    # describes one level up, where thirty-six configured boards were
+    # crowding out the web search entirely. Being third in a list is not a
+    # reason to be invisible.
+    buckets: dict[str, list[dict]] = {site: [] for site in SEARCH_SITES}
     for role in roles[:1]:
-        # Greenhouse moved most boards to job-boards.greenhouse.io; both are searched.
-        for site in ("job-boards.greenhouse.io", "boards.greenhouse.io", "jobs.lever.co"):
-            if len(out) >= limit:
-                return out
+        for site in SEARCH_SITES:
+            found = buckets[site]
             try:
                 page = http(f'site:{site} {wanted}')
             except Exception:
@@ -460,7 +533,7 @@ def discover_openings(roles: list[str], *, limit: int = 10, http=None) -> list[d
             if not links and "202" in str((page or {}).get("error") or ""):
                 # Every engine refused. Asking again right away only
                 # lengthens the refusal.
-                return out
+                break
             for link in links:
                 # DuckDuckGo wraps each result in its own redirect; the job's
                 # address is inside it, encoded.
@@ -475,31 +548,32 @@ def discover_openings(roles: list[str], *, limit: int = 10, http=None) -> list[d
                 if cleaned != title and named:
                     cleaned, employer = named.group(1), named.group(2)
                 title = cleaned[:120]
-                green, lever = _GREENHOUSE_JOB.search(href), _LEVER_JOB.search(href)
-                if green:
-                    token, jid = green.group(1), green.group(2)
-                    job = {"title": title or role, "company": employer or token, "location": "",
-                           "posting_url": href,
-                           "apply_url": ("https://boards.greenhouse.io/embed/job_app"
-                                         f"?for={urllib.parse.quote(token)}&token={jid}"),
-                           "provider": "greenhouse", "board": token, "id": jid,
-                           "found_by": "web search"}
-                elif lever:
-                    token, jid = lever.group(1), lever.group(2)
-                    job = {"title": title or role, "company": employer or token, "location": "",
-                           "posting_url": href,
-                           "apply_url": f"https://jobs.lever.co/{urllib.parse.quote(token)}/{jid}/apply",
-                           "provider": "lever", "board": token, "id": jid,
-                           "found_by": "web search"}
-                else:
+                matched = job_from_url(href)
+                if not matched:
                     continue
+                ats, token, jid = matched
+                job = {"title": title or role, "company": employer or token,
+                       "location": "", "posting_url": href,
+                       "apply_url": ats.apply(token, jid),
+                       "provider": ats.provider, "board": token, "id": jid,
+                       "found_by": "web search"}
                 if job["apply_url"] in seen:
                     continue
                 seen.add(job["apply_url"])
-                out.append(job)
-                if len(out) >= limit:
-                    return out
-    return out
+                found.append(job)
+                if len(found) >= limit:
+                    break
+
+    # Round-robin, so a site with three results is represented next to one
+    # with thirty instead of being cut off behind it.
+    waiting = [b for b in buckets.values() if b]
+    while waiting and len(out) < limit:
+        for bucket in list(waiting):
+            if len(out) >= limit:
+                break
+            out.append(bucket.pop(0))
+        waiting = [b for b in waiting if b]
+    return out[:limit]
 
 
 def _say_a_board_is_gone(gone: list[dict]) -> None:

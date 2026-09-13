@@ -1284,6 +1284,18 @@
       "verification": "tests/test_projects_are_carried.py: the contract, next_for skipping his steps and unmet needs, charters skipped by the orchestrator, activity read from the charter's own branch with bot commits ignored, credit only from a merge into that branch, the one-thing order and snooze, replies done/keep/drop and a non-answer changing nothing"
     },
     {
+      "id": "charter.next",
+      "description": "Say which charter step is next and, for every charter passed over, why - so a loop that decides nothing stops doing it silently",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "charter.yml every three hours (python -m aletheia.charter_work --live); the 'Thea project builder' cloud routine is meant to run it instead of re-deriving its rules from its own prompt",
+      "module": "aletheia.charter_work",
+      "verification": "tests/test_charter_work.py: a base branch committed to one minute ago is still eligible, a pushed branch with no pull request is finished rather than rebuilt, his steps are never picked for her, every skipped charter gives a reason, and the module issues only GETs",
+      "notes": "Built 2026-09-13 after measuring the loop: the cloud builder had run daily for three days, succeeded every time and opened zero pull requests. Its rules lived as prose in its routine prompt, where nothing could test them, and one of them skipped any charter whose BASE branch had a real commit in the last twelve hours - meant as 'do not collide', but the builder never works on the base branch, it branches off it and opens a pull request back into it. Caleb's other loops commit to exactly those branches (the AI_HANDOFF loop touches open-range-promo's base every hour), so three of four charters were permanently ineligible and the fourth had a branch pushed on 2026-09-11 that no path ever opened. This module decides; it opens nothing. The pull request for a pushed branch is project_merge.open_builder_prs, which already exists with its halt check and machine-bound code_trust grant, and has never run against these charters because project_loop runs only as a Windows Scheduled Task on a PC that has not been switched on."
+    },
+    {
       "id": "reason.local",
       "description": "Offline local models (Ollama) as a reasoning provider when the subscription clients are unavailable",
       "provider": "aletheia.local",
@@ -1584,6 +1596,18 @@
       "notes": "Reads the form the way a PERSON sees it - label-for, wrapping labels, aria-label, placeholders, legends - because 'q_31415926' is what a Workday calls 'Are you legally authorized to work?'. THE SAFETY MODEL IS ONE RULE WITH NO OFF SWITCH: a field she does not know is a QUESTION, never a guess. A wrong phone number is an annoyance; a guessed 'no' on 'have you ever been convicted of a felony' is a lie submitted under his name to a company that keeps it. Protected characteristics, legal declarations, certifications, salary history and signatures are refused even when the profile holds an answer. A dropdown answer is matched to that dropdown's real options - selecting one that does not exist silently does nothing in some browsers and throws in others, and either way the form is submitted empty. It presses NOTHING: it produces a plan, and the plan still needs an approval. Verified against a Workday-shaped form rendered in real Chromium: 18 fields, 11 filled, 6 returned to him, the resume upload left alone. 2026-09-03, against a LIVE Stripe application on Greenhouse: a checkbox or radio is an OPTION, not a question - its own label says 'Australia' while the question ('which countries do you anticipate working in?') lives on the group. Read one at a time, one question became 30 required unanswerable ones that buried the handful he really had to answer. Grouped by name/description now: 43 questions became 14, and with employer/title/school/degree on file she fills 15 of the 23 answerable fields with 4 required questions left, every one genuinely his."
     },
     {
+      "id": "account.create",
+      "description": "Make an account on a site that will not take an application without one - reading the form, choosing a password kept in the vault, and using your signup number rather than the one employers ring",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "medium",
+      "approval_policy": "operator_always",
+      "caller": "aletheia.apply_run.stage names an account wall as NEEDS_ACCOUNT rather than staging an application that could never be submitted; python -m aletheia.signup check/list/read",
+      "module": "aletheia.signup",
+      "verification": "tests/test_signup.py: a CAPTCHA stops her before anything is typed and before the vault is even consulted, no vault means no account, the password reaches the vault and appears in neither the record nor the journal, every phone box on a signup gets his signup number and his real number never appears, one employer gets one account, and the module makes no browser calls at all",
+      "notes": "Built 2026-09-13 from his words: \"I need this to be able to apply to jobs any where on the web.\" Greenhouse and Lever were the only two systems she could reach, because they are the only two large ones hosting the real application form at a public URL with no login. Nothing refused her an account - it was never built. EXPERIMENTAL because no account has been made against a real site yet: this decides and plans, and pressing anything is still browse.interact under an approval bound to that exact page. It does not solve CAPTCHAs and must never learn to - a solver is a paid service and paying is the one permanent rule, so a human check makes the account his to make. The password only ever reaches secret_store, which is itself EXPERIMENTAL and Windows-only, and prepare REFUSES when that vault is unavailable rather than writing a password somewhere he would not know to look. Workday accounts are usually per-employer rather than one global login, so 'make accounts once and never again' holds for Ashby and SmartRecruiters and mostly does not for Workday."
+    },
+    {
       "id": "application.submit",
       "description": "Fill a job application, show you the filled form, and send it on one confirmation — the whole thing between 'apply' and 'applied'",
       "provider": "aletheia.local",
@@ -1608,14 +1632,14 @@
     },
     {
       "id": "jobs.search",
-      "description": "Real open jobs from the systems that publish them — Greenhouse and Lever public boards — each with an application form that needs no login",
+      "description": "Real open jobs from the systems that publish them - Greenhouse, Lever, Ashby, Workable, SmartRecruiters and Recruitee public boards, plus any of their boards a web search finds",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "read",
       "approval_policy": "none",
       "caller": "aletheia.campaign.run; python -m aletheia.jobs <role>",
       "module": "aletheia.jobs",
-      "notes": "The campaign was proved against a job board I wrote myself, and on the real internet it found NOTHING: research.find_sources drives a headless browser at a search engine, and a search engine answers a headless browser with a challenge page. Zero openings, everything downstream theatre. That is the difference between a demo and a thing that works. Greenhouse and Lever publish their boards as public JSON with no key and host the real application form at a public URL with no login - which is what makes them the right source rather than merely a working one, because a posting she can find but not apply to is a link he could have found himself. 24 company boards in config/job_boards.json (data he can add to), ~4,300 live openings measured 2026-09-03. A board that did not answer is reported FAILED per board: 'no jobs matched' and 'the network refused me' are different answers."
+      "notes": "The campaign was proved against a job board I wrote myself, and on the real internet it found NOTHING: research.find_sources drives a headless browser at a search engine, and a search engine answers a headless browser with a challenge page. Zero openings, everything downstream theatre. That is the difference between a demo and a thing that works. Greenhouse and Lever publish their boards as public JSON with no key and host the real application form at a public URL with no login - which is what makes them the right source rather than merely a working one, because a posting she can find but not apply to is a link he could have found himself. 24 company boards in config/job_boards.json (data he can add to), ~4,300 live openings measured 2026-09-03. A board that did not answer is reported FAILED per board: 'no jobs matched' and 'the network refused me' are different answers. 2026-09-13: the systems she can reach are a TABLE (jobs.ATS) rather than two hardcoded regexes and two hardcoded URL shapes, and the search hosts are derived from it, so adding one is a row instead of an edit in three places - which is how 'she only applies on Greenhouse' happened. The entry requirement is a PUBLIC application form: a system that wants an account is reached through account.create, which is a different path with a different gate. More hosts also means more searches a campaign, and the engines answer the later ones with a challenge page, so a refusal stops the sweep rather than hammering it and whatever earlier sites found is kept."
     },
     {
       "id": "web.task",
@@ -1681,6 +1705,18 @@
       "description": "Play a particular song, album or artist by name",
       "caller": "ticket - needs the Spotify Web API and his account: an OAuth consent like calendar_auth's, then search + play on his active device. He has Premium, which the playback endpoints require",
       "notes": "Registered 2026-09-08 alongside media.play, which does transport with no key at all. Kept SEPARATE on purpose: one entry covering both would say AVAILABLE about a capability that cannot do what its own description promises, and 'play some music' answering by resuming Thursday's queue is not what he asked for. Until this exists, naming something to play is answered honestly - aletheia.music.cannot_choose."
+    },
+    {
+      "id": "sms.read",
+      "description": "Read the texts sent to your Google Voice number, so a verification code that arrives by text is one I can use instead of one you have to go and fetch",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.apply_run._texted_code, after the inbox comes up empty on a page asking for a verification code; python -m aletheia.gvoice check/recent/code",
+      "module": "aletheia.gvoice",
+      "verification": "tests/test_gvoice.py: every real SMS code shape is read where the email extractor caught one of six, a year or a price is refused, a signed-out page says NOT SIGNED IN rather than reporting no messages, a code older than ten minutes or one she cannot date is refused, and an AST walk holds that she reads and never replies",
+      "notes": "Built 2026-09-13. The signup number is a Google Voice line, and half of what she signs up for sends its code by TEXT - so an account got as far as 'we sent you a code' and stopped, with the code in a tab he would have to read himself. Read through the authorized Chrome profile browse already uses, because Google Voice has no public API for a personal account and there are no API keys anywhere. UNPROVEN against the real voice.google.com: the parsing is written from the page's visible text and Google changes that without notice, so a run that finds nothing reports 'nothing readable' rather than 'no messages'. Codes are refused when older than ten minutes, the lesson from 2026-09-12 on the mail path, where an hour-old code was typed in and the form's refusal read like a broken form rather than a stale code. She reads and never sends: replying as him is a different capability with a different risk."
     }
   ]
 }

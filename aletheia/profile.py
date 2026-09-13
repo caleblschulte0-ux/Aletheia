@@ -59,6 +59,16 @@ FIELDS: dict[str, dict] = {
                        "means": "email address"},
     "phone":          {"asks": ("phone", "mobile", "telephone", "cell"),
                        "means": "phone number"},
+    # His Google Voice number, for SIGNUPS ONLY. `asks` is deliberately
+    # EMPTY and `signup_only` marks it: no application form question can
+    # ever match it, so a job application always carries his real number.
+    # His ruling, 2026-09-13: "Don't have it be changing, like, anything on
+    # my resume or, like, anything like that. Just purely for making
+    # accounts that require a phone number. Any, like, application should
+    # use my actual phone number."
+    "signup_phone":   {"asks": (), "signup_only": True,
+                       "means": "the number he uses to make accounts, never "
+                                "on an application"},
     "street":         {"asks": ("street", "address line 1", "address1",
                                 "street address", "address"),
                        "means": "street address"},
@@ -171,6 +181,13 @@ FIELDS: dict[str, dict] = {
 # Never filled automatically, whatever the profile happens to contain.
 # These are protected characteristics and legal declarations: an answer
 # invented on his behalf is a lie in a file an employer keeps.
+#: Fields that exist for ACCOUNT CREATION and may never reach an employer's
+#: form. Two things keep that true and a test holds both: the field carries
+#: no `asks` phrases, so `formfill.match_field` cannot select it by label,
+#: and `match_field` skips these by name even if someone later adds one.
+SIGNUP_ONLY = frozenset(k for k, v in FIELDS.items() if v.get("signup_only"))
+
+
 NEVER_AUTOFILL = ("gender", "race", "ethnicity", "veteran", "disability",
                   "felony", "convicted", "criminal", "sexual orientation",
                   "date of birth", "birth date", "social security", "ssn",
