@@ -35,6 +35,8 @@ import json
 import subprocess
 import sys
 
+from aletheia.proc import hidden_flags
+
 # Each part, as (key, what it is, how to recognise its process).
 PARTS = (
     ("supervisor", "keeps the Core alive and repairs it", "aletheia.supervisor"),
@@ -58,7 +60,7 @@ def _powershell(script: str) -> str:
     try:
         done = subprocess.run(
             ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
-            capture_output=True, text=True, timeout=25)
+            capture_output=True, text=True, timeout=25, creationflags=hidden_flags())
         return done.stdout or ""
     except Exception:
         return ""
@@ -151,7 +153,7 @@ def tasks() -> dict[str, str]:
         try:
             done = subprocess.run(
                 ["schtasks.exe", "/query", "/TN", name, "/FO", "CSV", "/NH"],
-                capture_output=True, text=True, timeout=20)
+                capture_output=True, text=True, timeout=20, creationflags=hidden_flags())
         except Exception:
             continue
         if done.returncode != 0 or not (done.stdout or "").strip():
@@ -256,7 +258,8 @@ def version() -> dict:
     def git(*args):
         try:
             done = subprocess.run(["git", *args], capture_output=True,
-                                  text=True, cwd=str(REPO_ROOT), timeout=15)
+                                  text=True, cwd=str(REPO_ROOT), timeout=15,
+                                  creationflags=hidden_flags())
             return done.stdout.strip() if done.returncode == 0 else ""
         except Exception:
             return ""

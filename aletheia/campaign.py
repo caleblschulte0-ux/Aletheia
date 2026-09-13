@@ -72,8 +72,8 @@ import sys
 from pathlib import Path
 from urllib.parse import urljoin
 
-from aletheia import (applications, apply_run, browse, doctext, formfill,
-                      journal, jobs, policy, profile, speech, stateio, workspace)
+from aletheia import (applications, apply_run, browse, doctext, formfill, job_fit,
+                      journal, jobs, policy, proc, profile, speech, stateio, workspace)
 
 ACTOR = "aletheia-campaign"
 
@@ -103,8 +103,12 @@ _FILLER = frozenset("a an the one to you your yes no is are do does did be have 
 RUN_DIR = stateio.private_dir("campaign")
 LOCK_PATH = RUN_DIR / "running.json"
 LOG_PATH = RUN_DIR / "last-run.log"
-# A lock older than this is a run that died without cleaning up after itself.
+# A lock older than this is a run that died without cleaning up after itself,
+# or one that is hung (its process is stopped).
 STALE_LOCK = dt.timedelta(hours=3)
+# How long one batch may keep trying openings before it reports what it has.
+# Well inside STALE_LOCK, so a healthy batch is never mistaken for a hung one.
+MAX_RUN = dt.timedelta(minutes=90)
 US_STATES = frozenset(
     "AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO "
     "MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY DC".split())
@@ -314,12 +318,19 @@ def learn_more(text: str, *, think=None) -> dict:
     return written
 
 
+# His words, 2026-09-13: "we're gonna have it shoot high and shoot low. But
+# it should be realistic." A RANGE in his own line of work - the night
+# before, the roles drifted into Business Analyst, Operations Analyst and
+# Commercial Finance Associate, and the jobs followed them into accounting
+# and HR.
 ROLES_BRIEF = (
     "From this resume, name the job titles this person is a realistic candidate "
     "for right now: titles an employer would actually post, not skills. "
-    "Stay at the level the resume supports today: the most recent title's level, "
-    "or one step up at most. Never Senior, Lead, Principal, Director or Head for "
-    "someone with only a few years in that field. Return "
+    "Give a realistic RANGE in the line of work the resume shows: mostly the most "
+    "recent title's level, one a step up (one step up at most) and one a step below. "
+    "Never a different line of work, never a job managing a team of people, and "
+    "never Senior, Lead, Principal, Director or Head for someone with only a few "
+    "years in that field. Return "
     'ONE JSON object: {"roles": [up to 5 short job titles, most fitting first]}.')
 
 
@@ -364,6 +375,10 @@ Rules:
   * "Do you have any personal or familial relationship with an employee of this company?" — No, unless the resume names that company.
   * "Are you willing to ..." / "Do you agree to work ..." — answer from what he has already said about relocating, remote work and travel.
   * "When can you start?" — two weeks from today unless the facts say otherwise.
+  * "Do you live in, or plan to relocate to, <a named place>?", "I'm willing and able to commute to <a named place>", "Are you open to working in the office in <a city>?" — from willing_to_relocate: if he will relocate, the answer is the choice that says he will relocate or commute (yes), never the one claiming he already lives there.
+  * "Do you reside in the <named city> area?" — compare it with his city and state: Hartford, South Dakota is not Denver, so No.
+  * "Are you at least 18?" — from over_18.
+  * "Which AI tools or LLMs do you use?" — from ai_tools, when it is in the facts.
   A question left blank stops the whole application and reaches him instead, which is the thing he most asked not to happen. Leave one out only when you would be INVENTING the answer.
 - A question that only applies IF something is true, when that thing is false, is answered "N/A" or left out - never answered as though it were true. "If you are not authorized to work here, what sponsorship would you need?" when he IS authorized is N/A. "If you heard about us through a referral, name the employee" when nobody referred him is N/A. Naming a sponsorship or an employee there would be a false statement on an application.
 - Never invent a number, an employer, a school, a certification, a language or a tool that the resume does not show. A wrong fact on an application is worse than a blank one; a missing obvious answer is worse than both.
@@ -392,9 +407,10 @@ def _answers_validator(questions: dict):
             answer = row.get("answer")
             if question is None or answer in (None, "", []):
                 continue
-            if formfill.is_never_autofill({"label": question.get("label", "")}):
-                continue
             choices = question.get("choices") or []
+            if formfill.is_never_autofill({"label": question.get("label", ""),
+                                           "choices": choices}):
+                continue
             if choices:
                 wanted = answer if isinstance(answer, list) else [answer]
                 picked = [c for c in choices
@@ -437,7 +453,8 @@ def answer_from_facts(record: dict, resume_text: str, *, think=None) -> dict:
     questions = {q["selector"]: q for q in (record.get("questions") or [])
                  if q.get("selector")
                  and q.get("type") not in ("search", "textarea", "file")
-                 and not formfill.is_never_autofill({"label": q.get("label", "")})}
+                 and not formfill.is_never_autofill({"label": q.get("label", ""),
+                                                     "choices": q.get("choices") or []})}
     # Bounded, because a form that offers a 39-language list and an 81-entry
     # country picker will otherwise spend the whole context on menus.
     # Required first, so if anything is dropped it is the optional tail.
@@ -458,14 +475,43 @@ def answer_from_facts(record: dict, resume_text: str, *, think=None) -> dict:
     }
     try:
         if think is None:
-            from aletheia import reasoner
-            think = reasoner.subscription_json
+            think = _any_model_answers
         result = think(ANSWER_BRIEF, str(resume_text)[:6000], context=context,
                        validator=_answers_validator(questions),
                        max_context_bytes=48 * 1024)
     except Exception:
         return {}
     return dict((result or {}).get("answers") or {})
+
+
+def _any_model_answers(system_prompt: str, text: str, *, context: dict,
+                       validator, max_context_bytes: int) -> dict:
+    """The form's questions, answered by whichever model can think — the
+    subscriptions first, then her own.
+
+    Live 2026-09-13 about a third of the stuck applications carried NO
+    answers from the facts at all (`answered_for_you` absent): Claude was out
+    of session, `subscription_json` raised, this returned {} and "Have you
+    ever worked at Gusto?" went to him. `draft_essays` already walked the
+    ladder to her own model; the short answers, which matter more, did not.
+    Everything the local model says passes the same validator — its choice
+    must be one of the form's own options and protected questions are dropped
+    — so the rung that never runs out cannot put anything new on a form.
+    """
+    from aletheia import reasoner
+    try:
+        return reasoner.subscription_json(system_prompt, text, context=context,
+                                          validator=validator,
+                                          max_context_bytes=max_context_bytes)
+    except Exception:
+        pass
+    from aletheia import local_model_pool, model_pool_config
+    if not (model_pool_config.enabled() and local_model_pool.reachable()):
+        return {}
+    run_ = local_model_pool.auto_json(system_prompt, text, context=context,
+                                      validator=validator, preferred_role="fast",
+                                      allow_failover=True, timeout_s=300.0)
+    return run_.output if isinstance(run_.output, dict) else {}
 
 
 # ---- the run ---------------------------------------------------------------------
@@ -514,8 +560,14 @@ def _keep_the_job(record: dict, page: dict, **extra_fields) -> dict:
 
 def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         finder=None, reader=None, opener=None, stager=None, writer=None,
-        json_think=None, searcher=None, draft_essays_too: bool = True) -> dict:
-    """Make `count` applications ready with `resume`. Stages them all; sends nothing."""
+        json_think=None, searcher=None, draft_essays_too: bool = True,
+        fit_think=None, describer=None) -> dict:
+    """Make `count` applications ready with `resume`. Stages them all; sends nothing.
+
+    `fit_think` judges whether each job is realistic (False: rules only);
+    `describer(page)` returns a posting's text. Both default to the real
+    thing only on a real board search, never under a test's own finder.
+    """
     policy.ensure_not_halted()
     role = " ".join(str(role or "").split())
     count = max(1, min(int(count), MAX_JOBS))
@@ -589,18 +641,56 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
                   "posting": p["url"], "direct": False} for p in found]
 
     staged, needs_you, failed = [], [], []
+    passed_over, duplicates = [], []
     tried: dict[str, int] = {}
     attempts = 0
+    give_up_at = dt.datetime.now(dt.timezone.utc) + MAX_RUN
+    real_search = finder is None and searcher is None
+    judge_with = (fit_think if fit_think is not None
+                  else (None if real_search and json_think is None else False))
+    describe = describer or (jobs.posting_text if real_search else None)
+    known_now = profile.known()
+    early = bool(_seniority_to_leave_out(known_now))
+    roles_seen: set[str] = set()
+    judged = 0
     for page in pages:
         # READY is what he asked for. A form still waiting on him is kept
         # and reported, and does not count toward the number.
         if len(staged) >= count:
             break
+        if dt.datetime.now(dt.timezone.utc) >= give_up_at:
+            break                        # the next batch picks up where this left off
         company = " ".join(str(page.get("company") or "").casefold().split())
         if company and tried.get(company, 0) >= PER_COMPANY:
             continue
         if attempts >= want:
             break
+        # ONE ROLE, ONE APPLICATION, before a form is ever opened. A role
+        # posted to three locations is three urls and one job: live
+        # 2026-09-13 Brex's "People Business Partner, GTM" was filled in
+        # three times in seventeen minutes, and Impact.com's "Business
+        # Development Representative, Inbound" was filled in again eighteen
+        # minutes after it had been sent.
+        title = str(page.get("title") or "")
+        if page.get("company") and title:
+            key = apply_run.role_key(page["company"], title)
+            held = key in roles_seen or apply_run.role_taken(page["company"], title,
+                                                            page.get("url", ""))
+            if held:
+                duplicates.append({"url": page["url"], "title": title,
+                                   "why": "the same job is already applied for or waiting"})
+                continue
+            roles_seen.add(key)
+        # And only a job he could realistically get. Bounded, so a long list
+        # of openings never turns into an hour of model calls.
+        think = judge_with if (judge_with is False or judged < want * 2) else False
+        fit = job_fit.verdict(page, text, known_now, think=think, describe=describe,
+                              early=early)
+        if think is not False:
+            judged += 1
+        if not fit["realistic"]:
+            passed_over.append({"url": page["url"], "title": title, "why": fit["why"]})
+            continue
         attempts += 1
         if company:
             tried[company] = tried.get(company, 0) + 1
@@ -622,11 +712,14 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
             continue
         note = f"Apply: {page.get('title') or role or 'job'} — {page.get('posting') or page['url']}"
         try:
-            record = stage(form_url, resume=resume_path, note=note)
+            # Where she found it travels with the form: "how did you hear
+            # about this job" is answered from it on the first read.
+            record = stage(form_url, resume=resume_path, note=note,
+                           **_where_found(stage, page.get("found_on", "")))
         except Exception as exc:
             failed.append({"url": form_url, "why": f"{type(exc).__name__}: {exc}"[:160]})
             continue
-        record = _keep_the_job(record, page)
+        record = _keep_the_job(record, page, fit=fit)
         if record["state"] == "NEEDS_YOU":
             # What his facts settle is answered from them; long answers are
             # written from his resume. Both show up in the confirmation.
@@ -644,9 +737,12 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
     journal.append("action", "campaign",
                    f"{len(staged)} ready, {len(needs_you)} waiting on answers, "
                    f"{len(failed)} could not be reached — for {', '.join(roles)!r}; "
+                   f"passed over {len(passed_over)} as not realistic and "
+                   f"{len(duplicates)} already applied for or waiting; "
                    "nothing submitted", actor=ACTOR)
     return {"role": role, "roles": roles, "resume": resume_path, "learned": sorted(learned),
             "ready": staged, "blocked": needs_you, "failed": failed,
+            "passed_over": passed_over, "duplicates": duplicates,
             "ignored_role": ignored_role,
             "questions": open_questions(), "submitted": 0}
 
@@ -808,6 +904,15 @@ def answer_all(answers: dict, *, resume: str = "", stager=None) -> dict:
 
     restaged, still_blocked = [], []
     for record in list(apply_run.all_runs("NEEDS_YOU")):
+        # An answer must not finish a job that was never realistic: close
+        # it instead, so it stops asking him things and can never be sent.
+        unfit = job_fit.quick_reason(record)
+        if unfit:
+            try:
+                apply_run.close(record["id"], f"not realistic: {unfit}")
+            except Exception:
+                pass
+            continue
         extra = dict(facts)
         extra.update(per_run.get(record["id"], {}))
         try:
@@ -852,20 +957,111 @@ def answer_one(question: str, answer: str, *, stager=None) -> dict:
     return out
 
 
+def _where_found(stage, found_on: str) -> dict:
+    """`found_on=` for a stager that takes it, nothing for one that does not.
+
+    The real `apply_run.stage` does; a stand-in written before it did would
+    raise TypeError, be caught as a failed form, and turn a whole run into
+    "could not be reached"."""
+    import inspect
+    try:
+        params = inspect.signature(stage).parameters.values()
+    except (TypeError, ValueError):
+        return {}
+    takes = any(p.name == "found_on" or p.kind is inspect.Parameter.VAR_KEYWORD for p in params)
+    return {"found_on": found_on} if takes and found_on else {}
+
+
+def retry_waiting(*, resume: str = "", stager=None, json_think=None, writer=None,
+                  limit: int = 60) -> dict:
+    """Every application waiting on him, read again with what she knows NOW.
+
+    Nothing did this. A record went to NEEDS_YOU with the facts and the code
+    of that moment and stayed there: 2026-09-13 his desired pay had been on
+    file since 02:53 while three applications staged before it still waited
+    on "what is your expected compensation", and every fix to how questions
+    are read reached only forms read after it. `answer_all` re-staged them,
+    but only when he answered something — which is the thing he is away for.
+
+    Stages only. Sending is still the grant's or his, on the Core's beat, and
+    a job already sent is refused by `stage` itself.
+    """
+    policy.ensure_not_halted()
+    stage = stager or apply_run.stage
+    try:
+        resume_path, text = read_resume(resume)
+    except CampaignError:
+        resume_path, text = resume, ""
+    ready, blocked, failed = [], [], []
+    for record in list(apply_run.all_runs("NEEDS_YOU"))[:max(0, int(limit))]:
+        policy.ensure_not_halted()
+        url = record.get("url") or ""
+        used = record.get("resume") or resume_path
+        found_on = record.get("found_on") or ""
+        where = _where_found(stage, found_on)
+        try:
+            fresh = stage(url, resume=used, **where)
+            if fresh.get("state") == "NEEDS_YOU" and text:
+                extra = answer_from_facts(fresh, text, think=json_think)
+                extra.update(draft_essays(fresh, text, think=writer))
+                if extra:
+                    fresh = stage(url, resume=used, extra=extra, **where)
+        except Exception as exc:
+            failed.append({"url": url, "why": f"{type(exc).__name__}: {exc}"[:160]})
+            continue
+        (blocked if fresh.get("state") == "NEEDS_YOU" else ready).append(fresh)
+    journal.append("action", "campaign",
+                   f"read {speech.count_phrase(len(ready) + len(blocked), 'waiting application')} "
+                   f"again: {len(ready)} ready, {len(blocked)} still waiting on him, "
+                   f"{len(failed)} could not be read; nothing submitted", actor=ACTOR)
+    return {"ready": ready, "blocked": blocked, "failed": failed,
+            "questions": open_questions(), "submitted": 0, "roles": [], "role": ""}
+
+
 # ---- in its own process ----------------------------------------------------------
 
 def running(now: dt.datetime | None = None) -> dict | None:
-    """The campaign already under way, if one is."""
+    """The campaign already under way, if one is.
+
+    Decided by whether its PROCESS is alive, not by the clock alone. Live
+    2026-09-13 a batch ran longer than the three-hour STALE_LOCK, so the
+    job-hunt loop decided it had died and started a second one beside it;
+    when the first finished it deleted the second one's lock, and a third
+    started. Three campaigns and the Core's submits queued on one browser
+    all night, which is what filled his screen with console windows.
+    """
     try:
         value = json.loads(LOCK_PATH.read_text(encoding="utf-8"))
         started = dt.datetime.fromisoformat(str(value.get("started_at")).replace("Z", "+00:00"))
     except (OSError, ValueError, AttributeError):
         return None
     now = now or dt.datetime.now(dt.timezone.utc)
-    return value if now - started < STALE_LOCK else None
+    pid = value.get("pid")
+    alive = proc.pid_alive(pid, needle="aletheia.campaign") if pid else None
+    if alive is False:
+        return None                      # it died, or the pid is somebody else's now
+    if now - started < STALE_LOCK:
+        return value
+    if alive is True:
+        # Alive and far past its own time limit (MAX_RUN): hung. Stopped,
+        # rather than left holding the lock for good or run beside.
+        proc.kill_tree(pid)
+        journal.append("alert", "campaign",
+                       f"a job-hunt batch had been running since {value.get('started_at')}, "
+                       "far past its time limit, so it was stopped", actor=ACTOR)
+    return None
 
 
-def _release() -> None:
+def _release(owner: int | None = None) -> None:
+    """Remove the run lock — only ours, when `owner` says whose we are."""
+    if owner is not None:
+        try:
+            holder = json.loads(LOCK_PATH.read_text(encoding="utf-8")).get("pid")
+        except (OSError, ValueError, AttributeError):
+            holder = None
+        if holder not in (None, owner) and \
+                proc.pid_alive(holder, needle="aletheia.campaign") is not False:
+            return                       # another campaign's, and it is running
     try:
         LOCK_PATH.unlink()
     except OSError:
@@ -1038,6 +1234,9 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--notify", action="store_true",
                        help="tell him when it is done, and release the run lock")
     sub.add_parser("questions")
+    p_retry = sub.add_parser("retry", help="read every waiting application again with "
+                                           "what she knows now; sends nothing")
+    p_retry.add_argument("--limit", type=int, default=60)
     p_ans = sub.add_parser("answer")
     p_ans.add_argument("pairs", nargs="+", metavar="QUESTION=ANSWER")
     p_one = sub.add_parser("answer-one")
@@ -1058,7 +1257,7 @@ def main(argv: list[str] | None = None) -> int:
                 raise
             finally:
                 if args.notify:
-                    _release()
+                    _release(owner=os.getpid())
             if args.notify:
                 title, body = _summary(out)
                 _notify(title, body, f"campaign:{stamp}")
@@ -1071,7 +1270,7 @@ def main(argv: list[str] | None = None) -> int:
                 out = answer_one(args.question, args.answer)
             finally:
                 if args.notify:
-                    _release()
+                    _release(owner=os.getpid())
             if out.get("matched") is None:
                 body = ("None of the waiting applications asks that. They are waiting on: "
                         + "; ".join(q["label"] for q in out["questions"][:6] if q.get("required"))
@@ -1082,6 +1281,11 @@ def main(argv: list[str] | None = None) -> int:
             if args.notify:
                 _notify(title, body, f"campaign-answer:{stamp}")
             print(body)
+        elif args.cmd == "retry":
+            out = retry_waiting(limit=args.limit)
+            print(spoken(out))
+            for row in out["failed"]:
+                print(f"  (could not read {row['url']}: {row['why']})", file=sys.stderr)
         elif args.cmd == "questions":
             for q in open_questions():
                 print(f"{'*' if q['required'] else ' '} {q['label']}  "

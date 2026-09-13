@@ -91,12 +91,50 @@ def sent_path():
     return stateio.private_dir("applications-sent") / "already-sent.json"
 
 
+def _legacy_sent_path():
+    """Where the ledger lived before f2465aed moved it (2026-09-12 19:41 CDT)."""
+    return staged_dir() / "already-sent.json"
+
+
+#: A record in either of these states went to the employer, or may have:
+#: SUBMITTING is a press whose answer was never recorded (live 2026-09-13
+#: Amtech and Carta hung there when the machine was restarted).
+PRESSED_STATES = ("SUBMITTED", "SUBMITTING")
+
+
 def already_sent() -> dict:
+    """Every url an application went to, from EVERY place that says so.
+
+    Live 2026-09-12 the ledger moved to its own directory at 00:41:50Z and
+    the file that already held twenty sends stayed behind. Thirty-nine
+    seconds later a campaign re-staged Stripe's "Account Executive, AI
+    Sales" — sent at 19:11Z — found the new ledger empty, and pressed
+    Submit on a second copy. Chrome crashing is the only reason Stripe did
+    not receive it. So both files are read, and so is every record that
+    already pressed the button: a move of the ledger can never again make
+    her forget what she sent.
+    """
+    merged: dict = {}
+    for path in (_legacy_sent_path(), sent_path()):
+        try:
+            value = stateio.read_json(path)
+        except (OSError, ValueError):
+            continue
+        if isinstance(value, dict):
+            merged.update(value)
     try:
-        value = stateio.read_json(sent_path())
-    except (OSError, ValueError):
-        return {}
-    return value if isinstance(value, dict) else {}
+        records = all_runs()
+    except Exception:
+        records = []
+    for record in records:
+        url = str(record.get("url") or "").strip()
+        if url and url not in merged and record.get("state") in PRESSED_STATES:
+            merged[url] = {"id": record.get("id"), "at": record.get("submitted_at"),
+                           "job_title": record.get("job_title", ""),
+                           "company": record.get("company", ""),
+                           "verdict": ((record.get("result") or {}).get("verdict")
+                                       or "pressed, no answer recorded")}
+    return merged
 
 
 def was_sent(url: str) -> dict | None:
@@ -156,6 +194,38 @@ def was_applied_to_role(company: str, job_title: str) -> dict | None:
     return None
 
 
+role_key = _role_key
+
+
+def role_taken(company: str, job_title: str, url: str = "") -> dict | None:
+    """The same job at the same employer, already sent OR already waiting.
+
+    `was_applied_to_role` only reads what went, and only at the moment of
+    sending — so a role posted to three locations was STAGED three times
+    and asked him the same questions three times (Brex "People Business
+    Partner, GTM", 2026-09-13 04:29Z, 04:34Z, 04:46Z), and a role already
+    sent under one link was filled in again under another eighteen minutes
+    later (Impact.com "Business Development Representative, Inbound").
+    The same form at the same url is not a duplicate: that is a re-stage.
+    """
+    if not str(company or "").strip() or not str(job_title or "").strip():
+        return None
+    sent = was_applied_to_role(company, job_title)
+    if sent:
+        return {**sent, "state": "SUBMITTED"}
+    want = _role_key(company, job_title)
+    here = str(url or "").strip()
+    for record in all_runs():
+        if record.get("state") in (CLOSED, "FAILED"):
+            continue
+        if here and str(record.get("url") or "").strip() == here:
+            continue
+        if _role_key(record.get("company", ""), record.get("job_title", "")) == want:
+            return {"id": record.get("id"), "at": record.get("staged_at"),
+                    "state": record.get("state"), "url": record.get("url")}
+    return None
+
+
 def remember_sent(record: dict) -> None:
     """Write the url down the moment it really goes, and never forget it."""
     url = str(record.get("url") or "").strip()
@@ -187,13 +257,50 @@ def all_runs(state: str | None = None) -> list[dict]:
             value = stateio.read_json(path)
         except (OSError, ValueError):
             continue
+        # The old sent ledger still sits in this directory on his PC, and it
+        # is a map of urls, not an application.
+        if not isinstance(value, dict) or "state" not in value:
+            continue
         if state is None or value.get("state") == state:
             out.append(value)
     return out
 
 
+#: An application she decided not to send — a duplicate, or a job that is
+#: not realistic for him — with the reason on the record.
+CLOSED = "CLOSED"
+
+
+def close(run_id: str, why: str, *, via: str = "aletheia") -> dict:
+    """Retire a waiting application without applying, and say why.
+
+    Never one that already went: that is a fact about an employer's inbox,
+    and closing the record would only hide it.
+    """
+    record = load_run(run_id)
+    if record.get("state") in PRESSED_STATES:
+        raise ApplyError(f"{run_id} already went to the employer; it cannot be closed")
+    if record.get("state") == CLOSED:
+        return record
+    reason = " ".join(str(why or "").split())[:300]
+    record.update({"state": CLOSED, "closed_at": stateio.utcnow(),
+                   "closed_because": reason, "closed_by": via})
+    stateio.write_json_atomic(_record_path(run_id), record)
+    journal.append("decision", "apply",
+                   f"closed {run_id} without applying ({describe(record)}): {reason}",
+                   actor=ACTOR)
+    return record
+
+
+def _close_quietly(run_id: str, why: str) -> None:
+    try:
+        close(run_id, why)
+    except Exception:
+        pass
+
+
 # What the record keeps about the JOB, beside what it keeps about the form.
-REMEMBERED = ("job_title", "company", "posting", "found_on", "answered_for_you")
+REMEMBERED = ("job_title", "company", "posting", "found_on", "answered_for_you", "fit")
 # What an employer did about an application he sent, in his words. "No
 # answer yet" is not one: that is the absence of an outcome, not an outcome.
 OUTCOMES = ("replied", "interview", "offer", "rejected", "closed")
@@ -300,8 +407,75 @@ def _tag(url: str) -> str:
     return hashlib.sha1(str(url).encode("utf-8")).hexdigest()[:8]
 
 
+def _same_question(a: str, b: str) -> bool:
+    """The page's complaint and the form's label, as one question.
+
+    The page reads the label off the block above a dropdown and cuts it at 90
+    characters; the reader has the whole of it."""
+    x, y = formfill._norm(a).rstrip(" *"), formfill._norm(b).rstrip(" *")
+    if not x or not y:
+        return False
+    short = min(len(x), len(y), 60)
+    return x[:short] == y[:short]
+
+
+def _unpicked(fill: list[dict], chosen: dict, fields: list[dict],
+              stopped: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Dropdowns she meant to answer and could not, as QUESTIONS WITH A SELECTOR.
+
+    Live 2026-09-13 this was the single largest reason applications stopped:
+    seventeen of them. She planned "SD" for Tebra's State dropdown, "Hartford"
+    for Datadog's "In what cities are you available to work?", "Yes" for
+    Vercel's authorization list — no option plainly said that, `pick_option`
+    rightly chose nothing, and `_as_chosen` rightly left it off the
+    confirmation. And then nothing else knew. The page's own complaint came
+    back as "Please fill out this field." with no selector and no options, so
+    the model answering from his facts could not be shown it, and his own
+    answer, had he given one, had nowhere to land. Every one of them sat
+    waiting on him for good.
+
+    Returns (questions, the page's complaints that are not these questions).
+    """
+    by_selector = {f.get("selector"): f for f in fields}
+    missed = []
+    for row in fill:
+        selector = row.get("selector")
+        if selector not in chosen or chosen[selector]:
+            continue
+        field = by_selector.get(selector, {})
+        # THE PAGE'S VERDICT decides, as everywhere else here: a dropdown left
+        # empty that the page does not complain about is not stopping anything,
+        # and it is simply not listed as filled.
+        if not any(_same_question(s.get("label", ""), row.get("label", "")) for s in stopped):
+            continue
+        question = {"selector": selector, "label": row.get("label", ""),
+                    "required": True, "type": field.get("type") or "text",
+                    "why": (f"none of its options plainly says {row.get('value')!r}"
+                            if row.get("value") not in (None, "") else
+                            "none of its options is plainly the answer")}
+        if field.get("choices"):
+            question["choices"] = list(field["choices"])
+        missed.append(question)
+    rest = [s for s in stopped
+            if not any(_same_question(s.get("label", ""), m["label"]) for m in missed)]
+    # A complaint with no selector may still name a field that was read: give
+    # it that field's selector and options, so it can be answered at all.
+    for item in rest:
+        if item.get("selector"):
+            continue
+        field = next((f for f in fields
+                      if f.get("selector") and _same_question(item.get("label", ""),
+                                                              f.get("label", ""))), None)
+        if field is not None:
+            item["selector"] = field["selector"]
+            item.setdefault("type", field.get("type") or "text")
+            if field.get("choices") and not item.get("choices"):
+                item["choices"] = list(field["choices"])
+    return missed, rest
+
+
 def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = None,
-          reader=None, filler=None) -> dict:
+          reader=None, filler=None, found_on: str = "") -> dict:
     """Fill the application and bring him one decision. Submits nothing.
 
     `extra` is his answers to the things she could not know — they are
@@ -369,7 +543,8 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
     # he gave outranks anything she would do by default - the same rule as
     # the ChatGPT lease, learned the same day. Profile facts are keyed by
     # field name and his answers by selector, so they cannot collide.
-    plan = formfill.plan(fields, answers={**profile.known(), **per_form})
+    plan = formfill.plan(fields, answers={**profile.known(), **per_form},
+                         found_on=found_on or before.get("found_on") or "")
     answered = formfill.apply_answers(plan, fields, per_form)
     steps = formfill.steps(plan["fill"]) + answered["steps"]
 
@@ -410,6 +585,8 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
     # the forms an ATS actually serves.
     stopped = [item for item in (filled.get("blocking") or [])
                if item.get("label") not in {q.get("label") for q in plan["ask"]}]
+    missed, stopped = _unpicked(plan["fill"], filled.get("chosen") or {}, fields, stopped)
+    stopped = missed + stopped
     if stopped:
         record = {"id": run_id, "state": "NEEDS_YOU", "url": url,
                   "approval": "", "steps": steps, "resume": resume,
@@ -546,7 +723,47 @@ def _fill_and_capture(url: str, steps: list[dict], resume: str, shot: Path) -> d
 
 
 UPLOAD_SETTLE_MS = 10_000
+#: How much longer a page that is visibly still WORKING on the file gets.
+UPLOAD_WORKING_MS = 20_000
 UPLOADED_JS = r"""(name) => ((document.body && document.body.innerText) || '').includes(name)"""
+# Lever never prints the file's name. It prints "Analyzing resume..." while
+# it reads the file and then "Success!" - or "Couldn't auto-read resume.",
+# which means its PARSER gave up, not that the file is missing: the file is in
+# the form either way. Live 2026-09-13 both Nitra applications stopped on
+# "the resume upload did not finish" with the resume sitting in the box.
+#
+# So: a file input that HOLDS a file, on a page showing nothing still at work
+# (no progress bar, no "uploading", no "analyzing"). The Flexport lesson still
+# holds - a visible progress bar is never read as done.
+UPLOAD_SETTLED_JS = r"""() => {
+  const held = [...document.querySelectorAll('input[type=file]')]
+    .some(i => i.files && i.files.length > 0);
+  if (!held) return 'empty';
+  const seen = (el) => !!el && el.offsetParent !== null
+    && (el.innerText || el.getAttribute('aria-valuenow') !== null);
+  const busy = [...document.querySelectorAll(
+      '[role=progressbar], progress, [class*="progress"], [class*="uploading"], '
+      + '[class*="upload-working"], [class*="loading"]')]
+    .some(el => seen(el) && !/complete|success|done/i.test(el.className || ''));
+  const words = /\b(uploading|analyzing|analysing|processing file|please wait)\b/i
+    .test((document.body && document.body.innerText) || '');
+  return (busy || words) ? 'working' : 'held';
+}"""
+
+
+def _upload_state(page) -> str:
+    """'held', 'working' or 'empty', across every frame."""
+    best = "empty"
+    for frame in formfill.frames(page):
+        try:
+            said = frame.evaluate(UPLOAD_SETTLED_JS)
+        except Exception:
+            continue
+        if said == "held":
+            return "held"
+        if said == "working":
+            best = "working"
+    return best
 
 
 def _resume_landed(page, resume: str, *, wait_ms: int | None = None) -> bool:
@@ -567,6 +784,16 @@ def _resume_landed(page, resume: str, *, wait_ms: int | None = None) -> bool:
             except Exception:
                 continue
         if wait is None:
+            break
+        wait(500)
+    # No name on the page. A form that never prints one (Lever) has still
+    # taken the file if the box holds it and nothing is still at work.
+    extra = 0 if wait is None or wait_ms is not None else UPLOAD_WORKING_MS
+    for _ in range(max(1, extra // 500)):
+        state = _upload_state(page)
+        if state == "held":
+            return True
+        if state == "empty" or wait is None or not extra:
             return False
         wait(500)
     return False
@@ -640,6 +867,9 @@ def submit(run_id: str, *, submitter=None) -> dict:
     # Databricks and Samsara. An employer cannot unsee that.
     gone = was_sent(record.get("url", ""))
     if gone:
+        # CLOSED as well as refused. Refused alone left the record waiting,
+        # and the beat asked the same question of it every minute.
+        _close_quietly(run_id, "an application already went to this form")
         raise ApplyError(
             f"{run_id}: an application already went to {record.get('url')} at "
             f"{gone.get('at')} — not sending a second copy")
@@ -653,10 +883,19 @@ def submit(run_id: str, *, submitter=None) -> dict:
     same = was_applied_to_role(record.get("company", ""),
                                record.get("job_title", ""))
     if same and same.get("id") != record.get("id"):
+        _close_quietly(run_id, "the same job was already applied for under a different link")
         raise ApplyError(
             f"{run_id}: {record.get('job_title') or 'that job'} at "
             f"{record.get('company')} was already applied for at "
             f"{same.get('at')} — the same job under a different link")
+    # And never a job that is not realistic for him, however many of its
+    # questions have since been answered. His words, 2026-09-13: "shoot high
+    # and shoot low. But it should be realistic."
+    from aletheia import job_fit
+    unfit = job_fit.quick_reason(record)
+    if unfit:
+        _close_quietly(run_id, f"not realistic: {unfit}")
+        raise ApplyError(f"{run_id}: not sent — {unfit}")
     if record["state"] != "APPROVED":
         raise ApplyError(f"{run_id} is {record['state']}; it needs your "
                          "confirmation before anything is sent")
@@ -664,15 +903,31 @@ def submit(run_id: str, *, submitter=None) -> dict:
     if not ok:
         raise ApplyError(f"{why} — nothing was sent")
 
+    import os as _os
     record["state"] = "SUBMITTING"
     record["submitted_at"] = stateio.utcnow()
+    # Who is pressing, and whether the button has been pressed yet, so a
+    # submit that is killed or dies can be settled honestly afterwards:
+    # live 2026-09-13 two records sat at SUBMITTING for good and nothing
+    # could say whether an employer had his application.
+    record["submit_pid"] = _os.getpid()
+    record.pop("pressed_at", None)
     stateio.write_json_atomic(_record_path(record["id"]), record)
 
     try:
         outcome = (submitter or _refill_and_submit)(record)
     except Exception as exc:
+        why = f"{type(exc).__name__}: {exc}"[:300]
+        if record.get("pressed_at") and not isinstance(exc, ApplyError):
+            # The button WAS pressed and then something broke. Whether it
+            # went is unknown, so it is counted as sent: a second copy in
+            # an employer's inbox is the one outcome that cannot be undone.
+            return _maybe_sent(record, why)
+        if not record.get("pressed_at") and _worth_another_turn(exc):
+            _back_in_line(record, why)
+            raise
         record["state"] = "FAILED"
-        record["failure"] = f"{type(exc).__name__}: {exc}"[:300]
+        record["failure"] = why
         stateio.write_json_atomic(_record_path(record["id"]), record)
         journal.append("alert", "apply",
                        f"{record['id']} failed to submit: {record['failure']}",
@@ -686,6 +941,101 @@ def submit(run_id: str, *, submitter=None) -> dict:
                    f"submitted {record['id']} to {record['url']} — "
                    f"{outcome.get('verdict')}", actor=ACTOR)
     return record
+
+
+#: How many times an application whose button was never pressed goes back
+#: in line after its browser was busy or would not open.
+MAX_SUBMIT_TRIES = 3
+#: A SUBMITTING record whose process cannot be named is settled after this.
+SUBMIT_GRACE_S = 45 * 60
+#: A submit still running after this is hung, and is stopped.
+SUBMIT_CEILING_S = 2 * 60 * 60
+
+
+def _worth_another_turn(exc: BaseException) -> bool:
+    """A failure that happened before anything touched the form."""
+    return isinstance(exc, browse.BrowserBusy) or browse._closed_browser_error(exc)
+
+
+def _back_in_line(record: dict, why: str) -> dict:
+    """Nothing was pressed: back to AWAITING_YOU for the next beat, a few times."""
+    tries = int(record.get("submit_tries") or 0) + 1
+    record["submit_tries"] = tries
+    record["last_failure"] = why
+    record.pop("submit_pid", None)
+    if tries >= MAX_SUBMIT_TRIES:
+        record["state"] = "FAILED"
+        record["failure"] = f"{why} (tried {tries} times, nothing was ever pressed)"[:300]
+        journal.append("alert", "apply",
+                       f"{record['id']} failed to submit: {record['failure']}", actor=ACTOR)
+    else:
+        record["state"] = "AWAITING_YOU"
+        record.pop("submitted_at", None)
+        journal.append("action", "apply",
+                       f"{record['id']} goes back in line - {why[:120]} - nothing was pressed",
+                       actor=ACTOR)
+    stateio.write_json_atomic(_record_path(record["id"]), record)
+    return record
+
+
+def _maybe_sent(record: dict, why: str) -> dict:
+    company = record.get("company") or "the employer"
+    record["state"] = "SUBMITTED"
+    record["result"] = {
+        "verdict": "submitted, unconfirmed",
+        "note": (f"She pressed Submit and was stopped before the page answered "
+                 f"({why[:120]}). Check your email for a confirmation from "
+                 f"{company}. It is counted as sent so it can never go twice.")}
+    stateio.write_json_atomic(_record_path(record["id"]), record)
+    remember_sent(record)
+    journal.append("alert", "apply",
+                   f"{record['id']} may have been submitted to {record.get('url')} - "
+                   f"interrupted after the press: {why[:160]}", actor=ACTOR)
+    return record
+
+
+def settle_interrupted(run_id: str, why: str) -> dict:
+    """A submit that stopped without finishing, settled from what is known.
+
+    Pressed, or too old to know (a record from before `submit_pid` was
+    written): counted as sent, unconfirmed, and he is told to check his
+    email. Never pressed: back in line.
+    """
+    record = load_run(run_id)
+    if record.get("state") != "SUBMITTING":
+        return record
+    if record.get("pressed_at") or "submit_pid" not in record:
+        return _maybe_sent(record, why)
+    return _back_in_line(record, why)
+
+
+def reconcile_stuck_submits(*, now: float | None = None) -> list[dict]:
+    """Every SUBMITTING record whose submit is gone or hung, settled."""
+    from aletheia import proc
+    import datetime as _dt
+    now = time.time() if now is None else now
+    settled = []
+    for record in all_runs("SUBMITTING"):
+        try:
+            began = _dt.datetime.fromisoformat(
+                str(record.get("submitted_at")).replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            began = 0.0
+        age = now - began
+        pid = record.get("submit_pid")
+        alive = proc.pid_alive(pid, needle="aletheia") if pid else None
+        if alive is True and age < SUBMIT_CEILING_S:
+            continue
+        if alive is None and age < SUBMIT_GRACE_S:
+            continue
+        if alive is True:
+            if proc.pid_alive(pid, needle="aletheia.apply_run") is True:
+                proc.kill_tree(pid)
+            why = f"the submit was still running after {int(age // 60)} minutes and was stopped"
+        else:
+            why = "the process pressing it stopped before it finished"
+        settled.append(settle_interrupted(record["id"], why))
+    return settled
 
 
 #: The page telling him a human check is in the way, in the words the real
@@ -739,6 +1089,33 @@ def code_in(text: str) -> str:
     return ""
 
 
+#: Words a company's name carries that the email naming it may not.
+_COMPANY_FILLER = frozenset({
+    "inc", "llc", "ltd", "co", "corp", "corporation", "company", "technologies",
+    "technology", "labs", "the", "com", "io", "hq", "group", "holdings"})
+
+
+def names_the_employer(subject: str, employer: str) -> bool:
+    """Whether an email's subject names this employer, the way people write it.
+
+    Live 2026-09-13 a code arrived about a minute after the click, in the
+    inbox she reads, and she reported it never came: the record called the
+    company "Acme ..." (a board name cut short) and the email said "Acme
+    Technologies", and a SUBSTRING of one in the other is neither. The same
+    gap sat under "Acme" / "Acme.io", "Acme" / "Acme, Inc." and "ACM" /
+    "-ACM-", which only worked because they happened to be substrings.
+    Compared as WORDS, legal suffixes and punctuation aside: every
+    real word of the employer's name must be a word of the subject. An
+    employer she cannot name at all does not narrow the search.
+    """
+    words = [w for w in re.findall(r"[a-z0-9]+", str(employer or "").casefold())
+             if w not in _COMPANY_FILLER]
+    if not words:
+        return True
+    said = set(re.findall(r"[a-z0-9]+", str(subject or "").casefold()))
+    return all(w in said for w in words)
+
+
 def _emailed_code(employer: str = "", reader=None, since: float = 0.0) -> str:
     """The code the site just emailed, out of the inbox SHE can read.
 
@@ -765,7 +1142,6 @@ def _emailed_code(employer: str = "", reader=None, since: float = 0.0) -> str:
                 return found
             time.sleep(CODE_WAIT_S)
         return ""
-    wanted = " ".join(str(employer or "").split()).casefold()
     for _ in range(CODE_WAIT_TRIES):
         try:
             unread = mail.SmtpImapTransport().fetch_unread(30)
@@ -773,7 +1149,7 @@ def _emailed_code(employer: str = "", reader=None, since: float = 0.0) -> str:
             unread = []
         mine = [m for m in unread
                 if "security code" in str(m.get("subject", "")).casefold()
-                and (not wanted or wanted in str(m.get("subject", "")).casefold())]
+                and names_the_employer(str(m.get("subject", "")), employer)]
         # NEWEST FIRST, BY THE DATE HEADER, never by the order IMAP happens
         # to return. Live 2026-09-12 this read `reversed(mine)` on the belief
         # that IMAP hands back oldest-first; it hands back NEWEST-first, so
@@ -862,6 +1238,10 @@ def _refill_and_submit(record: dict) -> dict:
         # wants is emailed AFTER this, and anything older belongs to an
         # earlier attempt.
         asked_at = time.time()
+        # Written down BEFORE the click, so a process killed mid-press is
+        # settled as "may have gone" rather than "nothing was sent".
+        record["pressed_at"] = stateio.utcnow()
+        stateio.write_json_atomic(_record_path(record["id"]), record)
         page.click(button)
         page.wait_for_load_state("domcontentloaded")
         try:

@@ -119,7 +119,16 @@ def _learned_boards() -> list[dict]:
         return []
     if not isinstance(rows, list):
         return []
-    return [r for r in rows if isinstance(r, dict) and r.get("token") and r.get("provider")]
+    # A name a search engine cut short is not a name. It is healed on the way
+    # out, so the one already on his PC ("Neros ...") stops spreading; the
+    # board's own listing supplies the real one.
+    return [{**r, "company": r["token"]} if _cut(r.get("company")) else r
+            for r in rows if isinstance(r, dict) and r.get("token") and r.get("provider")]
+
+
+def _cut(name) -> bool:
+    """"Neros ..." - the end of a name a search result ran out of room for."""
+    return bool(re.search(r"(?:\.\.\.|…)\s*$", str(name or "")))
 
 
 def _learn_boards(found: list[dict]) -> int:
@@ -136,7 +145,7 @@ def _learn_boards(found: list[dict]) -> int:
             continue
         have.add(key)
         rows.append({"provider": key[0], "token": key[1],
-                     "company": job.get("company") or key[1],
+                     "company": ("" if _cut(job.get("company")) else job.get("company")) or key[1],
                      "learned": True, "from": "web search"})
         added += 1
     if added:
@@ -178,17 +187,38 @@ def _fetch(url: str) -> object:
         raise
 
 
+def _board_name(provider: str, token: str, fetch=None) -> str:
+    """The company's name as its own board publishes it. Greenhouse does; Lever does not."""
+    if provider != "greenhouse" or not token:
+        return ""
+    try:
+        data = (fetch or _fetch)(
+            f"https://boards-api.greenhouse.io/v1/boards/{urllib.parse.quote(str(token))}")
+    except Exception:
+        return ""
+    name = " ".join(str((data or {}).get("name") or "").split())
+    return "" if _cut(name) else name[:80]
+
+
 def _greenhouse(board: dict) -> list[dict]:
     token = board["token"]
     data = _fetch(f"https://boards-api.greenhouse.io/v1/boards/{token}/jobs")
+    # A name he configured is his. A LEARNED name came off a search result -
+    # live 2026-09-13 "Neros ..." for Neros Technologies, which then keyed
+    # the duplicate check and the verification-code lookup on three dots -
+    # so the board's own company_name outranks it.
+    given = str(board.get("company") or "").strip()
+    trusted = "" if (board.get("learned") or _cut(given)) else given
+    fallback = "" if _cut(given) else given
     out = []
     for job in data.get("jobs", []):
         jid = job.get("id")
         if not jid:
             continue
+        published = " ".join(str(job.get("company_name") or "").split())
         out.append({
             "title": (job.get("title") or "").strip(),
-            "company": board.get("company") or token,
+            "company": trusted or ("" if _cut(published) else published) or fallback or token,
             "location": ((job.get("location") or {}).get("name") or "").strip(),
             "posting_url": job.get("absolute_url") or "",
             # The public application form. No account, no login.
@@ -219,6 +249,48 @@ def _lever(board: dict) -> list[dict]:
 
 
 PROVIDERS = {"greenhouse": _greenhouse, "lever": _lever}
+
+_GREENHOUSE_FORM = re.compile(r"[?&]for=([A-Za-z0-9_-]+).*?[?&]token=(\d+)")
+POSTING_CHARS = 12_000
+
+
+def _plain(markup: str) -> str:
+    import html
+    text = re.sub(r"<(?:br|/p|/li|/h\d)[^>]*>", "\n", html.unescape(str(markup or "")), flags=re.I)
+    return " ".join(re.sub(r"<[^>]+>", " ", text).split())
+
+
+def posting_text(job: dict, fetch=None) -> str:
+    """What the posting SAYS - requirements included - or "" when it cannot tell.
+
+    The board listing carries a title and a place and nothing about what
+    the job needs, so "Series 7 required", "7+ years selling into federal
+    agencies" and "years managing Costco at Issaquah HQ" were invisible to
+    everything that chose a job. Both providers publish one posting's text
+    at a public address; this reads it. Never raises.
+    """
+    get = fetch or _fetch
+    for address in (job.get("url"), job.get("apply_url"), job.get("posting"),
+                    job.get("posting_url")):
+        address = urllib.parse.unquote(str(address or ""))
+        try:
+            form = _GREENHOUSE_FORM.search(address)
+            green = form or _GREENHOUSE_JOB.search(address)
+            if green:
+                data = get(f"https://boards-api.greenhouse.io/v1/boards/"
+                           f"{green.group(1)}/jobs/{green.group(2)}")
+                return _plain((data or {}).get("content", ""))[:POSTING_CHARS]
+            lever = _LEVER_JOB.search(address)
+            if lever:
+                data = get(f"https://api.lever.co/v0/postings/{lever.group(1)}/{lever.group(2)}")
+                parts = [str((data or {}).get(k) or "") for k in ("descriptionPlain", "additionalPlain")]
+                for block in (data or {}).get("lists") or []:
+                    parts.append(str(block.get("text") or ""))
+                    parts.append(_plain(block.get("content", "")))
+                return " ".join(" ".join(parts).split())[:POSTING_CHARS]
+        except Exception:
+            return ""
+    return ""
 
 
 def _terms(role: str) -> list[str]:
@@ -277,6 +349,29 @@ def _in_country(location: str, country: str) -> bool:
     return "remote" in low or "anywhere" in low
 
 
+#: Where a title stops naming the job and starts naming the team, the
+#: product or the place: "Product Manager, Connected Account Onboarding".
+_QUALIFIER = re.compile(r"\s*(?:,|\s[-–—|:]\s|\()\s*")
+#: Title head words that are rungs of the same ladder. A role's head may meet
+#: another rung of its own ladder - that is the "shoot high and shoot low" he
+#: asked for - and never a head from a different line of work.
+HEAD_LADDERS = (
+    frozenset("representative rep associate specialist coordinator executive manager".split()),
+    frozenset("analyst associate specialist".split()),
+)
+
+
+def _primary_words(title: str) -> set[str]:
+    """The words that name the job itself, before any qualifier."""
+    return _title_words(_QUALIFIER.split(str(title or ""), maxsplit=1)[0])
+
+
+def _head_fits(role_head: str, primary: set[str]) -> bool:
+    if role_head in primary:
+        return True
+    return any(role_head in ladder and primary & ladder for ladder in HEAD_LADDERS)
+
+
 def _score(job: dict, terms: list[str], where: str, *, exclude=frozenset()) -> float:
     words = _title_words(job["title"])
     if exclude and (words & exclude or _MANAGES_PEOPLE.search(str(job["title"]))):
@@ -285,6 +380,18 @@ def _score(job: dict, terms: list[str], where: str, *, exclude=frozenset()) -> f
     # "accounts receivable", and "manager" alone is not a match.
     needed = [t for t in terms if t not in GENERIC_TITLE_WORDS] or list(terms)
     if not all(t in words for t in needed):
+        return 0.0
+    # And they have to name the JOB, not the team. Live 2026-09-12/13 one
+    # shared word anywhere was enough: "Account Manager" matched "Product
+    # Manager, Connected Account Onboarding" (and it was sent), "Partner
+    # Manager" matched "People Business Partner, GTM" and "Event Marketing
+    # Manager, 3P & Partner", "Operations Analyst" matched "Accounting
+    # Manager, GL Operations" and "Financial Operations Manager".
+    primary = _primary_words(job["title"])
+    if not any(t in primary for t in needed):
+        return 0.0
+    heads = [t for t in terms if t in GENERIC_TITLE_WORDS]
+    if heads and needed != list(terms) and not _head_fits(heads[-1], primary):
         return 0.0
     value = sum(1 for t in terms if t in words) / max(1, len(terms))
     if where:
@@ -349,7 +456,7 @@ def search(role: str, *, where: str = "", limit: int = 10,
 
 def search_many(roles: list[str], *, where: str = "", limit: int = 10,
                 fetcher=None, discover: bool = False, http=None,
-                country: str = "", exclude=()) -> dict:
+                country: str = "", exclude=(), namer=None) -> dict:
     """Openings for ANY of these roles, each scored by the role it fits best.
 
     `discover` adds openings on boards nobody configured: a web search for
@@ -398,6 +505,23 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
                 continue
             seen.add(job["apply_url"])
             web.append(job)
+        # An employer known only by its board token is named by its board,
+        # once per board, before it is remembered or applied to. Only on a
+        # real search: a test's own fetcher never reaches the network here.
+        name_of = namer if namer is not None else (_board_name if fetcher is None else None)
+        if name_of:
+            names: dict = {}
+            for job in web:
+                if not job.get("named_by_token"):
+                    continue
+                key = (job.get("provider"), job.get("board"))
+                if key not in names:
+                    try:
+                        names[key] = str(name_of(*key) or "")
+                    except Exception:
+                        names[key] = ""
+                if names[key] and not _cut(names[key]):
+                    job["company"] = names[key]
         _learn_boards(web)
     # Two from the boards, then one the web found, so both get tried.
     matches, b, w = [], 0, 0
@@ -474,6 +598,10 @@ def discover_openings(roles: list[str], *, limit: int = 10, http=None) -> list[d
                 named = re.match(r"(?i)^(.*\S)\s+at\s+(.+)$", cleaned)
                 if cleaned != title and named:
                     cleaned, employer = named.group(1), named.group(2)
+                if _cut(employer):
+                    # "... at Neros ..." - the engine ran out of room. The
+                    # board token stands in until the board names itself.
+                    employer = ""
                 title = cleaned[:120]
                 green, lever = _GREENHOUSE_JOB.search(href), _LEVER_JOB.search(href)
                 if green:
@@ -483,14 +611,14 @@ def discover_openings(roles: list[str], *, limit: int = 10, http=None) -> list[d
                            "apply_url": ("https://boards.greenhouse.io/embed/job_app"
                                          f"?for={urllib.parse.quote(token)}&token={jid}"),
                            "provider": "greenhouse", "board": token, "id": jid,
-                           "found_by": "web search"}
+                           "found_by": "web search", "named_by_token": not employer}
                 elif lever:
                     token, jid = lever.group(1), lever.group(2)
                     job = {"title": title or role, "company": employer or token, "location": "",
                            "posting_url": href,
                            "apply_url": f"https://jobs.lever.co/{urllib.parse.quote(token)}/{jid}/apply",
                            "provider": "lever", "board": token, "id": jid,
-                           "found_by": "web search"}
+                           "found_by": "web search", "named_by_token": not employer}
                 else:
                     continue
                 if job["apply_url"] in seen:

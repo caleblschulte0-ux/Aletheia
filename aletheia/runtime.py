@@ -545,19 +545,50 @@ def surface_due_tasks(*, now: dt.datetime | None = None) -> list[dict]:
     return out
 
 
-def _submit_in_its_own_process(run_id: str, runner=None) -> dict:
+#: Longer than the browser lock's wait plus a whole submit. It was 900 s —
+#: exactly the lock's wait — so a submit queued behind another session was
+#: killed the moment it would have got the browser, left at SUBMITTING, and
+#: its Chrome left holding the profile (live 2026-09-13, Amtech and Carta).
+SUBMIT_TIMEOUT_S = 1800.0
+
+
+def _submit_in_its_own_process(run_id: str, runner=None,
+                               timeout_s: float | None = None) -> dict:
     """`apply_run submit <id>`, out of reach of this process's event loop."""
     import subprocess
     import sys as _sys
-    from aletheia import apply_run
-    run = runner or subprocess.run
-    done = run([_sys.executable, "-m", "aletheia.apply_run", "submit", run_id],
-               capture_output=True, text=True, timeout=900)
+    from aletheia import apply_run, proc
+    timeout_s = SUBMIT_TIMEOUT_S if timeout_s is None else timeout_s
+    args = [_sys.executable, "-m", "aletheia.apply_run", "submit", run_id]
+    try:
+        if runner is not None:
+            done = runner(args, capture_output=True, text=True, timeout=timeout_s)
+        else:
+            done = proc.run_tree(args, timeout_s)
+    except subprocess.TimeoutExpired:
+        apply_run.settle_interrupted(
+            run_id, f"the submit took longer than {int(timeout_s // 60)} minutes and was stopped")
+        raise RuntimeError("the submit took too long and was stopped")
     if getattr(done, "returncode", 1) != 0:
         raise RuntimeError(
             (getattr(done, "stderr", "") or "the submit process failed"
              ).strip().splitlines()[-1][:200])
     return apply_run.load_run(run_id)
+
+
+def _settle_stuck_submits() -> list[dict]:
+    """Submits that died or hung, settled and said — never left at SUBMITTING."""
+    from aletheia import apply_run
+    settled = apply_run.reconcile_stuck_submits()
+    for record in settled:
+        if record.get("state") == "SUBMITTED":
+            notifications.publish(
+                "Check your email about an application",
+                (record.get("result") or {}).get("note", "")[:400],
+                priority="IMPORTANT", source="apply",
+                dedupe_key=f"apply-unconfirmed:{record['id']}",
+                related={"application": record["id"]})
+    return settled
 
 
 def send_approved_applications() -> list[dict]:
@@ -637,6 +668,12 @@ def send_approved_applications() -> list[dict]:
             # process for exactly this reason since it was written.
             done = _submit_in_its_own_process(record["id"])
         except Exception as exc:
+            try:
+                back = apply_run.load_run(record["id"]).get("state") == "AWAITING_YOU"
+            except Exception:
+                back = False
+            if back:
+                continue            # nothing was pressed; the next beat tries again
             notifications.publish(
                 "An application could not be sent",
                 f"{record['url']} — {type(exc).__name__}: {exc}"[:400],
@@ -832,6 +869,7 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # existing Approve button is the confirm — there is no second UI to
     # build and no second thing to remember. Nothing is sent that is not
     # APPROVED, and each is sent exactly once.
+    stuck_submits = guarded("stuck_submits", _settle_stuck_submits)
     applications_sent = guarded("applications", send_approved_applications)
     web_tasks_pressed = guarded("web_tasks", press_approved_web_tasks)
     # A subscription is CANCELLED when the merchant says so, not when we

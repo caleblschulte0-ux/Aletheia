@@ -463,8 +463,11 @@ class InItsOwnProcessCase(PrivateProfile):
         self.assertIn("wrong resume", campaign.started_words(out))
 
     def test_one_at_a_time(self):
-        campaign.start("", count=3, spawner=lambda args: 1)
-        again = campaign.start("", count=3, spawner=lambda args: self.fail("spawned twice"))
+        # The fake pid names no real process, and a lock is held by a LIVE
+        # campaign; say this one is alive.
+        with mock.patch.object(campaign.proc, "pid_alive", return_value=True):
+            campaign.start("", count=3, spawner=lambda args: 1)
+            again = campaign.start("", count=3, spawner=lambda args: self.fail("spawned twice"))
         self.assertFalse(again["started"])
 
     def test_a_dead_run_does_not_hold_the_lock_forever(self):

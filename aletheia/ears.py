@@ -43,6 +43,7 @@ import argparse
 import sys
 
 from aletheia import journal, stateio
+from aletheia.proc import hidden_flags
 
 ACTOR = "aletheia-ears"
 
@@ -114,7 +115,7 @@ def room_is_running() -> bool:
              "(Get-CimInstance Win32_Process -Filter \"Name like 'pythonw%'\" "
              "| Where-Object { $_.CommandLine -match 'voice_room' } "
              "| Measure-Object).Count"],
-            capture_output=True, text=True, timeout=15)
+            capture_output=True, text=True, timeout=15, creationflags=hidden_flags())
         return (out.stdout or "0").strip().splitlines()[-1].strip() not in ("", "0")
     except Exception:
         return False
@@ -140,7 +141,7 @@ def start_room() -> tuple[bool, str]:
             [pythonw, "-m", ROOM_MODULE],
             cwd=str(stateio.REPO_ROOT) if hasattr(stateio, "REPO_ROOT") else None,
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL, close_fds=True)
+            stderr=subprocess.DEVNULL, close_fds=True, creationflags=hidden_flags())
         return True, "listener started"
     except Exception as exc:
         # Honest: the flag is on and the process is not, which he needs
@@ -158,7 +159,7 @@ def stop_room() -> tuple[bool, str]:
              "Get-CimInstance Win32_Process -Filter \"Name like 'pythonw%'\" "
              "| Where-Object { $_.CommandLine -match 'voice_room' } "
              "| ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"],
-            capture_output=True, text=True, timeout=20)
+            capture_output=True, text=True, timeout=20, creationflags=hidden_flags())
         return True, "listener stopped"
     except Exception as exc:
         return False, f"could not stop the listener ({type(exc).__name__})"
