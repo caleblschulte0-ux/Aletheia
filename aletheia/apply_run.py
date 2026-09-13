@@ -1473,9 +1473,55 @@ def _press(page, record: dict, button: str) -> None:
         if not why:
             raise
         record.pop("pressed_at", None)
+        # WHAT was in the way, kept on the record. Live 2026-09-13 both Lever
+        # sends timed out here and the journal cut the reason off; a probe of
+        # a fresh Lever form found the button clear and an invisible hCaptcha
+        # loaded behind it. The next blocked click says which it was.
+        seen = _what_blocked_the_click(page, button, record)
+        if seen.get("captcha"):
+            why = "a CAPTCHA challenge was in front of it, and she does not solve those"
+        record["click_evidence"] = seen
         stateio.write_json_atomic(_record_path(record["id"]), record)
         raise ApplyError(f"the Submit button would not take a click - {why} - "
                          "nothing was sent") from None
+
+
+#: What sits on a page when a Submit click cannot land: a visible CAPTCHA
+#: challenge frame, and whatever element is on top of the button's centre.
+_BLOCKED_JS = r"""(sel) => {
+  const challenge = /hcaptcha|recaptcha|turnstile|challenges\.cloudflare/i;
+  const shown = [...document.querySelectorAll('iframe')].filter(f =>
+    f.offsetParent !== null && f.offsetWidth > 100 && f.offsetHeight > 100 &&
+    challenge.test((f.src || '') + ' ' + (f.title || '')));
+  const out = {captcha: shown.length > 0, covered_by: '', button_found: false};
+  const b = document.querySelector(sel);
+  if (b) {
+    out.button_found = true;
+    const r = b.getBoundingClientRect();
+    const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    if (top && top !== b && !b.contains(top)) {
+      out.covered_by = top.outerHTML.slice(0, 200);
+      if (/captcha|turnstile/i.test(out.covered_by)) out.captcha = true;
+    }
+  }
+  return out;
+}"""
+
+
+def _what_blocked_the_click(page, button: str, record: dict) -> dict:
+    """What was in front of a Submit button that would not take a click. Never raises."""
+    seen: dict = {"captcha": False, "covered_by": "", "button_found": None}
+    try:
+        seen.update(page.evaluate(_BLOCKED_JS, button) or {})
+    except Exception as exc:
+        seen["error"] = f"{type(exc).__name__}"[:60]
+    try:
+        shot = staged_dir() / f"{record['id']}-blocked.png"
+        page.screenshot(path=str(shot), full_page=False)
+        seen["screenshot"] = str(shot)
+    except Exception:
+        pass
+    return seen
 
 
 def spoken(record: dict) -> str:
