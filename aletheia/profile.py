@@ -123,6 +123,15 @@ FIELDS: dict[str, dict] = {
     "willing_to_relocate": {"asks": ("relocate", "relocation", "willing to move",
                                      "open to relocation"),
                             "means": "whether he will relocate"},
+    # The KIND of work he is looking for, in his words. No `asks`: no form
+    # question is answered from these. They steer which jobs she hunts for
+    # (`campaign.roles_for`) and which she lets through (`job_fit`), because
+    # a resume says what he HAS done and not what he wants to do next. His
+    # words, 2026-09-13, after a night of sales applications off a sales-
+    # shaped resume: "definitely don't wanna do sales. Definitely no cold
+    # calling."
+    "work_wanted":     {"asks": (), "means": "the kinds of work he wants"},
+    "work_not_wanted": {"asks": (), "means": "the kinds of work he will not do"},
     # 2026-09-13, his words: "I'm at least eighteen." Coinbase stopped a real
     # application on "Are you at least 18 years of age?" with nothing on file
     # to say so, and a model told never to invent a fact rightly left it.

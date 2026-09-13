@@ -323,14 +323,23 @@ def learn_more(text: str, *, think=None) -> dict:
 # before, the roles drifted into Business Analyst, Operations Analyst and
 # Commercial Finance Associate, and the jobs followed them into accounting
 # and HR.
+#
+# And the KIND of work is his to say, not the resume's. 2026-09-13, after
+# every one of those roles came back as sales off a sales-shaped resume:
+# "definitely don't wanna do sales. Definitely no cold calling."
 ROLES_BRIEF = (
-    "From this resume, name the job titles this person is a realistic candidate "
-    "for right now: titles an employer would actually post, not skills. "
-    "Give a realistic RANGE in the line of work the resume shows: mostly the most "
-    "recent title's level, one a step up (one step up at most) and one a step below. "
-    "Never a different line of work, never a job managing a team of people, and "
-    "never Senior, Lead, Principal, Director or Head for someone with only a few "
-    "years in that field. Return "
+    "From this resume and what he has said about the work he wants, name the job "
+    "titles this person is a realistic candidate for right now: titles an employer "
+    "would actually post, not skills. "
+    "What he said is given as he_wants and he_will_not_do. When he has said it, it "
+    "decides the KIND of work: every title is work he wants, never a title whose "
+    "day-to-day is something he will not do, and the resume only decides the level "
+    "and what he can honestly claim. When he has said nothing, use the line of work "
+    "the resume shows. "
+    "Give a realistic RANGE: mostly the most recent title's level, one a step up "
+    "(one step up at most) and one a step below. "
+    "Never a job managing a team of people, and never Senior, Lead, Principal, "
+    "Director or Head for someone with only a few years in that field. Return "
     'ONE JSON object: {"roles": [up to 5 short job titles, most fitting first]}.')
 
 
@@ -349,17 +358,27 @@ def _roles_validator(value: dict) -> dict:
 
 
 def roles_for(text: str, *, think=None) -> list[str]:
-    """What this resume is for - read off the resume, never a list in code."""
+    """What this resume is for, in the kind of work he wants - never a list in code."""
+    known = profile.known()
+    wanted, unwanted = job_fit.preferences(known)
     try:
         if think is False:
             raise ValueError("no model")
         if think is None:
             from aletheia import reasoner
             think = reasoner.subscription_json
-        return think(ROLES_BRIEF, str(text)[:8000], validator=_roles_validator)["roles"]
+        roles = think(ROLES_BRIEF, str(text)[:8000], validator=_roles_validator,
+                      context={"he_wants": wanted or "(he has not said)",
+                               "he_will_not_do": unwanted or "(he has not said)"})["roles"]
+        # A model that names a kind of work he refused anyway does not get to
+        # send her hunting for it.
+        kept = [r for r in roles if not job_fit.unwanted_reason(r, "", known)]
+        if kept:
+            return kept
+        raise ValueError("every role was work he will not do")
     except Exception:
         title = profile.known().get("current_title")
-        if title:
+        if title and not job_fit.unwanted_reason(str(title), "", known):
             return [str(title)]
         raise CampaignError("she could not tell from the resume what jobs it is for; "
                             "say the kind of job") from None
