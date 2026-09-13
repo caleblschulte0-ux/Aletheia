@@ -125,10 +125,13 @@ APPLY_WORDS = ("apply for this job", "apply now", "apply to this job",
                "apply here", "submit application", "start application",
                "apply")
 
-APPLY_LINKS_JS = r"""() => Array.from(document.querySelectorAll('a[href]'))
-  .map(a => ({href: a.href, text: (a.innerText || '').trim().slice(0, 80)}))
-  .filter(a => a.href && !a.href.startsWith('javascript:'))
-  .slice(0, 200)"""
+APPLY_LINKS_JS = r"""() => Array.from(document.querySelectorAll('iframe[src]'))
+  .map(f => ({href: f.src, text: 'apply (form embedded on this page)', embedded: true}))
+  .filter(f => /greenhouse|lever\.co|ashbyhq|workable|smartrecruiters|recruitee|job_app|apply/i.test(f.href))
+  .concat(Array.from(document.querySelectorAll('a[href]'))
+    .map(a => ({href: a.href, text: (a.innerText || a.getAttribute('aria-label') || '').trim().slice(0, 80)}))
+    .filter(a => a.href && !a.href.startsWith('javascript:'))
+    .slice(0, 200))"""
 
 
 class CampaignError(RuntimeError):
@@ -142,15 +145,31 @@ def _application_url(url: str, opener=None) -> tuple[str, list[dict]]:
     following that link, so "apply to ten jobs" met ten pages with no form
     on them and gave up on all ten.
     """
+    from aletheia import company_sites
     open_page = opener or _open
     fields, links = open_page(url)
     if _is_application_form(fields):
         return url, fields
+    # A company careers page very often carries the form in an <iframe> from
+    # its applicant-tracking system. The frame's own address IS the form.
+    for link in links:
+        if link.get("embedded"):
+            target = urljoin(url, link["href"])
+            fields, _ = open_page(target)
+            if _is_application_form(fields):
+                return target, fields
     for word in APPLY_WORDS:
         for link in links:
+            if link.get("embedded"):
+                continue
             if word in (link.get("text") or "").casefold():
                 target = urljoin(url, link["href"])
                 if target.rstrip("/") == url.rstrip("/"):
+                    continue
+                # "Apply by email" is not a form, and an Apply button that
+                # hands off to Indeed or LinkedIn is a login she does not use.
+                if not target.startswith(("http://", "https://")) or \
+                        company_sites.is_aggregator(target):
                     continue
                 fields, _ = open_page(target)
                 if _is_application_form(fields):
@@ -179,9 +198,16 @@ def _open(url: str) -> tuple[list[dict], list[dict]]:
     ok, why = browse.available()
     if not ok:
         raise CampaignError(f"she cannot open job pages: {why}")
+    from aletheia import company_sites
     with browse._Session() as ctx:
         page = ctx.new_page()
         page.goto(url, wait_until="domcontentloaded")
+        # A bot check is not "no form". Live 2026-09-13 jobs.uber.com answered
+        # with Cloudflare's "Just a moment..." and was reported as a page with
+        # no application on it. She does not get past those; she says so.
+        if company_sites._BOT_CHECK.search(f"<title>{page.title()}"):
+            page.close()
+            raise CampaignError("the employer's site puts a bot check in front of its jobs")
         fields = page.evaluate(formfill.READ_FORM_JS)
         links = page.evaluate(APPLY_LINKS_JS)
         page.close()
@@ -619,9 +645,14 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
                             # Where she found it is a FACT, and "how did you hear
                             # about this job" asks exactly that. It blocked most
                             # forms live.
-                            "found_on": ("a web search" if j.get("found_by")
-                                         else "the company's own careers page"),
-                            "direct": True} for j in found["matches"]]
+                            "found_on": j.get("found_on") or (
+                                "a web search" if j.get("found_by")
+                                else "the company's own careers page"),
+                            # An employer's own posting page is walked to its
+                            # Apply link; an applicant-tracking form is the form.
+                            "direct": bool(j.get("direct", True)),
+                            "needs_account": bool(j.get("needs_account"))}
+                           for j in found["matches"]]
 
         hits, pages = _openings(roles)
         if not pages and role:
@@ -660,7 +691,7 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
                   "posting": p["url"], "direct": False} for p in found]
 
     staged, needs_you, failed = [], [], []
-    passed_over, duplicates = [], []
+    passed_over, duplicates, needs_account = [], [], []
     tried: dict[str, int] = {}
     attempts = 0
     give_up_at = dt.datetime.now(dt.timezone.utc) + MAX_RUN
@@ -710,6 +741,14 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         if not fit["realistic"]:
             passed_over.append({"url": page["url"], "title": title, "why": fit["why"]})
             continue
+        if page.get("needs_account"):
+            # Workday, iCIMS and the like want an account before an
+            # application. Accounts are `signup`'s, behind its own gate, so
+            # the job is named for him and no form is opened here.
+            needs_account.append({"url": page["url"], "title": title,
+                                  "company": page.get("company", ""),
+                                  "why": "the employer's site wants an account first"})
+            continue
         attempts += 1
         if company:
             tried[company] = tried.get(company, 0) + 1
@@ -751,16 +790,23 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
                     record = _keep_the_job(record, page, answered_for_you=len(extra))
                 except Exception:
                     pass
+        if record["state"] == "NEEDS_ACCOUNT":
+            # An account wall is not a READY application: counting it as
+            # one would end a batch with nothing he can approve.
+            needs_account.append(record)
+            continue
         (needs_you if record["state"] == "NEEDS_YOU" else staged).append(record)
 
     journal.append("action", "campaign",
                    f"{len(staged)} ready, {len(needs_you)} waiting on answers, "
-                   f"{len(failed)} could not be reached — for {', '.join(roles)!r}; "
+                   f"{len(failed)} could not be reached, "
+                   f"{len(needs_account)} on sites that want an account — for {', '.join(roles)!r}; "
                    f"passed over {len(passed_over)} as not realistic and "
                    f"{len(duplicates)} already applied for or waiting; "
                    "nothing submitted", actor=ACTOR)
     return {"role": role, "roles": roles, "resume": resume_path, "learned": sorted(learned),
             "ready": staged, "blocked": needs_you, "failed": failed,
+            "needs_account": needs_account,
             "passed_over": passed_over, "duplicates": duplicates,
             "ignored_role": ignored_role,
             "questions": open_questions(), "submitted": 0}
@@ -1227,6 +1273,9 @@ def spoken(out: dict) -> str:
                     f"{'s' if len(needed) != 1 else ''} from you first")
     if failed:
         said.append(f"{failed} I could not reach a form on")
+    accounts = len(out.get("needs_account", []))
+    if accounts:
+        said.append(f"{accounts} on employer sites that want an account before an application")
     used = f" I used {_resume_said(out['resume'])}." if out.get("resume") else ""
     # She never widens a search in silence. If what she heard matched nothing
     # and she went by the resume instead, that is the first thing she says -
