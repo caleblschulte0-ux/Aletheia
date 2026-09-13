@@ -72,7 +72,7 @@ import sys
 from pathlib import Path
 from urllib.parse import urljoin
 
-from aletheia import (applications, apply_run, browse, doctext, formfill,
+from aletheia import (applications, apply_run, browse, doctext, formfill, job_fit,
                       journal, jobs, policy, profile, speech, stateio, workspace)
 
 ACTOR = "aletheia-campaign"
@@ -314,12 +314,19 @@ def learn_more(text: str, *, think=None) -> dict:
     return written
 
 
+# His words, 2026-09-13: "we're gonna have it shoot high and shoot low. But
+# it should be realistic." A RANGE in his own line of work - the night
+# before, the roles drifted into Business Analyst, Operations Analyst and
+# Commercial Finance Associate, and the jobs followed them into accounting
+# and HR.
 ROLES_BRIEF = (
     "From this resume, name the job titles this person is a realistic candidate "
     "for right now: titles an employer would actually post, not skills. "
-    "Stay at the level the resume supports today: the most recent title's level, "
-    "or one step up at most. Never Senior, Lead, Principal, Director or Head for "
-    "someone with only a few years in that field. Return "
+    "Give a realistic RANGE in the line of work the resume shows: mostly the most "
+    "recent title's level, one a step up (one step up at most) and one a step below. "
+    "Never a different line of work, never a job managing a team of people, and "
+    "never Senior, Lead, Principal, Director or Head for someone with only a few "
+    "years in that field. Return "
     'ONE JSON object: {"roles": [up to 5 short job titles, most fitting first]}.')
 
 
@@ -514,8 +521,14 @@ def _keep_the_job(record: dict, page: dict, **extra_fields) -> dict:
 
 def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         finder=None, reader=None, opener=None, stager=None, writer=None,
-        json_think=None, searcher=None, draft_essays_too: bool = True) -> dict:
-    """Make `count` applications ready with `resume`. Stages them all; sends nothing."""
+        json_think=None, searcher=None, draft_essays_too: bool = True,
+        fit_think=None, describer=None) -> dict:
+    """Make `count` applications ready with `resume`. Stages them all; sends nothing.
+
+    `fit_think` judges whether each job is realistic (False: rules only);
+    `describer(page)` returns a posting's text. Both default to the real
+    thing only on a real board search, never under a test's own finder.
+    """
     policy.ensure_not_halted()
     role = " ".join(str(role or "").split())
     count = max(1, min(int(count), MAX_JOBS))
@@ -589,8 +602,17 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
                   "posting": p["url"], "direct": False} for p in found]
 
     staged, needs_you, failed = [], [], []
+    passed_over, duplicates = [], []
     tried: dict[str, int] = {}
     attempts = 0
+    real_search = finder is None and searcher is None
+    judge_with = (fit_think if fit_think is not None
+                  else (None if real_search and json_think is None else False))
+    describe = describer or (jobs.posting_text if real_search else None)
+    known_now = profile.known()
+    early = bool(_seniority_to_leave_out(known_now))
+    roles_seen: set[str] = set()
+    judged = 0
     for page in pages:
         # READY is what he asked for. A form still waiting on him is kept
         # and reported, and does not count toward the number.
@@ -601,6 +623,32 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
             continue
         if attempts >= want:
             break
+        # ONE ROLE, ONE APPLICATION, before a form is ever opened. A role
+        # posted to three locations is three urls and one job: live
+        # 2026-09-13 Brex's "People Business Partner, GTM" was filled in
+        # three times in seventeen minutes, and Impact.com's "Business
+        # Development Representative, Inbound" was filled in again eighteen
+        # minutes after it had been sent.
+        title = str(page.get("title") or "")
+        if page.get("company") and title:
+            key = apply_run.role_key(page["company"], title)
+            held = key in roles_seen or apply_run.role_taken(page["company"], title,
+                                                            page.get("url", ""))
+            if held:
+                duplicates.append({"url": page["url"], "title": title,
+                                   "why": "the same job is already applied for or waiting"})
+                continue
+            roles_seen.add(key)
+        # And only a job he could realistically get. Bounded, so a long list
+        # of openings never turns into an hour of model calls.
+        think = judge_with if (judge_with is False or judged < want * 2) else False
+        fit = job_fit.verdict(page, text, known_now, think=think, describe=describe,
+                              early=early)
+        if think is not False:
+            judged += 1
+        if not fit["realistic"]:
+            passed_over.append({"url": page["url"], "title": title, "why": fit["why"]})
+            continue
         attempts += 1
         if company:
             tried[company] = tried.get(company, 0) + 1
@@ -626,7 +674,7 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         except Exception as exc:
             failed.append({"url": form_url, "why": f"{type(exc).__name__}: {exc}"[:160]})
             continue
-        record = _keep_the_job(record, page)
+        record = _keep_the_job(record, page, fit=fit)
         if record["state"] == "NEEDS_YOU":
             # What his facts settle is answered from them; long answers are
             # written from his resume. Both show up in the confirmation.
@@ -644,9 +692,12 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
     journal.append("action", "campaign",
                    f"{len(staged)} ready, {len(needs_you)} waiting on answers, "
                    f"{len(failed)} could not be reached — for {', '.join(roles)!r}; "
+                   f"passed over {len(passed_over)} as not realistic and "
+                   f"{len(duplicates)} already applied for or waiting; "
                    "nothing submitted", actor=ACTOR)
     return {"role": role, "roles": roles, "resume": resume_path, "learned": sorted(learned),
             "ready": staged, "blocked": needs_you, "failed": failed,
+            "passed_over": passed_over, "duplicates": duplicates,
             "ignored_role": ignored_role,
             "questions": open_questions(), "submitted": 0}
 
@@ -808,6 +859,15 @@ def answer_all(answers: dict, *, resume: str = "", stager=None) -> dict:
 
     restaged, still_blocked = [], []
     for record in list(apply_run.all_runs("NEEDS_YOU")):
+        # An answer must not finish a job that was never realistic: close
+        # it instead, so it stops asking him things and can never be sent.
+        unfit = job_fit.quick_reason(record)
+        if unfit:
+            try:
+                apply_run.close(record["id"], f"not realistic: {unfit}")
+            except Exception:
+                pass
+            continue
         extra = dict(facts)
         extra.update(per_run.get(record["id"], {}))
         try:
