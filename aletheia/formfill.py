@@ -102,6 +102,13 @@ READ_FORM_JS = r"""() => {
     // so a URL she had on file came back as "she could not tell what this
     // is asking for". A placeholder is this field's text; a legend is
     // seven other fields' text.
+    // The question block this one control lives in, before its placeholder.
+    // Lever's custom questions ("cards[<uuid>][field0]") have no <label for>
+    // and no fieldset: the question is a div.application-label beside the
+    // control. Live 2026-09-13 Shield AI's went to him as "Type your
+    // response" (the placeholder) and as the bare field name.
+    const own = ownQuestion(el);
+    if (own) return own;
     const hint = (el.getAttribute('placeholder') || '').trim();
     if (hint) return hint;
     const group = el.closest('fieldset');
@@ -132,6 +139,26 @@ READ_FORM_JS = r"""() => {
     if (by) {
       const n = document.getElementById(by);
       if (n && n.innerText.trim()) return n.innerText.trim();
+    }
+    return ownQuestion(el);
+  };
+  // The heading of the smallest block that holds this question and no other.
+  // Climbing stops the moment a block holds a DIFFERENT control, so a
+  // fieldset's legend ("About you") never becomes the label of the seven
+  // boxes inside it. An option's own text - inside a <label>, or inside the
+  // list of options - is never the question.
+  const ownQuestion = (el) => {
+    const list = el.closest('ul, ol');
+    for (let box = el.parentElement, up = 0; box && up < 7; box = box.parentElement, up++) {
+      const controls = [...box.querySelectorAll('input:not([type="hidden"]), select, textarea')];
+      if (new Set(controls.map(c => c.name || c.id || c)).size > 1) return '';
+      for (const h of box.querySelectorAll(
+             '.application-label, legend, [class*="question-label"], [class*="label"], h3, h4')) {
+        if (h.contains(el) || h.closest('label') || h.querySelector('input, select, textarea')) continue;
+        if (list && box.contains(list) && list !== box && list.contains(h)) continue;
+        const t = (h.innerText || '').trim();
+        if (t && /[a-z]/i.test(t)) return t.slice(0, 160);
+      }
     }
     return '';
   };
@@ -234,8 +261,49 @@ def is_never_autofill(field: dict) -> bool:
     if any(phrase in hay for phrase in profile.NEVER_AUTOFILL):
         return True
     # A protected characteristic asked in words the list does not contain
-    # ("Sex", "Are you Hispanic/Latino?") is still one.
-    return bool(_declared_category(str(field.get("label") or "")))
+    # ("Sex", "Are you Hispanic/Latino?") is still one - and so is one whose
+    # QUESTION says nothing at all and whose options say everything.
+    return bool(category_of(str(field.get("label") or ""), _choice_texts(field)))
+
+
+def _choice_texts(field: dict) -> list[str]:
+    if field.get("choices"):
+        return [str(c) for c in field["choices"]]
+    return [str(o.get("text") or o.get("label") or "") for o in field.get("options") or []
+            if isinstance(o, dict)]
+
+
+_ORIENTATION_OPTIONS = ("transgender", "cisgender", "heterosexual", "straight",
+                        "bisexual", "gay", "lesbian", "asexual", "pansexual", "queer")
+_RACE_OPTIONS = ("american indian", "alaska native", "asian", "black", "african american",
+                 "white", "native hawaiian", "pacific islander", "two or more races",
+                 "hispanic or latino", "middle eastern")
+_GENDER_OPTIONS = ("man", "woman", "male", "female", "non binary", "nonbinary")
+
+
+def category_of(label: str, choices: list[str] | None = None) -> str:
+    """The self-identification category a question asks about, from its words
+    or - when its words say nothing - from its options.
+
+    Live 2026-09-13: Chime asked "I identify as:*" over Cisgender /
+    Transgender / I prefer to self-describe / I don't wish to answer, and
+    LeafLink asked "Please take a moment to self identify" over a list of
+    races. Neither label names a category, so neither was recognised as
+    protected: both went to him as "she could not tell what this is asking
+    for", with his own answers (decline; White) on file since the 12th.
+    The label still wins wherever it speaks.
+    """
+    category = _declared_category(label)
+    if category or not choices:
+        return category
+    normed = [_norm(c) for c in choices if str(c).strip()]
+    gendered = any(n in _GENDER_OPTIONS or n.split()[:1] in (["man"], ["woman"])
+                   for n in normed)
+    if not gendered and any(_says(w, n) for n in normed for w in _ORIENTATION_OPTIONS):
+        return "self_id_decline"
+    if sum(1 for n in normed if any(_says(w, n) for w in _RACE_OPTIONS)) >= 3:
+        return "race"
+    return ""
 
 
 # A question he answers yes or no is not asking for his city or his job
@@ -249,7 +317,37 @@ _YES_NO_LEAD = re.compile(
     r"can|could|should|may)\b|to your knowledge\b|please confirm\b|"
     r"i (?:confirm|understand|certify|agree|acknowledge|consent|attest)\b)")
 YES_NO_FIELDS = frozenset({"work_authorization", "needs_sponsorship",
-                           "willing_to_relocate"})
+                           "willing_to_relocate", "over_18"})
+
+# A sentence he would SAY about himself is not asking for a contact fact,
+# whatever noun it happens to contain. Live 2026-09-13: Elastic's "I have
+# experience picking up the PHONE and calling new leads" got his phone
+# number, and "I'm willing and able to commute by my START DATE to the Austin
+# area" got his notice period. Both went into dropdowns with no such option,
+# chose nothing, and stopped the application on a question she had answered.
+_ABOUT_HIMSELF = re.compile(r"^[^a-z0-9]*(?:i|i'm|i’m|i am|i have|i've)\b")
+_CONTACT_FIELDS = frozenset({
+    "legal_name", "first_name", "last_name", "preferred_name", "email", "phone",
+    "street", "city", "state", "postal_code", "country", "linkedin", "github",
+    "website", "twitter", "notice_period", "current_title", "current_employer"})
+_NAME_FIELDS = frozenset({"legal_name", "first_name", "last_name", "preferred_name"})
+# "Start date month" and "End date year" are the dates of a JOB on his work
+# history (Coinbase, Dropbox, Impact.com), not when he could start a new one.
+_EMPLOYMENT_DATE = re.compile(
+    r"\b(?:start|end)(?:ing)?\s+date\s+(?:month|year)\b|\b(?:start|end)\s+(?:month|year)\b")
+# "In what CITIES are you available to work?" and "In what COUNTRIES do you
+# have the unrestricted right to work?" ask WHICH places, plural: not the city
+# he lives in (Datadog got "Hartford") and not a yes (Elastic got "Yes").
+#
+# "United States" is one place, not a plural, and "authorized to work in the
+# United States" must still reach his yes - hence the lookbehind.
+_WHICH_PLACES = re.compile(
+    r"\b(?:cities|countries|(?<!united )states|locations|regions|offices)\b"
+    r"|\bavailable to work\b|\bwilling to work\b")
+_WHICH_COUNTRIES = re.compile(r"\b(?:cities|countries|locations)\b")
+_WHICH_AI_TOOL = re.compile(
+    r"^[^a-z0-9]*(?:what|which)\s+(?:ai|a\.i\.|llm|large language|generative)"
+    r"|\b(?:most familiar with|use most|prefer to use)\b")
 
 
 def _says(phrase: str, text: str) -> bool:
@@ -302,6 +400,23 @@ def match_field(field: dict) -> str | None:
         # "Please state the employee's name" is the verb: live it got "SD".
         if key == "state" and re.search(
                 r"\bstate\s+(?:the|your|a|an|any|why|how|what|which|who|if|whether)\b", label):
+            continue
+        if key in _CONTACT_FIELDS and _ABOUT_HIMSELF.match(label):
+            continue
+        # "What is your legal MIDDLE name?" got "Caleb Schulte" on Tebra.
+        if key in _NAME_FIELDS and _says("middle", label):
+            continue
+        if key == "notice_period" and _EMPLOYMENT_DATE.search(label):
+            continue
+        if key in ("city", "state", "country") and _WHICH_PLACES.search(label):
+            continue
+        if key == "work_authorization" and _WHICH_COUNTRIES.search(label):
+            continue
+        # The TOOLS he uses answer "What AI tool are you most familiar with?"
+        # and nothing else: not "do you ask an AI tool for input" (a yes), not
+        # "which of the following best describes how you use AI tools" (one of
+        # its options), and never an essay about how he works.
+        if key == "ai_tools" and not _WHICH_AI_TOOL.search(label):
             continue
         # THE TWO ANSWERS ARE OPPOSITES, so picking the wrong field does not
         # leave a blank - it states the reverse of the truth on a real
@@ -357,6 +472,11 @@ def _option_for(field: dict, value) -> str | None:
         text = option["text"].strip().casefold()
         if text.startswith(wanted) or wanted.startswith(text):
             return option["value"]
+    # A <select> gets the same reading a typeahead does: "SD" is "South
+    # Dakota", and his pay lands in the one range that holds it.
+    best = _best_option(value, [o["text"] for o in options])
+    if best is not None:
+        return next(o["value"] for o in options if o["text"] == best)
     return None
 
 
@@ -523,7 +643,8 @@ def _decline_choice(options: list[str]) -> str | None:
     return hits[0] if len(hits) == 1 else None
 
 
-def declared_choice(label: str, choices: list[str], *, stored: dict | None = None) -> str | None:
+def declared_choice(label: str, choices: list[str], *, stored: dict | None = None,
+                    category: str = "") -> str | None:
     """The option that says what HE said about himself, or None.
 
     Only from his own words (source "operator"): never read off a resume or
@@ -537,7 +658,7 @@ def declared_choice(label: str, choices: list[str], *, stored: dict | None = Non
     Orientation and transgender resolve to the decline HE chose: "I don't
     think they can ask that. If they do, but I'm not answering."
     """
-    category = _declared_category(label)
+    category = category or category_of(label, choices)
     if not category:
         return None
     stored = profile.load() if stored is None else stored
@@ -613,10 +734,20 @@ def declared_choice(label: str, choices: list[str], *, stored: dict | None = Non
             # says he is not one. Live 2026-09-12 a bare "not" matched both
             # and answered neither. `\bno\b` does not match "not", so the
             # first alternative cannot reach the trap option either.
+            # And never an option that says he IS one. Twilio offers "I am not
+            # a protected veteran" beside "I identify as a veteran but not a
+            # protected veteran" - both contain "not a protected veteran", so
+            # the pattern matched two and answered neither (live 2026-09-13).
+            # Robinhood words his answer "I have never served in the military",
+            # which the pattern did not know at all.
+            says_he_is = re.compile(r"\b(?:identify as|am)\s+(?:a|an)\s+(?:\w+\s+)?veteran\b"
+                                    r"|\bactive duty\b|\bnational guard\b|\breserv")
             hits = [c for c in real
                     if re.search(r"\bno\b[^.]{0,20}\b(?:military|service|served)\b"
                                  r"|\bnot\b[^.]{0,20}\b(?:a |an )?(?:protected\s+)?veteran\b"
-                                 r"|\bdid not serve\b", _norm(c))]
+                                 r"|\bdid not serve\b|\bnever\s+(?:served|been in)\b",
+                                 _norm(c))
+                    and not says_he_is.search(_norm(c))]
             if len(hits) == 1:
                 return hits[0]
             # "Are you a protected veteran? Yes / No." The negative is the
@@ -674,7 +805,12 @@ def declared_choice(label: str, choices: list[str], *, stored: dict | None = Non
     if category == "race":
         race = _his_word(stored, "race")
         if race:
-            hits = [c for c in options if _says(race, _norm(c)) and not _says("two", _norm(c))]
+            # One category, two words for it. LeafLink lists "Caucasian"
+            # where he said "White" (live 2026-09-13), and the list had no
+            # option with his word in it at all.
+            names = (race,) + {"white": ("caucasian",)}.get(race, ())
+            hits = [c for c in options if any(_says(n, _norm(c)) for n in names)
+                    and not _says("two", _norm(c))]
             if len(hits) > 1 and hispanic:
                 no = hispanic in _SAID_NO
                 hits = [c for c in hits if _says("not", _norm(c)) == no] or hits
@@ -790,7 +926,99 @@ def routine_consent(label: str, options: list[str]) -> str | None:
     return hits[0] if len(hits) == 1 else None
 
 
-def plan(fields: list[dict], *, answers: dict | None = None) -> dict:
+# Where she found a job, said the ways forms offer it. `found_on` is the
+# campaign's own words for it: "the company's own careers page" or "a web
+# search". True of that one job, so it is never stored as a fact about him.
+_CAREERS_WORDS = ("careers page", "career page", "careers site", "career site",
+                  "company website", "company site", "our website", "website",
+                  "careers", "company careers")
+
+
+def _options_named(told: str, options: list[str]) -> list[str]:
+    """The options his earlier answer names, exactly - all of them, or none.
+
+    "U.S. citizen" ticks "U.S. citizen". A part of his answer that is not an
+    option means the question is not the one he answered, so nothing is
+    ticked rather than the parts that happen to match."""
+    parts = [p.strip() for p in re.split(r"[;,]", str(told or "")) if p.strip()]
+    if not parts:
+        return []
+    by_text = {str(o).strip().casefold(): o for o in options}
+    named = [by_text.get(p.casefold()) for p in parts]
+    return [] if None in named else list(dict.fromkeys(named))
+
+
+_SEARCH_WORDS = ("online search", "web search", "internet search", "search engine",
+                 "google", "job board", "online job board", "internet", "online")
+
+
+def heard_about_answer(found_on: str, choices: list[str] | None = None) -> str | None:
+    """The truthful answer to "how did you hear about this job", or None.
+
+    Live 2026-09-13 it stopped Brex, Gusto, Samsara, Affirm and Grüns - and
+    she knew the answer on every one, because she is how he heard: she found
+    the posting herself. `ANSWER_BRIEF` already told the model so, but a form
+    read with no model available, or a checkbox list the model never saw,
+    still went to him. With options, only one that plainly says where she
+    found it; never a person, a referral, an event or a social network.
+    """
+    where = _norm(found_on)
+    if not where:
+        return None
+    careers = "career" in where or "company" in where or "website" in where
+    words = _CAREERS_WORDS if careers else _SEARCH_WORDS
+    options = [str(c) for c in (choices or []) if str(c).strip()]
+    if not options:
+        return "The company's careers page" if careers else "An online job search"
+    for word in words:                     # most specific wording first
+        hits = [c for c in options if _says(word, _norm(c))
+                and not re.search(r"\b(?:referr|employee|friend|recruiter|event|linkedin"
+                                  r"|glassdoor|indeed|facebook|instagram|twitter|podcast)",
+                                  _norm(c))]
+        if len(hits) == 1:
+            return hits[0]
+    return None
+
+
+_MONEY = re.compile(r"\$?\s*(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(k|K)?")
+
+
+def _amounts(text: str) -> list[float]:
+    out = []
+    for number, thousands in _MONEY.findall(str(text or "")):
+        value = float(number.replace(",", ""))
+        if thousands:
+            value *= 1000
+        out.append(value)
+    return out
+
+
+def _money_choice(value, options: list[str]) -> str | None:
+    """The one pay range that holds the figure he gave, or None.
+
+    His answer is "$100,000 minimum for a nationwide or remote role; ...";
+    Dutchie's dropdown offers "$90,000 - $99,999", "$100,000 - $109,999".
+    The FIRST figure he gave is the one a range is chosen by, and only a
+    range that plainly holds it — never the nearest, never a guess between.
+    """
+    wanted = _amounts(value)
+    if not wanted or wanted[0] < 1000:
+        return None
+    want = wanted[0]
+    hits = []
+    for option in options:
+        amounts = [a for a in _amounts(option) if a >= 1000]
+        text = _norm(option)
+        if len(amounts) >= 2 and amounts[0] <= want <= amounts[1]:
+            hits.append(option)
+        elif len(amounts) == 1 and (("+" in str(option)) or _says("above", text)
+                                   or _says("or more", text) or _says("plus", text)):
+            if want >= amounts[0]:
+                hits.append(option)
+    return hits[0] if len(hits) == 1 else None
+
+
+def plan(fields: list[dict], *, answers: dict | None = None, found_on: str = "") -> dict:
     """Split a form into what she can fill and what he has to answer."""
     answers = known = (answers if answers is not None else profile.known())
     fields, choices = _group_choices(list(fields)[:MAX_FIELDS])
@@ -807,14 +1035,50 @@ def plan(fields: list[dict], *, answers: dict | None = None) -> dict:
         # of divs on a modern form and a pair of radios on an old one, and
         # either way the answer has been in his profile the whole time —
         # she was handing it back to him on every application.
-        declared = declared_choice(group["label"],
-                                   [o["label"] for o in group["options"] if o["label"]])
+        option_labels = [o["label"] for o in group["options"] if o["label"]]
+        if group["selector"] in answers:
+            # HIS ANSWER ON THIS FORM OUTRANKS ANYTHING SHE WOULD DO BY DEFAULT,
+            # and it only lands through `apply_answers`, which reads `ask`.
+            # Filled from the profile instead, the answer he (or the model
+            # reading his facts) gave to a question she had got wrong was
+            # silently thrown away on every re-stage.
+            ask.append({"selector": group["selector"], "label": group["label"],
+                        "required": group["required"], "type": group["type"],
+                        "choices": option_labels,
+                        "option_selectors": {o["label"]: o["selector"]
+                                             for o in group["options"] if o["label"]},
+                        "why": "answered on this form"})
+            continue
+        category = category_of(group["label"], option_labels)
+        declared = declared_choice(group["label"], option_labels, category=category)
         if declared is not None:
             option = next(o for o in group["options"] if o["label"] == declared)
             fill.append({"action": "click", "selector": option["selector"],
                          "label": group["label"], "value": declared,
-                         "profile_field": _declared_category(group["label"])})
+                         "profile_field": category})
             continue
+        protected = is_never_autofill({"label": group["label"], "choices": option_labels})
+        # Asked once is once, for a list of boxes too. Databricks' "please
+        # confirm whether any of the following also applies to you" had his
+        # "U.S. citizen" on file and still went to him: the asked-once store
+        # was consulted for typed boxes only.
+        told = "" if protected else profile.answer_for(group["label"])
+        named = _options_named(told, option_labels) if told else []
+        if named:
+            for chosen in named:
+                option = next(o for o in group["options"] if o["label"] == chosen)
+                fill.append({"action": "click", "selector": option["selector"],
+                             "label": group["label"], "value": chosen,
+                             "profile_field": "asked_once"})
+            continue
+        if found_on and not protected and match_field({"label": group["label"]}) == "heard_about":
+            said = heard_about_answer(found_on, option_labels)
+            if said is not None:
+                option = next(o for o in group["options"] if o["label"] == said)
+                fill.append({"action": "click", "selector": option["selector"],
+                             "label": group["label"], "value": said,
+                             "profile_field": "heard_about"})
+                continue
         consent = routine_consent(group["label"],
                                   [o["label"] for o in group["options"] if o["label"]])
         if consent is not None:
@@ -856,6 +1120,14 @@ def plan(fields: list[dict], *, answers: dict | None = None) -> dict:
         if is_widget_furniture(field):
             row["why"] = "part of a picker on the page, not a question"
             skipped.append(row)
+            continue
+        if field["selector"] in answers:
+            # An answer given for THIS box - his, or the one the model read off
+            # his facts after she could not find the right option - is what
+            # goes in it. Filling it from the profile again (Tebra's State got
+            # "SD" every time) left that answer with nowhere to land.
+            row["why"] = "answered on this form"
+            ask.append(row)
             continue
         if is_never_autofill(field):
             # Even if the profile holds it. An answer invented on his
@@ -937,6 +1209,22 @@ def plan(fields: list[dict], *, answers: dict | None = None) -> dict:
             ask.append(row)
             continue
         key = match_field(field)
+        if key == "heard_about" and found_on:
+            options = _choice_texts(field)
+            said = heard_about_answer(found_on, options)
+            if said is not None:
+                if field.get("tag") == "select":
+                    option = next((o["value"] for o in field.get("options") or []
+                                   if o.get("text") == said), None)
+                    if option is not None:
+                        fill.append({"action": "select", "selector": field["selector"],
+                                     "value": option, "label": label,
+                                     "profile_field": "heard_about"})
+                        continue
+                else:
+                    fill.append({"action": "type", "selector": field["selector"],
+                                 "value": said, "label": label, "profile_field": "heard_about"})
+                    continue
         if key is None:
             # He answered this exact question once, on somebody else's form.
             # Asking him again is the thing he asked not to happen: "if it
@@ -1579,6 +1867,14 @@ def _best_option(value, options: list[str], known: dict | None = None) -> str | 
     for same in _SAME_COUNTRY:
         if v in same:
             wants |= same
+    # "SD" is South Dakota. Tebra, Affirm and Instacart each list states by
+    # name, and his state is on file as the two letters his resume uses, so
+    # three live applications stopped on where he lives (2026-09-13).
+    if str(value).strip().upper() in US_STATE_NAMES and len(str(value).strip()) == 2:
+        wants.add(_norm(US_STATE_NAMES[str(value).strip().upper()]))
+    money = _money_choice(value, options)
+    if money is not None:
+        return money
     exact = [o for o, n in normed if n in wants]
     if exact:
         return exact[0]

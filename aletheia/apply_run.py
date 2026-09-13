@@ -300,8 +300,75 @@ def _tag(url: str) -> str:
     return hashlib.sha1(str(url).encode("utf-8")).hexdigest()[:8]
 
 
+def _same_question(a: str, b: str) -> bool:
+    """The page's complaint and the form's label, as one question.
+
+    The page reads the label off the block above a dropdown and cuts it at 90
+    characters; the reader has the whole of it."""
+    x, y = formfill._norm(a).rstrip(" *"), formfill._norm(b).rstrip(" *")
+    if not x or not y:
+        return False
+    short = min(len(x), len(y), 60)
+    return x[:short] == y[:short]
+
+
+def _unpicked(fill: list[dict], chosen: dict, fields: list[dict],
+              stopped: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Dropdowns she meant to answer and could not, as QUESTIONS WITH A SELECTOR.
+
+    Live 2026-09-13 this was the single largest reason applications stopped:
+    seventeen of them. She planned "SD" for Tebra's State dropdown, "Hartford"
+    for Datadog's "In what cities are you available to work?", "Yes" for
+    Vercel's authorization list — no option plainly said that, `pick_option`
+    rightly chose nothing, and `_as_chosen` rightly left it off the
+    confirmation. And then nothing else knew. The page's own complaint came
+    back as "Please fill out this field." with no selector and no options, so
+    the model answering from his facts could not be shown it, and his own
+    answer, had he given one, had nowhere to land. Every one of them sat
+    waiting on him for good.
+
+    Returns (questions, the page's complaints that are not these questions).
+    """
+    by_selector = {f.get("selector"): f for f in fields}
+    missed = []
+    for row in fill:
+        selector = row.get("selector")
+        if selector not in chosen or chosen[selector]:
+            continue
+        field = by_selector.get(selector, {})
+        # THE PAGE'S VERDICT decides, as everywhere else here: a dropdown left
+        # empty that the page does not complain about is not stopping anything,
+        # and it is simply not listed as filled.
+        if not any(_same_question(s.get("label", ""), row.get("label", "")) for s in stopped):
+            continue
+        question = {"selector": selector, "label": row.get("label", ""),
+                    "required": True, "type": field.get("type") or "text",
+                    "why": (f"none of its options plainly says {row.get('value')!r}"
+                            if row.get("value") not in (None, "") else
+                            "none of its options is plainly the answer")}
+        if field.get("choices"):
+            question["choices"] = list(field["choices"])
+        missed.append(question)
+    rest = [s for s in stopped
+            if not any(_same_question(s.get("label", ""), m["label"]) for m in missed)]
+    # A complaint with no selector may still name a field that was read: give
+    # it that field's selector and options, so it can be answered at all.
+    for item in rest:
+        if item.get("selector"):
+            continue
+        field = next((f for f in fields
+                      if f.get("selector") and _same_question(item.get("label", ""),
+                                                              f.get("label", ""))), None)
+        if field is not None:
+            item["selector"] = field["selector"]
+            item.setdefault("type", field.get("type") or "text")
+            if field.get("choices") and not item.get("choices"):
+                item["choices"] = list(field["choices"])
+    return missed, rest
+
+
 def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = None,
-          reader=None, filler=None) -> dict:
+          reader=None, filler=None, found_on: str = "") -> dict:
     """Fill the application and bring him one decision. Submits nothing.
 
     `extra` is his answers to the things she could not know — they are
@@ -369,7 +436,8 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
     # he gave outranks anything she would do by default - the same rule as
     # the ChatGPT lease, learned the same day. Profile facts are keyed by
     # field name and his answers by selector, so they cannot collide.
-    plan = formfill.plan(fields, answers={**profile.known(), **per_form})
+    plan = formfill.plan(fields, answers={**profile.known(), **per_form},
+                         found_on=found_on or before.get("found_on") or "")
     answered = formfill.apply_answers(plan, fields, per_form)
     steps = formfill.steps(plan["fill"]) + answered["steps"]
 
@@ -410,6 +478,8 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
     # the forms an ATS actually serves.
     stopped = [item for item in (filled.get("blocking") or [])
                if item.get("label") not in {q.get("label") for q in plan["ask"]}]
+    missed, stopped = _unpicked(plan["fill"], filled.get("chosen") or {}, fields, stopped)
+    stopped = missed + stopped
     if stopped:
         record = {"id": run_id, "state": "NEEDS_YOU", "url": url,
                   "approval": "", "steps": steps, "resume": resume,
@@ -546,7 +616,47 @@ def _fill_and_capture(url: str, steps: list[dict], resume: str, shot: Path) -> d
 
 
 UPLOAD_SETTLE_MS = 10_000
+#: How much longer a page that is visibly still WORKING on the file gets.
+UPLOAD_WORKING_MS = 20_000
 UPLOADED_JS = r"""(name) => ((document.body && document.body.innerText) || '').includes(name)"""
+# Lever never prints the file's name. It prints "Analyzing resume..." while
+# it reads the file and then "Success!" - or "Couldn't auto-read resume.",
+# which means its PARSER gave up, not that the file is missing: the file is in
+# the form either way. Live 2026-09-13 both Nitra applications stopped on
+# "the resume upload did not finish" with the resume sitting in the box.
+#
+# So: a file input that HOLDS a file, on a page showing nothing still at work
+# (no progress bar, no "uploading", no "analyzing"). The Flexport lesson still
+# holds - a visible progress bar is never read as done.
+UPLOAD_SETTLED_JS = r"""() => {
+  const held = [...document.querySelectorAll('input[type=file]')]
+    .some(i => i.files && i.files.length > 0);
+  if (!held) return 'empty';
+  const seen = (el) => !!el && el.offsetParent !== null
+    && (el.innerText || el.getAttribute('aria-valuenow') !== null);
+  const busy = [...document.querySelectorAll(
+      '[role=progressbar], progress, [class*="progress"], [class*="uploading"], '
+      + '[class*="upload-working"], [class*="loading"]')]
+    .some(el => seen(el) && !/complete|success|done/i.test(el.className || ''));
+  const words = /\b(uploading|analyzing|analysing|processing file|please wait)\b/i
+    .test((document.body && document.body.innerText) || '');
+  return (busy || words) ? 'working' : 'held';
+}"""
+
+
+def _upload_state(page) -> str:
+    """'held', 'working' or 'empty', across every frame."""
+    best = "empty"
+    for frame in formfill.frames(page):
+        try:
+            said = frame.evaluate(UPLOAD_SETTLED_JS)
+        except Exception:
+            continue
+        if said == "held":
+            return "held"
+        if said == "working":
+            best = "working"
+    return best
 
 
 def _resume_landed(page, resume: str, *, wait_ms: int | None = None) -> bool:
@@ -567,6 +677,16 @@ def _resume_landed(page, resume: str, *, wait_ms: int | None = None) -> bool:
             except Exception:
                 continue
         if wait is None:
+            break
+        wait(500)
+    # No name on the page. A form that never prints one (Lever) has still
+    # taken the file if the box holds it and nothing is still at work.
+    extra = 0 if wait is None or wait_ms is not None else UPLOAD_WORKING_MS
+    for _ in range(max(1, extra // 500)):
+        state = _upload_state(page)
+        if state == "held":
+            return True
+        if state == "empty" or wait is None or not extra:
             return False
         wait(500)
     return False

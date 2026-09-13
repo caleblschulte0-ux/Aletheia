@@ -62,6 +62,40 @@ SPOTIFY_SHAPED = """
 """
 
 
+# The shape of a Lever application's custom questions (jobs.lever.co, Shield
+# AI and Nitra, 2026-09-13): the question is a div beside its control.
+LEVER_SHAPED = """
+<form><ul>
+  <li class="application-question">
+    <label><div class="application-label">Full name<span class="required">✱</span></div>
+    <div class="application-field"><input type="text" name="name"></div></label>
+  </li>
+  <li class="application-question custom-question">
+    <div class="application-label full-width"><div class="text">Are you willing to travel 50% of the time?<span class="required">✱</span></div></div>
+    <div class="application-field full-width"><ul data-qa="multiple-choice">
+      <li><label><input type="radio" name="cards[115d9079][field0]" value="Yes"><span class="application-answer-alternative">Yes</span></label></li>
+      <li><label><input type="radio" name="cards[115d9079][field0]" value="No"><span class="application-answer-alternative">No</span></label></li>
+    </ul></div>
+  </li>
+  <li class="application-question custom-question">
+    <div class="application-label full-width"><div class="text">How did you hear about Shield AI?<span class="required">✱</span></div></div>
+    <div class="application-field full-width"><ul data-qa="multiple-choice">
+      <li><label><input type="radio" name="cards[a90569ad][field0]" value="Campus visit"><span class="application-answer-alternative">Campus visit</span></label></li>
+      <li><label><input type="radio" name="cards[a90569ad][field0]" value="LinkedIn Post"><span class="application-answer-alternative">LinkedIn Post</span></label></li>
+    </ul></div>
+  </li>
+  <li class="application-question custom-question">
+    <div class="application-label full-width"><div class="text">Why are you interested in this role?<span class="required">✱</span></div></div>
+    <div class="application-field full-width"><input type="text" name="cards[eb3750bb][field0]" placeholder="Type your response"></div>
+  </li>
+  <li class="application-question custom-question">
+    <div class="application-label full-width"><div class="text">Clearance level<span class="required">✱</span></div></div>
+    <div class="application-field full-width"><select name="cards[f27077c2][field0]"><option value="">Select...</option><option>None</option><option>Secret</option></select></div>
+  </li>
+</ul></form>
+"""
+
+
 def chromium():
     try:
         from playwright.sync_api import sync_playwright
@@ -122,6 +156,24 @@ class AnOptionIsNotAQuestionCase(unittest.TestCase):
         self.assertEqual(len(country), 1)
         self.assertEqual(sorted(o["label"] for o in country[0]["options"]),
                          ["Sweden", "United States"])
+
+    def test_lever_custom_questions_are_read_by_their_own_label(self):
+        """Shield AI, live 2026-09-13: three Lever "cards" questions reached
+        him as "Yes", "Campus visit" and "Type your response" - two options
+        and a placeholder - because the question is a div beside the control,
+        with no <label for> and no fieldset."""
+        rows = self.rows(LEVER_SHAPED)
+        rest, groups = formfill._group_choices(rows)
+        labels = sorted(g["label"] for g in groups)
+        self.assertEqual(len(groups), 2, labels)
+        self.assertTrue(any(l.startswith("Are you willing to travel") for l in labels), labels)
+        self.assertTrue(any(l.startswith("How did you hear about Shield AI") for l in labels), labels)
+        typed = [f["label"] for f in rest
+                 if f.get("type") == "text" and not f["label"].startswith("Full name")]
+        self.assertEqual(len(typed), 1)
+        self.assertTrue(typed[0].startswith("Why are you interested"), typed)
+        chosen = [f["label"] for f in rest if f.get("tag") == "select"]
+        self.assertTrue(chosen and chosen[0].startswith("Clearance level"), chosen)
 
     def test_nothing_is_left_masquerading_as_its_own_question(self):
         rest, groups = formfill._group_choices(self.rows(SPOTIFY_SHAPED))
