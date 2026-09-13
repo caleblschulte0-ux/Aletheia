@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-13T04:54:44Z",
+  "generated_at": "2026-09-13T11:58:54Z",
   "fleet_revision": 5,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,6 +11,21 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
+          "sha": "66ba3e2686bf",
+          "date": "2026-09-13T04:55:18Z",
+          "message": "Merge pull request #98 from caleblschulte0-ux/claude/apply-end-to-end"
+        },
+        {
+          "sha": "d4c0656ce0e3",
+          "date": "2026-09-13T04:54:59Z",
+          "message": "pulse: 2026-09-13T04:54Z"
+        },
+        {
+          "sha": "ae6f1b8855c0",
+          "date": "2026-09-13T04:43:53Z",
+          "message": "An employer writing back about a job reached nothing at all"
+        },
+        {
           "sha": "0dd21847ae56",
           "date": "2026-09-13T03:40:34Z",
           "message": "Merge pull request #97 from caleblschulte0-ux/claude/apply-end-to-end"
@@ -19,47 +34,32 @@
           "sha": "b561a6c9004e",
           "date": "2026-09-13T03:27:33Z",
           "message": "One role, two urls, and both of them got an application"
-        },
-        {
-          "sha": "3647eae63a3d",
-          "date": "2026-09-13T03:12:02Z",
-          "message": "Merge pull request #96 from caleblschulte0-ux/claude/apply-end-to-end"
-        },
-        {
-          "sha": "03abcf7162b9",
-          "date": "2026-09-13T02:58:56Z",
-          "message": "Twenty-seven answerable questions, withheld from the model for being optional"
-        },
-        {
-          "sha": "80981fc1f6bd",
-          "date": "2026-09-13T02:36:01Z",
-          "message": "Merge pull request #95 from caleblschulte0-ux/claude/apply-end-to-end"
         }
       ],
       "commit": {
-        "sha": "0dd21847ae56",
-        "date": "2026-09-13T03:40:34Z",
-        "message": "Merge pull request #97 from caleblschulte0-ux/claude/apply-end-to-end"
+        "sha": "66ba3e2686bf",
+        "date": "2026-09-13T04:55:18Z",
+        "message": "Merge pull request #98 from caleblschulte0-ux/claude/apply-end-to-end"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-09-13T04:54:39Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/34739000311"
+          "updated_at": "2026-09-13T11:58:51Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/34755830320"
         },
         "ci.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-13T04:48:46Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/34738578562"
+          "updated_at": "2026-09-13T05:00:44Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/34739036074"
         }
       },
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 18350
+          "bytes": 18221
         }
       },
       "health": "green"
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "910d01215a59",
-          "date": "2026-09-13T02:31:07Z",
-          "message": "Teach the brain what MOTION means, so scenes pass instead of falling back (#383)"
+          "sha": "c59d84af7c0b",
+          "date": "2026-09-13T11:49:57Z",
+          "message": "daily: 2026-09-13 report + state [skip ci]"
         },
         {
-          "sha": "acc4a05c514b",
-          "date": "2026-09-13T02:03:15Z",
-          "message": "exchange: phase A bundle for 20260913 [skip ci]"
+          "sha": "317f302f3cdb",
+          "date": "2026-09-13T11:29:38Z",
+          "message": "exchange: phase B applied for 20260913 [skip ci]"
         },
         {
-          "sha": "3bac9a9ffd7e",
-          "date": "2026-09-13T02:03:00Z",
-          "message": "A scene that never moves is refused before it costs a render (#382)"
+          "sha": "58256fabf04e",
+          "date": "2026-09-13T11:28:55Z",
+          "message": "Trigger rendering for completed 20260913 production"
         },
         {
-          "sha": "2c68d061167a",
-          "date": "2026-09-12T23:09:57Z",
-          "message": "daily: 2026-09-12 report + state [skip ci]"
+          "sha": "ddc64d8a0d12",
+          "date": "2026-09-13T11:28:22Z",
+          "message": "Complete ChatGPT production response for 20260913"
         },
         {
-          "sha": "e023fde8066a",
-          "date": "2026-09-12T23:03:00Z",
-          "message": "third: analytics [skip ci]"
+          "sha": "51670480f8aa",
+          "date": "2026-09-13T11:26:51Z",
+          "message": "Verify media car-dealership-hidden-fee-recording-s7-0cf05900fa94 for 20260913"
         }
       ],
       "commit": {
-        "sha": "910d01215a59",
-        "date": "2026-09-13T02:31:07Z",
-        "message": "Teach the brain what MOTION means, so scenes pass instead of falling back (#383)"
+        "sha": "c59d84af7c0b",
+        "date": "2026-09-13T11:49:57Z",
+        "message": "daily: 2026-09-13 report + state [skip ci]"
       },
       "vitals": [
         {
@@ -121,28 +121,28 @@
       ],
       "workflows": {
         "daily.yml": {
-          "status": "completed",
-          "conclusion": "failure",
-          "updated_at": "2026-09-12T23:10:04Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34724111411"
+          "status": "in_progress",
+          "conclusion": null,
+          "updated_at": "2026-09-13T11:50:04Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34754578832"
         },
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-13T02:31:29Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34733251455"
+          "updated_at": "2026-09-13T09:57:44Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34750520827"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-12T17:18:49Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34707842681"
+          "updated_at": "2026-09-13T11:29:43Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34754546187"
         },
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-12T19:28:14Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34714165158"
+          "updated_at": "2026-09-13T10:23:55Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34751652084"
         },
         "third.yml": {
           "status": "completed",
@@ -152,9 +152,9 @@
         },
         "explainer.yml": {
           "status": "completed",
-          "conclusion": "success",
-          "updated_at": "2026-09-12T19:52:38Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34713743764"
+          "conclusion": "failure",
+          "updated_at": "2026-09-13T10:45:07Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34750688545"
         },
         "retro.yml": {
           "status": "completed",
@@ -165,8 +165,8 @@
         "doctor.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-12T09:15:47Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34685375532"
+          "updated_at": "2026-09-13T10:12:57Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/34751256997"
         }
       },
       "state_files": {
@@ -188,7 +188,7 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 726169
+          "bytes": 737705
         },
         "config/channel_registry.json": {
           "exists": true,
@@ -298,8 +298,8 @@
         "barkly-ci.yml": {
           "status": "completed",
           "conclusion": "failure",
-          "updated_at": "2026-09-13T04:09:26Z",
-          "url": "https://github.com/caleblschulte0-ux/Money_Machine/actions/runs/34736651808"
+          "updated_at": "2026-09-13T05:16:31Z",
+          "url": "https://github.com/caleblschulte0-ux/Money_Machine/actions/runs/34739256030"
         }
       },
       "state_files": {},
@@ -360,9 +360,9 @@
           "n": 1,
           "text": "Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push"
         },
-        "last_progress_at": "2026-09-13T03:55:04Z",
+        "last_progress_at": "2026-09-13T05:00:51Z",
         "days_quiet": 0,
-        "commits_7d": 17,
+        "commits_7d": 18,
         "open_prs": [
           {
             "number": 5,
@@ -481,7 +481,7 @@
       "github": "Shorts-pipeline",
       "health": "red",
       "failing": [
-        "daily.yml"
+        "explainer.yml"
       ]
     },
     {
