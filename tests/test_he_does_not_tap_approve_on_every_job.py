@@ -92,6 +92,9 @@ class HeDoesNotTapApproveOnEveryJobCase(unittest.TestCase):
         fake_apply_run.all_runs.return_value = self.runs
         fake_apply_run.confirm.side_effect = confirm
         fake_apply_run.accept.side_effect = lambda run_id: {"id": run_id}
+        # Full-time jobs: the part-time hold (tests/test_what_counts_as_sent.py)
+        # is not what these tests are about, and a bare Mock answers truthy.
+        fake_apply_run.waits_for_his_ok.return_value = ""
         self.apply_run = fake_apply_run
 
         fake_authority = mock.Mock()

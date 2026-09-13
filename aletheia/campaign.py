@@ -148,6 +148,23 @@ def _application_url(url: str, opener=None) -> tuple[str, list[dict]]:
     from aletheia import company_sites
     open_page = opener or _open
     fields, links = open_page(url)
+    # An Apply button that leads to an applicant-tracking system is where the
+    # application is, whatever else the posting page has on it. Live
+    # 2026-09-13 two Palo Alto Networks postings (a Radancy careers site)
+    # were staged from the page's JOB-ALERT signup - Email, Confirm Email,
+    # Category, Location - and failed at Submit, while "Apply Now" went to
+    # Workday. An account system is returned unopened: `stage` names the
+    # account wall (NEEDS_ACCOUNT) instead of pretending a form.
+    host = company_sites.host_of(url)
+    for word in APPLY_WORDS:
+        for link in links:
+            if link.get("embedded") or word not in (link.get("text") or "").casefold():
+                continue
+            target = urljoin(url, link.get("href") or "")
+            if company_sites.host_of(target) == host or not target.startswith(("http://", "https://")):
+                continue
+            if company_sites.needs_account(target):
+                return target, []
     if _is_application_form(fields):
         return url, fields
     # A company careers page very often carries the form in an <iframe> from
@@ -186,6 +203,13 @@ def _is_application_form(fields: list[dict]) -> bool:
     if len(usable) < 3:
         return False
     hay = " ".join(_haystack(f) for f in usable)
+    # A job-alert or newsletter signup is not an application, however many
+    # boxes it has: it confirms an email and asks for a category, and never
+    # for a resume, a name or a phone.
+    signup_only = (("alert" in hay or "subscri" in hay or "confirm email" in hay)
+                   and not any(w in hay for w in ("resume", "cv", "first name", "phone")))
+    if signup_only:
+        return False
     return ("email" in hay or "name" in hay) and "resume" in hay or len(usable) >= 6
 
 

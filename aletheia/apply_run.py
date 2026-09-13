@@ -123,6 +123,13 @@ def already_sent() -> dict:
             continue
         if isinstance(value, dict):
             merged.update(value)
+    # A form the site HANDED BACK is not in an employer's inbox. Live
+    # 2026-09-13 Datadog's "GTM Operations Associate" page refused the
+    # application and it was written into this ledger all the same, so it
+    # counted as sent and could never be tried again. "Submitted,
+    # unconfirmed" stays in: a second copy is the one outcome to avoid.
+    merged = {url: entry for url, entry in merged.items()
+              if str((entry or {}).get("verdict") or "").casefold() != "rejected"}
     try:
         records = all_runs()
     except Exception:
@@ -270,6 +277,42 @@ def all_runs(state: str | None = None) -> list[dict]:
 #: An application she decided not to send — a duplicate, or a job that is
 #: not realistic for him — with the reason on the record.
 CLOSED = "CLOSED"
+#: The button was pressed and the site handed the form back. Not sent, not
+#: counted, and not pressed again with the same answers.
+REJECTED = "REJECTED"
+
+
+def _by_grant(approval: dict) -> bool:
+    """Whether an approval was decided by his standing grant rather than by him."""
+    via = str((approval or {}).get("decided_via") or "")
+    return via.startswith("grant:") or via == "standing-grant"
+
+
+def waits_for_his_ok(record: dict) -> str:
+    """The kind of job this is when only HIS OWN yes may send it, else "".
+
+    Part-time, contract, temporary, seasonal and internship work: he has not
+    said whether he wants it, so the standing grant never decides it for him.
+    ONE predicate for every place the grant is spent. Live 2026-09-13 the
+    check lived only in the Core's beat, for approvals not yet decided - but
+    `stage` spends the grant the moment a form is filled, so Bluevine's
+    "People Coordinator & Office Operations Associate (part-time)" arrived at
+    the beat already APPROVED and was sent without him ever seeing it.
+    """
+    from aletheia import job_fit
+    kind = str(record.get("employment") or "")
+    if not kind:
+        named = " ".join(str(record.get(k) or "") for k in ("job_title", "page_title", "note"))
+        kind = job_fit.employment_type(named)
+    if not kind:
+        return ""
+    try:
+        approval = policy.load(record.get("approval") or "") if record.get("approval") else {}
+    except Exception:
+        approval = {}
+    if approval.get("state") == "APPROVED" and not _by_grant(approval):
+        return ""                        # he said yes to this one himself
+    return kind
 
 
 def close(run_id: str, why: str, *, via: str = "aletheia") -> dict:
@@ -710,14 +753,26 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
             pass
         return record
 
+    # The same answers the site already refused are not pressed again. A
+    # re-stage with something new goes back in line like any other.
+    if before.get("state") == REJECTED and steps == list(before.get("steps") or []):
+        raise ApplyError(
+            f"{run_id}: the site refused this form with these same answers "
+            f"({before.get('failure') or 'no reason kept'}) - not sending it again unchanged")
+
     action = browse.approval_action(url, steps)
     approval_id = f"{run_id}-submit"
+    # Not on the grant when it is not full-time work: the approval waits for
+    # him, and the beat tells him why.
+    not_full_time = waits_for_his_ok({"note": note, "page_title": filled.get("title", ""),
+                                      **kept_job})
     policy.request(
         approval_id, action,
         reason=(note or f"Submit an application at {url}"),
         consequence=("It sends your application to this employer under your "
                      "name. There is no undo."),
-        reversible=False, capability="application.submit")
+        reversible=False,
+        capability=None if not_full_time else "application.submit")
 
     record = {"id": run_id, "state": "AWAITING_YOU", "url": url,
               "approval": approval_id, "steps": steps,
@@ -999,6 +1054,13 @@ def submit(run_id: str, *, submitter=None) -> dict:
     ok, why = policy.usable(record["approval"])
     if not ok:
         raise ApplyError(f"{why} — nothing was sent")
+    # The last line for a job only his own yes may send, whoever called.
+    kind = waits_for_his_ok(record)
+    if kind:
+        record["state"] = "AWAITING_YOU"
+        stateio.write_json_atomic(_record_path(record["id"]), record)
+        raise ApplyError(f"{run_id} is {kind} work, so it waits for your own OK - "
+                         "nothing was sent")
 
     import os as _os
     record["state"] = "SUBMITTING"
@@ -1030,6 +1092,20 @@ def submit(run_id: str, *, submitter=None) -> dict:
                        f"{record['id']} failed to submit: {record['failure']}",
                        actor=ACTOR)
         raise
+
+    if str(outcome.get("verdict") or "").casefold() == "rejected":
+        # HANDED BACK is not sent. It is kept apart - not in the ledger, not
+        # in his count - with the page's own complaint, so a later re-stage
+        # can change something rather than press the same form again.
+        complaint = " ".join(str(outcome.get("note") or outcome.get("evidence") or "").split())
+        record.update({"state": REJECTED, "result": outcome,
+                       "failure": f"the site refused it: {complaint}"[:300],
+                       "rejected_at": stateio.utcnow()})
+        stateio.write_json_atomic(_record_path(record["id"]), record)
+        journal.append("alert", "apply",
+                       f"{record['id']} was refused by the site at {record['url']} - "
+                       f"not counted as sent: {complaint[:160]}", actor=ACTOR)
+        raise ApplyError(f"{record['id']}: the site refused it - {complaint[:160]}")
 
     record.update({"state": "SUBMITTED", "result": outcome})
     stateio.write_json_atomic(_record_path(record["id"]), record)
