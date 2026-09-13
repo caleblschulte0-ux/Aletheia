@@ -568,7 +568,15 @@ CONFIRMED_WORDS = ("thank you", "application received", "we have received",
                    "successfully submitted", "your application has been",
                    "thanks for applying", "we've received", "submission received",
                    "your submission", "all set", "you're all set",
-                   "successfully", "confirmation number", "we have your")
+                   "successfully", "confirmation number", "we have your",
+                   "thanks for taking the time to apply")
+#: A page TITLE or ADDRESS that only an accepted submission is given. Live
+#: 2026-09-13 MongoDB's page read "Thanks for taking the time to apply to
+#: MongoDB!" under the title "Thank you for applying" at .../confirmation, and
+#: it was reported unconfirmed - the thank-you email arrived a minute later.
+CONFIRMED_TITLES = ("thank you for applying", "thanks for applying",
+                    "application submitted", "application received")
+_CONFIRMED_URL = re.compile(r"/confirmation\b|/thank-?you\b|/application[-_]submitted\b", re.I)
 
 # A site that REFUSED usually says so in the plainest possible words, and
 # hands the form straight back. She pressed Submit on a form whose phone
@@ -605,7 +613,7 @@ DID_IT = {
 
 
 def read_outcome(body: str, *, did: str = "",
-                 form_still_there: bool = False) -> dict:
+                 form_still_there: bool = False, title: str = "", url: str = "") -> dict:
     """CONFIRMED, REJECTED or UNCONFIRMED — never just "pressed".
 
     A press is an action; whether it worked is a different question, and
@@ -624,6 +632,11 @@ def read_outcome(body: str, *, did: str = "",
     if any(word in text for word in CONFIRMED_WORDS):
         return {"verdict": "confirmed",
                 "note": "The page said it went through."}
+    if not form_still_there and (
+            any(word in (title or "").casefold() for word in CONFIRMED_TITLES)
+            or _CONFIRMED_URL.search(str(url or ""))):
+        return {"verdict": "confirmed",
+                "note": "The site moved to its confirmation page."}
     hit = next((word for word in REJECTED_WORDS if word in text), "")
     if hit:
         return {"verdict": "rejected",

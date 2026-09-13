@@ -660,7 +660,7 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
                   "posting": p["url"], "direct": False} for p in found]
 
     staged, needs_you, failed = [], [], []
-    passed_over, duplicates = [], []
+    passed_over, duplicates, later = [], [], []
     tried: dict[str, int] = {}
     attempts = 0
     give_up_at = dt.datetime.now(dt.timezone.utc) + MAX_RUN
@@ -700,15 +700,37 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
                                    "why": "the same job is already applied for or waiting"})
                 continue
             roles_seen.add(key)
+        # A job already closed as not realistic stays closed. Live 2026-09-13
+        # Dutchie "Account Manager, SMB" and impact.com "Creator Solutions
+        # Account Manager" were closed, found again by the next batch at the
+        # SAME url, rebuilt by `stage` and sent. A closure is reopened only
+        # when he has said what work he wants since, and only by a model.
+        closed = apply_run.closed_unfit(page.get("company", ""), title, page.get("url", ""))
+        if closed and str(closed.get("closed_at") or "") >= job_fit.preferences_changed_at():
+            passed_over.append({"url": page["url"], "title": title,
+                                "why": closed.get("closed_because") or "closed as not realistic"})
+            continue
         # And only a job he could realistically get. Bounded, so a long list
-        # of openings never turns into an hour of model calls.
+        # of openings never turns into an hour of model calls - and a job the
+        # bound kept from a model is left for a later batch, never staged as
+        # though a model had said yes.
         think = judge_with if (judge_with is False or judged < want * 2) else False
+        if think is False and judge_with is not False:
+            later.append({"url": page["url"], "title": title})
+            continue
         fit = job_fit.verdict(page, text, known_now, think=think, describe=describe,
                               early=early)
         if think is not False:
             judged += 1
         if not fit["realistic"]:
             passed_over.append({"url": page["url"], "title": title, "why": fit["why"]})
+            continue
+        if judge_with is not False and fit.get("by") != "model":
+            later.append({"url": page["url"], "title": title})   # nobody could read it
+            continue
+        if closed and fit.get("by") != "model":
+            passed_over.append({"url": page["url"], "title": title,
+                                "why": closed.get("closed_because") or "closed as not realistic"})
             continue
         attempts += 1
         if company:
@@ -730,6 +752,9 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
             failed.append({"url": page["url"], "why": "no application form found on it"})
             continue
         note = f"Apply: {page.get('title') or role or 'job'} — {page.get('posting') or page['url']}"
+        if closed and str(closed.get("url") or "").strip() in (page["url"], form_url):
+            apply_run.reopen(closed["id"], "he said what work he wants after it was closed; "
+                                           f"judged again: {fit.get('why') or 'realistic'}")
         try:
             # Where she found it travels with the form: "how did you hear
             # about this job" is answered from it on the first read.
@@ -738,7 +763,7 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         except Exception as exc:
             failed.append({"url": form_url, "why": f"{type(exc).__name__}: {exc}"[:160]})
             continue
-        record = _keep_the_job(record, page, fit=fit)
+        record = _keep_the_job(record, page, fit=fit, employment=fit.get("employment", ""))
         if record["state"] == "NEEDS_YOU":
             # What his facts settle is answered from them; long answers are
             # written from his resume. Both show up in the confirmation.
@@ -758,10 +783,11 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
                    f"{len(failed)} could not be reached — for {', '.join(roles)!r}; "
                    f"passed over {len(passed_over)} as not realistic and "
                    f"{len(duplicates)} already applied for or waiting; "
+                   f"left {len(later)} unjudged for a later batch; "
                    "nothing submitted", actor=ACTOR)
     return {"role": role, "roles": roles, "resume": resume_path, "learned": sorted(learned),
             "ready": staged, "blocked": needs_you, "failed": failed,
-            "passed_over": passed_over, "duplicates": duplicates,
+            "passed_over": passed_over, "duplicates": duplicates, "later": later,
             "ignored_role": ignored_role,
             "questions": open_questions(), "submitted": 0}
 
@@ -992,7 +1018,7 @@ def _where_found(stage, found_on: str) -> dict:
 
 
 def retry_waiting(*, resume: str = "", stager=None, json_think=None, writer=None,
-                  limit: int = 60) -> dict:
+                  limit: int = 60, fit_think=None, describer=None) -> dict:
     """Every application waiting on him, read again with what she knows NOW.
 
     Nothing did this. A record went to NEEDS_YOU with the facts and the code
@@ -1011,10 +1037,37 @@ def retry_waiting(*, resume: str = "", stager=None, json_think=None, writer=None
         resume_path, text = read_resume(resume)
     except CampaignError:
         resume_path, text = resume, ""
-    ready, blocked, failed = [], [], []
+    ready, blocked, failed, closed, left = [], [], [], [], []
+    # A waiting application is judged against what he wants NOW before it is
+    # filled in again. Live 2026-09-13 this re-staged Nitra "Account Manager
+    # (NitraMart)", staged hours before his preferences, with no model ever
+    # having read it - and the grant sent it.
+    judge_with = (fit_think if fit_think is not None
+                  else (None if stager is None and json_think is None else False))
+    describe = describer or (jobs.posting_text if judge_with is not False else None)
+    known = profile.known()
+    early = bool(_seniority_to_leave_out(known))
     for record in list(apply_run.all_runs("NEEDS_YOU"))[:max(0, int(limit))]:
         policy.ensure_not_halted()
         url = record.get("url") or ""
+        if judge_with is not False and not job_fit.fit_is_current(record.get("fit")):
+            job = {k: record.get(k, "") for k in ("company", "job_title", "url", "posting")}
+            fit = job_fit.verdict(job, text, known, think=judge_with, describe=describe,
+                                  early=early)
+            if not fit["realistic"]:
+                try:
+                    apply_run.close(record["id"], f"not realistic: {fit['why']}")
+                except Exception:
+                    pass
+                closed.append({"url": url, "why": fit["why"]})
+                continue
+            if fit.get("by") != "model":
+                left.append({"url": url})         # nobody could judge it; next time
+                continue
+            try:
+                apply_run.remember(record["id"], fit=fit, employment=fit.get("employment", ""))
+            except Exception:
+                pass
         used = record.get("resume") or resume_path
         found_on = record.get("found_on") or ""
         where = _where_found(stage, found_on)
@@ -1032,8 +1085,10 @@ def retry_waiting(*, resume: str = "", stager=None, json_think=None, writer=None
     journal.append("action", "campaign",
                    f"read {speech.count_phrase(len(ready) + len(blocked), 'waiting application')} "
                    f"again: {len(ready)} ready, {len(blocked)} still waiting on him, "
-                   f"{len(failed)} could not be read; nothing submitted", actor=ACTOR)
+                   f"{len(failed)} could not be read, {len(closed)} closed as not realistic, "
+                   f"{len(left)} left unjudged; nothing submitted", actor=ACTOR)
     return {"ready": ready, "blocked": blocked, "failed": failed,
+            "closed": closed, "left": left,
             "questions": open_questions(), "submitted": 0, "roles": [], "role": ""}
 
 
