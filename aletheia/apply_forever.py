@@ -46,12 +46,41 @@ IDLE_WAIT_S = 300.0
 BATCH = 8
 
 
+#: The rest already said out loud, so a long one is journaled once, not
+#: every five minutes.
+_SAID_REST: set[str] = set()
+
+
+def _claude_rests_until():
+    """When Claude's usage window comes back, while it is spent. Never raises."""
+    try:
+        from aletheia import reasoner
+        return reasoner.resting_until()
+    except Exception:
+        return None
+
+
 def once(*, batch: int = BATCH, resume: str = "", starter=None) -> dict:
     """One turn of the loop: start a campaign, or leave the running one be."""
     policy.ensure_not_halted()
     current = campaign.running()
     if current:
         return {"started": False, "already": current.get("pid")}
+    # NOT WHILE CLAUDE IS OUT. Live 2026-09-13 his usage window was spent from
+    # 18:42 to 19:40 UTC, and a batch started every five minutes anyway: with
+    # no model it could not name his roles or judge a single job, so each one
+    # searched 62 boards for his one resume title and applied to nothing. The
+    # hunt waits for the reset instead, and says so once.
+    rests = _claude_rests_until()
+    if rests is not None:
+        until = rests.isoformat()
+        if until not in _SAID_REST:
+            _SAID_REST.add(until)
+            journal.append("decision", "apply:forever",
+                           f"Claude is out until {until}, so the job hunt waits for the "
+                           "reset rather than run batches that cannot judge a job",
+                           actor=ACTOR)
+        return {"started": False, "resting_until": until}
     start = starter or campaign.start
     out = start(count=batch, resume=resume)
     if out.get("started"):

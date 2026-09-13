@@ -58,6 +58,40 @@ class OneBatchAtATimeCase(unittest.TestCase):
         self.assertEqual(calls, [{"count": 8, "resume": "r.pdf"}])
 
 
+class WhileClaudeIsOutItWaitsCase(unittest.TestCase):
+    """Live 2026-09-13 his Claude window was spent for an hour and a batch
+    started every five minutes anyway, each unable to name his roles or judge
+    a job, each applying to nothing."""
+
+    def setUp(self):
+        apply_forever._SAID_REST.clear()
+
+    def test_no_batch_starts_while_claude_is_resting_and_it_is_said_once(self):
+        import datetime as dt
+        until = dt.datetime(2026, 9, 13, 19, 40, tzinfo=dt.timezone.utc)
+        started, said = [], []
+        with mock.patch.object(apply_forever.campaign, "running", return_value=None), \
+             mock.patch.object(apply_forever.policy, "ensure_not_halted"), \
+             mock.patch.object(apply_forever, "_claude_rests_until", return_value=until), \
+             mock.patch.object(apply_forever.journal, "append",
+                               side_effect=lambda *a, **k: said.append(a)):
+            for _ in range(3):
+                out = apply_forever.once(starter=lambda **kw: started.append(kw))
+        self.assertEqual(started, [])
+        self.assertIn("resting_until", out)
+        self.assertEqual(len(said), 1, "a long rest is said once, not every turn")
+
+    def test_the_hunt_resumes_when_the_window_comes_back(self):
+        calls = []
+        with mock.patch.object(apply_forever.campaign, "running", return_value=None), \
+             mock.patch.object(apply_forever.policy, "ensure_not_halted"), \
+             mock.patch.object(apply_forever, "_claude_rests_until", return_value=None), \
+             mock.patch.object(apply_forever.journal, "append"):
+            out = apply_forever.once(starter=lambda **kw: calls.append(kw) or {"started": True})
+        self.assertTrue(out["started"])
+        self.assertEqual(len(calls), 1)
+
+
 class StopMeansHisHaltCase(unittest.TestCase):
     def test_a_halt_ends_the_loop(self):
         """"Until I say stop" is his halt switch, not a flag this invented."""
