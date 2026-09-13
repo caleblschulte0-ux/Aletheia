@@ -664,15 +664,31 @@ def submit(run_id: str, *, submitter=None) -> dict:
     if not ok:
         raise ApplyError(f"{why} — nothing was sent")
 
+    import os as _os
     record["state"] = "SUBMITTING"
     record["submitted_at"] = stateio.utcnow()
+    # Who is pressing, and whether the button has been pressed yet, so a
+    # submit that is killed or dies can be settled honestly afterwards:
+    # live 2026-09-13 two records sat at SUBMITTING for good and nothing
+    # could say whether an employer had his application.
+    record["submit_pid"] = _os.getpid()
+    record.pop("pressed_at", None)
     stateio.write_json_atomic(_record_path(record["id"]), record)
 
     try:
         outcome = (submitter or _refill_and_submit)(record)
     except Exception as exc:
+        why = f"{type(exc).__name__}: {exc}"[:300]
+        if record.get("pressed_at") and not isinstance(exc, ApplyError):
+            # The button WAS pressed and then something broke. Whether it
+            # went is unknown, so it is counted as sent: a second copy in
+            # an employer's inbox is the one outcome that cannot be undone.
+            return _maybe_sent(record, why)
+        if not record.get("pressed_at") and _worth_another_turn(exc):
+            _back_in_line(record, why)
+            raise
         record["state"] = "FAILED"
-        record["failure"] = f"{type(exc).__name__}: {exc}"[:300]
+        record["failure"] = why
         stateio.write_json_atomic(_record_path(record["id"]), record)
         journal.append("alert", "apply",
                        f"{record['id']} failed to submit: {record['failure']}",
@@ -686,6 +702,101 @@ def submit(run_id: str, *, submitter=None) -> dict:
                    f"submitted {record['id']} to {record['url']} — "
                    f"{outcome.get('verdict')}", actor=ACTOR)
     return record
+
+
+#: How many times an application whose button was never pressed goes back
+#: in line after its browser was busy or would not open.
+MAX_SUBMIT_TRIES = 3
+#: A SUBMITTING record whose process cannot be named is settled after this.
+SUBMIT_GRACE_S = 45 * 60
+#: A submit still running after this is hung, and is stopped.
+SUBMIT_CEILING_S = 2 * 60 * 60
+
+
+def _worth_another_turn(exc: BaseException) -> bool:
+    """A failure that happened before anything touched the form."""
+    return isinstance(exc, browse.BrowserBusy) or browse._closed_browser_error(exc)
+
+
+def _back_in_line(record: dict, why: str) -> dict:
+    """Nothing was pressed: back to AWAITING_YOU for the next beat, a few times."""
+    tries = int(record.get("submit_tries") or 0) + 1
+    record["submit_tries"] = tries
+    record["last_failure"] = why
+    record.pop("submit_pid", None)
+    if tries >= MAX_SUBMIT_TRIES:
+        record["state"] = "FAILED"
+        record["failure"] = f"{why} (tried {tries} times, nothing was ever pressed)"[:300]
+        journal.append("alert", "apply",
+                       f"{record['id']} failed to submit: {record['failure']}", actor=ACTOR)
+    else:
+        record["state"] = "AWAITING_YOU"
+        record.pop("submitted_at", None)
+        journal.append("action", "apply",
+                       f"{record['id']} goes back in line - {why[:120]} - nothing was pressed",
+                       actor=ACTOR)
+    stateio.write_json_atomic(_record_path(record["id"]), record)
+    return record
+
+
+def _maybe_sent(record: dict, why: str) -> dict:
+    company = record.get("company") or "the employer"
+    record["state"] = "SUBMITTED"
+    record["result"] = {
+        "verdict": "submitted, unconfirmed",
+        "note": (f"She pressed Submit and was stopped before the page answered "
+                 f"({why[:120]}). Check your email for a confirmation from "
+                 f"{company}. It is counted as sent so it can never go twice.")}
+    stateio.write_json_atomic(_record_path(record["id"]), record)
+    remember_sent(record)
+    journal.append("alert", "apply",
+                   f"{record['id']} may have been submitted to {record.get('url')} - "
+                   f"interrupted after the press: {why[:160]}", actor=ACTOR)
+    return record
+
+
+def settle_interrupted(run_id: str, why: str) -> dict:
+    """A submit that stopped without finishing, settled from what is known.
+
+    Pressed, or too old to know (a record from before `submit_pid` was
+    written): counted as sent, unconfirmed, and he is told to check his
+    email. Never pressed: back in line.
+    """
+    record = load_run(run_id)
+    if record.get("state") != "SUBMITTING":
+        return record
+    if record.get("pressed_at") or "submit_pid" not in record:
+        return _maybe_sent(record, why)
+    return _back_in_line(record, why)
+
+
+def reconcile_stuck_submits(*, now: float | None = None) -> list[dict]:
+    """Every SUBMITTING record whose submit is gone or hung, settled."""
+    from aletheia import proc
+    import datetime as _dt
+    now = time.time() if now is None else now
+    settled = []
+    for record in all_runs("SUBMITTING"):
+        try:
+            began = _dt.datetime.fromisoformat(
+                str(record.get("submitted_at")).replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            began = 0.0
+        age = now - began
+        pid = record.get("submit_pid")
+        alive = proc.pid_alive(pid, needle="aletheia") if pid else None
+        if alive is True and age < SUBMIT_CEILING_S:
+            continue
+        if alive is None and age < SUBMIT_GRACE_S:
+            continue
+        if alive is True:
+            if proc.pid_alive(pid, needle="aletheia.apply_run") is True:
+                proc.kill_tree(pid)
+            why = f"the submit was still running after {int(age // 60)} minutes and was stopped"
+        else:
+            why = "the process pressing it stopped before it finished"
+        settled.append(settle_interrupted(record["id"], why))
+    return settled
 
 
 #: The page telling him a human check is in the way, in the words the real
@@ -862,6 +973,10 @@ def _refill_and_submit(record: dict) -> dict:
         # wants is emailed AFTER this, and anything older belongs to an
         # earlier attempt.
         asked_at = time.time()
+        # Written down BEFORE the click, so a process killed mid-press is
+        # settled as "may have gone" rather than "nothing was sent".
+        record["pressed_at"] = stateio.utcnow()
+        stateio.write_json_atomic(_record_path(record["id"]), record)
         page.click(button)
         page.wait_for_load_state("domcontentloaded")
         try:

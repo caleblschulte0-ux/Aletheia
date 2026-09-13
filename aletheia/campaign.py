@@ -73,7 +73,7 @@ from pathlib import Path
 from urllib.parse import urljoin
 
 from aletheia import (applications, apply_run, browse, doctext, formfill,
-                      journal, jobs, policy, profile, speech, stateio, workspace)
+                      journal, jobs, policy, proc, profile, speech, stateio, workspace)
 
 ACTOR = "aletheia-campaign"
 
@@ -103,8 +103,12 @@ _FILLER = frozenset("a an the one to you your yes no is are do does did be have 
 RUN_DIR = stateio.private_dir("campaign")
 LOCK_PATH = RUN_DIR / "running.json"
 LOG_PATH = RUN_DIR / "last-run.log"
-# A lock older than this is a run that died without cleaning up after itself.
+# A lock older than this is a run that died without cleaning up after itself,
+# or one that is hung (its process is stopped).
 STALE_LOCK = dt.timedelta(hours=3)
+# How long one batch may keep trying openings before it reports what it has.
+# Well inside STALE_LOCK, so a healthy batch is never mistaken for a hung one.
+MAX_RUN = dt.timedelta(minutes=90)
 US_STATES = frozenset(
     "AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO "
     "MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY DC".split())
@@ -591,11 +595,14 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
     staged, needs_you, failed = [], [], []
     tried: dict[str, int] = {}
     attempts = 0
+    give_up_at = dt.datetime.now(dt.timezone.utc) + MAX_RUN
     for page in pages:
         # READY is what he asked for. A form still waiting on him is kept
         # and reported, and does not count toward the number.
         if len(staged) >= count:
             break
+        if dt.datetime.now(dt.timezone.utc) >= give_up_at:
+            break                        # the next batch picks up where this left off
         company = " ".join(str(page.get("company") or "").casefold().split())
         if company and tried.get(company, 0) >= PER_COMPANY:
             continue
@@ -855,17 +862,47 @@ def answer_one(question: str, answer: str, *, stager=None) -> dict:
 # ---- in its own process ----------------------------------------------------------
 
 def running(now: dt.datetime | None = None) -> dict | None:
-    """The campaign already under way, if one is."""
+    """The campaign already under way, if one is.
+
+    Decided by whether its PROCESS is alive, not by the clock alone. Live
+    2026-09-13 a batch ran longer than the three-hour STALE_LOCK, so the
+    job-hunt loop decided it had died and started a second one beside it;
+    when the first finished it deleted the second one's lock, and a third
+    started. Three campaigns and the Core's submits queued on one browser
+    all night, which is what filled his screen with console windows.
+    """
     try:
         value = json.loads(LOCK_PATH.read_text(encoding="utf-8"))
         started = dt.datetime.fromisoformat(str(value.get("started_at")).replace("Z", "+00:00"))
     except (OSError, ValueError, AttributeError):
         return None
     now = now or dt.datetime.now(dt.timezone.utc)
-    return value if now - started < STALE_LOCK else None
+    pid = value.get("pid")
+    alive = proc.pid_alive(pid, needle="aletheia.campaign") if pid else None
+    if alive is False:
+        return None                      # it died, or the pid is somebody else's now
+    if now - started < STALE_LOCK:
+        return value
+    if alive is True:
+        # Alive and far past its own time limit (MAX_RUN): hung. Stopped,
+        # rather than left holding the lock for good or run beside.
+        proc.kill_tree(pid)
+        journal.append("alert", "campaign",
+                       f"a job-hunt batch had been running since {value.get('started_at')}, "
+                       "far past its time limit, so it was stopped", actor=ACTOR)
+    return None
 
 
-def _release() -> None:
+def _release(owner: int | None = None) -> None:
+    """Remove the run lock — only ours, when `owner` says whose we are."""
+    if owner is not None:
+        try:
+            holder = json.loads(LOCK_PATH.read_text(encoding="utf-8")).get("pid")
+        except (OSError, ValueError, AttributeError):
+            holder = None
+        if holder not in (None, owner) and \
+                proc.pid_alive(holder, needle="aletheia.campaign") is not False:
+            return                       # another campaign's, and it is running
     try:
         LOCK_PATH.unlink()
     except OSError:
@@ -1058,7 +1095,7 @@ def main(argv: list[str] | None = None) -> int:
                 raise
             finally:
                 if args.notify:
-                    _release()
+                    _release(owner=os.getpid())
             if args.notify:
                 title, body = _summary(out)
                 _notify(title, body, f"campaign:{stamp}")
@@ -1071,7 +1108,7 @@ def main(argv: list[str] | None = None) -> int:
                 out = answer_one(args.question, args.answer)
             finally:
                 if args.notify:
-                    _release()
+                    _release(owner=os.getpid())
             if out.get("matched") is None:
                 body = ("None of the waiting applications asks that. They are waiting on: "
                         + "; ".join(q["label"] for q in out["questions"][:6] if q.get("required"))
