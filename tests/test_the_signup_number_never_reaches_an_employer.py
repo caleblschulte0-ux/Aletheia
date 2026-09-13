@@ -103,5 +103,52 @@ class NoFormQuestionCanReachIt(unittest.TestCase):
                     self.assertNotIn(got or "", profile.SIGNUP_ONLY)
 
 
+
+class AnApplicationGetsHisRealNumber(unittest.TestCase):
+    """The other half of the rule, and the half he asked about.
+
+    Locking the signup number away is only useful if the REAL number still
+    lands on every application. The case that worried me: Workday builds an
+    application from the account profile, so a phone box can arrive already
+    prefilled with whatever the account was made with — the Google Voice
+    number. If she left a prefilled field alone, every Workday application
+    would quietly carry the number he does not watch, and he would never
+    learn the job called.
+    """
+
+    KNOWN = {"phone": "605-555-0100", "signup_phone": "510-394-4076"}
+
+    def _field(self, label, value=""):
+        return {"label": label, "type": "tel", "selector": "#phone",
+                "required": True, "value": value}
+
+    def test_an_empty_phone_box_gets_his_real_number(self):
+        plan = formfill.plan([self._field("Phone")], answers=self.KNOWN)
+        self.assertEqual([r["value"] for r in plan["fill"]], ["605-555-0100"])
+
+    def test_a_box_prefilled_with_the_signup_number_is_overwritten(self):
+        """This is the Workday case. The prefilled Voice number must not
+        survive into a submitted application."""
+        plan = formfill.plan([self._field("Phone", value="510-394-4076")],
+                             answers=self.KNOWN)
+        values = [r["value"] for r in plan["fill"]]
+        self.assertIn("605-555-0100", values)
+        self.assertNotIn("510-394-4076", values)
+
+    def test_every_phone_label_on_an_application_gets_the_real_number(self):
+        for label in ("Phone", "Mobile phone", "Cell", "Telephone number",
+                      "Primary phone", "What is your phone number?"):
+            with self.subTest(label=label):
+                plan = formfill.plan([self._field(label)], answers=self.KNOWN)
+                self.assertEqual([r["value"] for r in plan["fill"]],
+                                 ["605-555-0100"])
+
+    def test_the_signup_number_appears_nowhere_in_an_application_plan(self):
+        fields = [self._field("Phone"), self._field("Mobile", "510-394-4076"),
+                  {"label": "Email", "type": "email", "selector": "#e",
+                   "required": True, "value": ""}]
+        plan = formfill.plan(fields, answers=self.KNOWN)
+        self.assertNotIn("510-394-4076", str(plan))
+
 if __name__ == "__main__":
     unittest.main()
