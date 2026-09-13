@@ -497,6 +497,23 @@ def declared_choice(label: str, choices: list[str], *, stored: dict | None = Non
     stored = profile.load() if stored is None else stored
     options = [str(c) for c in (choices or []) if str(c).strip()]
     if not options:
+        # Nothing to choose between. For every other category that means
+        # there is nothing to click and the question is his — but a pronoun
+        # box is routinely free TEXT: Spotify's "Write here..." beside its
+        # Custom checkbox, Asana's '[Optional, if "other" is selected above]
+        # My pronouns are'. He told her "he/him/his"; typing it is the whole
+        # job. I first wrote this inside the pronouns branch below, where
+        # this guard had already returned None — dead code, and the case
+        # stayed broken while the test said FAIL.
+        if category == "pronouns":
+            # His OWN words, not the normalised form. `_his_word` lowercases
+            # and strips punctuation for matching, which turns "he/him/his"
+            # into "he him his" — fine for comparing against options, wrong
+            # for typing into an employer's box. Anything a person will read
+            # comes out of the store as he wrote it.
+            row = stored.get("pronouns")
+            said = (row or {}).get("value") if isinstance(row, dict) else None
+            return str(said).strip() or None if said else None
         return None
     if category == "self_id_decline":
         # He has to have SAID he declines; silence is still silence.
