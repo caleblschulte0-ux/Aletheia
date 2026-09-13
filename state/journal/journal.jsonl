@@ -125,3 +125,4 @@
 {"ts": "2026-09-12T15:35:56Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:money_machine", "text": "health red -> unknown"}
 {"ts": "2026-09-12T20:38:02Z", "kind": "alert", "actor": "aletheia", "subject": "repo:money_machine", "text": "health unknown -> red"}
 {"ts": "2026-09-12T20:38:04Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue updated — Shorts-pipeline, Money_Machine"}
+{"ts": "2026-09-13T14:46:09Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-09-13"}
