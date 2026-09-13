@@ -121,6 +121,80 @@ def _asks_for_quota(text: str) -> bool:
     return False
 
 
+#: Hands-on shift work named in a TITLE. His "operations" came back on
+#: 2026-09-13 as "Forklift Operations Associate, Cherry Hill": the title
+#: matcher saw "operations" and a rung of the analyst ladder, and a model read
+#: "operations" in what he wants. Applied only when he HAS said what he wants
+#: and none of it names this kind of work - his words decide, this only reads.
+_HANDS_ON_TITLE = re.compile(
+    r"\b(forklift|warehouse|picker|packer|loader|material handler|driver|courier|"
+    r"cashier|barista|cook|dishwasher|janitor|custodian|housekeep\w*|mechanic|electrician|"
+    r"plumber|welder|stocker|crew member|security guard|caregiver|technician|"
+    r"fulfillment associate)\b", re.I)
+
+
+def hands_on_reason(title: str, known: dict | None = None) -> str:
+    """Why a title is shift work he never asked for, or ""."""
+    wanted, _unwanted = preferences(known)
+    hit = _HANDS_ON_TITLE.search(str(title or ""))
+    if not wanted.strip() or not hit:
+        return ""
+    if hit.group(1).casefold().split()[0] in wanted.casefold():
+        return ""
+    return ("it is hands-on shift work (warehouse, driving, trades), not the office "
+            "work he asked for")
+
+
+#: What KIND of employment a job is, when it is not plainly full-time. Never a
+#: reason to refuse one - he has not said - only a thing he must be able to see.
+_EMPLOYMENT_TITLE = re.compile(
+    r"\((part[- ]time|contract|temporary|temp|seasonal|internship|intern|per diem|"
+    r"fixed[- ]term|freelance)\)|\b(part[- ]time|seasonal|per diem|fixed[- ]term|"
+    r"internship|intern)\b|[-–—,|]\s*(contract|temporary|temp|freelance)\b|"
+    r"\b(contract|temporary)\s+(?:role|position|to hire)\b", re.I)
+_EMPLOYMENT_TEXT = re.compile(
+    r"(?:employment|job|position|schedule|work)\s+type\s*[:\-]?\s*(part[- ]time|contract|"
+    r"temporary|seasonal|internship|per diem)\b|\bthis is an? (part[- ]time|contract|"
+    r"temporary|seasonal|per diem)\b|\b(part[- ]time|temporary|seasonal)\s+"
+    r"(?:position|role|job|opportunity|schedule)\b", re.I)
+_EMPLOYMENT_NAMES = {"part time": "part-time", "part-time": "part-time",
+                     "temp": "temporary", "intern": "internship",
+                     "fixed term": "fixed-term"}
+
+
+def employment_type(title: str, text: str = "") -> str:
+    """'part-time', 'contract', 'temporary', 'seasonal', 'internship'... or ""."""
+    for pattern, source in ((_EMPLOYMENT_TITLE, title), (_EMPLOYMENT_TEXT, text)):
+        hit = pattern.search(str(source or ""))
+        if hit:
+            word = " ".join(next(g for g in hit.groups() if g).casefold().split())
+            return _EMPLOYMENT_NAMES.get(word, word)
+    return ""
+
+
+def preferences_changed_at() -> str:
+    """When he last said what work he wants or will not do ("" if never)."""
+    from aletheia import profile
+    held = profile.load()
+    stamps = [str(held[f].get("at") or "") for f in ("work_wanted", "work_not_wanted")
+              if isinstance(held.get(f), dict)]
+    return max(stamps) if stamps else ""
+
+
+def fit_is_current(fit) -> bool:
+    """A MODEL's yes, or anyone's no, given since he last said what work he wants.
+
+    A yes from the rules alone is not a judgment: live 2026-09-13 the campaign
+    stopped asking a model after its cap and every job after that was staged
+    as if one had said yes.
+    """
+    if not isinstance(fit, dict) or "realistic" not in fit:
+        return False
+    if fit.get("realistic") and fit.get("by") != "model":
+        return False
+    return str(fit.get("at") or "") >= preferences_changed_at()
+
+
 UNWANTED_KINDS = (
     ("sales",
      lambda title, text: bool(_SALES_TITLE.search(title)) and not _NOT_SELLING.search(title),
@@ -201,7 +275,7 @@ def hard_reason(title: str, text: str = "", *, resume_text: str = "",
     if known is None:
         from aletheia import profile
         known = profile.known()
-    unwanted = unwanted_reason(title, text, known)
+    unwanted = unwanted_reason(title, text, known) or hands_on_reason(title, known)
     if unwanted:
         return unwanted
     his = _his_words(resume_text, known)
@@ -231,6 +305,7 @@ What he has SAID about the work he wants is given as he_wants and he_will_not_do
 Not realistic ONLY when one of these is true:
 - The day-to-day work is something he said he will not do, whatever the job is called. Read the posting's duties, not only its title: a job whose work is selling, carrying a new-business quota, prospecting or cold calling is that, even when it is titled "manager" or "partnerships".
 - It is not the kind of work he said he wants, and not a close neighbour of it. When he has said nothing about what he wants, a different line of work from anything the resume shows is not realistic. Industry, segment and product never decide this.
+- It is hands-on shift work (warehouse, forklift, driving, retail floor, kitchen, a trade) and he has not named that kind of work. "Operations" means running a business's operations, not working a shift in one.
 - The posting REQUIRES something the resume does not show and he could not honestly claim: a professional license, a security clearance or military background, fluency in a language, a degree in a specific field, or years managing one named customer account, buyer or retailer.
 - It REQUIRES five or more years of experience when the resume shows about two or fewer of related work. Count his experience generously: every role on the resume that used the same skills (running operations, managing partners or accounts, coordinating work, analysis), and leading teams. Three or four years required is a stretch, and stretches are realistic.
 - The job is managing a team of people.
@@ -291,15 +366,20 @@ def verdict(job: dict, resume_text: str = "", known: dict | None = None, *,
         except Exception:
             text = ""
     text = text or str(job.get("description") or "")
+    from aletheia import stateio
+    # When, and what kind of employment: a decision is only as current as what
+    # he had said by then, and a part-time job is his to see before it goes.
+    stamp = {"at": stateio.utcnow(), "employment": employment_type(title, text)}
     why = hard_reason(title, text, resume_text=resume_text, known=known, early=early)
     if why:
-        return {"realistic": False, "why": why, "by": "rules"}
+        return {"realistic": False, "why": why, "by": "rules", **stamp}
     said = (judge(title, company, text, resume_text, think=think, known=known)
             if think is not False else None)
     if said and not said["realistic"]:
         return {"realistic": False, "why": said["why"] or "the posting does not fit his resume",
-                "by": "model"}
-    return {"realistic": True, "why": (said or {}).get("why", ""), "by": "model" if said else ""}
+                "by": "model", **stamp}
+    return {"realistic": True, "why": (said or {}).get("why", ""),
+            "by": "model" if said else "", **stamp}
 
 
 def quick_reason(record: dict, resume_text: str = "", known: dict | None = None) -> str:

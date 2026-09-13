@@ -293,6 +293,62 @@ def close(run_id: str, why: str, *, via: str = "aletheia") -> dict:
     return record
 
 
+#: A closure for being a DUPLICATE, told apart from one for being UNFIT by
+#: its reason. A duplicate never reopens; an unfit one may, when he has said
+#: what work he wants since.
+_DUPLICATE_REASON = re.compile(r"same job|already went|already (?:applied|waiting|sent)|duplicate",
+                               re.I)
+
+
+def closure_kind(record: dict) -> str:
+    """'duplicate' or 'unfit', for a CLOSED record."""
+    kind = str(record.get("closed_kind") or "")
+    if kind:
+        return kind
+    return ("duplicate" if _DUPLICATE_REASON.search(str(record.get("closed_because") or ""))
+            else "unfit")
+
+
+def closed_unfit(company: str, job_title: str, url: str = "") -> dict | None:
+    """A CLOSED-as-unfit application for this form or this role, if there is one.
+
+    `role_taken` deliberately does not count closed records: a closure says
+    nothing about a DIFFERENT job. This is the other question — was THIS job
+    already judged and closed — and it had no answer, so on 2026-09-13 two
+    jobs closed at 15:40Z were found again, rebuilt at the same url and sent
+    within the hour (Dutchie "Account Manager, SMB", impact.com "Creator
+    Solutions Account Manager"). Company compared case-insensitively.
+    """
+    here = str(url or "").strip()
+    want = (_role_key(company, job_title)
+            if str(company or "").strip() and str(job_title or "").strip() else "")
+    for record in all_runs(CLOSED):
+        if closure_kind(record) != "unfit":
+            continue
+        if here and str(record.get("url") or "").strip() == here:
+            return record
+        if want and _role_key(record.get("company", ""), record.get("job_title", "")) == want:
+            return record
+    return None
+
+
+def reopen(run_id: str, why: str) -> dict:
+    """Bring a closed application back, on purpose and with the reason kept."""
+    record = load_run(run_id)
+    if record.get("state") != CLOSED:
+        return record
+    reason = " ".join(str(why or "").split())[:300]
+    record.update({"state": "NEEDS_YOU", "reopened_at": stateio.utcnow(),
+                   "reopened_because": reason,
+                   "closed_before": record.get("closed_because", "")})
+    for key in ("closed_at", "closed_because", "closed_by", "closed_kind"):
+        record.pop(key, None)
+    stateio.write_json_atomic(_record_path(run_id), record)
+    journal.append("decision", "apply",
+                   f"reopened {run_id} ({describe(record)}): {reason}", actor=ACTOR)
+    return record
+
+
 def _close_quietly(run_id: str, why: str) -> None:
     try:
         close(run_id, why)
@@ -301,7 +357,8 @@ def _close_quietly(run_id: str, why: str) -> None:
 
 
 # What the record keeps about the JOB, beside what it keeps about the form.
-REMEMBERED = ("job_title", "company", "posting", "found_on", "answered_for_you", "fit")
+REMEMBERED = ("job_title", "company", "posting", "found_on", "answered_for_you", "fit",
+              "employment")
 # What an employer did about an application he sent, in his words. "No
 # answer yet" is not one: that is the absence of an outcome, not an outcome.
 OUTCOMES = ("replied", "interview", "offer", "rejected", "closed")
@@ -348,10 +405,17 @@ def describe(record: dict) -> str:
     title = " ".join(str(record.get("job_title") or "").split())
     company = " ".join(str(record.get("company") or "").split())
     if title and company and company.casefold() not in title.casefold():
-        return f"{title} at {company}"
-    return (title or company
-            or " ".join(str(record.get("page_title") or "").split())
-            or str(record.get("url") or record.get("id") or "an application"))
+        named = f"{title} at {company}"
+    else:
+        named = (title or company
+                 or " ".join(str(record.get("page_title") or "").split())
+                 or str(record.get("url") or record.get("id") or "an application"))
+    # A part-time, contract or temporary job says so wherever it is named.
+    from aletheia import job_fit
+    kind = str(record.get("employment") or "") or job_fit.employment_type(title)
+    if kind and kind.casefold() not in named.casefold():
+        named = f"{named} ({kind})"
+    return named
 
 
 def find(which: str) -> list[dict]:
@@ -514,6 +578,15 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
         before = load_run(run_id)
     except (OSError, ValueError, KeyError):
         before = {}
+    # A closed application is not rebuilt by filling its form again. `stage`
+    # keys a record by its url, so a batch that found a closed job again
+    # overwrote the closure with a fresh record and sent it (Dutchie and
+    # impact.com, 2026-09-13). Reopening is a decision: `reopen` makes it.
+    if before.get("state") == CLOSED:
+        raise ApplyError(
+            f"{run_id} was closed without applying "
+            f"({before.get('closed_because') or 'no reason kept'}) - it is reopened on "
+            "purpose or not at all")
     per_form = dict(before.get("answers_given") or {})
     # What the JOB is survives a re-stage too. Staging rebuilds the record
     # from the form, so answering a question threw away the job title, the
@@ -1288,11 +1361,7 @@ def _refill_and_submit(record: dict) -> dict:
         # wants is emailed AFTER this, and anything older belongs to an
         # earlier attempt.
         asked_at = time.time()
-        # Written down BEFORE the click, so a process killed mid-press is
-        # settled as "may have gone" rather than "nothing was sent".
-        record["pressed_at"] = stateio.utcnow()
-        stateio.write_json_atomic(_record_path(record["id"]), record)
-        page.click(button)
+        _press(page, record, button)
         page.wait_for_load_state("domcontentloaded")
         try:
             page.wait_for_timeout(1500)     # let a confirmation render
@@ -1360,7 +1429,53 @@ def _refill_and_submit(record: dict) -> dict:
     # difference, so this and the general web loop cannot drift on it.
     return {"url": landed, "title": title,
             "evidence": body[:600], "screenshot": str(shot),
-            **browse.read_outcome(body, did=record.get("button", "submit"))}
+            **browse.read_outcome(body, did=record.get("button", "submit"),
+                                  title=title, url=landed)}
+
+
+def _click_never_landed(exc: BaseException) -> str:
+    """Why a click raised WITHOUT ever reaching the page, or "" when it may have.
+
+    Playwright times a click out while it is still waiting for the element to
+    be visible, enabled and still - before any pointer event is sent - and says
+    so in its call log. A timeout after the click is a wait for navigation,
+    and names it.
+    """
+    text = str(exc or "")
+    if type(exc).__name__ != "TimeoutError" or "navigat" in text.casefold():
+        return ""
+    for said, meaning in (("not enabled", "the button was disabled"),
+                          ("intercepts pointer events", "something on the page covered it"),
+                          ("not visible", "the button was not visible"),
+                          ("not stable", "the button kept moving")):
+        if said in text:
+            return meaning
+    return "it never became clickable"
+
+
+def _press(page, record: dict, button: str) -> None:
+    """Press Submit, writing down that it was pressed - and taking that back
+    when the click provably never landed.
+
+    Written BEFORE the click, so a process killed mid-press is settled as "may
+    have gone" rather than "nothing was sent". But live 2026-09-13 Nitra and
+    Ro (both Lever) timed out waiting for `#btn-submit` to take a click, were
+    counted as sent - "Check your email" - and no confirmation ever came: the
+    button was never pressed, and the ledger now says both employers have his
+    application.
+    """
+    record["pressed_at"] = stateio.utcnow()
+    stateio.write_json_atomic(_record_path(record["id"]), record)
+    try:
+        page.click(button)
+    except Exception as exc:
+        why = _click_never_landed(exc)
+        if not why:
+            raise
+        record.pop("pressed_at", None)
+        stateio.write_json_atomic(_record_path(record["id"]), record)
+        raise ApplyError(f"the Submit button would not take a click - {why} - "
+                         "nothing was sent") from None
 
 
 def spoken(record: dict) -> str:

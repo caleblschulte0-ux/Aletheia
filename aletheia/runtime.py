@@ -627,6 +627,23 @@ def send_approved_applications() -> list[dict]:
         except Exception:
             approval = {}
         if approval.get("state") != "APPROVED":
+            # NOT A FULL-TIME JOB, NOT ON THE GRANT. He has not said whether he
+            # wants part-time, contract or temporary work, so it is not decided
+            # for him either way: live 2026-09-13 "People Coordinator & Office
+            # Operations Associate (part-time)" was one answer away from going
+            # out unseen. It waits for his own OK, and he is told why.
+            from aletheia import job_fit
+            kind = (str(record.get("employment") or "")
+                    or job_fit.employment_type(record.get("job_title") or ""))
+            if kind:
+                notifications.publish(
+                    f"A {kind} job is waiting for your OK",
+                    f"{apply_run.describe(record)} - it is {kind}, so it was not sent on "
+                    "the standing grant. Approve it if you want it."[:400],
+                    priority="IMPORTANT", source="apply",
+                    dedupe_key=f"apply-not-full-time:{record['id']}",
+                    related={"application": record["id"]})
+                continue
             # His standing grant. The action id names THIS application, so
             # the receipt says what the use was spent on — a probe with a
             # made-up id would spend a use and record a fiction.

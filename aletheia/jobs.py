@@ -458,7 +458,7 @@ def search(role: str, *, where: str = "", limit: int = 10,
 
 def search_many(roles: list[str], *, where: str = "", limit: int = 10,
                 fetcher=None, discover: bool = False, http=None,
-                country: str = "", exclude=(), namer=None) -> dict:
+                country: str = "", exclude=(), namer=None, companies=None) -> dict:
     """Openings for ANY of these roles, each scored by the role it fits best.
 
     `discover` adds openings on boards nobody configured: a web search for
@@ -466,6 +466,12 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
     configured list is where she starts, never where she stops - "it should
     be able to apply to any job" was his rule, and twenty-four tech
     companies are not any job.
+
+    `discover` also adds openings on employers' OWN careers sites
+    (`company_sites.openings`): his words, 2026-09-13, "not just looking on
+    these job sites but also company websites". `companies` replaces that
+    finder; on a search given its own `fetcher` (a test) nothing reaches the
+    network unless a finder is handed in.
     """
     term_sets = [terms for terms in (_terms(r) for r in roles or []) if terms]
     if not term_sets:
@@ -525,25 +531,56 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
                 if names[key] and not _cut(names[key]):
                     job["company"] = names[key]
         _learn_boards(web)
-    # Two from the boards, then one the web found, so both get tried.
+    own = []
+    finder = companies if companies is not None else (_company_openings if fetcher is None else None)
+    if discover and finder:
+        seen = {job["apply_url"] for job in board[:cap]} | {job["apply_url"] for job in web}
+        try:
+            for job in finder(roles, limit=cap, country=country, exclude=exclude) or []:
+                if job.get("apply_url") and job["apply_url"] not in seen:
+                    seen.add(job["apply_url"])
+                    own.append(job)
+        except Exception:
+            own = []            # a source that will not answer costs this source
+    # The web and the employers' own sites take turns in the third slot, so
+    # neither crowds out the other and neither crowds out the boards.
+    beyond, i = [], 0
+    while i < max(len(web), len(own)):
+        beyond += [row[i] for row in (web, own) if i < len(row)]
+        i += 1
+    # Two from the boards, then one found beyond them, so both get tried.
     matches, b, w = [], 0, 0
-    while len(matches) < cap and (b < len(board) or w < len(web)):
-        if w < len(web) and (len(matches) % 3 == 2 or b >= len(board)):
-            matches.append(web[w])
+    while len(matches) < cap and (b < len(board) or w < len(beyond)):
+        if w < len(beyond) and (len(matches) % 3 == 2 or b >= len(board)):
+            matches.append(beyond[w])
             w += 1
         else:
             matches.append(board[b])
             b += 1
     discovered = [job for job in matches if job.get("found_by") == "web search"]
+    on_their_sites = [job for job in matches if job.get("found_by") == "company site"]
     journal.append("action", "jobs",
                    f"searched {speech.count_phrase(searched, 'board')} for "
                    f"{', '.join(roles)!r}: {speech.count_phrase(len(found), 'match')}, "
                    f"{len(discovered)} more by web search, "
+                   f"{len(on_their_sites)} on employers' own sites, "
                    f"{speech.count_phrase(len(failures), 'board')} failed",
                    actor=ACTOR)
     return {"role": ", ".join(roles), "roles": list(roles), "where": where,
             "matches": matches, "searched": searched, "matched": len(found),
-            "discovered": len(discovered), "failed": failures}
+            "discovered": len(discovered), "company_sites": len(on_their_sites),
+            "failed": failures}
+
+
+def _company_openings(roles: list[str], *, limit: int, country: str = "", exclude=()) -> list[dict]:
+    """Employers' own careers sites, for the kind of work he said he wants."""
+    from aletheia import company_sites, profile
+    try:
+        wanted = str(profile.known().get("work_wanted") or "")
+    except Exception:
+        wanted = ""
+    return company_sites.openings(roles, limit=limit, country=country, exclude=exclude,
+                                  wanted=wanted, early=bool(exclude))
 
 
 MAX_ROLES_PER_SEARCH = 5
