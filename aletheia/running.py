@@ -34,6 +34,7 @@ import argparse
 import json
 import subprocess
 import sys
+from aletheia import proc
 
 # Each part, as (key, what it is, how to recognise its process).
 PARTS = (
@@ -56,7 +57,7 @@ def _powershell(script: str) -> str:
     """Never raises: a status command that dies is a status command that
     lies about the thing it could not see."""
     try:
-        done = subprocess.run(
+        done = proc.run(
             ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
             capture_output=True, text=True, timeout=25)
         return done.stdout or ""
@@ -149,7 +150,7 @@ def tasks() -> dict[str, str]:
     found = {}
     for name in TASKS:
         try:
-            done = subprocess.run(
+            done = proc.run(
                 ["schtasks.exe", "/query", "/TN", name, "/FO", "CSV", "/NH"],
                 capture_output=True, text=True, timeout=20)
         except Exception:
@@ -255,7 +256,7 @@ def version() -> dict:
 
     def git(*args):
         try:
-            done = subprocess.run(["git", *args], capture_output=True,
+            done = proc.run(["git", *args], capture_output=True,
                                   text=True, cwd=str(REPO_ROOT), timeout=15)
             return done.stdout.strip() if done.returncode == 0 else ""
         except Exception:

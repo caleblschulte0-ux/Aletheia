@@ -42,7 +42,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from aletheia import journal, policy
+from aletheia import journal, policy, proc
 from aletheia.fleet import REPO_ROOT
 
 PROFILE_DIR = REPO_ROOT / "cache" / "browser-profile"
@@ -353,7 +353,7 @@ class _ProfileLock:
         try:
             if os.name == "nt":
                 import subprocess
-                out = subprocess.run(
+                out = proc.run(
                     ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
                     capture_output=True, text=True, timeout=10).stdout
                 # tasklist prints "INFO: No tasks are running..." when absent,

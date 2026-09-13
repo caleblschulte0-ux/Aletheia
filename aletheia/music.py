@@ -31,7 +31,7 @@ import subprocess
 import sys
 import time
 
-from aletheia import journal
+from aletheia import journal, proc
 
 ACTOR = "music"
 
@@ -61,7 +61,7 @@ class MusicUnavailable(RuntimeError):
 def player_running() -> bool:
     """Is a Spotify process alive? Never raises."""
     try:
-        out = subprocess.run(
+        out = proc.run(
             ["powershell", "-NoProfile", "-Command",
              f"(Get-Process -Name {SPOTIFY_PROCESS} "
              "-ErrorAction SilentlyContinue | Measure-Object).Count"],
