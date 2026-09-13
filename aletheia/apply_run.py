@@ -71,8 +71,14 @@ def staged_dir():
 
 
 def sent_path():
-    """Every url an application has actually gone to. Never rewritten by a re-stage."""
-    return stateio.private_dir("applications") / "already-sent.json"
+    """Every url an application has actually gone to. Never rewritten by a re-stage.
+
+    In its OWN directory, not beside the records: `all_runs()` reads every
+    *.json in the applications directory as an application, so the ledger
+    living there made every listing raise KeyError('state') — including the
+    one she answers "what have I applied to?" from.
+    """
+    return stateio.private_dir("applications-sent") / "already-sent.json"
 
 
 def already_sent() -> dict:
