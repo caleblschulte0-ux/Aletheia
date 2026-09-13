@@ -114,6 +114,48 @@ def was_sent(url: str) -> dict | None:
     return already_sent().get(str(url or "").strip()) or None
 
 
+def _role_key(company: str, job_title: str) -> str:
+    """One company and one role title, reduced to a comparable string.
+
+    The stored title carries the employer on the end ("Business Development
+    Representative — Databricks"), so that comes off before anything is
+    compared, and everything that is not a letter or a digit goes with it.
+    """
+    company = " ".join(str(company or "").split())
+    title = " ".join(str(job_title or "").split())
+    if company:
+        title = re.sub(r"\s*[—–\-|]\s*" + re.escape(company) + r"\s*$", "",
+                       title, flags=re.I)
+    title = re.sub(r"[^a-z0-9]+", " ", title.casefold()).strip()
+    return f"{company.casefold()}|{title}"
+
+
+def was_applied_to_role(company: str, job_title: str) -> dict | None:
+    """The same job at the same employer, under a DIFFERENT url.
+
+    `was_sent` keys on the application url, which is exactly right and was
+    not enough. Live 2026-09-13 two applications went to Databricks for
+    "Business Development Representative" — gh_jid 8423165002 and
+    8423167002, adjacent ids, one role posted to two locations. Two
+    different urls, so the ledger held two honest entries and the guard had
+    nothing to object to. An employer opening both sees one person applying
+    twice for one job.
+
+    Deliberately narrow: the SAME employer and the SAME title, after
+    normalising. Databricks BDR and Databricks "Frontier AI Lab Account
+    Executive" are two real jobs and both should go. So are Stripe's two
+    and GitLab's two, which is why this compares titles rather than
+    counting applications per company.
+    """
+    if not str(company or "").strip() or not str(job_title or "").strip():
+        return None                      # nothing to compare is not a match
+    want = _role_key(company, job_title)
+    for entry in already_sent().values():
+        if _role_key(entry.get("company", ""), entry.get("job_title", "")) == want:
+            return entry
+    return None
+
+
 def remember_sent(record: dict) -> None:
     """Write the url down the moment it really goes, and never forget it."""
     url = str(record.get("url") or "").strip()
@@ -601,6 +643,20 @@ def submit(run_id: str, *, submitter=None) -> dict:
         raise ApplyError(
             f"{run_id}: an application already went to {record.get('url')} at "
             f"{gone.get('at')} — not sending a second copy")
+    # And the same JOB under a different url. Live 2026-09-13: two
+    # applications reached Databricks for "Business Development
+    # Representative" — gh_jid 8423165002 and 8423167002, one role posted
+    # to two locations. Both urls were new, so the ledger had no objection
+    # and the employer saw one person apply twice for one job. His
+    # instruction the same evening: "make sure that we are really focusing
+    # on not doing any duplicates".
+    same = was_applied_to_role(record.get("company", ""),
+                               record.get("job_title", ""))
+    if same and same.get("id") != record.get("id"):
+        raise ApplyError(
+            f"{run_id}: {record.get('job_title') or 'that job'} at "
+            f"{record.get('company')} was already applied for at "
+            f"{same.get('at')} — the same job under a different link")
     if record["state"] != "APPROVED":
         raise ApplyError(f"{run_id} is {record['state']}; it needs your "
                          "confirmation before anything is sent")
