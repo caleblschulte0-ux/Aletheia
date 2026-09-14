@@ -192,6 +192,15 @@ class SheLearnsABoardWhereverSheMeetsOne(LearningCase):
                              http=lambda q: {"links": []}, companies=lambda roles, **kw: own)
         self.assertEqual(self.learned(), [("ashby", "acme", "Acme", "company site")])
 
+    def test_a_job_the_ai_web_search_found_on_ashby_teaches_her_the_board(self):
+        found = [{"title": "Account Manager", "company": "Beta", "location": "",
+                  "apply_url": ASHBY_FORM.replace("/acme/", "/beta/"), "found_by": "ai web search"}]
+        with mock.patch.object(jobs, "boards", return_value=[{"provider": "greenhouse", "token": "t"}]):
+            jobs.search_many(["Account Manager"], fetcher=lambda b: [], limit=5, discover=True,
+                             http=lambda q: {"links": []}, companies=lambda roles, **kw: [],
+                             websearch=lambda roles, **kw: found)
+        self.assertEqual(self.learned(), [("ashby", "beta", "Beta", "ai web search")])
+
     def test_a_careers_page_host_is_not_a_board(self):
         self.assertEqual(jobs._learn_boards([{"provider": "company site", "board": "careers.acme.com"}]), 0)
 
