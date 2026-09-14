@@ -19,9 +19,11 @@ subscriptions he already pays for, run through their official clients:
                 (`--search` exists only on the interactive TUI; exec takes the
                 same switch as the `web_search` config key)
 
-No API key anywhere. Claude is skipped while his window is spent
-(`reasoner.resting_until`); Codex is skipped while its login is expired, and
-that is remembered for hours rather than learned again on every call.
+No API key anywhere: Codex's environment has every API-key variable taken
+out (`reasoner._codex_env`). Claude is skipped while his window is spent
+(`reasoner.resting_until`); Codex is skipped while `reasoner.codex_available`
+says no - an expired sign-in or a spent window is remembered there, shared
+with the rest of the job hunt, and he is told ONCE to run `codex login`.
 
 WHAT A MODEL SAYS IS A LEAD, NEVER A FACT. A search model will happily return
 a URL it half-remembers, a listing page, a job that closed in March, or the
@@ -38,15 +40,12 @@ the next batch asks a different question instead of paying for the same one.
 from __future__ import annotations
 
 import datetime as dt
-import glob
 import hashlib
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
-import tempfile
 import time
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
@@ -72,8 +71,6 @@ BATCH_WALL_S = 900.0
 #: The search tool does the finding; the model only reads what it found and
 #: copies addresses out, so the lightest model spends the least of his window.
 SEARCH_MODEL = "haiku"
-CODEX_LOGIN_REST = dt.timedelta(hours=6)
-CODEX_FAILURE_REST = dt.timedelta(minutes=30)
 
 #: Where each search looks. Kinds of place, never employers: the cursor walks
 #: this list so consecutive batches do not ask the same question.
@@ -198,41 +195,23 @@ def claude_argv(cli: str, system: str = SYSTEM, model: str = SEARCH_MODEL) -> li
             "--strict-mcp-config"]
 
 
-def codex_path() -> str | None:
-    """The newest Codex CLI the desktop app installed, else one on PATH."""
-    root = os.environ.get("LOCALAPPDATA", "")
-    found = []
-    if root:
-        for path in glob.glob(os.path.join(root, "OpenAI", "Codex", "bin", "*", "codex.exe")):
-            try:
-                found.append((os.path.getmtime(path), path))
-            except OSError:
-                continue
-    if found:
-        return max(found)[1]
-    return shutil.which("codex")
-
-
 def codex_argv(exe: str, workdir: str, answer_file: str) -> list[str]:
     """Codex with live web search, read-only, leaving nothing behind.
 
-    The prompt goes on stdin (`-`); only the last message is read back.
+    The same bounds as `reasoner.codex_json`, plus the one switch that turns
+    search on. The prompt goes on stdin (`-`); only the last message is read.
     """
     return [exe, "exec",
             "--sandbox", "read-only",
             "--ephemeral",
             "--ignore-user-config",
+            "--ignore-rules",
             "--skip-git-repo-check",
             "-c", 'web_search="live"',
             "--color", "never",
             "-C", workdir,
             "--output-last-message", answer_file,
             "-"]
-
-
-_CODEX_LOGGED_OUT = re.compile(
-    r"\b401\b|unauthori[sz]ed|refresh[ _-]?token|(?:log|sign)[ -]?in again|not logged in|"
-    r"(?:login|session|token)\s+(?:has\s+)?expired", re.I)
 
 
 def _claude_ready() -> tuple[bool, str]:
@@ -287,60 +266,42 @@ def _claude_search(system: str, prompt: str, timeout_s: float = SEARCH_TIMEOUT_S
     return result
 
 
-def _codex_resting(now: dt.datetime | None = None) -> tuple[dt.datetime | None, str]:
-    state = _read(_state_path())
-    until = _parse(state.get("codex_out_until"))
-    if until and until > _utc(now):
-        return until, str(state.get("codex_why") or "")
-    return None, ""
-
-
-def _codex_rest(for_how_long: dt.timedelta, why: str) -> None:
-    state = _read(_state_path())
-    state["codex_out_until"] = _stamp(_utc() + for_how_long)
-    state["codex_why"] = why
-    _write(_state_path(), state)
-
-
 def _codex_ready() -> tuple[bool, str]:
-    until, why = _codex_resting()
-    if until is not None:
-        return False, why or "Codex is resting"
-    if not codex_path():
-        return False, "the Codex CLI is not installed"
-    return True, ""
+    """`reasoner.codex_available`: installed, not resting, signed in. Spends no request."""
+    from aletheia import reasoner
+    return reasoner.codex_available()
 
 
 def _codex_search(system: str, prompt: str, timeout_s: float = SEARCH_TIMEOUT_S) -> str:
-    exe = codex_path()
+    from aletheia import reasoner
+    exe = reasoner.codex_path()
     if not exe:
-        raise SearchUnavailable("the Codex CLI is not installed")
-    workdir = tempfile.mkdtemp(prefix="aletheia-search-")
-    answer_file = os.path.join(workdir, "answer.txt")
+        raise SearchUnavailable("Codex is not installed on this PC")
+    root = reasoner._workdir()          # the empty directory it may see
+    papers = reasoner._workdir()        # its answer, outside that root
+    answer_file = os.path.join(papers, "last-message.txt")
     try:
         try:
-            done = proc.run_tree(codex_argv(exe, workdir, answer_file), timeout_s, cwd=workdir,
-                                 input=f"{system}\n\n{prompt}")
+            done = proc.run_tree(codex_argv(exe, root, answer_file), timeout_s, cwd=root,
+                                 input=f"{system}\n\n{prompt}", env=reasoner._codex_env(),
+                                 creationflags=proc.hidden_flags())
         except subprocess.TimeoutExpired:
-            _codex_rest(CODEX_FAILURE_REST, "Codex's last search ran out of time")
             raise SearchUnavailable(f"Codex's search took longer than {timeout_s:g} seconds") from None
         except OSError as exc:
             raise SearchUnavailable(f"could not run the Codex CLI ({type(exc).__name__})") from None
         try:
             with open(answer_file, encoding="utf-8", errors="replace") as handle:
-                answer = handle.read()
+                answer = handle.read(reasoner.MAX_OUTPUT_BYTES)
         except OSError:
             answer = ""
     finally:
-        shutil.rmtree(workdir, ignore_errors=True)
-    said = f"{done.stdout or ''}\n{done.stderr or ''}"
+        reasoner._discard_workdir(root)
+        reasoner._discard_workdir(papers)
     if done.returncode != 0 or not answer.strip():
-        if _CODEX_LOGGED_OUT.search(said):
-            why = "his ChatGPT login for Codex has expired; `codex login` fixes it"
-            _codex_rest(CODEX_LOGIN_REST, why)
-            raise SearchUnavailable(why)
-        _codex_rest(CODEX_FAILURE_REST, f"Codex's last search stopped (exit code {done.returncode})")
-        raise SearchUnavailable(f"Codex's search stopped with exit code {done.returncode}")
+        # An expired sign-in or a spent window is remembered by the reasoner,
+        # shared with the job hunt's other Codex asks, and he is told once.
+        raise SearchUnavailable(str(reasoner._codex_failure(f"{done.stdout or ''}\n{done.stderr or ''}")))
+    reasoner._codex_recovered()
     return answer
 
 

@@ -30,6 +30,7 @@ class Isolated(unittest.TestCase):
                 (wsj, "_state_path", lambda: self.dir / "web_search.json"),
                 (wsj, "_cache_path", lambda: self.dir / "web_search_cache.json"),
                 (reasoner, "_rest_path", lambda: self.dir / "claude-rest.json"),
+                (reasoner, "_codex_rest_path", lambda: self.dir / "codex-rest.json"),
                 (journal, "JOURNAL_PATH", self.dir / "journal.jsonl"),
                 (jobs, "_learned_path", lambda: self.dir / "learned.json")):
             patch = mock.patch.object(target, name, value)
@@ -112,35 +113,53 @@ class CodexIsReadOnly(Isolated):
         self.assertEqual(argv[1], "exec")
         self.assertEqual(argv[argv.index("--sandbox") + 1], "read-only")
         self.assertEqual(argv[argv.index("-c") + 1], 'web_search="live"')
-        for flag in ("--ephemeral", "--ignore-user-config", "--skip-git-repo-check",
-                     "--output-last-message"):
+        for flag in ("--ephemeral", "--ignore-user-config", "--ignore-rules",
+                     "--skip-git-repo-check", "--output-last-message"):
             self.assertIn(flag, argv)
         self.assertEqual(argv[-1], "-")            # the prompt is read from stdin
         joined = " ".join(argv)
         self.assertNotIn("dangerously", joined)
         self.assertNotIn("workspace-write", joined)
 
+    def test_it_runs_windowless_with_no_api_key_and_the_prompt_on_stdin(self):
+        seen = {}
+
+        def run_tree(cmd, timeout_s, **kw):
+            seen.update(cmd=cmd, **kw)
+            Path(cmd[cmd.index("--output-last-message") + 1]).write_text(answer(), encoding="utf-8")
+            return done()
+        with mock.patch.dict("os.environ", {"OPENAI_API_KEY": "sk-never"}), \
+             mock.patch.object(reasoner, "codex_path", return_value="codex.exe"), \
+             mock.patch.object(proc, "run_tree", side_effect=run_tree):
+            self.assertIn("postings", wsj._codex_search("the system", "the prompt"))
+        self.assertNotIn("OPENAI_API_KEY", seen["env"])
+        self.assertIn("the prompt", seen["input"])
+        self.assertNotIn("the prompt", " ".join(seen["cmd"]))
+        self.assertEqual(seen["creationflags"] & proc.NO_WINDOW, proc.NO_WINDOW)
+
     def test_an_expired_login_is_remembered_and_codex_is_not_asked_again(self):
         calls = []
 
         def run_tree(cmd, timeout_s, **kw):
             calls.append(cmd)
-            return done("", "ERROR: unexpected status 401 Unauthorized: refresh token expired", 1)
-        with mock.patch.object(wsj, "codex_path", return_value="codex.exe"), \
+            return done("", "ERROR: unexpected status 401 Unauthorized: refresh token has expired", 1)
+        with mock.patch.object(reasoner, "codex_path", return_value="codex.exe"), \
+             mock.patch.object(reasoner, "_codex_signed_in", return_value=(True, "signed in")), \
+             mock.patch("aletheia.notifications.publish"), \
              mock.patch.object(proc, "run_tree", side_effect=run_tree):
+            self.assertTrue(wsj._codex_ready()[0])
             with self.assertRaises(wsj.SearchUnavailable) as caught:
                 wsj._codex_search("s", "p")
-            self.assertIn("login", str(caught.exception))
+            self.assertIn("codex login", str(caught.exception))
             ok, why = wsj._codex_ready()
             self.assertFalse(ok)
-            self.assertIn("codex login", why)
             with mock.patch.object(wsj, "_claude_ready", return_value=(False, "resting")):
                 with self.assertRaises(wsj.SearchUnavailable):
                     wsj._ask("s", "p", [])
         self.assertEqual(len(calls), 1)
 
     def test_it_is_skipped_when_it_is_not_installed(self):
-        with mock.patch.object(wsj, "codex_path", return_value=None):
+        with mock.patch.object(reasoner, "codex_path", return_value=None):
             self.assertFalse(wsj._codex_ready()[0])
 
 
