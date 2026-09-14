@@ -35,7 +35,9 @@ class NothingToFill(apply_base.ApplyCase):
         with self.assertRaises(apply_run.ApplyError) as caught:
             apply_run.stage(url, reader=lambda _u: [],
                             filler=lambda *a, **k: self.fail("a page with no form was filled"))
-        self.assertIn("no application form", str(caught.exception))
+        # Two checks can say it ("no application form on this page", "not an
+        # application form"); the rule is that it is refused as not a form.
+        self.assertIn("application form", str(caught.exception))
         records = [r for r in apply_run.all_runs() if r.get("url") == url]
         self.assertEqual([r["state"] for r in records], ["FAILED"])
         self.assertFalse(any(str(a.get("id", "")).startswith(records[0]["id"])

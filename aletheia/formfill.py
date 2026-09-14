@@ -1920,6 +1920,8 @@ def read_all(page) -> list[dict]:
             except Exception:
                 continue
             for row in got or []:
+                if not isinstance(row, dict) or not row.get("selector"):
+                    continue                 # not a field this reader describes
                 row = dict(row)
                 row["selector"] = tag(index, row["selector"])
                 if row.get("wraps"):

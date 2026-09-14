@@ -1150,14 +1150,15 @@ def clear_consent(page) -> str:
         found = page.evaluate(formfill.CONSENT_JS) or {}
     except Exception:
         return ""
-    if not found.get("kind"):
+    if not isinstance(found, dict) or not found.get("kind"):
         return ""
     target = '[data-aletheia-consent="1"]'
     try:
         page.click(target, timeout=5000)
     except Exception:
         try:
-            page.evaluate("(s) => { const b = document.querySelector(s); if (b) b.click(); }", target)
+            page.evaluate("(sel) => { const b = document.querySelector(sel); if (b) b.click(); }",
+                          target)
         except Exception:
             return ""
     wait = getattr(page, "wait_for_timeout", None)

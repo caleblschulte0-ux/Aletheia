@@ -200,6 +200,11 @@ NAVAN_EMPLOYED = {"selector": "#question_navan", "label": (
     "Have you ever been employed by, applied to, or are you currently employed by Navan or any "
     "of its affiliated or group companies (Reed & Mackay)?*"), "name": "", "id": "", "tag": "input",
     "type": "text", "required": True, "value": "", "choices": ["Yes", "No"]}
+# The name and email every real Greenhouse application carries. Without them a
+# page is not an application form at all (a bot check or contact page).
+NAVAN_IDENTITY = [{"selector": f"#{key}", "label": label, "name": key, "id": key, "tag": "input",
+                   "type": "text", "required": False, "value": ""}
+                  for key, label in (("first_name", "First Name"), ("email", "Email"))]
 
 
 class TheOneRequiredQuestionIsShownCase(unittest.TestCase):
@@ -220,7 +225,7 @@ class TheOneRequiredQuestionIsShownCase(unittest.TestCase):
             p = mock.patch.object(target, attr, value); p.start(); self.addCleanup(p.stop)
 
     def test_navan_lists_the_required_question_first_and_it_is_answered(self):
-        form = NAV_JUNK + [NAVAN_EMPLOYED]
+        form = NAV_JUNK + NAVAN_IDENTITY + [NAVAN_EMPLOYED]
         record = apply_run.stage("https://navan.com/careers/openings?gh_jid=8160538",
                                  reader=lambda url: list(form))
         self.assertEqual(record["state"], "NEEDS_YOU")
