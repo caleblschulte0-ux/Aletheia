@@ -113,6 +113,35 @@ _QUOTA = re.compile(
 _NO_QUOTA = re.compile(r"\b(?:no|not|non|without|never)\b[\s-]*(?:\w+[\s-]+){0,2}$", re.I)
 
 
+#: A job whose work is CLOSING sales deals is a quota job whether or not the
+#: posting says "quota". Live 2026-09-14 Acceleration Partners' "Account
+#: Executive" was staged: "an operational, full-cycle closing role ... taking
+#: deals under $250K in annual contract value from first conversation through
+#: signed contract yourself", and its form asked "What is the largest annual
+#: contract value (ACV) deal you have personally closed end-to-end". No
+#: prospecting, so the cold-calling rule passed it, and no "quota", so this one
+#: did. One strong sign decides; the weaker ones need company.
+_CLOSING_STRONG = re.compile(
+    r"full[- ]cycle (?:sales|closing|closer|deal)|\bclosing role\b|"
+    r"\b(?:personally|you(?:'ve| have)|have you) closed\b|\bclosed[- ]end[- ]to[- ]end\b|"
+    r"\bclos(?:e|ing) (?:new )?(?:business|deals) (?:yourself|end[- ]to[- ]end)\b|"
+    r"\bown(?:ing)? the (?:full |entire )?sales cycle\b", re.I)
+_CLOSING_WEAK = (
+    re.compile(r"\bannual contract value\b|\bACV\b"),
+    re.compile(r"\bclos(?:e|es|ing)\b[^.;\n]{0,25}\b(?:deals?|new business|contracts)\b", re.I),
+    re.compile(r"\b(?:run|running|manage|managing)\b[^.;\n]{0,15}\bsales (?:process|cycle)\b", re.I),
+    re.compile(r"\bsigned contract\b|\bclosed[- ]won\b|\bbookings\b", re.I),
+)
+
+
+def closes_deals(text: str) -> bool:
+    """Whether the work is closing sales deals - chasing the number by another name."""
+    text = str(text or "")
+    if _CLOSING_STRONG.search(text):
+        return True
+    return sum(1 for pattern in _CLOSING_WEAK if pattern.search(text)) >= 2
+
+
 def _asks_for_quota(text: str) -> bool:
     text = str(text or "")
     for found in _QUOTA.finditer(text):
@@ -219,6 +248,9 @@ UNWANTED_KINDS = (
     ("quota",
      lambda title, text: _asks_for_quota(text),
      "the job is built around hitting a quota, which he will not chase"),
+    ("quota",
+     lambda title, text: closes_deals(text),
+     "the job is built around closing sales deals, which is chasing a quota"),
 )
 
 
@@ -434,6 +466,19 @@ def quick_reason(record: dict, resume_text: str = "", known: dict | None = None)
     if fit and fit.get("realistic") is False:
         return fit.get("why") or "the posting does not fit his resume"
     title = bare_title(record.get("job_title") or "", record.get("company") or "")
+    # The form's own questions say what the job is, too: "the largest ACV deal
+    # you have personally closed" is a closing job's question. Only the kinds
+    # of work he refused are read from them - a question that MENTIONS a
+    # clearance is not a clearance the job requires.
+    asked = " ".join(str(q.get("label") or "") for q in (record.get("questions") or [])
+                     if isinstance(q, dict))
+    if asked:
+        if known is None:
+            from aletheia import profile
+            known = profile.known()
+        refused = unwanted_reason(title, asked, known)
+        if refused:
+            return refused
     return hard_reason(title, "", resume_text=resume_text, known=known)
 
 

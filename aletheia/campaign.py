@@ -607,8 +607,62 @@ def _yes(value) -> bool:
     return str(value or "").strip().casefold() in ("yes", "y", "true", "1")
 
 
+#: "Do you accept the listed salary range for this position?" (Samsara).
+_ACCEPTS_PAY_RANGE = re.compile(
+    r"\b(?:accept|comfortable with|agree (?:to|with)|okay with|ok with|aligns? with|work for you)\b"
+    r"[^?]{0,60}\b(?:salary|pay|compensation|wage)\s+(?:range|band)s?\b"
+    r"|\b(?:salary|pay|compensation)\s+(?:range|band)\b[^?]{0,60}\b(?:acceptable|work for you|align)",
+    re.I)
+_PAY_RANGE = re.compile(
+    r"\$\s?(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)\s*([kK])?\s*(?:USD\s*)?(?:-|–|—|to)\s*"
+    r"\$?\s?(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)\s*([kK])?")
+
+
+def listed_pay_ranges(text: str) -> list[tuple[float, float]]:
+    """The annual pay ranges a posting lists: "$106,802.50 – $161,550 USD".
+
+    Greenhouse escapes its postings twice, so Samsara's text still reads
+    "$106,802.50 &mdash; $161,550" after `jobs.posting_text`."""
+    import html
+    out = []
+    for low, low_k, high, high_k in _PAY_RANGE.findall(html.unescape(str(text or ""))):
+        a = float(low.replace(",", "")) * (1000 if low_k else 1)
+        b = float(high.replace(",", "")) * (1000 if high_k else 1)
+        if 10_000 <= a <= b:        # an hourly rate or a signing bonus is not a salary
+            out.append((a, b))
+    return out
+
+
+def pay_range_answer(record: dict, known: dict, *, describe=None) -> str:
+    """"Yes" or "No" to "do you accept the listed range", from HIS minimum, or "".
+
+    His pay is on file in his own words ("$100,000 minimum for a nationwide or
+    remote role; $95,000 minimum ... Sioux Falls"), and the posting lists its
+    range. Yes when every listed range reaches every minimum he gave; No only
+    when every range tops out below all of them; anything between, or no range
+    to read, stays his.
+    """
+    minimums = [a for a in formfill._amounts(known.get("desired_pay")) if a >= 1000]
+    if not minimums:
+        return ""
+    try:
+        text = (describe or jobs.posting_text)(
+            {k: record.get(k, "") for k in ("url", "posting")})
+    except Exception:
+        text = ""
+    ranges = listed_pay_ranges(text)
+    if not ranges:
+        return ""
+    tops = [high for _low, high in ranges]
+    if min(tops) >= max(minimums):
+        return "Yes"
+    if max(tops) < min(minimums):
+        return "No"
+    return ""
+
+
 def _obvious(label: str, choices: list[str], known: dict, resume: str, record: dict,
-             sent: dict) -> str | None:
+             sent: dict, describe=None) -> str | None:
     """The answer to one question when his facts settle it with no model, or None."""
     def pick(value):
         return formfill._best_option(value, choices, known) if choices else value
@@ -664,6 +718,11 @@ def _obvious(label: str, choices: list[str], known: dict, resume: str, record: d
         home = formfill._best_option(known.get("city"), choices, known) if known.get("city") else None
         if home:
             return home
+    if choices and _ACCEPTS_PAY_RANGE.search(low):
+        said = pay_range_answer(record, known, describe=describe)
+        chosen = pick(said) if said else None
+        if chosen:
+            return chosen
     # "Please tell us how you heard about this opportunity." She found it, so
     # she knows: Palantir's list says "Palantir Website" for its own careers
     # page. Left to a model shown no options, it came back "Palantir's careers
@@ -677,7 +736,7 @@ def _obvious(label: str, choices: list[str], known: dict, resume: str, record: d
 
 
 def obvious_answers(record: dict, resume_text: str = "", *, known: dict | None = None,
-                    sent: dict | None = None) -> dict:
+                    sent: dict | None = None, describe=None) -> dict:
     """The form's questions his facts settle with no model at all, by selector.
 
     His words, 2026-09-13: "it should be able to answer some of these without
@@ -708,7 +767,8 @@ def obvious_answers(record: dict, resume_text: str = "", *, known: dict | None =
     for selector, question in questions.items():
         label = formfill._clean_label(question.get("label"))
         choices = [str(c) for c in (question.get("choices") or []) if str(c).strip()]
-        answer = _obvious(label, choices, known, str(resume_text or ""), record, sent)
+        answer = _obvious(label, choices, known, str(resume_text or ""), record, sent,
+                          describe=describe)
         if answer not in (None, ""):
             rows.append({"selector": selector, "answer": answer})
     return _answers_validator(questions)({"answers": rows})["answers"]
@@ -1028,6 +1088,16 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
             failed.append({"url": form_url, "why": f"{type(exc).__name__}: {exc}"[:160]})
             continue
         record = _keep_the_job(record, page, fit=fit, employment=fit.get("employment", ""))
+        # The form's own questions can say what the posting did not: "the
+        # largest ACV deal you have personally closed" is a closing job.
+        unfit = job_fit.quick_reason(record) if record.get("state") == "NEEDS_YOU" else ""
+        if unfit:
+            try:
+                apply_run.close(record["id"], f"not realistic: {unfit}")
+            except Exception:
+                pass
+            passed_over.append({"url": page["url"], "title": title, "why": unfit})
+            continue
         if record["state"] == "NEEDS_YOU":
             # What his facts settle is answered from them; long answers are
             # written from his resume. Both show up in the confirmation.
@@ -1065,7 +1135,8 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
 
 ESSAY_BRIEF = (
     "Answer this question on a job application, in the applicant's own "
-    "voice, using ONLY what his resume below actually says. Two to four "
+    "voice, using ONLY what his resume below actually says and HIS FACTS "
+    "below. Two to four "
     "sentences, concrete, no filler, no 'I am passionate about'. Name real "
     "things he built.\n"
     # 2026-09-12, his ruling on the "why do you want to join X" questions:
@@ -1094,10 +1165,43 @@ ESSAY_BRIEF = (
     "closest real thing he did. NEVER write that he has no experience, zero "
     "years, or has not done something. Never claim a language, a "
     "certification or a named tool his resume does not show.\n"
-    "For anything else his resume does not support, reply with exactly "
-    "CANNOT WRITE and nothing else — a made-up answer on a job "
-    "application is worse than a blank one.\n\nTHE JOB: {job}\n\n"
+    # 2026-09-14: "Please describe your academic or research background in the
+    # sciences", "your experience working with frontend or developer teams" and
+    # "prior experience supporting Renaissance DnA" all came back CANNOT WRITE
+    # and waited on him - for an answer he cannot give either, since he does not
+    # have that background. His ruling is that AI writes these. So the honest
+    # answer is written: what he DOES bring, never the thing he does not.
+    "A question about a background, a field, a product or an experience his "
+    "resume does not show is STILL ANSWERED, honestly: say in one plain clause "
+    "what his background actually is instead (for example, a business degree and "
+    "partner operations rather than the sciences), then say concretely what he "
+    "does bring that is relevant, from the resume. Never claim the thing he does "
+    "not have, never pretend to it, and do not apologise for it.\n"
+    "A question about how he uses AI tools or LLMs is answered from HIS FACTS: "
+    "name the tools he uses and say he uses them in his work. Do NOT say what he "
+    "uses them for - no task, project, result or workflow - unless the resume "
+    "itself says it; say instead what real work on the resume shows he is good "
+    "at, as a separate sentence that does not claim the tools did it.\n"
+    "Reply with exactly CANNOT WRITE and nothing else ONLY when the question asks "
+    "him to state a specific figure, date or name that is nowhere below (the "
+    "dollar value of a deal he closed, a quota he hit, a named reference) — a "
+    "made-up figure on a job application is worse than a blank one.\n\n"
+    "HIS FACTS: {facts}\n\nTHE JOB: {job}\n\n"
     "THE QUESTION: {question}")
+
+#: What the essay writer may say about him beyond the resume: his own answers,
+#: none of them sensitive.
+ESSAY_FACTS = ("ai_tools", "current_title", "current_employer", "degree", "field_of_study",
+               "school")
+
+
+def _essay_facts() -> str:
+    try:
+        known = profile.known()
+    except Exception:
+        return "(none)"
+    said = "; ".join(f"{k}: {known[k]}" for k in ESSAY_FACTS if str(known.get(k) or "").strip())
+    return said or "(none)"
 
 MAX_DRAFTS_PER_JOB = 4
 
@@ -1161,12 +1265,14 @@ def draft_essays(record: dict, resume_text: str, *, think=None) -> dict:
     every draft is visible in the confirmation, because a drafted answer he
     has not read is exactly the thing this whole system refuses to send.
 
-    CANNOT WRITE is a real outcome. A question his resume does not support
-    comes back to him blank rather than filled with something plausible.
+    CANNOT WRITE is still a real outcome, and a narrow one since 2026-09-14: a
+    figure or a name that is nowhere on file comes back blank. A background he
+    does not have is answered with the one he does.
     """
     if think is False:
         return {}
     think = think or _any_model_writes
+    facts = _essay_facts()
     drafted = {}
     for question in record.get("questions") or []:
         if len(drafted) >= MAX_DRAFTS_PER_JOB:
@@ -1175,7 +1281,7 @@ def draft_essays(record: dict, resume_text: str, *, think=None) -> dict:
                 or not question.get("selector")):
             continue
         prompt = ESSAY_BRIEF.format(job=record.get("job_title") or record["url"],
-                                    question=question["label"])
+                                    question=question["label"], facts=facts)
         try:
             said = think(prompt, resume_text[:8000], timeout_s=120.0)
             if isinstance(said, tuple):
@@ -1355,6 +1461,17 @@ def retry_waiting(*, resume: str = "", stager=None, json_think=None, writer=None
                 apply_run.remember(record["id"], fit=fit, employment=fit.get("employment", ""))
             except Exception:
                 pass
+        # A fit a model gave before the form showed its questions is not the
+        # last word: Acceleration Partners was judged "inbound-closing work" and
+        # then asked for the largest deal he had personally closed.
+        unfit = job_fit.quick_reason(record)
+        if unfit:
+            try:
+                apply_run.close(record["id"], f"not realistic: {unfit}")
+            except Exception:
+                pass
+            closed.append({"url": url, "why": unfit})
+            continue
         used = record.get("resume") or resume_path
         found_on = record.get("found_on") or ""
         where = _where_found(stage, found_on)

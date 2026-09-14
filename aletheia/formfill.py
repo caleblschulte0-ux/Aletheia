@@ -2279,19 +2279,28 @@ def blocking(page) -> list[dict]:
 # on chooses NOTHING - the widget throws the text away - and live 2026-09-10
 # a Stripe form she had "filled" still had nine required answers empty.
 
+# Lever's "Current location" is the same kind of widget without the ARIA: an
+# <input class="location-input"> whose suggestions are .dropdown-location rows,
+# and a hidden selectedLocation that only a CLICKED suggestion sets. Typed and
+# left, the text is thrown away on blur - live 2026-09-14 Palantir and Spotify
+# both stopped on "Current location: Please fill out this field." with "Hartford"
+# on the confirmation and nothing in the box.
 COMBOBOX_JS = r"""(css) => {
   const el = document.querySelector(css);
   return !!el && (el.getAttribute('role') === 'combobox'
-                  || el.getAttribute('aria-autocomplete') === 'list');
+                  || el.getAttribute('aria-autocomplete') === 'list'
+                  || el.classList.contains('location-input')
+                  || !!(el.parentElement && el.parentElement.querySelector('.dropdown-results')));
 }"""
-VISIBLE_OPTIONS_JS = r"""() => [...document.querySelectorAll('[role=option]')]
+OPTION_CSS = "[role=option], .dropdown-results .dropdown-location"
+VISIBLE_OPTIONS_JS = r"""() => [...document.querySelectorAll('%s')]
   .filter(o => o.offsetParent !== null)
-  .map(o => (o.innerText || '').trim()).filter(Boolean).slice(0, 400)"""
+  .map(o => (o.innerText || '').trim()).filter(Boolean).slice(0, 400)""" % OPTION_CSS
 # The VISIBLE option whose text is exactly the choice. A text-contains match
 # found "No" inside a hidden option left over from another menu and waited
 # thirty seconds to click something that could not be clicked.
-FIND_OPTION_JS = r"""(text) => [...document.querySelectorAll('[role=option]')]
-  .find(o => o.offsetParent !== null && (o.innerText || '').trim() === text) || null"""
+FIND_OPTION_JS = r"""(text) => [...document.querySelectorAll('%s')]
+  .find(o => o.offsetParent !== null && (o.innerText || '').trim() === text) || null""" % OPTION_CSS
 
 US_STATE_NAMES = {
     "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas", "CA": "California",
@@ -2368,6 +2377,62 @@ def _years_range(value, options: list[str]) -> str | None:
     return hits[0] if len(hits) == 1 else None
 
 
+def _names_other_state(option: str, state: str) -> bool:
+    """"Hartford, CT, USA" when he lives in SD."""
+    for abbr in re.findall(r",\s*([A-Z]{2})\b", str(option)):
+        if abbr in US_STATE_NAMES and abbr != state:
+            return True
+    n = _norm(option)
+    return any(_says(_norm(name), n) for abbr, name in US_STATE_NAMES.items() if abbr != state)
+
+
+_SAYS_AUTHORIZED = re.compile(
+    r"\b(?:i am|i'm|i’m)\b.{0,40}?\b(?:authori[sz]ed|eligible|citizen|national|permanent resident)\b",
+    re.I)
+#: Anything that makes an "I am authorized" sentence not his unrestricted yes.
+_RESTRICTED = re.compile(
+    r"\bnot\b|\bunknown\b|\bsponsor|\bvisa\b|\bpermit\b|\bonly\b|\bpresent employer\b|"
+    r"\bcurrent employer\b|\bopt\b|\bcpt\b|\bh-?1b\b|\bdaca\b|\brefugee\b|\basylee\b|"
+    r"\btemporar|\bpending\b|\bexpire|\bpermanent resident\b|\bgreen card\b|\blawful\b", re.I)
+_CITIZEN = re.compile(r"\bu\.?\s?s\.?(?:a\.?)?\s+citizen\b|\bcitizen of the united states\b", re.I)
+
+
+def _his_citizenship(known: dict) -> bool:
+    """Whether HE has said he is a U.S. citizen - his words, never a guess."""
+    if _CITIZEN.search(str(known.get("citizenship") or "")):
+        return True
+    try:
+        return any(_CITIZEN.search(str(row.get("value") or ""))
+                   for row in profile.questions_on_file())
+    except Exception:
+        return False
+
+
+def authorized_choice(options: list[str], known: dict | None = None) -> str | None:
+    """His "Yes, authorized" on a list that answers in sentences, or None.
+
+    SpaceX asks "Are you legally authorized to work in the United States?" with
+    "I am authorized to work in the United States for any employer", "... for my
+    present employer only", "I require sponsorship ...", "I am not authorized
+    ...", "My status ... is unknown" - no option says Yes, so two applications
+    waited on him for an answer that was on file. Only when he is authorized AND
+    needs no sponsorship; never an option naming a restriction, a sponsorship or
+    a status he has not claimed; citizenship only when he said it.
+    """
+    known = known or {}
+    if _norm(known.get("work_authorization")) != "yes" or _norm(known.get("needs_sponsorship")) != "no":
+        return None
+    fits = [o for o in options if _SAYS_AUTHORIZED.search(str(o)) and not _RESTRICTED.search(str(o))]
+    citizen = [o for o in fits if _CITIZEN.search(str(o)) or _says("citizen", _norm(o))]
+    if citizen:
+        if _his_citizenship(known) and len(citizen) == 1:
+            return citizen[0]
+        fits = [o for o in fits if o not in citizen]
+    if len(fits) > 1:
+        fits = [o for o in fits if _says("any employer", _norm(o))] or fits
+    return fits[0] if len(fits) == 1 else None
+
+
 def _best_option(value, options: list[str], known: dict | None = None) -> str | None:
     """The one option that IS the answer, or None. Never a guess between two."""
     known = known or {}
@@ -2375,6 +2440,12 @@ def _best_option(value, options: list[str], known: dict | None = None) -> str | 
     if not v or not options:
         return None
     normed = [(o, _norm(o)) for o in options]
+    his_state = str(known.get("state") or "").strip().upper()
+    if his_state and v == _norm(known.get("city")):
+        # His city in somebody else's state is a different place: "Hartford,
+        # CT, USA" is not Hartford, South Dakota, however it starts.
+        normed = [(o, n) for o, n in normed if not _names_other_state(o, his_state)]
+        options = [o for o, _n in normed]
     wants = {v}
     for same in _SAME_COUNTRY:
         if v in same:
@@ -2415,12 +2486,20 @@ def _best_option(value, options: list[str], known: dict | None = None) -> str | 
                     if not re.search(r"\b(?:sponsor\w*|visa|permit)\b", _norm(o))]
         if len(said) == 1:
             return said[0]
+        if v == "yes" and not said:
+            authorized = authorized_choice(options, known)
+            if authorized is not None:
+                return authorized
     # A place: the city he lives in, in the state he lives in.
     state = str(known.get("state") or "").strip().upper()
     in_state = {_norm(state), _norm(US_STATE_NAMES.get(state, ""))} - {""}
     if in_state:
         placed = [o for o, n in normed
                   if _says(v, n) and any(_says(s, n) for s in in_state)]
+        # "Hartford, SD, USA" and "Hartford, South Dakota 57033" are one place:
+        # the first suggestion naming his city in his state is his.
+        if placed and v == _norm(known.get("city")):
+            return placed[0]
         if len(placed) == 1:
             return placed[0]
     level = _degree_level(value)

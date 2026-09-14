@@ -557,6 +557,18 @@ def _same_question(a: str, b: str) -> bool:
     return x[:short] == y[:short]
 
 
+def _required_first(questions: list[dict]) -> list[dict]:
+    """What stops the form, ahead of what does not, before the list is cut.
+
+    Live 2026-09-14 both Navan applications waited on "1 thing only you can
+    answer" and listed twelve optional things - the careers page's navigation
+    menu and cookie boxes - because the one required question ("Have you ever
+    been employed by, applied to ... Navan?") was thirteenth and the list is
+    cut at twelve. Nothing could answer a question nobody was shown.
+    """
+    return sorted(questions, key=lambda q: not q.get("required"))
+
+
 def _unpicked(fill: list[dict], chosen: dict, fields: list[dict],
               stopped: list[dict]) -> tuple[list[dict], list[dict]]:
     """Dropdowns she meant to answer and could not, as QUESTIONS WITH A SELECTOR.
@@ -808,8 +820,8 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
         # blocked application is a real thing that is waiting.
         record = {"id": run_id, "state": "NEEDS_YOU", "url": url,
                   "approval": "", "steps": [], "resume": resume,
-                  "questions": plan["ask"][:MAX_QUESTIONS_SHOWN],
-                  "not_filled": plan["ask"][:MAX_QUESTIONS_SHOWN],
+                  "questions": _required_first(plan["ask"])[:MAX_QUESTIONS_SHOWN],
+                  "not_filled": _required_first(plan["ask"])[:MAX_QUESTIONS_SHOWN],
                   "would_fill": [{"label": f["label"], "value": f["value"]}
                                  for f in plan["fill"]],
                   "filled": [], "skipped": plan["skipped"],
@@ -842,8 +854,8 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
     if stopped:
         record = {"id": run_id, "state": "NEEDS_YOU", "url": url,
                   "approval": "", "steps": steps, "resume": resume,
-                  "questions": (plan["ask"] + stopped)[:MAX_QUESTIONS_SHOWN],
-                  "not_filled": (plan["ask"] + stopped)[:MAX_QUESTIONS_SHOWN],
+                  "questions": _required_first(plan["ask"] + stopped)[:MAX_QUESTIONS_SHOWN],
+                  "not_filled": _required_first(plan["ask"] + stopped)[:MAX_QUESTIONS_SHOWN],
                   "would_fill": _as_chosen(plan["fill"], filled.get("chosen") or {}),
                   "filled": [], "skipped": plan["skipped"],
                   "answers_given": per_form, **kept_job, **captcha,
@@ -991,7 +1003,7 @@ def _fill_and_capture(url: str, steps: list[dict], resume: str, shot: Path) -> d
 
 UPLOAD_SETTLE_MS = 10_000
 #: How much longer a page that is visibly still WORKING on the file gets.
-UPLOAD_WORKING_MS = 20_000
+UPLOAD_WORKING_MS = 40_000
 UPLOADED_JS = r"""(name) => {
   if (((document.body && document.body.innerText) || '').includes(name)) return true;
   // Workable never puts the name in the page's text: live 2026-09-13 its box
@@ -1012,7 +1024,23 @@ UPLOADED_JS = r"""(name) => {
 # So: a file input that HOLDS a file, on a page showing nothing still at work
 # (no progress bar, no "uploading", no "analyzing"). The Flexport lesson still
 # holds - a visible progress bar is never read as done.
+#
+# Live 2026-09-14 Arcadia's picture showed "Success!" beside the resume and the
+# application still stopped on "the resume upload did not finish". Lever's own
+# verdict is read now, ahead of any styling guess - but the WORDS of a page at
+# work ("Uploading", "Analyzing resume...") still outrank everything, so a form
+# visibly still reading the file is never called done (Palantir's picture that
+# night still said "Analyzing resume..."). A box that holds no file is waited
+# on too, not given up at once: the verdict can arrive after the input clears.
 UPLOAD_SETTLED_JS = r"""() => {
+  const text = (document.body && document.body.innerText) || '';
+  if (/\b(uploading|analyzing|analysing|processing file|please wait)\b/i.test(text))
+    return 'working';
+  const shown = (el) => !!el && el.offsetParent !== null && (el.innerText || '').trim();
+  const verdict = [...document.querySelectorAll(
+      '[class*="resume-upload-success"], [class*="resume-upload-failure"]')].some(shown)
+    || /(^|\n)\s*(success!|couldn(?:'|’)t auto-read resume\.?)\s*(\n|$)/i.test(text);
+  if (verdict) return 'held';
   const held = [...document.querySelectorAll('input[type=file]')]
     .some(i => i.files && i.files.length > 0);
   if (!held) return 'empty';
@@ -1022,9 +1050,7 @@ UPLOAD_SETTLED_JS = r"""() => {
       '[role=progressbar], progress, [class*="progress"], [class*="uploading"], '
       + '[class*="upload-working"], [class*="loading"]')]
     .some(el => seen(el) && !/complete|success|done/i.test(el.className || ''));
-  const words = /\b(uploading|analyzing|analysing|processing file|please wait)\b/i
-    .test((document.body && document.body.innerText) || '');
-  return (busy || words) ? 'working' : 'held';
+  return busy ? 'working' : 'held';
 }"""
 
 
@@ -1070,7 +1096,7 @@ def _resume_landed(page, resume: str, *, wait_ms: int | None = None) -> bool:
         state = _upload_state(page)
         if state == "held":
             return True
-        if state == "empty" or wait is None or not extra:
+        if wait is None or not extra:
             return False
         wait(500)
     return False
@@ -1535,7 +1561,7 @@ def code_in(text: str) -> str:
 #: Words a company's name carries that the email naming it may not.
 _COMPANY_FILLER = frozenset({
     "inc", "llc", "ltd", "co", "corp", "corporation", "company", "technologies",
-    "technology", "labs", "the", "com", "io", "hq", "group", "holdings"})
+    "technology", "labs", "the", "com", "io", "hq", "group", "holdings", "and"})
 
 
 def names_the_employer(subject: str, employer: str) -> bool:
@@ -1555,11 +1581,67 @@ def names_the_employer(subject: str, employer: str) -> bool:
              if w not in _COMPANY_FILLER]
     if not words:
         return True
-    said = set(re.findall(r"[a-z0-9]+", str(subject or "").casefold()))
-    return all(w in said for w in words)
+    said = re.findall(r"[a-z0-9]+", str(subject or "").casefold())
+    if all(w in set(said) for w in words):
+        return True
+    # A Greenhouse board name is one glued word ("edgewoodpartnersinsurancecenter")
+    # and an email names the company as words. It counts only as the WHOLE of a
+    # run of two or more of the subject's words, never a piece of one.
+    glued = "".join(words)
+    if len(words) != 1 or len(glued) < 8:
+        return False
+    for start in range(len(said)):
+        run = said[start]
+        for word in said[start + 1:]:
+            run += word
+            if run == glued:
+                return True
+            if len(run) >= len(glued):
+                break
+    return False
 
 
-def _emailed_code(employer: str = "", reader=None, since: float = 0.0) -> str:
+#: "Job Application for Assistant Account Manager- P&C at EPIC Brokers"
+_PAGE_TITLE_EMPLOYER = re.compile(r"^job application for .*\bat\s+(.+)$", re.I)
+_BOARD_TOKEN = re.compile(r"[?&]for=([A-Za-z0-9_-]+)|greenhouse\.io/([A-Za-z0-9_-]+)/jobs/")
+
+
+def employer_names(record: dict) -> list[str]:
+    """Every name this application's employer goes by, for finding its code.
+
+    Live 2026-09-14 Epic's code arrived one second after the click, titled
+    "Security code for your application to EPIC Brokers", while the record said
+    "Epic Insurance Brokers and Consultants" and the board is
+    "edgewoodpartnersinsurancecenter". Greenhouse names the company the way its
+    own page title does, so that name is tried beside the record's and the
+    board's. Each is still matched whole, so no employer gets another's code.
+    """
+    names = [str(record.get("company") or "")]
+    title = " ".join(str(record.get("page_title") or "").split())
+    hit = _PAGE_TITLE_EMPLOYER.match(title)
+    if hit:
+        names.append(hit.group(1))
+    for address in (record.get("url"), record.get("posting")):
+        board = _BOARD_TOKEN.search(str(address or ""))
+        if board:
+            names.append(board.group(1) or board.group(2))
+    out = []
+    for name in names:
+        name = " ".join(name.split())
+        real = [w for w in re.findall(r"[a-z0-9]+", name.casefold()) if w not in _COMPANY_FILLER]
+        if real and name.casefold() not in [n.casefold() for n in out]:
+            out.append(name)
+    return out
+
+
+def _names_any(subject: str, employers) -> bool:
+    if isinstance(employers, str):
+        return names_the_employer(subject, employers)
+    names = [e for e in (employers or []) if str(e or "").strip()]
+    return not names or any(names_the_employer(subject, e) for e in names)
+
+
+def _emailed_code(employer: str | list = "", reader=None, since: float = 0.0) -> str:
     """The code the site just emailed, out of the inbox SHE can read.
 
     His ruling, 2026-09-12: *"If we have an option to fill an email, we just
@@ -1592,7 +1674,7 @@ def _emailed_code(employer: str = "", reader=None, since: float = 0.0) -> str:
             unread = []
         mine = [m for m in unread
                 if "security code" in str(m.get("subject", "")).casefold()
-                and names_the_employer(str(m.get("subject", "")), employer)]
+                and _names_any(str(m.get("subject", "")), employer)]
         # NEWEST FIRST, BY THE DATE HEADER, never by the order IMAP happens
         # to return. Live 2026-09-12 this read `reversed(mine)` on the belief
         # that IMAP hands back oldest-first; it hands back NEWEST-first, so
@@ -1736,7 +1818,7 @@ def _refill_and_submit(record: dict) -> dict:
             # it "Security code for your application to Databricks", and
             # typing Databricks' code into Reddit's form fails in a way that
             # looks exactly like a wrong code.
-            code = _emailed_code(record.get("company") or "", since=asked_at)
+            code = _emailed_code(employer_names(record), since=asked_at)
             if not code:
                 # SOME SITES TEXT IT INSTEAD. The signup number is a Google
                 # Voice line, so a code sent to it is one she can read —
