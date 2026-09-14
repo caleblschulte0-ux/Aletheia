@@ -688,6 +688,24 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
     answered = formfill.apply_answers(plan, fields, per_form)
     steps = formfill.steps(plan["fill"]) + answered["steps"]
 
+    # NOTHING TO FILL IS NOT AN APPLICATION. Live 2026-09-13 Bond's posting had
+    # been taken down - Greenhouse answered "Sorry, but we can't find that page" -
+    # and Grainger's address was cut short onto a page with no form. Both were
+    # staged with no field filled and nothing asked, approved on the grant, and
+    # pressed, failing at send time with "could not find the button". A page
+    # that offers nothing to type and asks nothing is recorded as not a form.
+    if not plan["fill"] and not plan["ask"] and not answered["steps"]:
+        failure = ("there is no application form on this page to fill - the posting "
+                   "may have been taken down or the link was wrong")
+        record = {"id": run_id, "state": "FAILED", "url": url, "failure": failure,
+                  "approval": "", "steps": [], "filled": [], "not_filled": [],
+                  "skipped": plan["skipped"], "resume": resume,
+                  "staged_at": stateio.utcnow(), **kept_job}
+        stateio.write_json_atomic(_record_path(run_id), record)
+        journal.append("action", "apply", f"{url} has no application form to fill - "
+                       "not staged", actor=ACTOR)
+        raise ApplyError(f"{run_id}: {failure}")
+
     blocking = [a for a in plan["ask"] if a["required"]]
     if blocking:
         # Refused, not "filled as far as possible": a form submitted with a
