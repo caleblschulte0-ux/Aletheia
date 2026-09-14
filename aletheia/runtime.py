@@ -626,24 +626,22 @@ def send_approved_applications() -> list[dict]:
             approval = policy.load(record["approval"])
         except Exception:
             approval = {}
+        # NOT A FULL-TIME JOB, NOT ON THE GRANT - asked of EVERY record, not only
+        # the ones whose approval is still open. `stage` spends the grant when
+        # a form is filled, so live 2026-09-13 Bluevine's "(part-time)" job
+        # reached this loop already APPROVED by the grant and went out unseen.
+        # Only his own yes sends it; he is told why it is waiting.
+        kind = apply_run.waits_for_his_ok(record)
+        if kind:
+            notifications.publish(
+                f"A {kind} job is waiting for your OK",
+                f"{apply_run.describe(record)} - it is {kind}, so it was not sent on "
+                "the standing grant. Approve it if you want it."[:400],
+                priority="IMPORTANT", source="apply",
+                dedupe_key=f"apply-not-full-time:{record['id']}",
+                related={"application": record["id"]})
+            continue
         if approval.get("state") != "APPROVED":
-            # NOT A FULL-TIME JOB, NOT ON THE GRANT. He has not said whether he
-            # wants part-time, contract or temporary work, so it is not decided
-            # for him either way: live 2026-09-13 "People Coordinator & Office
-            # Operations Associate (part-time)" was one answer away from going
-            # out unseen. It waits for his own OK, and he is told why.
-            from aletheia import job_fit
-            kind = (str(record.get("employment") or "")
-                    or job_fit.employment_type(record.get("job_title") or ""))
-            if kind:
-                notifications.publish(
-                    f"A {kind} job is waiting for your OK",
-                    f"{apply_run.describe(record)} - it is {kind}, so it was not sent on "
-                    "the standing grant. Approve it if you want it."[:400],
-                    priority="IMPORTANT", source="apply",
-                    dedupe_key=f"apply-not-full-time:{record['id']}",
-                    related={"application": record["id"]})
-                continue
             # His standing grant. The action id names THIS application, so
             # the receipt says what the use was spent on — a probe with a
             # made-up id would spend a use and record a fiction.

@@ -53,7 +53,10 @@ FIELDS: dict[str, dict] = {
                        "means": "first name"},
     "last_name":      {"asks": ("last name", "surname", "family name"),
                        "means": "last name"},
-    "preferred_name": {"asks": ("preferred name", "nickname", "goes by"),
+    # "Preferred First Name*" (Datadog) is not "preferred name" as words, so
+    # "first name" won it - and an empty required box handed the form back.
+    "preferred_name": {"asks": ("preferred name", "preferred first name", "nickname",
+                                "goes by"),
                        "means": "what he likes to be called"},
     "email":          {"asks": ("email", "e-mail", "email address"),
                        "means": "email address"},
@@ -147,7 +150,9 @@ FIELDS: dict[str, dict] = {
     # to say so, and a model told never to invent a fact rightly left it.
     "over_18":        {"asks": ("at least 18", "18 years of age", "18 years or older",
                                 "over the age of 18", "over 18", "age of 18",
-                                "eighteen years", "legal working age"),
+                                "eighteen years", "legal working age",
+                                # Epic: "Are you 18 years old or older?"
+                                "18 years old", "years old or older"),
                        "means": "whether he is at least 18"},
     "notice_period":  {"asks": ("notice period", "start date", "available to start",
                                 "earliest start"),
@@ -155,6 +160,8 @@ FIELDS: dict[str, dict] = {
     # "What are your salary EXPECTATIONS?" is not "salary expectation" as
     # words, so LeafLink's box never reached the answer he had given.
     "desired_pay":    {"asks": ("desired salary", "salary expectation",
+                                # Epic: "What annual base pay are you seeking?"
+                                "base pay", "pay are you seeking", "salary are you seeking",
                                 "salary expectations", "expected salary",
                                 "salary requirement", "salary requirements",
                                 "expected compensation", "compensation expectation",
@@ -171,6 +178,9 @@ FIELDS: dict[str, dict] = {
     "heard_about":    {"asks": ("how did you hear", "where did you hear",
                                 "how did you find", "referral source",
                                 "hear about this", "hear about us",
+                                # Palantir: "Please tell us how you HEARD about
+                                # this opportunity." - "hear" is not "heard".
+                                "how you heard", "heard about this", "heard about us",
                                 "learn about", "learned about", "first learn",
                                 "find out about", "find this job", "find this role",
                                 "source of application"),

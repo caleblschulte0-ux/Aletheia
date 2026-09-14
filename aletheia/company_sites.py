@@ -102,7 +102,11 @@ _JOB_PATH = re.compile(r"/(?:jobs?|careers?|positions?|openings?|requisitions?|v
                        r"apply|opportunit(?:y|ies))(?:/|\b|-)", re.I)
 _NOT_A_PAGE = re.compile(r"\.(?:png|jpe?g|gif|svg|webp|ico|css|js|woff2?|ttf|pdf|json|xml)(?:$|\?)",
                          re.I)
-_URL = re.compile(r"""https?://[^\s"'<>\\)]+""")
+#: An apostrophe INSIDE a word stays in the address. Live 2026-09-13 Grainger's
+#: "Account Manager, Gov't" was cut at the apostrophe to ".../Account-Manager%2C-Gov",
+#: which loads a page with no form, and it was staged and pressed. One followed by
+#: anything else still ends it, so href='...' attributes stop where they should.
+_URL = re.compile(r"""https?://(?:[^\s"'<>\\)]|'(?=[A-Za-z0-9]))+""")
 _LD = re.compile(r"""<script[^>]+application/ld\+json[^>]*>(.*?)</script>""", re.S | re.I)
 #: A bot check in front of the page. Live 2026-09-13 jobs.uber.com answered a
 #: real browser with Cloudflare's "Just a moment..." and no Apply control at
