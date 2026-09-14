@@ -1,6 +1,6 @@
 # Fleet briefing
 
-Generated 2026-09-13T20:54:18Z from fleet registry rev 5 via GitHubSource.
+Generated 2026-09-14T05:03:29Z from fleet registry rev 5 via GitHubSource.
 
 ## 🟢 `Aletheia` — hub (active)
 
@@ -9,25 +9,25 @@ The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT 
 Last commit `c8089d98c3d9` at 2026-09-13T15:52:48Z: Apply anywhere: her texts, four more systems, and no more black boxes
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-09-13T20:54:14Z
-- `ci.yml`: success at 2026-09-13T20:16:40Z
+- `pulse.yml`: in_progress at 2026-09-14T05:03:26Z
+- `ci.yml`: success at 2026-09-14T03:59:14Z
 
-## 🔴 `Shorts-pipeline` — youtube-automation (active)
+## 🟢 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `585afd5ea070` at 2026-09-13T20:34:46Z: explainer: update posted log + analytics [skip ci]
+Last commit `ab1c6b49d018` at 2026-09-13T23:39:01Z: explainer: update posted log + analytics [skip ci]
 
-Vitals — trending posted: 322 · explainer posted: 248 · third posted: 510 · curiosity posted: 1
+Vitals — trending posted: 324 · explainer posted: 248 · third posted: 510 · curiosity posted: 1
 
 Watched workflows:
-- `daily.yml`: failure at 2026-09-13T19:36:21Z
+- `daily.yml`: success at 2026-09-13T23:07:00Z
 - `exchange_phase_a.yml`: success at 2026-09-13T17:45:43Z
 - `exchange_phase_b.yml`: success at 2026-09-13T17:29:11Z
 - `story_forge.yml`: success at 2026-09-13T19:33:32Z
 - `third.yml`: success at 2026-09-13T15:01:12Z
-- `explainer.yml`: success at 2026-09-13T20:34:53Z
-- `retro.yml`: success at 2026-09-13T04:52:02Z
+- `explainer.yml`: success at 2026-09-13T23:39:11Z
+- `retro.yml`: success at 2026-09-14T05:00:21Z
 - `doctor.yml`: success at 2026-09-13T10:12:57Z
 
 ## 🟢 `schwab-trader` — trading-bot (active)
@@ -41,14 +41,14 @@ Watched workflows:
 - `sell-brain.yml`: success at 2026-09-11T18:37:15Z
 - `watchdog.yml`: success at 2026-09-11T21:48:17Z
 
-## 🔴 `Money_Machine` — product-ventures (active)
+## 🟢 `Money_Machine` — product-ventures (active)
 
 Product ventures monorepo. main holds only a README; the work lives on long-running branches (Barkly, the Open Range demo films, the holdco platform), each carried by a charter in plans/.
 
 Last commit `53c6507f6afe` at 2026-08-05T19:11:54Z: Initial commit
 
 Watched workflows:
-- `barkly-ci.yml`: failure at 2026-09-13T05:16:31Z
+- `barkly-ci.yml`: success at 2026-09-14T03:58:28Z
 
 ## 💤 `etsy_maker` — unbuilt (stub)
 
