@@ -28,13 +28,19 @@ Run as a Windows task alongside the Core (`autostart.TASKS['apply']`), so
 it survives a reboot, a crash and the end of whatever session started it.
 A loop launched from a terminal dies with that terminal; that is exactly
 how the first attempt at this was lost.
+
+Applications WAITING on him are hers too. Reading them again with what she
+knows now (`campaign retry`) was only ever run by a person, and run from an
+outside session it was killed for memory. So when some are waiting and no
+refill has started within the hour, a turn starts a refill instead of a
+batch - under the same lock, so the two never overlap.
 """
 from __future__ import annotations
 
 import argparse
 import time
 
-from aletheia import campaign, journal, policy
+from aletheia import campaign, journal, policy, speech
 
 ACTOR = "aletheia-apply-forever"
 
@@ -44,6 +50,13 @@ IDLE_WAIT_S = 300.0
 #: How many to ask for each time. Small batches on purpose: a campaign that
 #: dies at job forty loses forty; one that dies at job eight loses eight.
 BATCH = 8
+#: How often the waiting applications are read again, at most.
+REFILL_EVERY_S = 3600.0
+#: How many waiting applications one refill reads.
+REFILL_LIMIT = 60
+#: When this process last started a refill (monotonic seconds). Process
+#: memory is enough: a restarted loop refilling once early costs one refill.
+_LAST_REFILL: list[float] = []
 
 
 #: The rest already said out loud, so a long one is journaled once, not
@@ -60,8 +73,19 @@ def _claude_rests_until():
         return None
 
 
-def once(*, batch: int = BATCH, resume: str = "", starter=None) -> dict:
-    """One turn of the loop: start a campaign, or leave the running one be."""
+def _waiting() -> int:
+    """How many applications are waiting on him. Never raises."""
+    try:
+        from aletheia import apply_run
+        return len(apply_run.all_runs("NEEDS_YOU"))
+    except Exception:
+        return 0
+
+
+def once(*, batch: int = BATCH, resume: str = "", starter=None, refiller=None,
+         clock=None) -> dict:
+    """One turn of the loop: refill the waiting applications, start a
+    campaign, or leave the running one be."""
     policy.ensure_not_halted()
     current = campaign.running()
     if current:
@@ -81,6 +105,24 @@ def once(*, batch: int = BATCH, resume: str = "", starter=None) -> dict:
                            "reset rather than run batches that cannot judge a job",
                            actor=ACTOR)
         return {"started": False, "resting_until": until}
+    # WHAT IS WAITING BEFORE WHAT IS NEW. An application stuck on a question
+    # her facts or her code now answer is closer to sent than any fresh job,
+    # and nothing but a person running `campaign retry` ever read one again.
+    now = (clock or time.monotonic)()
+    if not _LAST_REFILL or now - _LAST_REFILL[-1] >= REFILL_EVERY_S:
+        waiting = _waiting()
+        if waiting:
+            # Stamped on the attempt, not the success: a refill that cannot
+            # start must not take every turn from the batches.
+            _LAST_REFILL[:] = [now]
+            refill = refiller or campaign.start_retry
+            out = refill(limit=REFILL_LIMIT)
+            if out.get("started"):
+                journal.append("action", "apply:forever",
+                               f"reading {speech.count_phrase(waiting, 'waiting application')} "
+                               "again with what she knows now, before looking for more",
+                               actor=ACTOR)
+            return {**out, "refill": True, "waiting": waiting}
     start = starter or campaign.start
     out = start(count=batch, resume=resume)
     if out.get("started"):
@@ -91,7 +133,7 @@ def once(*, batch: int = BATCH, resume: str = "", starter=None) -> dict:
 
 
 def forever(*, batch: int = BATCH, resume: str = "", wait_s: float = IDLE_WAIT_S,
-            turns: int | None = None, starter=None, sleeper=None) -> int:
+            turns: int | None = None, starter=None, sleeper=None, refiller=None) -> int:
     """Look, apply, wait, repeat — until he halts her or the process dies.
 
     `turns` and `sleeper` exist for the tests. Left alone it does not stop.
@@ -100,7 +142,7 @@ def forever(*, batch: int = BATCH, resume: str = "", wait_s: float = IDLE_WAIT_S
     done = 0
     while turns is None or done < turns:
         try:
-            once(batch=batch, resume=resume, starter=starter)
+            once(batch=batch, resume=resume, starter=starter, refiller=refiller)
         except policy.Halted:
             journal.append("decision", "apply:forever",
                            "he halted her, so the job hunt stopped", actor=ACTOR)
