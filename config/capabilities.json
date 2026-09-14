@@ -1662,7 +1662,7 @@
     },
     {
       "id": "jobs.web_search",
-      "description": "Job postings anywhere on the web - employers' own careers pages and any applicant-tracking system (Workday, iCIMS, Taleo, SuccessFactors, Greenhouse, Lever and the rest) - found by the web search built into his Claude or ChatGPT subscription, and kept only when the page itself holds up",
+      "description": "Job postings anywhere on the web - employers' own careers pages and any applicant-tracking system (Workday, iCIMS, Taleo, SuccessFactors, Greenhouse, Lever and the rest) - found by the web search built into your Claude or ChatGPT subscription, and kept only when the page itself holds up",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "read",
