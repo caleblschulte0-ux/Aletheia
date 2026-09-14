@@ -698,6 +698,14 @@ the best of ChatGPT. Both halves are the rule.
   the charter carries `drafted_by`.
 - **Nobody able to think is not a failure.** A queued ask whose draft hit
   `ReasonerUnavailable` costs no attempt; the next cycle tries again.
+- **The job hunt has its own chain.** His words, 2026-09-13: *"make it so that
+  tomorrow when I hit my Claude limit it still is applying for jobs."*
+  `reasoner.work_json` goes Claude CLI → Codex CLI (his ChatGPT subscription,
+  headless, read-only, no config, no key) → her own model only with 6 GB free.
+  Only job hunting uses it; `subscription_json` and code work are untouched.
+  A job only her own model judged realistic waits for his OK
+  (`apply_run.waits_for_his_ok`), and she never writes essays.
+  `apply_forever` waits only when none of the three can think.
 
 Measured on this laptop (no GPU): qwen3:8b drafted a charter in 100 s warm,
 188 s cold. That is the price of never running out, and it is paid only

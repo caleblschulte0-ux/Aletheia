@@ -43,22 +43,28 @@ def run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, **kwargs)
 
 
-def run_tree(cmd: list[str], timeout_s: float, **kwargs) -> subprocess.CompletedProcess:
+def run_tree(cmd: list[str], timeout_s: float, *, input: str | None = None,
+             **kwargs) -> subprocess.CompletedProcess:
     """Windowless run with a time limit that takes the WHOLE tree down.
 
     `subprocess.run(timeout=)` kills only the direct child; a python process
     driving Chrome leaves Chrome behind, still holding the browser profile.
     Raises subprocess.TimeoutExpired after the tree is gone.
+
+    `input` is written to the child's stdin, the way `subprocess.run` takes
+    it: a prompt too long for a Windows command line travels there.
     """
     kwargs.setdefault("stdout", subprocess.PIPE)
     kwargs.setdefault("stderr", subprocess.PIPE)
     kwargs.setdefault("text", True)
     kwargs.setdefault("encoding", "utf-8")
     kwargs.setdefault("errors", "replace")
+    if input is not None:
+        kwargs.setdefault("stdin", subprocess.PIPE)
     kwargs["creationflags"] = hidden_flags(kwargs.get("creationflags", 0))
     child = subprocess.Popen(cmd, **kwargs)
     try:
-        out, err = child.communicate(timeout=timeout_s)
+        out, err = child.communicate(input=input, timeout=timeout_s)
     except subprocess.TimeoutExpired:
         kill_tree(child.pid)
         try:

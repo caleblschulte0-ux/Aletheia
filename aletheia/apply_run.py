@@ -288,6 +288,11 @@ def _by_grant(approval: dict) -> bool:
     return via.startswith("grant:") or via == "standing-grant"
 
 
+#: What `waits_for_his_ok` answers for a job only her own model said was
+#: realistic.
+JUDGED_LOCALLY = "judged-locally"
+
+
 def waits_for_his_ok(record: dict) -> str:
     """The kind of job this is when only HIS OWN yes may send it, else "".
 
@@ -298,12 +303,18 @@ def waits_for_his_ok(record: dict) -> str:
     `stage` spends the grant the moment a form is filled, so Bluevine's
     "People Coordinator & Office Operations Associate (part-time)" arrived at
     the beat already APPROVED and was sent without him ever seeing it.
+
+    And a job only her OWN model judged realistic (`JUDGED_LOCALLY`): since
+    2026-09-13 the hunt keeps going when Claude and Codex are both out, and
+    the smaller model's yes is a reason to show him the job, not to send it.
     """
     from aletheia import job_fit
     kind = str(record.get("employment") or "")
     if not kind:
         named = " ".join(str(record.get(k) or "") for k in ("job_title", "page_title", "note"))
         kind = job_fit.employment_type(named)
+    if not kind and job_fit.judged_locally(record.get("fit")):
+        kind = JUDGED_LOCALLY
     if not kind:
         return ""
     try:
@@ -313,6 +324,25 @@ def waits_for_his_ok(record: dict) -> str:
     if approval.get("state") == "APPROVED" and not _by_grant(approval):
         return ""                        # he said yes to this one himself
     return kind
+
+
+def his_ok_notice(record: dict, kind: str) -> tuple[str, str, str]:
+    """(title, body, dedupe key) telling him why a job waits for his own OK.
+
+    One notice per application PER REASON: a part-time job that her own model
+    alone judged is two things he should know, and a key shared by both kept
+    whichever was said first.
+    """
+    if kind == JUDGED_LOCALLY:
+        return ("A job my own model picked is waiting for your OK",
+                f"{describe(record)} - Claude and Codex were both out, so only my own model "
+                "read the posting and said it is realistic. It was not sent on the standing "
+                "grant. Approve it if you want it."[:400],
+                f"apply-judged-locally:{record.get('id')}")
+    return (f"A {kind} job is waiting for your OK",
+            f"{describe(record)} - it is {kind}, so it was not sent on "
+            "the standing grant. Approve it if you want it."[:400],
+            f"apply-not-full-time:{record.get('id')}")
 
 
 def close(run_id: str, why: str, *, via: str = "aletheia") -> dict:
@@ -1113,8 +1143,8 @@ def submit(run_id: str, *, submitter=None) -> dict:
     if kind:
         record["state"] = "AWAITING_YOU"
         stateio.write_json_atomic(_record_path(record["id"]), record)
-        raise ApplyError(f"{run_id} is {kind} work, so it waits for your own OK - "
-                         "nothing was sent")
+        why = ("only my own model judged it" if kind == JUDGED_LOCALLY else f"it is {kind} work")
+        raise ApplyError(f"{run_id}: {why}, so it waits for your own OK - nothing was sent")
 
     import os as _os
     record["state"] = "SUBMITTING"

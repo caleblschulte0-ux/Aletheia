@@ -633,12 +633,12 @@ def send_approved_applications() -> list[dict]:
         # Only his own yes sends it; he is told why it is waiting.
         kind = apply_run.waits_for_his_ok(record)
         if kind:
+            # Part-time work, or a job only her own model judged realistic.
+            title, body, key = apply_run.his_ok_notice(record, kind)
             notifications.publish(
-                f"A {kind} job is waiting for your OK",
-                f"{apply_run.describe(record)} - it is {kind}, so it was not sent on "
-                "the standing grant. Approve it if you want it."[:400],
+                title, body,
                 priority="IMPORTANT", source="apply",
-                dedupe_key=f"apply-not-full-time:{record['id']}",
+                dedupe_key=key,
                 related={"application": record["id"]})
             continue
         if approval.get("state") != "APPROVED":

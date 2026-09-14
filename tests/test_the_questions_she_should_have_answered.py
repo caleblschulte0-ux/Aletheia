@@ -291,16 +291,22 @@ class LeverSaysSuccessNotTheFilenameCase(unittest.TestCase):
 
 class WhenClaudeIsOutSheStillAnswersCase(unittest.TestCase):
     def test_the_short_answers_walk_the_ladder_to_her_own_model(self):
-        from aletheia import local_model_pool, model_pool_config, reasoner
+        """Claude out, Codex out, memory to spare: her own model answers, through
+        the same validator. (Since 2026-09-13 the ladder has Codex on it.)"""
+        from aletheia import local_model_pool, reasoner
         questions = {"#gusto": {"label": "Have you ever worked at Gusto?*", "choices": ["Yes", "No"]}}
         validator = campaign._answers_validator(questions)
 
         class Run:
+            model = "qwen3:8b"
             output = validator({"answers": [{"selector": "#gusto", "answer": "No"}]})
-        with mock.patch.object(reasoner, "subscription_json",
+        with mock.patch.object(reasoner, "resting_until", return_value=None), \
+             mock.patch.object(reasoner, "infer_json",
                                side_effect=reasoner.ReasonerUnavailable("out of session")), \
-             mock.patch.object(model_pool_config, "enabled", return_value=True), \
-             mock.patch.object(local_model_pool, "reachable", return_value=True), \
+             mock.patch.object(reasoner, "codex_json",
+                               side_effect=reasoner.ReasonerUnavailable("not signed in")), \
+             mock.patch.object(reasoner, "local_allowed", return_value=(True, "room")), \
+             mock.patch.object(reasoner, "_say_switch"), \
              mock.patch.object(local_model_pool, "auto_json", return_value=Run()) as local:
             got = campaign._any_model_answers("brief", "resume", context={},
                                               validator=validator, max_context_bytes=1024)

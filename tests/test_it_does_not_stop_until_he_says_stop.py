@@ -66,13 +66,18 @@ class WhileClaudeIsOutItWaitsCase(unittest.TestCase):
     def setUp(self):
         apply_forever._SAID_REST.clear()
 
-    def test_no_batch_starts_while_claude_is_resting_and_it_is_said_once(self):
+    def test_no_batch_starts_while_nobody_can_think_and_it_is_said_once(self):
+        """Since 2026-09-13 Claude resting is not enough to wait: Codex or her
+        own model may carry the batch. Nobody at all is (test below for the
+        other half: tests/test_apply_past_the_claude_limit.py)."""
         import datetime as dt
         until = dt.datetime(2026, 9, 13, 19, 40, tzinfo=dt.timezone.utc)
         started, said = [], []
         with mock.patch.object(apply_forever.campaign, "running", return_value=None), \
              mock.patch.object(apply_forever.policy, "ensure_not_halted"), \
              mock.patch.object(apply_forever, "_claude_rests_until", return_value=until), \
+             mock.patch.object(apply_forever, "_another_mind",
+                               return_value=(False, "Codex needs you to sign in again")), \
              mock.patch.object(apply_forever.journal, "append",
                                side_effect=lambda *a, **k: said.append(a)):
             for _ in range(3):
@@ -185,7 +190,8 @@ class WaitingApplicationsAreRefilledCase(unittest.TestCase):
         with mock.patch.object(apply_forever.campaign, "running", return_value={"pid": 7}):
             self.turn(10_000.0, waiting=3)
         with mock.patch.object(apply_forever, "_claude_rests_until",
-                               return_value=dt.datetime(2026, 9, 13, 20, tzinfo=dt.timezone.utc)):
+                               return_value=dt.datetime(2026, 9, 13, 20, tzinfo=dt.timezone.utc)), \
+             mock.patch.object(apply_forever, "_another_mind", return_value=(False, "nobody")):
             self.turn(10_000.0, waiting=3)
         self.assertEqual((self.refills, self.batches), ([], []))
 
