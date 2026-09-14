@@ -458,7 +458,8 @@ def search(role: str, *, where: str = "", limit: int = 10,
 
 def search_many(roles: list[str], *, where: str = "", limit: int = 10,
                 fetcher=None, discover: bool = False, http=None,
-                country: str = "", exclude=(), namer=None, companies=None) -> dict:
+                country: str = "", exclude=(), namer=None, companies=None,
+                websearch=None) -> dict:
     """Openings for ANY of these roles, each scored by the role it fits best.
 
     `discover` adds openings on boards nobody configured: a web search for
@@ -472,12 +473,18 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
     these job sites but also company websites". `companies` replaces that
     finder; on a search given its own `fetcher` (a test) nothing reaches the
     network unless a finder is handed in.
+
+    And `discover` adds openings ANYWHERE on the web that an AI search tool
+    on his subscription names and that then hold up when loaded
+    (`web_search_jobs.openings`): his words, 2026-09-13, "keep applying to
+    jobs everywhere across the Internet, not just on Greenhouse".
+    `websearch` replaces that finder, under the same test rule.
     """
     term_sets = [terms for terms in (_terms(r) for r in roles or []) if terms]
     if not term_sets:
         raise ValueError("say what kind of role")
     exclude = frozenset(str(w).casefold() for w in exclude or ())
-    everything, failures, searched = _gather(fetcher)
+    everything, failures, boards_read = _gather(fetcher)
     found = []
     for job in everything:
         if country and not _in_country(job.get("location", ""), country):
@@ -542,11 +549,23 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
                     own.append(job)
         except Exception:
             own = []            # a source that will not answer costs this source
-    # The web and the employers' own sites take turns in the third slot, so
-    # neither crowds out the other and neither crowds out the boards.
+    searched = []
+    looker = websearch if websearch is not None else (_web_search_openings if fetcher is None else None)
+    if discover and looker:
+        seen = ({job["apply_url"] for job in board[:cap]} | {job["apply_url"] for job in web}
+                | {job["apply_url"] for job in own})
+        try:
+            for job in looker(roles, limit=cap, country=country, exclude=exclude) or []:
+                if job.get("apply_url") and job["apply_url"] not in seen:
+                    seen.add(job["apply_url"])
+                    searched.append(job)
+        except Exception:
+            searched = []       # a search tool that will not answer costs this source
+    # The web, the employers' own sites and the AI search take turns in the
+    # third slot, so none crowds out another and none crowds out the boards.
     beyond, i = [], 0
-    while i < max(len(web), len(own)):
-        beyond += [row[i] for row in (web, own) if i < len(row)]
+    while i < max(len(web), len(own), len(searched)):
+        beyond += [row[i] for row in (web, own, searched) if i < len(row)]
         i += 1
     # Two from the boards, then one found beyond them, so both get tried.
     matches, b, w = [], 0, 0
@@ -559,17 +578,19 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
             b += 1
     discovered = [job for job in matches if job.get("found_by") == "web search"]
     on_their_sites = [job for job in matches if job.get("found_by") == "company site"]
+    anywhere = [job for job in matches if job.get("found_by") == "ai web search"]
     journal.append("action", "jobs",
-                   f"searched {speech.count_phrase(searched, 'board')} for "
+                   f"searched {speech.count_phrase(boards_read, 'board')} for "
                    f"{', '.join(roles)!r}: {speech.count_phrase(len(found), 'match')}, "
                    f"{len(discovered)} more by web search, "
                    f"{len(on_their_sites)} on employers' own sites, "
+                   f"{len(anywhere)} found anywhere by an AI web search, "
                    f"{speech.count_phrase(len(failures), 'board')} failed",
                    actor=ACTOR)
     return {"role": ", ".join(roles), "roles": list(roles), "where": where,
-            "matches": matches, "searched": searched, "matched": len(found),
+            "matches": matches, "searched": boards_read, "matched": len(found),
             "discovered": len(discovered), "company_sites": len(on_their_sites),
-            "failed": failures}
+            "web_searched": len(anywhere), "failed": failures}
 
 
 def _company_openings(roles: list[str], *, limit: int, country: str = "", exclude=()) -> list[dict]:
@@ -581,6 +602,12 @@ def _company_openings(roles: list[str], *, limit: int, country: str = "", exclud
         wanted = ""
     return company_sites.openings(roles, limit=limit, country=country, exclude=exclude,
                                   wanted=wanted, early=bool(exclude))
+
+
+def _web_search_openings(roles: list[str], *, limit: int, country: str = "", exclude=()) -> list[dict]:
+    """Anywhere on the web, named by an AI search tool and checked before it counts."""
+    from aletheia import web_search_jobs
+    return web_search_jobs.openings(roles, limit=limit, country=country, exclude=exclude)
 
 
 MAX_ROLES_PER_SEARCH = 5
