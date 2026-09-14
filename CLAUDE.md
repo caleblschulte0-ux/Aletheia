@@ -729,8 +729,12 @@ forms staged nothing: the chosen resume PDF did not read, and with the
   sensitive fields (work authorization, sponsorship, pay) are his to say.
 - **No role is required.** The roles come from the resume
   (`campaign.roles_for`). Openings come from `config/job_boards.json` AND
-  from any Greenhouse or Lever board a web search finds
-  (`jobs.discover_openings`). Never hardcode roles or companies.
+  from every board she has LEARNED (`jobs/learned_boards.json`), on any
+  system she can list (`jobs.PROVIDERS`: Greenhouse, Lever, Ashby, Workable,
+  SmartRecruiters, Recruitee). A board is learned wherever she meets one - a
+  web search, an employer's careers page, an Apply link she walked - so
+  "not just on Greenhouse" does not depend on a search engine that answers.
+  Never hardcode roles or companies.
 - **A form's own required questions his facts settle are answered from
   them** (`campaign.answer_from_facts`), every value visible in the
   confirmation. `profile.NEVER_AUTOFILL` is untouched, and checked again

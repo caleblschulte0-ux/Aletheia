@@ -631,6 +631,10 @@ def _choices_of(field: dict) -> list[str]:
     return formfill.bounded_choices(offered, known=known)
 
 
+#: The facts every real application asks for at least one of.
+_IDENTITY = frozenset({"email", "first_name", "last_name", "legal_name", "preferred_name", "phone"})
+
+
 def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = None,
           reader=None, filler=None, found_on: str = "") -> dict:
     """Fill the application and bring him one decision. Submits nothing.
@@ -749,10 +753,30 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
                        "application - not staged", actor=ACTOR)
         raise ApplyError(f"{run_id}: {failure}")
 
+    form_captcha = _captcha_in_fields(fields)
     plan = formfill.plan(fields, answers={**profile.known(), **per_form},
                          found_on=found_on or before.get("found_on") or "")
     answered = formfill.apply_answers(plan, fields, per_form)
     steps = formfill.steps(plan["fill"]) + answered["steps"]
+
+    # NOTHING ON IT ASKS WHO HE IS. Live 2026-09-13 SmartRecruiters answered a
+    # headless browser at Equinox's one-click form with "Access is temporarily
+    # restricted - we detected unusual activity", whose only box was "Reason
+    # for contacting us" - and it was staged AWAITING_YOU with nothing filled.
+    # An application asks for a name, an email or a phone; a page where she
+    # fills nothing and none of those is asked for is not one.
+    if (not plan["fill"] and not answered["steps"]
+            and not any(formfill.match_field(f) in _IDENTITY for f in fields)):
+        failure = ("nothing on this page asks for his name, email or phone, so it is not an "
+                   "application form - a bot check or a contact page looks like this")
+        record = {"id": run_id, "state": "FAILED", "url": url, "failure": failure,
+                  "approval": "", "steps": [], "filled": [], "not_filled": plan["ask"],
+                  "skipped": plan["skipped"], "resume": resume,
+                  "staged_at": stateio.utcnow(), **kept_job}
+        stateio.write_json_atomic(_record_path(run_id), record)
+        journal.append("action", "apply", f"{url} asks nothing about who he is - "
+                       "not an application, not staged", actor=ACTOR)
+        raise ApplyError(f"{run_id}: {failure}")
 
     # NOTHING TO FILL IS NOT AN APPLICATION. Live 2026-09-13 Bond's posting had
     # been taken down - Greenhouse answered "Sorry, but we can't find that page" -
@@ -789,7 +813,7 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
                   "would_fill": [{"label": f["label"], "value": f["value"]}
                                  for f in plan["fill"]],
                   "filled": [], "skipped": plan["skipped"],
-                  "answers_given": per_form, **kept_job,
+                  "answers_given": per_form, **kept_job, **_captcha_mark(form_captcha),
                   "staged_at": stateio.utcnow(),
                   "say": (f"{speech.count_phrase(len(blocking), 'thing')} on that form only you can "
                           "answer. Tell me those and I will fill the rest and "
@@ -799,6 +823,10 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
 
     shot = staged_dir() / f"{run_id}.png"
     filled = (filler or _fill_and_capture)(url, steps, resume, shot)
+    captcha = _captcha_mark(str(filled.get("captcha") or "") or form_captcha)
+    # What she did with a cookie dialog in his name is on the record.
+    if filled.get("cookie_banner"):
+        captcha["cookie_banner"] = str(filled["cookie_banner"])
 
     # THE PAGE'S OWN VERDICT, not hers. Staging ended at "I typed
     # everything I could" and called that ready — so on a form whose
@@ -818,7 +846,7 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
                   "not_filled": (plan["ask"] + stopped)[:MAX_QUESTIONS_SHOWN],
                   "would_fill": _as_chosen(plan["fill"], filled.get("chosen") or {}),
                   "filled": [], "skipped": plan["skipped"],
-                  "answers_given": per_form, **kept_job,
+                  "answers_given": per_form, **kept_job, **captcha,
                   "screenshot": str(shot) if shot.exists() else "",
                   "staged_at": stateio.utcnow(),
                   "say": ("I filled what I could, and the form still will not "
@@ -867,7 +895,7 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
               "not_filled": plan["ask"], "skipped": plan["skipped"],
               "resume": resume, "screenshot": str(shot) if shot.exists() else "",
               "page_title": filled.get("title", ""),
-              "answers_given": per_form, **kept_job,
+              "answers_given": per_form, **kept_job, **captcha,
               "staged_at": stateio.utcnow()}
     stateio.write_json_atomic(_record_path(run_id), record)
     journal.append("action", "apply",
@@ -939,6 +967,8 @@ def _fill_and_capture(url: str, steps: list[dict], resume: str, shot: Path) -> d
         page = ctx.new_page()
         page.goto(url, wait_until="domcontentloaded")
         formfill.settle(page)
+        # A cookie dialog over the form intercepts every click (Workable).
+        consent = clear_consent(page)
         chosen = _apply_steps(page, steps)
         landed = stuck = False
         if resume and _attach_resume(page, resume):
@@ -953,7 +983,8 @@ def _fill_and_capture(url: str, steps: list[dict], resume: str, shot: Path) -> d
             blocking.append({"label": "Resume/CV", "required": True,
                              "why": "the resume upload did not finish on the page"})
         result = {"title": page.title(), "url": page.url, "blocking": blocking,
-                  "chosen": chosen, "resume_attached": landed}
+                  "chosen": chosen, "resume_attached": landed,
+                  "captcha": _captcha_on(page), "cookie_banner": consent}
         page.close()
     return result
 
@@ -961,7 +992,17 @@ def _fill_and_capture(url: str, steps: list[dict], resume: str, shot: Path) -> d
 UPLOAD_SETTLE_MS = 10_000
 #: How much longer a page that is visibly still WORKING on the file gets.
 UPLOAD_WORKING_MS = 20_000
-UPLOADED_JS = r"""(name) => ((document.body && document.body.innerText) || '').includes(name)"""
+UPLOADED_JS = r"""(name) => {
+  if (((document.body && document.body.innerText) || '').includes(name)) return true;
+  // Workable never puts the name in the page's text: live 2026-09-13 its box
+  // showed "Caleb_Schulte_Resume.pdf" through a "delete Caleb_Schulte_Resume.pdf"
+  // button and a link to the uploaded copy, and every staging said the upload
+  // "did not finish". A control that NAMES the file exists only once the widget
+  // has taken it.
+  return [...document.querySelectorAll('[aria-label], [title], [download]')].some(e =>
+    [e.getAttribute('aria-label'), e.getAttribute('title'), e.getAttribute('download')]
+      .some(v => (v || '').includes(name)));
+}"""
 # Lever never prints the file's name. It prints "Analyzing resume..." while
 # it reads the file and then "Success!" - or "Couldn't auto-read resume.",
 # which means its PARSER gave up, not that the file is missing: the file is in
@@ -1046,14 +1087,159 @@ def _attach_resume(page, resume: str) -> bool:
     path = Path(resume).expanduser()
     if not path.is_file():
         return False
-    for row in page.evaluate(formfill.READ_FORM_JS):
-        if row.get("type") != "file":
-            continue
+    boxes = [row for row in page.evaluate(formfill.READ_FORM_JS) if row.get("type") == "file"]
+    for row in boxes:
         hay = " ".join(str(row.get(k, "")) for k in ("label", "name", "id")).lower()
         if any(word in hay for word in ("resume", "cv", "curriculum")):
             page.set_input_files(row["selector"], str(path))
             return True
+    # An upload box that names nothing. Workable's is
+    # <input id="input_files_input_a7u3Ne2TEWlPUcCi"> under a heading that
+    # reads "Resume": live 2026-09-13 no box said resume, so no resume went on.
+    # The words AROUND the box decide it - and a box whose block asks for a
+    # cover letter, a transcript or a portfolio is never given his resume.
+    for row in boxes:
+        try:
+            levels = page.evaluate(FILE_BOX_TEXT_JS, row["selector"]) or []
+        except Exception:
+            continue
+        # Nearest words first. Live 2026-09-13 the box's own caption was
+        # "Choose file or drag and drop here"; "* Resume" was one level up.
+        for text in ([levels] if isinstance(levels, str) else levels):
+            if _NOT_A_RESUME_BOX.search(str(text)):
+                break
+            if _RESUME_BOX.search(str(text)):
+                page.set_input_files(row["selector"], str(path))
+                return True
     return False
+
+
+def clear_consent(page) -> str:
+    """Get a cookie/consent dialog off the form: 'declined', 'accepted' or "". Never raises.
+
+    `formfill.CONSENT_JS` reads the dialog and marks the button; pressing it
+    is here, beside every other press, because formfill presses nothing.
+    """
+    try:
+        found = page.evaluate(formfill.CONSENT_JS) or {}
+    except Exception:
+        return ""
+    if not found.get("kind"):
+        return ""
+    target = '[data-aletheia-consent="1"]'
+    try:
+        page.click(target, timeout=5000)
+    except Exception:
+        try:
+            page.evaluate("(s) => { const b = document.querySelector(s); if (b) b.click(); }", target)
+        except Exception:
+            return ""
+    wait = getattr(page, "wait_for_timeout", None)
+    if wait is not None:
+        try:
+            wait(400)
+        except Exception:
+            pass
+    return str(found["kind"])
+
+
+#: The text at each level of the block that belongs to ONE upload box, nearest
+#: first. Climbing stops where a block holds another field or another upload
+#: box: on Workable's form the fifth level up also held Summary, GitHub and
+#: LinkedIn, and a neighbouring question's words must never decide this box.
+FILE_BOX_TEXT_JS = r"""(css) => {
+  const el = document.querySelector(css);
+  const levels = [];
+  for (let box = el && el.parentElement, up = 0; box && up < 8; box = box.parentElement, up++) {
+    if (box.querySelectorAll('input[type=file]').length > 1) break;
+    if (box.querySelectorAll('input:not([type=hidden]):not([type=file]), select, textarea').length) break;
+    const text = (box.innerText || '').trim();
+    if (text && text !== levels[levels.length - 1]) levels.push(text.slice(0, 300));
+  }
+  return levels;
+}"""
+_RESUME_BOX = re.compile(r"\bresume\b|\bcv\b|\bcurriculum\b|r[ée]sum[ée]", re.I)
+_NOT_A_RESUME_BOX = re.compile(r"cover letter|transcript|portfolio|writing sample|work sample", re.I)
+
+
+#: A human check LOADED on the form, visible or not. Lever's forms carry an
+#: invisible hCaptcha: live 2026-09-13 a probe found the Submit button clear and
+#: uncovered, and the click still never landed. She does not solve these; the
+#: record says one is there so the send path and the campaign both know.
+CAPTCHA_ON_JS = r"""() => {
+  const marks = /hcaptcha|recaptcha|turnstile|challenges\.cloudflare/i;
+  for (const el of document.querySelectorAll('iframe[src], script[src]')) {
+    const hit = (el.src || '').match(marks);
+    if (hit) return hit[0].toLowerCase().replace('challenges.cloudflare', 'turnstile');
+  }
+  if (document.querySelector('.h-captcha, [data-hcaptcha-widget-id], [name="h-captcha-response"]'))
+    return 'hcaptcha';
+  if (document.querySelector('.g-recaptcha, [name="g-recaptcha-response"]')) return 'recaptcha';
+  if (document.querySelector('.cf-turnstile, [name="cf-turnstile-response"]')) return 'turnstile';
+  return '';
+}"""
+_CAPTCHA_KINDS = (("hcaptcha", "hcaptcha"), ("h-captcha", "hcaptcha"),
+                  ("recaptcha", "recaptcha"), ("turnstile", "turnstile"))
+
+
+def _captcha_on(page) -> str:
+    """'hcaptcha', 'recaptcha', 'turnstile' or "" for the form open in `page`. Never raises."""
+    try:
+        return str(page.evaluate(CAPTCHA_ON_JS) or "")
+    except Exception:
+        return ""
+
+
+def _captcha_in_fields(fields: list[dict]) -> str:
+    """The same, from the marks a widget leaves in the form's own field list."""
+    for field in fields or []:
+        blob = " ".join(str(field.get(k) or "") for k in ("name", "id", "selector")).casefold()
+        for code, kind in _CAPTCHA_KINDS:
+            if code in blob:
+                return kind
+    return ""
+
+
+def _captcha_mark(kind: str) -> dict:
+    if not kind:
+        return {}
+    return {"captcha": kind,
+            "captcha_note": (f"this form loads a {kind} check. She does not solve those, so "
+                             "Submit may not take her click; if it does not, nothing is sent "
+                             "and the record says what was in the way")}
+
+
+def captcha_risky_providers(records: list[dict] | None = None) -> set[str]:
+    """Systems whose forms carry a CAPTCHA, whose presses have failed, and
+    that have never CONFIRMED a send.
+
+    Measured, not assumed. A CAPTCHA on the page is not proof it blocks:
+    Greenhouse forms load reCAPTCHA and 57 of them came back confirmed, and
+    Workable's load Turnstile with no send tried yet. So a system is risky
+    only with all three: a CAPTCHA mark on its records (from staging, or
+    `click_evidence` from a Submit that would not land), a press that failed
+    or went unconfirmed (Lever: two sends "probably not received"), and no
+    confirmed send. The first confirmed send takes it off the list.
+    """
+    from aletheia import jobs
+    marked, pressed_badly, confirmed = set(), set(), set()
+    for record in (all_runs() if records is None else records):
+        matched = jobs.job_from_url(str(record.get("url") or ""))
+        if not matched:
+            continue
+        provider = matched[0].provider
+        evidence = record.get("click_evidence") if isinstance(record.get("click_evidence"), dict) else {}
+        if record.get("captcha") or evidence.get("captcha"):
+            marked.add(provider)
+        verdict = str((record.get("result") or {}).get("verdict") or "") \
+            if isinstance(record.get("result"), dict) else ""
+        state = record.get("state")
+        if state == "SUBMITTED" and verdict == "confirmed":
+            confirmed.add(provider)
+        elif evidence or (state == "SUBMITTED" and verdict) or (
+                state == "FAILED" and "would not take a click" in str(record.get("failure") or "")):
+            pressed_badly.add(provider)
+    return (marked & pressed_badly) - confirmed
 
 
 def accept(run_id: str) -> dict:
@@ -1504,6 +1690,8 @@ def _refill_and_submit(record: dict) -> dict:
         page = ctx.new_page()
         page.goto(record["url"], wait_until="domcontentloaded")
         formfill.settle(page)
+        # The same cookie dialog is back on every fresh load, over the same form.
+        clear_consent(page)
         _apply_steps(page, record["steps"])
         if record.get("resume") and _attach_resume(page, record["resume"]):
             if not _resume_landed(page, record["resume"]):
@@ -1640,6 +1828,12 @@ def _press(page, record: dict, button: str) -> None:
         seen = _what_blocked_the_click(page, button, record)
         if seen.get("captcha"):
             why = "a CAPTCHA challenge was in front of it, and she does not solve those"
+        elif record.get("captcha"):
+            # Nothing visible on top, and the form was staged carrying an
+            # invisible check. Said as what it may be, not as what it was.
+            seen["captcha_on_form"] = record["captcha"]
+            why = (f"{why}, on a form that loads an invisible {record['captcha']} check - "
+                   "which may be what held it, and she does not solve those")
         record["click_evidence"] = seen
         stateio.write_json_atomic(_record_path(record["id"]), record)
         raise ApplyError(f"the Submit button would not take a click - {why} - "

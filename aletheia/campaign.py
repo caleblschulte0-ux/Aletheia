@@ -760,6 +760,41 @@ def _seniority_to_leave_out(known: dict) -> frozenset:
     return jobs.SENIOR_TITLE_WORDS if early else frozenset()
 
 
+def captcha_later(pages: list[dict], risky: set | None = None) -> list[dict]:
+    """Between EQUAL openings, a form not known to be held by a CAPTCHA goes first.
+
+    Only between equals - a run of openings the search scored the same - so a
+    better match is never passed over for this, and a system is never closed:
+    Lever's invisible hCaptcha may or may not block the click, and the next
+    real attempt's `click_evidence` is what settles it. `risky` defaults to
+    what the records have measured (`apply_run.captcha_risky_providers`).
+    """
+    pages = list(pages or [])
+    if risky is None:
+        try:
+            risky = apply_run.captcha_risky_providers()
+        except Exception:
+            risky = set()
+    if not risky:
+        return pages
+
+    def held(page: dict) -> bool:
+        provider = page.get("provider") or ""
+        if not provider:
+            matched = jobs.job_from_url(str(page.get("url") or ""))
+            provider = matched[0].provider if matched else ""
+        return provider in risky
+
+    out, run = [], []
+    for page in pages + [None]:
+        if run and (page is None or page.get("score") != run[0].get("score")):
+            out.extend(sorted(run, key=held))       # stable: order kept otherwise
+            run = []
+        if page is not None:
+            run.append(page)
+    return out
+
+
 def _keep_the_job(record: dict, page: dict, **extra_fields) -> dict:
     """Write what the JOB is onto the SAVED application, not just onto the
     copy in hand.
@@ -833,7 +868,9 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
                             # An employer's own posting page is walked to its
                             # Apply link; an applicant-tracking form is the form.
                             "direct": bool(j.get("direct", True)),
-                            "needs_account": bool(j.get("needs_account"))}
+                            "needs_account": bool(j.get("needs_account")),
+                            "provider": j.get("provider", ""),
+                            "score": j.get("score", 0)}
                            for j in found["matches"]]
 
         hits, pages = _openings(roles)
@@ -872,6 +909,7 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         pages = [{"url": p["url"], "title": p.get("title", ""),
                   "posting": p["url"], "direct": False} for p in found]
 
+    pages = captcha_later(pages)
     staged, needs_you, failed = [], [], []
     passed_over, duplicates, later, needs_account = [], [], [], []
     tried: dict[str, int] = {}
@@ -972,6 +1010,11 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         if not form_url:
             failed.append({"url": page["url"], "why": "no application form found on it"})
             continue
+        if not page.get("direct"):
+            # An employer's page whose Apply led to a public applicant-tracking
+            # form has told her its board: the next batch reads it whole.
+            jobs.learn_board_urls([{"url": form_url, "company": page.get("company", "")}],
+                                  source="employer page")
         note = f"Apply: {page.get('title') or role or 'job'} — {page.get('posting') or page['url']}"
         if closed and str(closed.get("url") or "").strip() in (page["url"], form_url):
             apply_run.reopen(closed["id"], "he said what work he wants after it was closed; "

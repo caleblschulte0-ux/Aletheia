@@ -133,22 +133,34 @@ def _cut(name) -> bool:
     return bool(re.search(r"(?:\.\.\.|…)\s*$", str(name or "")))
 
 
-def _learn_boards(found: list[dict]) -> int:
-    """Keep every employer a web search turned up, so the next search reads
-    its board directly. Live 2026-09-10 the web search worked for a few
-    queries and then DuckDuckGo answered everything with its challenge page:
-    an employer found once should not depend on being found again."""
+def _learn_boards(found: list[dict], *, source: str = "web search") -> int:
+    """Keep every employer she meets on a public applicant-tracking system, so
+    the next search reads its board directly.
+
+    Live 2026-09-10 the web search worked for a few queries and then
+    DuckDuckGo answered everything with its challenge page: an employer found
+    once should not depend on being found again. And a web search was the
+    ONLY thing that taught her a board, so an employer met through its own
+    careers site - an Ashby form behind a Muse listing, a Workable apply
+    link - was applied to once and never searched again. Anything carrying a
+    provider she can LIST and a board token is learned now, from wherever it
+    came.
+    """
     rows = _learned_boards()
     have = {(r["provider"], r["token"]) for r in rows}
     added = 0
     for job in found:
         key = (job.get("provider"), job.get("board"))
-        if not all(key) or key in have:
+        # Only a system whose board she can list. "company site" rows carry a
+        # host in `board`, and a host is not a board.
+        if not all(key) or key[0] not in PROVIDERS or key in have:
+            continue
+        if not _TOKEN_OK.get(key[0], _ANY_TOKEN).fullmatch(str(key[1])):
             continue
         have.add(key)
         rows.append({"provider": key[0], "token": key[1],
                      "company": ("" if _cut(job.get("company")) else job.get("company")) or key[1],
-                     "learned": True, "from": "web search"})
+                     "learned": True, "from": job.get("found_by") or source})
         added += 1
     if added:
         path = _learned_path()
@@ -189,17 +201,37 @@ def _fetch(url: str) -> object:
         raise
 
 
-def _board_name(provider: str, token: str, fetch=None) -> str:
-    """The company's name as its own board publishes it. Greenhouse does; Lever does not."""
-    if provider != "greenhouse" or not token:
+def _board_name(provider: str, token: str, fetch=None, page=None) -> str:
+    """The company's name as its own board publishes it, or "".
+
+    Greenhouse and Workable publish one in their feeds. Ashby's feed does not,
+    and its board page is titled "<Company> Jobs" - live 2026-09-13 "Ramp Jobs"
+    for the board `ramp`. Lever publishes none at all.
+    """
+    if not token:
         return ""
+    q = urllib.parse.quote(str(token))
     try:
-        data = (fetch or _fetch)(
-            f"https://boards-api.greenhouse.io/v1/boards/{urllib.parse.quote(str(token))}")
+        if provider == "greenhouse":
+            name = ((fetch or _fetch)(f"https://boards-api.greenhouse.io/v1/boards/{q}") or {}).get("name")
+        elif provider == "workable":
+            name = ((fetch or _fetch)(f"https://apply.workable.com/api/v1/widget/accounts/{q}") or {}).get("name")
+        elif provider == "ashby":
+            body = (page or _page)(f"https://jobs.ashbyhq.com/{q}")
+            title = re.search(r"<title>\s*(.*?)\s*</title>", str(body or ""), re.S | re.I)
+            name = re.sub(r"\s+(?:jobs|careers)\s*$", "", title.group(1), flags=re.I) if title else ""
+        else:
+            return ""
     except Exception:
         return ""
-    name = " ".join(str((data or {}).get("name") or "").split())
+    name = " ".join(str(name or "").split())
     return "" if _cut(name) else name[:80]
+
+
+def _page(url: str) -> str:
+    request = urllib.request.Request(url, headers={"User-Agent": UA})
+    with urllib.request.urlopen(request, timeout=TIMEOUT_S) as response:
+        return response.read(400_000).decode("utf-8", "replace")
 
 
 def _greenhouse(board: dict) -> list[dict]:
@@ -250,7 +282,164 @@ def _lever(board: dict) -> list[dict]:
     return out
 
 
-PROVIDERS = {"greenhouse": _greenhouse, "lever": _lever}
+def _published(board: dict, published: str, token: str) -> str:
+    """A configured name is his; a LEARNED one came off a search result or a
+    listing, so the board's own published name outranks it."""
+    given = str(board.get("company") or "").strip()
+    trusted = "" if (board.get("learned") or _cut(given)) else given
+    published = " ".join(str(published or "").split())[:80]
+    return trusted or ("" if _cut(published) else published) or ("" if _cut(given) else given) or token
+
+
+def _ashby(board: dict) -> list[dict]:
+    """jobs.ashbyhq.com - Ashby's documented public posting API."""
+    token = board["token"]
+    q = urllib.parse.quote(token)
+    data = _fetch(f"https://api.ashbyhq.com/posting-api/job-board/{q}")
+    out = []
+    for job in (data or {}).get("jobs") or []:
+        jid = job.get("id")
+        # An unlisted posting is reachable by link and not offered to applicants.
+        if not jid or job.get("isListed") is False:
+            continue
+        places = [str(job.get("location") or "")] + [
+            str((s or {}).get("location") or "") for s in job.get("secondaryLocations") or []]
+        out.append({
+            "title": " ".join(str(job.get("title") or "").split()),
+            "company": _published(board, "", token),
+            "location": "; ".join(p.strip() for p in places if p.strip()),
+            "posting_url": job.get("jobUrl") or f"https://jobs.ashbyhq.com/{q}/{jid}",
+            "apply_url": job.get("applyUrl") or f"https://jobs.ashbyhq.com/{q}/{jid}/application",
+            "provider": "ashby", "board": token, "id": str(jid),
+        })
+    return out
+
+
+def _workable(board: dict) -> list[dict]:
+    """apply.workable.com - the account's public jobs widget feed."""
+    token = board["token"]
+    q = urllib.parse.quote(token)
+    data = _fetch(f"https://apply.workable.com/api/v1/widget/accounts/{q}")
+    name = (data or {}).get("name") or ""
+    out = []
+    for job in (data or {}).get("jobs") or []:
+        code = str(job.get("shortcode") or "")
+        if not code:
+            continue
+        places = [", ".join(str(p.get(k) or "") for k in ("city", "region", "country") if p.get(k))
+                  for p in job.get("locations") or [] if isinstance(p, dict)]
+        if not any(places):
+            places = [", ".join(str(job.get(k) or "") for k in ("city", "state", "country") if job.get(k))]
+        location = "; ".join(p for p in places if p)
+        if job.get("telecommuting"):
+            location = f"Remote - {location}" if location else "Remote"
+        out.append({
+            "title": " ".join(str(job.get("title") or "").split()),
+            "company": _published(board, name, token),
+            "location": location,
+            # The widget's own addresses carry no account (apply.workable.com/j/<code>)
+            # and redirect to these; these are what a board URL looks like.
+            "posting_url": f"https://apply.workable.com/{q}/j/{code}/",
+            "apply_url": f"https://apply.workable.com/{q}/j/{code}/apply/",
+            "provider": "workable", "board": token, "id": code,
+        })
+    return out
+
+
+#: A company's board is listed a hundred postings at a time; Bosch lists
+#: nearly five thousand. Five pages is the newest five hundred.
+SMARTRECRUITERS_PAGES = 5
+SMARTRECRUITERS_PAGE = 100
+
+
+def _smartrecruiters(board: dict) -> list[dict]:
+    """jobs.smartrecruiters.com - the public Posting API."""
+    token = board["token"]
+    q = urllib.parse.quote(token)
+    out = []
+    for page in range(SMARTRECRUITERS_PAGES):
+        data = _fetch(f"https://api.smartrecruiters.com/v1/companies/{q}/postings"
+                      f"?limit={SMARTRECRUITERS_PAGE}&offset={page * SMARTRECRUITERS_PAGE}")
+        rows = (data or {}).get("content") or []
+        for job in rows:
+            jid = str(job.get("id") or "")
+            if not jid:
+                continue
+            ident = str((job.get("company") or {}).get("identifier") or token)
+            where = job.get("location") or {}
+            location = str(where.get("fullLocation") or ", ".join(
+                str(where.get(k) or "") for k in ("city", "region", "country") if where.get(k)))
+            if where.get("remote"):
+                location = f"Remote - {location}" if location else "Remote"
+            uuid = str(job.get("uuid") or "")
+            posting = f"https://jobs.smartrecruiters.com/{urllib.parse.quote(ident)}/{jid}"
+            out.append({
+                "title": " ".join(str(job.get("name") or "").split()),
+                "company": _published(board, (job.get("company") or {}).get("name") or "", token),
+                "location": location,
+                "posting_url": posting,
+                # The posting page is a description with an "I'm interested"
+                # button; the application itself is the one-click form, keyed
+                # by the posting's uuid, which only the listing carries.
+                "apply_url": (_sr_form(ident, uuid) if uuid else posting),
+                "provider": "smartrecruiters", "board": token, "id": jid,
+            })
+        found = int((data or {}).get("totalFound") or 0)
+        if len(rows) < SMARTRECRUITERS_PAGE or (page + 1) * SMARTRECRUITERS_PAGE >= found:
+            break
+    return out
+
+
+def _sr_form(ident: str, uuid: str) -> str:
+    ident = urllib.parse.quote(str(ident))
+    return (f"https://jobs.smartrecruiters.com/oneclick-ui/company/{ident}/publication/"
+            f"{urllib.parse.quote(str(uuid))}?dcr_ci={ident}")
+
+
+def _recruitee(board: dict) -> list[dict]:
+    """<company>.recruitee.com - the careers site's public offers feed."""
+    token = board["token"]
+    if not _TOKEN_OK["recruitee"].fullmatch(str(token)):
+        raise BoardGone("a Recruitee board is a subdomain, and this token is not one")
+    data = _fetch(f"https://{token}.recruitee.com/api/offers/")
+    out = []
+    for job in (data or {}).get("offers") or []:
+        slug = str(job.get("slug") or "")
+        if not slug or job.get("status") not in (None, "published"):
+            continue
+        location = str(job.get("location") or "")
+        if job.get("remote"):
+            location = f"Remote - {location}" if location else "Remote"
+        apply_url = job.get("careers_apply_url") or f"https://{token}.recruitee.com/o/{slug}/c/new"
+        host = urllib.parse.urlsplit(apply_url).netloc.casefold()
+        out.append({
+            "title": " ".join(str(job.get("title") or "").split()),
+            "company": _published(board, job.get("company_name") or "", token),
+            "location": location,
+            # A company on its own domain (careers.bunq.com) says so here.
+            "posting_url": job.get("careers_url") or f"https://{token}.recruitee.com/o/{slug}",
+            "apply_url": apply_url,
+            # ...and its apply link there is a POSTING page: live 2026-09-13 bunq's
+            # redirected to careers.bunq.com/positions/..., which has no form on it
+            # until Apply is pressed. Recruitee's own host serves the form itself.
+            "direct": host == "recruitee.com" or host.endswith(".recruitee.com"),
+            "provider": "recruitee", "board": token, "id": str(job.get("id") or slug),
+        })
+    return out
+
+
+#: Every system whose boards she can LIST. A system in `ATS` and not here was
+#: a system she could apply on when something else handed her the link and
+#: never searched herself - which, until 2026-09-13, was every one of them
+#: but Greenhouse and Lever.
+PROVIDERS = {"greenhouse": _greenhouse, "lever": _lever, "ashby": _ashby,
+             "workable": _workable, "smartrecruiters": _smartrecruiters,
+             "recruitee": _recruitee}
+
+#: What a board token may look like per system, so a learned row can never
+#: carry a path or a host into a request.
+_ANY_TOKEN = re.compile(r"[A-Za-z0-9_.-]{1,80}")
+_TOKEN_OK = {"recruitee": re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")}
 
 _GREENHOUSE_FORM = re.compile(r"[?&]for=([A-Za-z0-9_-]+).*?[?&]token=(\d+)")
 POSTING_CHARS = 12_000
@@ -491,6 +680,9 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
             continue
         value = max(_score(job, terms, where, exclude=exclude) for terms in term_sets)
         if value > 0:
+            # Kept on the job: the campaign chooses between EQUAL openings by
+            # what else it knows (a form that carries a CAPTCHA goes later).
+            job["score"] = round(value, 3)
             found.append((value, job))
     found.sort(key=lambda row: row[0], reverse=True)
     cap = max(1, min(int(limit), MAX_RESULTS))
@@ -516,8 +708,10 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
                 continue
             if country and not _in_country(job.get("location", ""), country):
                 continue
-            if max(_score(job, terms, "", exclude=exclude) for terms in term_sets) <= 0:
+            value = max(_score(job, terms, "", exclude=exclude) for terms in term_sets)
+            if value <= 0:
                 continue
+            job["score"] = round(value, 3)
             seen.add(job["apply_url"])
             web.append(job)
         # An employer known only by its board token is named by its board,
@@ -546,9 +740,19 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
             for job in finder(roles, limit=cap, country=country, exclude=exclude) or []:
                 if job.get("apply_url") and job["apply_url"] not in seen:
                     seen.add(job["apply_url"])
+                    job.setdefault("score", round(max(
+                        _score(job, terms, "", exclude=exclude) for terms in term_sets), 3))
                     own.append(job)
         except Exception:
             own = []            # a source that will not answer costs this source
+        # An employer whose own careers page led to Ashby, Workable,
+        # SmartRecruiters, Recruitee, Lever or Greenhouse has a board, and the
+        # next batch reads it whole instead of hoping to be led there again.
+        try:
+            _learn_boards([job for job in own if job.get("provider") in PROVIDERS],
+                          source="company site")
+        except Exception:
+            pass
     searched = []
     looker = websearch if websearch is not None else (_web_search_openings if fetcher is None else None)
     if discover and looker:
@@ -561,6 +765,18 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
                     searched.append(job)
         except Exception:
             searched = []       # a search tool that will not answer costs this source
+        # A job the AI search found on a board she can list teaches her that
+        # board too, the same as one met on an employer's own site.
+        try:
+            learnable = []
+            for job in searched:
+                matched = job_from_url(str(job.get("apply_url") or job.get("posting_url") or ""))
+                if matched and matched[1]:
+                    learnable.append({"provider": matched[0].provider, "board": matched[1],
+                                      "company": job.get("company", ""), "found_by": "ai web search"})
+            _learn_boards(learnable, source="ai web search")
+        except Exception:
+            pass
     # The web, the employers' own sites and the AI search take turns in the
     # third slot, so none crowds out another and none crowds out the boards.
     beyond, i = [], 0
@@ -617,8 +833,10 @@ _LEVER_JOB = re.compile(
     r"https?://jobs\.lever\.co/([A-Za-z0-9_.-]+)/([0-9a-fA-F-]{36})")
 _ASHBY_JOB = re.compile(
     r"https?://jobs\.ashbyhq\.com/([A-Za-z0-9_.-]+)/([0-9a-fA-F-]{36})")
+# The account is optional: Workable's own feed hands out apply.workable.com/j/<code>,
+# with no account in it, and the pattern that required one matched none of them.
 _WORKABLE_JOB = re.compile(
-    r"https?://apply\.workable\.com/([A-Za-z0-9_.-]+)/j/([A-Z0-9]{8,})")
+    r"https?://apply\.workable\.com/(?:(?!j/)([A-Za-z0-9_.-]+)/)?j/([A-Z0-9]{8,})")
 _SMARTRECRUITERS_JOB = re.compile(
     r"https?://jobs\.smartrecruiters\.com/([A-Za-z0-9_.-]+)/(\d{6,})")
 _RECRUITEE_JOB = re.compile(
@@ -644,11 +862,22 @@ class Ats:
     site: str                       # the host a site: search sweeps
     job: "re.Pattern"               # a job URL -> (token, id)
     apply: "Callable[[str, str], str]"
+    # Is `apply(token, id)` the application FORM itself? SmartRecruiters'
+    # posting page is a description with an "I'm interested" button - its form
+    # is keyed by a uuid only the listing carries - and a posting marked
+    # direct was staged as a page with nothing to fill.
+    form: bool = True
 
 
 def _gh_apply(token: str, jid: str) -> str:
     return ("https://boards.greenhouse.io/embed/job_app"
             f"?for={urllib.parse.quote(token)}&token={jid}")
+
+
+def _workable_apply(token: str, code: str) -> str:
+    if not token:
+        return f"https://apply.workable.com/j/{code}/apply"
+    return f"https://apply.workable.com/{urllib.parse.quote(token)}/j/{code}/apply/"
 
 
 #: Public, login-free application forms, in the order a sweep meets them.
@@ -660,10 +889,10 @@ ATS: tuple[Ats, ...] = (
         lambda t, j: f"https://jobs.lever.co/{urllib.parse.quote(t)}/{j}/apply"),
     Ats("ashby", "jobs.ashbyhq.com", _ASHBY_JOB,
         lambda t, j: f"https://jobs.ashbyhq.com/{urllib.parse.quote(t)}/{j}/application"),
-    Ats("workable", "apply.workable.com", _WORKABLE_JOB,
-        lambda t, j: f"https://apply.workable.com/{urllib.parse.quote(t)}/j/{j}/apply/"),
+    Ats("workable", "apply.workable.com", _WORKABLE_JOB, _workable_apply),
     Ats("smartrecruiters", "jobs.smartrecruiters.com", _SMARTRECRUITERS_JOB,
-        lambda t, j: f"https://jobs.smartrecruiters.com/{urllib.parse.quote(t)}/{j}"),
+        lambda t, j: f"https://jobs.smartrecruiters.com/{urllib.parse.quote(t)}/{j}",
+        form=False),
     Ats("recruitee", "recruitee.com", _RECRUITEE_JOB,
         lambda t, j: f"https://{urllib.parse.quote(t)}.recruitee.com/o/{j}/c/new"),
 )
@@ -677,8 +906,82 @@ def job_from_url(href: str) -> tuple[Ats, str, str] | None:
     for ats in ATS:
         found = ats.job.search(str(href or ""))
         if found:
-            return ats, found.group(1), found.group(2)
+            # A Workable address may carry no account; the job is still a job.
+            return ats, found.group(1) or "", found.group(2)
     return None
+
+
+def boards_seen(seen: list[dict]) -> list[dict]:
+    """Every distinct board behind these job addresses that she does not already search.
+
+    `seen` rows are {"url", "company", "from"}. Returned in the shape
+    `_learn_boards` takes: provider, board (the token), company, found_by.
+    Only systems she can LIST; a Workable address with no account in it names
+    no board.
+    """
+    have = {(b.get("provider"), str(b.get("token"))) for b in boards()}
+    out = []
+    for row in seen or []:
+        matched = job_from_url(str((row or {}).get("url") or ""))
+        if not matched or not matched[1] or matched[0].provider not in PROVIDERS:
+            continue
+        key = (matched[0].provider, matched[1])
+        if key in have:
+            continue
+        have.add(key)
+        out.append({"provider": key[0], "board": key[1],
+                    "company": str(row.get("company") or "").strip(),
+                    "found_by": str(row.get("from") or "")})
+    return out
+
+
+def prove_boards(candidates: list[dict], fetcher=None) -> list[dict]:
+    """Each candidate read through its provider's public listing, right now.
+
+    `live` is True only for a board that answered with at least one opening:
+    a board that lists nothing is not worth a request every batch. The
+    company is the board's own published name where it gives one.
+    """
+    def one(candidate):
+        provider = PROVIDERS.get(candidate.get("provider"))
+        board = {"provider": candidate.get("provider"), "token": candidate.get("board"),
+                 "company": candidate.get("company", ""), "learned": True}
+        if provider is None and fetcher is None:
+            return {**candidate, "live": False, "count": 0, "why": "not a system she can list"}
+        try:
+            rows = (fetcher or provider)(board)
+        except Exception as exc:
+            return {**candidate, "live": False, "count": 0,
+                    "why": f"{type(exc).__name__}: {exc}"[:120]}
+        named = next((str(r.get("company")) for r in rows
+                      if r.get("company") and not _cut(r.get("company"))), "")
+        return {**candidate, "live": bool(rows), "count": len(rows),
+                "company": named or candidate.get("company") or candidate.get("board"),
+                "why": "" if rows else "the board lists no openings"}
+
+    with ThreadPoolExecutor(MAX_WORKERS) as pool:
+        return list(pool.map(one, list(candidates or [])))
+
+
+def learn_board_urls(seen: list[dict], *, source: str) -> int:
+    """Learn the board behind every job address in `seen` ({"url", "company"}).
+
+    For the places a board turns up that are not a search result: an
+    employer page's Apply link, an application already on record, a posting
+    a listing site pointed at. Never raises.
+    """
+    found = []
+    for row in seen or []:
+        matched = job_from_url(str((row or {}).get("url") or ""))
+        if not matched or not matched[1]:
+            continue
+        ats, token, _jid = matched
+        found.append({"provider": ats.provider, "board": token,
+                      "company": str(row.get("company") or "").strip()})
+    try:
+        return _learn_boards(found, source=source)
+    except Exception:
+        return 0
 
 
 def discover_openings(roles: list[str], *, limit: int = 10, http=None) -> list[dict]:
@@ -753,6 +1056,7 @@ def discover_openings(roles: list[str], *, limit: int = 10, http=None) -> list[d
                        "location": "", "posting_url": href,
                        "apply_url": ats.apply(token, jid),
                        "provider": ats.provider, "board": token, "id": jid,
+                       "direct": ats.form,
                        "found_by": "web search", "named_by_token": not employer}
                 if job["apply_url"] in seen:
                     continue

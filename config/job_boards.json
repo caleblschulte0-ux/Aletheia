@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "note": "Company boards she can search AND apply to. Greenhouse and Lever publish their jobs as public JSON and host the real application form at a public URL with no login. Add a company by adding one line: find its board token in the careers-page URL (boards.greenhouse.io/<token> or jobs.lever.co/<token>). Every token here answered its provider's live API when it was added; `python -m aletheia.jobs --check` re-proves that and names any board that has since gone.",
+  "note": "Company boards she can search AND apply to. Greenhouse, Lever, Ashby, Workable, SmartRecruiters and Recruitee publish their jobs as public JSON and host the application form at a public URL with no login. Add a company by adding one line: find its board token in the careers-page URL (boards.greenhouse.io/<token>, jobs.lever.co/<token>, jobs.ashbyhq.com/<token>, apply.workable.com/<token>, jobs.smartrecruiters.com/<token>, <token>.recruitee.com). Boards she meets while searching are learned on their own into private state (jobs/learned_boards.json). Every token here answered its provider's live API when it was added; `python -m aletheia.jobs --check` re-proves that and names any board that has since gone.",
   "boards": [
     {
       "provider": "greenhouse",

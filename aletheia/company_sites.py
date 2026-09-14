@@ -114,6 +114,8 @@ _LD = re.compile(r"""<script[^>]+application/ld\+json[^>]*>(.*?)</script>""", re
 _BOT_CHECK = re.compile(
     r"<title>\s*(?:just a moment|attention required|access denied|are you a robot|"
     r"verifying you are human|please verify you are a human)|cf-chl-|challenge-platform|"
+    # SmartRecruiters, live 2026-09-13, in front of Equinox's one-click form.
+    r"access is temporarily restricted|detected unusual activity from your|"
     r"_incapsula_resource|px-captcha|g-recaptcha[^>]*data-sitekey[^>]*>\s*</div>\s*</body>",
     re.I)
 #: Pay-per-click hops a listing uses in place of the employer's address. One
@@ -447,9 +449,14 @@ def openings(roles: list[str], *, limit: int = 10, country: str = "", exclude=()
             continue
         seen.add(target)
         matched = jobs.job_from_url(target)
+        board = host_of(target)
         if matched:
             ats, token, jid = matched
-            apply_url, direct, provider, account = ats.apply(token, jid), True, ats.provider, False
+            # The board is the TOKEN, which is what `jobs` learns and lists by;
+            # the host said "jobs.ashbyhq.com" for every Ashby employer alike.
+            # And a posting page that is not the form is walked, not staged.
+            apply_url, direct, provider, account = ats.apply(token, jid), ats.form, ats.provider, False
+            board = token or board
         else:
             account = needs_account(target)
             apply_url, direct, provider = target, False, ("account site" if account else "company site")
@@ -461,7 +468,7 @@ def openings(roles: list[str], *, limit: int = 10, country: str = "", exclude=()
         out.append({
             "title": job["title"], "company": job["company"], "location": job["location"],
             "posting_url": target, "apply_url": apply_url, "provider": provider,
-            "board": host_of(target), "id": target,
+            "board": board, "id": target,
             "found_by": "company site", "found_on": FOUND_ON,
             "direct": direct, "needs_account": account, "lead": lead["lead"],
         })
