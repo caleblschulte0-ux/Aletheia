@@ -82,9 +82,26 @@ def is_widget_furniture(field: dict) -> bool:
 # sees, so the label matters more than the name attribute: `q_31415926` is
 # what Workday calls "Are you legally authorized to work?".
 READ_FORM_JS = r"""() => {
+  // An id a script MINTED for this page load ("cedfyMSPdOianhkc"). Workable
+  // issues new ones on every render, so a selector read in one browser and
+  // typed in the next found nothing: live 2026-09-13 the fill of Hugging
+  // Face's form timed out waiting for #wrapper_cedfyMSPdOianhkc, which the
+  // read had seen as #wrapper_HO2q69PjIohQ40rW. Names like "QA_12194413",
+  // "question_8812" and "firstName" are not minted and are kept.
+  const generated = (id) => {
+    const tail = String(id || '').split(/[_:.-]/).pop();
+    if (tail.length < 10 || !/^[A-Za-z0-9]+$/.test(tail)) return false;
+    return (tail.match(/[a-z](?=[A-Z])|[A-Z](?=[a-z])|[A-Za-z](?=\d)|\d(?=[A-Za-z])/g) || []).length >= 4;
+  };
   const labelFor = (el) => {
     if (el.id) {
       const l = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+      if (l && l.innerText.trim()) return l.innerText.trim();
+    }
+    // A label whose `for` names the control's NAME, where no element has that
+    // id. Ashby's questions are <label for="<uuid>"> over <input name="<uuid>">.
+    if (el.name && !document.getElementById(el.name)) {
+      const l = document.querySelector(`label[for="${CSS.escape(el.name)}"]`);
       if (l && l.innerText.trim()) return l.innerText.trim();
     }
     const wrap = el.closest('label');
@@ -119,8 +136,29 @@ READ_FORM_JS = r"""() => {
     return '';
   };
   const selectorFor = (el) => {
-    if (el.id) return `#${CSS.escape(el.id)}`;
-    if (el.name) return `${el.tagName.toLowerCase()}[name="${CSS.escape(el.name)}"]`;
+    // A render's own UUID IN FRONT of a steady id. Ashby's options are
+    // "<per-load uuid>_<field uuid>-labeled-radio-0", name included: live
+    // 2026-09-13 Notion's pronoun radio was read as 46a20b52-..._b0a5aba8-...
+    // and the fill, one load later, waited for 2ac35076-..._b0a5aba8-... until
+    // it timed out. The tail after the prefix is the same on every load.
+    const prefixed = String(el.id || '').match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_(.+)$/i);
+    if (prefixed) {
+      const css = `${el.tagName.toLowerCase()}[id$="_${prefixed[1].replace(/["\\]/g, '\\$&')}"]`;
+      if (document.querySelectorAll(css).length === 1) return css;
+    }
+    // A minted id is used only when there is nothing steadier to go by.
+    if (el.id && !(el.name && generated(el.id))) return `#${CSS.escape(el.id)}`;
+    if (el.name) {
+      const base = `${el.tagName.toLowerCase()}[name="${CSS.escape(el.name)}"]`;
+      // Options sharing a name and carrying no id need their VALUE to be told
+      // apart. Ashby's text-message consent is two such radios, and with one
+      // selector for both, answering "No" clicked "Yes" (live 2026-09-13).
+      if (el.value && document.querySelectorAll(base).length > 1) {
+        const exact = `${base}[value="${CSS.escape(el.value)}"]`;
+        if (document.querySelectorAll(exact).length === 1) return exact;
+      }
+      return base;
+    }
     return null;
   };
   // A checkbox or radio is an OPTION, not a question. Its own label says
@@ -134,6 +172,17 @@ READ_FORM_JS = r"""() => {
     if (group) {
       const legend = group.querySelector('legend, .label, [class*="label"]');
       if (legend && legend.innerText.trim()) return legend.innerText.trim();
+      // The group's ACCESSIBLE name. Workable renders every yes/no question as
+      // <fieldset role=radiogroup aria-labelledby="..._label"> with no legend,
+      // and live 2026-09-13 Hugging Face's four went to him as "YES", "YES",
+      // "YES", "YES" - each option's own text standing in for its question.
+      const named = (group.getAttribute('aria-label') || '').trim();
+      if (named) return named;
+      const ids = (group.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean);
+      const said = ids.map(id => document.getElementById(id))
+        .filter(n => n && !n.contains(el)).map(n => (n.innerText || '').trim())
+        .filter(Boolean).join(' ');
+      if (said) return said;
     }
     const by = el.getAttribute('aria-describedby');
     if (by) {
@@ -168,6 +217,12 @@ READ_FORM_JS = r"""() => {
     const type = (tag === 'input' ? (el.type || 'text') : tag).toLowerCase();
     const selector = selectorFor(el);
     if (!selector) continue;
+    // A checkbox that only STORES a yes/no answered by two toggle buttons is
+    // read as that question by READ_ARIA_JS. Read here, Ashby's "Do you have
+    // a minimum of 7 years of experience building software?" reached him as
+    // "box:3080cfba-..." (live 2026-09-13).
+    if (type === 'checkbox' && el.parentElement
+        && el.parentElement.querySelectorAll('button[aria-pressed]').length >= 2) continue;
     const row = {
       selector, tag, type,
       name: el.name || '', id: el.id || '',
@@ -176,6 +231,15 @@ READ_FORM_JS = r"""() => {
       required: !!(el.required || el.getAttribute('aria-required') === 'true'),
       value: (el.value || '').slice(0, 200),
     };
+    // The value field BEHIND a labelled widget is not a second question. A
+    // Workable picker is a visible #input_CA_10627_input labelled "Notice
+    // period / availability" plus an unlabelled input[name=CA_10627] that holds
+    // what was picked; live 2026-09-13 the second went to him as "CA_10627".
+    if (!row.label && el.name && type !== 'checkbox' && type !== 'radio' && type !== 'file') {
+      const twins = [...document.querySelectorAll('input, select, textarea')]
+        .filter(o => o !== el && o.id && o.id.includes(el.name) && labelFor(o));
+      if (twins.length) continue;
+    }
     if (type === 'checkbox' || type === 'radio') {
       // A checkbox's `value` is "on" whether or not it is ticked, so a
       // required certification box READ AS FILLED, the browser refused the
@@ -335,6 +399,10 @@ YES_NO_FIELDS = frozenset({"work_authorization", "needs_sponsorship",
 # area" got his notice period. Both went into dropdowns with no such option,
 # chose nothing, and stopped the application on a question she had answered.
 _ABOUT_HIMSELF = re.compile(r"^[^a-z0-9]*(?:i|i'm|i’m|i am|i have|i've)\b")
+#: How an essay question opens.
+_WRITTEN_QUESTION = re.compile(
+    r"^[^a-z0-9]*(?:tell us|tell me|describe|share|explain|walk us|talk us|give us|"
+    r"why|how (?:do|did|would|have|has)|what (?:was|did|would|makes|made))\b")
 _CONTACT_FIELDS = frozenset({
     "legal_name", "first_name", "last_name", "preferred_name", "email", "phone",
     "street", "city", "state", "postal_code", "country", "linkedin", "github",
@@ -577,6 +645,13 @@ def match_field(field: dict) -> str | None:
                 r"\bstate\s+(?:the|your|a|an|any|why|how|what|which|who|if|whether)\b", label):
             continue
         if key in _CONTACT_FIELDS and _ABOUT_HIMSELF.match(label):
+            continue
+        # A written question that MENTIONS a link is not asking for the link.
+        # Hugging Face's "Tell us about something you've built on top of our
+        # tools ... Share a public link if you have one (GitHub, a demo, a
+        # write-up)" got his GitHub URL, live 2026-09-13 - an essay answered
+        # with an address. "Share your LinkedIn profile" is still his LinkedIn.
+        if key in _CONTACT_FIELDS and _WRITTEN_QUESTION.match(label) and len(label.split()) > 12:
             continue
         # "What is your legal MIDDLE name?" got "Caleb Schulte" on Tebra.
         if key in _NAME_FIELDS and _says("middle", label):
@@ -1800,6 +1875,41 @@ def settle(page, *, extra=None, tries: int = SETTLE_TRIES) -> None:
             return
 
 
+#: A cookie or consent dialog, and which of its buttons would get it out of the
+#: way - READ here, pressed by `apply_run.clear_consent` (this module presses
+#: nothing). Workable's "Cookie Consent" dialog and its backdrop sit over every
+#: application form it serves; live 2026-09-13 each click on Hugging Face's form
+#: was intercepted and timed out. DECLINE is preferred - optional cookies are
+#: his to accept, not hers - and a banner offering only "Accept"/"Got it" is
+#: accepted, because there is no other way past it and the record says so.
+CONSENT_JS = r"""() => {
+  const seen = (el) => {
+    const r = el.getBoundingClientRect(), s = getComputedStyle(el);
+    return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
+  };
+  const about = /cookie|consent|gdpr|privacy preferences/i;
+  const boxes = [...document.querySelectorAll(
+      '[role=dialog], [role=alertdialog], [aria-modal=true], [id*=cookie i], [class*=cookie i], '
+      + '[data-ui*=cookie i], [id*=consent i], [class*=consent i], [id*=onetrust i]')]
+    .filter(d => seen(d) && about.test([d.getAttribute('aria-label') || '', d.id, String(d.className),
+                                        (d.innerText || '').slice(0, 600)].join(' ')));
+  const said = (b) => (b.innerText || b.value || b.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
+  const decline = /^(?:decline|reject|refuse|deny)(?: all)?(?: optional)?(?: cookies)?$|necessary (?:cookies )?only|only (?:necessary|essential)|essential (?:cookies )?only|continue without accepting/i;
+  const accept = /^(?:accept|accept all|accept cookies|allow|allow all|agree|i agree|ok|okay|got it|i understand)$/i;
+  for (const box of boxes) {
+    const buttons = [...box.querySelectorAll('button, [role=button], input[type=button]')].filter(seen);
+    const no = buttons.find(b => decline.test(said(b)));
+    const yes = no ? null : buttons.find(b => accept.test(said(b)));
+    const chosen = no || yes;
+    if (chosen) {
+      chosen.setAttribute('data-aletheia-consent', '1');
+      return {kind: no ? 'declined' : 'accepted', text: said(chosen)};
+    }
+  }
+  return {kind: '', text: ''};
+}"""
+
+
 def read_all(page) -> list[dict]:
     """Every field on the page, in every frame, each selector frame-tagged."""
     rows: list[dict] = []
@@ -1810,12 +1920,18 @@ def read_all(page) -> list[dict]:
             except Exception:
                 continue
             for row in got or []:
+                if not isinstance(row, dict) or not row.get("selector"):
+                    continue                 # not a field this reader describes
                 row = dict(row)
                 row["selector"] = tag(index, row["selector"])
+                if row.get("wraps"):
+                    row["wraps"] = tag(index, row["wraps"])
                 if row.get("group", "").startswith("aria:"):
                     row["group"] = f"{row['group']}@{index}"
                 rows.append(row)
-    return rows
+    # A native radio an ARIA option wraps was read twice; the option is kept.
+    wrapped = {row["wraps"] for row in rows if row.get("wraps")}
+    return [row for row in rows if row["selector"] not in wrapped]
 
 
 MAX_DROPDOWNS_READ = 20
@@ -1872,10 +1988,40 @@ READ_ARIA_JS = r"""() => {
   // `document.querySelectorAll('input, select, textarea')`. Read as one
   // option-per-row so the ordinary grouping folds them into ONE question,
   // exactly like a set of checkboxes.
+  // Same test as READ_FORM_JS: an id minted for this page load.
+  const generated = (id) => {
+    const tail = String(id || '').split(/[_:.-]/).pop();
+    if (tail.length < 10 || !/^[A-Za-z0-9]+$/.test(tail)) return false;
+    return (tail.match(/[a-z](?=[A-Z])|[A-Z](?=[a-z])|[A-Za-z](?=\d)|\d(?=[A-Za-z])/g) || []).length >= 4;
+  };
+  // The selector READ_FORM_JS gives a native input, so `wraps` names it exactly.
+  const nativeSelector = (x) => {
+    const prefixed = String(x.id || '').match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_(.+)$/i);
+    if (prefixed) {
+      const css = `${x.tagName.toLowerCase()}[id$="_${prefixed[1].replace(/["\\]/g, '\\$&')}"]`;
+      if (document.querySelectorAll(css).length === 1) return css;
+    }
+    if (x.id && !(x.name && generated(x.id))) return `#${CSS.escape(x.id)}`;
+    if (!x.name) return '';
+    const base = `${x.tagName.toLowerCase()}[name="${CSS.escape(x.name)}"]`;
+    if (x.value && document.querySelectorAll(base).length > 1) {
+      const exact = `${base}[value="${CSS.escape(x.value)}"]`;
+      if (document.querySelectorAll(exact).length === 1) return exact;
+    }
+    return base;
+  };
   const path = (el) => {
+    // An option wrapping a native input with a steady name is found by it,
+    // whatever ids this page load minted around it.
+    const inner = el.querySelector && el.querySelector('input[type=radio], input[type=checkbox]');
+    const role = el.getAttribute && el.getAttribute('role');
+    if (inner && inner.name && role) {
+      const css = `[role="${role}"]:has(${nativeSelector(inner) || 'x-none'})`;
+      try { if (document.querySelectorAll(css).length === 1) return css; } catch (e) {}
+    }
     const bits = [];
-    for (let n = el; n && n.nodeType === 1 && bits.length < 6; n = n.parentElement) {
-      if (n.id) { bits.unshift(`#${CSS.escape(n.id)}`); break; }
+    for (let n = el; n && n.nodeType === 1 && bits.length < 12; n = n.parentElement) {
+      if (n.id && !generated(n.id)) { bits.unshift(`#${CSS.escape(n.id)}`); break; }
       const t = n.tagName.toLowerCase();
       if (t === 'html' || t === 'body') break;
       const kin = n.parentElement
@@ -1907,17 +2053,52 @@ READ_ARIA_JS = r"""() => {
     for (const opt of group.querySelectorAll('[role=radio], [role=option]')) {
       const selector = path(opt);
       if (!selector) continue;
+      // An option that WRAPS a native radio is one control, not two. Workable
+      // puts <div role=radio> around <input type=radio>; read by both readers,
+      // every yes/no question reached him twice - once required, once not.
+      // The wrapper is what a person clicks; the native input knows it is
+      // required. `wraps` lets read_all keep one row with both facts.
+      const inner = opt.querySelector('input[type=radio], input[type=checkbox]');
+      const wraps = inner ? nativeSelector(inner) : '';
+      const innerRequired = !!(inner && (inner.required || inner.getAttribute('aria-required') === 'true'))
+        || opt.getAttribute('aria-required') === 'true';
       out.push({
         selector, tag: 'aria', type: 'radio', name: '', id: '',
         group: key, question: question.slice(0, 110),
         option: (opt.innerText || '').trim().slice(0, 70),
         label: (opt.innerText || '').trim().slice(0, 70),
-        required, value: '',
+        required: required || innerRequired, value: '', wraps,
         checked: opt.getAttribute('aria-checked') === 'true'
                  || opt.getAttribute('aria-selected') === 'true',
       });
       if (out.length > 80) return out;
     }
+  }
+  // Yes/No as two toggle BUTTONS over a hidden checkbox that stores the
+  // answer - Ashby's yes/no questions. The question is the label that names
+  // the checkbox (by id or by name) or the heading of the block it sits in.
+  for (const box of document.querySelectorAll('input[type=checkbox]')) {
+    const holder = box.parentElement;
+    const buttons = holder ? [...holder.querySelectorAll('button[aria-pressed]')] : [];
+    if (buttons.length < 2) continue;
+    let heading = null;
+    for (const key of [box.id, box.name]) {
+      if (!heading && key) heading = document.querySelector(`label[for="${CSS.escape(key)}"]`);
+    }
+    if (!heading && holder.parentElement) heading = holder.parentElement.querySelector('label, legend');
+    const question = heading ? (heading.innerText || '').replace(/\s+/g, ' ').trim() : '';
+    if (!question) continue;
+    const key = `aria:${n++}`;
+    const required = /\*/.test(question) || /required/i.test(String(heading.className || ''));
+    for (const b of buttons) {
+      const selector = path(b);
+      if (!selector) continue;
+      const text = (b.innerText || '').trim().slice(0, 70);
+      out.push({selector, tag: 'aria', type: 'radio', name: '', id: '', group: key,
+                question: question.slice(0, 110), option: text, label: text, required,
+                value: '', checked: b.getAttribute('aria-pressed') === 'true'});
+    }
+    if (out.length > 80) return out;
   }
   return out;
 }"""
@@ -1936,7 +2117,11 @@ READY_JS = r"""() => {
     return (el.getAttribute('aria-label') || el.name || el.id || '').slice(0, 90);
   };
   const selectorFor = (el) => {
-    if (el.id) return `#${CSS.escape(el.id)}`;
+    // Not an id minted for this page load, where a name will do (READ_FORM_JS).
+    const tail = String(el.id || '').split(/[_:.-]/).pop();
+    const minted = tail.length >= 10 && /^[A-Za-z0-9]+$/.test(tail) &&
+      (tail.match(/[a-z](?=[A-Z])|[A-Z](?=[a-z])|[A-Za-z](?=\d)|\d(?=[A-Za-z])/g) || []).length >= 4;
+    if (el.id && !(el.name && minted)) return `#${CSS.escape(el.id)}`;
     if (el.name) return `${el.tagName.toLowerCase()}[name="${CSS.escape(el.name)}"]`;
     return '';
   };
@@ -1955,11 +2140,38 @@ READY_JS = r"""() => {
     }
     return '';
   };
+  // A radio or checkbox group's own accessible name - the question, where the
+  // option's label is only "YES" (Workable's <fieldset role=radiogroup
+  // aria-labelledby=...>).
+  const groupName = (el) => {
+    const g = el.closest('fieldset, [role=radiogroup], [role=group]');
+    if (!g) return '';
+    const own = (g.getAttribute('aria-label') || '').trim();
+    if (own) return own.slice(0, 90);
+    const said = (g.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean)
+      .map(id => document.getElementById(id)).filter(n => n && !n.contains(el))
+      .map(n => (n.innerText || '').trim()).filter(Boolean).join(' ');
+    if (said) return said.slice(0, 90);
+    const legend = g.querySelector('legend');
+    return legend ? (legend.innerText || '').trim().slice(0, 90) : '';
+  };
   const invalid = [];
   const groupsAsked = new Set();
   for (const el of document.querySelectorAll('input, select, textarea')) {
     if (typeof el.checkValidity !== 'function') continue;
     if (el.disabled || el.type === 'hidden' || el.checkValidity()) continue;
+    if (el.type === 'radio' && el.name) {
+      // Every unpicked radio in a required group is invalid, so one question
+      // came back once per OPTION, each named by that option ("YES", "NO").
+      if (groupsAsked.has(el.name)) continue;
+      groupsAsked.add(el.name);
+      invalid.push({label: groupName(el) || questionAbove(el) || label(el), name: el.name,
+                    selector: selectorFor(el), why: 'pick one',
+                    options: [...document.getElementsByName(el.name)].map(m => label(m))
+                      .filter(Boolean).slice(0, 40)});
+      if (invalid.length > 20) break;
+      continue;
+    }
     if (el.type === 'checkbox' && el.name) {
       // "Which countries?" is thirty required boxes sharing one name, and
       // the browser calls every unticked box invalid even after US is
@@ -2069,19 +2281,28 @@ def blocking(page) -> list[dict]:
 # on chooses NOTHING - the widget throws the text away - and live 2026-09-10
 # a Stripe form she had "filled" still had nine required answers empty.
 
+# Lever's "Current location" is the same kind of widget without the ARIA: an
+# <input class="location-input"> whose suggestions are .dropdown-location rows,
+# and a hidden selectedLocation that only a CLICKED suggestion sets. Typed and
+# left, the text is thrown away on blur - live 2026-09-14 Palantir and Spotify
+# both stopped on "Current location: Please fill out this field." with "Hartford"
+# on the confirmation and nothing in the box.
 COMBOBOX_JS = r"""(css) => {
   const el = document.querySelector(css);
   return !!el && (el.getAttribute('role') === 'combobox'
-                  || el.getAttribute('aria-autocomplete') === 'list');
+                  || el.getAttribute('aria-autocomplete') === 'list'
+                  || el.classList.contains('location-input')
+                  || !!(el.parentElement && el.parentElement.querySelector('.dropdown-results')));
 }"""
-VISIBLE_OPTIONS_JS = r"""() => [...document.querySelectorAll('[role=option]')]
+OPTION_CSS = "[role=option], .dropdown-results .dropdown-location"
+VISIBLE_OPTIONS_JS = r"""() => [...document.querySelectorAll('%s')]
   .filter(o => o.offsetParent !== null)
-  .map(o => (o.innerText || '').trim()).filter(Boolean).slice(0, 400)"""
+  .map(o => (o.innerText || '').trim()).filter(Boolean).slice(0, 400)""" % OPTION_CSS
 # The VISIBLE option whose text is exactly the choice. A text-contains match
 # found "No" inside a hidden option left over from another menu and waited
 # thirty seconds to click something that could not be clicked.
-FIND_OPTION_JS = r"""(text) => [...document.querySelectorAll('[role=option]')]
-  .find(o => o.offsetParent !== null && (o.innerText || '').trim() === text) || null"""
+FIND_OPTION_JS = r"""(text) => [...document.querySelectorAll('%s')]
+  .find(o => o.offsetParent !== null && (o.innerText || '').trim() === text) || null""" % OPTION_CSS
 
 US_STATE_NAMES = {
     "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas", "CA": "California",
@@ -2158,6 +2379,62 @@ def _years_range(value, options: list[str]) -> str | None:
     return hits[0] if len(hits) == 1 else None
 
 
+def _names_other_state(option: str, state: str) -> bool:
+    """"Hartford, CT, USA" when he lives in SD."""
+    for abbr in re.findall(r",\s*([A-Z]{2})\b", str(option)):
+        if abbr in US_STATE_NAMES and abbr != state:
+            return True
+    n = _norm(option)
+    return any(_says(_norm(name), n) for abbr, name in US_STATE_NAMES.items() if abbr != state)
+
+
+_SAYS_AUTHORIZED = re.compile(
+    r"\b(?:i am|i'm|i’m)\b.{0,40}?\b(?:authori[sz]ed|eligible|citizen|national|permanent resident)\b",
+    re.I)
+#: Anything that makes an "I am authorized" sentence not his unrestricted yes.
+_RESTRICTED = re.compile(
+    r"\bnot\b|\bunknown\b|\bsponsor|\bvisa\b|\bpermit\b|\bonly\b|\bpresent employer\b|"
+    r"\bcurrent employer\b|\bopt\b|\bcpt\b|\bh-?1b\b|\bdaca\b|\brefugee\b|\basylee\b|"
+    r"\btemporar|\bpending\b|\bexpire|\bpermanent resident\b|\bgreen card\b|\blawful\b", re.I)
+_CITIZEN = re.compile(r"\bu\.?\s?s\.?(?:a\.?)?\s+citizen\b|\bcitizen of the united states\b", re.I)
+
+
+def _his_citizenship(known: dict) -> bool:
+    """Whether HE has said he is a U.S. citizen - his words, never a guess."""
+    if _CITIZEN.search(str(known.get("citizenship") or "")):
+        return True
+    try:
+        return any(_CITIZEN.search(str(row.get("value") or ""))
+                   for row in profile.questions_on_file())
+    except Exception:
+        return False
+
+
+def authorized_choice(options: list[str], known: dict | None = None) -> str | None:
+    """His "Yes, authorized" on a list that answers in sentences, or None.
+
+    SpaceX asks "Are you legally authorized to work in the United States?" with
+    "I am authorized to work in the United States for any employer", "... for my
+    present employer only", "I require sponsorship ...", "I am not authorized
+    ...", "My status ... is unknown" - no option says Yes, so two applications
+    waited on him for an answer that was on file. Only when he is authorized AND
+    needs no sponsorship; never an option naming a restriction, a sponsorship or
+    a status he has not claimed; citizenship only when he said it.
+    """
+    known = known or {}
+    if _norm(known.get("work_authorization")) != "yes" or _norm(known.get("needs_sponsorship")) != "no":
+        return None
+    fits = [o for o in options if _SAYS_AUTHORIZED.search(str(o)) and not _RESTRICTED.search(str(o))]
+    citizen = [o for o in fits if _CITIZEN.search(str(o)) or _says("citizen", _norm(o))]
+    if citizen:
+        if _his_citizenship(known) and len(citizen) == 1:
+            return citizen[0]
+        fits = [o for o in fits if o not in citizen]
+    if len(fits) > 1:
+        fits = [o for o in fits if _says("any employer", _norm(o))] or fits
+    return fits[0] if len(fits) == 1 else None
+
+
 def _best_option(value, options: list[str], known: dict | None = None) -> str | None:
     """The one option that IS the answer, or None. Never a guess between two."""
     known = known or {}
@@ -2165,6 +2442,12 @@ def _best_option(value, options: list[str], known: dict | None = None) -> str | 
     if not v or not options:
         return None
     normed = [(o, _norm(o)) for o in options]
+    his_state = str(known.get("state") or "").strip().upper()
+    if his_state and v == _norm(known.get("city")):
+        # His city in somebody else's state is a different place: "Hartford,
+        # CT, USA" is not Hartford, South Dakota, however it starts.
+        normed = [(o, n) for o, n in normed if not _names_other_state(o, his_state)]
+        options = [o for o, _n in normed]
     wants = {v}
     for same in _SAME_COUNTRY:
         if v in same:
@@ -2205,12 +2488,20 @@ def _best_option(value, options: list[str], known: dict | None = None) -> str | 
                     if not re.search(r"\b(?:sponsor\w*|visa|permit)\b", _norm(o))]
         if len(said) == 1:
             return said[0]
+        if v == "yes" and not said:
+            authorized = authorized_choice(options, known)
+            if authorized is not None:
+                return authorized
     # A place: the city he lives in, in the state he lives in.
     state = str(known.get("state") or "").strip().upper()
     in_state = {_norm(state), _norm(US_STATE_NAMES.get(state, ""))} - {""}
     if in_state:
         placed = [o for o, n in normed
                   if _says(v, n) and any(_says(s, n) for s in in_state)]
+        # "Hartford, SD, USA" and "Hartford, South Dakota 57033" are one place:
+        # the first suggestion naming his city in his state is his.
+        if placed and v == _norm(known.get("city")):
+            return placed[0]
         if len(placed) == 1:
             return placed[0]
     level = _degree_level(value)
