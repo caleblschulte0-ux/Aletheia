@@ -132,3 +132,6 @@
 {"ts": "2026-09-14T05:03:39Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:shorts_pipeline", "text": "health red -> green"}
 {"ts": "2026-09-14T05:03:39Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:money_machine", "text": "health red -> green"}
 {"ts": "2026-09-14T05:03:41Z", "kind": "recovery", "actor": "aletheia", "subject": "sentinel", "text": "fleet recovered — alert issue closed"}
+{"ts": "2026-09-14T12:57:44Z", "kind": "alert", "actor": "aletheia", "subject": "repo:shorts_pipeline", "text": "health green -> red"}
+{"ts": "2026-09-14T12:57:44Z", "kind": "alert", "actor": "aletheia", "subject": "repo:schwab_trader", "text": "health green -> red"}
+{"ts": "2026-09-14T12:57:45Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue opened — Shorts-pipeline, schwab-trader"}
