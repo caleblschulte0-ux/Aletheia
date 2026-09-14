@@ -237,8 +237,11 @@ READ_FORM_JS = r"""() => {
     if (tag === 'select') {
       row.options = Array.from(el.options)
         .map(o => ({value: o.value, text: (o.text || '').trim()}))
-        .filter(o => o.value !== '')
-        .slice(0, 60);
+        // EVERY option. Palantir's university list has 3,302 and ends with
+        // "Other - School Not Listed"; cut at 60 it held neither his school
+        // nor the one it tells him to pick without it. What reaches a model
+        // or a saved record is bounded in Python (bounded_choices), not here.
+        .filter(o => o.value !== '');
     }
     out.push(row);
   }
@@ -299,9 +302,15 @@ def category_of(label: str, choices: list[str] | None = None) -> str:
     normed = [_norm(c) for c in choices if str(c).strip()]
     gendered = any(n in _GENDER_OPTIONS or n.split()[:1] in (["man"], ["woman"])
                    for n in normed)
-    if not gendered and any(_says(w, n) for n in normed for w in _ORIENTATION_OPTIONS):
+    # A self-identification list is short and mostly made of the category.
+    # Read WHOLE, Palantir's 3,302 universities hold "Asian Institute of
+    # Technology" and "Black Hills State University", and three names in a
+    # long list must not turn "which university" into a protected question.
+    if not gendered and len(normed) <= 40 and \
+            any(_says(w, n) for n in normed for w in _ORIENTATION_OPTIONS):
         return "self_id_decline"
-    if sum(1 for n in normed if any(_says(w, n) for w in _RACE_OPTIONS)) >= 3:
+    races = sum(1 for n in normed if any(_says(w, n) for w in _RACE_OPTIONS))
+    if races >= 3 and races * 2 >= len(normed):
         return "race"
     return ""
 
@@ -383,6 +392,113 @@ _PLAIN_NO = ("no", "no thanks", "no thank you", "i do not agree", "i don t agree
 #: "Other (School Not Listed)", the option a list tells him to pick when his
 #: school is not on it.
 _OTHER_NOT_LISTED = re.compile(r"\bother\b.*\bnot listed\b|\bnot listed\b.*\bother\b")
+
+#: How many of a list's options travel in a saved question or a model's
+#: context. The FIELD keeps every one, and matching reads the field.
+MAX_CHOICES_KEPT = 80
+#: Options kept whatever the cut: the one a list offers when the answer is not
+#: on it, and the ones that decline.
+_ESCAPE_OPTION = re.compile(r"\bother\b|\bnot listed\b|\bnone\b|\bdid not\b|\bprefer not\b"
+                            r"|\bdecline\b|\bnot applicable\b|\bdo not wish\b|\bdon t wish\b")
+
+
+def option_texts(field: dict) -> list[str]:
+    """Every option a field offers, as words.
+
+    A typeahead keeps what its open menu showed under `choices`; a <select>
+    keeps its own under `options`, and its placeholder ("Select...", value "")
+    is not an option."""
+    if field.get("choices"):
+        return [str(c).strip() for c in field["choices"] if str(c).strip()]
+    return [str(o.get("text") or "").strip() for o in field.get("options") or []
+            if isinstance(o, dict) and str(o.get("text") or "").strip()
+            and str(o.get("value") or "").strip()]
+
+
+def bounded_choices(options, *, known: dict | None = None,
+                    limit: int = MAX_CHOICES_KEPT) -> list[str]:
+    """A long list cut to what a question can carry, in the list's own order.
+
+    Live 2026-09-13 Palantir's university list had 3,302 options and was read
+    as its first 60: his school was not among them and neither was "Other -
+    School Not Listed", so the one question his profile answers went to him.
+    Cutting is right for a saved record and a model's context; cutting blindly
+    is not. Kept first: an option that names a fact of his, and an option a
+    list offers when the answer is not on it. The head of the list fills the
+    rest.
+    """
+    options = [str(o).strip() for o in options or [] if str(o).strip()]
+    if len(options) <= limit:
+        return options
+    facts = [re.compile(r"(?<![a-z0-9])" + re.escape(f) + r"(?![a-z0-9])")
+             for f in {_norm(v) for v in (known or {}).values() if isinstance(v, str)}
+             if 3 < len(f) <= 80]
+    keep: set[int] = set()
+    for i, option in enumerate(options):
+        if len(keep) >= limit:
+            break
+        n = _norm(option)
+        if _ESCAPE_OPTION.search(n) or any(p.search(n) for p in facts):
+            keep.add(i)
+    for i in range(len(options)):
+        if len(keep) >= limit:
+            break
+        keep.add(i)
+    return [options[i] for i in sorted(keep)]
+
+
+#: A list he would be joining, not a job he would be applying for.
+_LIST_SIGNUP = re.compile(
+    r"\btalent (?:network|community|pool)\b|\bjob alerts?\b|\balerts?\b|\bsubscri\w*"
+    r"|\bnewsletter\b|\b(?:areas?|fields?) of interest\b|\binterests\b|\bcategor(?:y|ies)\b",
+    re.I)
+_CONFIRM_EMAIL = re.compile(
+    r"\b(?:confirm|verify|re-?enter|repeat)\w*\s*(?:your\s+)?e-?mail|\bconfirmemail\b", re.I)
+#: What only an application asks. Deliberately not "address": every signup
+#: has an "Email Address".
+_APPLICATION_ONLY = re.compile(
+    r"\bphone\b|\blinkedin\b|\bcover letter\b|\bauthori[sz]\w*|\bsponsor\w*|\bhow did you hear\b"
+    r"|\bsalary\b|\bcompensation\b|\bstreet\b|\baddress line\b|\bwebsite\b|\bportfolio\b"
+    r"|\bdegree\b|\buniversity\b|\bschool\b|\bemployer\b|\bgender\b|\bdisabilit\w*|\bveteran\b",
+    re.I)
+_RESUME_WORDS = re.compile(r"\bresume\b|\bcv\b|\bcurriculum\b|r[ée]sum[ée]", re.I)
+
+
+def is_signup_list(fields: list[dict]) -> bool:
+    """A talent-network or job-alert signup, not an application.
+
+    Live 2026-09-13 Spectrum's posting page carried "Sign up for job alerts"
+    twice - First Name, Last Name, Email Address, Confirm Email, a Job
+    Category list, a Location list, "Are you a member of the military
+    community?", "Spectrum employee" and an optional resume upload - and it was
+    staged as the application for "National Account Manager, Federal
+    Government". The campaign's own check was defeated by "first name".
+
+    A resume upload he MUST give, or any question only an application asks
+    (phone, LinkedIn, work authorization, a school, how he heard), means an
+    application, always. Otherwise a list shows itself by what it asks: an
+    area of interest or a job category, alerts, a subscription, a talent
+    network - and, where it offers a resume at all, a confirm-email box.
+    """
+    rows = [f for f in fields or [] if isinstance(f, dict)
+            and f.get("type") not in ("hidden", "submit", "button", "image", "reset")]
+    if not rows:
+        return False
+
+    def hay(f):
+        return " ".join(str(f.get(k) or "") for k in ("label", "question", "name", "id"))
+
+    resumes = [f for f in rows if f.get("type") == "file" and _RESUME_WORDS.search(hay(f))]
+    for f in resumes:
+        label = str(f.get("label") or "")
+        marked = bool(f.get("required")) or re.search(r"[*✱]|\brequired\b", label, re.I)
+        if marked and not re.search(r"\boptional\b", label, re.I):
+            return False
+    if any(_APPLICATION_ONLY.search(hay(f)) for f in rows):
+        return False
+    listed = any(_LIST_SIGNUP.search(hay(f)) for f in rows)
+    confirm = any(_CONFIRM_EMAIL.search(hay(f)) for f in rows)
+    return (listed and confirm) if resumes else (listed or confirm)
 _VOLUNTARY_SELF_ID = re.compile(r"\bi identify as\b|\bself[- ]identif", re.I)
 
 
@@ -537,6 +653,28 @@ def _option_for(field: dict, value) -> str | None:
     if best is not None:
         return next(o["value"] for o in options if o["text"] == best)
     return None
+
+
+def _stand_in_option(field: dict, label: str, value) -> str | None:
+    """The option a list itself offers when the answer given is not on it, or None.
+
+    Two, and nothing else is approximated. Palantir's record held "Palantir's
+    careers page" for "how did you hear" - a model's words, written when it
+    was shown no options - and the list says "Palantir Website". And a school
+    list tells him to pick "Other - School Not Listed" when his is not on it.
+    """
+    options = [o for o in field.get("options") or [] if str(o.get("value") or "").strip()]
+    texts = [str(o.get("text") or "") for o in options]
+    key = match_field({"label": label})
+    said = None
+    if key == "heard_about" and re.search(r"career|company|website|search|online|google"
+                                          r"|job board", _norm(value)):
+        said = heard_about_answer(str(value), texts)
+    elif key == "school" or _OTHER_NOT_LISTED.search(_norm(label)):
+        said = next((t for t in texts if _OTHER_NOT_LISTED.search(_norm(t))), None)
+    if said is None:
+        return None
+    return next((o["value"] for o in options if o.get("text") == said), None)
 
 
 def _group_choices(fields: list[dict]) -> tuple[list[dict], list[dict]]:
@@ -1011,7 +1149,8 @@ _SEARCH_WORDS = ("online search", "web search", "internet search", "search engin
                  "google", "job board", "online job board", "internet", "online")
 
 
-def heard_about_answer(found_on: str, choices: list[str] | None = None) -> str | None:
+def heard_about_answer(found_on: str, choices: list[str] | None = None, *,
+                       company: str = "") -> str | None:
     """The truthful answer to "how did you hear about this job", or None.
 
     Live 2026-09-13 it stopped Brex, Gusto, Samsara, Affirm and Grüns - and
@@ -1034,6 +1173,9 @@ def heard_about_answer(found_on: str, choices: list[str] | None = None) -> str |
                 and not re.search(r"\b(?:referr|employee|friend|recruiter|event|linkedin"
                                   r"|glassdoor|indeed|facebook|instagram|twitter|podcast)",
                                   _norm(c))]
+        if len(hits) > 1 and _norm(company):
+            # "Palantir Website" beside another site's: the employer's own.
+            hits = [c for c in hits if _says(_norm(company), _norm(c))]
         if len(hits) == 1:
             return hits[0]
     # No option names where she found it, and the list has a plain "Other":
@@ -1169,17 +1311,17 @@ def plan(fields: list[dict], *, answers: dict | None = None, found_on: str = "")
                  field.get("id") or field["selector"])[:MAX_LABEL_CHARS]
         row = {"selector": field["selector"], "label": label,
                "required": bool(field.get("required")), "type": field.get("type")}
-        if field.get("choices"):
-            # A dropdown's own options, read off its open menu: the answer has
-            # to be one of them, or the picker has nothing to click.
-            row["choices"] = list(field["choices"])
-        elif field.get("tag") == "select" and field.get("options"):
-            # A <select> keeps its options under `options`, and a question
-            # carried none of them: Palantir's "how did you hear" and its
-            # university list reached the model and him with nothing to choose.
-            row["choices"] = [str(o.get("text") or "").strip() for o in field["options"]
-                              if str(o.get("text") or "").strip()
-                              and str(o.get("value") or "").strip()]
+        offered = (option_texts(field)
+                   if field.get("choices") or field.get("tag") == "select" else [])
+        if offered:
+            # A dropdown's own options - read off its open menu, or a <select>'s
+            # - so the answer can be one of them. Palantir's "how did you hear"
+            # and its university list reached the model and him with nothing to
+            # choose. Bounded for the record; `field` keeps every option, and
+            # every match below reads `field`.
+            row["choices"] = bounded_choices(offered, known=known)
+            if len(offered) > len(row["choices"]):
+                row["choices_total"] = len(offered)
         if field.get("type") in SKIP_TYPES:
             row["why"] = ("a file upload is yours to choose"
                           if field.get("type") == "file"
@@ -1452,6 +1594,8 @@ def apply_answers(out: dict, fields: list[dict], answers: dict) -> dict:
             continue
         if field.get("tag") == "select":
             option = _option_for(field, value)
+            if option is None:
+                option = _stand_in_option(field, label, value)
             if option is None:
                 row = dict(row, why=f"{value!r} is not one of its options")
                 refused.append(row)

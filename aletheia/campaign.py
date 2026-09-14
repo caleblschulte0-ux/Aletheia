@@ -203,12 +203,11 @@ def _is_application_form(fields: list[dict]) -> bool:
     if len(usable) < 3:
         return False
     hay = " ".join(_haystack(f) for f in usable)
-    # A job-alert or newsletter signup is not an application, however many
-    # boxes it has: it confirms an email and asks for a category, and never
-    # for a resume, a name or a phone.
-    signup_only = (("alert" in hay or "subscri" in hay or "confirm email" in hay)
-                   and not any(w in hay for w in ("resume", "cv", "first name", "phone")))
-    if signup_only:
+    # A job-alert or talent-network signup is not an application, however
+    # many boxes it has. One predicate, shared with `apply_run.stage`: this
+    # check used to be its own, and "First Name" defeated it (Spectrum,
+    # 2026-09-13).
+    if formfill.is_signup_list(fields):
         return False
     return ("email" in hay or "name" in hay) and "resume" in hay or len(usable) >= 6
 
@@ -539,12 +538,15 @@ def answer_from_facts(record: dict, resume_text: str, *, think=None) -> dict:
     questions = {s: q for s, q in questions.items() if s not in sure}
     if not questions or think is False:
         return dict(sure)
+    facts = dict(profile.known())
     context = {
         "job": record.get("job_title") or record.get("url"),
         "found_this_job_on": record.get("found_on") or "",
-        "facts": dict(profile.known()),
+        "facts": facts,
+        # Bounded, never cut blindly: his school and "Other - School Not
+        # Listed" survive a 3,302-entry university list.
         "questions": [{"selector": s, "label": q.get("label"),
-                       "choices": (q.get("choices") or [])[:80]}
+                       "choices": formfill.bounded_choices(q.get("choices") or [], known=facts)}
                       for s, q in questions.items()],
     }
     try:
@@ -636,6 +638,15 @@ def _obvious(label: str, choices: list[str], known: dict, resume: str, record: d
         home = formfill._best_option(known.get("city"), choices, known) if known.get("city") else None
         if home:
             return home
+    # "Please tell us how you heard about this opportunity." She found it, so
+    # she knows: Palantir's list says "Palantir Website" for its own careers
+    # page. Left to a model shown no options, it came back "Palantir's careers
+    # page", which is not one of them.
+    found_on = str(record.get("found_on") or "")
+    if found_on and formfill.match_field({"label": label}) == "heard_about":
+        said = formfill.heard_about_answer(found_on, choices, company=company)
+        if said:
+            return said
     return formfill.voluntary_decline(label, choices)
 
 
@@ -1401,6 +1412,25 @@ def start_answer(question: str, answer: str, *, spawner=None) -> dict:
     return _launch(args, {"kind": "answer", "question": str(question)[:200]}, spawner)
 
 
+def start_retry(limit: int = 60, spawner=None) -> dict:
+    """Read every waiting application again, in its own process.
+
+    `retry` was only ever run by a person, and run from an outside session
+    it was killed for memory. Launched here it is hers: under the same lock
+    as a batch, so the two can never run over each other, and the lock is
+    released when it finishes (`retry --notify`).
+    """
+    limit = max(1, int(limit))
+    args = [sys.executable, "-m", "aletheia.campaign", "retry", "--limit", str(limit),
+            "--notify"]
+    out = _launch(args, {"kind": "retry", "limit": limit}, spawner)
+    if out.get("started"):
+        journal.append("action", "campaign",
+                       f"started reading up to {speech.count_phrase(limit, 'waiting application')} "
+                       "again with what she knows now", actor=ACTOR)
+    return out
+
+
 def _resume_said(path: str) -> str:
     """"Caleb_Schulte_Resume.pdf, saved today": enough to know it is the right one."""
     if not path:
@@ -1508,6 +1538,8 @@ def main(argv: list[str] | None = None) -> int:
     p_retry = sub.add_parser("retry", help="read every waiting application again with "
                                            "what she knows now; sends nothing")
     p_retry.add_argument("--limit", type=int, default=60)
+    p_retry.add_argument("--notify", action="store_true",
+                         help="tell him what became ready, and release the run lock")
     p_ans = sub.add_parser("answer")
     p_ans.add_argument("pairs", nargs="+", metavar="QUESTION=ANSWER")
     p_one = sub.add_parser("answer-one")
@@ -1553,7 +1585,16 @@ def main(argv: list[str] | None = None) -> int:
                 _notify(title, body, f"campaign-answer:{stamp}")
             print(body)
         elif args.cmd == "retry":
-            out = retry_waiting(limit=args.limit)
+            try:
+                out = retry_waiting(limit=args.limit)
+            finally:
+                if args.notify:
+                    _release(owner=os.getpid())
+            if args.notify and out.get("ready"):
+                # Only when something became ready: this runs every hour, and
+                # "still waiting on you" every hour is noise, not news.
+                title, body = _summary(out)
+                _notify(title, body, f"campaign-retry:{stamp}")
             print(spoken(out))
             for row in out["failed"]:
                 print(f"  (could not read {row['url']}: {row['why']})", file=sys.stderr)

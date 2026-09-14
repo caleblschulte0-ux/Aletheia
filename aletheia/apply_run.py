@@ -561,8 +561,9 @@ def _unpicked(fill: list[dict], chosen: dict, fields: list[dict],
                     "why": (f"none of its options plainly says {row.get('value')!r}"
                             if row.get("value") not in (None, "") else
                             "none of its options is plainly the answer")}
-        if field.get("choices"):
-            question["choices"] = list(field["choices"])
+        choices = _choices_of(field)
+        if choices:
+            question["choices"] = choices
         missed.append(question)
     rest = [s for s in stopped
             if not any(_same_question(s.get("label", ""), m["label"]) for m in missed)]
@@ -577,9 +578,27 @@ def _unpicked(fill: list[dict], chosen: dict, fields: list[dict],
         if field is not None:
             item["selector"] = field["selector"]
             item.setdefault("type", field.get("type") or "text")
-            if field.get("choices") and not item.get("choices"):
-                item["choices"] = list(field["choices"])
+            choices = _choices_of(field)
+            if choices and not item.get("choices"):
+                item["choices"] = choices
     return missed, rest
+
+
+def _choices_of(field: dict) -> list[str]:
+    """A field's options as a question carries them: a typeahead's menu or a
+    <select>'s own list, bounded without losing his answer or "Other".
+
+    A question built from a <select> carried no options at all, because they
+    live under `options`, not `choices` - so neither a model nor his own
+    answer had anything to pick from."""
+    offered = formfill.option_texts(field)
+    if len(offered) <= formfill.MAX_CHOICES_KEPT:
+        return offered
+    try:
+        known = profile.known()
+    except Exception:
+        known = {}
+    return formfill.bounded_choices(offered, known=known)
 
 
 def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = None,
@@ -682,6 +701,23 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
                        f"{url} wants an account before it will take an "
                        f"application ({decision.get('state')})", actor=ACTOR)
         return record
+
+    # A LIST TO JOIN IS NOT AN APPLICATION. Live 2026-09-13 Spectrum's posting
+    # page - "Sign up for job alerts": names, Email, Confirm Email, a job
+    # category, a location, an optional resume - was staged as the application
+    # for "National Account Manager, Federal Government" and waited on him for
+    # "Spectrum employee". Pressed, it would have put him on a mailing list
+    # under that job's name. Same predicate as the campaign's form check.
+    if formfill.is_signup_list(fields):
+        failure = "a talent-network / job-alert signup, not an application"
+        record = {"id": run_id, "state": "FAILED", "url": url, "failure": failure,
+                  "approval": "", "steps": [], "filled": [], "not_filled": [],
+                  "skipped": [], "resume": resume,
+                  "staged_at": stateio.utcnow(), **kept_job}
+        stateio.write_json_atomic(_record_path(run_id), record)
+        journal.append("action", "apply", f"{url} is a job-alert signup, not an "
+                       "application - not staged", actor=ACTOR)
+        raise ApplyError(f"{run_id}: {failure}")
 
     plan = formfill.plan(fields, answers={**profile.known(), **per_form},
                          found_on=found_on or before.get("found_on") or "")
