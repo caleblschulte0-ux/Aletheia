@@ -532,8 +532,13 @@ def answer_from_facts(record: dict, resume_text: str, *, think=None) -> dict:
                          key=lambda kv: (not kv[1].get("required"),
                                          len(kv[1].get("choices") or [])))
         questions = dict(ordered[:MAX_QUESTIONS_ASKED])
+    # What needs no model goes first, and whatever it settles is not asked of
+    # one: a form read while Claude is out still gets these, and they cost
+    # none of his usage.
+    sure = obvious_answers(record, resume_text)
+    questions = {s: q for s, q in questions.items() if s not in sure}
     if not questions or think is False:
-        return {}
+        return dict(sure)
     context = {
         "job": record.get("job_title") or record.get("url"),
         "found_this_job_on": record.get("found_on") or "",
@@ -549,8 +554,127 @@ def answer_from_facts(record: dict, resume_text: str, *, think=None) -> dict:
                        validator=_answers_validator(questions),
                        max_context_bytes=48 * 1024)
     except Exception:
+        return dict(sure)
+    answered = dict((result or {}).get("answers") or {})
+    answered.update(sure)
+    return answered
+
+
+#: "Active Security Clearance(s)*" (SpaceX).
+_CLEARANCE_QUESTION = re.compile(r"\bsecurity clearance|\bclearances?\b|\bclearance\(s\)", re.I)
+_NO_CLEARANCE = re.compile(r"\bnever held\b|\bno (?:active )?clearance\b|^none\b|\bdo not (?:have|hold)\b"
+                           r"|\bnot applicable\b", re.I)
+_ESSENTIAL_FUNCTIONS = re.compile(r"\bessential functions\b", re.I)
+#: "Have you ever been employed by, applied to, or are you currently employed
+#: by Navan...?"
+_EMPLOYED_OR_APPLIED = re.compile(
+    r"\b(?:employed by|an employee of|worked (?:at|for)|applied (?:to|for|with)|previously applied)\b", re.I)
+#: "In what cities are you available to work?" (Datadog).
+_WHICH_CITIES = re.compile(
+    r"\b(?:cities|locations|offices)\b[^?]{0,40}\b(?:available|willing|able|open)\b"
+    r"|\bavailable to work in\b", re.I)
+
+
+def _yes(value) -> bool:
+    return str(value or "").strip().casefold() in ("yes", "y", "true", "1")
+
+
+def _obvious(label: str, choices: list[str], known: dict, resume: str, record: dict,
+             sent: dict) -> str | None:
+    """The answer to one question when his facts settle it with no model, or None."""
+    def pick(value):
+        return formfill._best_option(value, choices, known) if choices else value
+
+    # He answered this exact question once, on another form.
+    told = profile.answer_for(label)
+    if told:
+        chosen = pick(told)
+        if chosen:
+            return chosen
+    # British spelling: Datadog asks whether he is "legally authorised".
+    low = label.casefold().replace("authoris", "authoriz")
+    if (formfill._AUTHORIZED_TO_WORK.search(low) and not formfill._WANTS_SPONSORSHIP.search(low)
+            and not re.match(r"^[^a-z0-9]*if\b", low) and _yes(known.get("work_authorization"))):
+        chosen = pick("Yes")
+        if chosen:
+            return chosen
+    if _ESSENTIAL_FUNCTIONS.search(low):
+        chosen = pick("Yes")
+        if chosen:
+            return chosen
+    if _CLEARANCE_QUESTION.search(low) and not re.search(r"\bclearance\b", resume, re.I):
+        if not choices:
+            return "None"
+        hits = [c for c in choices if _NO_CLEARANCE.search(c.strip())
+                and not re.search(r"\b(?:wish|disclose|expired)\b", c, re.I)]
+        if len(hits) == 1:
+            return hits[0]
+    company = str(record.get("company") or "").strip()
+    # "Spectrum employee" over Yes / No asks the same thing in two words.
+    short_form = bool(company) and re.match(
+        r"^(?:are you (?:a |an )?)?(?:current |former |previous )?" + re.escape(company.casefold())
+        + r"\s+employee\??$", low)
+    if company and (_EMPLOYED_OR_APPLIED.search(low) or short_form) \
+            and apply_run.names_the_employer(label, company):
+        worked = bool(resume) and apply_run.names_the_employer(resume, company)
+        applied = False
+        if re.search(r"\bappl(?:y|ied)\b", low):
+            here = str(record.get("url") or "").strip()
+            applied = any(url != here and apply_run.names_the_employer(
+                              str(entry.get("company") or ""), company)
+                          for url, entry in sent.items() if isinstance(entry, dict))
+        chosen = pick("Yes" if (worked or applied) else "No")
+        if chosen:
+            return chosen
+    if choices and _WHICH_CITIES.search(low):
+        place = " ".join(str(record.get(k) or "") for k in ("job_title", "location")).casefold()
+        if _yes(known.get("willing_to_relocate")):
+            named = [c for c in choices
+                     if re.search(r"(?<![a-z])" + re.escape(c.strip().casefold()) + r"(?![a-z])", place)]
+            if len(named) == 1:
+                return named[0]
+        home = formfill._best_option(known.get("city"), choices, known) if known.get("city") else None
+        if home:
+            return home
+    return formfill.voluntary_decline(label, choices)
+
+
+def obvious_answers(record: dict, resume_text: str = "", *, known: dict | None = None,
+                    sent: dict | None = None) -> dict:
+    """The form's questions his facts settle with no model at all, by selector.
+
+    His words, 2026-09-13: "it should be able to answer some of these without
+    me." Seventeen applications were waiting on him, and several asked what
+    was already on file or plainly true: whether he holds a security clearance
+    (his resume shows none), whether he can perform the essential functions
+    of the role, whether he has worked at or applied to Navan (his resume and
+    sent ledger say no), which of Datadog's cities he is available in (the
+    job's own city: he will relocate), a Yes his authorization answers - and
+    three questions he had just answered once. Each answer is one of the
+    form's own options, passes the same validator the model's do, and never
+    touches a protected or legal question.
+    """
+    questions = {q["selector"]: q for q in (record.get("questions") or [])
+                 if q.get("selector")
+                 and q.get("type") not in ("search", "textarea", "file")
+                 and not formfill.is_never_autofill({"label": q.get("label", ""),
+                                                     "choices": q.get("choices") or []})}
+    if not questions:
         return {}
-    return dict((result or {}).get("answers") or {})
+    known = profile.known() if known is None else known
+    if sent is None:
+        try:
+            sent = apply_run.already_sent()
+        except Exception:
+            sent = {}
+    rows = []
+    for selector, question in questions.items():
+        label = formfill._clean_label(question.get("label"))
+        choices = [str(c) for c in (question.get("choices") or []) if str(c).strip()]
+        answer = _obvious(label, choices, known, str(resume_text or ""), record, sent)
+        if answer not in (None, ""):
+            rows.append({"selector": selector, "answer": answer})
+    return _answers_validator(questions)({"answers": rows})["answers"]
 
 
 def _any_model_answers(system_prompt: str, text: str, *, context: dict,
