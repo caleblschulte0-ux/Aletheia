@@ -157,6 +157,10 @@ class TheBridgeUsesTheModelThatFitsCase(unittest.TestCase):
             body = (REPO_ROOT / rel).read_text(encoding="utf-8")
             self.assertNotIn("local_model_pool", body, rel)
             self.assertNotIn("reasoning_gateway", body, rel)
+            # The job hunt's chain (Claude -> Codex -> local) is for reading
+            # postings and forms, never for changing his repositories.
+            self.assertNotIn("work_json", body, rel)
+            self.assertNotIn("codex_json", body, rel)
 
 
 class HerOwnVoiceCase(ClearRest):

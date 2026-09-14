@@ -73,6 +73,25 @@ def _claude_rests_until():
         return None
 
 
+def _another_mind() -> tuple[bool, str]:
+    """(True, who) when Codex or her own model can think while Claude rests,
+    else (False, why not, in words). Spends no model request. Never raises."""
+    reasons = []
+    try:
+        from aletheia import reasoner
+        ok, why = reasoner.codex_available()
+        if ok:
+            return True, "codex"
+        reasons.append(why)
+        ok, why = reasoner.local_allowed()
+        if ok:
+            return True, "local"
+        reasons.append(why)
+    except Exception as exc:
+        reasons.append(f"the other models could not be checked ({type(exc).__name__})")
+    return False, "; ".join(reasons)
+
+
 def _waiting() -> int:
     """How many applications are waiting on him. Never raises."""
     try:
@@ -90,21 +109,26 @@ def once(*, batch: int = BATCH, resume: str = "", starter=None, refiller=None,
     current = campaign.running()
     if current:
         return {"started": False, "already": current.get("pid")}
-    # NOT WHILE CLAUDE IS OUT. Live 2026-09-13 his usage window was spent from
-    # 18:42 to 19:40 UTC, and a batch started every five minutes anyway: with
-    # no model it could not name his roles or judge a single job, so each one
-    # searched 62 boards for his one resume title and applied to nothing. The
-    # hunt waits for the reset instead, and says so once.
+    # NOT WHILE NOBODY CAN THINK. Live 2026-09-13 his usage window was spent
+    # from 18:42 to 19:40 UTC, and a batch started every five minutes anyway:
+    # with no model it could not name his roles or judge a single job, so each
+    # one searched 62 boards for his one resume title and applied to nothing.
+    # Then his words the same day: "make it so that tomorrow when I hit my
+    # Claude limit it still is applying for jobs." So Claude being out is no
+    # longer enough to wait: the batch thinks with Codex, or with her own model
+    # when there is memory for it, and waits only when neither can.
     rests = _claude_rests_until()
     if rests is not None:
-        until = rests.isoformat()
-        if until not in _SAID_REST:
-            _SAID_REST.add(until)
-            journal.append("decision", "apply:forever",
-                           f"Claude is out until {until}, so the job hunt waits for the "
-                           "reset rather than run batches that cannot judge a job",
-                           actor=ACTOR)
-        return {"started": False, "resting_until": until}
+        other, why = _another_mind()
+        if not other:
+            until = rests.isoformat()
+            if until not in _SAID_REST:
+                _SAID_REST.add(until)
+                journal.append("decision", "apply:forever",
+                               f"Claude is out until {until} and nobody else can think "
+                               f"({why}), so the job hunt waits rather than run batches "
+                               "that cannot judge a job", actor=ACTOR)
+            return {"started": False, "resting_until": until, "why": why}
     # WHAT IS WAITING BEFORE WHAT IS NEW. An application stuck on a question
     # her facts or her code now answer is closer to sent than any fresh job,
     # and nothing but a person running `campaign retry` ever read one again.

@@ -323,6 +323,34 @@ LEARN_BRIEF = (
     "key the resume does not state. Never guess.")
 
 
+#: What Codex holds its answer to. Strict schemas require every key, so a key
+#: the resume does not state comes back null and the validator drops it.
+LEARN_SCHEMA = {"type": "object", "additionalProperties": False,
+                "required": list(LEARNABLE),
+                "properties": {key: {"type": ["string", "null"]} for key in LEARNABLE}}
+ROLES_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["roles"],
+                "properties": {"roles": {"type": "array", "items": {"type": "string"}}}}
+ANSWERS_SCHEMA = {
+    "type": "object", "additionalProperties": False, "required": ["answers"],
+    "properties": {"answers": {"type": "array", "items": {
+        "type": "object", "additionalProperties": False, "required": ["selector", "answer"],
+        "properties": {"selector": {"type": "string"},
+                       "answer": {"anyOf": [{"type": "string"},
+                                            {"type": "array", "items": {"type": "string"}}]}}}}}}
+ESSAY_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["answer"],
+                "properties": {"answer": {"type": "string"}}}
+
+
+def _job_hunt_thinker(schema: dict):
+    """The job hunt's chain (Claude, Codex, her own model), holding Codex to
+    `schema`. Injected thinkers in tests are called exactly as before."""
+    from aletheia import reasoner
+
+    def think(system_prompt, text, **kwargs):
+        return reasoner.work_json(system_prompt, text, schema=schema, **kwargs)
+    return think
+
+
 def _learn_validator(value: dict) -> dict:
     if not isinstance(value, dict):
         raise ValueError("expected one object")
@@ -350,8 +378,7 @@ def learn_more(text: str, *, think=None) -> dict:
     if think is not False:
         try:
             if think is None:
-                from aletheia import reasoner
-                think = reasoner.subscription_json
+                think = _job_hunt_thinker(LEARN_SCHEMA)
             found = dict(think(LEARN_BRIEF, str(text)[:8000], validator=_learn_validator) or {})
         except Exception:
             found = {}
@@ -414,8 +441,7 @@ def roles_for(text: str, *, think=None) -> list[str]:
         if think is False:
             raise ValueError("no model")
         if think is None:
-            from aletheia import reasoner
-            think = reasoner.subscription_json
+            think = _job_hunt_thinker(ROLES_SCHEMA)
         roles = think(ROLES_BRIEF, str(text)[:8000], validator=_roles_validator,
                       context={"he_wants": wanted or "(he has not said)",
                                "he_will_not_do": unwanted or "(he has not said)"})["roles"]
@@ -690,32 +716,29 @@ def obvious_answers(record: dict, resume_text: str = "", *, known: dict | None =
 
 def _any_model_answers(system_prompt: str, text: str, *, context: dict,
                        validator, max_context_bytes: int) -> dict:
-    """The form's questions, answered by whichever model can think — the
-    subscriptions first, then her own.
+    """The form's questions, answered by whichever model can think — Claude,
+    then Codex on his ChatGPT subscription, then her own.
 
     Live 2026-09-13 about a third of the stuck applications carried NO
     answers from the facts at all (`answered_for_you` absent): Claude was out
     of session, `subscription_json` raised, this returned {} and "Have you
-    ever worked at Gusto?" went to him. `draft_essays` already walked the
-    ladder to her own model; the short answers, which matter more, did not.
-    Everything the local model says passes the same validator — its choice
-    must be one of the form's own options and protected questions are dropped
-    — so the rung that never runs out cannot put anything new on a form.
+    ever worked at Gusto?" went to him. Everything any rung says passes the
+    same validator — its choice must be one of the form's own options and
+    protected questions are dropped — so the rung that never runs out cannot
+    put anything new on a form. Her own model runs only with the memory to
+    (`reasoner.local_allowed`).
     """
     from aletheia import reasoner
+    # Inside the reasoner's bounds: a budget it refuses would be a crash here,
+    # not a smaller context.
+    budget = max(reasoner.MAX_CONTEXT_BYTES,
+                 min(int(max_context_bytes), reasoner.MAX_CONTEXT_BYTES_CEILING))
     try:
-        return reasoner.subscription_json(system_prompt, text, context=context,
-                                          validator=validator,
-                                          max_context_bytes=max_context_bytes)
-    except Exception:
-        pass
-    from aletheia import local_model_pool, model_pool_config
-    if not (model_pool_config.enabled() and local_model_pool.reachable()):
+        return reasoner.work_json(system_prompt, text, context=context, validator=validator,
+                                  schema=ANSWERS_SCHEMA, timeout_s=300.0,
+                                  max_context_bytes=budget)
+    except reasoner.ReasonerUnavailable:
         return {}
-    run_ = local_model_pool.auto_json(system_prompt, text, context=context,
-                                      validator=validator, preferred_role="fast",
-                                      allow_failover=True, timeout_s=300.0)
-    return run_.output if isinstance(run_.output, dict) else {}
 
 
 # ---- the run ---------------------------------------------------------------------
@@ -915,10 +938,10 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         if not fit["realistic"]:
             passed_over.append({"url": page["url"], "title": title, "why": fit["why"]})
             continue
-        if judge_with is not False and fit.get("by") != "model":
+        if judge_with is not False and not job_fit.by_a_model(fit):
             later.append({"url": page["url"], "title": title})   # nobody could read it
             continue
-        if closed and fit.get("by") != "model":
+        if closed and not job_fit.by_a_model(fit):
             passed_over.append({"url": page["url"], "title": title,
                                 "why": closed.get("closed_because") or "closed as not realistic"})
             continue
@@ -1049,10 +1072,12 @@ def _any_model_writes(system_prompt: str, text: str, *,
     something like that. I would ask AI to write that anyway. So just have
     AI write it off the bat. It does not need to check-in with me."*
 
-    So it walks the same ladder the rest of her walks, her own model
-    included — the rung that never runs out. Only when nothing at all can
-    think does the question go back to him, and then it is because there
-    was no model on the machine, not because one of them was busy.
+    So it walks every model that can write: Claude, the ChatGPT browser when
+    he is there, Codex on his ChatGPT subscription when he is not, and her
+    own model last. His ruling is that an essay is AI's to write and does not
+    come back to him, and it holds past Claude's limit too - the brief still
+    confines every draft to what his resume says, whoever writes it. Only
+    when nothing at all can write does the question stay his.
     """
     from aletheia import reasoner
     # `draft_essays` passes timeout_s, and a helper that does not accept it
@@ -1066,7 +1091,21 @@ def _any_model_writes(system_prompt: str, text: str, *,
             return said
     except Exception:
         pass
-    said, _provider = reasoner.local_text(system_prompt, text, timeout_s=timeout_s)
+
+    def one_answer(value: dict) -> dict:
+        said = value.get("answer") if isinstance(value, dict) else None
+        if not isinstance(said, str) or not said.strip():
+            raise ValueError("no answer")
+        return {"answer": said}
+    try:
+        return reasoner.codex_json(
+            system_prompt + '\n\nReply with ONE JSON object: {"answer": "<the whole answer>"}',
+            text, schema=ESSAY_SCHEMA, validator=one_answer,
+            timeout_s=timeout_s)["answer"]
+    except Exception:
+        pass
+    said, _provider = reasoner.local_text(system_prompt, text,
+                                          timeout_s=min(float(timeout_s), 300.0))
     return said
 
 
@@ -1266,7 +1305,7 @@ def retry_waiting(*, resume: str = "", stager=None, json_think=None, writer=None
                     pass
                 closed.append({"url": url, "why": fit["why"]})
                 continue
-            if fit.get("by") != "model":
+            if not job_fit.by_a_model(fit):
                 left.append({"url": url})         # nobody could judge it; next time
                 continue
             try:
