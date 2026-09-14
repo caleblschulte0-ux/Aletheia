@@ -356,6 +356,53 @@ def _says(phrase: str, text: str) -> bool:
                      text) is not None
 
 
+def _clean_label(label) -> str:
+    """A label without the marks forms hang on it.
+
+    Lever ends a required question with a newline and "✱" ("Current
+    location\\n✱"), Greenhouse with "*", some with "(required)". Anything that
+    compares a label - an anchored pattern, a stored answer, an exact choice -
+    reads the question, not the decoration.
+    """
+    text = " ".join(str(label or "").split())
+    return re.sub(r"(?:\s*(?:[*✱✳✻⁎]|\(required\)))+\s*$", "", text, flags=re.I).strip()
+
+
+#: A job-alert signup beside an application ("Select how often (in days) to
+#: receive an alert:" on Grainger, live 2026-09-13). It asks nothing about him.
+_ALERT_WIDGET = re.compile(
+    r"\b(?:receive|get|send|email)\b[^.?]{0,40}\b(?:job\s+)?alerts?\b|\bjob alerts?\b"
+    r"|\balert (?:frequency|me)\b|\bhow often\b[^.?]{0,40}\balerts?\b", re.I)
+#: Consent to be texted or messaged. ANSWER_BRIEF already says those are No,
+#: but a form read with no model gave Epic's "SMS Consent: Do you agree to
+#: receive mobile (text) messages..." his phone number instead.
+_MESSAGE_OPT_IN = re.compile(
+    r"\b(?:sms|text messages?|text messaging|whatsapp)\b|\(text\) messages?", re.I)
+_PLAIN_NO = ("no", "no thanks", "no thank you", "i do not agree", "i don t agree",
+             "do not agree", "decline")
+#: "Other (School Not Listed)", the option a list tells him to pick when his
+#: school is not on it.
+_OTHER_NOT_LISTED = re.compile(r"\bother\b.*\bnot listed\b|\bnot listed\b.*\bother\b")
+_VOLUNTARY_SELF_ID = re.compile(r"\bi identify as\b|\bself[- ]identif", re.I)
+
+
+def voluntary_decline(label, choices, *, stored: dict | None = None) -> str | None:
+    """A voluntary self-identification question's decline option, when HE has
+    said he declines self-identification - or None.
+
+    Never a fact about him: only the option that declines, only when his own
+    decline is on file, and only for a question that asks him to identify
+    himself. A stored answer to the exact question ("first-generation
+    professional: No") is read before this and wins.
+    """
+    if not _VOLUNTARY_SELF_ID.search(str(label or "")):
+        return None
+    stored = profile.load() if stored is None else stored
+    if not _his_word(stored, "self_id_decline"):
+        return None
+    return _decline_choice([str(c) for c in choices or [] if str(c).strip()])
+
+
 # "require/need sponsorship", "require a visa", "need us to sponsor you" -
 # the question about NEEDING it, however much authorization vocabulary the
 # rest of the sentence carries.
@@ -379,7 +426,7 @@ def match_field(field: dict) -> str | None:
     ("postalCode", "question_8812") and are read only when nothing is
     labelled at all.
     """
-    label = str(field.get("label") or "").casefold()
+    label = _clean_label(field.get("label")).casefold()
     # "If you're not authorized to work at the stated location, what..." asks
     # something that depends on an earlier answer, not a fact on file. Live on
     # Brex 2026-09-10 it got "Yes", and "If you have worked at Capital One..."
@@ -402,6 +449,12 @@ def match_field(field: dict) -> str | None:
         # live it got 6, counting six years of construction.
         if key == "years_experience" and re.search(
                 r"experience\b.*\b(?:in|with|as|doing|using|on|at)\b", label):
+            continue
+        # Nor is "years of CLIENT FACING experience" (AlphaSense): a kind of
+        # experience is counted from the resume, not his total seven years.
+        if key == "years_experience" and re.search(
+                r"\byears?\s+of\s+(?!(?:total|professional|work|relevant|full[- ]time|overall|paid)\b)"
+                r"[a-z0-9-]+(?:\s+[a-z0-9-]+){0,3}\s+experience\b", label):
             continue
         # "Please state the employee's name" is the verb: live it got "SD".
         if key == "state" and re.search(
@@ -983,7 +1036,10 @@ def heard_about_answer(found_on: str, choices: list[str] | None = None) -> str |
                                   _norm(c))]
         if len(hits) == 1:
             return hits[0]
-    return None
+    # No option names where she found it, and the list has a plain "Other":
+    # that is the true one. Never a person, an event or a network.
+    others = [c for c in options if _norm(c) == "other"]
+    return others[0] if len(others) == 1 else None
 
 
 _MONEY = re.compile(r"\$?\s*(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(k|K)?")
@@ -1117,6 +1173,13 @@ def plan(fields: list[dict], *, answers: dict | None = None, found_on: str = "")
             # A dropdown's own options, read off its open menu: the answer has
             # to be one of them, or the picker has nothing to click.
             row["choices"] = list(field["choices"])
+        elif field.get("tag") == "select" and field.get("options"):
+            # A <select> keeps its options under `options`, and a question
+            # carried none of them: Palantir's "how did you hear" and its
+            # university list reached the model and him with nothing to choose.
+            row["choices"] = [str(o.get("text") or "").strip() for o in field["options"]
+                              if str(o.get("text") or "").strip()
+                              and str(o.get("value") or "").strip()]
         if field.get("type") in SKIP_TYPES:
             row["why"] = ("a file upload is yours to choose"
                           if field.get("type") == "file"
@@ -1127,6 +1190,10 @@ def plan(fields: list[dict], *, answers: dict | None = None, found_on: str = "")
             row["why"] = "part of a picker on the page, not a question"
             skipped.append(row)
             continue
+        if _ALERT_WIDGET.search(_clean_label(label)):
+            row["why"] = "a job-alert signup on the page, not a question"
+            skipped.append(row)
+            continue
         if field["selector"] in answers:
             # An answer given for THIS box - his, or the one the model read off
             # his facts after she could not find the right option - is what
@@ -1135,6 +1202,23 @@ def plan(fields: list[dict], *, answers: dict | None = None, found_on: str = "")
             row["why"] = "answered on this form"
             ask.append(row)
             continue
+        if _MESSAGE_OPT_IN.search(_clean_label(label)) and field.get("type") not in ("checkbox", "radio"):
+            texts = _choice_texts(field)
+            no = next((o for o in texts if _norm(o) in _PLAIN_NO), None)
+            if no is not None:
+                if field.get("tag") == "select":
+                    value = next((o["value"] for o in field.get("options") or []
+                                  if o.get("text") == no), None)
+                    if value is not None:
+                        fill.append({"action": "select", "selector": field["selector"],
+                                     "value": value, "label": label,
+                                     "profile_field": "message_opt_in"})
+                        continue
+                else:
+                    fill.append({"action": "type", "selector": field["selector"],
+                                 "value": no, "label": label,
+                                 "profile_field": "message_opt_in"})
+                    continue
         if is_never_autofill(field):
             # Even if the profile holds it. An answer invented on his
             # behalf here is a lie in a file an employer keeps. The one
@@ -1239,13 +1323,40 @@ def plan(fields: list[dict], *, answers: dict | None = None, found_on: str = "")
             # is_never_autofill has already taken those out above.
             told = profile.answer_for(label)
             if told:
-                fill.append({"action": "type", "selector": field["selector"],
-                             "value": told, "label": label,
-                             "profile_field": "asked_once"})
-                continue
+                if field.get("tag") == "select":
+                    option = _option_for(field, told)
+                    if option is not None:
+                        fill.append({"action": "select", "selector": field["selector"],
+                                     "value": option, "label": label,
+                                     "profile_field": "asked_once"})
+                        continue
+                else:
+                    fill.append({"action": "type", "selector": field["selector"],
+                                 "value": told, "label": label,
+                                 "profile_field": "asked_once"})
+                    continue
+            decline = voluntary_decline(label, _choice_texts(field))
+            if decline is not None:
+                if field.get("tag") == "select":
+                    option = next((o["value"] for o in field.get("options") or []
+                                   if o.get("text") == decline), None)
+                    if option is not None:
+                        fill.append({"action": "select", "selector": field["selector"],
+                                     "value": option, "label": label,
+                                     "profile_field": "self_id_decline"})
+                        continue
+                else:
+                    fill.append({"action": "type", "selector": field["selector"],
+                                 "value": decline, "label": label,
+                                 "profile_field": "self_id_decline"})
+                    continue
             row["why"] = "she could not tell what this is asking for"
             ask.append(row)
             continue
+        if key == "preferred_name" and key not in known and known.get("first_name"):
+            # Nobody goes by a name he never gave: his preferred first name is
+            # his first name until he says otherwise.
+            known = {**known, "preferred_name": known["first_name"]}
         if key not in known:
             if not row["required"] and key in _BLANK_IS_AN_ANSWER:
                 # Twitter. Portfolio. Personal Website. He does not have
@@ -1270,6 +1381,11 @@ def plan(fields: list[dict], *, answers: dict | None = None, found_on: str = "")
         value = known[key]
         if field.get("tag") == "select":
             option = _option_for(field, value)
+            if option is None and key == "school":
+                # His school is not on the list, and the list says what to pick
+                # then: "Other (School Not Listed)" (Palantir, live 2026-09-13).
+                option = next((o["value"] for o in field.get("options") or []
+                               if _OTHER_NOT_LISTED.search(_norm(o.get("text")))), None)
             if option is None:
                 row["why"] = (f"none of its options match what she has "
                               f"({profile.FIELDS[key]['means']})")
@@ -1862,6 +1978,42 @@ def _degree_level(value) -> str:
     return ""
 
 
+def _years_range(value, options: list[str]) -> str | None:
+    """A number of years, placed in the ONE range option that holds it.
+
+    "7" against "1-2 years of experience" / "3-5 years" / "5+ years" is "5+".
+    A number two options both hold ("5" in "3-5" and "5+") is not guessed.
+    """
+    raw = str(value or "").strip()
+    if not re.fullmatch(r"\d{1,2}(?:\.\d+)?", raw):
+        return None
+    n = float(raw)
+    hits = []
+    for option in options:
+        text = str(option).casefold()
+        if not re.search(r"\byears?\b|\byrs?\b|\bnone\b", text):
+            continue
+        span = re.search(r"(\d+(?:\.\d+)?)\s*(?:-|–|to)\s*(\d+(?:\.\d+)?)", text)
+        more = re.search(r"(\d+(?:\.\d+)?)\s*\+|(\d+(?:\.\d+)?)\s*(?:or more|and above|and up)", text)
+        over = re.search(r"\b(?:more than|over)\s*(\d+(?:\.\d+)?)", text)
+        under = re.search(r"\b(?:less than|under|fewer than)\s*(\d+(?:\.\d+)?)", text)
+        if span:
+            lo, hi = float(span.group(1)), float(span.group(2))
+        elif more:
+            lo, hi = float(more.group(1) or more.group(2)), 99.0
+        elif over:
+            lo, hi = float(over.group(1)) + 0.001, 99.0
+        elif under:
+            lo, hi = 0.0, float(under.group(1)) - 0.001
+        elif re.search(r"\bnone\b|\bno experience\b", text):
+            lo, hi = 0.0, 0.0
+        else:
+            continue
+        if lo <= n <= hi:
+            hits.append(option)
+    return hits[0] if len(hits) == 1 else None
+
+
 def _best_option(value, options: list[str], known: dict | None = None) -> str | None:
     """The one option that IS the answer, or None. Never a guess between two."""
     known = known or {}
@@ -1881,6 +2033,12 @@ def _best_option(value, options: list[str], known: dict | None = None) -> str | 
     money = _money_choice(value, options)
     if money is not None:
         return money
+    # A number of years against a list of ranges is read as a range, and only
+    # a range: "5" must not pick "5+ years" by its first word when "3-5 years"
+    # holds it too.
+    if re.fullmatch(r"\d{1,2}(?:\.\d+)?", str(value).strip()) and \
+            any(re.search(r"\byears?\b|\byrs?\b", str(o).casefold()) for o in options):
+        return _years_range(value, options)
     exact = [o for o, n in normed if n in wants]
     if exact:
         return exact[0]
@@ -1888,6 +2046,21 @@ def _best_option(value, options: list[str], known: dict | None = None) -> str | 
     lead = [o for o, n in normed if any(n.startswith(w + " ") for w in wants)]
     if len(lead) == 1:
         return lead[0]
+    # "(US) South Dakota": a list that puts its country in front (Instacart).
+    bare = [o for o, n in normed
+            if re.sub(r"^(?:us|usa|u s|united states)\s+", "", n) in wants]
+    if len(bare) == 1:
+        return bare[0]
+    # "Yes, no restriction." beside "Yes, but I will need sponsorship in the
+    # future." (Datadog): a yes that also claims a need he does not have is not
+    # his yes.
+    if v in ("yes", "no"):
+        said = [o for o, n in normed if n == v or n.startswith(v + " ")]
+        if len(said) > 1 and v == "yes" and _norm(known.get("needs_sponsorship")) == "no":
+            said = [o for o in said
+                    if not re.search(r"\b(?:sponsor\w*|visa|permit)\b", _norm(o))]
+        if len(said) == 1:
+            return said[0]
     # A place: the city he lives in, in the state he lives in.
     state = str(known.get("state") or "").strip().upper()
     in_state = {_norm(state), _norm(US_STATE_NAMES.get(state, ""))} - {""}
