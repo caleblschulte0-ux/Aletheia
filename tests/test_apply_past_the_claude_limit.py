@@ -374,6 +374,19 @@ class EssaysAreNeverHerOwnModelsCase(unittest.TestCase):
                              "Because the work is real.")
         self.assertEqual(codex.call_args.kwargs["schema"], campaign.ESSAY_SCHEMA)
 
+    def test_her_own_model_writes_when_no_subscription_can(self):
+        """His 2026-09-12 ruling: an essay is AI's to write and does not come
+        back to him. It holds past Claude's limit and a spent Codex too."""
+        with mock.patch.object(reasoner, "subscription_text",
+                               side_effect=reasoner.ReasonerUnavailable("out")), \
+             mock.patch.object(reasoner, "codex_json",
+                               side_effect=reasoner.CodexResting(LATER, reasoner.CODEX_LOGIN)), \
+             mock.patch.object(reasoner, "local_text",
+                               return_value=("I build partner programs.", "ollama:qwen3:8b")) as local:
+            self.assertEqual(campaign._any_model_writes("Why us?", "resume", timeout_s=900),
+                             "I build partner programs.")
+        self.assertLessEqual(local.call_args.kwargs["timeout_s"], 300.0)
+
     def test_nobody_to_write_leaves_the_question_his(self):
         record = {"url": "https://x", "job_title": "AE",
                   "questions": [{"selector": "#why", "type": "textarea", "label": "Why us?"}]}
@@ -381,7 +394,8 @@ class EssaysAreNeverHerOwnModelsCase(unittest.TestCase):
                                side_effect=reasoner.ReasonerUnavailable("out")), \
              mock.patch.object(reasoner, "codex_json",
                                side_effect=reasoner.CodexResting(LATER, reasoner.CODEX_LOGIN)), \
-             mock.patch.object(reasoner, "local_text", side_effect=AssertionError("local essay")):
+             mock.patch.object(reasoner, "local_text",
+                               side_effect=reasoner.ReasonerUnavailable("no memory for it")):
             self.assertEqual(campaign.draft_essays(record, "resume"), {})
 
 

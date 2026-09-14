@@ -704,7 +704,8 @@ the best of ChatGPT. Both halves are the rule.
   headless, read-only, no config, no key) → her own model only with 6 GB free.
   Only job hunting uses it; `subscription_json` and code work are untouched.
   A job only her own model judged realistic waits for his OK
-  (`apply_run.waits_for_his_ok`), and she never writes essays.
+  (`apply_run.waits_for_his_ok`). Essays fall to her own model last, because
+  his 2026-09-12 ruling is that AI writes them and they do not come back to him.
   `apply_forever` waits only when none of the three can think.
 
 Measured on this laptop (no GPU): qwen3:8b drafted a charter in 100 s warm,

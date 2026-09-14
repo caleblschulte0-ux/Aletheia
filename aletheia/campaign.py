@@ -1072,14 +1072,12 @@ def _any_model_writes(system_prompt: str, text: str, *,
     something like that. I would ask AI to write that anyway. So just have
     AI write it off the bat. It does not need to check-in with me."*
 
-    So it walks the subscriptions: Claude, the ChatGPT browser when he is
-    there, and Codex on his ChatGPT subscription when he is not.
-
-    NOT HER OWN MODEL, since 2026-09-13. The hunt now keeps sending past
-    Claude's limit, and an essay is his voice on a form the standing grant
-    sends unread - a smaller model's paragraph under his name is the one
-    answer the validators cannot check. When no subscription can write, the
-    question stays his, exactly as a question nobody could draft always was.
+    So it walks every model that can write: Claude, the ChatGPT browser when
+    he is there, Codex on his ChatGPT subscription when he is not, and her
+    own model last. His ruling is that an essay is AI's to write and does not
+    come back to him, and it holds past Claude's limit too - the brief still
+    confines every draft to what his resume says, whoever writes it. Only
+    when nothing at all can write does the question stay his.
     """
     from aletheia import reasoner
     # `draft_essays` passes timeout_s, and a helper that does not accept it
@@ -1099,10 +1097,16 @@ def _any_model_writes(system_prompt: str, text: str, *,
         if not isinstance(said, str) or not said.strip():
             raise ValueError("no answer")
         return {"answer": said}
-    return reasoner.codex_json(
-        system_prompt + '\n\nReply with ONE JSON object: {"answer": "<the whole answer>"}',
-        text, schema=ESSAY_SCHEMA, validator=one_answer,
-        timeout_s=timeout_s)["answer"]
+    try:
+        return reasoner.codex_json(
+            system_prompt + '\n\nReply with ONE JSON object: {"answer": "<the whole answer>"}',
+            text, schema=ESSAY_SCHEMA, validator=one_answer,
+            timeout_s=timeout_s)["answer"]
+    except Exception:
+        pass
+    said, _provider = reasoner.local_text(system_prompt, text,
+                                          timeout_s=min(float(timeout_s), 300.0))
+    return said
 
 
 def draft_essays(record: dict, resume_text: str, *, think=None) -> dict:
