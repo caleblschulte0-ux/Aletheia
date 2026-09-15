@@ -1,6 +1,6 @@
 # Fleet briefing
 
-Generated 2026-09-15T11:50:57Z from fleet registry rev 5 via GitHubSource.
+Generated 2026-09-15T17:04:57Z from fleet registry rev 5 via GitHubSource.
 
 ## 🟢 `Aletheia` — hub (active)
 
@@ -9,24 +9,24 @@ The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT 
 Last commit `c8089d98c3d9` at 2026-09-13T15:52:48Z: Apply anywhere: her texts, four more systems, and no more black boxes
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-09-15T11:50:54Z
+- `pulse.yml`: in_progress at 2026-09-15T17:04:52Z
 - `ci.yml`: success at 2026-09-14T19:52:02Z
 
 ## 🔴 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `15fa69d9ff22` at 2026-09-15T10:02:05Z: doctor: evidence pack + backlog 2026-09-15 [skip ci]
+Last commit `c3806e96e260` at 2026-09-15T16:56:52Z: watchdog: chatgpt task verdicts 20260915 [skip ci]
 
-Vitals — trending posted: 324 · explainer posted: 248 · third posted: 510 · curiosity posted: 1
+Vitals — trending posted: 324 · explainer posted: 249 · third posted: 510 · curiosity posted: 1
 
 Watched workflows:
-- `daily.yml`: failure at 2026-09-14T18:31:54Z
-- `exchange_phase_a.yml`: success at 2026-09-14T16:52:09Z
+- `daily.yml`: failure at 2026-09-15T15:35:24Z
+- `exchange_phase_a.yml`: success at 2026-09-15T14:27:16Z
 - `exchange_phase_b.yml`: success at 2026-09-14T19:30:53Z
 - `story_forge.yml`: success at 2026-09-15T10:11:43Z
-- `third.yml`: failure at 2026-09-14T18:36:12Z
-- `explainer.yml`: failure at 2026-09-14T21:28:17Z
+- `third.yml`: failure at 2026-09-15T15:51:42Z
+- `explainer.yml`: success at 2026-09-15T16:11:06Z
 - `retro.yml`: success at 2026-09-15T04:57:41Z
 - `doctor.yml`: success at 2026-09-15T10:02:09Z
 
@@ -38,7 +38,7 @@ Last commit `8c4cdb4ce671` at 2026-09-11T18:37:09Z: sell-brain: update exit deci
 Vitals withheld (5, on his own screen): realized P&L, win rate, closed trades, open positions, cash
 
 Watched workflows:
-- `sell-brain.yml`: failure at 2026-09-14T18:35:33Z
+- `sell-brain.yml`: failure at 2026-09-15T15:35:25Z
 - `watchdog.yml`: success at 2026-09-14T21:55:45Z
 
 ## 🟢 `Money_Machine` — product-ventures (active)
