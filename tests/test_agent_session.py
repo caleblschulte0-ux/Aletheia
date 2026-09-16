@@ -525,5 +525,33 @@ class TheLivePathHooks(unittest.TestCase):
         self.assertEqual(result.outcome, s.ANSWERED)
 
 
+
+class WhichAndCompanyBothFilter(unittest.TestCase):
+    """`which or company` let `which` silently replace `company`: asked for
+    the engineer role at Stripe, it returned engineer roles everywhere."""
+
+    RUNS = [{"id": "apply-a1", "state": "FAILED", "company": "Stripe", "job_title": "Backend Engineer"},
+            {"id": "apply-b2", "state": "FAILED", "company": "Palantir", "job_title": "Backend Engineer"},
+            {"id": "apply-c3", "state": "SUBMITTED", "company": "Stripe", "job_title": "Designer"}]
+
+    def query(self, **args):
+        from aletheia import apply_run, state_tools
+        with mock.patch.object(apply_run, "all_runs", return_value=list(self.RUNS)):
+            return state_tools.applications_query(args)
+
+    def test_both_narrow(self):
+        out = self.query(which="engineer", company="Stripe")
+        self.assertEqual([r["id"] for r in out["records"]], ["apply-a1"])
+
+    def test_either_alone_still_works(self):
+        self.assertEqual(self.query(company="Stripe")["matched"], 2)
+        self.assertEqual(self.query(which="engineer")["matched"], 2)
+
+    def test_no_match_names_everything_that_was_asked(self):
+        out = self.query(which="designer", company="Palantir")
+        self.assertEqual(out["matched"], 0)
+        self.assertIn("designer Palantir", out["note"])
+
+
 if __name__ == "__main__":
     unittest.main()

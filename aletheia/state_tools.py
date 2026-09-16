@@ -84,7 +84,12 @@ def applications_query(args: dict, **_ignored) -> dict:
         return {"readable": False, "records": [], "counts": {},
                 "note": f"the application records could not be read ({type(exc).__name__})"}
     state = str(args.get("state") or "").strip().upper()
-    which = str(args.get("which") or args.get("company") or "")
+    # BOTH filter. `which or company` let `which` silently replace `company`,
+    # so {"which": "engineer", "company": "Stripe"} returned every engineer
+    # role anywhere - an answer about the wrong employer, said confidently.
+    which = str(args.get("which") or "")
+    company = str(args.get("company") or "")
+    asked = " ".join(part for part in (which, company) if part.strip())
     limit = args.get("limit") or MAX_RECORDS
     try:
         limit = max(1, min(int(limit), MAX_RECORDS))
@@ -93,7 +98,8 @@ def applications_query(args: dict, **_ignored) -> dict:
     counts: dict[str, int] = {}
     for record in rows:
         counts[str(record.get("state"))] = counts.get(str(record.get("state")), 0) + 1
-    found = [r for r in rows if (not state or r.get("state") == state) and _matches(r, which)]
+    found = [r for r in rows if (not state or r.get("state") == state)
+             and _matches(r, which) and _matches(r, company)]
     found.sort(key=lambda r: str(r.get("submitted_at") or r.get("staged_at") or ""), reverse=True)
     out = {"readable": True, "total": len(rows), "counts": counts,
            "matched": len(found), "records": [summarise_record(r) for r in found[:limit]]}
@@ -101,7 +107,7 @@ def applications_query(args: dict, **_ignored) -> dict:
         out["note"] = ("READ AND EMPTY: the application store exists and holds no records. "
                        "Say nothing has been applied to through her; never say there is no record.")
     elif not found:
-        out["note"] = (f"no record matches {which!r}"
+        out["note"] = (f"no record matches {asked!r}"
                        + (f" in state {state}" if state else "")
                        + f"; the store holds {len(rows)} records in total")
     return out
