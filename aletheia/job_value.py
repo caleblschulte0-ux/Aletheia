@@ -253,7 +253,8 @@ def score(job: dict, *, known: dict | None = None, resume_text: str = "", text: 
         else:
             liked.append(f"lists its pay: ${low:,.0f} to ${high:,.0f}")
         adjusted = mid / (index / 100.0)
-        if floor and index <= 100 and adjusted >= 1.3 * floor:
+        # Only a market the index KNOWS: an unread place is not a cheap one.
+        if floor and market and index <= 100 and adjusted >= 1.3 * floor:
             small_market_high_pay = True
             value += 10
             liked.append(f"unusually good pay for {market or 'that market'}: about ${adjusted:,.0f} "
@@ -284,7 +285,7 @@ def score(job: dict, *, known: dict | None = None, resume_text: str = "", text: 
                 value -= 6
                 not_liked.append(f"in {location}, and you have not said you would move")
         else:
-            value -= 40
+            value -= 50
             not_liked.append(f"outside the United States ({location})")
 
     # Employer quality, from what she has measured.

@@ -113,10 +113,11 @@ def plan_employer_queries(roles: list[str], places: list[str], *, fields: list[s
         step = cursor + i
         shape = QUERY_SHAPES[step % len(QUERY_SHAPES)]
         role = roles[step % len(roles)]
-        field = fields[(step // len(QUERY_SHAPES)) % len(fields)]
-        # Near him first, and every place in turn.
-        place = places[(step // (len(QUERY_SHAPES) * len(fields))) % len(places)] \
-            if step >= len(QUERY_SHAPES) else places[step % len(places)]
+        # A different field each query; the shapes and fields cycle at
+        # different lengths so one batch never repeats a pairing. Near him
+        # for a whole round of shapes, then every place in turn.
+        field = fields[(step + step // len(QUERY_SHAPES)) % len(fields)]
+        place = places[(step // len(QUERY_SHAPES)) % len(places)]
         query = shape.format(role=role, field=field, place=place)
         out.append({"query": query, "role": role, "field": field, "place": place,
                     "look_for": f"employers in or near {place} hiring for {field}"})
