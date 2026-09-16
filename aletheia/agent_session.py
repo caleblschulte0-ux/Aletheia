@@ -515,9 +515,13 @@ class AgentSession:
             try:
                 output, provider = self.think(system, text)
             except ModelUnavailable as exc:
+                # The attempt still cost time, and a receipt that says zero
+                # calls after ninety seconds hides where the time went.
+                res.model_seconds.append(round(time.monotonic() - t0, 1))
                 res.outcome, res.note = MODEL_UNAVAILABLE, str(exc)
                 return res
             except Exception as exc:                                  # noqa: BLE001
+                res.model_seconds.append(round(time.monotonic() - t0, 1))
                 res.outcome, res.note = MODEL_ERROR, f"the model call failed ({type(exc).__name__}: {str(exc)[:200]})"
                 return res
             res.model_calls += 1

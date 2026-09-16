@@ -341,6 +341,30 @@ class TheLocalModelPath(unittest.TestCase):
         self.assertIs(pool.call_args.kwargs["think_override"], False)
 
 
+class AModelThatCannotStopThinking(unittest.TestCase):
+    """qwen3-vl:4b ignores think=false and answers in `thinking`, leaving
+    `content` empty; every loop call failed as "no JSON object"."""
+
+    def _infer(self, message, think):
+        from aletheia import local_brain
+        config = local_brain.OllamaConfig(model="m", think=think)
+        with mock.patch.object(local_brain, "request_json", return_value={"message": message}),                 mock.patch.object(local_brain, "_runtime_limits", return_value=(2, "30s")):
+            return local_brain.infer_json("sys", "text", config=config)
+
+    def test_with_thinking_off_the_thinking_field_is_the_answer(self):
+        out = self._infer({"content": "", "thinking": '{"tool": "state.now", "args": {}}'}, False)
+        self.assertEqual(out, {"tool": "state.now", "args": {}})
+
+    def test_with_thinking_on_reasoning_is_never_read_as_the_answer(self):
+        from aletheia import local_brain
+        with self.assertRaises(local_brain.LocalBrainProtocolError):
+            self._infer({"content": "", "thinking": '{"tool": "x"}'}, True)
+
+    def test_content_wins_when_there_is_any(self):
+        out = self._infer({"content": '{"answer": "hi"}', "thinking": '{"tool": "x"}'}, False)
+        self.assertEqual(out, {"answer": "hi"})
+
+
 class TheCli(unittest.TestCase):
     def test_the_cli_prints_the_answer_and_the_steps(self):
         fake = s.SessionResult(id="agent-x", question="q", outcome=s.ANSWERED, answer="Three sent.",
