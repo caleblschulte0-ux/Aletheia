@@ -1,9 +1,13 @@
 """Mission control: one screen, ten seconds, after hours away (brief milestone 5).
 
-The builders are pure, so these hold the DERIVATION: which state word, which
-"next" sentence, which pipeline stage a record lands in, and what the card
-says when it did not send. The endpoint tests hold the other half - the new
-routes sit behind the Core's existing gate exactly like every other read.
+The screen is GENERIC: the state word, the mission cards, what needs him,
+the ribbon and eyes derive from agent state, missions / plans / tasks,
+approvals, the browser and the journal - never from one goal's records. A
+mission type with more to show plugs in through the provider registry.
+
+The builders are pure, so these hold the DERIVATION. The endpoint tests hold
+the other half: the routes sit behind the Core's existing gate exactly like
+every other read. The job hunt provider has its own file, test_mission_jobs.
 """
 from __future__ import annotations
 
@@ -29,7 +33,12 @@ def ago(minutes: float) -> str:
 
 
 CORE_OK = {"heartbeat_age_s": 40.0, "alive": True}
-LOOP_OK = {"alive": True, "stale": False, "said": "a batch is running"}
+
+
+def card(**over):
+    value = {"id": "plan:x", "type": "plan", "title": "Barkly", "status": "OPEN", "next": "Her next step (1): fix CI"}
+    value.update(over)
+    return mc.mission_card(**value)
 
 
 class TheHeaderSaysWhatSheIsDoing(unittest.TestCase):
@@ -37,242 +46,242 @@ class TheHeaderSaysWhatSheIsDoing(unittest.TestCase):
         from aletheia.current_state import AGENT_STATES
         for state in AGENT_STATES:
             with self.subTest(state=state):
-                out = mc.header({"state": state, "step": "x"}, now=NOW, core=CORE_OK, loop=LOOP_OK)
+                out = mc.header({"state": state, "step": "x"}, now=NOW, core=CORE_OK)
                 self.assertEqual(out["state"], state)
                 self.assertTrue(out["doing"].endswith("."))
                 self.assertTrue(out["next"])
 
     def test_an_unknown_word_is_never_shown(self):
-        out = mc.header({"state": "DANCING"}, now=NOW, core=CORE_OK, loop=LOOP_OK)
-        self.assertEqual(out["state"], "IDLE")
+        self.assertEqual(mc.header({"state": "DANCING"}, now=NOW, core=CORE_OK)["state"], "IDLE")
 
-    def test_acting_says_the_step_and_what_follows_the_batch(self):
-        out = mc.header({"state": "ACTING", "mission": "job hunt",
-                         "step": "sending the application for Analyst at Figma - pressing submit"},
-                        now=NOW, core=CORE_OK, loop=LOOP_OK,
-                        hunt={"running": True, "campaign": {"count": 8}})
-        self.assertEqual(out["doing"], "Working: sending the application for Analyst at Figma - pressing submit.")
-        self.assertIn("batch of 8", out["next"])
-        self.assertIn("another within 5 minutes", out["next"])
+    def test_acting_says_the_step_and_the_next_of_the_mission_in_the_browser(self):
+        missions = [card(id="task:a", status="RUNNING", next="Finish it."),
+                    card(id="research", type="research", title="Research", status="RUNNING", in_browser=True,
+                         next="Read the next source, then write it up.")]
+        out = mc.header({"state": "ACTING", "step": "reading a page at example.org"}, now=NOW, core=CORE_OK,
+                        missions=missions)
+        self.assertEqual(out["doing"], "Working: reading a page at example.org.")
+        self.assertEqual(out["next"], "Read the next source, then write it up.")
         self.assertFalse(out["stale"])
         self.assertEqual(out["banner"], "")
 
-    def test_a_refill_is_not_called_a_batch(self):
-        out = mc.header({"state": "ACTING", "step": "re-reading"}, now=NOW, core=CORE_OK, loop=LOOP_OK,
-                        hunt={"running": True, "campaign": {"kind": "retry", "limit": 60}})
-        self.assertIn("re-reading up to 60 waiting applications", out["next"])
+    def test_idle_with_a_running_mission_says_between_steps(self):
+        out = mc.header({"state": "IDLE"}, now=NOW, core=CORE_OK,
+                        missions=[card(title="Nightly research", status="RUNNING", step="between rounds",
+                                       next="Start round 3 within the hour.")])
+        self.assertEqual(out["doing"], "Between steps: Nightly research is running (between rounds).")
+        self.assertEqual(out["next"], "Nightly research: Start round 3 within the hour.")
+
+    def test_quiet_with_nothing_moving_says_nothing_is_scheduled(self):
+        out = mc.header({"state": "IDLE"}, now=NOW, core=CORE_OK, missions=[card(status="DONE", next="")])
+        self.assertEqual(out["next"], "Nothing is scheduled.")
 
     def test_a_dead_heartbeat_is_stale_whatever_the_state_says(self):
         out = mc.header({"state": "ACTING", "step": "filling a form"}, now=NOW,
-                        core={"heartbeat_age_s": 3600.0, "alive": False}, loop=LOOP_OK)
+                        core={"heartbeat_age_s": 3600.0, "alive": False})
         self.assertTrue(out["stale"])
         self.assertIn("1 hour old", out["banner"])
         self.assertFalse(out["signals"][0]["ok"])
 
     def test_no_heartbeat_at_all_is_stale_too(self):
-        out = mc.header({"state": "IDLE"}, now=NOW, core={"heartbeat_age_s": None, "alive": False},
-                        loop=LOOP_OK)
+        out = mc.header({"state": "IDLE"}, now=NOW, core={"heartbeat_age_s": None, "alive": False})
         self.assertTrue(out["stale"])
         self.assertIn("missing", out["banner"])
 
-    def test_a_quiet_apply_loop_is_said_plainly(self):
-        loop = mc.apply_loop(None, [{"ts": ago(300), "subject": "apply:forever", "text": "started"}], NOW)
-        self.assertIs(loop["alive"], False)
-        out = mc.header({"state": "IDLE"}, now=NOW, core=CORE_OK, loop=loop)
-        self.assertIn("5 hours", out["next"])
-        self.assertIn("job hunt looks stopped", out["banner"])
-        self.assertFalse(out["stale"])      # the Core is fine; the hunt is not
+    def test_a_provider_signal_banners_only_while_the_core_is_fine(self):
+        signal = {"what": "research loop", "ok": False, "said": "quiet for 5 hours",
+                  "banner": "Research looks stopped: quiet for 5 hours."}
+        out = mc.header({"state": "IDLE"}, now=NOW, core=CORE_OK, signals=[signal])
+        self.assertEqual(out["banner"], "Research looks stopped: quiet for 5 hours.")
+        self.assertFalse(out["stale"])
+        self.assertNotIn("banner", out["signals"][1])
+        out = mc.header({"state": "IDLE"}, now=NOW, core={"heartbeat_age_s": 900.0, "alive": False}, signals=[signal])
+        self.assertIn("heartbeat", out["banner"])
 
     def test_halted_says_nothing_happens_until_resume(self):
         out = mc.header({"state": "HALTED", "step": "operator pressed HALT"}, now=NOW, core=CORE_OK,
-                        loop={"alive": None, "said": "halted with everything else"})
+                        missions=[card(needs=[{"said": "x", "blocking": True}])], approvals=2)
         self.assertIn("operator pressed HALT", out["doing"])
+        self.assertEqual(out["state"], "HALTED")
         self.assertEqual(out["next"], "Nothing, until you resume her.")
 
-    def test_blocked_names_when_claude_is_back(self):
-        hunt = {"thinking": {"claude": {"resting_until": "2026-09-16T21:40:00Z"}}}
-        out = mc.header({"state": "BLOCKED", "step": "nobody can think"}, now=NOW, core=CORE_OK,
-                        loop={"alive": None}, hunt=hunt, say_time=lambda when: when.strftime("%H:%M"))
-        self.assertIn("Claude is back at 21:40", out["next"])
+    def test_blocked_names_the_stuck_missions_next(self):
+        missions = [card(status="BLOCKED", blockers=[{"said": "nobody can think"}],
+                         next="Picks up when Claude is back at 21:40.")]
+        out = mc.header({"state": "BLOCKED", "step": "nobody can think"}, now=NOW, core=CORE_OK, missions=missions)
+        self.assertEqual(out["next"], "Picks up when Claude is back at 21:40.")
 
-    def test_needs_you_names_the_first_and_counts_the_rest_once(self):
-        hunt = {"waiting_on_him": [{"company": "Brex", "why": "questions only you can answer"}]}
-        out = mc.header({"state": "NEEDS YOU", "step": "1 application waiting on you"}, now=NOW,
-                        core=CORE_OK, loop=LOOP_OK, hunt=hunt, pending_approvals=2,
-                        applications_waiting=31)
-        self.assertIn("Brex is waiting on you: questions only you can answer (and 30 more)", out["next"])
-        self.assertEqual(out["doing"], "Waiting on you: 31 applications and 2 approvals waiting on you.")
-        # an application's approval is not counted a second time
-        self.assertEqual(out["needs_you"], 33)
+    def test_needs_you_names_the_first_and_counts_every_need_once(self):
+        missions = [card(id="job-hunt", type="job_hunt", title="Job hunt", status="NEEDS YOU",
+                         needs=[{"said": "Analyst at Brex: questions only you can answer", "blocking": True}],
+                         needs_count=31),
+                    card(id="task:setup", type="task", title="Operator setup", status="NEEDS YOU",
+                         needs=[{"said": "create the ChatGPT project", "blocking": True}]),
+                    card(id="plan:barkly", status="OPEN",
+                         needs=[{"said": "step 2 is yours", "blocking": False}])]
+        out = mc.header({"state": "NEEDS YOU", "step": "whatever the agent said"}, now=NOW, core=CORE_OK,
+                        missions=missions, approvals=2)
+        self.assertEqual(out["needs_you"], 34)
+        self.assertEqual(out["needs_you_parts"], {"approvals": 2, "missions": 32})
+        self.assertEqual(out["next"], "Job hunt: Analyst at Brex: questions only you can answer (and 33 more).")
+        self.assertEqual(out["doing"], "Waiting on you: 2 approvals and 31 things for Job hunt and 1 thing for "
+                                       "Operator setup.")
 
+    def test_a_blocking_need_turns_quiet_into_needs_you(self):
+        for quiet in ("IDLE", "WAITING", "LISTENING"):
+            with self.subTest(state=quiet):
+                out = mc.header({"state": quiet}, now=NOW, core=CORE_OK,
+                                missions=[card(needs=[{"said": "say yes", "blocking": True}])])
+                self.assertEqual(out["state"], "NEEDS YOU")
+        out = mc.header({"state": "IDLE"}, now=NOW, core=CORE_OK,
+                        missions=[card(needs=[{"said": "step 2 is yours", "blocking": False}])])
+        self.assertEqual(out["state"], "IDLE")
 
-class TheApplyLoopIsJudgedFromWhatItLeaves(unittest.TestCase):
-    def test_a_running_batch_is_alive(self):
-        out = mc.apply_loop({"running": True, "started_at": ago(12)}, [], NOW)
-        self.assertIs(out["alive"], True)
-        self.assertIn("12 minutes", out["said"])
-
-    def test_a_three_hour_lock_is_the_stale_lock(self):
-        out = mc.apply_loop({"running": True, "started_at": ago(200)}, [], NOW)
-        self.assertTrue(out["stale"])
-        self.assertIsNone(out["alive"])
-
-    def test_a_recent_journal_line_is_alive(self):
-        out = mc.apply_loop(None, [{"ts": ago(4), "subject": "apply:forever"}], NOW)
-        self.assertIs(out["alive"], True)
-
-    def test_resting_or_halted_is_expected_quiet_not_death(self):
-        entries = [{"ts": ago(400), "subject": "apply:forever"}]
-        self.assertIsNone(mc.apply_loop(None, entries, NOW, resting=True)["alive"])
-        self.assertIsNone(mc.apply_loop(None, entries, NOW, halted=True)["alive"])
-
-    def test_never_seen_is_not_alive(self):
-        out = mc.apply_loop(None, [{"ts": ago(1), "subject": "core"}], NOW)
-        self.assertIs(out["alive"], False)
-        self.assertIn("no sign", out["said"])
+    def test_today_says_what_was_done_and_what_failed(self):
+        items = [{"at": ago(10), "tone": "good"}, {"at": ago(20), "tone": "alert"}, {"at": ago(30), "tone": "good"},
+                 {"at": ago(5000), "tone": "alert"}]
+        today = mc.today_tally(items, ago(600))
+        self.assertEqual(today, {"done": 2, "problems": 1})
+        out = mc.header({"state": "IDLE"}, now=NOW, core=CORE_OK, today=today)
+        self.assertEqual(out["today"]["said"], "Today: 2 things done, 1 problem.")
 
 
-def rec(run_id, state, **fields):
-    value = {"id": run_id, "state": state, "url": f"https://jobs.lever.co/{run_id}/apply",
-             "company": run_id.title(), "job_title": "Operations Analyst", "staged_at": ago(60)}
-    value.update(fields)
-    return value
+class EveryMissionIsOneCardShape(unittest.TestCase):
+    KEYS = {"id", "type", "title", "goal", "status", "step", "next", "blockers", "stuck", "needs",
+            "needs_count", "progress", "counts", "receipts", "updated", "detail", "in_browser", "source"}
 
+    def test_why_stuck_comes_from_recorded_blockers(self):
+        self.assertEqual(mc.why_stuck("BLOCKED", [{"said": "the build machine is offline."}], []),
+                         "Stuck because the build machine is offline.")
+        self.assertEqual(mc.why_stuck("BLOCKED", [], []), "Marked blocked, but no blocker was recorded.")
+        self.assertEqual(mc.why_stuck("NEEDS YOU", [], [{"said": "choose a bundle id", "blocking": True}]),
+                         "Waiting on you: choose a bundle id.")
+        self.assertEqual(mc.why_stuck("RUNNING", [], []), "")
+        many = [{"said": f"b{i}"} for i in range(5)]
+        self.assertEqual(mc.why_stuck("BLOCKED", many, []), "Stuck because b0; b1; b2; and 2 more.")
 
-class ThePipelineIsCountedFromTheRecords(unittest.TestCase):
-    def test_each_state_lands_in_its_stage(self):
-        cases = [
-            (rec("a", "SUBMITTED"), {}, "SENT"),
-            (rec("b", "SUBMITTED", outcome="replied"), {}, "REPLIED"),
-            (rec("c", "SUBMITTED", outcome="rejected"), {}, "REPLIED"),
-            (rec("d", "SUBMITTED", outcome="interview"), {}, "INTERVIEW"),
-            (rec("e", "SUBMITTING"), {}, "APPLYING"),
-            (rec("f", "NEEDS_YOU"), {}, "NEEDS YOU"),
-            (rec("g", "NEEDS_ACCOUNT"), {}, "NEEDS YOU"),
-            (rec("h", "AWAITING_YOU"), {"approval_state": "APPROVED"}, "APPLYING"),
-            (rec("i", "AWAITING_YOU"), {"approval_state": "PENDING"}, "NEEDS YOU"),
-            (rec("j", "AWAITING_YOU"), {"approval_state": "APPROVED", "his_ok": "part-time"}, "NEEDS YOU"),
-            (rec("k", "FAILED"), {}, "STOPPED"),
-            (rec("l", "REJECTED"), {}, "STOPPED"),
-            (rec("m", "CLOSED"), {}, "SET ASIDE"),
-        ]
-        for record, facts, stage in cases:
-            with self.subTest(record=record["id"]):
-                self.assertEqual(mc.stage_of(record, **facts), stage)
+    def test_an_unknown_status_is_never_shown(self):
+        self.assertEqual(card(status="VIBING")["status"], "OPEN")
+        self.assertEqual(set(card()), self.KEYS)
 
-    def test_a_live_grant_moves_a_filled_form_to_applying(self):
-        self.assertEqual(mc.stage_of(rec("x", "AWAITING_YOU"), approval_state="PENDING", grant_live=True),
-                         "APPLYING")
+    def test_a_charter_with_her_step_and_his(self):
+        plan = {"slug": "barkly", "title": "Barkly", "goal": "Barkly on real iPhones", "state": "open",
+                "created": ago(9000), "project": {"repo": "money_machine"},
+                "steps": [{"n": 1, "text": "Get CI green", "state": "todo", "owner": "thea"},
+                          {"n": 2, "text": "Turn on Pages", "state": "todo", "owner": "caleb"},
+                          {"n": 3, "text": "Ship", "state": "todo", "owner": "thea", "needs": [2]}]}
+        out = mc.plan_mission(plan)
+        self.assertEqual(set(out), self.KEYS)
+        self.assertEqual((out["id"], out["type"], out["status"]), ("plan:barkly", "charter", "OPEN"))
+        self.assertEqual(out["next"], "Her next step (1): Get CI green")
+        self.assertEqual(out["needs"][0]["said"], "step 2 is yours: Turn on Pages")
+        self.assertFalse(out["needs"][0]["blocking"])     # she still has work: not stuck on him
+        self.assertEqual(out["needs_count"], 0)
+        self.assertEqual(out["progress"], {"done": 0, "total": 3, "unit": "steps"})
+        self.assertEqual(out["receipts"][0], {"kind": "plan", "id": "barkly", "label": "plan"})
 
-    def test_counts_cards_and_off_ramps(self):
-        records = [rec("s1", "SUBMITTED", submitted_at=ago(30)), rec("s2", "SUBMITTED", submitted_at=ago(3000)),
-                   rec("n1", "NEEDS_YOU", questions=[{"label": "Preferred shift"}]),
-                   rec("f1", "FAILED", failure="ApplyError: she could not find the button that submits this form"),
-                   rec("c1", "CLOSED", closed_because="not realistic: 7+ years"),
-                   {"not": "a record"}]
-        out = mc.pipeline(records, today_floor=ago(600), discovery_today={"discovered": 312, "qualified": 40})
-        stages = {s["stage"]: s for s in out["stages"]}
-        self.assertEqual([s["stage"] for s in out["stages"]], list(mc.STAGES))
-        self.assertEqual(stages["SENT"]["count"], 2)
-        self.assertEqual(stages["SENT"]["today"], 1)
-        self.assertEqual(stages["NEEDS YOU"]["count"], 1)
-        self.assertEqual(stages["DISCOVERED"]["count"], 312)
-        self.assertEqual(stages["REVIEWED"]["count"], 40)
-        self.assertEqual(stages["DISCOVERED"]["source"], "today's discovery summary")
-        ramps = {s["stage"]: s for s in out["off_ramps"]}
-        self.assertEqual(ramps["STOPPED"]["count"], 1)
-        self.assertEqual(ramps["SET ASIDE"]["count"], 1)
-        self.assertEqual(out["records"], 5)
-        card = ramps["STOPPED"]["cards"][0]
-        self.assertEqual(card["why_not_sent"], "She could not find the button that submits this form.")
+    def test_a_plan_only_he_can_move_needs_him_and_a_blocked_step_is_why(self):
+        plan = {"slug": "p", "title": "P", "goal": "g", "state": "open", "created": ago(10),
+                "steps": [{"n": 1, "text": "Fix it", "state": "blocked", "owner": "thea"},
+                          {"n": 2, "text": "Choose", "state": "todo", "owner": "caleb"}]}
+        out = mc.plan_mission(plan)
+        self.assertEqual(out["type"], "plan")
+        self.assertEqual(out["status"], "NEEDS YOU")
+        self.assertEqual(out["needs_count"], 1)
+        self.assertIn("Stuck because step 1 is blocked: Fix it", out["stuck"])
+        plan["steps"][1]["state"] = "done"
+        out = mc.plan_mission(plan)
+        self.assertEqual(out["status"], "BLOCKED")
 
-    def test_no_discovery_today_is_unknown_not_zero(self):
-        out = mc.pipeline([], discovery_today=None)
-        discovered = out["stages"][0]
-        self.assertIsNone(discovered["count"])
-        self.assertIn("no discovery", discovered["source"])
+    def test_tasks_filed_under_a_plan_are_its_blockers_and_needs(self):
+        plan = {"slug": "wall", "title": "Wall", "goal": "g", "state": "open", "created": ago(10),
+                "steps": [{"n": 1, "text": "A", "state": "doing"}]}
+        tasks = [{"id": "wall-s1", "goal": "wall", "status": "FAILED_RETRYABLE", "error": "Pages 404",
+                  "updated_at": ago(5)},
+                 {"id": "wall-s2", "goal": "wall", "status": "WAITING_OPERATOR", "description": "add the token"}]
+        out = mc.plan_mission(plan, tasks)
+        self.assertEqual(out["status"], "RUNNING")
+        self.assertEqual(out["step"], "A")
+        self.assertIn("task wall-s1: Pages 404", out["stuck"])
+        self.assertEqual(out["needs_count"], 1)
 
-    def test_cards_are_newest_first_and_capped(self):
-        records = [rec(f"s{i}", "SUBMITTED", submitted_at=ago(i)) for i in range(20)]
-        sent = [s for s in mc.pipeline(records, per_stage=5)["stages"] if s["stage"] == "SENT"][0]
-        self.assertEqual(sent["count"], 20)
-        self.assertEqual([c["id"] for c in sent["cards"]], ["s0", "s1", "s2", "s3", "s4"])
+    def test_proposed_waits_for_his_yes_and_finished_plans_are_not_missions(self):
+        plan = {"slug": "p", "title": "P", "goal": "g", "state": "proposed", "created": ago(10), "steps": []}
+        self.assertEqual(mc.plan_mission(plan)["status"], "PROPOSED")
+        for state in ("done", "dropped"):
+            self.assertIsNone(mc.plan_mission(dict(plan, state=state)))
 
+    def test_a_standalone_task(self):
+        index = {"dep": {"id": "dep", "status": "QUEUED"}}
+        out = mc.task_mission({"id": "t", "description": "Verify the campaign", "status": "QUEUED",
+                               "dependencies": ["dep"], "updated_at": ago(3)}, index)
+        self.assertEqual(out["status"], "WAITING")
+        self.assertEqual(out["stuck"], "Stuck because waiting on dep.")
+        out = mc.task_mission({"id": "s", "description": "Operator: create the project", "status": "WAITING_OPERATOR",
+                               "result": "the ChatGPT project is the last step"})
+        self.assertEqual((out["status"], out["needs_count"]), ("NEEDS YOU", 1))
+        self.assertIsNone(mc.task_mission({"id": "d", "description": "x", "status": "COMPLETED"}))
 
-class TheCardAnswersBothQuestions(unittest.TestCase):
-    def test_why_this_one_prefers_job_values_reasons(self):
-        record = rec("v", "SUBMITTED", why_she_liked_it=["it pays $95,000", "it is in Sioux Falls"],
-                     why_not=["it asks for 3 years"], value=71, queue="outlier",
-                     fit={"why": "the model's view", "by": "model:codex"})
-        why = mc.why_this_one(record)
-        self.assertEqual(why["source"], "job_value")
-        self.assertIn("it pays $95,000", why["said"])
-        self.assertIn("against it", why["said"])
-        self.assertEqual(why["queue"], "outlier")
+    def test_a_budgeted_mission_running_expired_and_old(self):
+        record = {"id": "m-1", "kind": "fix_projects", "goal": "Fix the repos", "state": "RUNNING",
+                  "created_at": ago(30), "expires": ago(-60), "max_actions": 12, "actions_used": 4,
+                  "log": [{"at": ago(2), "entry": "opened a PR on schwab-trader", "spent": 1}]}
+        out = mc.budget_mission(record, NOW)
+        self.assertEqual((out["status"], out["title"]), ("RUNNING", "Fix projects"))
+        self.assertEqual(out["step"], "opened a PR on schwab-trader")
+        self.assertIn("8 more", out["next"])
+        self.assertEqual(out["receipts"][0]["kind"], "mission")
+        # past its deadline but not yet recorded: judged by the clock, not by writing
+        out = mc.budget_mission(dict(record, expires=ago(1)), NOW)
+        self.assertEqual(out["status"], "STOPPED")
+        self.assertIn("its time ran out", out["stuck"])
+        ended = dict(record, state="STOPPED", ended_at=ago(90), ended_because="stopped by operator-local")
+        self.assertEqual(mc.budget_mission(ended, NOW)["status"], "STOPPED")
+        self.assertIsNone(mc.budget_mission(dict(ended, ended_at=ago(3 * 1440)), NOW))
 
-    def test_why_this_one_falls_back_to_the_fit_without_naming_the_model(self):
-        why = mc.why_this_one(rec("f", "SUBMITTED", fit={"why": "operations role he fits", "by": "model:codex"}))
-        self.assertEqual(why["said"], "operations role he fits")
-        self.assertNotIn("codex", json.dumps(why))
-
-    def test_an_unscored_record_says_nothing_rather_than_inventing(self):
-        self.assertIsNone(mc.why_this_one(rec("u", "FAILED")))
-
-    def test_why_not_sent_in_plain_words(self):
-        cases = [
-            (rec("a", "FAILED", failure="TargetClosedError: BrowserType.launch_persistent_context: Target page, "
-                                        "context or browser has been closed"), {},
-             "the browser closed"),
-            (rec("b", "NEEDS_YOU", questions=[{"label": "Please identify your race*"}]), {},
-             "only you can answer: Please identify your race*"),
-            (rec("c", "AWAITING_YOU"), {"his_ok": "part-time"}, "part-time work"),
-            (rec("d", "AWAITING_YOU"), {"his_ok": "judged-locally"}, "her own model"),
-            (rec("e", "AWAITING_YOU"), {"approval_state": "PENDING"}, "waits for your OK"),
-            (rec("f", "AWAITING_YOU"), {"approval_state": "PENDING", "grant_live": True}, "standing grant sends it"),
-            (rec("g", "REJECTED"), {}, "handed the form back"),
-            (rec("h", "FAILED", click_evidence={"captcha": "hcaptcha"}), {}, "CAPTCHA"),
-            (rec("i", "CLOSED", closed_because="the same job is already waiting"), {}, "Set aside: the same job"),
-            (rec("j", "SUBMITTING"), {}, "never recorded"),
-        ]
-        for record, facts, words in cases:
-            with self.subTest(record=record["id"]):
-                stage = mc.stage_of(record, **facts)
-                said = mc.why_not_sent(record, stage=stage, **facts)
-                self.assertIn(words, said)
-                self.assertNotRegex(said, r"^[A-Z][A-Za-z]+Error:")
-
-    def test_a_sent_application_has_no_blocker(self):
-        self.assertEqual(mc.why_not_sent(rec("s", "SUBMITTED"), stage="SENT"), "")
+    def test_generic_missions_attach_tasks_to_their_plan_and_order_by_attention(self):
+        plans = [{"slug": "wall", "title": "Wall", "goal": "g", "state": "open", "created": ago(10),
+                  "steps": [{"n": 1, "text": "A", "state": "todo"}]}]
+        tasks = [{"id": "wall-s4", "goal": "wall", "status": "QUEUED", "description": "x"},
+                 {"id": "loose", "status": "BLOCKED", "description": "y", "error": "no key"},
+                 {"id": "setup", "status": "WAITING_OPERATOR", "description": "z"}]
+        out = mc.order_missions(mc.generic_missions(mission_record=None, plans=plans, tasks=tasks, now=NOW))
+        self.assertEqual([m["id"] for m in out], ["task:setup", "task:loose", "plan:wall"])
+        needs = mc.needs_list(out, [{"id": "ap-1", "label": "Remember the landlord"}])
+        self.assertEqual([(n["kind"], n["id"]) for n in needs], [("approval", "ap-1"), ("mission", "task:setup")])
 
 
 class TheRibbonIsSentencesWithReceipts(unittest.TestCase):
     def test_newest_first_noise_dropped_every_line_has_a_receipt(self):
         entries = [
-            {"ts": ago(50), "kind": "action", "subject": "apply:forever", "actor": "aletheia-apply-forever",
-             "text": "started another batch of 8"},
+            {"ts": ago(50), "kind": "action", "subject": "task:wall-s3", "text": "QUEUED -> COMPLETED"},
             {"ts": ago(40), "kind": "action", "subject": "formfill", "text": "read 120 fields on https://x"},
-            {"ts": ago(35), "kind": "action", "subject": "apply", "text": "closed apply-1234abcd without applying"},
+            {"ts": ago(35), "kind": "action", "subject": "research", "text": "wrote the brief on heat pumps"},
             {"ts": ago(30), "kind": "event", "subject": "access", "text": "tok-1 GET /api/status"},
-            {"ts": ago(20), "kind": "alert", "subject": "apply:forever", "text": "a batch could not start"},
+            {"ts": ago(20), "kind": "alert", "subject": "core", "text": "sync could not push"},
         ]
-        records = [rec("s1", "SUBMITTED", submitted_at=ago(10)),
-                   rec("f1", "FAILED", staged_at=ago(15), failure="there is no application form on this page")]
         sessions = [{"id": "agent-abc", "saved_at": ago(5), "outcome": "answered",
-                     "question": "how did applications go today?", "model": "ollama:qwen3-vl:4b",
-                     "sources": [{"tool": "applications.query", "provenance": "TRUSTED_LOCAL_STATE"}]}]
-        out = mc.ribbon(journal_entries=entries, records=records, sessions=sessions)
+                     "question": "what are you doing?", "model": "ollama:qwen3-vl:4b",
+                     "sources": [{"tool": "state.now", "provenance": "TRUSTED_LOCAL_STATE"}]}]
+        extra = [{"at": ago(10), "tone": "good", "what": "Research", "said": "Finished the heat pump brief.",
+                  "receipt": {"kind": "research", "id": "r-1"}},
+                 {"at": ago(11), "tone": "good", "said": "a line with no receipt is dropped"}]
+        out = mc.ribbon(journal_entries=entries, sessions=sessions, extra=extra)
         said = [i["said"] for i in out]
-        self.assertEqual(said[0], "Answered “how did applications go today?” after looking at "
-                                  "applications.query.")
-        self.assertEqual(said[1], "Sent Operations Analyst at S1.")
-        self.assertTrue(said[2].startswith("Couldn't send Operations Analyst at F1: There is no application form"))
-        self.assertEqual(out[3]["tone"], "alert")
-        self.assertFalse(any("120 fields" in s or "/api/status" in s or "closed apply-" in s for s in said))
-        self.assertEqual(len(out), 5)
-        for item in out:
-            self.assertIn(item["receipt"]["kind"], ("journal", "application", "session"))
+        self.assertEqual(said, ["Answered “what are you doing?” after looking at state.now.",
+                                "Finished the heat pump brief.", "Sync could not push",
+                                "Wrote the brief on heat pumps", "QUEUED -> COMPLETED"])
+        self.assertEqual(out[2]["tone"], "alert")
+        self.assertEqual(out[4]["what"], "Tasks")
+        self.assertTrue(all(i["receipt"]["kind"] for i in out))
         # provenance is receipt material, never the sentence
         self.assertFalse(any("qwen" in s for s in said))
+
+    def test_a_provider_can_take_over_its_subjects_but_never_their_alerts(self):
+        entries = [{"ts": ago(5), "kind": "action", "subject": "research", "text": "fetched a page"},
+                   {"ts": ago(4), "kind": "alert", "subject": "research", "text": "the source refused"}]
+        out = mc.ribbon(journal_entries=entries, skip_subjects={"research"}, labels={"research": "Research"})
+        self.assertEqual([(i["what"], i["said"]) for i in out], [("Research", "The source refused")])
 
     def test_journal_receipt_ids_are_stable(self):
         entry = {"ts": ago(1), "subject": "core", "text": "local Core up"}
@@ -281,29 +290,36 @@ class TheRibbonIsSentencesWithReceipts(unittest.TestCase):
 
 
 class EyesShowOnlyWhatIsRecorded(unittest.TestCase):
-    def test_the_current_applications_screenshot_first_then_the_last(self):
-        records = {"a1": rec("a1", "FAILED"), "a0": rec("a0", "SUBMITTED")}
-        browser = {"active": True, "site": "jobs.lever.co", "purpose": "finding openings",
-                   "stage": "the form would not go", "application": "a1",
-                   "last": {"application": "a0", "at": ago(5)}}
-        out = mc.eyes(browser, records_by_id=records, has_screenshot=lambda r: True)
-        self.assertEqual(out["screenshot"]["application"], "a1")
-        self.assertEqual(out["screenshot"]["src"], "/api/mission/screenshot?id=a1")
-        out = mc.eyes(browser, records_by_id=records, has_screenshot=lambda r: r["id"] == "a0")
-        self.assertEqual(out["screenshot"]["of"], "the last application she worked")
-        out = mc.eyes(browser, records_by_id=records, has_screenshot=lambda r: False)
-        self.assertIsNone(out["screenshot"])
-        # neither has one: the newest record that does, said as exactly that
-        records["old"] = rec("old", "SUBMITTED", submitted_at=ago(900))
-        out = mc.eyes(browser, records_by_id=records, has_screenshot=lambda r: r["id"] == "old")
-        self.assertEqual(out["screenshot"]["of"], "the latest screenshot on record")
-        self.assertEqual(out["site"], "jobs.lever.co")
+    def test_the_browser_and_the_first_candidate(self):
+        browser = {"active": True, "site": "example.org", "purpose": "reading a source", "stage": "reading",
+                   "last": {"site": "a.org", "what": "a page", "state": "done", "at": ago(5)}}
+        shots = [{"id": "x", "of": "the page she is on", "title": "t", "src": "/api/mission/screenshot?id=x"},
+                 {"id": "y", "src": "/api/mission/screenshot?id=y"}]
+        out = mc.eyes(browser, screenshots=shots)
+        self.assertEqual((out["site"], out["screenshot"]["id"], out["last"]["title"]), ("example.org", "x", "a page"))
+        self.assertIsNone(mc.eyes({}, screenshots=[])["screenshot"])
 
 
-class TheRoutesSitBehindTheSameGate(unittest.TestCase):
-    """Loopback reads openly, like /api/status; a remote caller needs a real
-    token, like /api/status. Nothing new is reachable that was not before."""
+def fake_provider(**over):
+    def read(ctx):
+        return {"n": 2, "notes": ["one store was half-read"]}
 
+    def build(reading, ctx):
+        return {"missions": [mc.mission_card(id="research-1", type="research", title="Heat pumps",
+                                             status="RUNNING", next="Write it up.", detail=True)],
+                "claims": ["ap-claimed"],
+                "signals": [{"what": "research loop", "ok": True, "said": f"{reading['n']} rounds"}],
+                "activity": [{"at": ctx["now"].strftime("%Y-%m-%dT%H:%M:%SZ"), "tone": "good", "what": "Research",
+                              "said": "Read two sources.", "receipt": {"kind": "research", "id": "research-1"}}],
+                "screenshots": [], "details": {"research-1": {"type": "research", "sources": 2}}}
+
+    value = dict(type="research", label="Research", read=read, build=build,
+                 receipt_kinds=("research",), receipt=lambda kind, ident: {"kind": kind, "id": ident, "record": {}})
+    value.update(over)
+    return mc.Provider(**value)
+
+
+class IsolatedStores(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -314,10 +330,59 @@ class TheRoutesSitBehindTheSameGate(unittest.TestCase):
         p = mock.patch.object(journal, "JOURNAL_PATH", root / "journal.jsonl")
         p.start()
         self.addCleanup(p.stop)
-        access.clear_failures()
-        self.addCleanup(access.clear_failures)
         mc.forget_cache()
         self.addCleanup(mc.forget_cache)
+        from aletheia import current_state
+        current_state.forget_cache()
+        self.addCleanup(current_state.forget_cache)
+
+
+class TheRegistryPlugsTypesIn(IsolatedStores):
+    def test_the_registry_is_explicit_and_holds_the_job_hunt(self):
+        registered = mc.registry()
+        self.assertEqual(list(registered), ["job_hunt"])
+        for provider in registered.values():
+            self.assertTrue(callable(provider.read) and callable(provider.build))
+
+    def test_a_new_type_adds_a_provider_not_a_screen(self):
+        out = mc.gather(fresh=True, providers={"research": fake_provider()})
+        mission = [m for m in out["missions"] if m["id"] == "research-1"][0]
+        self.assertEqual((mission["type"], mission["status"]), ("research", "RUNNING"))
+        self.assertEqual(out["details"]["research-1"], {"type": "research", "sources": 2})
+        self.assertIn({"what": "research loop", "ok": True, "said": "2 rounds"}, out["header"]["signals"])
+        self.assertEqual(out["ribbon"][0]["said"], "Read two sources.")
+        self.assertIn("one store was half-read", out["notes"])
+        self.assertEqual(out["providers"], [{"type": "research", "label": "Research"}])
+        self.assertEqual(mc.receipt("research", "research-1", providers={"research": fake_provider()})["id"],
+                         "research-1")
+        self.assertIsNone(mc.receipt("research", "research-1", providers={}))
+
+    def test_a_provider_that_breaks_does_not_blank_the_screen(self):
+        def explode(*_a):
+            raise RuntimeError("boom")
+        out = mc.gather(fresh=True, providers={"a": fake_provider(type="a", build=explode),
+                                               "b": fake_provider(type="b", label="Other", read=explode)})
+        self.assertIn("header", out)
+        self.assertTrue(any("could not be read (RuntimeError)" in n for n in out["notes"]))
+        self.assertFalse(any(m["id"] == "research-1" for m in out["missions"]))
+
+    def test_claimed_approvals_are_not_counted_twice(self):
+        from aletheia import policy
+        policy.request("ap-claimed", "x", "y", "claimed by the provider", True)
+        policy.request("ap-free", "x", "y", "Remember the landlord", True)
+        out = mc.gather(fresh=True, providers={"research": fake_provider()})
+        self.assertEqual([n["id"] for n in out["needs_you"] if n["kind"] == "approval"], ["ap-free"])
+        self.assertEqual(out["header"]["needs_you_parts"]["approvals"], 1)
+
+
+class TheRoutesSitBehindTheSameGate(IsolatedStores):
+    """Loopback reads openly, like /api/status; a remote caller needs a real
+    token, like /api/status. Nothing new is reachable that was not before."""
+
+    def setUp(self):
+        super().setUp()
+        access.clear_failures()
+        self.addCleanup(access.clear_failures)
         self.server = core.make_server(port=0)
         self.port = self.server.server_address[1]
         self.addCleanup(self.server.server_close)
@@ -346,19 +411,24 @@ class TheRoutesSitBehindTheSameGate(unittest.TestCase):
                 return exc.code, exc.headers.get("Content-Type"), exc.read()
 
     def test_loopback_reads_the_mission_screen(self):
-        status, ctype, body = self.fetch("/api/mission")
+        status, _ctype, body = self.fetch("/api/mission")
         self.assertEqual(status, 200)
         value = json.loads(body)
-        for part in ("header", "pipeline", "discovery", "ribbon", "eyes"):
+        for part in ("header", "missions", "needs_you", "ribbon", "eyes", "details", "providers"):
             self.assertIn(part, value)
         from aletheia.current_state import AGENT_STATES
         self.assertIn(value["header"]["state"], AGENT_STATES)
-        stopped = [s for s in value["pipeline"]["off_ramps"] if s["stage"] == "STOPPED"][0]
+        hunt = [m for m in value["missions"] if m["type"] == "job_hunt"][0]
+        self.assertTrue(hunt["detail"])
+        pipe = value["details"][hunt["id"]]["pipeline"]
+        stopped = [s for s in pipe["off_ramps"] if s["stage"] == "STOPPED"][0]
         self.assertEqual(stopped["cards"][0]["why_not_sent"], "She could not find the button.")
         self.assertTrue(stopped["cards"][0]["screenshot"])
+        self.assertEqual(value["eyes"]["screenshot"]["id"], "apply-0000beef")
 
     def test_remote_without_a_token_is_refused_on_every_route(self):
         for path in ("/api/mission", "/api/mission/receipt?kind=application&id=apply-0000beef",
+                     "/api/mission/receipt?kind=plan&id=barkly",
                      "/api/mission/screenshot?id=apply-0000beef"):
             with self.subTest(path=path):
                 status, _ctype, body = self.fetch(path, remote=True)
@@ -382,9 +452,23 @@ class TheRoutesSitBehindTheSameGate(unittest.TestCase):
         self.assertEqual(ctype, "image/png")
         self.assertTrue(body.startswith(b"\x89PNG"))
 
+    def test_generic_receipts(self):
+        from aletheia import tasks
+        with mock.patch.object(tasks, "TASKS_DIR", Path(self.tmp.name) / "tasks"):
+            tasks.TASKS_DIR.mkdir()
+            stateio.write_json_atomic(tasks.TASKS_DIR / "call-the-plumber.json",
+                                      {"id": "call-the-plumber", "description": "call the plumber",
+                                       "status": "QUEUED", "created_at": ago(1), "updated_at": ago(1), "attempts": 0})
+            status, _ctype, body = self.fetch("/api/mission/receipt?kind=task&id=call-the-plumber")
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["record"]["description"], "call the plumber")
+
     def test_nothing_outside_the_records_is_served(self):
         for path in ("/api/mission/receipt?kind=application&id=../../secrets",
                      "/api/mission/receipt?kind=session&id=..%2Fx",
+                     "/api/mission/receipt?kind=plan&id=..%2F..%2Fconfig%2Ffleet",
+                     "/api/mission/receipt?kind=task&id=..%5Cx",
+                     "/api/mission/receipt?kind=mission&id=m-nope",
                      "/api/mission/receipt?kind=shell&id=x",
                      "/api/mission/screenshot?id=nope"):
             with self.subTest(path=path):
