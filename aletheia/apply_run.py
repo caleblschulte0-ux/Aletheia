@@ -704,6 +704,8 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
     # employer and the posting the campaign had attached — and the tracker
     # was left naming the application after the form's page title.
     kept_job = {name: before[name] for name in REMEMBERED if before.get(name)}
+    # WHICH ENGINE filled it, on every record this writes (see `ENGINE_*`).
+    kept_job["engine"] = ENGINE_FORMFILL
     for field, value in (extra or {}).items():
         if field in profile.FIELDS:
             profile.set_answer(field, value, source="operator")
@@ -1316,6 +1318,13 @@ def submit(run_id: str, *, submitter=None) -> dict:
     """
     policy.ensure_not_halted()
     record = load_run(run_id)
+    if record.get("engine") == ENGINE_LOOP:
+        # ITS PRESS IS THE MISSION'S. A loop-engine application waits on the
+        # browser mission's own hash-bound approval, pressed once by
+        # `webtask.commit` with the mission's no-second-press invariant.
+        # Pressing it here too would be a second path to the same button.
+        raise ApplyError(f"{run_id} was filled by the general browser loop; it is sent by "
+                         "approving its browser mission, not from here")
     if record["state"] == "SUBMITTED":
         raise ApplyError(f"{run_id} was already submitted at "
                          f"{record.get('submitted_at')} — not sending it again")
@@ -1971,9 +1980,208 @@ def _what_blocked_the_click(page, button: str, record: dict) -> dict:
     return seen
 
 
+# ---- the general browser loop as an application engine (opt-in) -------------------------
+#
+# The operator, 2026-09-16: *"jobs should be the current test case, not the
+# architecture ... Specialized job code is fine as an optimization, but the
+# intelligence underneath it should stay fluid and general."* `stage` above is
+# the specialised engine: one page read by `formfill`, proven live on the
+# applicant-tracking systems the job search lists. For a site it has no
+# adapter for - an employer's own wizard, an account-first ATS - the general
+# loop (`browser_loop.pursue` with `job_skill`) can do the same job.
+#
+# OFF BY DEFAULT, stored in private state like discovery's switch, because the
+# live loop is sending real applications and a new engine choosing how they
+# are filled is his call. With it off nothing here runs.
+
+ENGINE_FORMFILL = "formfill"
+ENGINE_LOOP = "browser_loop"
+
+#: Hosts `stage` is the proven adapter for (the systems `jobs.PROVIDERS` lists).
+ADAPTER_HOSTS = ("greenhouse.io", "lever.co", "ashbyhq.com", "workable.com",
+                 "smartrecruiters.com", "recruitee.com")
+
+LOOP_GOAL = "apply for this job"
+
+_MISSION_TO_APPLICATION = {"AWAITING_APPROVAL": "AWAITING_YOU", "DONE": "SUBMITTED",
+                           "SUBMITTED_UNCONFIRMED": "SUBMITTED", "SUBMITTING": "SUBMITTING",
+                           "REJECTED": "REJECTED", "REFUSED": "FAILED", "MANUAL_ONLY": "FAILED",
+                           "NEEDS_YOU": "NEEDS_YOU", "RUNNING": "NEEDS_YOU"}
+
+
+def engine_settings_path():
+    return stateio.private_dir("jobs") / "apply_engine.json"
+
+
+def loop_engine_on() -> bool:
+    try:
+        return stateio.read_json(engine_settings_path()).get("loop_for_unadapted") is True
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
+def set_loop_engine(on: bool, *, by: str) -> dict:
+    value = {"loop_for_unadapted": bool(on), "set_at": stateio.utcnow(), "set_by": str(by or "")[:120]}
+    path = engine_settings_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    stateio.write_json_atomic(path, value)
+    journal.append("decision", "jobs",
+                   ("applications on sites with no specialised adapter now go through the general "
+                    "browser loop") if on else
+                   "applications on sites with no specialised adapter no longer use the general browser loop",
+                   actor=ACTOR)
+    return value
+
+
+def has_adapter(url: str, provider: str = "") -> bool:
+    """Is `stage` the proven engine for this url?"""
+    if provider:
+        try:
+            from aletheia import jobs
+            if provider in jobs.PROVIDERS:
+                return True
+        except Exception:
+            pass
+    host = (urllib.parse.urlparse(str(url or "")).hostname or "").casefold()
+    return any(host == h or host.endswith("." + h) for h in ADAPTER_HOSTS)
+
+
+def uses_loop(url: str, provider: str = "") -> bool:
+    """The engine choice for one application: the loop only when he switched
+    it on AND the site has no specialised adapter."""
+    return loop_engine_on() and not has_adapter(url, provider)
+
+
+def stage_via_loop(url: str, *, resume: str = "", note: str = "", extra: dict | None = None,
+                   found_on: str = "", pursue=None, code_source=None, hold_s: float = 0.0,
+                   session=None) -> dict:
+    """Fill an application with the general browser loop and the job skill.
+    Submits nothing: it stops at the mission's own approval, or at a named
+    boundary. Returns the application record (engine: browser_loop)."""
+    policy.ensure_not_halted()
+    url = str(url or "").strip()
+    if not url.startswith(("http://", "https://")):
+        raise ApplyError("that is not a page address")
+    run_id = f"apply-{_tag(url)}"
+    gone = was_sent(url)
+    if gone:
+        raise ApplyError(f"an application already went to {url} at {gone.get('at')} "
+                         f"({gone.get('job_title') or 'that job'}) — not applying twice")
+    try:
+        before = load_run(run_id)
+    except (OSError, ValueError, KeyError):
+        before = {}
+    if before.get("state") == CLOSED:
+        raise ApplyError(f"{run_id} was closed without applying "
+                         f"({before.get('closed_because') or 'no reason kept'}) - it is reopened on "
+                         "purpose or not at all")
+    if before.get("state") in PRESSED_STATES:
+        raise ApplyError(f"{run_id} was already pressed ({before.get('state')}) - not applying twice")
+    if before and before.get("engine") != ENGINE_LOOP and before.get("state") in ("AWAITING_YOU", "APPROVED"):
+        raise ApplyError(f"{run_id} is already staged by the form filler and waiting to be sent - "
+                         "not filling it a second way")
+    from aletheia import browser_loop, browser_mission as bm, browser_route, job_skill
+    kept_job = {name: before[name] for name in REMEMBERED if before.get(name)}
+    mid = bm.mission_id(LOOP_GOAL, url)
+    kwargs = {"skill": job_skill.SKILL, "hold_s": hold_s, "session": session}
+    if code_source is None:
+        from aletheia import verification_mail
+        code_source = verification_mail.source()
+    kwargs["code_source"] = code_source
+    if extra and bm.exists(mid) and pursue is None:
+        mission = browser_loop.resume(mid, answers={str(k): v for k, v in extra.items()}, force=True, **kwargs)
+    else:
+        inputs = {**browser_route.his_facts(), **{str(k): v for k, v in (extra or {}).items()}}
+        mission = (pursue or browser_loop.pursue)(LOOP_GOAL, url, inputs=inputs, **kwargs)
+    return record_from_mission(run_id, url, mission, note=note, resume=resume,
+                               found_on=found_on or before.get("found_on") or "", kept_job=kept_job)
+
+
+def record_from_mission(run_id: str, url: str, mission: dict, *, note: str = "", resume: str = "",
+                        found_on: str = "", kept_job: dict | None = None) -> dict:
+    """The application record a browser mission stands for. The mission is
+    the truth; this is its entry in the applications store."""
+    boundary = mission.get("boundary") or {}
+    state = _MISSION_TO_APPLICATION.get(str(mission.get("state") or ""), "NEEDS_YOU")
+    if state == "NEEDS_YOU" and boundary.get("kind") in ("SIGN_IN", "NO_VAULT", "ACCOUNT_CREATION_APPROVAL"):
+        state = "NEEDS_ACCOUNT"
+    if mission.get("state") == "AWAITING_APPROVAL" and boundary.get("kind") == "ACCOUNT_CREATION_APPROVAL":
+        state = "NEEDS_ACCOUNT"
+    questions = [{"label": q, "selector": q, "required": True, "why": "the form asks, and only you can say"}
+                 for q in boundary.get("questions") or []]
+    filled = [{"label": step.get("selector", "")[:60], "value": str(step.get("value") or "")[:80]}
+              for step in mission.get("route") or [] if step.get("action") in ("type", "select", "check")]
+    last = (mission.get("submits") or [{}])[-1]
+    record = {"id": run_id, "state": state, "url": url, "engine": ENGINE_LOOP, "mission": mission["id"],
+              "approval": mission.get("approval") if state in ("AWAITING_YOU", "NEEDS_ACCOUNT") else "",
+              "steps": [], "filled": filled, "not_filled": questions, "questions": questions,
+              "skipped": [], "resume": resume, "note": note, "found_on": found_on,
+              "boundary": boundary.get("kind", ""), "staged_at": stateio.utcnow(),
+              "say": str(boundary.get("say") or bm_describe(mission)),
+              **(kept_job or {})}
+    if state in ("SUBMITTED", "SUBMITTING"):
+        record.update({"submitted_at": last.get("at") or stateio.utcnow(),
+                       "result": {"verdict": last.get("verdict") or "", "note": boundary.get("say", ""),
+                                  "evidence": last.get("evidence", "")}})
+    if state == REJECTED:
+        record["failure"] = f"the site refused it: {boundary.get('say', '')}"[:300]
+    stateio.write_json_atomic(_record_path(run_id), record)
+    if state in ("SUBMITTED", "SUBMITTING"):
+        # Pressed, confirmed or not: into the ledger, so no engine sends it again.
+        remember_sent(record)
+    journal.append("action", "apply",
+                   f"browser loop: {url} is {state} ({boundary.get('kind') or mission.get('state')})",
+                   actor=ACTOR)
+    try:
+        from aletheia import demand
+        if state in ("NEEDS_YOU", "NEEDS_ACCOUNT"):
+            demand.record_attempt("application.submit", note or url, "NEEDS_YOU", source="apply")
+    except Exception:
+        pass
+    return record
+
+
+def bm_describe(mission: dict) -> str:
+    from aletheia import browser_mission as bm
+    return bm.describe(mission)
+
+
+def sync_loop_applications() -> list[dict]:
+    """Loop-engine applications brought up to date with their missions (a press
+    the beat made, a denial, a site's refusal). Never raises; returns the
+    records that changed."""
+    changed = []
+    try:
+        from aletheia import browser_loop, browser_mission as bm
+    except Exception:
+        return changed
+    for record in all_runs():
+        if record.get("engine") != ENGINE_LOOP or record.get("state") in ("SUBMITTED", CLOSED) \
+                or not record.get("mission"):
+            continue
+        try:
+            mission = browser_loop.sync(bm.load(record["mission"]))
+        except Exception:
+            continue
+        wanted = _MISSION_TO_APPLICATION.get(str(mission.get("state") or ""), record.get("state"))
+        if wanted == record.get("state"):
+            continue
+        kept = {name: record[name] for name in REMEMBERED if record.get(name)}
+        try:
+            changed.append(record_from_mission(record["id"], record["url"], mission, note=record.get("note", ""),
+                                               resume=record.get("resume", ""),
+                                               found_on=record.get("found_on", ""), kept_job=kept))
+        except Exception:
+            continue
+    return changed
+
+
 def spoken(record: dict) -> str:
     if record.get("state") == "NEEDS_YOU":
         return record["say"]
+    if record.get("state") == "AWAITING_YOU" and record.get("engine") == ENGINE_LOOP:
+        return (f"Application ready at {record['url']}, filled by the general browser loop. "
+                + str(record.get("say") or "Approve its browser mission to send it."))
     if record.get("state") == "AWAITING_YOU":
         left = len(record.get("not_filled") or [])
         return (f"Application ready at {record['url']}: "
@@ -1996,7 +2204,15 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("pending")
     p_ok = sub.add_parser("confirm"); p_ok.add_argument("run_id")
     p_send = sub.add_parser("submit"); p_send.add_argument("run_id")
+    p_engine = sub.add_parser("engine", help="whether sites with no specialised adapter use the "
+                                             "general browser loop (his switch; off by default)")
+    p_engine.add_argument("switch", choices=("on", "off", "show"))
     args = ap.parse_args(argv)
+    if args.cmd == "engine":
+        if args.switch != "show":
+            set_loop_engine(args.switch == "on", by="the command line")
+        print("general browser loop for sites with no adapter: " + ("on" if loop_engine_on() else "off"))
+        return 0
     try:
         if args.cmd == "stage":
             extra = dict(a.split("=", 1) for a in args.answer if "=" in a)

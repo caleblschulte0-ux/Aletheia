@@ -1098,7 +1098,11 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
             passed_over.append({"url": page["url"], "title": title,
                                 "why": closed.get("closed_because") or "closed as not realistic"})
             continue
-        if page.get("needs_account"):
+        # WHICH ENGINE. The general browser loop only when he switched it on
+        # (`apply_run engine on`) AND the site has no specialised adapter;
+        # otherwise exactly the path below, unchanged.
+        loop = stager is None and apply_run.uses_loop(page["url"], page.get("provider", ""))
+        if page.get("needs_account") and not loop:
             # Workday, iCIMS and the like want an account before an
             # application. Accounts are `signup`'s, behind its own gate, so
             # the job is named for him and no form is opened here.
@@ -1110,22 +1114,31 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         if company:
             tried[company] = tried.get(company, 0) + 1
         policy.ensure_not_halted()
-        if page.get("direct"):
+        if loop:
+            note = f"Apply: {page.get('title') or role or 'job'} — {page.get('posting') or page['url']}"
+            try:
+                record = apply_run.stage_via_loop(page["url"], resume=resume_path, note=note,
+                                                  found_on=page.get("found_on", ""))
+            except Exception as exc:
+                failed.append({"url": page["url"], "why": f"{type(exc).__name__}: {exc}"[:160]})
+                continue
+            form_url = page["url"]
+        elif page.get("direct"):
             # An ATS apply link IS the form; there is no posting page to
             # walk through, and pretending otherwise costs a page load per
             # job for nothing.
             form_url = page["url"]
-        else:
+        if not loop and not page.get("direct"):
             try:
                 form_url, _fields = _application_url(page["url"], opener=opener)
             except Exception as exc:
                 failed.append({"url": page["url"],
                                "why": f"{type(exc).__name__}: {exc}"[:160]})
                 continue
-        if not form_url:
+        if not loop and not form_url:
             failed.append({"url": page["url"], "why": "no application form found on it"})
             continue
-        if not page.get("direct"):
+        if not loop and not page.get("direct"):
             # An employer's page whose Apply led to a public applicant-tracking
             # form has told her its board: the next batch reads it whole.
             jobs.learn_board_urls([{"url": form_url, "company": page.get("company", "")}],
@@ -1134,14 +1147,15 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         if closed and str(closed.get("url") or "").strip() in (page["url"], form_url):
             apply_run.reopen(closed["id"], "he said what work he wants after it was closed; "
                                            f"judged again: {fit.get('why') or 'realistic'}")
-        try:
-            # Where she found it travels with the form: "how did you hear
-            # about this job" is answered from it on the first read.
-            record = stage(form_url, resume=resume_path, note=note,
-                           **_where_found(stage, page.get("found_on", "")))
-        except Exception as exc:
-            failed.append({"url": form_url, "why": f"{type(exc).__name__}: {exc}"[:160]})
-            continue
+        if not loop:
+            try:
+                # Where she found it travels with the form: "how did you hear
+                # about this job" is answered from it on the first read.
+                record = stage(form_url, resume=resume_path, note=note,
+                               **_where_found(stage, page.get("found_on", "")))
+            except Exception as exc:
+                failed.append({"url": form_url, "why": f"{type(exc).__name__}: {exc}"[:160]})
+                continue
         record = _keep_the_job(record, page, fit=fit, employment=fit.get("employment", ""),
                                value=page.get("value"), queue=page.get("queue"),
                                why_she_liked_it=page.get("why_she_liked_it"),
@@ -1164,7 +1178,11 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
                 extra.update(draft_essays(record, text, think=writer))
             if extra:
                 try:
-                    record = stage(form_url, resume=resume_path, extra=extra, note=note)
+                    if record.get("engine") == apply_run.ENGINE_LOOP:
+                        record = apply_run.stage_via_loop(record["url"], resume=resume_path,
+                                                          extra=extra, note=note)
+                    else:
+                        record = stage(form_url, resume=resume_path, extra=extra, note=note)
                     record = _keep_the_job(record, page, answered_for_you=len(extra))
                 except Exception:
                     pass

@@ -662,6 +662,11 @@ def send_approved_applications() -> list[dict]:
     from aletheia import apply_run, authority
     sent = []
     for record in apply_run.all_runs("AWAITING_YOU"):
+        if record.get("engine") == apply_run.ENGINE_LOOP:
+            # Filled by the general browser loop: its press is its browser
+            # mission's own approval (press_approved_web_tasks), never this
+            # path and never on the standing grant.
+            continue
         try:
             approval = policy.load(record["approval"])
         except Exception:
@@ -746,6 +751,18 @@ def send_approved_applications() -> list[dict]:
     return sent
 
 
+def _held_live(record: dict) -> bool:
+    import datetime as _dt
+    until = str(record.get("held_live_until") or "")
+    if not until:
+        return False
+    try:
+        when = _dt.datetime.fromisoformat(until.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return when > _dt.datetime.now(_dt.timezone.utc)
+
+
 def press_approved_web_tasks() -> list[dict]:
     """Press what he confirmed on a web task, once each.
 
@@ -761,6 +778,11 @@ def press_approved_web_tasks() -> list[dict]:
     from aletheia import webtask
     pressed = []
     for record in webtask.all_runs(webtask.COMMIT):
+        if _held_live(record):
+            # A browser mission is still holding its live session open for this
+            # yes, and presses it there (an expiring code survives). If that
+            # process dies the hold lapses and this beat presses by replay.
+            continue
         try:
             approval = policy.load(record["approval"])
         except Exception:
@@ -793,6 +815,10 @@ def press_approved_web_tasks() -> list[dict]:
         pressed.append({"web_task": record["id"], "button": record.get("button"),
                         "verdict": verdict,
                         "url": result.get("url", record.get("url"))})
+    if any(row.get("web_task", "").startswith("bm-apply-for-this-job") for row in pressed):
+        # An application the general loop filled: its record follows its mission.
+        from aletheia import apply_run
+        apply_run.sync_loop_applications()
     return pressed
 
 
