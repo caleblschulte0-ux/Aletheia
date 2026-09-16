@@ -1883,10 +1883,13 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 + (f" — {cmd['why'][:120]}" if cmd.get("why") else ""))
 
     if kind == "web_task":
-        from aletheia import webtask
-        record = webtask.run(cmd["goal"], start_url=cmd.get("url", ""),
-                             budget=int(cmd.get("budget", 16)))
-        return webtask.spoken(record)
+        # THE GENERAL LOOP when there is a page to start from
+        # (`browser_route.engine_for`); the older loop for a search or a
+        # download. Same gates either way: spending refused, one hash-bound
+        # approval at the committing button, every stop in the demand ledger.
+        from aletheia import browser_route
+        return browser_route.run(cmd["goal"], url=cmd.get("url", ""),
+                                 budget=int(cmd.get("budget", 16)))
     if kind == "subscription_cancel":
         from aletheia import subscriptions, webtask
         if cmd.get("url"):
@@ -1899,8 +1902,14 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         except Exception:
             return f"{row['merchant']}: {row.get('cancel_state', 'started')}"
     if kind == "web_task_answer":
-        from aletheia import webtask
+        from aletheia import browser_route, webtask
         run_id = cmd.get("run_id") or ""
+        mission = browser_route.waiting_mission(run_id)
+        if mission is not None:
+            given = cmd.get("answers") or {}
+            if not isinstance(given, dict):
+                return "answers must be a mapping of question to answer"
+            return browser_route.answer(mission, given)
         if not run_id:
             waiting = [r for r in webtask.all_runs()
                        if r.get("state") in webtask.PICKABLE]
@@ -1914,7 +1923,10 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "web_task_retry":
         # The site refused it. "Try that again" now means something: she
         # reads what it said, fixes it, and brings him a NEW confirmation.
-        from aletheia import webtask
+        from aletheia import browser_route, webtask
+        mission = browser_route.rejected_mission(cmd.get("run_id") or "")
+        if mission is not None:
+            return browser_route.retry(mission)
         if cmd.get("run_id"):
             record = webtask.retry(cmd["run_id"])
         else:
