@@ -215,6 +215,15 @@
     /* iOS zooms any input under 16px on focus */
     select,input,textarea,#ask{font-size:16px}
     .state{gap:.6rem;flex-wrap:wrap}
+    /* the sentence takes the whole row under the state word, not a sliver beside it */
+    .state .said{flex:1 1 100%;order:3;min-width:0}
+    .bar{flex-wrap:wrap;gap:.5rem}
+    main,section,.col{min-width:0}
+    header.now,main{overflow-wrap:anywhere}
+    button{overflow-wrap:normal;white-space:nowrap}
+    /* a row's buttons drop under its text instead of pushing the page sideways */
+    .row{flex-wrap:wrap}
+    .row>div:first-child{flex:1 1 14rem;min-width:0}
     #doing{font-size:.95rem}
   }
   @media (prefers-reduced-motion:reduce){
