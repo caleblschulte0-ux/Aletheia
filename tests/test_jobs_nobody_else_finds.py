@@ -292,7 +292,8 @@ class TheLadder(Isolated):
 class EmployersAreDiscovered(Isolated):
     def test_the_queries_are_diverse_and_near_him(self):
         places = job_discovery.places_for(KNOWN)
-        self.assertEqual(places[0], "South Dakota")
+        # A city he named in his own answers comes before his state, both before remote.
+        self.assertEqual(places[:3], ["Sioux Falls, South Dakota", "South Dakota", "remote"])
         queries = job_discovery.plan_employer_queries(
             ["Business Development Associate"], places,
             fields=job_discovery.fields_for(["Business Development Associate"], KNOWN), count=6)
@@ -650,6 +651,57 @@ class TheWebIsSearchedForEmployers(Isolated):
             job_discovery.search_web_for_employers(["x"], ["South Dakota"], http=lambda q: {"links": []},
                                                    report=spent, now=NOW)
         self.assertIn("spent", spent["http_stopped"])
+
+    def test_the_web_is_asked_short_questions_near_him_and_a_misread_is_not_harvested(self):
+        asked = []
+
+        def http(query):
+            asked.append(query)
+            # The engine answering only the first word: nothing about the rest.
+            return {"links": [{"href": "https://www.nowtv.com/careers", "text": "Careers | NOW TV",
+                               "snippet": "Watch TV"}]}
+        report: dict = {}
+        found = job_discovery.search_web_for_employers(
+            ["Business Development Associate"], job_discovery.places_for(KNOWN), http=http, searches=4,
+            report=report, now=NOW)
+        self.assertEqual(asked[0], "sioux falls south dakota careers")
+        self.assertTrue(all(len(q.split()) <= 7 and '"' not in q and "remote" not in q for q in asked))
+        self.assertEqual(found, [])
+        self.assertEqual(len(report["http_misread"]), 4)
+        self.assertTrue(job_discovery.answered_the_query("south dakota careers", [
+            {"href": "https://bhr.sd.gov/job-seekers/", "text": "Bureau of Human Resources - South Dakota"}],
+            place="South Dakota"))
+        # Live 2026-09-16: Bing answered "sioux falls south dakota careers" about the Sioux, and a
+        # history of the Lakota mentions Dakota. The whole place has to be named.
+        self.assertFalse(job_discovery.answered_the_query("sioux falls south dakota careers", [
+            {"href": "https://www.legendsofamerica.com/na-sioux/", "text": "Lakota, Dakota, Nakota - The Great Sioux Nation"}],
+            place="Sioux Falls, South Dakota"))
+        self.assertEqual(job_discovery.employer_name_from(
+            "BHRA - Bureau of Human Resources and Administration - South Dakota", "bhr.sd.gov", place="South Dakota"),
+            "Bureau of Human Resources and Administration")
+
+    def test_a_wrapped_outbound_job_link_on_its_own_careers_page_is_a_job(self):
+        page = """<html>
+        <a href="/?splash=https%3a%2f%2fcss-stateofsouthdako-prd.inforcloudsuite.com%2fhcm%2fJobs%2fform%2fJobPosting%3fid%3d1">Unit Case Manager</a>
+        <a href="https://www.indeed.com/viewjob?jk=9">Account Manager</a>
+        <a href="/adult-corrections/apply-for-a-pardon">Apply for a Pardon</a>
+        </html>"""
+        links = career_sites._links(page, "https://www.doc.sd.gov/about-us/careers")
+        jobs_found = career_sites._job_links(links, "doc.sd.gov")
+        self.assertEqual([j["title"] for j in jobs_found], ["Unit Case Manager"])
+        self.assertTrue(jobs_found[0]["url"].startswith("https://css-stateofsouthdako-prd.inforcloudsuite.com/hcm/Jobs/"))
+        self.assertEqual(employers.domain_of(jobs_found[0]["url"]), "", "a hiring system is not the employer")
+
+    def test_a_career_page_already_known_is_read_before_the_guesses(self):
+        fetch = site(pages={"https://acme.com/about-us/work-here": CAREERS})
+        career_sites.MAX_PAGES, cap = 3, career_sites.MAX_PAGES
+        try:
+            out = career_sites.crawl("acme.com", fetch=fetch, sleeper=lambda s: None,
+                                     known_pages=["https://acme.com/about-us/work-here"])
+        finally:
+            career_sites.MAX_PAGES = cap
+        self.assertIn("https://acme.com/about-us/work-here", out["career_urls"])
+        self.assertEqual(out["postings"][0]["title"], "Business Development Associate")
 
     def test_employers_near_him_are_crawled_first(self):
         employers.upsert(name="Far", url="https://far.com", location="San Francisco, CA",

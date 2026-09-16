@@ -79,6 +79,8 @@ _ROLE_WORD = re.compile(
     r"scientist|architect|operator|mechanic|driver|teacher|instructor|therapist|"
     r"pharmacist|physician|attorney|paralegal|recruiter|controller|bookkeeper|"
     r"executive|partner|success|development|operations|sales|marketing|support|"
+    r"counselor|counsellor|lieutenant|sergeant|deputy|dispatcher|inspector|investigator|auditor|"
+    r"librarian|caseworker|worker|aide|cook|custodian|electrician|welder|machinist|programmer|"
     r"intern|apprentice|trainee)\b", re.I)
 _NAV_TEXT = re.compile(
     r"^(?:view|see|browse|search|all|open|current|apply|learn more|read more|careers?|jobs?|"
@@ -157,8 +159,31 @@ def allowed(url: str, rules: dict | None) -> bool:
 
 # ---- reading pages ------------------------------------------------------------------
 
+#: Query parameters a site wraps an outbound address in ("leaving our site").
+_WRAPPER_PARAMS = ("splash", "url", "u", "redirect", "redirect_url", "redirecturl", "target", "dest",
+                   "destination", "goto", "link", "out", "exit")
+
+
+def _unwrapped(url: str) -> str:
+    """The address a "you are leaving our site" link really goes to, else the link.
+
+    Live 2026-09-16 the South Dakota Department of Corrections listed its
+    openings as `doc.sd.gov/?splash=https%3a%2f%2f...inforcloudsuite.com%2fhcm%2fJobs...`
+    - every job, and not one of them looked like a job address.
+    """
+    try:
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
+    except ValueError:
+        return url
+    for name in _WRAPPER_PARAMS:
+        for value in query.get(name) or []:
+            if re.match(r"https?://[^/\s]+\.[^/\s]+", value.strip(), re.I):
+                return value.strip()
+    return url
+
+
 def _links(page_html: str, base: str) -> list[tuple[str, str]]:
-    """(absolute href, visible text) for every <a> on the page."""
+    """(absolute href, visible text) for every <a> on the page, wrappers unwrapped."""
     out = []
     for _q, href, inner in _A_TAG.findall(str(page_html or "")):
         href = html.unescape(href).strip()
@@ -166,7 +191,7 @@ def _links(page_html: str, base: str) -> list[tuple[str, str]]:
             continue
         text = " ".join(re.sub(r"<[^>]+>", " ", html.unescape(inner)).split())[:160]
         try:
-            out.append((urllib.parse.urljoin(base, href).split("#")[0], text))
+            out.append((_unwrapped(urllib.parse.urljoin(base, href)).split("#")[0], text))
         except ValueError:
             continue
     return out
@@ -220,9 +245,18 @@ def _ats_links(links: list[tuple[str, str]], page_html: str) -> tuple[list[dict]
 
 
 def _job_links(links: list[tuple[str, str]], domain: str) -> list[dict]:
+    """Links on the employer's own careers pages whose text is a job title.
+
+    On its own site, or on the hiring system it sends applicants to - an
+    applicant-tracking or HR host the employer linked from its own page. Never
+    a job board or aggregator, whose "jobs" are anybody's.
+    """
     out, seen = [], set()
     for href, text in links:
-        if not _same_site(href, domain) or company_sites._NOT_A_PAGE.search(href):
+        if company_sites._NOT_A_PAGE.search(href):
+            continue
+        if not _same_site(href, domain) and not (
+                employers.ats_of(href) and not company_sites.is_aggregator(href)):
             continue
         words = text.split()
         if not (2 <= len(words) <= 12) or _NAV_TEXT.match(text) or not _ROLE_WORD.search(text):
@@ -329,7 +363,7 @@ def _get(url: str, *, fetch, sleeper, rules, report: dict) -> tuple[int, str, st
     return status, final or url, body or ""
 
 
-def crawl(start: str, *, fetch=None, sleeper=time.sleep, robots_fetch=None) -> dict:
+def crawl(start: str, *, fetch=None, sleeper=time.sleep, robots_fetch=None, known_pages=()) -> dict:
     """Where one employer posts its jobs, read from its own site.
 
     `start` is a domain or any URL on it. Returns what was found on at most
@@ -366,6 +400,12 @@ def crawl(start: str, *, fetch=None, sleeper=time.sleep, robots_fetch=None) -> d
             seen.add(url)
             queue.append(url)
 
+    # Career pages already known (a search result, an earlier crawl) are read
+    # first: the likely paths are guesses, and a guess must not spend the page
+    # cap before the address somebody actually saw.
+    for known in known_pages or ():
+        if known:
+            push(str(known))
     try:
         status, final, body = _get(base, fetch=fetch, sleeper=sleeper, rules=rules, report=report)
         home_links = _links(body, final) if status == 200 else []
@@ -469,7 +509,7 @@ def openings(employer: dict, *, fetch=None, sleeper=time.sleep, feed=None,
     start = (employer.get("domains") or [""])[0] or (employer.get("career_urls") or [""])[0]
     if not start:
         return out
-    crawled = crawl(start, fetch=fetch, sleeper=sleeper)
+    crawled = crawl(start, fetch=fetch, sleeper=sleeper, known_pages=employer.get("career_urls") or ())
     report["crawl"] = crawled
     for facts in crawled["postings"]:
         url = facts["url"]

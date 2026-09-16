@@ -92,7 +92,17 @@ def places_for(known: dict | None) -> list[str]:
         state_name = state
     if city and state_name:
         out.append(f"{city}, {state_name}")
+    # Cities in his state he named in his own answers ("$95,000 minimum for a
+    # role based in Sioux Falls, South Dakota"): where the work near him is,
+    # in his words, when his own town is small.
     if state_name:
+        said = " ".join(str(v) for v in known.values() if isinstance(v, str))
+        pattern = (r"\b([A-Z][a-z]+(?: [A-Z][a-z]+){0,2}),\s*(?:" + re.escape(state_name)
+                   + (r"|" + re.escape(state.upper()) if state else "") + r")\b")
+        for named in re.findall(pattern, said):
+            named = re.sub(r"^(?:In|At|Near|Based|For|Around)\s+", "", named)
+            if named and named.casefold() != city.casefold():
+                out.append(f"{named}, {state_name}")
         out.append(state_name)
     out.append("remote")
     out.append(str(known.get("country") or "United States"))
@@ -111,24 +121,24 @@ def fields_for(roles: list[str], known: dict | None) -> list[str]:
 
 
 def plan_employer_queries(roles: list[str], places: list[str], *, fields: list[str] | None = None,
-                          cursor: int = 0, count: int = 1) -> list[dict]:
+                          cursor: int = 0, count: int = 1, shapes: tuple = QUERY_SHAPES) -> list[dict]:
     roles = [r for r in roles or [] if str(r).strip()] or ["a job"]
     fields = [f for f in (fields or []) if str(f).strip()] or list(roles)
     places = [p for p in places or [] if str(p).strip()] or ["United States"]
     out = []
-    field_shapes = [k for k, shape in enumerate(QUERY_SHAPES) if "{field}" in shape]
+    field_shapes = [k for k, shape in enumerate(shapes) if "{field}" in shape]
     for i in range(max(0, count)):
         step = cursor + i
-        shape = QUERY_SHAPES[step % len(QUERY_SHAPES)]
+        shape = shapes[step % len(shapes)]
         role = roles[step % len(roles)]
         # The next field each time a shape ASKS for one, so every field gets
         # its turn: indexing by the step alone skipped every other field
         # (only half the shapes use one) and never reached "partnerships".
         # Near him for a whole round of shapes, then every place in turn.
-        used = (step // len(QUERY_SHAPES)) * len(field_shapes) + sum(
-            1 for k in field_shapes if k < step % len(QUERY_SHAPES))
-        field = fields[used % len(fields)]
-        place = places[(step // len(QUERY_SHAPES)) % len(places)]
+        used = (step // len(shapes)) * len(field_shapes) + sum(
+            1 for k in field_shapes if k < step % len(shapes))
+        field = fields[used % len(fields)] if field_shapes else fields[0]
+        place = places[(step // len(shapes)) % len(places)]
         query = shape.format(role=role, field=field, place=place)
         out.append({"query": query, "role": role, "field": field, "place": place,
                     "look_for": f"employers in or near {place} hiring for {field}"})
@@ -246,6 +256,16 @@ def find_employers(roles: list[str], places: list[str], *, fields: list[str] | N
 # about hiring near him. Never a job board, a news site, a directory or an
 # encyclopedia. The crawl decides the rest.
 
+#: Short on purpose. Measured live 2026-09-16: Bing's RSS answered a long or
+#: quoted query ("now hiring" "business development" "South Dakota") with
+#: results for its FIRST WORD alone - Now TV, NOW Foods - while "south dakota
+#: careers" came back with the state's own careers pages.
+HTTP_QUERY_SHAPES = (
+    "{place} careers",
+    "{place} {field} jobs",
+    "{place} employers hiring",
+    "{place} jobs",
+)
 MAX_HTTP_SEARCHES_PER_BATCH = 2
 MAX_HTTP_SEARCHES_PER_DAY = 24
 MAX_HTTP_EMPLOYERS_PER_SEARCH = 10
@@ -289,7 +309,7 @@ def _registrable(host: str) -> str:
     return ".".join(parts[-2:])
 
 
-def employer_name_from(title: str, host: str = "") -> str:
+def employer_name_from(title: str, host: str = "", place: str = "") -> str:
     """The employer a search result is about, from its title, else its domain.
 
     "Careers | Sanford Health" -> "Sanford Health"; "Jobs at Raven Industries"
@@ -302,6 +322,10 @@ def employer_name_from(title: str, host: str = "") -> str:
     for seg in segments:
         seg = _TITLE_NOISE.sub("", seg).strip(" .,")
         if not seg or len(seg) > 60 or career_sites._CAREER_TEXT.fullmatch(seg) or _PAGE_WORDS.fullmatch(seg):
+            continue
+        # A place is not an employer: "BHRA - Bureau of Human Resources - South Dakota".
+        if place and re.sub(r"[^a-z ]", "", seg.casefold()).strip() in {
+                re.sub(r"[^a-z ]", "", part.casefold()).strip() for part in [place, *place.split(",")]}:
             continue
         if _HIRING_WORDS.search(seg) or career_sites._CAREER_TEXT.search(seg) and len(seg.split()) > 3:
             continue
@@ -345,13 +369,14 @@ def employers_from_results(links: list[dict], *, place: str = "") -> list[dict]:
             kind = "an applicant-tracking board"
         elif career_sites._CAREER_PATH.search(path) or careers_host:
             kind = "a careers page"
-        elif names_place and _HIRING_WORDS.search(said):
+        elif names_place and _HIRING_WORDS.search(said) and not re.search(r"search", f"{href} {title}", re.I):
+            # A job-search tool (a state labor site's "Search Online") is not an employer.
             kind = "a page about hiring"
         else:
             continue
         if re.search(r"/(?:news|blog|press|article|stories|story)s?/", path, re.I):
             continue
-        name = employer_name_from(title, host)
+        name = employer_name_from(title, host, place=place)
         if not name:
             continue
         key = (employers.name_key(name), employers.domain_of(href))
@@ -364,6 +389,46 @@ def employers_from_results(links: list[dict], *, place: str = "") -> list[dict]:
                     "location": local if names_place else "",
                     "why": f"{kind} a web search found: {title}"[:160]})
     return out[:MAX_HTTP_EMPLOYERS_PER_SEARCH]
+
+
+_LEVEL_WORDS = re.compile(r"\b(?:senior|sr|junior|jr|lead|principal|associate|assistant|coordinator|"
+                          r"specialist|representative|rep|i|ii|iii|iv)\b\.?", re.I)
+
+
+def _kind_of_work(role: str) -> str:
+    """"Business Development Associate" -> "business development": the work, not the level."""
+    return " ".join(_LEVEL_WORDS.sub(" ", str(role or "")).split()) or str(role or "")
+
+
+def answered_the_query(query: str, links: list[dict], place: str = "") -> bool:
+    """Whether the results are about the query, not about its first word alone.
+
+    With a `place`, some result must name the whole place ("Sioux Falls" is
+    not "Sioux" plus a "Dakota" in a history of the Lakota). Otherwise some
+    result must mention a content word of the query past the first one. A
+    one-word query is always answered.
+    """
+    place_words = [w for w in re.findall(r"[a-z0-9]+", str(place or "").casefold())
+                   if w not in {"remote", "united", "states"}]
+    if place_words:
+        for link in links or []:
+            said = " ".join(re.findall(r"[a-z0-9]+", f"{link.get('text') or ''} {link.get('snippet') or ''} "
+                                                      f"{link.get('href') or ''}".casefold()))
+            if all(re.search(r"\b" + re.escape(w) + r"\b", said) for w in place_words):
+                return True
+        return False
+    words = [w for w in re.findall(r"[a-z0-9]+", str(query or "").casefold()) if len(w) > 2]
+    # The search's own vocabulary proves nothing: a careers page for NOW TV
+    # mentions careers. The place and the kind of work must be in it.
+    rest = set(words[1:]) - {"jobs", "job", "careers", "career", "employers", "employer", "hiring",
+                             "now", "company", "and", "the", "for"}
+    if not rest:
+        return True
+    for link in links or []:
+        said = f"{link.get('text') or ''} {link.get('snippet') or ''} {link.get('href') or ''}".casefold()
+        if any(w in said for w in rest):
+            return True
+    return False
 
 
 def discovery_state_path():
@@ -394,7 +459,12 @@ def search_web_for_employers(roles: list[str], places: list[str], *, fields: lis
     if state.get("day") != day:
         state = {"day": day, "http_searches_today": 0, "http_cursor": int(state.get("http_cursor") or 0)}
     cursor = int(state.get("http_cursor") or 0)
-    queries = plan_employer_queries(roles, places, fields=fields, cursor=cursor, count=searches)
+    queries = plan_employer_queries(roles, [p for p in places if p.casefold() not in {"remote", "united states"}]
+                                    or ["united states"],
+                                    # His kinds of work, not his long titles: short questions.
+                                    fields=[f for f in fields or [] if f not in (roles or [])]
+                                    or [_kind_of_work(r) for r in roles or []],
+                                    cursor=cursor, count=searches, shapes=HTTP_QUERY_SHAPES)
     out, seen = [], set()
     asked = 0
     for query in queries:
@@ -402,8 +472,8 @@ def search_web_for_employers(roles: list[str], places: list[str], *, fields: lis
             report["http_stopped"] = f"today's {MAX_HTTP_SEARCHES_PER_DAY} web searches are spent"
             break
         # A search engine read as a page ignores `site:` and would filter every
-        # result away; the words around it still ask the question.
-        text = " ".join(re.sub(r"\bsite:\S+", " ", query["query"]).split())
+        # result away; no quotes, no commas, lower case.
+        text = " ".join(re.sub(r"\bsite:\S+|[\"',]", " ", query["query"]).split()).casefold()
         report["http_queries"].append(text)
         state["http_searches_today"] = int(state.get("http_searches_today") or 0) + 1
         report["http_searches"] += 1
@@ -415,7 +485,11 @@ def search_web_for_employers(roles: list[str], places: list[str], *, fields: lis
             continue
         if page.get("error") and not page.get("links"):
             report.setdefault("http_errors", []).append(str(page["error"])[:160])
-        for row in employers_from_results(page.get("links") or [], place=query["place"]):
+        links = page.get("links") or []
+        if links and not answered_the_query(text, links, place=query["place"]):
+            report.setdefault("http_misread", []).append(text)
+            continue
+        for row in employers_from_results(links, place=query["place"]):
             marker = (employers.name_key(row.get("name")), employers.domain_of(row.get("website")))
             if marker in seen:
                 continue

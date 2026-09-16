@@ -51,6 +51,7 @@ _NOT_THEIR_DOMAIN = re.compile(
     r"dayforcehcm\.com|adp\.com|paylocity\.com|paycomonline\.net|brassring\.com|kenexa\.com|"
     r"avature\.net|bamboohr\.com|jazzhr\.com|applytojob\.com|breezy\.hr|rippling\.com|"
     r"pinpointhq\.com|teamtailor\.com|jobvite\.com|applicantpro\.com|hirebridge\.com|"
+    r"inforcloudsuite\.com|governmentjobs\.com|schooljobs\.com|"
     r"gmail\.com|yahoo\.com|outlook\.com|hotmail\.com|themuse\.com)$", re.I)
 
 #: The ATS a host belongs to, for a link that is a board or a job on one.
@@ -78,6 +79,8 @@ _ATS_HOSTS = (
     ("teamtailor", re.compile(r"(?:^|\.)teamtailor\.com$")),
     ("jobvite", re.compile(r"(?:^|\.)jobvite\.com$")),
     ("applicantpro", re.compile(r"(?:^|\.)applicantpro\.com$")),
+    ("infor", re.compile(r"(?:^|\.)inforcloudsuite\.com$")),
+    ("neogov", re.compile(r"(?:^|\.)(?:governmentjobs\.com|schooljobs\.com)$")),
 )
 
 _NAME_NOISE = re.compile(
