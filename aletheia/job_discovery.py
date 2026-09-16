@@ -109,14 +109,18 @@ def plan_employer_queries(roles: list[str], places: list[str], *, fields: list[s
     fields = [f for f in (fields or []) if str(f).strip()] or list(roles)
     places = [p for p in places or [] if str(p).strip()] or ["United States"]
     out = []
+    field_shapes = [k for k, shape in enumerate(QUERY_SHAPES) if "{field}" in shape]
     for i in range(max(0, count)):
         step = cursor + i
         shape = QUERY_SHAPES[step % len(QUERY_SHAPES)]
         role = roles[step % len(roles)]
-        # A different field each query; the shapes and fields cycle at
-        # different lengths so one batch never repeats a pairing. Near him
-        # for a whole round of shapes, then every place in turn.
-        field = fields[(step + step // len(QUERY_SHAPES)) % len(fields)]
+        # The next field each time a shape ASKS for one, so every field gets
+        # its turn: indexing by the step alone skipped every other field
+        # (only half the shapes use one) and never reached "partnerships".
+        # Near him for a whole round of shapes, then every place in turn.
+        used = (step // len(QUERY_SHAPES)) * len(field_shapes) + sum(
+            1 for k in field_shapes if k < step % len(QUERY_SHAPES))
+        field = fields[used % len(fields)]
         place = places[(step // len(QUERY_SHAPES)) % len(places)]
         query = shape.format(role=role, field=field, place=place)
         out.append({"query": query, "role": role, "field": field, "place": place,
