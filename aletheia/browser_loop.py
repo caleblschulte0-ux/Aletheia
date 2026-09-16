@@ -79,6 +79,12 @@ _VERIFY_BUTTON = re.compile(r"^\s*(?:verify(?: \w+)?|confirm(?: (?:code|email|it
                             r"continue|next|done)\s*$", re.I)
 
 
+#: A goal that is finished once the site's search has been run.
+_SEARCH_GOAL = re.compile(r"^\s*(?:search|look up|lookup|look for|find)\b", re.I)
+_SEARCH_WORD = re.compile(r"\bsearch\b", re.I)
+_ACCOUNT_GOAL = re.compile(r"\b(?:account|sign\s*-?\s*up|register|join|membership|profile)\b", re.I)
+
+
 class LoopError(RuntimeError):
     pass
 
@@ -89,6 +95,10 @@ CAPTCHA_VISIBLE_JS = r"""() => {
   const marks = /hcaptcha|recaptcha|turnstile|challenges\.cloudflare/i;
   const big = (el) => { const r = el.getBoundingClientRect(); return r.width > 30 && r.height > 30; };
   for (const el of document.querySelectorAll('iframe[src]')) {
+    // The INVISIBLE reCAPTCHA's corner badge (256x60, .grecaptcha-badge) is not
+    // a check anybody is asked to pass: live 2026-09-16 it made a Greenhouse
+    // application read as a CAPTCHA before a single question was asked.
+    if (el.closest('.grecaptcha-badge') || /[?&]size=invisible/i.test(el.src || '')) continue;
     if (marks.test(el.src || '') && big(el)) return (el.src.match(marks) || [''])[0].toLowerCase();
   }
   for (const el of document.querySelectorAll('.g-recaptcha, .h-captcha, .cf-turnstile, [data-captcha]')) {
@@ -571,9 +581,19 @@ def pursue(goal: str, start_url: str, *, inputs: dict | None = None, mode: str =
     with power.keep_awake(f"browser goal {record['id']}"), opener() as ctx:
         page = ctx.new_page()
         try:
-            return _drive(ctx, page, record, goal, skill, site, decide=decide, budget=budget,
-                          code_source=code_source, on_step=on_step,
-                          hold_s=max(0.0, min(float(hold_s or 0), MAX_HOLD_S)))
+            try:
+                return _drive(ctx, page, record, goal, skill, site, decide=decide, budget=budget,
+                              code_source=code_source, on_step=on_step,
+                              hold_s=max(0.0, min(float(hold_s or 0), MAX_HOLD_S)))
+            except Exception as exc:                          # noqa: BLE001
+                if not type(exc).__module__.startswith("playwright"):
+                    raise
+                # THE PAGE DID NOT RESPOND to an action (a control that never
+                # became clickable, a page that went away). A named stop with
+                # everything so far saved, never a traceback read out loud.
+                return _stop(bm.load(record["id"]), bm.NEEDS_YOU, "ERROR", {"url": _safe_url(page)},
+                             why=f"the page did not respond to what I tried "
+                                 f"({browse.say_reason(str(exc).splitlines()[0])[:140]})")
         finally:
             try:
                 page.close()
@@ -661,6 +681,19 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
             last_seen = (obs["url"], state)
             tried = set()
             site_skills.learn(obs["url"], state=state)
+        searched = record.get("searched") or {}
+        if searched and obs["url"] != searched.get("from") and state not in (ps.ERROR, ps.CAPTCHA, ps.UNKNOWN):
+            if _SEARCH_GOAL.search(goal):
+                # A SEARCH GOAL IS DONE when the site's own search has run and
+                # its results page is in front of her: nothing was submitted,
+                # so there is no receipt to verify, only the page to report.
+                record["result"] = {"url": obs["url"], "title": obs.get("title", ""),
+                                    "text": str(obs.get("text") or "")[:800]}
+                record["state"], record["boundary"] = bm.DONE, None
+                _note(record, f"searched the site for {searched.get('query', '')[:60]!r}; "
+                              f"results at {obs['url'][:90]}")
+                return bm.checkpoint(record, bm.FINISHED, url=obs["url"])
+            record.pop("searched", None)
 
         if state == ps.ERROR:
             errors += 1
@@ -774,6 +807,8 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
                           if kind != ps.COMMIT or _VERIFY_BUTTON.search(c["label"])), None)
             if press is None:
                 result = _gate(ctx, page, obs, record, goal, route, attached, hold_s=hold_s)
+                if result is None:
+                    return _stop(record, bm.NEEDS_YOU, "NO_WAY_FORWARD", obs, page=ps.say(obs["state"]))
                 live = _press_live(ctx, page, hands, result, hold_s=hold_s, tracker=tracker,
                                    skill=skill, site=site)
                 if live is None:
@@ -825,8 +860,23 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
                 site_skills.learn(before, hint={"from_state": state, "role": nxt[0]["role"],
                                                 "label": nxt[0]["label"], "led_to": "next page"})
                 continue
+            search = _search_control(obs, tried)
+            if search is not None:
+                # RUNNING A SITE'S SEARCH is reading, not submitting: the only
+                # text answers on the page are search boxes and one holds his
+                # query. Enter in the box, the way a person searches - a site's
+                # Search button is often hidden until the box has focus (live,
+                # Wikipedia: the click waited 20s on an invisible button).
+                tried.add(search["id"])
+                record["searched"] = {"from": obs["url"], "query": str(search.get("value") or "")}
+                page = _enter(ctx, page, hands, obs["_refs"][search["id"]], route, tracker)
+                record["route"] = route
+                bm.save(record)
+                continue
+            result = None
             if kinds.get(ps.COMMIT) or kinds.get(ps.CREATE_ACCOUNT) or kinds.get(ps.SPEND):
                 result = _gate(ctx, page, obs, record, goal, route, attached, hold_s=hold_s)
+            if result is not None:
                 live = _press_live(ctx, page, hands, result, hold_s=hold_s, tracker=tracker,
                                    skill=skill, site=site)
                 if live is None:
@@ -858,6 +908,13 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
     return _stop(record, bm.NEEDS_YOU, "OUT_OF_STEPS", None,
                  say=f"I used all {budget} steps without finishing. Everything so far is saved; "
                      "tell me to carry on.")
+
+
+def _safe_url(page) -> str:
+    try:
+        return str(page.url or "")
+    except Exception:
+        return ""
 
 
 def _source_why(code_source, record: dict) -> str:
@@ -971,6 +1028,31 @@ def _click(ctx, page, hands, selector: str, route: list[dict], tracker: StatusTr
     return moved
 
 
+def _enter(ctx, page, hands, selector: str, route: list[dict], tracker: StatusTracker):
+    """Press Enter in a box (a site search). Part of the route, so a replay
+    walks it the same way."""
+    before = webtask._open_pages(ctx)
+    target, css = webtask._resolve(page, selector)
+    try:
+        target.press(css, "Enter", timeout=5_000)
+    except Exception:
+        # A search app that swapped the box out after typing (live,
+        # Wikipedia): the focus is still in it, so Enter goes to the page.
+        page.keyboard.press("Enter")
+    try:
+        page.wait_for_load_state("domcontentloaded")
+    except Exception:
+        pass
+    moved = webtask.follow_new_tab(ctx, page, before)
+    route.append({"action": "enter", "selector": selector})
+    webtask.settle(moved)
+    if moved is not page:
+        route.append({"action": "new_tab", "selector": ""})
+        hands.page = moved
+        tracker.watch(moved)
+    return moved
+
+
 def _signup_passwords(obs: dict, record: dict):
     """Password boxes on an account form: a new password, kept ONLY in the
     vault (`signup` owns that rule). Returns fill items, or a boundary."""
@@ -1031,18 +1113,51 @@ def _sign_in(ctx, page, hands, obs: dict, record: dict, route: list[dict], track
     return _click(ctx, page, hands, obs["_refs"][button["id"]], route, tracker)
 
 
+def final_control(obs: dict, goal: str) -> dict | None:
+    """The button this page's goal ends on, or None.
+
+    A "Create account" LINK in a site's header is chrome, not the form's
+    button: live 2026-09-16 a Wikipedia search typed the query and then
+    offered to make a Wikipedia account. An account-making control is the
+    final one only on an account page or for a goal about an account; a
+    link that makes one is never the final button of some other goal."""
+    kinds = controls(obs)
+    commits = kinds.get(ps.COMMIT, [])
+    accounts = kinds.get(ps.CREATE_ACCOUNT, [])
+    if obs.get("state") == ps.ACCOUNT_SIGNUP or _ACCOUNT_GOAL.search(str(goal or "")):
+        order = accounts + commits
+    else:
+        order = commits + [c for c in accounts if c.get("role") != "link"]
+    return order[0] if order else None
+
+
+def _search_control(obs: dict, tried: set) -> dict | None:
+    """The search box holding his query, when every text answer on the page
+    is a search box."""
+    # Text entry only: a real page's menus and appearance toggles are
+    # checkboxes and radios (live, Wikipedia), and they are not questions.
+    typed = [t for t in obs.get("targets") or []
+             if t.get("role") in ("textbox", "combobox", "file", "password")]
+    if not typed or not all(_SEARCH_WORD.search(str(t.get("label") or "")) for t in typed):
+        return None
+    return next((t for t in typed if t.get("role") in ("textbox", "combobox") and t["id"] not in tried
+                 and str(t.get("value") or "").strip()), None)
+
+
 def _gate(ctx, page, obs: dict, record: dict, goal: str, route: list[dict],
           attached: list[dict], *, hold_s: float = 0.0) -> dict | None:
     """The final button: refused (money), refused (a duplicate), a question
     (the page says something is still empty), or ONE hash-bound approval
     through the existing webtask path. Returns the stopped record."""
     kinds = controls(obs)
-    if kinds.get(ps.SPEND) and not (kinds.get(ps.COMMIT) or kinds.get(ps.CREATE_ACCOUNT)):
+    target = final_control(obs, goal)
+    if target is None and kinds.get(ps.SPEND):
         label = kinds[ps.SPEND][0]["label"]
         return _stop(record, bm.REFUSED, "SPENDING", obs,
                      say=f"The way on is a button that says {label[:60]!r}, which spends money. "
                          "I stopped and did not press it.")
-    target = (kinds.get(ps.CREATE_ACCOUNT) or kinds.get(ps.COMMIT))[0]
+    if target is None:
+        return None
     if ps.shows_a_charge(obs.get("text", "")) or webtask.would_spend(target["label"]):
         return _stop(record, bm.REFUSED, "SPENDING", obs,
                      say=f"The last step is {target['label'][:60]!r} on a page that shows a charge. "
@@ -1370,6 +1485,9 @@ def act(mid: str, action: dict, *, session=None) -> dict:
         selector = obs["_refs"][target["id"]]
         if verb in ("click", "follow") and kind in (ps.COMMIT, ps.CREATE_ACCOUNT, ps.SPEND):
             stopped = _gate(ctx, page, obs, record, record["goal"], route, attached)
+            if stopped is None:
+                return {"done": False, "problem": "that control is not the final button of this page's goal",
+                        "page": for_model(obs)}
             return {"done": False, "mission": bm.describe(stopped), "state": stopped.get("state"),
                     "boundary": stopped.get("boundary")}
         if verb in ("click", "follow") and kind == ps.SIGN_IN:

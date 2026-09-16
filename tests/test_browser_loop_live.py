@@ -254,6 +254,13 @@ PICKY = """<h1>Feedback</h1>%s<form method="POST" action="/picky/send">
 <label for="z">Zip code *</label><input id="z" name="zip" value="%s" required>
 <button type="submit">Send feedback</button></form>"""
 THANKS = "<h1>Thank you</h1><p>Your message has been received.</p>"
+# A site header with a Create account LINK and a Donate link, a search box, and
+# an appearance toggle - the shape a real Wikipedia page had on 2026-09-16.
+ENCYCLOPEDIA = """<header><a href="/donate">Donate</a> <a href="/signup">Create account</a>
+<label><input type="checkbox" id="menu"> Main menu</label>
+<form action="/search" method="GET"><input id="q" name="q" aria-label="Search the encyclopedia">
+<button type="submit" style="display:none">Search</button></form></header>
+<h1>Main page</h1><p>Welcome.</p>"""
 
 
 def _site(state: dict):
@@ -271,7 +278,9 @@ def _site(state: dict):
 
         def do_GET(self):
             path = self.path.split("?")[0]
-            pages = {"/volunteer": VERIFY1, "/contact": CONTACT, "/picky": PICKY % ("", "")}
+            pages = {"/volunteer": VERIFY1, "/contact": CONTACT, "/picky": PICKY % ("", ""),
+                     "/wiki": ENCYCLOPEDIA,
+                     "/search": "<h1>Search results</h1><p>Ada Lovelace was a mathematician.</p>"}
             self._send(pages.get(path, "<h1>404</h1>"), 200 if path in pages else 404)
 
         def do_POST(self):
@@ -443,6 +452,27 @@ class TheSitesOwnRefusalIsRead(BrowserCase):
         again = browser_loop.resume(record["id"], retry=True)
         self.assertEqual(again["state"], bm.AWAITING_APPROVAL, again.get("boundary"))
         self.assertIn("5 digits", policy.load(again["approval"]).get("reason", ""))
+
+
+@needs_browser
+class ASiteSearchIsReadingNotAnAccount(BrowserCase):
+    def test_a_search_goal_runs_the_search_and_is_done_without_any_approval(self):
+        record = browser_loop.pursue("search the encyclopedia for Ada Lovelace", self.url("/wiki"),
+                                     inputs={"search the encyclopedia": "Ada Lovelace"})
+        self.assertEqual(record["state"], bm.DONE, record.get("boundary"))
+        self.assertIn("/search", record["result"]["url"])
+        self.assertFalse(record.get("approval"), "a header's Create account link is not this goal's button")
+        self.assertEqual(sorted(p.name for p in policy.APPROVALS_DIR.iterdir()), [])
+
+    def test_the_final_button_of_a_goal(self):
+        obs = {"state": "FORM", "targets": [
+            {"id": "t1", "role": "textbox", "label": "Email"},
+            {"id": "t2", "role": "link", "label": "Create account"},
+            {"id": "t3", "role": "button", "label": "Send message"}]}
+        self.assertEqual(browser_loop.final_control(obs, "send the clinic a message")["label"], "Send message")
+        obs["targets"] = obs["targets"][:2]
+        self.assertIsNone(browser_loop.final_control(obs, "send the clinic a message"))
+        self.assertEqual(browser_loop.final_control(obs, "make me an account")["label"], "Create account")
 
 
 # ---- 5. the campaign's engine switch --------------------------------------------------------

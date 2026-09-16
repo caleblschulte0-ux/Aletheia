@@ -286,9 +286,13 @@ OBSERVE_JS = r"""() => {
     // semantic one, and only then a positional path. The press replays
     // the route on a freshly loaded page, so `form > div:nth-of-type(2)`
     // is a last resort, not a first choice.
+    // ...and only when it names ONE element. Live 2026-09-16 Wikipedia has
+    // several submit buttons, `button[type="submit"]` matched a hidden one
+    // first, and the click waited twenty seconds on nothing.
+    const bySubmit = `${el.tagName.toLowerCase()}[type="submit"]`;
     const selector = (el.id || el.name) ? sel(el)
-      : (el.type === 'submit' ? `${el.tagName.toLowerCase()}[type="submit"]`
-                              : path(el));
+      : (el.type === 'submit' && document.querySelectorAll(bySubmit).length === 1
+          ? bySubmit : path(el));
     if (!selector) continue;
     buttons.push({selector, text: (el.innerText || el.value || '').trim().slice(0,70)});
     if (buttons.length > 30) break;
@@ -1272,6 +1276,24 @@ def walk(ctx, page, hands, route: list[dict], attachments: dict) -> object:
             settle(page)
         elif action == "new_tab":
             continue                        # handled by the click before it
+        elif action == "enter":
+            # Enter in a box: a site search the general loop ran.
+            before = _open_pages(ctx)
+            target, css = _resolve(page, selector)
+            try:
+                target.press(css, "Enter", timeout=5_000)
+            except Exception:
+                # A search app that swapped the box out after typing (live,
+                # Wikipedia): the focus is still in it, so Enter goes to the page.
+                page.keyboard.press("Enter")
+            try:
+                page.wait_for_load_state("domcontentloaded")
+            except Exception:
+                pass
+            moved = follow_new_tab(ctx, page, before)
+            settle(moved)
+            if moved is not page:
+                page, hands.page = moved, moved
         elif action == "select":
             hands.select_option(selector, label=step["value"])
         elif action == "check":
