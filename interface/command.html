@@ -2,52 +2,96 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#04060b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>ALETHEIA — command</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
-  /* Command Center V1 — interactive sibling of the wall. Served by the
-     local Core (python -m aletheia.core); every button is a POST to
-     /api/command, the same gated grammar the intercom speaks. */
+  /* Command Center — mission control (brief §5, milestone 5).
+     Same look as the wall; a different order of things. The top always
+     answers "what is Thea doing right now?"; the body is conversation plus
+     present state; exact commands live in the developer drawer at the
+     bottom. Every number comes from /api/mission, which reads the stores —
+     this page computes nothing it shows. Status is never colour alone:
+     every coloured mark travels with its word. */
   :root {
-    --bg:#04060b; --panel:rgba(13,18,28,.85); --line:rgba(96,118,156,.22);
+    --bg:#04060b; --panel:rgba(13,18,28,.85); --panel2:rgba(9,13,21,.9);
+    --line:rgba(96,118,156,.22); --line2:rgba(120,150,200,.38);
     --ink:#dfe6f2; --muted:#7d8aa3; --faint:#4a5670; --accent:#62d0e8;
     --accent2:#7c96ff; --ok:#35d07f; --bad:#ff5d5d; --warn:#d9a53f;
-    --sans:"Space Grotesk",system-ui,sans-serif;
-    --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+    --sans:"Space Grotesk",system-ui,-apple-system,sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+    --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
+    color-scheme:dark;
   }
   *{box-sizing:border-box;margin:0}
+  html{-webkit-text-size-adjust:100%}
   body{background:var(--bg);color:var(--ink);font-family:var(--sans);min-height:100vh;
-       display:flex;flex-direction:column}
-  header{display:flex;align-items:center;justify-content:space-between;
-         padding:1rem 1.6rem;border-bottom:1px solid var(--line)}
-  h1{font-size:1.15rem;letter-spacing:.4em;font-weight:700}
-  h1 span{color:var(--muted);font-weight:300;letter-spacing:.2em;font-size:.75rem}
-  .haltwrap{display:flex;align-items:center;gap:.9rem;font-family:var(--mono);font-size:.7rem}
-  #halt-state{letter-spacing:.25em}
-  #halt-state.ok{color:var(--ok)} #halt-state.halted{color:var(--bad);animation:blink 1.2s infinite}
-  @keyframes blink{50%{opacity:.4}}
+       display:flex;flex-direction:column;overflow-x:hidden}
   button{font-family:var(--mono);font-size:.68rem;letter-spacing:.12em;cursor:pointer;
          background:transparent;color:var(--ink);border:1px solid var(--line);
-         border-radius:3px;padding:.38rem .8rem}
+         border-radius:3px;padding:.38rem .8rem;min-height:2rem}
   button:hover{border-color:var(--accent);color:var(--accent)}
   button.danger{border-color:rgba(255,93,93,.5);color:var(--bad)}
   button.danger:hover{background:rgba(255,93,93,.12)}
   button.good{border-color:rgba(53,208,127,.5);color:var(--ok)}
-  main{flex:1;display:grid;grid-template-columns:1.1fr .9fr;gap:1rem;padding:1rem 1.6rem;
-       align-items:start}
-  @media (max-width:900px){main{grid-template-columns:1fr}}
-  section{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:1rem}
-  section h2{font-size:.72rem;letter-spacing:.3em;color:var(--muted);margin-bottom:.7rem;
-             text-transform:uppercase}
+  button.link{border:0;padding:.2rem 0;color:var(--accent2);letter-spacing:.08em;min-height:0}
+  a{color:var(--accent2)}
+
+  /* ---- NOW: the header that always answers ---- */
+  header.now{position:sticky;top:0;z-index:5;background:rgba(4,6,11,.94);
+    backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    border-bottom:1px solid var(--line);padding:calc(var(--safe-t) + .7rem) 1.6rem .8rem}
+  .bar{display:flex;align-items:center;justify-content:space-between;gap:.8rem;flex-wrap:wrap}
+  h1{font-size:1.05rem;letter-spacing:.4em;font-weight:700;white-space:nowrap}
+  h1 span{color:var(--muted);font-weight:300;letter-spacing:.2em;font-size:.7rem}
+  .haltwrap{display:flex;align-items:center;gap:.6rem;font-family:var(--mono);font-size:.68rem;flex-wrap:wrap}
+  #halt-state{letter-spacing:.2em}
+  #halt-state.ok{color:var(--ok)} #halt-state.halted{color:var(--bad);animation:blink 1.2s infinite}
+  @keyframes blink{50%{opacity:.4}}
+  .state{display:flex;align-items:flex-start;gap:1rem;margin-top:.7rem}
+  .word{font-family:var(--mono);font-weight:600;font-size:.95rem;letter-spacing:.22em;
+    padding:.45rem .7rem;border:1px solid var(--line2);border-radius:3px;white-space:nowrap;
+    display:inline-flex;align-items:center;gap:.5rem}
+  .word::before{content:"";width:.55rem;height:.55rem;border-radius:50%;background:currentColor}
+  .word.IDLE{color:var(--muted)} .word.LISTENING,.word.LOOKING{color:var(--accent)}
+  .word.THINKING{color:var(--accent2)} .word.ACTING{color:var(--ok)}
+  .word.WAITING,.word.NEEDS-YOU{color:var(--warn)}
+  .word.BLOCKED,.word.HALTED,.word.OFFLINE{color:var(--bad)}
+  .word.ACTING::before,.word.LOOKING::before,.word.THINKING::before{animation:blink 1.6s infinite}
+  .said{flex:1;min-width:0}
+  #doing{font-size:1.02rem;line-height:1.4}
+  #next{color:var(--muted);font-size:.86rem;margin-top:.2rem;line-height:1.4}
+  #next b{color:var(--faint);font-family:var(--mono);font-weight:400;font-size:.66rem;letter-spacing:.2em;margin-right:.35rem}
+  .signals{display:flex;gap:1rem;flex-wrap:wrap;margin-top:.45rem;font-family:var(--mono);font-size:.62rem;color:var(--faint)}
+  .sig.ok::before{content:"● ";color:var(--ok)} .sig.bad::before{content:"● ";color:var(--bad)}
+  .sig.bad{color:var(--muted)}
+  #banner{margin-top:.55rem;padding:.5rem .7rem;border:1px solid rgba(255,93,93,.45);
+    background:rgba(255,93,93,.08);color:#ffb3b3;border-radius:3px;font-size:.82rem}
+  #banner[hidden]{display:none}
+  .needsbadge{font-family:var(--mono);font-size:.66rem;letter-spacing:.14em;color:var(--warn);
+    border:1px solid rgba(217,165,63,.45);border-radius:3px;padding:.3rem .5rem;white-space:nowrap}
+  .needsbadge[hidden]{display:none}
+  body.offline main{opacity:.55}
+
+  main{flex:1;display:grid;grid-template-columns:1.15fr .85fr;gap:1rem;padding:1rem 1.6rem;align-items:start}
+  .col{display:grid;gap:1rem;min-width:0}
+  section{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:1rem;min-width:0}
+  section h2{font-size:.72rem;letter-spacing:.3em;color:var(--muted);margin-bottom:.7rem;text-transform:uppercase;
+    display:flex;justify-content:space-between;gap:.5rem;align-items:baseline}
+  section h2 small{font-family:var(--mono);letter-spacing:.08em;color:var(--faint);text-transform:none;font-size:.62rem}
+  h3.sub{font-family:var(--mono);font-size:.6rem;letter-spacing:.22em;color:var(--faint);text-transform:uppercase;margin:.9rem 0 .4rem}
   .row{display:flex;justify-content:space-between;align-items:center;gap:.8rem;
-       padding:.4rem 0;border-bottom:1px solid rgba(96,118,156,.1);font-size:.78rem}
+       padding:.45rem 0;border-bottom:1px solid rgba(96,118,156,.1);font-size:.8rem}
   .row:last-child{border-bottom:0}
-  .row .id{font-family:var(--mono);color:var(--accent2);font-size:.68rem}
-  .row .st{font-family:var(--mono);font-size:.6rem;letter-spacing:.15em;color:var(--muted);
-           white-space:nowrap}
+  .row > div{min-width:0}
+  .row .id{font-family:var(--mono);color:var(--accent2);font-size:.66rem;overflow-wrap:anywhere}
+  .row .st{font-family:var(--mono);font-size:.6rem;letter-spacing:.15em;color:var(--muted);white-space:nowrap}
   .row .st.PENDING{color:var(--warn)} .row .st.WAITING_EXTERNAL{color:var(--warn)}
   .row .st.RUNNING{color:var(--accent)} .row .st.BLOCKED{color:var(--bad)}
   .empty{color:var(--faint);font-family:var(--mono);font-size:.7rem}
@@ -56,124 +100,292 @@
     border-radius:3px;color:var(--ink);font-family:var(--mono);font-size:.75rem;
     padding:.45rem .6rem;width:100%}
   select:focus,input:focus,textarea:focus{outline:none;border-color:var(--accent)}
-  label{font-family:var(--mono);font-size:.6rem;letter-spacing:.2em;color:var(--muted);
-        text-transform:uppercase}
+  label{font-family:var(--mono);font-size:.6rem;letter-spacing:.2em;color:var(--muted);text-transform:uppercase}
   #args{display:grid;gap:.6rem}
+
+  /* conversation */
+  #ask{width:100%;background:#0b0f16;color:var(--ink);border:1px solid var(--line);border-radius:3px;
+    padding:.6rem;font-family:var(--sans);font-size:.95rem;resize:vertical}
+  .askrow{display:flex;gap:.6rem;align-items:center}
+  #convo{display:flex;flex-direction:column;gap:.55rem;margin-bottom:.7rem;max-height:22rem;overflow-y:auto}
+  #convo:empty{display:none}
+  .turn{font-size:.9rem;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+  .turn.you{color:var(--muted);font-size:.8rem}
+  .turn.you::before{content:"YOU  ";font-family:var(--mono);font-size:.6rem;letter-spacing:.2em;color:var(--faint)}
+  .turn.her::before{content:"THEA  ";font-family:var(--mono);font-size:.6rem;letter-spacing:.2em;color:var(--accent)}
+
+  /* job hunt control room */
+  .pipe{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.35rem}
+  .tile{display:flex;flex-direction:column;align-items:flex-start;gap:.15rem;text-align:left;
+    padding:.5rem .45rem;border:1px solid var(--line);border-radius:3px;background:var(--panel2);
+    letter-spacing:.06em;min-width:0}
+  .tile .n{font-family:var(--sans);font-size:1.35rem;font-weight:500;letter-spacing:0;color:var(--ink)}
+  .tile .l{font-size:.55rem;letter-spacing:.14em;color:var(--muted);white-space:nowrap}
+  .tile .t{font-size:.55rem;color:var(--faint);letter-spacing:.04em}
+  .tile.sel{border-color:var(--accent);box-shadow:inset 0 -2px 0 var(--accent)}
+  .tile.NEEDS-YOU .n{color:var(--warn)} .tile.SENT .n,.tile.REPLIED .n,.tile.INTERVIEW .n{color:var(--ok)}
+  .ramps{display:flex;gap:.35rem;margin-top:.35rem;flex-wrap:wrap}
+  .ramps .tile{flex-direction:row;align-items:baseline;gap:.5rem;padding:.35rem .6rem}
+  .ramps .tile .n{font-size:.95rem}
+  .ramps .tile.STOPPED .n{color:var(--bad)}
+  #stage-note{font-family:var(--mono);font-size:.62rem;color:var(--faint);margin:.6rem 0 .2rem}
+  .card{border:1px solid var(--line);border-radius:3px;padding:.65rem .75rem;margin-top:.5rem;background:var(--panel2)}
+  .card .ct{display:flex;justify-content:space-between;gap:.6rem;align-items:baseline}
+  .card .ct b{font-weight:500;font-size:.9rem;overflow-wrap:anywhere}
+  .card .tag{font-family:var(--mono);font-size:.56rem;letter-spacing:.14em;color:var(--muted);white-space:nowrap}
+  .card .meta{font-family:var(--mono);font-size:.62rem;color:var(--faint);margin-top:.15rem;overflow-wrap:anywhere}
+  .card p{font-size:.8rem;line-height:1.45;margin-top:.4rem;color:var(--ink);overflow-wrap:anywhere}
+  .card p em{font-style:normal;font-family:var(--mono);font-size:.58rem;letter-spacing:.16em;color:var(--muted);
+    text-transform:uppercase;display:block;margin-bottom:.1rem}
+  .card p.blk{color:#ffcfae}
+  .card p.none{color:var(--faint)}
+  .card .acts{display:flex;gap:1rem;margin-top:.45rem;flex-wrap:wrap;align-items:center}
+  .card .acts a{font-family:var(--mono);font-size:.68rem;letter-spacing:.08em}
+  .disc p{font-size:.85rem;line-height:1.45}
+  .q{font-size:.8rem;padding:.35rem 0;border-bottom:1px solid rgba(96,118,156,.1);overflow-wrap:anywhere}
+  .q:last-child{border-bottom:0}
+  .q .v{font-family:var(--mono);font-size:.62rem;color:var(--accent);margin-right:.4rem}
+  .q .w{display:block;color:var(--muted);font-size:.74rem;margin-top:.1rem}
+
+  /* eyes */
+  .eyes dl{display:grid;grid-template-columns:auto 1fr;gap:.25rem .8rem;font-size:.82rem}
+  .eyes dt{font-family:var(--mono);font-size:.6rem;letter-spacing:.2em;color:var(--muted);text-transform:uppercase;padding-top:.15rem}
+  .eyes dd{overflow-wrap:anywhere}
+  .shot{margin-top:.7rem}
+  .shot img{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:3px}
+  .shot .cap{font-family:var(--mono);font-size:.6rem;color:var(--faint);margin-top:.3rem}
+
+  /* ribbon */
+  .rib{display:flex;flex-direction:column}
+  .ri{padding:.5rem 0;border-bottom:1px solid rgba(96,118,156,.1)}
+  .ri:last-child{border-bottom:0}
+  .ri .h{display:flex;gap:.6rem;align-items:baseline;font-family:var(--mono);font-size:.6rem;color:var(--faint)}
+  .ri .h .what{letter-spacing:.14em;text-transform:uppercase}
+  .ri .h .tone{letter-spacing:.14em}
+  .ri .h .tone.alert{color:var(--bad)} .ri .h .tone.good{color:var(--ok)} .ri .h .tone.needs{color:var(--warn)}
+  .ri .s{font-size:.84rem;line-height:1.42;margin-top:.12rem;overflow-wrap:anywhere}
+  .rcpt{margin-top:.45rem;border-left:2px solid var(--line2);padding:.35rem .6rem;font-size:.74rem;background:rgba(4,6,11,.6)}
+  .rcpt[hidden]{display:none}
+  .rcpt dl{display:grid;grid-template-columns:auto 1fr;gap:.2rem .7rem}
+  .rcpt dt{font-family:var(--mono);font-size:.58rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;padding-top:.1rem}
+  .rcpt dd{overflow-wrap:anywhere}
+  .rcpt pre{font-family:var(--mono);font-size:.62rem;white-space:pre-wrap;overflow-wrap:anywhere;max-height:18rem;overflow:auto;color:var(--muted);margin-top:.3rem}
+  .rcpt summary{cursor:pointer;font-family:var(--mono);font-size:.6rem;color:var(--faint);margin-top:.3rem}
+  .steps{margin-top:.3rem;display:grid;gap:.2rem;font-family:var(--mono);font-size:.62rem;color:var(--muted)}
+
+  /* developer drawer */
+  details.drawer{margin:0 1.6rem 1rem;border:1px solid var(--line);border-radius:4px;background:var(--panel)}
+  details.drawer > summary{cursor:pointer;color:var(--muted);font-family:var(--mono);font-size:.7rem;
+    letter-spacing:.18em;text-transform:uppercase;padding:.8rem 1rem;list-style:none}
+  details.drawer > summary::-webkit-details-marker{display:none}
+  details.drawer > summary::before{content:"▸ ";color:var(--faint)}
+  details.drawer[open] > summary::before{content:"▾ "}
+  .drawer .inner{display:grid;grid-template-columns:1fr 1fr;gap:1rem;padding:0 1rem 1rem}
   #receipts{font-family:var(--mono);font-size:.68rem;display:flex;flex-direction:column-reverse;
             gap:.4rem;max-height:16rem;overflow-y:auto}
   .rc .o{letter-spacing:.15em}
   .rc .o.done{color:var(--ok)} .rc .o.refused,.rc .o.error,.rc .o.invalid{color:var(--bad)}
   .rc .o.halted{color:var(--warn)}
   .rc .d{color:var(--muted)}
-  footer{padding:.6rem 1.6rem;color:var(--faint);font-family:var(--mono);font-size:.62rem;
+  footer{padding:.6rem 1.6rem calc(var(--safe-b) + .6rem);color:var(--faint);font-family:var(--mono);font-size:.62rem;
          border-top:1px solid var(--line)}
+
+  @media (max-width:900px){
+    main{grid-template-columns:1fr;padding:.8rem 1rem}
+    header.now{padding:calc(var(--safe-t) + .6rem) 1rem .7rem}
+    details.drawer{margin:0 1rem 1rem}
+    .drawer .inner{grid-template-columns:1fr}
+    footer{padding-left:1rem;padding-right:1rem}
+    /* the pipeline scrolls inside its own section, never the page */
+    .pipe{grid-template-columns:repeat(7,minmax(5.2rem,1fr));overflow-x:auto;padding-bottom:.3rem;
+      -webkit-overflow-scrolling:touch}
+    /* iOS zooms any input under 16px on focus */
+    select,input,textarea,#ask{font-size:16px}
+    .state{gap:.6rem;flex-wrap:wrap}
+    #doing{font-size:.95rem}
+  }
+  @media (prefers-reduced-motion:reduce){
+    #halt-state.halted,.word::before{animation:none!important}
+  }
 </style>
 </head>
 <body>
-<header>
-  <h1>ALETHEIA <span>COMMAND</span></h1>
-  <div class="haltwrap">
-    <span id="halt-state" class="ok">CHECKING…</span>
-    <button id="halt-btn" class="danger" onclick="toggleHalt()">HALT</button>
-    <!-- His ruling: the always-on microphone is not a default, it is a
-         button. It says which way it is BEFORE he presses it, because a
-         toggle whose label is the action rather than the state is how
-         you open a microphone by accident. -->
-    <button id="mic-btn" onclick="toggleMic()">MIC: OFF</button>
-    <a href="/" style="color:var(--muted);font-family:var(--mono);font-size:.65rem">→ the wall</a>
+<header class="now" id="now">
+  <div class="bar">
+    <h1>ALETHEIA <span>COMMAND</span></h1>
+    <div class="haltwrap">
+      <span id="halt-state" class="ok">CHECKING…</span>
+      <button id="halt-btn" class="danger" onclick="toggleHalt()">HALT</button>
+      <!-- His ruling: the always-on microphone is not a default, it is a
+           button. It says which way it is BEFORE he presses it, because a
+           toggle whose label is the action rather than the state is how
+           you open a microphone by accident. -->
+      <button id="mic-btn" onclick="toggleMic()">MIC: OFF</button>
+      <a href="/" style="color:var(--muted);font-family:var(--mono);font-size:.65rem">→ the wall</a>
+    </div>
   </div>
+  <div class="state" aria-live="polite">
+    <span id="state-word" class="word IDLE">…</span>
+    <div class="said">
+      <p id="doing">Reading her state…</p>
+      <p id="next"><b>NEXT</b><span id="next-said"></span></p>
+      <div class="signals" id="signals"></div>
+    </div>
+    <span id="needs-badge" class="needsbadge" hidden></span>
+  </div>
+  <div id="banner" role="alert" hidden></div>
 </header>
 
 <main>
-  <div style="display:grid;gap:1rem">
-    <section>
-      <h2>Approvals pending</h2>
-      <div id="approvals" class="empty">loading…</div>
-    </section>
-    <section>
-      <h2>Notifications</h2>
-      <div id="notifications" class="empty">loading…</div>
-    </section>
-    <section>
-      <h2>Tasks</h2>
-      <div id="tasks" class="empty">loading…</div>
-    </section>
-  </div>
-  <div style="display:grid;gap:1rem">
-    <section>
-      <h2>Say what you want</h2>
-      <!-- The primary input. Everything this system learned to do this week
-           is reachable from one sentence: it compiles to gated steps and
-           anything world-touching still asks. Burying that as one option in
-           a 41-item dropdown made the screen worse than the microphone. -->
+  <div class="col">
+    <section id="talk">
+      <h2>Talk to her</h2>
+      <!-- The primary input. Everything this system learned to do is
+           reachable from one sentence: it compiles to gated steps and
+           anything world-touching still asks. -->
+      <div id="convo" aria-live="polite"></div>
       <form id="ask-form" onsubmit="return sendAsk(event)">
-        <textarea id="ask" rows="3" placeholder="Set up a meeting with Dana next week&#10;What am I paying for?&#10;Remind me at five to call the dentist"
-                  style="width:100%;background:#0b0f16;color:var(--ink);border:1px solid var(--line);border-radius:3px;padding:.6rem;font-family:var(--sans);font-size:.9rem;resize:vertical"></textarea>
-        <button type="submit" style="margin-top:.5rem">ASK</button>
-        <div id="ask-note" class="empty" style="margin-top:.4rem"></div>
+        <textarea id="ask" rows="2" placeholder="How did applications go today?&#10;Why didn't the Palantir one send?&#10;Remind me at five to call the dentist"></textarea>
+        <div class="askrow">
+          <button type="submit">ASK</button>
+          <div id="ask-note" class="empty"></div>
+        </div>
       </form>
     </section>
-    <section>
-      <h2>Still needed from you</h2>
+
+    <section id="needs">
+      <h2>Needs you <small id="needs-count"></small></h2>
+      <h3 class="sub">Approvals</h3>
+      <div id="approvals" class="empty">loading…</div>
+      <h3 class="sub">Applications waiting on you</h3>
+      <div id="needs-apps" class="empty">loading…</div>
+      <h3 class="sub">Notifications</h3>
+      <div id="notifications" class="empty">loading…</div>
+      <h3 class="sub">Still needed to set up</h3>
       <div id="setup" class="empty">checking…</div>
     </section>
-    <details>
-      <summary style="cursor:pointer;color:var(--muted);font-family:var(--mono);font-size:.7rem;letter-spacing:.18em;text-transform:uppercase;padding:.4rem 0">Exact command</summary>
+
+    <section id="hunt">
+      <h2>Job hunt control room <small id="hunt-note"></small></h2>
+      <div class="pipe" id="pipeline" role="tablist" aria-label="Application pipeline"></div>
+      <div class="ramps" id="offramps"></div>
+      <div id="stage-note"></div>
+      <div id="cards"></div>
+      <h3 class="sub">Today's discovery</h3>
+      <div id="discovery" class="disc empty">loading…</div>
+    </section>
+  </div>
+
+  <div class="col">
+    <section id="eyes" class="eyes">
+      <h2>Eyes <small id="eyes-note"></small></h2>
+      <div id="eyes-body" class="empty">loading…</div>
+    </section>
+    <section>
+      <h2>Working on</h2>
+      <div id="tasks" class="empty">loading…</div>
+    </section>
+    <section>
+      <h2>What she's been doing <small>newest first</small></h2>
+      <div id="ribbon" class="rib empty">loading…</div>
+    </section>
+  </div>
+</main>
+
+<details class="drawer" id="dev">
+  <summary>Developer drawer — exact commands, raw state</summary>
+  <div class="inner">
+    <div>
+      <h3 class="sub">Exact command</h3>
       <form id="cmd-form" onsubmit="return sendCommand(event)">
         <div><label>kind</label><select id="kind" onchange="renderArgs()"></select></div>
         <div id="args"></div>
         <button type="submit" class="good">EXECUTE</button>
       </form>
-    </section>
-    </details>
-    <section>
-      <h2>Receipts</h2>
+      <h3 class="sub">Code</h3>
+      <div id="code" class="empty">—</div>
+      <h3 class="sub">Raw</h3>
+      <div class="empty"><a href="/api/mission">/api/mission</a> · <a href="/api/status">/api/status</a> · <a href="/api/state">/api/state</a></div>
+    </div>
+    <div>
+      <h3 class="sub">Command receipts</h3>
       <div id="receipts"></div>
-    </section>
+    </div>
   </div>
-</main>
-<footer>local Core · every command runs through the same registry gates as the intercom · truth: /api/status</footer>
+</details>
+<footer>local Core · every command runs through the same registry gates as the intercom · truth: /api/mission</footer>
 
 <script>
 "use strict";
-const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const $ = id => document.getElementById(id);
 
-/* mirror of aletheia.intercom.KIND_ARGS — [required, optional] */
 // The command grammar comes from the Core (/api/kinds), which reads it
-// straight from the intercom validator. No copy lives in this file — a
-// hand-maintained KINDS map here once drifted the moment new kinds landed.
+// straight from the intercom validator. No copy lives in this file.
 let KINDS = {};
 
 function renderArgs() {
-  const kind = document.getElementById("kind").value;
+  const kind = $("kind").value;
   const [req, opt] = KINDS[kind] || [[], []];
-  document.getElementById("args").innerHTML =
-    req.map(a => `<div><label>${a}</label><input name="${a}" required></div>`).join("") +
-    opt.map(a => `<div><label>${a} (optional)</label><input name="${a}"></div>`).join("");
+  $("args").innerHTML =
+    req.map(a => `<div><label>${esc(a)}</label><input name="${esc(a)}" required></div>`).join("") +
+    opt.map(a => `<div><label>${esc(a)} (optional)</label><input name="${esc(a)}"></div>`).join("");
 }
 
-// The Core injects this into every page it serves. A write from loopback
+// ---- transport ---------------------------------------------------------
+// On loopback the Core injects a local secret into this page, and a write
 // must carry it: 127.0.0.1 proves origin, not that Caleb asked (2026-09-03).
+// Over Tailscale the phone carries its minted token instead — the same one
+// the phone app saved (localStorage "thea.token"), so linking once links
+// both. Reads go through exactly the gate /api/status does.
 function localSecret() {
   const m = document.querySelector('meta[name="aletheia-local"]');
   return m ? m.content : "";
 }
-function withLocal(opts) {
+function savedToken() {
+  try { return localStorage.getItem("thea.token") || ""; } catch (e) { return ""; }
+}
+function withAuth(opts) {
   const o = Object.assign({}, opts || {});
+  const headers = Object.assign({}, o.headers || {});
+  const token = savedToken();
+  if (token) headers.Authorization = "Bearer " + token;
   const method = (o.method || "GET").toUpperCase();
-  if (method === "GET" || method === "HEAD") return o;
-  o.headers = Object.assign({}, o.headers || {}, {"X-Aletheia-Local": localSecret()});
+  if (method !== "GET" && method !== "HEAD" && localSecret()) headers["X-Aletheia-Local"] = localSecret();
+  o.headers = headers;
+  o.cache = "no-store";
   return o;
 }
 
 async function api(path, opts) {
-  const r = await fetch(path, withLocal(opts));
+  const r = await fetch(path, withAuth(opts));
+  if (r.status === 401) { const e = new Error("this device is not linked"); e.unauthorized = true; throw e; }
   const data = await r.json();
-  if (!r.ok) throw new Error(data.detail || `request failed (${r.status})`);
+  if (!r.ok) throw new Error(data.detail || data.error || `request failed (${r.status})`);
   return data;
 }
 
-async function waitForFollowup(id, timeoutMs=110000) {
+// ---- time, said locally ------------------------------------------------
+function clock(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  const today = new Date();
+  const t = d.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
+  return d.toDateString() === today.toDateString() ? t
+    : d.toLocaleDateString([], {month: "short", day: "numeric"}) + " " + t;
+}
+function ago(iso) {
+  const secs = (Date.now() - Date.parse(iso)) / 1000;
+  if (!isFinite(secs)) return "";
+  if (secs < 90) return "just now";
+  if (secs < 3600) return Math.round(secs / 60) + "m ago";
+  if (secs < 86400) return Math.round(secs / 3600) + "h ago";
+  return Math.round(secs / 86400) + "d ago";
+}
+
+// ---- conversation ------------------------------------------------------
+async function waitForFollowup(id, timeoutMs=300000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const result = await api(`/api/voice/followup?id=${encodeURIComponent(id)}`);
@@ -184,6 +396,47 @@ async function waitForFollowup(id, timeoutMs=110000) {
   throw new Error("The reply took too long. It remains in Notifications when it finishes.");
 }
 
+function turn(who, text) {
+  const div = document.createElement("div");
+  div.className = "turn " + who;
+  div.textContent = text;
+  $("convo").appendChild(div);
+  $("convo").scrollTop = $("convo").scrollHeight;
+  return div;
+}
+
+async function sendAsk(ev) {
+  ev.preventDefault();
+  const box = $("ask");
+  const text = box.value.trim();
+  if (!text) return false;
+  const note = $("ask-note");
+  turn("you", text);
+  box.value = "";
+  note.textContent = "thinking…";
+  const reply = turn("her", "…");
+  try {
+    const first = await api("/api/ask", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({text}),
+    });
+    if (first.followup_id) reply.textContent = first.say || "…";
+    const result = first.followup_id ? await waitForFollowup(first.followup_id) : first;
+    reply.textContent = result.say || result.detail || "Done.";
+    if (first.followup_id) {
+      api("/api/voice/followup/ack", {method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({id: first.followup_id})}).catch(() => {});
+    }
+    note.textContent = "";
+    refresh();
+  } catch (err) {
+    reply.textContent = err && err.message ? err.message : "The answer did not return. Please ask again.";
+    note.textContent = "";
+  }
+  return false;
+}
+
+// ---- the exact-command drawer -------------------------------------------
 async function post(cmd) {
   const res = await api("/api/command", {
     method: "POST", headers: {"Content-Type": "application/json"},
@@ -191,67 +444,43 @@ async function post(cmd) {
   });
   const div = document.createElement("div");
   div.className = "rc";
-  div.innerHTML = `<span class="o ${esc(res.outcome)}">${esc(res.outcome.toUpperCase())}</span>
+  div.innerHTML = `<span class="o ${esc(res.outcome)}">${esc(String(res.outcome).toUpperCase())}</span>
     <span class="d">${esc(cmd.kind)} — ${esc(res.detail)}</span>`;
-  document.getElementById("receipts").appendChild(div);
+  $("receipts").appendChild(div);
   refresh();
   return res;
 }
 
-async function sendAsk(ev) {
-  ev.preventDefault();
-  const box = document.getElementById("ask");
-  const text = box.value.trim();
-  if (!text) return false;
-  const note = document.getElementById("ask-note");
-  note.textContent = "thinking…";
-  try {
-    const first = await api("/api/ask", {
-      method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({text}),
-    });
-    const result = first.followup_id
-      ? await waitForFollowup(first.followup_id) : first;
-    note.textContent = result.say || result.detail || "done";
-    box.value = "";
-    refresh();
-  } catch (err) {
-    note.textContent = err && err.message ? err.message : "The answer did not return. Please ask again.";
-  }
-  return false;
-}
-
-// The verifiers make real network attempts (an IMAP login, a request to the
-// hub). The server caches for a minute; the page must not ask on every
-// refresh tick regardless, or it queues work nobody is waiting for.
-let setupCheckedAt = 0;
-async function loadSetup(force) {
-  if (!force && Date.now() - setupCheckedAt < 120000) return;
-  setupCheckedAt = Date.now();
-  const host = document.getElementById("setup");
-  try {
-    const r = await api("/api/setup");
-    if (r.ready) { host.textContent = "Nothing — everything is configured."; return; }
-    host.innerHTML = r.steps.filter(s => s.state !== "ok" && !s.optional).map(s =>
-      `<div class="rc"><span class="o">${esc(s.minutes)}m</span>` +
-      `<span class="d"><b>${esc(s.title)}</b> — ${esc(s.detail)}</span></div>`).join("")
-      || "Nothing required — only optional extras left.";
-  } catch (err) {
-    host.textContent = "could not check: " + err.message;
-  }
-}
-
 function sendCommand(ev) {
   ev.preventDefault();
-  const kind = document.getElementById("kind").value;
+  const kind = $("kind").value;
   const cmd = { kind };
   for (const input of document.querySelectorAll("#args input")) {
     if (input.value.trim() !== "") {
       cmd[input.name] = input.name === "n" ? Number(input.value) : input.value;
     }
   }
-  post(cmd);
+  post(cmd).catch(err => { $("ask-note").textContent = err.message; });
   return false;
+}
+
+// The verifiers make real network attempts. The server caches for a
+// minute; the page must not ask on every refresh tick regardless.
+let setupCheckedAt = 0;
+async function loadSetup(force) {
+  if (!force && Date.now() - setupCheckedAt < 120000) return;
+  setupCheckedAt = Date.now();
+  const host = $("setup");
+  try {
+    const r = await api("/api/setup");
+    if (r.ready) { host.textContent = "Nothing — everything is configured."; return; }
+    host.innerHTML = r.steps.filter(s => s.state !== "ok" && !s.optional).map(s =>
+      `<div class="rc"><span class="o">${esc(s.minutes)}m</span> ` +
+      `<span class="d"><b>${esc(s.title)}</b> — ${esc(s.detail)}</span></div>`).join("")
+      || "Nothing required — only optional extras left.";
+  } catch (err) {
+    host.textContent = "could not check: " + err.message;
+  }
 }
 
 let haltedNow = false;
@@ -263,14 +492,13 @@ async function ack(id) {
 }
 
 async function toggleHalt() {
+  if (!haltedNow && !confirm("Stop everything Thea is doing?")) return;
   await post(haltedNow ? {kind: "resume"} : {kind: "halt", reason: "operator pressed HALT"});
 }
 
 let micOn = false;
 async function toggleMic() {
-  // No optimism here: the button reflects what the Core says after the
-  // command, never what we hoped it would say. A microphone control that
-  // shows ON before it is on is the one lie this button must not tell.
+  // No optimism: the button reflects what the Core says after the command.
   await post({kind: micOn ? "mic_off" : "mic_on"});
   await refreshMic();
 }
@@ -282,27 +510,291 @@ async function refreshMic() {
   } catch (e) {
     micOn = false;                       // unknown reads as OFF
   }
-  const btn = document.getElementById("mic-btn");
+  const btn = $("mic-btn");
   if (btn) {
     btn.textContent = micOn ? "MIC: ON" : "MIC: OFF";
     btn.className = micOn ? "danger" : "";
   }
 }
 
+// ---- receipts: one click from any line ----------------------------------
+function kv(pairs) {
+  return "<dl>" + pairs.filter(p => p[1] !== undefined && p[1] !== null && p[1] !== "")
+    .map(p => `<dt>${esc(p[0])}</dt><dd>${esc(p[1])}</dd>`).join("") + "</dl>";
+}
+
+function renderReceipt(r) {
+  const rec = r.record || {};
+  let html = "";
+  if (r.kind === "application") {
+    const ex = rec._explained || {};
+    const fit = rec.fit && typeof rec.fit === "object" ? rec.fit : {};
+    html += kv([
+      ["record", rec.id], ["state", rec.state], ["stage", ex.stage],
+      ["staged", clock(rec.staged_at)], ["pressed", clock(rec.pressed_at)],
+      ["sent", clock(rec.submitted_at)], ["closed", clock(rec.closed_at)],
+      ["why this one", ex.why_this_one ? ex.why_this_one.said : "not scored"],
+      ["why not sent", ex.why_not_sent],
+      ["judged by", fit.by], ["value", rec.value], ["queue", rec.queue],
+      ["captcha", rec.captcha], ["approval", rec.approval], ["form", rec.url],
+    ]);
+    if (Array.isArray(rec.questions) && rec.questions.length) {
+      html += `<div class="steps">${rec.questions.map(q => "? " + esc(q.label || "")).join("<br>")}</div>`;
+    }
+  } else if (r.kind === "session") {
+    const p = r.provenance || {};
+    html += kv([
+      ["session", rec.id], ["asked", rec.question], ["outcome", rec.outcome],
+      ["answer", rec.answer], ["basis", p.basis],
+      // who she hired to think — provenance, not identity
+      ["model", p.model], ["model calls", rec.model_calls], ["took", rec.duration_s ? rec.duration_s + "s" : ""],
+      ["saved", clock(rec.saved_at)],
+    ]);
+    const steps = (rec.receipts || []).map(s =>
+      `#${esc(s.step)} ${esc(s.tool)} · ${esc(s.verdict)} · ${esc(s.outcome)}` +
+      (s.provenance ? ` · ${esc(s.provenance)}` : "") + (s.duration_ms ? ` · ${esc(s.duration_ms)}ms` : "") +
+      (s.reason ? ` — ${esc(s.reason)}` : ""));
+    if (steps.length) html += `<div class="steps">${steps.join("<br>")}</div>`;
+  } else {
+    html += kv([["at", clock(rec.ts)], ["kind", rec.kind], ["subject", rec.subject],
+                ["actor", rec.actor], ["text", rec.text]]);
+  }
+  html += `<details><summary>raw record</summary><pre>${esc(JSON.stringify(rec, null, 2))}</pre></details>`;
+  return html;
+}
+
+async function toggleReceipt(btn) {
+  const box = btn.closest(".ri, .card").querySelector(".rcpt");
+  if (!box.hidden) { box.hidden = true; return; }
+  box.hidden = false;
+  box.textContent = "reading the receipt…";
+  try {
+    const r = await api(`/api/mission/receipt?kind=${encodeURIComponent(btn.dataset.kind)}&id=${encodeURIComponent(btn.dataset.id)}`);
+    box.innerHTML = renderReceipt(r);
+  } catch (err) {
+    box.textContent = "no receipt: " + err.message;
+  }
+}
+
+// Screenshots are fetched with the same credentials as the JSON, so a
+// phone's token carries; an <img src> alone could not send it.
+const shotCache = new Map();
+async function shotURL(src) {
+  if (shotCache.has(src)) return shotCache.get(src);
+  const r = await fetch(src, withAuth());
+  if (!r.ok) throw new Error(`no screenshot (${r.status})`);
+  const url = URL.createObjectURL(await r.blob());
+  shotCache.set(src, url);
+  return url;
+}
+
+async function toggleShot(btn) {
+  const box = btn.closest(".card").querySelector(".shotbox");
+  if (!box.hidden) { box.hidden = true; return; }
+  box.hidden = false;
+  box.textContent = "loading the screenshot…";
+  try {
+    box.innerHTML = `<div class="shot"><img alt="screenshot of the application form" src="${esc(await shotURL(btn.dataset.src))}"></div>`;
+  } catch (err) { box.textContent = err.message; }
+}
+
+document.addEventListener("click", ev => {
+  const r = ev.target.closest("[data-receipt]");
+  if (r) { toggleReceipt(r); return; }
+  const s = ev.target.closest("[data-shot]");
+  if (s) { toggleShot(s); return; }
+  const t = ev.target.closest("[data-stage]");
+  if (t) { chosenStage = t.dataset.stage; paintHunt(lastMission); }
+});
+
+// ---- painters: mission state ---------------------------------------------
+let lastMission = null;
+let chosenStage = null;
+const STAGE_WORDS = {
+  "DISCOVERED": "openings found today", "REVIEWED": "worth trying today",
+  "APPLYING": "filling or sending", "NEEDS YOU": "waiting on you", "SENT": "sent, no reply yet",
+  "REPLIED": "the employer answered", "INTERVIEW": "interview or offer",
+  "STOPPED": "didn't send", "SET ASIDE": "decided against",
+};
+
+function paintHeader(m) {
+  const h = m.header || {};
+  const word = $("state-word");
+  word.textContent = h.state || "IDLE";
+  word.className = "word " + String(h.state || "IDLE").replace(" ", "-");
+  $("doing").textContent = h.doing || "";
+  $("next-said").textContent = h.next || "";
+  $("signals").innerHTML = (h.signals || []).map(s =>
+    `<span class="sig ${s.ok ? "ok" : "bad"}">${esc(s.what)}: ${esc(s.said)}</span>`).join("") +
+    (h.since ? `<span class="sig">since ${esc(clock(h.since))}</span>` : "") +
+    `<span class="sig">as of ${esc(clock(m.as_of))}</span>`;
+  const banner = $("banner");
+  banner.textContent = h.banner || "";
+  banner.hidden = !h.banner;
+  const badge = $("needs-badge");
+  badge.hidden = !h.needs_you;
+  badge.textContent = h.needs_you ? `${h.needs_you} NEED YOU` : "";
+  document.body.classList.remove("offline");
+}
+
+function paintOffline(err) {
+  const word = $("state-word");
+  word.textContent = err && err.unauthorized ? "NOT LINKED" : "OFFLINE";
+  word.className = "word OFFLINE";
+  $("doing").textContent = err && err.unauthorized
+    ? "This device isn't linked. Open Thea on this phone, then System, and add the link code."
+    : "Can't reach the Core. Nothing below is current.";
+  $("next-said").textContent = err && err.unauthorized ? "Link it, then this page fills in."
+    : "Check the PC is on and the Core is running; this page retries every 15 seconds.";
+  const banner = $("banner");
+  banner.textContent = lastMission ? `Last heard from her ${ago(lastMission.as_of)} (${clock(lastMission.as_of)}).` : "No state has loaded yet.";
+  banner.hidden = false;
+  document.body.classList.add("offline");
+}
+
+function cardHTML(c) {
+  const why = c.why_this_one;
+  return `<article class="card">
+    <div class="ct"><b>${esc(c.title)}</b><span class="tag">${esc(c.stage)}</span></div>
+    <div class="meta">${esc(c.site)}${c.when ? " · " + esc(clock(c.when)) : ""}${c.captcha ? " · " + esc(c.captcha) + " check" : ""}</div>
+    ${why ? `<p><em>Why this one?</em>${esc(why.said)}</p>`
+          : `<p class="none"><em>Why this one?</em>Not scored — this record has no value reasons or fit judgement.</p>`}
+    ${c.why_not_sent ? `<p class="blk"><em>Why didn't this send?</em>${esc(c.why_not_sent)}</p>` : ""}
+    <div class="acts">
+      <button class="link" data-receipt data-kind="application" data-id="${esc(c.id)}">receipt</button>
+      ${c.screenshot ? `<button class="link" data-shot data-src="/api/mission/screenshot?id=${encodeURIComponent(c.id)}">screenshot</button>` : ""}
+      ${c.url ? `<a href="${esc(c.url)}" target="_blank" rel="noopener noreferrer">the form ↗</a>` : ""}
+    </div>
+    <div class="shotbox" hidden></div>
+    <div class="rcpt" hidden></div>
+  </article>`;
+}
+
+function paintHunt(m) {
+  if (!m) return;
+  const p = m.pipeline || {stages: [], off_ramps: []};
+  const all = (p.stages || []).concat(p.off_ramps || []);
+  const byStage = Object.fromEntries(all.map(s => [s.stage, s]));
+  if (!chosenStage || !byStage[chosenStage]) {
+    chosenStage = ["NEEDS YOU", "APPLYING", "STOPPED", "SENT"].find(s => byStage[s] && byStage[s].count) || "SENT";
+  }
+  const tile = s => `<button class="tile ${esc(s.stage.replace(" ", "-"))}${s.stage === chosenStage ? " sel" : ""}"
+      data-stage="${esc(s.stage)}" role="tab" aria-selected="${s.stage === chosenStage}"
+      title="${esc(STAGE_WORDS[s.stage] || "")} (${esc(s.source)})">
+      <span class="n">${s.count === null || s.count === undefined ? "—" : esc(s.count)}</span>
+      <span class="l">${esc(s.stage)}</span>
+      <span class="t">${s.today ? "+" + esc(s.today) + " today" : "&nbsp;"}</span></button>`;
+  $("pipeline").innerHTML = (p.stages || []).map(tile).join("");
+  $("offramps").innerHTML = (p.off_ramps || []).map(tile).join("");
+  const hunt = m.job_hunt || {};
+  $("hunt-note").textContent = hunt.readable === false ? (hunt.note || "records unreadable")
+    : `${p.records || 0} records · ${hunt.running ? "hunt running" : "hunt not running"}` +
+      (p.grant_live ? " · standing grant live" : " · no standing grant");
+  const chosen = byStage[chosenStage] || {cards: []};
+  $("stage-note").textContent = `${chosenStage} — ${STAGE_WORDS[chosenStage] || ""}` +
+    (chosen.count > (chosen.cards || []).length ? ` · newest ${(chosen.cards || []).length} of ${chosen.count}` : "") +
+    (chosen.source && chosen.source !== "records" ? ` · ${chosen.source}` : "");
+  $("cards").innerHTML = (chosen.cards || []).length ? chosen.cards.map(cardHTML).join("")
+    : `<div class="empty">${chosenStage === "DISCOVERED" || chosenStage === "REVIEWED"
+        ? "Openings aren't records until she fills a form; see today's discovery below."
+        : "nothing here"}</div>`;
+
+  const needs = byStage["NEEDS YOU"] || {cards: [], count: 0};
+  $("needs-apps").innerHTML = needs.count
+    ? needs.cards.slice(0, 4).map(cardHTML).join("") +
+      (needs.count > 4 ? `<div class="empty" style="margin-top:.5rem">${esc(needs.count - 4)} more in the control room below</div>` : "")
+    : `<div class="empty">no application is waiting on you</div>`;
+
+  const d = m.discovery || {};
+  const q = rows => rows.map(o => `<div class="q"><span class="v">${o.value !== undefined && o.value !== null ? esc(o.value) : ""}</span>` +
+      `${o.url ? `<a href="${esc(o.url)}" target="_blank" rel="noopener noreferrer">${esc(o.title)}</a>` : esc(o.title)}` +
+      `${o.company ? " at " + esc(o.company) : ""}${o.why ? `<span class="w">${esc(o.why)}</span>` : ""}</div>`).join("");
+  $("discovery").className = "disc";
+  $("discovery").innerHTML = `<p>${esc(d.said || "")}</p>` +
+    (d.day ? `<div class="empty" style="margin-top:.3rem">${esc(d.day)} · crawled ${esc(d.crawled || 0)} employers` +
+      (d.employers_new && d.employers_new.length ? ` · new: ${esc(d.employers_new.slice(0, 6).join(", "))}` : "") + `</div>` : "") +
+    ((d.outliers || []).length ? `<h3 class="sub">Outliers — unusually good</h3>${q(d.outliers)}` : "") +
+    ((d.best || []).length ? `<h3 class="sub">Best fit</h3>${q(d.best)}` : "");
+}
+
+function paintEyes(m) {
+  const e = m.eyes || {};
+  $("eyes-note").textContent = e.active ? "browser in use" : "browser idle";
+  let html = e.active
+    ? kv([["site", e.site || "—"], ["purpose", e.purpose], ["stage", e.stage], ["since", clock(e.since)]])
+    : kv([["now", "not using the browser"],
+          ["last", e.last ? `${e.last.title || e.last.what || ""} (${e.last.site || ""}) · ${e.last.state || ""} · ${clock(e.last.at)}` : ""]]);
+  if (e.readable === false) html += `<div class="empty">the application records could not be read</div>`;
+  if (e.screenshot) {
+    html += `<div class="shot"><img id="eyes-img" alt="the latest recorded screenshot">
+      <div class="cap">${esc(e.screenshot.of)}: ${esc(e.screenshot.title)} · ${esc(clock(e.screenshot.at))} · recorded, not live</div></div>`;
+  } else {
+    html += `<div class="empty" style="margin-top:.5rem">no screenshot on record for this application</div>`;
+  }
+  $("eyes-body").className = "";
+  $("eyes-body").innerHTML = html;
+  if (e.screenshot) {
+    shotURL(e.screenshot.src).then(url => { const img = $("eyes-img"); if (img) img.src = url; })
+      .catch(() => { const img = $("eyes-img"); if (img) img.replaceWith(Object.assign(document.createElement("div"), {className: "empty", textContent: "screenshot unavailable"})); });
+  }
+}
+
+function paintRibbon(m) {
+  const rows = m.ribbon || [];
+  $("ribbon").className = "rib";
+  $("ribbon").innerHTML = rows.length ? rows.map(i => `<div class="ri">
+      <div class="h"><span>${esc(clock(i.at))}</span><span class="what">${esc(i.what)}</span>
+        ${i.tone === "alert" ? '<span class="tone alert">PROBLEM</span>' : i.tone === "needs" ? '<span class="tone needs">NEEDS YOU</span>'
+          : i.tone === "good" ? '<span class="tone good">DONE</span>' : ""}</div>
+      <div class="s">${esc(i.said)}</div>
+      <button class="link" data-receipt data-kind="${esc(i.receipt.kind)}" data-id="${esc(i.receipt.id)}">receipt</button>
+      <div class="rcpt" hidden></div></div>`).join("")
+    : `<div class="empty">nothing recorded yet</div>`;
+}
+
+function paintCode(m) {
+  const c = m.code || {};
+  $("code").innerHTML = c.readable === false ? "not readable"
+    : `${esc(c.branch)} @ ${esc(String(c.commit || "").slice(0, 10))} — ${esc(c.subject)}` +
+      (c.dirty ? ` · ${esc((c.dirty_files || []).length)} modified` : "") +
+      (c.running_old_code ? " · running older code than is on disk" : "");
+}
+
+// Keep an open receipt open across a refresh: repainting under his thumb
+// while he reads is how a page loses his place.
+function readingSomething() {
+  return !!document.querySelector(".rcpt:not([hidden]), .shotbox:not([hidden])");
+}
+
 async function refresh() {
+  try {
+    const m = await api("/api/mission");
+    lastMission = m;
+    paintHeader(m);
+    if (!readingSomething()) {
+      paintHunt(m);
+      paintRibbon(m);
+    }
+    paintEyes(m);
+    paintCode(m);
+  } catch (err) {
+    // The rest still loads: approvals and HALT must not depend on the
+    // mission read succeeding.
+    paintOffline(err);
+  }
   try {
     const s = await api("/api/status");
     haltedNow = !!s.halted;
-    const hs = document.getElementById("halt-state");
-    hs.textContent = haltedNow ? "HALTED — " + esc(s.halted.reason || "") : "RUNNING";
+    const hs = $("halt-state");
+    hs.textContent = haltedNow ? "HALTED — " + (s.halted.reason || "") : "RUNNING";
     hs.className = haltedNow ? "halted" : "ok";
-    document.getElementById("halt-btn").textContent = haltedNow ? "RESUME" : "HALT";
-    document.getElementById("halt-btn").className = haltedNow ? "good" : "danger";
+    $("halt-btn").textContent = haltedNow ? "RESUME" : "HALT";
+    $("halt-btn").className = haltedNow ? "good" : "danger";
 
     loadSetup(false);
     const aps = await api("/api/approvals");
     const pending = aps.filter(a => a.state === "PENDING");
-    document.getElementById("approvals").innerHTML = pending.length ? pending.map(a =>
+    $("approvals").innerHTML = pending.length ? pending.map(a =>
       `<div class="row"><div><div>${esc(a.label || a.consequence || a.requested_action)}</div>
          <div class="id">${esc(a.consequence && a.label !== a.consequence
                                ? a.consequence : a.requested_action)}</div></div>
@@ -312,34 +804,42 @@ async function refresh() {
        </div></div>`).join("") : `<div class="empty">nothing waiting on you</div>`;
 
     const ns = await api("/api/notifications?state=UNREAD");
-    document.getElementById("notifications").innerHTML = ns.length ? ns.map(n =>
-      `<div class="row"><div><div>${esc(n.title)}</div>
-         <div class="id">${esc(n.body)}</div></div>
+    $("notifications").innerHTML = ns.length ? ns.map(n =>
+      `<div class="row"><div><div>${esc(n.says || n.title)}</div>
+         <div class="id">${esc(n.body && n.body !== (n.says || n.title) ? n.body : "")}</div></div>
        <button class="good" onclick='ack("${esc(n.id)}")'>ACK</button></div>`).join("")
       : `<div class="empty">nothing to surface</div>`;
+    $("needs-count").textContent = `${pending.length} approvals · ${ns.length} unread`;
 
     const ts = await api("/api/tasks");
     const live = ts.filter(t => !["COMPLETED","CANCELLED","FAILED_TERMINAL"].includes(t.status));
-    document.getElementById("tasks").innerHTML = live.length ? live.map(t =>
+    $("tasks").innerHTML = live.length ? live.map(t =>
       `<div class="row"><div><div>${esc(t.description)}</div><div class="id">${esc(t.id)}</div></div>
        <span class="st ${esc(t.status)}">${esc(t.status)}</span></div>`).join("")
       : `<div class="empty">no live tasks</div>`;
   } catch (e) {
-    document.getElementById("halt-state").textContent = "CORE UNREACHABLE";
-    document.getElementById("halt-state").className = "halted";
+    $("halt-state").textContent = e.unauthorized ? "NOT LINKED" : "CORE UNREACHABLE";
+    $("halt-state").className = "halted";
   }
 }
 
 api("/api/kinds").then(kinds => {
   KINDS = kinds;
-  document.getElementById("kind").innerHTML =
-    Object.keys(KINDS).map(k => `<option>${k}</option>`).join("");
+  $("kind").innerHTML = Object.keys(KINDS).map(k => `<option>${esc(k)}</option>`).join("");
   renderArgs();
 }).catch(() => {
-  document.getElementById("kind").innerHTML = "<option>core unreachable</option>";
+  $("kind").innerHTML = "<option>core unreachable</option>";
+});
+
+// Poll while he is looking; nothing while the phone is in a pocket.
+let timer = null;
+function start() { if (!timer) timer = setInterval(refresh, 15000); }
+function stop() { if (timer) { clearInterval(timer); timer = null; } }
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) stop(); else { refresh(); start(); }
 });
 refresh();
-setInterval(refresh, 5000);
+start();
 </script>
 <script src="voice.js"></script>
 </body>
