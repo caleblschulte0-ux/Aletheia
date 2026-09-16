@@ -39,6 +39,11 @@ API:
     GET  /api/capabilities  the capability registry
     GET  /api/journal?last=N
     GET  /api/state         canonical current-state snapshot (focus/attention)
+    GET  /api/mission       the mission screen: header (state word, doing, next,
+                            stale), job-hunt pipeline + cards, discovery, the
+                            activity ribbon, eyes — read-only
+    GET  /api/mission/receipt?kind=application|session|journal&id=
+    GET  /api/mission/screenshot?id=apply-…  a screenshot already on the record
     GET  /api/notifications[?state=UNREAD]
     GET  /api/events?last=N  the local event bus, newest first
     GET  /api/watchers      durable watcher definitions + states
@@ -760,6 +765,8 @@ class Handler(BaseHTTPRequestHandler):
                                for k, (req, opt) in intercom.KIND_ARGS.items()})
         if url.path == "/api/state":
             return self._json(current_state.snapshot())
+        if url.path.startswith("/api/mission"):
+            return self._mission(url)
         if url.path == "/api/notifications":
             state = parse_qs(url.query).get("state", [None])[0]
             rows = notifications.all_notifications(state=state)
@@ -817,6 +824,33 @@ class Handler(BaseHTTPRequestHandler):
         rel = "index.html" if url.path in ("/", "/interface/", "/interface/index.html") \
             else url.path.removeprefix("/interface/").lstrip("/")
         return self._static(rel)
+
+    def _mission(self, url) -> None:
+        """Mission control's read-only routes. Reached only through
+        `authorized()` like every other GET: open on genuine loopback, a
+        real token for anything remote. Nothing here writes or launches."""
+        from aletheia import mission_control
+        query = parse_qs(url.query)
+        if url.path == "/api/mission":
+            return self._json(mission_control.gather())
+        if url.path == "/api/mission/receipt":
+            found = mission_control.receipt(query.get("kind", [""])[0], query.get("id", [""])[0])
+            if found is None:
+                return self._json({"error": "no such receipt"}, code=404)
+            return self._json(found)
+        if url.path == "/api/mission/screenshot":
+            shot = mission_control.screenshot_for(query.get("id", [""])[0])
+            if shot is None:
+                return self._json({"error": "no screenshot on that record"}, code=404)
+            body = shot.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "private, max-age=60")
+            self.end_headers()
+            self.wfile.write(body)
+            return None
+        return self._json({"error": "not found"}, code=404)
 
     def do_POST(self):
         if not self.authorized():
