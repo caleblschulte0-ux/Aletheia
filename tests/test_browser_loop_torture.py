@@ -367,7 +367,9 @@ class ADuplicateSubmitIsRefused(LoopCase):
         record = browser_loop.pursue(goal, start, inputs={"zip code": "57104"})
         first = self.approve_and_press(record)
         self.assertEqual(first["state"], bm.REJECTED, first.get("boundary"))
-        again = browser_loop.pursue(goal, start)
+        # Driving it again with nothing changed stops on what the site said
+        # (test_browser_loop_live); asking to try again brings a fresh approval.
+        again = browser_loop.pursue(goal, start, retry=True)
         self.assertBoundary(again, bm.AWAITING_APPROVAL, "SUBMIT_APPROVAL")
         self.assertNotEqual(again["approval"], record["approval"], "a retry asks him again")
 

@@ -1544,35 +1544,102 @@ def _press(record: dict) -> dict:
                 f"pressed ({type(exc).__name__}: {str(exc)[:160]})") from exc
         hands.click(record["button_selector"])
         page.wait_for_load_state("domcontentloaded")
-        # The receipt of an EMBEDDED form is inside the frame; the parent
-        # page still says "Application form below" and reads like nothing
-        # happened. The evidence has to be what the form itself now says.
-        parts = [page.inner_text("body") or ""]
-        for frame in _frames(page)[1:]:
-            try:
-                parts.append(frame.inner_text("body") or "")
-            except Exception:
-                continue
-        body = "\n".join(t for t in parts if t.strip())[:2000]
-        # DID IT WORK? A press is an action; whether the site accepted it is
-        # a different question, and the only honest source is what the page
-        # says next. She pressed Submit on a form whose phone number the
-        # site refused, got "there was a problem with your application"
-        # back, and reported it as done.
-        still_there = bool(formfill.blocking(page)) or bool(
-            [f for f in formfill.read_all(page)
-             if f.get("type") not in ("hidden", "submit", "button")])
-        outcome = browse.read_outcome(body, did=record.get("button", ""),
-                                      form_still_there=still_there)
-        shot = runs_dir() / f"{record['id']}-after.png"
-        try:
-            page.screenshot(path=str(shot), full_page=True)
-        except Exception:
-            shot = ""
-        out = {"url": page.url, "title": page.title(), "evidence": body[:600],
-               "screenshot": str(shot), **outcome}
+        out = read_after_press(page, record)
         page.close()
     return out
+
+
+def read_after_press(page, record: dict) -> dict:
+    """What the page says after the approved press: the verdict, the
+    evidence, and - when the site handed it back - the site's OWN error
+    words, so a retry starts from what it said instead of pressing the same
+    thing again. Shared by the replayed press and a press inside a mission's
+    live session, so the two cannot disagree about what a refusal looks like."""
+    # The receipt of an EMBEDDED form is inside the frame; the parent
+    # page still says "Application form below" and reads like nothing
+    # happened. The evidence has to be what the form itself now says.
+    parts = [page.inner_text("body") or ""]
+    for frame in _frames(page)[1:]:
+        try:
+            parts.append(frame.inner_text("body") or "")
+        except Exception:
+            continue
+    body = "\n".join(t for t in parts if t.strip())[:2000]
+    # DID IT WORK? A press is an action; whether the site accepted it is
+    # a different question, and the only honest source is what the page
+    # says next. She pressed Submit on a form whose phone number the
+    # site refused, got "there was a problem with your application"
+    # back, and reported it as done.
+    still_there = bool(formfill.blocking(page)) or bool(
+        [f for f in formfill.read_all(page)
+         if f.get("type") not in ("hidden", "submit", "button")])
+    outcome = browse.read_outcome(body, did=record.get("button", ""),
+                                  form_still_there=still_there)
+    said = site_errors(page) if outcome.get("verdict") != "confirmed" else []
+    shot = runs_dir() / f"{record['id']}-after.png"
+    try:
+        page.screenshot(path=str(shot), full_page=True)
+    except Exception:
+        shot = ""
+    return {"url": page.url, "title": page.title(), "evidence": body[:600],
+            "screenshot": str(shot), **({"site_errors": said} if said else {}), **outcome}
+
+
+SITE_ERRORS_JS = r"""() => {
+  const seen = (el) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el);
+    return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none'; };
+  const out = [];
+  const add = (t) => { t = (t || '').replace(/\s+/g, ' ').trim();
+    if (t && t.length <= 240 && !out.includes(t)) out.push(t); };
+  for (const el of document.querySelectorAll(
+      '[role=alert], [aria-live=assertive], .error, .errors, .error-message, .field-error, '
+      + '.invalid-feedback, .form-error, .validation-error, .help-block.error, [class*="error" i]')) {
+    if (seen(el) && !el.querySelector('input, select, textarea')) add(el.innerText);
+    if (out.length >= 12) break;
+  }
+  const labelOf = (el) => {
+    if (el.labels && el.labels.length) return el.labels[0].innerText;
+    return el.getAttribute('aria-label') || el.name || el.id || '';
+  };
+  for (const el of document.querySelectorAll('input, select, textarea')) {
+    if (el.type === 'hidden' || !seen(el)) continue;
+    const bad = el.getAttribute('aria-invalid') === 'true' || (el.willValidate && !el.checkValidity());
+    if (!bad) continue;
+    const by = (el.getAttribute('aria-describedby') || '').split(/\s+/)
+      .map(id => document.getElementById(id)).filter(Boolean).map(n => n.innerText).join(' ');
+    add(`${labelOf(el).trim()}: ${(by || el.validationMessage || 'marked invalid').trim()}`);
+    if (out.length >= 16) break;
+  }
+  return out;
+}"""
+#: Sentences a refusal is written in, when the site marks nothing up.
+_REFUSAL_SENTENCE = re.compile(
+    r"[^.\n]{0,120}\b(?:is (?:required|invalid|not valid)|must be|please (?:enter|provide|correct|fix)|"
+    r"there was a problem|could not be (?:submitted|processed)|invalid|error)\b[^.\n]{0,120}", re.I)
+
+
+def site_errors(page) -> list[str]:
+    """The site's own words for what is wrong, read off the page as it is
+    now: alerts, error messages, and every field it marked invalid with its
+    message. Frames included. Falls back to refusal-shaped sentences in the
+    text. Never raises; [] when the page says nothing."""
+    said: list[str] = []
+    for target in [page, *_frames(page)[1:]]:
+        try:
+            said += [str(x) for x in (target.evaluate(SITE_ERRORS_JS) or [])]
+        except Exception:
+            continue
+    if not said:
+        try:
+            text = page.inner_text("body") or ""
+        except Exception:
+            text = ""
+        said = [" ".join(m.group(0).split()) for m in _REFUSAL_SENTENCE.finditer(text[:6000])][:6]
+    out: list[str] = []
+    for line in said:
+        if line and line not in out:
+            out.append(line[:240])
+    return out[:12]
 
 
 def spoken(record: dict) -> str:
