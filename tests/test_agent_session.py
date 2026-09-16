@@ -422,5 +422,162 @@ class TheCli(unittest.TestCase):
         self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["outcome"], s.ANSWERED)
 
 
+class AModelInTheWrongShapeIsAModelError(unittest.TestCase):
+    """In local-only mode a model that ANSWERED in prose was reported as
+    model_unavailable - "nobody could think" about a model that was running."""
+
+    def pool(self, error):
+        from aletheia import local_model_pool, model_pool_config
+        return (mock.patch.object(model_pool_config, "enabled", return_value=True),
+                mock.patch.object(local_model_pool, "reachable", return_value=True),
+                mock.patch.object(local_model_pool, "run_json",
+                                  side_effect=local_model_pool.LocalPoolUnavailable(error)))
+
+    def test_prose_from_her_own_model_is_a_model_error(self):
+        a, b, c = self.pool("local fast role failed: local model returned invalid JSON")
+        with a, b, c:
+            result = s.AgentSession("how did it go", think=s.local_think(local_only=True),
+                                    catalog=fake_catalog([]), now_line=lambda: "NOW: test",
+                                    record=False).run()
+        self.assertEqual(result.outcome, s.MODEL_ERROR)
+        self.assertEqual(result.model_calls, 0)
+        self.assertEqual(len(result.model_seconds), 2)       # it was given one more chance
+
+    def test_ollama_not_answering_is_still_unavailable(self):
+        a, b, c = self.pool("local fast role failed: local Ollama unavailable (URLError)")
+        with a, b, c:
+            with self.assertRaises(s.ModelUnavailable):
+                s.local_think(local_only=True)("sys", "text")
+
+    def test_one_bad_reply_then_a_good_one_answers(self):
+        think = scripted(s.ModelReplyUnusable("no JSON object"), {"tool": "state.now", "args": {}},
+                         {"answer": "Three sent."})
+        result = session(think, []).run()
+        self.assertEqual(result.outcome, s.ANSWERED)
+        self.assertIn("NOT USABLE", think.seen[1]["text"])
+
+
+class TheLiveChain(unittest.TestCase):
+    """Subscriptions first, her own model when they cannot answer - and once
+    they could not, the rest of the session does not ask them again."""
+
+    def test_subscriptions_think_first_and_provenance_is_recorded(self):
+        from aletheia import reasoner
+        with mock.patch.object(reasoner, "_subscription_json_with_provider",
+                               return_value=({"answer": "hi"}, "claude.cli:sonnet")) as cloud:
+            output, provider = s.chain_think()("sys", "text")
+        self.assertEqual((output, provider), ({"answer": "hi"}, "claude.cli:sonnet"))
+        self.assertEqual(cloud.call_args.kwargs["model"], reasoner.PLAN_MODEL)
+
+    def test_when_they_cannot_answer_her_own_model_does_and_says_so_once(self):
+        from aletheia import local_model_pool, model_pool_config, reasoner
+        switched = []
+        run = local_model_pool.LocalRun("fast", "qwen3:8b", False, {"answer": "hi"}, None, 5)
+        with mock.patch.object(reasoner, "_subscription_json_with_provider",
+                               side_effect=reasoner.ReasonerUnavailable("nobody")) as cloud, \
+                mock.patch.object(reasoner, "resting_until", return_value=None), \
+                mock.patch.object(model_pool_config, "enabled", return_value=True), \
+                mock.patch.object(local_model_pool, "reachable", return_value=True), \
+                mock.patch.object(local_model_pool, "run_json", return_value=run):
+            think = s.chain_think(on_switch=switched.append)
+            first = think("sys", "one")
+            second = think("sys", "two")
+        self.assertEqual(first[1], "ollama:qwen3:8b")
+        self.assertEqual(second[1], "ollama:qwen3:8b")
+        self.assertEqual(cloud.call_count, 1)                 # sticky for the session
+        self.assertEqual(len(switched), 1)
+        self.assertIn("my own model", switched[0])
+
+    def test_a_late_call_is_capped_at_what_is_left_but_never_below_the_floor(self):
+        from aletheia import reasoner
+        with mock.patch.object(reasoner, "_subscription_json_with_provider",
+                               return_value=({"answer": "hi"}, "claude.cli:sonnet")) as cloud:
+            s.chain_think(deadline_s=0)("sys", "text")
+            s.chain_think(deadline_s=40)("sys", "text")
+            s.chain_think()("sys", "text")
+        budgets = [c.kwargs["timeout_s"] for c in cloud.call_args_list]
+        self.assertEqual(budgets[0], s.MIN_SUBSCRIPTION_S)
+        self.assertLessEqual(budgets[1], 40)
+        self.assertGreater(budgets[1], 30)
+        self.assertEqual(budgets[2], s.SUBSCRIPTION_TIMEOUT_S)
+
+    def test_nobody_at_all_is_model_unavailable_in_words(self):
+        from aletheia import model_pool_config, reasoner
+        with mock.patch.object(reasoner, "_subscription_json_with_provider",
+                               side_effect=reasoner.ReasonerUnavailable("neither answered")), \
+                mock.patch.object(model_pool_config, "enabled", return_value=False):
+            with self.assertRaises(s.ModelUnavailable) as caught:
+                s.chain_think()("sys", "text")
+        self.assertIn("switched off", str(caught.exception))
+
+    def test_every_call_names_who_thought(self):
+        think = scripted({"tool": "state.now", "args": {}}, {"answer": "ok"})
+        result = session(think, []).run()
+        self.assertEqual(result.model_providers, ["fake:model", "fake:model"])
+
+
+class TheLivePathHooks(unittest.TestCase):
+    def test_she_is_told_each_tool_before_it_runs_and_only_tools_that_run(self):
+        seen = []
+        think = scripted({"tool": "tasks.write", "args": {"text": "x"}},
+                         {"tool": "state.now", "args": {}}, {"answer": "ok"})
+        session(think, [], on_step=lambda tool, args: seen.append(tool), file_handoffs=False).run()
+        self.assertEqual(seen, ["state.now"])
+
+    def test_a_narrator_that_breaks_costs_nothing(self):
+        def boom(tool, args):
+            raise RuntimeError("no")
+        result = session(scripted({"tool": "state.now", "args": {}}, {"answer": "ok"}), [],
+                         on_step=boom).run()
+        self.assertEqual(result.outcome, s.ANSWERED)
+
+    def test_past_its_budget_the_model_must_answer_from_what_it_has(self):
+        think = scripted({"answer": "From nothing."}, {"answer": "Still nothing."})
+        result = session(think, [], budget_s=0.0).run()
+        self.assertIn("no tool calls left", think.seen[0]["text"])
+        self.assertEqual(result.outcome, s.ANSWERED)
+
+
+
+class WhichAndCompanyBothFilter(unittest.TestCase):
+    """`which or company` let `which` silently replace `company`: asked for
+    the engineer role at Stripe, it returned engineer roles everywhere."""
+
+    RUNS = [{"id": "apply-a1", "state": "FAILED", "company": "Stripe", "job_title": "Backend Engineer"},
+            {"id": "apply-b2", "state": "FAILED", "company": "Palantir", "job_title": "Backend Engineer"},
+            {"id": "apply-c3", "state": "SUBMITTED", "company": "Stripe", "job_title": "Designer"}]
+
+    def query(self, **args):
+        from aletheia import apply_run, state_tools
+        with mock.patch.object(apply_run, "all_runs", return_value=list(self.RUNS)):
+            return state_tools.applications_query(args)
+
+    def test_both_narrow(self):
+        out = self.query(which="engineer", company="Stripe")
+        self.assertEqual([r["id"] for r in out["records"]], ["apply-a1"])
+
+    def test_either_alone_still_works(self):
+        self.assertEqual(self.query(company="Stripe")["matched"], 2)
+        self.assertEqual(self.query(which="engineer")["matched"], 2)
+
+    def test_no_match_names_everything_that_was_asked(self):
+        out = self.query(which="designer", company="Palantir")
+        self.assertEqual(out["matched"], 0)
+        self.assertIn("designer Palantir", out["note"])
+
+
+
+class AStateSpelledTheWayHeSaysItStillFilters(unittest.TestCase):
+    def test_needs_you_in_words(self):
+        from aletheia import apply_run, state_tools
+        runs = [{"id": "apply-a1", "state": "NEEDS_YOU", "company": "Okta"},
+                {"id": "apply-b2", "state": "FAILED", "company": "Okta"}]
+        with mock.patch.object(apply_run, "all_runs", return_value=runs):
+            for spelled in ("needs you", "Needs-You", "NEEDS_YOU"):
+                with self.subTest(spelled=spelled):
+                    out = state_tools.applications_query({"state": spelled})
+                    self.assertEqual([r["id"] for r in out["records"]], ["apply-a1"])
+
+
 if __name__ == "__main__":
     unittest.main()

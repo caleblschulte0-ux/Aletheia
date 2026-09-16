@@ -320,3 +320,42 @@ class TheFastLaneAnswersTheFourQuestions(Records):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WhatSheReadsOutIsSayable(unittest.TestCase):
+    """Heard on a talk run, 2026-09-16: "what went wrong today" read out a whole
+    SmartRecruiters URL, a reason cut to "so it is not an", a ValueError, and an
+    HTTP method and path; "what do you need from me" joined two question labels
+    with commas into one unparseable sentence."""
+
+    def test_a_record_with_no_employer_is_named_by_its_site(self):
+        from aletheia import current_state
+        self.assertEqual(current_state.said_name("", "https://jobs.smartrecruiters.com/oneclick-ui/x/1"),
+                         "an opening on smartrecruiters.com")
+        self.assertEqual(current_state.said_name("Palantir", "https://x"), "Palantir")
+
+    def test_a_long_reason_ends_where_a_clause_ends(self):
+        from aletheia import current_state
+        said = current_state.said_clause("nothing on this page asks for his name, email or phone, "
+                                         "so it is not an application form at all", 80)
+        self.assertEqual(said, "nothing on this page asks for his name, email or phone")
+
+    def test_codes_class_names_and_paths_are_not_read_out(self):
+        from aletheia import current_state
+        said = current_state.said_clause("subsystem failing: ValueError: pulse is unreadable", 90)
+        self.assertNotIn("ValueError", said)
+        said = current_state.said_clause("a local process attempted POST /api/voice/followup/ack "
+                                         "without the secret", 90)
+        self.assertNotIn("/api/", said)
+        self.assertNotIn("https://", current_state.said_clause("see https://example.com/x now", 90))
+
+    def test_repeated_notices_are_said_once_with_a_count(self):
+        from aletheia import presence, quick
+        notices = [{"title": "Applications ready to approve"}, {"title": "Applications ready to approve"},
+                   {"title": "Application sent"}]
+        with mock.patch.object(presence, "snapshot",
+                               return_value={"waiting_on_you": [], "notifications": notices}), \
+                mock.patch.object(quick, "_job_hunt_needs", return_value=""):
+            said = quick._waiting()
+        self.assertEqual(said.count("Applications ready to approve"), 1)
+        self.assertIn("2 times", said)

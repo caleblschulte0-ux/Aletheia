@@ -141,6 +141,14 @@ def expectation(said: str) -> str:
             return "instant"
     except Exception:
         pass
+    # LOOKED INTO, not recited: a question about her own work is a tool
+    # session, several round trips, so the room says she is on it early.
+    try:
+        from aletheia import investigate
+        if investigate.wants_session(said):
+            return "working"
+    except Exception:
+        pass
     if is_a_plain_question(said):
         return "quick"
     try:

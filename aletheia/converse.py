@@ -669,12 +669,7 @@ def _from_my_own_model(prompt: str) -> tuple[str, str] | None:
         said, provider = reasoner.local_text(SYSTEM, prompt, timeout_s=TIMEOUT_S)
     except Exception:
         return None
-    until = reasoner.resting_until()
-    lead = (f"Claude's out until {reasoner.spoken_time(until)}, so this answer is "
-            "from my own model. " if until else
-            "Claude and ChatGPT can't answer right now, so this answer is from my "
-            "own model. ")
-    return lead + said, provider
+    return reasoner.own_model_lead() + said, provider
 
 
 def answer(question: str, *, think=None, include_thread: bool = True,

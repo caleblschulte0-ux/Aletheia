@@ -231,6 +231,27 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
                 "read_only": True, "refused_spending": True, "steps": [],
                 "proposed_at": stateio.utcnow()}
 
+    # A QUESTION ABOUT HER WORK IS LOOKED INTO, NOT RECITED.
+    #
+    # "Why didn't the Palantir one send" was answered by `converse` from a
+    # context somebody built by hand, which holds none of the record, the
+    # journal line or the boundary name the answer is made of. An
+    # AgentSession reads what it needs with her tools, under the broker, and
+    # says how it knows. AFTER `quick` (a stored answer stays a file read) and
+    # AFTER the money door; only QUESTIONS reach it, so an instruction still
+    # goes to the planner. `investigate.propose` returns None for anything
+    # it is not for, and for a session that could not put an answer
+    # together, so this can only add an answer and never remove one.
+    try:
+        from aletheia import investigate
+        looked = investigate.propose(request, quote=quote)
+    except Exception as exc:                                   # noqa: BLE001
+        looked = None
+        journal.append("event", "intent", "could not look into a question with my tools "
+                       f"({type(exc).__name__}); answering it the usual way", actor=ACTOR)
+    if looked is not None:
+        return looked
+
     # A FAST NO IS BETTER THAN A SLOW ONE, and it was slow.
     #
     # "Set a timer for ten minutes" took a planner round trip — 25-80

@@ -444,3 +444,19 @@ class SpokenOpenIsNotAlwaysTheWebCase(unittest.TestCase):
     def test_open_a_web_address_still_browses(self):
         out = voice.interpret("Thea, open example.com")
         self.assertEqual(out["command"]["kind"], "browse_read")
+
+
+class TheBriefsQuestionsReachTheRightAnswer(unittest.TestCase):
+    def test_what_do_you_need_from_me_is_what_is_waiting_not_setup(self):
+        # Said out loud it went to a twenty-second setup audit; typed, the same
+        # sentence got what is waiting on him. One sentence, one answer.
+        self.assertEqual(voice.interpret("Thea, what do you need from me?")["command"],
+                         {"kind": "intent", "text": "what do you need from me?"})
+        self.assertEqual(voice.interpret("what do you still need from me")["command"],
+                         {"kind": "setup_status"})
+
+    def test_where_are_you_with_a_project_is_not_a_lost_file(self):
+        for said in ("where are you with barkly", "where are we on the promo video"):
+            with self.subTest(said=said):
+                self.assertEqual(voice.interpret(said)["command"]["kind"], "intent")
+        self.assertEqual(voice.interpret("where is my lease")["command"]["kind"], "file_find")

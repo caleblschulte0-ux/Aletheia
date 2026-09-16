@@ -238,7 +238,7 @@ def job_hunt(now: dt.datetime | None = None) -> dict:
     for r in rows:
         if r.get("state") == "NEEDS_YOU":
             company, job = _name(r)
-            labels = [str(q.get("label") or "")[:80] for q in (r.get("questions") or [])
+            labels = [" ".join(str(q.get("label") or "").split())[:240] for q in (r.get("questions") or [])
                       if isinstance(q, dict)]
             waiting.append({"id": r.get("id"), "company": company, "job": job,
                             "why": "questions only you can answer",
@@ -810,7 +810,7 @@ def job_hunt_words(hunt: dict | None = None) -> str:
             bits.append(f"{today['blocked']} blocked")
         said = "Today: " + ", ".join(bits) + "."
         if hunt.get("blockers"):
-            named = [f"{b['company'] or b['job']} - {speech.shorten(b['reason'], 70)}"
+            named = [f"{said_name(b['company'], b['job'])} - {said_clause(b['reason'], 110)}"
                      for b in hunt["blockers"][:3]]
             said += " Blocked: " + "; ".join(named) + "."
         if today["replies"]:
@@ -834,6 +834,41 @@ def job_hunt_words(hunt: dict | None = None) -> str:
     return said
 
 
+def said_name(company: str, job: str) -> str:
+    """Who an application is with, sayable. A record with no employer name
+    carries its URL in `job`, and "https://jobs.smartrecruiters.com/oneclick-ui/
+    company/Keenfinity/publication/dad8a717..." was read out, whole, in a room."""
+    import re
+    from urllib.parse import urlparse
+    name = " ".join(str(company or "").split()) or " ".join(str(job or "").split())
+    if re.match(r"^https?://", name):
+        host = re.sub(r"^(?:www|jobs|boards|careers|apply|job-boards)\.", "",
+                      (urlparse(name).hostname or "").casefold())
+        return f"an opening on {host}" if host else "an opening"
+    return name or "an opening"
+
+
+def said_clause(text: str, limit: int = 80) -> str:
+    """A reason, cut where a CLAUSE ends rather than where the characters run
+    out: "nothing on this page asks for his name, email or phone, so it is not
+    an" was a real answer. Codes and class names out, machine paths out."""
+    import re
+    from aletheia import speech
+    said = speech.plainly(str(text or ""))
+    said = re.sub(r"\b(?:GET|POST|PUT|DELETE)\s+/\S+", "a request", said)
+    said = re.sub(r"https?://\S+", "a web page", said)
+    said = re.sub(r"\b[A-Z]\w*(?:Error|Exception|Warning):\s*", "", said)
+    said = " ".join(said.split()).strip(" .;")
+    if len(said) <= limit:
+        return said
+    for mark in (". ", "; ", ", so ", " so ", ", which "):
+        head = said[:limit]
+        at = head.rfind(mark)
+        if at >= limit // 3:
+            return said[:at].rstrip(" ,;:-")
+    return speech.shorten(said, limit)
+
+
 def wrong_today_words(hunt: dict | None = None) -> str:
     """What went wrong today: blocked applications and journal alerts."""
     from aletheia import recollection, speech
@@ -842,7 +877,7 @@ def wrong_today_words(hunt: dict | None = None) -> str:
     if not hunt.get("readable"):
         parts.append("I can't read my application records right now")
     elif hunt.get("blockers"):
-        named = [f"{b['company'] or b['job']} ({speech.shorten(b['reason'], 80)})"
+        named = [f"{said_name(b['company'], b['job'])} ({said_clause(b['reason'], 110)})"
                  for b in hunt["blockers"][:4]]
         parts.append(f"{_plural(len(hunt['blockers']), 'application')} blocked today: "
                      + "; ".join(named))
@@ -854,8 +889,14 @@ def wrong_today_words(hunt: dict | None = None) -> str:
     if not readable:
         parts.append("and I can't read my journal just now")
     elif trouble:
-        lines = [speech.shorten(str(t.get("what") or t.get("text") or ""), 90)
-                 for t in trouble[-3:]]
+        # Said once each: the same access refusal twice in a row is one fact.
+        lines: list[str] = []
+        for t in reversed(trouble):
+            line = said_clause(str(t.get("what") or t.get("text") or ""), 90)
+            if line and line not in lines:
+                lines.append(line)
+            if len(lines) == 3:
+                break
         parts.append(f"{_plural(len(trouble), 'alert')} in the journal today, the latest: "
                      + "; ".join(lines))
     if not parts:
@@ -875,9 +916,15 @@ def needs_from_him_words(hunt: dict | None = None) -> str:
         return ""
     named = []
     for w in waiting[:3]:
-        who = w["company"] or w["job"]
+        who = said_name(w["company"], w["job"])
         if w.get("questions"):
-            named.append(f"{who} asks {speech.and_list(w['questions'][:2])}")
+            # ONE question, and the count of the rest: a question label has
+            # commas in it, and `and_list` joins with commas, so two of them
+            # ran together into one sentence nobody could parse by ear.
+            first = said_clause(w["questions"][0], 140)
+            rest = len(w["questions"]) - 1
+            named.append(f"{who} asks “{first}”"
+                         + (f" and {speech.count_phrase(rest, 'more question')}" if rest else ""))
         else:
             named.append(f"{who} - {w['why']}")
     more = f", and {len(waiting) - 3} more" if len(waiting) > 3 else ""

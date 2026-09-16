@@ -464,6 +464,10 @@ def _not_a_file(said: str) -> bool:
         return True
     if low in _NOT_A_FILE:
         return True
+    # "Where are you with Barkly", "where are we on the promo video": a
+    # question about how far some work has got, never a lost file.
+    if re.match(r"(?:you|u|we|things|it) (?:at )?(?:with|on)\b|(?:you|u|we) at\b", low):
+        return True
     # "any unread emails", "my next meeting" — the store word anywhere in
     # a short phrase is enough, because none of those are filenames.
     words = low.split()
@@ -1309,8 +1313,13 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "contact_add", "name": m.group(1).strip(),
                             "email": m.group(2).strip()}, "say": None}
 
-    # "what do you still need from me?"
-    if re.fullmatch(r"(?:what do you (?:still )?need(?: from me)?|"
+    # "what do you still need from me?" - SETUP. Not the bare "what do you
+    # need from me": that is the brief's fourth question, about what is
+    # waiting on him (approvals, applications stopped on his answers), and
+    # `quick` answers it in a file read. Said out loud it was sent here
+    # instead, to a twenty-second live setup audit, while typing the same
+    # sentence got the answer he meant - two doors, two answers.
+    if re.fullmatch(r"(?:what do you still need(?: from me)?|"
                     r"what'?s left(?: to set up)?|am i done|"
                     r"what'?s still missing|setup status)", low):
         return {"command": {"kind": "setup_status"}, "say": None}

@@ -335,8 +335,18 @@ def _waiting() -> str:
         # paragraph with commas in it, and `and_list` joins with commas —
         # three of those ran together into one unbreathable sentence
         # ending "...is worth right now?: I don't ha,".
-        said = speech.and_list([speech.notice_line(n) for n in notices[:3]])
-        more = f", and {len(notices) - 3} more" if len(notices) > 3 else ""
+        # ONCE EACH, with how many. "Applications ready to approve,
+        # Applications ready to approve and Application sent" was a real
+        # answer: two batches, one title, said twice in one breath.
+        counted: dict[str, int] = {}
+        for notice in notices:
+            line = speech.notice_line(notice)
+            if line:
+                counted[line] = counted.get(line, 0) + 1
+        phrases = [line if n == 1 else f"{line} ({speech.count_phrase(n, 'time')})"
+                   for line, n in list(counted.items())[:3]]
+        said = speech.and_list(phrases)
+        more = f", and {len(counted) - 3} more" if len(counted) > 3 else ""
         parts.append(said + more if said else
                      f"{speech.count_phrase(len(notices), 'thing')} "
                      "I wanted to tell you about")

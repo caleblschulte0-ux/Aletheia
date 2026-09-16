@@ -499,5 +499,35 @@ class TheRoutesSitBehindTheSameGate(IsolatedStores):
         self.assertEqual(ctx.exception.code, 404)
 
 
+
+class AHandoffCardCanBeAnswered(unittest.TestCase):
+    """A card that said "approve or deny" had no way to do either: the buttons
+    lived on the approvals list further down. The card carries the approval
+    id now, and the page posts the SAME command the list does."""
+
+    def test_the_need_carries_its_approval_and_so_does_the_flat_list(self):
+        from aletheia import mission_sessions
+        now = dt.datetime.now(dt.timezone.utc)
+        record = {"id": "handoff-abc123def456", "state": "AWAITING_APPROVAL", "tool": "note",
+                  "consequence": "save a note", "approval": "handoff-abc123def456",
+                  "question": "why", "created_at": ago(1)}
+        card_ = mission_sessions.handoff_card(record, now)
+        self.assertEqual(card_["needs"][0]["approval"], "handoff-abc123def456")
+        flat = mc.needs_list([card_], [])
+        self.assertEqual(flat[0]["approval"], "handoff-abc123def456")
+
+    def test_a_card_with_nothing_to_approve_carries_no_approval(self):
+        self.assertIsNone(mc.needs_list([card(needs=[{"said": "x", "blocking": True}])], [])[0]["approval"])
+
+    def test_the_page_posts_the_existing_approve_and_deny_commands_and_nothing_new(self):
+        html = (Path(mc.__file__).resolve().parent.parent / "interface" / "command.html").read_text(encoding="utf-8")
+        self.assertIn("decisionButtons(n.approval)", html)
+        self.assertIn('{kind: "approve", id: k.dataset.approval}', html)
+        self.assertIn('{kind: "deny", id: k.dataset.approval', html)
+        # through `post`, which is /api/command - no second approval route
+        self.assertNotIn("/api/approve", html)
+        self.assertNotIn("/api/handoff", html)
+
+
 if __name__ == "__main__":
     unittest.main()
