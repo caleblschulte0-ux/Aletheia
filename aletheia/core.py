@@ -1173,6 +1173,19 @@ def main(argv: list[str] | None = None) -> int:
         except Exception:
             pass
     threading.Thread(target=warm_the_fast_lane, daemon=True).start()
+
+    def keep_her_memory_indexed():
+        # HER SEMANTIC INDEX, BUILT SOMEWHERE ELSE. This thread only waits and,
+        # when a run is due, starts `python -m aletheia.semantic_index build`
+        # as its own windowless below-normal-priority process with a time
+        # budget - so indexing can never hold a beat, a request or an answer.
+        try:
+            from aletheia import semantic_index
+            semantic_index.background_loop()
+        except Exception:
+            pass
+    threading.Thread(target=keep_her_memory_indexed, name="semantic-index",
+                     daemon=True).start()
     journal.append("event", "core", f"local Core up on {args.host}:{args.port}")
     print(f"Aletheia Core: http://{args.host}:{args.port}  "
           f"(wall at /, command center at /command.html) — Ctrl+C stops")

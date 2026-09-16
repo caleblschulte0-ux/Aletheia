@@ -98,6 +98,10 @@ class TheFlagsAgreeWithTheSetsTheyCameFrom(unittest.TestCase):
                 if tool.read_only:
                     continue
                 self.assertIsNone(tool.kind, "no intercom kind that writes is shown locally")
+                if tool.record_only:
+                    # A proposal record runs, and the row says it only writes that.
+                    self.assertIn("proposal record", row["runs"])
+                    continue
                 self.assertNotEqual(tool.approval, "none")
                 args = {k: "x" for k in tool.input_schema.get("required") or []}
                 self.assertNotEqual(broker.check(agent_session.ToolRequest(tool.name, args)).verdict,

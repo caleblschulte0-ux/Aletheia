@@ -1,5 +1,5 @@
 {
-  "revision": 116,
+  "revision": 117,
   "providers": [
     {
       "id": "aletheia.local",
@@ -156,6 +156,50 @@
       "approval_policy": "none",
       "caller": "CLI; brief.compose (last-24h section)",
       "module": "aletheia.journal"
+    },
+    {
+      "id": "memory.semantic",
+      "description": "Find related history by meaning - my code, docs, journal, past sessions, browser missions, applications, employers, notifications and commit messages - and say whether an answer is a fact from my records, history found by search, or a guess",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "AgentSession tool memory.recall (aletheia.memory_tools); python -m aletheia.semantic_index build|recall|status; the Core's semantic-index thread starts background builds",
+      "module": "aletheia.semantic_index",
+      "notes": "Wave 3b. SQLite FTS5 BM25 always; all-minilm embeddings through Ollama when it is running, filled under a time budget. Lexical fallback says so. Secrets: allowlisted sources only, sensitivity.scrub on every chunk, never the secret store. EXPERIMENTAL until the Core has kept a live index current on his PC."
+    },
+    {
+      "id": "self.diagnose",
+      "description": "Work out why something I tried failed or stopped: the record, similar past failures and fixes, the code that raised it - a wall outside the code or a bug in it, with the evidence and how sure I am",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "AgentSession tool self.diagnose (aletheia.memory_tools); python -m aletheia.self_diagnosis diagnose",
+      "module": "aletheia.self_diagnosis",
+      "notes": "Wave 3b. Rules classify with no model; a local model may refine only inside the gathered evidence; an optional stronger reviewer through reasoning_gateway is stored beside, never over. EXPERIMENTAL: exercised once against real records from a cloud-off session, not yet from the running Core."
+    },
+    {
+      "id": "repo.propose_patch",
+      "description": "Propose a fix to my own code as a private record - diagnosis, diff, suggested tests - that applies nothing",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "AgentSession tool repo.propose_patch (aletheia.memory_tools; a record, so a session may run it); python -m aletheia.self_diagnosis propose",
+      "module": "aletheia.self_diagnosis",
+      "notes": "Non-authoritative by construction: the brief's propose step. A proposal changes no code and is never branched, pushed or merged by being written."
+    },
+    {
+      "id": "repo.try_patch",
+      "description": "Try a proposed fix on a local branch in a throwaway copy of my code and run only the named tests there - never the running copy, never a push, never a merge",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "AgentSession tool repo.try_patch (aletheia.memory_tools; always handed off); python -m aletheia.self_diagnosis try",
+      "module": "aletheia.self_diagnosis",
+      "notes": "It executes code (the named tests), so it waits for him. self_diagnosis.assert_not_live refuses any worktree inside the checkout she runs from. Merging Aletheia's own code stays with him (project_merge refuses it)."
     },
     {
       "id": "goal.plan",

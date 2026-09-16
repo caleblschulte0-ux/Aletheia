@@ -123,10 +123,15 @@ class RepoToolsReadATrackedRepository(unittest.TestCase):
                                                "stash", "apply", "rm", "mv", "clean"))
 
 
+#: The brief's "propose" step: a record (runs) and a throwaway-worktree trial
+#: (handed off). Held by their own test below, not by the read-only rule.
+PROPOSING = {"repo.propose_patch", "repo.try_patch"}
+
+
 class TheRepoDescriptorsAreReadOnly(unittest.TestCase):
     def test_every_repo_tool_reads_and_the_local_model_sees_it(self):
         catalog = tools.catalog(fresh=True)
-        names = {n for n in catalog if n.startswith("repo.")}
+        names = {n for n in catalog if n.startswith("repo.")} - PROPOSING
         self.assertEqual(names, {"repo.list", "repo.search", "repo.read", "repo.symbol",
                                  "repo.status", "repo.diff", "repo.log"})
         for name in names:
@@ -142,9 +147,23 @@ class TheRepoDescriptorsAreReadOnly(unittest.TestCase):
         shown = {t["name"] for t in tools.for_model("local")["tools"]}
         self.assertTrue(names <= shown)
 
-    def test_no_change_or_patch_tool_exists_yet(self):
+    def test_no_change_or_pr_tool_exists_yet(self):
+        """Proposing is here (wave 3b); CHANGING her running code and opening a
+        pull request are still different privileges, and do not exist."""
         catalog = tools.catalog(fresh=True)
-        self.assertFalse({"repo.change", "repo.propose_patch", "repo.open_pr"} & set(catalog))
+        self.assertFalse({"repo.change", "repo.open_pr"} & set(catalog))
+
+    def test_proposing_never_runs_anything_but_a_record_inside_a_session(self):
+        from aletheia import agent_session
+        catalog = tools.catalog(fresh=True)
+        propose, trial = catalog["repo.propose_patch"], catalog["repo.try_patch"]
+        self.assertTrue(propose.record_only)
+        self.assertEqual(propose.writes, ("patch-proposals",))
+        self.assertFalse(trial.record_only)
+        self.assertEqual(trial.approval, "operator_once")
+        broker = agent_session.Broker(catalog, halted=lambda: False)
+        self.assertEqual(broker.check(agent_session.ToolRequest(
+            "repo.try_patch", {"proposal": "patch-x"})).verdict, agent_session.HANDOFF)
 
 
 if __name__ == "__main__":
