@@ -57,6 +57,11 @@ WAKE_CONFIDENCE_MIN = 0.70
 FOLLOWUP_WAIT_S = 105.0
 FOLLOWUP_POLL_S = 1.0
 FOLLOWUP_FAILURE = "I couldn't finish that answer. Please ask me again."
+#: The room stopped WAITING; she did not stop WORKING. With the subscriptions
+#: out, her own model can take minutes, the follow-up is still running, and its
+#: answer lands as a notification - so "I couldn't finish" would be untrue.
+FOLLOWUP_STILL_WORKING = ("This is taking me longer than I can wait for here. I'm still "
+                          "working on it, and the answer will be in your notifications.")
 BARE_WAKE_WINDOW_S = 8.0
 OUTPUT_TAIL_S = 0.55
 REPEAT_FAILURE_WINDOW_S = 20.0
@@ -405,6 +410,7 @@ def collect_followup(followup_id: str, core_url: str = CORE_URL,
     sleep = sleep or _time.sleep
     deadline = _time.monotonic() + wait_s
     spoken = 0
+    heard_running = False
     while _time.monotonic() < deadline:
         try:
             with urllib.request.urlopen(
@@ -428,8 +434,12 @@ def collect_followup(followup_id: str, core_url: str = CORE_URL,
             return payload.get("say")
         if payload.get("state") == "EXPIRED":
             return None
+        heard_running = True
         sleep(poll_s)
-    return None
+    # Out of patience while the Core still reports it running: say so, and do
+    # not acknowledge - the answer has not been heard yet. A Core that never
+    # answered at all proves nothing is coming, so that stays a failure.
+    return FOLLOWUP_STILL_WORKING if heard_running else None
 
 
 def acknowledge_followup(followup_id: str, core_url: str = CORE_URL) -> bool:
@@ -486,7 +496,7 @@ def launch_followup(followup_id: str, core_url: str, say,
         # Acknowledging a failed collection would consume an answer
         # nobody heard — the exact loss the pure-read GET exists to
         # prevent.
-        if later:
+        if later and later != FOLLOWUP_STILL_WORKING:
             acknowledge(followup_id, core_url)
 
     thread = threading.Thread(target=deliver, name=f"voice-{followup_id}",

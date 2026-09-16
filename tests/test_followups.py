@@ -188,6 +188,14 @@ class RoomCollectionCase(unittest.TestCase):
                 b'{"state": "PENDING", "say": null}'
             said = voice_room.collect_followup("fu-1", wait_s=0.05, poll_s=0.01,
                                                sleep=slept.append)
+        # It stops waiting; the answer is still running, so it says so rather
+        # than claiming it could not finish.
+        self.assertEqual(said, voice_room.FOLLOWUP_STILL_WORKING)
+
+    def test_a_core_that_never_answers_is_still_a_failure(self):
+        from aletheia import voice_room
+        with mock.patch.object(voice_room.urllib.request, "urlopen", side_effect=OSError("refused")):
+            said = voice_room.collect_followup("fu-9", wait_s=0.05, poll_s=0.01, sleep=lambda s: None)
         self.assertIsNone(said)
 
     def test_collect_followup_retries_a_core_restart(self):
@@ -236,3 +244,34 @@ class RoomCollectionCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TheRoomDoesNotSayItFailedWhenItOnlyStoppedWaiting(unittest.TestCase):
+    def setUp(self):
+        global voice_room
+        from aletheia import voice_room
+
+    def test_a_running_answer_past_the_wait_is_still_coming(self):
+        import io, json as _json
+        from unittest import mock as _mock
+        class Resp(io.BytesIO):
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+        running = lambda *a, **k: Resp(_json.dumps({"state": "RUNNING"}).encode())
+        clock = iter(range(0, 10_000, 50))
+        with _mock.patch.object(voice_room.urllib.request, "urlopen", running), \
+             _mock.patch("time.monotonic", lambda: next(clock)):
+            said = voice_room.collect_followup("f1", "http://x", wait_s=120, sleep=lambda s: None)
+        self.assertEqual(said, voice_room.FOLLOWUP_STILL_WORKING)
+        self.assertNotIn("couldn't", said)
+
+    def test_still_working_is_said_and_never_acknowledged(self):
+        spoken, acked = [], []
+        thread = voice_room.launch_followup(
+            "f2", "http://x", spoken.append,
+            collector=lambda fid, url: voice_room.FOLLOWUP_STILL_WORKING,
+            acknowledge=lambda fid, url: acked.append(fid))
+        thread.join(5)
+        self.assertEqual(spoken, [voice_room.FOLLOWUP_STILL_WORKING])
+        self.assertEqual(acked, [])
+
