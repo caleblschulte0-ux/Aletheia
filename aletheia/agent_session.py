@@ -325,6 +325,7 @@ Reply with exactly ONE JSON object, one of:
 {"handoff": "<what only Caleb can do, and why>", "answer": "<what you found>"}
 
 Rules:
+- Your first reply is a tool request: you know nothing about today until you look.
 - Use the fewest tools that answer the question, then answer.
 - Say only what an observation shows. If a tool failed or found nothing, say so.
 - Never say you did something no tool did. A REFUSED or HANDOFF request did not run;
@@ -506,6 +507,7 @@ class AgentSession:
         refused_again: dict[str, int] = {}
         seen_ok: dict[str, str] = {}
         invalid_in_a_row = 0
+        pushed_back = False
         tool_steps = 0
         # One more model call than tool steps: the last one must answer.
         for _call in range(self.max_steps + 1 + 2):
@@ -540,6 +542,20 @@ class AgentSession:
             invalid_in_a_row = 0
 
             if isinstance(reply, Final):
+                # AN ANSWER NOBODY LOOKED UP IS SENT BACK ONCE. The first
+                # real run (qwen3-vl:4b, 2026-09-16) answered "how did
+                # applications go today" with no tool call at all: twelve
+                # processed, three rejected, nine waiting - every number
+                # invented. Facts come from the stores; a model that has
+                # observed nothing is told so, and only if it insists is
+                # the answer kept, marked as a guess.
+                if tool_steps == 0 and not reply.handoff and steps_left > 0 and not pushed_back:
+                    pushed_back = True
+                    turns.append({"request": "YOU ANSWERED WITHOUT LOOKING ANYTHING UP.",
+                                  "observation": "NOT ACCEPTED: you have observed nothing, so "
+                                  "every fact in that answer is invented. Request the tool "
+                                  "that holds the answer first."})
+                    continue
                 return self._finish(reply)
 
             if steps_left <= 0:

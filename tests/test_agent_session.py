@@ -159,8 +159,19 @@ class TheLoop(unittest.TestCase):
         self.assertIn("UNTRUSTED CONTENT", text)
         self.assertTrue(result.receipts[0]["redacted"])
 
-    def test_an_answer_with_no_observation_is_a_guess_whatever_it_says(self):
-        result = session(scripted({"answer": "Everything is fine.", "basis": "looked"}), []).run()
+    def test_an_answer_with_no_observation_is_sent_back_once(self):
+        calls = []
+        think = scripted({"answer": "Twelve processed, three rejected."},
+                         {"tool": "state.now", "args": {}},
+                         {"answer": "Three sent."})
+        result = session(think, calls).run()
+        self.assertIn("NOT ACCEPTED", think.seen[1]["text"])
+        self.assertEqual(result.answer, "Three sent.")
+        self.assertEqual(result.basis, "looked")
+
+    def test_an_answer_that_insists_without_looking_is_kept_as_a_guess(self):
+        result = session(scripted({"answer": "Everything is fine.", "basis": "looked"},
+                                  {"answer": "Everything is fine.", "basis": "looked"}), []).run()
         self.assertEqual(result.outcome, s.ANSWERED)
         self.assertEqual(result.basis, "guessing")
         self.assertEqual(result.model_basis, "looked")
@@ -382,7 +393,7 @@ class TheCli(unittest.TestCase):
 
     def test_a_session_record_is_written_to_private_state(self):
         from aletheia import stateio
-        sess = session(scripted({"answer": "ok"}), [])
+        sess = session(scripted({"tool": "state.now", "args": {}}, {"answer": "ok"}), [])
         sess.record = True
         result = sess.run()
         path = stateio.private_dir("agent-sessions") / f"{result.id}.json"
