@@ -431,7 +431,10 @@ def _close_quietly(run_id: str, why: str) -> None:
 
 # What the record keeps about the JOB, beside what it keeps about the form.
 REMEMBERED = ("job_title", "company", "posting", "found_on", "answered_for_you", "fit",
-              "employment")
+              "employment",
+              # What the opening was WORTH and why (`job_value`), so "why this
+              # one?" is answered from the record.
+              "value", "queue", "why_she_liked_it", "why_not")
 # What an employer did about an application he sent, in his words. "No
 # answer yet" is not one: that is the absence of an outcome, not an outcome.
 OUTCOMES = ("replied", "interview", "offer", "rejected", "closed")

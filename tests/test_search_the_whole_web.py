@@ -558,6 +558,7 @@ class SharesTheSlots(Isolated):
     def test_a_real_search_asks_the_real_finder(self):
         with mock.patch.object(jobs, "_gather", return_value=([], [], 0)), \
              mock.patch.object(jobs, "_company_openings", return_value=[]), \
+             mock.patch.object(jobs, "_employer_openings", return_value=[]), \
              mock.patch.object(jobs, "discover_openings", return_value=[]), \
              mock.patch.object(wsj, "openings", return_value=[]) as real:
             jobs.search_many(["Account Manager"], limit=5, discover=True, country="United States")
