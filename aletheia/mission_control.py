@@ -176,8 +176,10 @@ class Provider:
 def registry() -> dict[str, Provider]:
     """Every registered mission-type provider, by type. Explicit on purpose:
     adding a type is a visible line here, not a module discovered by name."""
-    from aletheia import mission_jobs
-    providers = (mission_jobs.PROVIDER,)
+    from aletheia import mission_browser, mission_jobs, mission_sessions
+    # The job hunt is one type among them, not the screen: any browser goal
+    # and any request her sessions handed to him are cards of their own.
+    providers = (mission_jobs.PROVIDER, mission_browser.PROVIDER, mission_sessions.PROVIDER)
     return {p.type: p for p in providers}
 
 
@@ -552,6 +554,8 @@ def session_lines(sessions: Iterable[dict]) -> list[dict]:
         question = _words(session.get("question"), 120)
         looked = [s.get("tool") for s in (session.get("sources") or []) if isinstance(s, dict)]
         outcome = str(session.get("outcome") or "")
+        if outcome == "running":
+            continue            # still answering: its card says so, and it has done nothing yet
         if outcome == "answered":
             said = f"Answered “{question}”" + (f" after looking at {', '.join(looked[:3])}" if looked
                                                           else " without looking anything up")
@@ -724,6 +728,16 @@ def gather(now: dt.datetime | None = None, *, fresh: bool = False,
         shots.extend(part.get("screenshots") or [])
         details.update(part.get("details") or {})
 
+    # POWER, for every kind of work: a laptop that sleeps on battery silences
+    # all of it, so the header says so whatever is running.
+    working = bool(browser.get("active")) or any(m.get("status") == "RUNNING" for m in missions)
+    try:
+        from aletheia import power
+        power_signal = power.signal(derived.get("power"), working=working)
+    except Exception:
+        power_signal = None
+    if power_signal:
+        signals.append(power_signal)
     missions = order_missions(missions)
     unclaimed = [a for a in pending if str(a.get("id")) not in claims]
     lines = attempt("the activity ribbon", lambda: ribbon(

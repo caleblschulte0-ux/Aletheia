@@ -489,9 +489,11 @@ def build(reading: dict, ctx: dict) -> dict:
         blockers.append({"said": str(loop.get("said")), "since": loop.get("last_seen"), "source": "journal"})
 
     browser = ctx.get("browser") or {}
-    if browser.get("active"):
-        # The browser section is derived from the application records and
-        # the campaign lock today, so an active browser is this mission's.
+    # The browser is this mission's only when the browser section says it
+    # came from the application records: a browser goal for anything else
+    # (`browser_mission`) is its own card, and the job hunt must not claim it.
+    ours = browser.get("active") and browser.get("source", "applications") == "applications"
+    if ours:
         step = (str(browser.get("purpose") or "") + (f" - {browser['stage']}" if browser.get("stage") else "")
                 + (f" at {browser['site']}" if browser.get("site") else ""))
     elif hunt.get("running"):
@@ -519,7 +521,7 @@ def build(reading: dict, ctx: dict) -> dict:
         status=status, step=_words(step, 180), next=_next(status, hunt=hunt, loop=loop, say_time=say_time),
         blockers=blockers, needs=needs, needs_count=int(waiting["count"] or 0), counts=counts,
         receipts=receipts, updated=newest or loop.get("last_seen"), detail=True,
-        in_browser=bool(browser.get("active")), source="application records, campaign lock, journal"))
+        in_browser=bool(ours), source="application records, campaign lock, journal"))
 
     loop_age = _age_s(loop.get("last_seen"), now)
     loop_ok = loop.get("alive") is not False and not loop.get("stale")

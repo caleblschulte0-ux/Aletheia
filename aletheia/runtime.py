@@ -458,6 +458,43 @@ def _run_approved_intents(fleet: dict) -> list[dict]:
     return intents.run_approved(fleet)
 
 
+def _run_approved_handoffs() -> list[dict]:
+    """Requests her sessions handed to him, run once he approved them.
+
+    Off the beat's thread: an approved `browser.pursue` can take minutes on
+    somebody's website, and the beat also stamps the heartbeat. Cheap when
+    nothing is waiting, which is almost always."""
+    from aletheia import handoffs
+    waiting = handoffs.all_handoffs(handoffs.AWAITING) + handoffs.all_handoffs(handoffs.RUNNING)
+    if not waiting:
+        return []
+    return [{"handoffs": len(waiting), "started": handoffs.start_approved()}]
+
+
+def _working_now() -> bool:
+    """Is something she started actually running: a keep-awake hold, a
+    campaign batch, a browser goal mid-flight, an approved request."""
+    from aletheia import power
+    if power.holds():
+        return True
+    try:
+        from aletheia import current_state
+        now = dt.datetime.now(dt.timezone.utc)
+        lock = current_state.campaign_lock(now)
+        if lock and lock.get("running"):
+            return True
+        return bool(current_state.browser_missions(now).get("active"))
+    except Exception:
+        return False
+
+
+def _watch_power() -> list[dict]:
+    """Tell him once when the PC is on battery while she works, or low."""
+    from aletheia import power
+    seen = power.watch(working=_working_now())
+    return [{"power": seen["status"].get("said"), "told": seen["told"]}] if seen.get("told") else []
+
+
 def _run_authorized_errands() -> list[dict]:
     from aletheia import errands  # local: pulls in the browser stack
     return errands.run_authorized()
@@ -558,13 +595,16 @@ def _submit_in_its_own_process(run_id: str, runner=None,
     import subprocess
     import sys as _sys
     from aletheia import apply_run, proc
+    from aletheia import power
     timeout_s = SUBMIT_TIMEOUT_S if timeout_s is None else timeout_s
     args = [_sys.executable, "-m", "aletheia.apply_run", "submit", run_id]
     try:
-        if runner is not None:
-            done = runner(args, capture_output=True, text=True, timeout=timeout_s)
-        else:
-            done = proc.run_tree(args, timeout_s)
+        # The PC must not sleep under a press that is waiting on a browser.
+        with power.keep_awake(f"sending application {run_id}"):
+            if runner is not None:
+                done = runner(args, capture_output=True, text=True, timeout=timeout_s)
+            else:
+                done = proc.run_tree(args, timeout_s)
     except subprocess.TimeoutExpired:
         apply_run.settle_interrupted(
             run_id, f"the submit took longer than {int(timeout_s // 60)} minutes and was stopped")
@@ -858,6 +898,10 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # Errands he authorized: the last mile into the world, run here rather
     # than inside the sentence that asked for it.
     authorized_errands = guarded("errands", _run_authorized_errands)
+    # What her sessions handed to him and he approved: exactly that request,
+    # once, through every gate again (aletheia.handoffs).
+    approved_handoffs = guarded("handoffs", _run_approved_handoffs)
+    power_watch = guarded("power", _watch_power)
     room_devices = guarded("room", _observe_room)
     # Meetings arranging themselves across days (Phase 15): offers that have
     # really been delivered start waiting for a reply, accepted slots ask for
@@ -911,6 +955,8 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
         "events_processed": events_processed,
         "capability_gaps": capability_gaps,
         "approved_intents": approved_intents,
+        "approved_handoffs": approved_handoffs,
+        "power": power_watch,
         "web_tasks_pressed": web_tasks_pressed,
         "subscriptions_settled": subscriptions_settled,
         "bookings_settled": bookings_settled,
