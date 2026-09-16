@@ -223,17 +223,38 @@ def entries(path: Path | None = None) -> list[dict]:
         # reader's history.
         return list(cached[1])
     out = []
+    torn = 0
     for f in files:
         # utf-8-sig: tolerate a BOM from a Windows-side writer
         for line in f.read_text(encoding="utf-8-sig").splitlines():
             line = line.strip()
-            if line:
+            if not line:
+                continue
+            # A TORN LINE IS SKIPPED, NEVER FATAL. Live 2026-09-15 the laptop
+            # hit its low-battery sleep mid-write and left `.52"}` on one
+            # line; from then on every reader of the journal raised, and the
+            # Core's receipts check failed every beat for nineteen hours. The
+            # journal is append-only and never edited, so tolerance lives here.
+            try:
                 out.append(json.loads(line))
+            except ValueError:
+                torn += 1
     out.sort(key=lambda e: e.get("ts", ""))  # stable: same-file order kept
     if len(_PARSED) >= _PARSED_MAX:
         _PARSED.clear()
     _PARSED[key] = (signature, out)
+    _TORN[key] = torn
     return list(out)
+
+
+#: Unreadable lines seen in the last parse of each journal, by path. Counted,
+#: never hidden: "what went wrong" can say a line was lost.
+_TORN: dict[str, int] = {}
+
+
+def torn_lines(path: Path | None = None) -> int:
+    """How many lines of the journal could not be read on its last parse."""
+    return _TORN.get(str(path or JOURNAL_PATH), 0)
 
 
 def since(hours: float, path: Path | None = None) -> list[dict]:
