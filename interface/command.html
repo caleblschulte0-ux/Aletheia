@@ -114,7 +114,20 @@
   .turn.you::before{content:"YOU  ";font-family:var(--mono);font-size:.6rem;letter-spacing:.2em;color:var(--faint)}
   .turn.her::before{content:"THEA  ";font-family:var(--mono);font-size:.6rem;letter-spacing:.2em;color:var(--accent)}
 
-  /* job hunt control room */
+  /* missions: one generic card per thing she is pursuing */
+  .mission > .ct .tag{border:1px solid var(--line);border-radius:3px;padding:.1rem .35rem}
+  .mission.NEEDS-YOU > .ct .tag,.mission.PROPOSED > .ct .tag{color:var(--warn);border-color:rgba(217,165,63,.45)}
+  .mission.BLOCKED > .ct .tag{color:var(--bad);border-color:rgba(255,93,93,.45)}
+  .mission.RUNNING > .ct .tag{color:var(--ok);border-color:rgba(53,208,127,.45)}
+  .mission.WAITING > .ct .tag{color:var(--accent)}
+  .mission.DONE > .ct .tag,.mission.STOPPED > .ct .tag{color:var(--faint)}
+  .mission p.goal{color:var(--muted);font-size:.76rem}
+  .mission ul{margin:.2rem 0 0;padding-left:1.1rem;font-size:.78rem;line-height:1.45}
+  .mission .detail{margin-top:.6rem;border-top:1px solid var(--line);padding-top:.5rem}
+  .mission .detail[hidden]{display:none}
+  #today-said{color:var(--muted);font-size:.78rem;margin-top:.15rem}
+
+  /* the job hunt's detail view (one mission type's provider) */
   .pipe{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.35rem}
   .tile{display:flex;flex-direction:column;align-items:flex-start;gap:.15rem;text-align:left;
     padding:.5rem .45rem;border:1px solid var(--line);border-radius:3px;background:var(--panel2);
@@ -229,6 +242,7 @@
     <div class="said">
       <p id="doing">Reading her state…</p>
       <p id="next"><b>NEXT</b><span id="next-said"></span></p>
+      <p id="today-said"></p>
       <div class="signals" id="signals"></div>
     </div>
     <span id="needs-badge" class="needsbadge" hidden></span>
@@ -257,22 +271,21 @@
       <h2>Needs you <small id="needs-count"></small></h2>
       <h3 class="sub">Approvals</h3>
       <div id="approvals" class="empty">loading…</div>
-      <h3 class="sub">Applications waiting on you</h3>
-      <div id="needs-apps" class="empty">loading…</div>
+      <h3 class="sub">Missions waiting on you</h3>
+      <div id="needs-missions" class="empty">loading…</div>
       <h3 class="sub">Notifications</h3>
       <div id="notifications" class="empty">loading…</div>
       <h3 class="sub">Still needed to set up</h3>
       <div id="setup" class="empty">checking…</div>
     </section>
 
-    <section id="hunt">
-      <h2>Job hunt control room <small id="hunt-note"></small></h2>
-      <div class="pipe" id="pipeline" role="tablist" aria-label="Application pipeline"></div>
-      <div class="ramps" id="offramps"></div>
-      <div id="stage-note"></div>
-      <div id="cards"></div>
-      <h3 class="sub">Today's discovery</h3>
-      <div id="discovery" class="disc empty">loading…</div>
+    <!-- Missions: whatever she is pursuing, one card shape for all of them.
+         A mission type with more to show (the job hunt's pipeline) opens a
+         detail view registered in DETAIL_VIEWS below, matching the Core's
+         provider registry in aletheia/mission_control.py. -->
+    <section id="missions">
+      <h2>Missions <small id="missions-note"></small></h2>
+      <div id="mission-list" class="empty">loading…</div>
     </section>
   </div>
 
@@ -280,10 +293,6 @@
     <section id="eyes" class="eyes">
       <h2>Eyes <small id="eyes-note"></small></h2>
       <div id="eyes-body" class="empty">loading…</div>
-    </section>
-    <section>
-      <h2>Working on</h2>
-      <div id="tasks" class="empty">loading…</div>
     </section>
     <section>
       <h2>What she's been doing <small>newest first</small></h2>
@@ -555,6 +564,27 @@ function renderReceipt(r) {
       (s.provenance ? ` · ${esc(s.provenance)}` : "") + (s.duration_ms ? ` · ${esc(s.duration_ms)}ms` : "") +
       (s.reason ? ` — ${esc(s.reason)}` : ""));
     if (steps.length) html += `<div class="steps">${steps.join("<br>")}</div>`;
+  } else if (r.kind === "plan") {
+    const steps = (rec.steps || []).map(s =>
+      `${esc(s.n)}. [${esc(s.state)}] ${esc(s.owner || "thea")} — ${esc(s.text)}`);
+    html += kv([["plan", rec.slug], ["title", rec.title], ["goal", rec.goal], ["state", rec.state],
+                ["created", clock(rec.created)],
+                ["project", rec.project ? `${rec.project.repo || ""} @ ${rec.project.base_branch || ""}` : ""]]);
+    if (steps.length) html += `<div class="steps">${steps.join("<br>")}</div>`;
+  } else if (r.kind === "task") {
+    html += kv([["task", rec.id], ["what", rec.description], ["status", rec.status], ["goal", rec.goal],
+                ["attempts", rec.attempts], ["updated", clock(rec.updated_at)], ["deadline", rec.deadline],
+                ["result", rec.result], ["error", rec.error]]);
+  } else if (r.kind === "mission") {
+    html += kv([["mission", rec.id], ["kind", rec.kind], ["goal", rec.goal], ["state", rec.state],
+                ["budget", `${rec.actions_used || 0} of ${rec.max_actions || 0}`], ["expires", clock(rec.expires)],
+                ["ended", clock(rec.ended_at)], ["because", rec.ended_because]]);
+    const log = (rec.log || []).slice(-8).map(e => `${esc(clock(e.at))} — ${esc(e.entry)}`);
+    if (log.length) html += `<div class="steps">${log.join("<br>")}</div>`;
+  } else if (r.kind !== "journal") {
+    // a provider's receipt kind this page has no layout for: the facts, raw
+    const p = r.provenance || {};
+    html += kv([["kind", r.kind], ["id", r.id], ["model", p.model], ["basis", p.basis]]);
   } else {
     html += kv([["at", clock(rec.ts)], ["kind", rec.kind], ["subject", rec.subject],
                 ["actor", rec.actor], ["text", rec.text]]);
@@ -564,7 +594,7 @@ function renderReceipt(r) {
 }
 
 async function toggleReceipt(btn) {
-  const box = btn.closest(".ri, .card").querySelector(".rcpt");
+  const box = btn.closest(".ri, .card, .rowbox").querySelector(":scope > .rcpt");
   if (!box.hidden) { box.hidden = true; return; }
   box.hidden = false;
   box.textContent = "reading the receipt…";
@@ -589,7 +619,7 @@ async function shotURL(src) {
 }
 
 async function toggleShot(btn) {
-  const box = btn.closest(".card").querySelector(".shotbox");
+  const box = btn.closest(".card").querySelector(":scope > .shotbox");
   if (!box.hidden) { box.hidden = true; return; }
   box.hidden = false;
   box.textContent = "loading the screenshot…";
@@ -604,18 +634,26 @@ document.addEventListener("click", ev => {
   const s = ev.target.closest("[data-shot]");
   if (s) { toggleShot(s); return; }
   const t = ev.target.closest("[data-stage]");
-  if (t) { chosenStage = t.dataset.stage; paintHunt(lastMission); }
+  if (t) { chosenStage = t.dataset.stage; paintMissions(lastMission); return; }
+  const d = ev.target.closest("[data-detail]");
+  if (d) {
+    const id = d.dataset.detail;
+    if (openDetails.has(id)) openDetails.delete(id); else openDetails.add(id);
+    paintMissions(lastMission);
+  }
 });
 
 // ---- painters: mission state ---------------------------------------------
 let lastMission = null;
 let chosenStage = null;
+const openDetails = new Set();
 const STAGE_WORDS = {
   "DISCOVERED": "openings found today", "REVIEWED": "worth trying today",
   "APPLYING": "filling or sending", "NEEDS YOU": "waiting on you", "SENT": "sent, no reply yet",
   "REPLIED": "the employer answered", "INTERVIEW": "interview or offer",
   "STOPPED": "didn't send", "SET ASIDE": "decided against",
 };
+const TYPE_WORDS = {mission: "budgeted mission", charter: "project", plan: "plan", task: "task", job_hunt: "job hunt"};
 
 function paintHeader(m) {
   const h = m.header || {};
@@ -624,6 +662,7 @@ function paintHeader(m) {
   word.className = "word " + String(h.state || "IDLE").replace(" ", "-");
   $("doing").textContent = h.doing || "";
   $("next-said").textContent = h.next || "";
+  $("today-said").textContent = (h.today && h.today.said) || "";
   $("signals").innerHTML = (h.signals || []).map(s =>
     `<span class="sig ${s.ok ? "ok" : "bad"}">${esc(s.what)}: ${esc(s.said)}</span>`).join("") +
     (h.since ? `<span class="sig">since ${esc(clock(h.since))}</span>` : "") +
@@ -646,12 +685,62 @@ function paintOffline(err) {
     : "Can't reach the Core. Nothing below is current.";
   $("next-said").textContent = err && err.unauthorized ? "Link it, then this page fills in."
     : "Check the PC is on and the Core is running; this page retries every 15 seconds.";
+  $("today-said").textContent = "";
   const banner = $("banner");
   banner.textContent = lastMission ? `Last heard from her ${ago(lastMission.as_of)} (${clock(lastMission.as_of)}).` : "No state has loaded yet.";
   banner.hidden = false;
   document.body.classList.add("offline");
 }
 
+function receiptButton(rc, label) {
+  return rc && rc.kind && rc.id
+    ? `<button class="link" data-receipt data-kind="${esc(rc.kind)}" data-id="${esc(rc.id)}">${esc(label || "receipt")}</button>`
+    : "";
+}
+
+// The generic card: every mission, whatever it is about, answers the same
+// questions - status, what now, why stuck, what it needs, what's next.
+function missionHTML(c) {
+  const p = c.progress;
+  const meta = [TYPE_WORDS[c.type] || c.type,
+    p && p.total ? `${p.done} of ${p.total} ${p.unit || ""}`.trim() : "",
+    c.updated ? "updated " + clock(c.updated) : ""].filter(Boolean).join(" · ");
+  const needs = (c.needs || []).slice(0, 3);
+  const more = (c.needs_count || 0) > needs.length ? c.needs_count - needs.length : 0;
+  const counts = (c.counts || []).filter(x => x.n !== null && x.n !== undefined)
+    .map(x => `${esc(x.n)} ${esc(x.label)}`).join(" · ");
+  const open = openDetails.has(c.id);
+  const view = DETAIL_VIEWS[c.type] || genericDetail;
+  const detail = lastMission && lastMission.details ? lastMission.details[c.id] : null;
+  return `<article class="card mission ${esc(String(c.status).replace(" ", "-"))}">
+    <div class="ct"><b>${esc(c.title)}</b><span class="tag">${esc(c.status)}</span></div>
+    <div class="meta">${esc(meta)}</div>
+    ${c.goal && c.goal !== c.title ? `<p class="goal">${esc(c.goal)}</p>` : ""}
+    ${c.step ? `<p><em>Now</em>${esc(c.step)}</p>` : ""}
+    ${c.stuck ? `<p class="blk"><em>Why is this stuck?</em>${esc(c.stuck)}</p>` : ""}
+    ${needs.length ? `<p><em>${c.needs_count ? "Needs you" : "Yours when you get to it"}</em></p><ul>${needs.map(n =>
+        `<li>${esc(n.said)} ${receiptButton(n.receipt)}</li>`).join("")}${more ? `<li>and ${esc(more)} more</li>` : ""}</ul>` : ""}
+    ${c.next ? `<p><em>Next</em>${esc(c.next)}</p>` : ""}
+    ${counts ? `<div class="meta">${counts}</div>` : ""}
+    <div class="acts">
+      ${(c.receipts || []).map(rc => receiptButton(rc, rc.label || "receipt")).join("")}
+      <button class="link" data-detail="${esc(c.id)}" aria-expanded="${open}">${open ? "hide details" : "details"}</button>
+    </div>
+    <div class="rcpt" hidden></div>
+    <div class="detail" ${open ? "" : "hidden"}>${open ? view(c, detail) : ""}</div>
+  </article>`;
+}
+
+function genericDetail(c) {
+  const blockers = (c.blockers || []).map(b =>
+    `<li>${esc(b.said)}${b.source ? ` <span class="empty">(${esc(b.source)}${b.since ? ", since " + esc(clock(b.since)) : ""})</span>` : ""}</li>`).join("");
+  return kv([["mission", c.id], ["goal", c.goal], ["status", c.status], ["from", c.source]]) +
+    (blockers ? `<h3 class="sub">Blockers on record</h3><ul>${blockers}</ul>` : `<div class="empty">no blocker on record</div>`);
+}
+
+// ---- the job hunt's detail view -------------------------------------------
+// One mission type's provider (aletheia/mission_jobs.py). A new type adds an
+// entry to DETAIL_VIEWS; the home screen above does not change.
 function cardHTML(c) {
   const why = c.why_this_one;
   return `<article class="card">
@@ -670,9 +759,9 @@ function cardHTML(c) {
   </article>`;
 }
 
-function paintHunt(m) {
-  if (!m) return;
-  const p = m.pipeline || {stages: [], off_ramps: []};
+function jobHuntDetail(c, d) {
+  if (!d) return genericDetail(c);
+  const p = d.pipeline || {stages: [], off_ramps: []};
   const all = (p.stages || []).concat(p.off_ramps || []);
   const byStage = Object.fromEntries(all.map(s => [s.stage, s]));
   if (!chosenStage || !byStage[chosenStage]) {
@@ -684,37 +773,56 @@ function paintHunt(m) {
       <span class="n">${s.count === null || s.count === undefined ? "—" : esc(s.count)}</span>
       <span class="l">${esc(s.stage)}</span>
       <span class="t">${s.today ? "+" + esc(s.today) + " today" : "&nbsp;"}</span></button>`;
-  $("pipeline").innerHTML = (p.stages || []).map(tile).join("");
-  $("offramps").innerHTML = (p.off_ramps || []).map(tile).join("");
-  const hunt = m.job_hunt || {};
-  $("hunt-note").textContent = hunt.readable === false ? (hunt.note || "records unreadable")
-    : `${p.records || 0} records · ${hunt.running ? "hunt running" : "hunt not running"}` +
+  const hunt = d.hunt || {};
+  const note = hunt.readable === false ? (hunt.note || "records unreadable")
+    : `${p.records || 0} records · ${(d.loop && d.loop.said) || ""}` +
       (p.grant_live ? " · standing grant live" : " · no standing grant");
   const chosen = byStage[chosenStage] || {cards: []};
-  $("stage-note").textContent = `${chosenStage} — ${STAGE_WORDS[chosenStage] || ""}` +
+  const stageNote = `${chosenStage} — ${STAGE_WORDS[chosenStage] || ""}` +
     (chosen.count > (chosen.cards || []).length ? ` · newest ${(chosen.cards || []).length} of ${chosen.count}` : "") +
     (chosen.source && chosen.source !== "records" ? ` · ${chosen.source}` : "");
-  $("cards").innerHTML = (chosen.cards || []).length ? chosen.cards.map(cardHTML).join("")
+  const cards = (chosen.cards || []).length ? chosen.cards.map(cardHTML).join("")
     : `<div class="empty">${chosenStage === "DISCOVERED" || chosenStage === "REVIEWED"
         ? "Openings aren't records until she fills a form; see today's discovery below."
         : "nothing here"}</div>`;
-
-  const needs = byStage["NEEDS YOU"] || {cards: [], count: 0};
-  $("needs-apps").innerHTML = needs.count
-    ? needs.cards.slice(0, 4).map(cardHTML).join("") +
-      (needs.count > 4 ? `<div class="empty" style="margin-top:.5rem">${esc(needs.count - 4)} more in the control room below</div>` : "")
-    : `<div class="empty">no application is waiting on you</div>`;
-
-  const d = m.discovery || {};
+  const disc = d.discovery || {};
   const q = rows => rows.map(o => `<div class="q"><span class="v">${o.value !== undefined && o.value !== null ? esc(o.value) : ""}</span>` +
       `${o.url ? `<a href="${esc(o.url)}" target="_blank" rel="noopener noreferrer">${esc(o.title)}</a>` : esc(o.title)}` +
       `${o.company ? " at " + esc(o.company) : ""}${o.why ? `<span class="w">${esc(o.why)}</span>` : ""}</div>`).join("");
-  $("discovery").className = "disc";
-  $("discovery").innerHTML = `<p>${esc(d.said || "")}</p>` +
-    (d.day ? `<div class="empty" style="margin-top:.3rem">${esc(d.day)} · crawled ${esc(d.crawled || 0)} employers` +
-      (d.employers_new && d.employers_new.length ? ` · new: ${esc(d.employers_new.slice(0, 6).join(", "))}` : "") + `</div>` : "") +
-    ((d.outliers || []).length ? `<h3 class="sub">Outliers — unusually good</h3>${q(d.outliers)}` : "") +
-    ((d.best || []).length ? `<h3 class="sub">Best fit</h3>${q(d.best)}` : "");
+  return `<div class="empty" style="margin-bottom:.4rem">${esc(note)}</div>
+    <div class="pipe" role="tablist" aria-label="Application pipeline">${(p.stages || []).map(tile).join("")}</div>
+    <div class="ramps">${(p.off_ramps || []).map(tile).join("")}</div>
+    <div id="stage-note">${esc(stageNote)}</div>
+    ${cards}
+    <h3 class="sub">Today's discovery</h3>
+    <div class="disc"><p>${esc(disc.said || "")}</p>` +
+    (disc.day ? `<div class="empty" style="margin-top:.3rem">${esc(disc.day)} · crawled ${esc(disc.crawled || 0)} employers` +
+      (disc.employers_new && disc.employers_new.length ? ` · new: ${esc(disc.employers_new.slice(0, 6).join(", "))}` : "") + `</div>` : "") +
+    ((disc.outliers || []).length ? `<h3 class="sub">Outliers — unusually good</h3>${q(disc.outliers)}` : "") +
+    ((disc.best || []).length ? `<h3 class="sub">Best fit</h3>${q(disc.best)}` : "") + `</div>`;
+}
+
+//: mission type -> detail renderer. Mirrors mission_control.registry().
+const DETAIL_VIEWS = {job_hunt: jobHuntDetail};
+
+function paintMissions(m) {
+  if (!m) return;
+  const rows = m.missions || [];
+  const host = $("mission-list");
+  host.className = "";
+  host.innerHTML = rows.length ? rows.map(missionHTML).join("")
+    : `<div class="empty">She isn't pursuing anything right now: no open plan, task, mission or job hunt.</div>`;
+  const tally = {};
+  rows.forEach(c => { tally[c.status] = (tally[c.status] || 0) + 1; });
+  $("missions-note").textContent = rows.length
+    ? Object.entries(tally).map(([s, n]) => `${n} ${s.toLowerCase()}`).join(" · ") : "";
+  const waiting = (m.needs_you || []).filter(n => n.kind === "mission");
+  $("needs-missions").className = "";
+  $("needs-missions").innerHTML = waiting.length ? waiting.slice(0, 8).map(n =>
+    `<div class="rowbox"><div class="row"><div><div>${esc(n.said)}</div><div class="id">${esc(n.title)}</div></div>
+       ${receiptButton(n.receipt)}</div><div class="rcpt" hidden></div></div>`).join("") +
+    (waiting.length > 8 ? `<div class="empty" style="margin-top:.5rem">${esc(waiting.length - 8)} more on the missions below</div>` : "")
+    : `<div class="empty">no mission is waiting on you</div>`;
 }
 
 function paintEyes(m) {
@@ -772,7 +880,7 @@ async function refresh() {
     lastMission = m;
     paintHeader(m);
     if (!readingSomething()) {
-      paintHunt(m);
+      paintMissions(m);
       paintRibbon(m);
     }
     paintEyes(m);
@@ -811,12 +919,6 @@ async function refresh() {
       : `<div class="empty">nothing to surface</div>`;
     $("needs-count").textContent = `${pending.length} approvals · ${ns.length} unread`;
 
-    const ts = await api("/api/tasks");
-    const live = ts.filter(t => !["COMPLETED","CANCELLED","FAILED_TERMINAL"].includes(t.status));
-    $("tasks").innerHTML = live.length ? live.map(t =>
-      `<div class="row"><div><div>${esc(t.description)}</div><div class="id">${esc(t.id)}</div></div>
-       <span class="st ${esc(t.status)}">${esc(t.status)}</span></div>`).join("")
-      : `<div class="empty">no live tasks</div>`;
   } catch (e) {
     $("halt-state").textContent = e.unauthorized ? "NOT LINKED" : "CORE UNREACHABLE";
     $("halt-state").className = "halted";

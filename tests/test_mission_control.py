@@ -330,6 +330,12 @@ class IsolatedStores(unittest.TestCase):
         p = mock.patch.object(journal, "JOURNAL_PATH", root / "journal.jsonl")
         p.start()
         self.addCleanup(p.stop)
+        # approvals bind their directory at import: without this a test's
+        # pending approval leaks into every later test in the run
+        from aletheia import policy
+        p = mock.patch.object(policy, "APPROVALS_DIR", root / "approvals")
+        p.start()
+        self.addCleanup(p.stop)
         mc.forget_cache()
         self.addCleanup(mc.forget_cache)
         from aletheia import current_state
