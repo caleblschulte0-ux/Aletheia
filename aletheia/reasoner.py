@@ -179,6 +179,21 @@ def spoken_time(when: "dt.datetime") -> str:
     return clock if local.date() == today else f"{local.strftime('%A')} {clock}"
 
 
+def own_model_lead() -> str:
+    """The first words of any answer her own model wrote, ending in a space.
+
+    ONE implementation, for conversation and for her tool sessions alike: an
+    answer he trusts as Claude's and is not is the failure he cannot detect,
+    and two copies of this sentence would drift the day one is reworded.
+    """
+    until = resting_until()
+    if until:
+        return (f"Claude's out until {spoken_time(until)}, so this answer is "
+                "from my own model. ")
+    return ("Claude and ChatGPT can't answer right now, so this answer is from my "
+            "own model. ")
+
+
 def _rest(until: "dt.datetime", said: str) -> None:
     first = resting_until() is None
     path = _rest_path()

@@ -106,6 +106,15 @@ class ModelUnavailable(RuntimeError):
     """Nobody can think right now. Not a failure of the question."""
 
 
+class ModelReplyUnusable(RuntimeError):
+    """A model DID answer, in something that is not the protocol.
+
+    Not `ModelUnavailable`: somebody was there to think, and saying "nobody
+    could think" about a model that answered in prose sends him to start
+    Ollama when Ollama is running. The loop treats it like any unusable
+    reply - one more chance, then a model error."""
+
+
 # ---- requests and decisions ----------------------------------------------
 
 @dataclass(frozen=True)
@@ -474,6 +483,9 @@ class SessionResult:
     receipts: list = field(default_factory=list)
     sources: list = field(default_factory=list)
     model: str = ""
+    #: Who thought, call by call - provenance, never identity. A session that
+    #: starts on Claude and finishes on her own model says so here.
+    model_providers: list = field(default_factory=list)
     model_calls: int = 0
     model_seconds: list = field(default_factory=list)
     duration_s: float = 0.0
@@ -505,8 +517,17 @@ class AgentSession:
                  broker: Broker | None = None, max_steps: int = DEFAULT_STEPS,
                  audience: str = "local", tool_timeout_s: float = TOOL_TIMEOUT_S,
                  now_line: Callable[[], str] | None = None, record: bool = True,
-                 file_handoffs: bool | None = None):
+                 file_handoffs: bool | None = None,
+                 on_step: Callable[[str, dict], Any] | None = None,
+                 budget_s: float | None = None):
         self.question = " ".join(str(question or "").split())
+        # Told about each tool the broker lets run, BEFORE it runs, so a
+        # listener can say what she is looking at. Never trusted with anything.
+        self.on_step = on_step
+        # After this many seconds the model is told it has no tool calls left
+        # and must answer from what it has. None: no clock, only the step cap.
+        self.budget_s = budget_s
+        self._clock_started = time.monotonic()
         self.think = think
         self.catalog = catalog if catalog is not None else tools.catalog()
         self.audience = audience
@@ -548,6 +569,7 @@ class AgentSession:
 
     def run(self) -> SessionResult:
         started = time.monotonic()
+        self._clock_started = started
         res = self.result
         try:
             if not self.question:
@@ -581,10 +603,26 @@ class AgentSession:
         # One more model call than tool steps: the last one must answer.
         for _call in range(self.max_steps + 1 + 2):
             steps_left = self.max_steps - tool_steps
+            out_of_time = (self.budget_s is not None
+                           and time.monotonic() - self._clock_started >= self.budget_s)
+            if out_of_time:
+                # HE IS WAITING. Past the budget the model answers from what
+                # it has rather than looking further; the transcript says so.
+                steps_left = 0
             text = self._transcript(turns, steps_left)
             t0 = time.monotonic()
             try:
                 output, provider = self.think(system, text)
+            except ModelReplyUnusable as exc:
+                res.model_seconds.append(round(time.monotonic() - t0, 1))
+                invalid_in_a_row += 1
+                if invalid_in_a_row >= 2:
+                    res.outcome, res.note = MODEL_ERROR, f"the model twice failed to reply in the protocol: {exc}"
+                    return res
+                turns.append({"request": "YOUR LAST REPLY WAS NOT USABLE.",
+                              "observation": 'PROBLEM: it was not one JSON object. Reply with {"tool": ..., '
+                              '"args": {...}}, {"answer": ...} or {"handoff": ...} and nothing else.'})
+                continue
             except ModelUnavailable as exc:
                 # The attempt still cost time, and a receipt that says zero
                 # calls after ninety seconds hides where the time went.
@@ -598,6 +636,7 @@ class AgentSession:
             res.model_calls += 1
             res.model_seconds.append(round(time.monotonic() - t0, 1))
             res.model = provider or res.model
+            res.model_providers.append(provider or "")
             reply = parse_reply(output)
 
             if isinstance(reply, Invalid):
@@ -629,7 +668,8 @@ class AgentSession:
 
             if steps_left <= 0:
                 res.outcome = STEP_CAP
-                res.note = f"the model still wanted {reply.tool} after {self.max_steps} tool calls"
+                res.note = (f"the model still wanted {reply.tool} after its time ran out" if out_of_time
+                            else f"the model still wanted {reply.tool} after {self.max_steps} tool calls")
                 return res
 
             tool_steps += 1
@@ -672,6 +712,11 @@ class AgentSession:
                 continue
 
             tool = self.catalog[reply.tool]
+            if self.on_step is not None:
+                try:
+                    self.on_step(tool.name, dict(reply.args))
+                except Exception:                                      # noqa: BLE001
+                    pass          # narration must never cost an observation
             t1 = time.monotonic()
             outcome, result = execute(tool, reply.args, timeout_s=self.tool_timeout_s,
                                       quote=self.question)
@@ -779,6 +824,90 @@ class AgentSession:
 
 # ---- the model -------------------------------------------------------------
 
+#: What a local failure says when the model ANSWERED in the wrong shape, as
+#: opposed to not answering at all. `local_model_pool` folds both into one
+#: exception class, so the words are the only place the difference survives.
+_WRONG_SHAPE = re.compile(
+    r"returned no JSON object|truncated JSON|invalid JSON|must be a JSON object|"
+    r"missing message\.content|\((?:ValueError|TypeError)\)")
+
+
+def _validate_object(value):
+    if not isinstance(value, dict):
+        raise ValueError("reply must be an object")
+    return value
+
+
+def _ask_own_model(system: str, text: str, timeout_s: float) -> tuple[dict, str]:
+    """One call to her own fast model. Raises ModelReplyUnusable for a reply
+    in the wrong shape; LocalPoolUnavailable when nobody answered."""
+    from aletheia import local_model_pool
+    try:
+        run = local_model_pool.run_json(system, text, role="fast", validator=_validate_object,
+                                        timeout_s=max(0.5, min(timeout_s, 300.0)),
+                                        think_override=False)
+    except local_model_pool.LocalPoolUnavailable as exc:
+        if _WRONG_SHAPE.search(str(exc)):
+            raise ModelReplyUnusable(str(exc)) from None
+        raise
+    return run.output, f"ollama:{run.model}"
+
+
+#: One subscription step. Claude answers in ~4-8 s; the budget is for the
+#: ChatGPT browser rung behind it.
+SUBSCRIPTION_TIMEOUT_S = 90.0
+
+
+def chain_think(*, timeout_s: float = LOCAL_TIMEOUT_S,
+                subscription_timeout_s: float = SUBSCRIPTION_TIMEOUT_S,
+                on_switch: Callable[[str], Any] | None = None) -> Think:
+    """The live path's thinker: the existing chain for work that is not code.
+
+    Subscriptions first (`reasoner`: Claude, then the ChatGPT browser session
+    when he is there), her own model when they cannot answer. The broker, not
+    the model, holds authority, so a subscription model choosing tools is
+    fine - and it is five times faster than her own on this laptop.
+
+    STICKY for one session. Once the subscriptions could not answer, the rest
+    of this session goes straight to her own model: every step would
+    otherwise pay the failed round trip again to learn the same thing.
+    `on_switch` is told once, in words, when that happens.
+    """
+    fell: dict[str, str] = {}
+
+    def think(system: str, text: str) -> tuple[dict, str]:
+        from aletheia import local_model_pool, model_pool_config, reasoner
+        if "why" not in fell:
+            try:
+                value, provider = reasoner._subscription_json_with_provider(
+                    system, text, context=None, model=reasoner.PLAN_MODEL,
+                    timeout_s=subscription_timeout_s, validator=_validate_object)
+                return value, provider
+            except reasoner.ReasonerUnavailable as exc:
+                fell["why"] = str(exc) or type(exc).__name__
+            except ValueError as exc:
+                # A subscription that answered in the wrong shape answered.
+                raise ModelReplyUnusable(str(exc)[:200]) from None
+            if on_switch is not None:
+                try:
+                    until = reasoner.resting_until()
+                    lead = (f"Claude's out until {reasoner.spoken_time(until)}" if until
+                            else "Claude and ChatGPT can't answer right now")
+                    on_switch(f"{lead}, so I'm thinking this through with my own model. "
+                              "It's slower.")
+                except Exception:                                      # noqa: BLE001
+                    pass
+        if not (model_pool_config.enabled() and local_model_pool.reachable()):
+            mine = ("my own model is switched off" if not model_pool_config.enabled()
+                    else "my own model is not running")
+            raise ModelUnavailable(f"{fell['why']}; and {mine}")
+        try:
+            return _ask_own_model(system, text, timeout_s)
+        except local_model_pool.LocalPoolUnavailable as exc:
+            raise ModelUnavailable(f"{fell['why']}; and my own model could not answer ({exc})") from None
+    return think
+
+
 def local_think(*, local_only: bool = True, timeout_s: float = LOCAL_TIMEOUT_S) -> Think:
     """Her own model through the existing pool (`local_model_pool.run_json`:
     the memory check, the Ollama transport, the training capture). With
@@ -787,17 +916,10 @@ def local_think(*, local_only: bool = True, timeout_s: float = LOCAL_TIMEOUT_S) 
     def think(system: str, text: str) -> tuple[dict, str]:
         from aletheia import local_model_pool, model_pool_config, reasoner
 
-        def validate(value):
-            if not isinstance(value, dict):
-                raise ValueError("reply must be an object")
-            return value
         local_failure = None
         if model_pool_config.enabled() and local_model_pool.reachable():
             try:
-                run = local_model_pool.run_json(system, text, role="fast", validator=validate,
-                                                timeout_s=max(0.5, min(timeout_s, 300.0)),
-                                                think_override=False)
-                return run.output, f"ollama:{run.model}"
+                return _ask_own_model(system, text, timeout_s)
             except local_model_pool.LocalPoolUnavailable as exc:
                 local_failure = str(exc)
         else:
@@ -807,7 +929,7 @@ def local_think(*, local_only: bool = True, timeout_s: float = LOCAL_TIMEOUT_S) 
             raise ModelUnavailable(local_failure)
         try:
             output = reasoner.subscription_json(system, text, timeout_s=min(timeout_s, 120.0),
-                                                validator=validate)
+                                                validator=_validate_object)
             return output, "subscription.auto"
         except reasoner.ReasonerUnavailable as exc:
             raise ModelUnavailable(f"{local_failure}; and the subscriptions could not answer ({exc})") from None
