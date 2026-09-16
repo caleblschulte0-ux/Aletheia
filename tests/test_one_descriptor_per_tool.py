@@ -84,11 +84,25 @@ class TheFlagsAgreeWithTheSetsTheyCameFrom(unittest.TestCase):
         shown = {t["name"] for t in tools.for_model("planner")["tools"]}
         self.assertEqual(shown & intercom.PLANNER_FORBIDDEN, set())
 
-    def test_the_local_model_sees_only_read_only_tools(self):
+    def test_the_local_model_sees_only_tools_that_read_or_are_handed_off(self):
+        """What it may RUN is reads. A declared tool that writes (the browser
+        goal loop) may be SHOWN so she can ask for it - the brief's "becomes a
+        handoff inside AgentSession" - and then the broker, not the catalog,
+        is what stops it, and the row tells the model it will not run."""
+        from aletheia import agent_session
+        broker = agent_session.Broker(self.catalog, halted=lambda: False)
         for row in tools.for_model("local")["tools"]:
+            tool = self.catalog[row["name"]]
             with self.subTest(tool=row["name"]):
-                self.assertTrue(self.catalog[row["name"]].read_only)
-                self.assertTrue(row["read_only"])
+                self.assertEqual(row["read_only"], tool.read_only)
+                if tool.read_only:
+                    continue
+                self.assertIsNone(tool.kind, "no intercom kind that writes is shown locally")
+                self.assertNotEqual(tool.approval, "none")
+                args = {k: "x" for k in tool.input_schema.get("required") or []}
+                self.assertNotEqual(broker.check(agent_session.ToolRequest(tool.name, args)).verdict,
+                                    agent_session.RUN)
+                self.assertIn("never run", row["runs"])
         # and it does see the three that answer questions about her state
         names = {t["name"] for t in tools.for_model("local")["tools"]}
         self.assertTrue({"state.now", "applications.query", "journal.query"} <= names)
