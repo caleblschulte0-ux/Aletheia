@@ -159,6 +159,26 @@ class TheOrderIsTheSafetyArgument(unittest.TestCase):
         said = intents.spoken(record)
         self.assertTrue(said.startswith("I couldn't look into that just now"), said)
         self.assertNotIn("ModelUnavailable", said)
+        # The first live run read the log note out, file path and all.
+        for machine in ("receipts", ".json", "\\", "neither Claude nor"):
+            self.assertNotIn(machine, said)
+
+    def test_a_model_that_goes_away_mid_session_gets_the_old_path(self):
+        think = scripted({"tool": "applications.query", "args": {}},
+                         agent_session.ModelUnavailable("Claude reasoning timed out after 90s"))
+        with mock.patch.object(apply_run, "all_runs", return_value=[]), \
+                mock.patch.object(agent_session, "chain_think", return_value=think), \
+                mock.patch.object(converse, "answer", return_value={"answer": "From conversation."}):
+            record = intents.propose("why is the job hunt stopped", fleet=FLEET)
+        self.assertEqual(intents.spoken(record), "From conversation.")
+
+    def test_the_live_chain_is_given_the_rooms_deadline(self):
+        with mock.patch.object(agent_session, "chain_think",
+                               return_value=scripted({"answer": "x"}, {"answer": "x"})) as chain, \
+                mock.patch.object(converse, "remember_exchange"):
+            investigate.propose("is anything stuck", report=lambda line: None)
+        self.assertEqual(chain.call_args.kwargs["deadline_s"],
+                         investigate.LIVE_BUDGET_S + investigate.DEADLINE_GRACE_S)
 
 
 class WhatTheRoomHears(unittest.TestCase):

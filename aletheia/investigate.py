@@ -47,6 +47,8 @@ LIVE_STEPS = 5
 #: After this long the model is told to answer from what it has. A spoken
 #: follow-up is collected for ~105 s; subscriptions answer well inside that.
 LIVE_BUDGET_S = 80.0
+#: The last call after the budget still needs time to answer.
+DEADLINE_GRACE_S = 15.0
 
 # ---- which sentences -------------------------------------------------------
 
@@ -288,11 +290,28 @@ def spoken_answer(result) -> str:
     return said
 
 
-def _unavailable_words(note: str) -> str:
-    from aletheia import speech
-    why = speech.plainly(str(note or ""))[:200].rstrip(" .;")
-    return ("I couldn't look into that just now: nobody could think it through"
-            + (f" ({why})" if why else "") + ". Ask me again in a bit.")
+def _unavailable_words() -> str:
+    """Nobody could think, IN WORDS, from the state rather than the log line.
+
+    The first talk run read the note out: "(neither Claude nor the ChatGPT
+    browser could answer just now; and my own model is switched off receipts:
+    C:\\Users\\...\\agent-sessions\\.json)" - a status line and a file path, in
+    a room. The note stays in the session record, where it belongs.
+    """
+    try:
+        from aletheia import local_model_pool, model_pool_config, reasoner
+        until = reasoner.resting_until()
+        cloud = (f"Claude's out until {reasoner.spoken_time(until)}" if until
+                 else "Claude couldn't answer")
+        if not model_pool_config.enabled():
+            mine = "my own model is switched off"
+        elif not local_model_pool.reachable():
+            mine = "my own model isn't running"
+        else:
+            mine = "my own model couldn't answer either"
+        return f"I couldn't look into that just now: {cloud}, and {mine}. Ask me again in a bit."
+    except Exception:
+        return "I couldn't look into that just now: nobody could think it through. Ask me again in a bit."
 
 
 def propose(request: str, *, quote: str = "", think=None, report: Callable[[str], object] | None = None,
@@ -306,15 +325,18 @@ def propose(request: str, *, quote: str = "", think=None, report: Callable[[str]
         return None
     from aletheia import agent_session, converse, journal, stateio
     report = report or _report
-    think = think or agent_session.chain_think(on_switch=report)
+    think = think or agent_session.chain_think(on_switch=report, deadline_s=budget_s + DEADLINE_GRACE_S)
     session = agent_session.AgentSession(request, think=think, max_steps=max_steps,
                                          on_step=_narrator(report), budget_s=budget_s)
     result = session.run()
     outcome = result.outcome
     if outcome in (agent_session.ANSWERED, agent_session.HANDED_OFF, agent_session.REFUSED_AT_DOOR):
         said = spoken_answer(result)
-    elif outcome == agent_session.MODEL_UNAVAILABLE:
-        said = _unavailable_words(result.note)
+    elif outcome == agent_session.MODEL_UNAVAILABLE and not result.model_calls:
+        # Nobody could think from the first call: say so, in words. A model
+        # that went away MID-session (a Claude call that hung after four good
+        # ones) is more likely a blip, and the old path gets its own try.
+        said = _unavailable_words()
     else:
         said = ""
     if not said:

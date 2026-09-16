@@ -488,6 +488,19 @@ class TheLiveChain(unittest.TestCase):
         self.assertEqual(len(switched), 1)
         self.assertIn("my own model", switched[0])
 
+    def test_a_late_call_is_capped_at_what_is_left_but_never_below_the_floor(self):
+        from aletheia import reasoner
+        with mock.patch.object(reasoner, "_subscription_json_with_provider",
+                               return_value=({"answer": "hi"}, "claude.cli:sonnet")) as cloud:
+            s.chain_think(deadline_s=0)("sys", "text")
+            s.chain_think(deadline_s=40)("sys", "text")
+            s.chain_think()("sys", "text")
+        budgets = [c.kwargs["timeout_s"] for c in cloud.call_args_list]
+        self.assertEqual(budgets[0], s.MIN_SUBSCRIPTION_S)
+        self.assertLessEqual(budgets[1], 40)
+        self.assertGreater(budgets[1], 30)
+        self.assertEqual(budgets[2], s.SUBSCRIPTION_TIMEOUT_S)
+
     def test_nobody_at_all_is_model_unavailable_in_words(self):
         from aletheia import model_pool_config, reasoner
         with mock.patch.object(reasoner, "_subscription_json_with_provider",

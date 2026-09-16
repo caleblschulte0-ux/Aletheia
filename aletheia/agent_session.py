@@ -856,12 +856,20 @@ def _ask_own_model(system: str, text: str, timeout_s: float) -> tuple[dict, str]
 #: One subscription step. Claude answers in ~4-8 s; the budget is for the
 #: ChatGPT browser rung behind it.
 SUBSCRIPTION_TIMEOUT_S = 90.0
+#: However late it is, one call gets at least this long: a Claude round trip
+#: is ~4-8 s, and a shorter cap would fail calls that were about to answer.
+MIN_SUBSCRIPTION_S = 15.0
 
 
 def chain_think(*, timeout_s: float = LOCAL_TIMEOUT_S,
                 subscription_timeout_s: float = SUBSCRIPTION_TIMEOUT_S,
-                on_switch: Callable[[str], Any] | None = None) -> Think:
+                on_switch: Callable[[str], Any] | None = None,
+                deadline_s: float | None = None) -> Think:
     """The live path's thinker: the existing chain for work that is not code.
+
+    `deadline_s` (seconds from now) caps each subscription call at what is
+    left of it: the first live run had one Claude step hang for 92 seconds
+    after four that took five, and the whole answer missed the room.
 
     Subscriptions first (`reasoner`: Claude, then the ChatGPT browser session
     when he is there), her own model when they cannot answer. The broker, not
@@ -874,14 +882,18 @@ def chain_think(*, timeout_s: float = LOCAL_TIMEOUT_S,
     `on_switch` is told once, in words, when that happens.
     """
     fell: dict[str, str] = {}
+    ends = None if deadline_s is None else time.monotonic() + float(deadline_s)
 
     def think(system: str, text: str) -> tuple[dict, str]:
         from aletheia import local_model_pool, model_pool_config, reasoner
         if "why" not in fell:
+            budget = subscription_timeout_s
+            if ends is not None:
+                budget = max(MIN_SUBSCRIPTION_S, min(budget, ends - time.monotonic()))
             try:
                 value, provider = reasoner._subscription_json_with_provider(
                     system, text, context=None, model=reasoner.PLAN_MODEL,
-                    timeout_s=subscription_timeout_s, validator=_validate_object)
+                    timeout_s=budget, validator=_validate_object)
                 return value, provider
             except reasoner.ReasonerUnavailable as exc:
                 fell["why"] = str(exc) or type(exc).__name__
