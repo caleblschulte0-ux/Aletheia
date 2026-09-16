@@ -156,7 +156,7 @@ TOOLS = (
         input_schema={"properties": {"proposal": {"type": "string"},
                                      "tests": {"type": ["array", "string"]}},
                       "required": ["proposal"]},
-        handler=try_patch, capability="repo.propose_patch", risk=intercom.TIER_ROUTINE,
+        handler=try_patch, capability="repo.try_patch", risk=intercom.TIER_ROUTINE,
         writes=("patch-proposals", "git-branches"), idempotent=False, approval="operator_once",
         reads=("repository",), provenance=tools.TRUSTED_TOOL_OUTPUT,
         notes="executes code (the named tests) in a separate worktree; never the live checkout, never a push"),
