@@ -70,13 +70,89 @@ WIDGET_SELECTORS = ("#iti-", "#g-recaptcha-response", "#recaptcha",
                     "#h-captcha-response", "#hcaptcha")
 
 
+#: The box an anti-bot widget writes its token into, and the traps a form sets
+#: for bots. Live 2026-09-14 Palantir's Lever form: hCaptcha's
+#: `textarea[name="h-captcha-response"]` was read from INSIDE the captcha's own
+#: frames as "@frame1|textarea[...]" - and the prefix test above reads the
+#: start of the selector, which was "@frame1|". So it went to him twice as "a
+#: written answer", and a model-written essay about Palantir was keyed to it to
+#: be typed in. Matched on the name, the id or the selector ANYWHERE, frame tag
+#: or not: no employer names a question "h-captcha-response".
+ANTI_BOT_NAME = re.compile(
+    r"(?:^|[^a-z0-9])(?:h-captcha-response|g-recaptcha-response|cf-turnstile-response"
+    r"|frc-captcha-solution|fc-token|arkose[-_]token|captcha[-_]?(?:response|token|solution)"
+    r"|honeypot|honey[-_]pot|bot[-_]field|_gotcha|leave[-_]this[-_](?:field[-_])?(?:blank|empty))",
+    re.I)
+
+#: Frames that belong to a bot check rather than to the employer. Everything
+#: read inside one is the check's own furniture - live, hCaptcha's language
+#: picker (`#language-list`, named "EN") went to him as a multiple-choice
+#: question with 39 languages.
+ANTI_BOT_FRAME = re.compile(
+    r"hcaptcha\.com|/recaptcha/|recaptcha\.net|challenges\.cloudflare\.com"
+    r"|arkoselabs\.com|funcaptcha\.com|friendlycaptcha\.(?:com|eu)|captcha-delivery\.com",
+    re.I)
+
+
+def _bare_selector(selector) -> str:
+    """A selector without the frame it was read in."""
+    text = str(selector or "")
+    match = re.match(r"^@frame\d+\|(.*)$", text, re.S)
+    return match.group(1) if match else text
+
+
+def is_anti_bot(field: dict) -> bool:
+    """A CAPTCHA's token box, a honeypot, or anything read inside a bot check.
+
+    Never a question and never a place to type. The CAPTCHA itself stays his:
+    `apply_run` still marks the form as carrying one, and she solves nothing.
+    """
+    if field.get("anti_bot"):
+        return True
+    if ANTI_BOT_FRAME.search(str(field.get("frame_url") or "")):
+        return True
+    blob = " ".join(str(field.get(k) or "") for k in ("name", "id"))
+    return bool(ANTI_BOT_NAME.search(blob) or ANTI_BOT_NAME.search(
+        _bare_selector(field.get("selector")).replace("\\", "")))
+
+
+#: Types a person types into. A hidden one of these is a trap or a token box;
+#: a hidden checkbox, radio, file input or <select> is usually the real control
+#: behind a styled widget, and is left to the rules that already handle those.
+TYPED_TYPES = ("text", "email", "tel", "url", "number", "search", "textarea", "")
+
+
+def is_unseen_text_box(field: dict) -> bool:
+    """A box to type in that a person cannot see: display:none, zero-size, or
+    pushed off the page. A honeypot is built exactly this way, and no employer
+    asks him a question he cannot see. `hidden` is set by READ_FORM_JS."""
+    return (field.get("hidden") is True and field.get("tag") in ("input", "textarea")
+            and str(field.get("type") or "") in TYPED_TYPES)
+
+
+ANTI_BOT_WHY = ("part of the page's bot check (a CAPTCHA or a trap for bots), not a "
+                "question - she never types into one, and the check itself stays yours")
+
+#: The name/date lines under a voluntary self-identification form - Lever's
+#: `eeo[disabilitySignature]` and `eeo[disabilitySignatureDate]`, labelled only
+#: "Name" and "Date". Live 2026-09-14 both reached him from Palantir as
+#: questions, with no hint of what they sign.
+_SELF_ID_SIGNATURE = re.compile(
+    r"(?=.*signature)(?=.*(?:eeo|disabilit|veteran|self[-_ ]?id|voluntary))", re.I | re.S)
+
+
+def _is_self_id_signature(field: dict) -> bool:
+    return bool(_SELF_ID_SIGNATURE.search(
+        " ".join(str(field.get(k) or "") for k in ("name", "id", "selector"))))
+
+
 def is_widget_furniture(field: dict) -> bool:
     """The inside of a picker or a captcha, not something he was asked."""
-    selector = str(field.get("selector") or "").casefold()
+    selector = _bare_selector(field.get("selector")).casefold()
     if any(selector.startswith(prefix) for prefix in WIDGET_SELECTORS):
         return True
     name = str(field.get("name") or field.get("id") or "").casefold()
-    return name.startswith("g-recaptcha-response")
+    return name.startswith("g-recaptcha-response") or is_anti_bot(field)
 
 # The JS that runs in the page. Reading a form means reading what a PERSON
 # sees, so the label matters more than the name attribute: `q_31415926` is
@@ -211,6 +287,17 @@ READ_FORM_JS = r"""() => {
     }
     return '';
   };
+  const unseen = (el) => {
+    try {
+      const style = getComputedStyle(el);
+      if (style.visibility === 'hidden' || style.visibility === 'collapse') return true;
+      if (!el.getClientRects().length) return true;        // display:none, here or above
+      const r = el.getBoundingClientRect();
+      if (r.width <= 1 && r.height <= 1) return true;       // a 0x0 or 1x1 box
+      if (r.right + window.scrollX <= 0 || r.bottom + window.scrollY <= 0) return true;  // off the page
+      return false;
+    } catch (e) { return false; }
+  };
   const out = [];
   for (const el of document.querySelectorAll('input, select, textarea')) {
     const tag = el.tagName.toLowerCase();
@@ -230,6 +317,10 @@ READ_FORM_JS = r"""() => {
       label: labelFor(el),
       required: !!(el.required || el.getAttribute('aria-required') === 'true'),
       value: (el.value || '').slice(0, 200),
+      // Can a PERSON see it? A honeypot is a box nobody can see, and so is
+      // hCaptcha's token textarea. Python decides what that means per type:
+      // a hidden native radio behind a styled label is still the real control.
+      hidden: unseen(el),
     };
     // The value field BEHIND a labelled widget is not a second question. A
     // Workable picker is a visible #input_CA_10627_input labelled "Notice
@@ -772,6 +863,8 @@ def _group_choices(fields: list[dict]) -> tuple[list[dict], list[dict]]:
             "label": field.get("question") or field.get("option") or field["group"],
             "required": False, "options": [], "selector": field["selector"]})
         held["required"] = held["required"] or bool(field.get("required"))
+        if is_anti_bot(field):
+            held["anti_bot"] = True          # one option inside a bot check taints the group
         held["options"].append({"label": field.get("option") or "",
                                 "selector": field["selector"]})
     # A "group" of one is just a checkbox — the certification tickbox, say —
@@ -782,7 +875,8 @@ def _group_choices(fields: list[dict]) -> tuple[list[dict], list[dict]]:
         rest.append({"selector": single["options"][0]["selector"],
                      "label": single["label"], "name": "", "id": "",
                      "tag": "input", "type": single["type"],
-                     "required": single["required"], "value": ""})
+                     "required": single["required"], "value": "",
+                     **({"anti_bot": True} if single.get("anti_bot") else {})})
     return rest, list(groups.values())
 
 
@@ -1303,6 +1397,11 @@ def plan(fields: list[dict], *, answers: dict | None = None, found_on: str = "")
     fields, choices = _group_choices(list(fields)[:MAX_FIELDS])
     fill, ask, skipped = [], [], []
     for group in choices:
+        if is_anti_bot(group):
+            skipped.append({"selector": group["selector"], "label": group["label"],
+                            "required": group["required"], "type": group["type"],
+                            "why": ANTI_BOT_WHY})
+            continue
         if is_widget_furniture(group):
             # The phone picker's country list. Not a question anybody asked.
             skipped.append({"selector": group["selector"], "label": group["label"],
@@ -1403,6 +1502,24 @@ def plan(fields: list[dict], *, answers: dict | None = None, found_on: str = "")
                           else f"she does not type into a {field.get('type')} field")
             skipped.append(row)
             continue
+        # BEFORE "answered on this form": an answer keyed to a CAPTCHA's box
+        # (Palantir's essay, live 2026-09-14) must have nowhere to land.
+        if is_anti_bot(field):
+            row["why"] = ANTI_BOT_WHY
+            skipped.append(row)
+            continue
+        if is_unseen_text_box(field):
+            row["why"] = "a box nobody can see on the page (a bot trap), not a question"
+            skipped.append(row)
+            continue
+        if _is_self_id_signature(field):
+            if not row["required"]:
+                row["why"] = ("the optional signature line of a voluntary self-identification "
+                              "form - she never signs for him, and blank is a complete answer")
+                skipped.append(row)
+                continue
+            # Required, it is his - but "Name" alone says nothing about what it signs.
+            row["label"] = f"{label} (signing the voluntary self-identification form)"
         if is_widget_furniture(field):
             row["why"] = "part of a picker on the page, not a question"
             skipped.append(row)
@@ -1638,6 +1755,10 @@ def apply_answers(out: dict, fields: list[dict], answers: dict) -> dict:
         if selector not in answers:
             still_asked.append(row)
             continue
+        if is_anti_bot({**by_selector.get(selector, {}), "selector": selector}):
+            # `plan` never asks one of these; an answer keyed to one is dropped,
+            # not typed, whoever wrote it.
+            continue
         field = by_selector.get(selector, {})
         value = answers[selector]
         label = row["label"]
@@ -1799,11 +1920,22 @@ class Hands:
     def __init__(self, page):
         self.page = page
 
+    @staticmethod
+    def _refuse_anti_bot(selector):
+        # The last hand before the page. Whatever chose this target - the
+        # deterministic plan, a model, a stored answer - a CAPTCHA's token box
+        # or a honeypot is never typed into or picked. The check stays his.
+        if is_anti_bot({"selector": selector}):
+            raise FormError(f"{selector} is part of the page's bot check - she does not "
+                            "type into those")
+
     def fill(self, selector, value):
+        self._refuse_anti_bot(selector)
         target, css = resolve(self.page, selector)
         target.fill(css, str(value))
 
     def select_option(self, selector, value=None, *, label=None):
+        self._refuse_anti_bot(selector)
         target, css = resolve(self.page, selector)
         if label is not None:
             target.select_option(css, label=label)
@@ -1811,6 +1943,7 @@ class Hands:
             target.select_option(css, value)
 
     def check(self, selector):
+        self._refuse_anti_bot(selector)
         target, css = resolve(self.page, selector)
         target.check(css)
 
@@ -1910,10 +2043,24 @@ CONSENT_JS = r"""() => {
 }"""
 
 
+def frame_url(frame) -> str:
+    """The address a frame is showing, or "" (a test double, a detached frame)."""
+    try:
+        url = getattr(frame, "url", "")
+        return str((url() if callable(url) else url) or "")
+    except Exception:
+        return ""
+
+
 def read_all(page) -> list[dict]:
     """Every field on the page, in every frame, each selector frame-tagged."""
     rows: list[dict] = []
     for index, frame in enumerate(frames(page)):
+        where = frame_url(frame) if index else ""
+        # A CAPTCHA's own frame is read, and every row from it is marked: the
+        # marks tell `apply_run` the form carries a check, and `plan` never
+        # asks him about - or types into - anything inside one.
+        inside_check = bool(ANTI_BOT_FRAME.search(where))
         for script in (READ_FORM_JS, READ_ARIA_JS):
             try:
                 got = frame.evaluate(script)
@@ -1923,6 +2070,9 @@ def read_all(page) -> list[dict]:
                 if not isinstance(row, dict) or not row.get("selector"):
                     continue                 # not a field this reader describes
                 row = dict(row)
+                if inside_check:
+                    row["anti_bot"] = True
+                    row["frame_url"] = where[:200]
                 row["selector"] = tag(index, row["selector"])
                 if row.get("wraps"):
                     row["wraps"] = tag(index, row["wraps"])

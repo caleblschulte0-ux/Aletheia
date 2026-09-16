@@ -947,6 +947,13 @@ def _apply_steps(page, steps: list[dict]) -> dict:
     chosen: dict[str, str] = {}
     for step in steps:
         action = step["action"]
+        if action in ("select", "click", "type", "fill") and \
+                formfill.is_anti_bot({"selector": step.get("selector")}):
+            # A CAPTCHA's token box or a honeypot. `plan` no longer produces
+            # one, and a record staged before that is not allowed to type into
+            # it either (Palantir, live 2026-09-14). Leaving it alone only ever
+            # sends LESS than was approved; the check stays his.
+            continue
         if action == "select":
             page.select_option(step["selector"], step["value"])
         elif action == "click":
