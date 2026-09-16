@@ -103,8 +103,17 @@ def status_payload() -> dict:
             pulse_meta = {"error": "pulse unreadable"}
     all_t = tasks.all_tasks()
     heartbeat_age = liveness.age_seconds()
+    # THE FOUR SECTIONS THE BRIEF ASKS FOR, on the route the Command Center
+    # already polls: her state in the tiny vocabulary, the job hunt counted
+    # from the records, the browser, the code. `sections` never raises and
+    # is cached for a few seconds, so a status read stays cheap.
+    derived = current_state.sections()
     return {
         "halted": policy.halted(),
+        "agent": derived["agent"],
+        "job_hunt": derived["job_hunt"],
+        "browser": derived["browser"],
+        "code": derived["code"],
         "pulse": pulse_meta,
         "liveness": {
             "heartbeat_age_s": None if heartbeat_age is None else round(heartbeat_age, 1),
