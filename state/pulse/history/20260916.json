@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-16T17:05:01Z",
+  "generated_at": "2026-09-16T21:22:41Z",
   "fleet_revision": 5,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -46,14 +46,14 @@
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-09-16T17:04:57Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/35125938299"
+          "updated_at": "2026-09-16T21:22:38Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/35152029935"
         },
         "ci.yml": {
-          "status": "in_progress",
-          "conclusion": null,
-          "updated_at": "2026-09-16T17:04:05Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/35125845574"
+          "status": "completed",
+          "conclusion": "failure",
+          "updated_at": "2026-09-16T21:22:02Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/35150984362"
         }
       },
       "state_files": {
@@ -62,7 +62,7 @@
           "bytes": 18221
         }
       },
-      "health": "unknown"
+      "health": "red"
     },
     "shorts_pipeline": {
       "github": "Shorts-pipeline",
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "294c29dfc593",
-          "date": "2026-09-16T16:52:11Z",
-          "message": "watchdog: chatgpt task verdicts 20260916 [skip ci]"
+          "sha": "cb85d9a53f8a",
+          "date": "2026-09-16T21:14:15Z",
+          "message": "daily: 2026-09-16 report + state [skip ci]"
         },
         {
-          "sha": "f0127a5c7bbf",
-          "date": "2026-09-16T16:21:36Z",
+          "sha": "1bc4c87b3661",
+          "date": "2026-09-16T20:28:42Z",
           "message": "explainer: update posted log + analytics [skip ci]"
         },
         {
-          "sha": "7976455502fa",
-          "date": "2026-09-16T16:21:27Z",
-          "message": "explainer: posted brain-microplastics-rising [skip ci]"
+          "sha": "cc5cf5c3c559",
+          "date": "2026-09-16T20:10:29Z",
+          "message": "explainer: posted fusion-net-energy-gain [skip ci]"
         },
         {
-          "sha": "ae3f1026529b",
-          "date": "2026-09-16T15:40:37Z",
+          "sha": "bea33d13ba33",
+          "date": "2026-09-16T20:06:19Z",
           "message": "third: analytics [skip ci]"
         },
         {
-          "sha": "304faa05619e",
-          "date": "2026-09-16T15:40:30Z",
+          "sha": "aeefc3fd533b",
+          "date": "2026-09-16T20:05:41Z",
           "message": "third: update posted log + analytics [skip ci]"
         }
       ],
       "commit": {
-        "sha": "294c29dfc593",
-        "date": "2026-09-16T16:52:11Z",
-        "message": "watchdog: chatgpt task verdicts 20260916 [skip ci]"
+        "sha": "cb85d9a53f8a",
+        "date": "2026-09-16T21:14:15Z",
+        "message": "daily: 2026-09-16 report + state [skip ci]"
       },
       "vitals": [
         {
@@ -108,7 +108,7 @@
         },
         {
           "label": "explainer posted",
-          "value": 250
+          "value": 251
         },
         {
           "label": "third posted",
@@ -122,9 +122,9 @@
       "workflows": {
         "daily.yml": {
           "status": "completed",
-          "conclusion": "success",
-          "updated_at": "2026-09-16T15:27:36Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35115140753"
+          "conclusion": "failure",
+          "updated_at": "2026-09-16T21:14:23Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35144262185"
         },
         "exchange_phase_a.yml": {
           "status": "completed",
@@ -135,26 +135,26 @@
         "exchange_phase_b.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-15T18:19:11Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35006697607"
+          "updated_at": "2026-09-16T18:16:15Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35133322808"
         },
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-16T10:03:35Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35082719658"
+          "updated_at": "2026-09-16T20:15:31Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35145273823"
         },
         "third.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-16T15:40:43Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35115138074"
+          "updated_at": "2026-09-16T20:06:25Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35144259752"
         },
         "explainer.yml": {
-          "status": "completed",
-          "conclusion": "success",
-          "updated_at": "2026-09-16T16:21:46Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35115135140"
+          "status": "in_progress",
+          "conclusion": null,
+          "updated_at": "2026-09-16T20:28:49Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35144417219"
         },
         "retro.yml": {
           "status": "completed",
@@ -176,7 +176,7 @@
         },
         "state/explainer_posted_log.json": {
           "exists": true,
-          "bytes": 74249
+          "bytes": 74987
         },
         "state/third_posted_log.json": {
           "exists": true,
@@ -188,14 +188,14 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 785287
+          "bytes": 809278
         },
         "config/channel_registry.json": {
           "exists": true,
           "bytes": 15208
         }
       },
-      "health": "green"
+      "health": "red"
     },
     "schwab_trader": {
       "github": "schwab-trader",
@@ -245,15 +245,15 @@
       "workflows": {
         "sell-brain.yml": {
           "status": "completed",
-          "conclusion": "success",
-          "updated_at": "2026-09-16T15:37:08Z",
-          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/35116326092"
+          "conclusion": "failure",
+          "updated_at": "2026-09-16T18:35:22Z",
+          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/35135310349"
         },
         "watchdog.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-15T22:59:38Z",
-          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/35033600677"
+          "updated_at": "2026-09-16T20:17:54Z",
+          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/35145690841"
         }
       },
       "state_files": {
@@ -274,7 +274,7 @@
           "bytes": 4429
         }
       },
-      "health": "green"
+      "health": "red"
     },
     "money_machine": {
       "github": "Money_Machine",
@@ -465,7 +465,7 @@
           "text": "Make the watchdog say which of the two likely causes a stall is (no trigger runs at all, or runs that fail) so the next stall names itself"
         },
         "last_progress_at": null,
-        "days_quiet": 20,
+        "days_quiet": 21,
         "quiet_at_least": true,
         "commits_7d": 0,
         "open_prs": [
@@ -486,17 +486,48 @@
     {
       "repo": "aletheia",
       "github": "Aletheia",
+      "from": "unknown",
+      "to": "red"
+    },
+    {
+      "repo": "shorts_pipeline",
+      "github": "Shorts-pipeline",
       "from": "green",
-      "to": "unknown"
+      "to": "red"
     },
     {
       "repo": "schwab_trader",
       "github": "schwab-trader",
-      "from": "red",
-      "to": "green"
+      "from": "green",
+      "to": "red"
     }
   ],
-  "alerts": [],
+  "alerts": [
+    {
+      "repo": "aletheia",
+      "github": "Aletheia",
+      "health": "red",
+      "failing": [
+        "ci.yml"
+      ]
+    },
+    {
+      "repo": "shorts_pipeline",
+      "github": "Shorts-pipeline",
+      "health": "red",
+      "failing": [
+        "daily.yml"
+      ]
+    },
+    {
+      "repo": "schwab_trader",
+      "github": "schwab-trader",
+      "health": "red",
+      "failing": [
+        "sell-brain.yml"
+      ]
+    }
+  ],
   "plans": {
     "open": 5,
     "items": [

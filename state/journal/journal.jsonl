@@ -142,3 +142,7 @@
 {"ts": "2026-09-16T17:05:21Z", "kind": "event", "actor": "aletheia", "subject": "repo:aletheia", "text": "health green -> unknown"}
 {"ts": "2026-09-16T17:05:21Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:schwab_trader", "text": "health red -> green"}
 {"ts": "2026-09-16T17:05:23Z", "kind": "recovery", "actor": "aletheia", "subject": "sentinel", "text": "fleet recovered — alert issue closed"}
+{"ts": "2026-09-16T21:22:55Z", "kind": "alert", "actor": "aletheia", "subject": "repo:aletheia", "text": "health unknown -> red"}
+{"ts": "2026-09-16T21:22:55Z", "kind": "alert", "actor": "aletheia", "subject": "repo:shorts_pipeline", "text": "health green -> red"}
+{"ts": "2026-09-16T21:22:55Z", "kind": "alert", "actor": "aletheia", "subject": "repo:schwab_trader", "text": "health green -> red"}
+{"ts": "2026-09-16T21:22:56Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue opened — Aletheia, Shorts-pipeline, schwab-trader"}
