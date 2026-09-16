@@ -239,10 +239,14 @@ def resolve_ledger(ref: str, detail: str = "") -> dict | None:
     finished = ("SUBMITTED", "DONE")
     apps = [f for f in facts if f.get("store") == "applications"]
     apps.sort(key=lambda f: (str((f.get("fact") or {}).get("state")) in finished))
+    runs = {r.get("id"): r for r in apply_run.all_runs()}
     for fact in apps:
-        for record in apply_run.all_runs():
-            if record.get("id") == fact.get("id"):
-                return _app_failure(record)
+        record = runs.get(fact.get("id"))
+        if record is not None:
+            found = _app_failure(record)
+            found["others"] = [f"{f.get('id')} ({(f.get('fact') or {}).get('state')})"
+                               for f in apps if f is not fact][:5]
+            return found
     return None
 
 
@@ -363,7 +367,13 @@ def gather_code(failure: dict, *, search: Callable | None = None, read: Callable
 def classify(failure: dict, code: dict | None = None) -> dict:
     """The rules' verdict: which kind, which boundary, how sure."""
     text = f"{failure.get('state') or ''} {failure.get('text') or ''}"
-    boundary = next((name for name, pattern in BOUNDARY_SIGNS if pattern.search(text)), None)
+    walls = [name for name, pattern in BOUNDARY_SIGNS if pattern.search(text)]
+    # The wall the record's own STATE names is where it is stopped now; any
+    # other named wall is still ahead of it (a form waiting on his answer that
+    # also carries a CAPTCHA stops at the answer first).
+    state = str(failure.get("state") or "")
+    at_state = [name for name, pattern in BOUNDARY_SIGNS if state and pattern.search(state)]
+    boundary = (at_state or walls or [None])[0]
     crash = DEFECT_SIGNS.search(text)
     located = bool(code and code.get("locations"))
     if crash and not boundary:
@@ -374,8 +384,11 @@ def classify(failure: dict, code: dict | None = None) -> dict:
                 "why": (f"it names {boundary}, but also reads like the code breaking "
                         f"({crash.group(0)}); both are possible")}
     if boundary:
-        return {"kind": BOUNDARY, "boundary": boundary, "confidence": 0.75 if failure.get("record") else 0.55,
-                "why": f"the record names {boundary}, a wall outside the code that stopped it on purpose"}
+        also = [w for w in walls if w != boundary]
+        return {"kind": BOUNDARY, "boundary": boundary, "also": also,
+                "confidence": 0.75 if failure.get("record") else 0.55,
+                "why": (f"the record names {boundary}, a wall outside the code that stopped it on purpose"
+                        + (f"; after that it also faces {' and '.join(also)}" if also else ""))}
     if failure.get("kind") == "failing test":
         return {"kind": DEFECT, "boundary": None, "confidence": 0.5,
                 "why": "a test that fails is a defect in the code or in the test"}
@@ -486,11 +499,17 @@ def diagnose(failure_ref: str, *, detail: str = "", think: Think | None = None,
     similar: dict = {}
     try:
         similar = recall(query, sources=["journal", "fixes", "sessions", "missions", "applications",
-                                         "notifications"], k=6, include_ledger=False)
+                                         "notifications"], k=10, include_ledger=False)
     except Exception as exc:                                          # noqa: BLE001
         similar = {"snippets": [], "index": f"recall failed ({type(exc).__name__})"}
+    per_source: dict[str, int] = {}
     for snip in similar.get("snippets") or []:
         if snip.get("where") == failure.get("ref") or str(failure.get("ref")) in str(snip.get("where")):
+            continue
+        # Variety over volume: ten look-alike records say less than two
+        # records, a past session and the commit that last touched this.
+        per_source[str(snip.get("source"))] = per_source.get(str(snip.get("source")), 0) + 1
+        if per_source[str(snip.get("source"))] > 2:
             continue
         evidence.append({"id": f"e{len(evidence) + 1}", "source": snip.get("source"), "where": snip.get("where"),
                          "text": snip.get("text"), "basis": snip.get("basis", "FOUND IN HISTORY"),
@@ -506,7 +525,8 @@ def diagnose(failure_ref: str, *, detail: str = "", think: Think | None = None,
         "id": "diag-" + hashlib.sha256(f"{failure.get('kind')}|{failure.get('ref')}|{failure.get('text')}"
                                        .encode("utf-8")).hexdigest()[:10],
         "failure": {k: failure.get(k) for k in ("kind", "ref", "state", "title", "text", "resolved_by")},
-        "kind": rules["kind"], "boundary": rules["boundary"],
+        "kind": rules["kind"], "boundary": rules["boundary"], "also_faces": rules.get("also", []),
+        "other_matching_records": failure.get("others", []),
         "summary": rules["why"],
         "likely_location": [{"path": loc["path"], "line": loc["line"], "why": loc["why"]}
                             for loc in code["locations"][:3]],

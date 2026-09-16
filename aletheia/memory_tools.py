@@ -75,6 +75,7 @@ def diagnose(args: dict, **_ignored) -> dict:
     from aletheia import self_diagnosis
     d = self_diagnosis.diagnose(str(args.get("failure") or ""), detail=str(args.get("detail") or ""))
     return {"basis": d["basis"], "kind": d["kind"], "boundary": d.get("boundary"),
+            "also_faces": d.get("also_faces") or [], "other_records": d.get("other_matching_records") or [],
             "summary": d["summary"], "confidence": d["confidence"],
             "failure": _compact({k: d["failure"].get(k) for k in ("kind", "ref", "state", "text")}, 360),
             "likely_location": [{"path": l["path"], "line": l["line"], "why": _compact(l["why"], 90)}

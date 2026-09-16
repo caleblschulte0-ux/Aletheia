@@ -72,6 +72,12 @@ class Classifying(unittest.TestCase):
                                "record": {}}, {"locations": [{"path": "aletheia/formfill.py"}]})
         self.assertEqual(verdict["kind"], sd.DEFECT)
 
+    def test_the_wall_its_state_names_comes_first_and_the_rest_are_still_said(self):
+        verdict = sd.classify({"state": "NEEDS_YOU", "record": {},
+                               "text": "1 thing only you can answer | this form loads a hcaptcha check"})
+        self.assertEqual(verdict["boundary"], "questions only he can answer")
+        self.assertEqual(verdict["also"], ["a CAPTCHA, which she never solves"])
+
     def test_both_at_once_is_unclear_not_a_confident_boundary(self):
         verdict = sd.classify({"state": "FAILED", "text": "TypeError while reading the hCaptcha frame"})
         self.assertEqual(verdict["kind"], sd.UNCLEAR)
