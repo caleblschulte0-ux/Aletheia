@@ -249,6 +249,17 @@ class TheRealPressPathEnforcesIt(Isolated):
         self.assertEqual(after["state"], bm.SUBMITTED_UNCONFIRMED)
         self.assertFalse(bm.may_submit(after, button="Send", url="https://x.example/f")[0])
 
+    def test_a_replay_that_never_reached_the_button_is_proof_and_may_be_retried(self):
+        record = self.gate()
+
+        def never(_):
+            raise webtask.PressNeverReached("the code on page two had expired")
+        with self.assertRaises(webtask.PressNeverReached):
+            browser_loop.commit(record["id"], presser=never)
+        after = bm.load(record["id"])
+        self.assertEqual(after["submits"][-1]["verdict"], "not_pressed")
+        self.assertTrue(bm.may_submit(after, button="Send", url="https://x.example/f")[0])
+
     def test_a_server_error_after_the_press_is_not_proof(self):
         record = self.gate()
         after = browser_loop.commit(record["id"], presser=lambda r: {
@@ -275,6 +286,29 @@ class TheBrokerRunsReadsAndHandsOffTheRest(unittest.TestCase):
         refused = check("browser.pursue", {"goal": "buy the monitor", "url": "https://shop.example"})
         self.assertEqual(refused.verdict, agent_session.REFUSED)
         self.assertTrue(refused.permanent)
+
+
+class AModelMayNameATargetAndNothingMore(unittest.TestCase):
+    def obs(self):
+        return {"url": "https://x.example", "state": ps.CONTENT, "text": "Welcome", "targets": [
+            {"id": "t1", "role": "link", "label": "Our services"},
+            {"id": "t2", "role": "button", "label": "Pay now"},
+            {"id": "t3", "role": "link", "label": "Sign in"}], "_refs": {"t1": "#a", "t2": "#b", "t3": "#c"}}
+
+    def test_a_harmless_target_is_taken_and_a_committing_one_is_refused(self):
+        seen = {}
+
+        def think(system, text):
+            seen["text"] = text
+            return {"target": "t1"}
+        target = browser_loop._ask_model(browser_loop.model_decider(think), "book a checkup", self.obs(),
+                                         {"history": []})
+        self.assertEqual(target["id"], "t1")
+        self.assertNotIn("#a", seen["text"], "the model is never shown a selector")
+        for bad in ("t2", "t3", "t99"):
+            with self.subTest(target=bad):
+                decide = browser_loop.model_decider(lambda s, t, bad=bad: {"target": bad})
+                self.assertIsNone(browser_loop._ask_model(decide, "go", self.obs(), {"history": []}))
 
 
 class SpendingIsRefusedBeforeABrowserOpens(Isolated):

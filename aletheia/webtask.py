@@ -206,6 +206,10 @@ class WebTaskError(RuntimeError):
     pass
 
 
+class PressNeverReached(WebTaskError):
+    """The replay failed BEFORE the approved click: proof nothing was sent."""
+
+
 def runs_dir():
     return stateio.private_dir("webtasks")
 
@@ -1520,10 +1524,24 @@ def _press(record: dict) -> dict:
     with browse._Session() as ctx:
         page = ctx.new_page()
         hands = _Hands(page)
-        page.goto(record.get("replay_from") or record["url"],
-                  wait_until="domcontentloaded")
-        settle(page)
-        page = walk(ctx, page, hands, record.get("typed", []), attachments)
+        try:
+            page.goto(record.get("replay_from") or record["url"],
+                      wait_until="domcontentloaded")
+            settle(page)
+            page = walk(ctx, page, hands, record.get("typed", []), attachments)
+            target, css = _resolve(page, record["button_selector"])
+            waiter = getattr(target, "wait_for_selector", None)
+            if waiter is not None:
+                waiter(css, state="attached")
+        except Exception as exc:
+            # THE BUTTON WAS NEVER PRESSED. Everything above happens before the
+            # one click that sends anything, so a failure here is PROOF nothing
+            # was submitted - the one kind of failure after which trying again
+            # cannot make a duplicate (a site whose code expired, a page that
+            # moved). Said as its own type so the caller can tell.
+            raise PressNeverReached(
+                f"the route could not be replayed up to the button, so it was never "
+                f"pressed ({type(exc).__name__}: {str(exc)[:160]})") from exc
         hands.click(record["button_selector"])
         page.wait_for_load_state("domcontentloaded")
         # The receipt of an EMBEDDED form is inside the frame; the parent
