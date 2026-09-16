@@ -13,9 +13,19 @@ of situational awareness by adding what it omitted:
   qualified, attempted, ready, sent, blocked, replies), the blockers by
   employer and reason, what is waiting on him, the campaign lock, and
   which minds can think (Claude's rest, Codex's rest, her own model).
-- `browser`: active, site, purpose, stage.
+- `browser`: active, site, purpose, stage - from ANY browser goal
+  (`browser_mission`), not only job applications, plus the goals stopped at
+  a named boundary waiting on him.
+- `agent_sessions`: her tool-using sessions running now, and the requests
+  they handed to him (`aletheia.handoffs`): waiting, running, finished.
 - `code`: repo, branch, dirty, latest commit, and whether the running Core
   predates the code on disk.
+- `power`: AC or battery, how much, and whether something holds the PC
+  awake (`aletheia.power`).
+- `usage`: what is genuinely known about the subscriptions' limits - the
+  last limit Claude or Codex reported and when it said it resets. Nothing
+  records how much of a window is used, and this says "unknown" rather
+  than guess.
 
 EVERY COUNT IS DERIVED, NEVER GUESSED. The application records
 (`apply_run.all_runs`, `apply_run.already_sent`), the campaign lock, the
@@ -272,19 +282,204 @@ def _site(url: object) -> str:
         return ""
 
 
-def browser(now: dt.datetime | None = None, *, hunt: dict | None = None) -> dict:
-    """Active, site, purpose, stage — derived from the campaign lock, the
-    submit processes, and the newest record being worked. Never raises."""
+#: Browser mission states that are a boundary waiting on him.
+MISSION_WAITING = ("NEEDS_YOU", "AWAITING_APPROVAL", "SUBMITTED_UNCONFIRMED")
+#: How the checkpoint names read as a stage.
+CHECKPOINT_STAGE = {"observed": "reading the page", "filled": "filling the form",
+                    "review_reached": "at the final button", "submit_clicked": "pressing submit",
+                    "receipt_verified": "confirmed by the site", "done": "done"}
+
+
+def boundary_words(record: dict) -> str:
+    """"stopped at CAPTCHA on example.com" - the named stop, short."""
+    boundary = record.get("boundary") or {}
+    kind = str(boundary.get("kind") or record.get("state") or "").replace("_", " ")
+    site = _site(boundary.get("url") or record.get("start_url"))
+    said = f"stopped at {kind}" if kind else "stopped"
+    return said + (f" on {site}" if site else "")
+
+
+def browser_missions(now: dt.datetime | None = None) -> dict:
+    """Every browser goal, whatever it is for: which one is being driven now,
+    and which ones stopped at a boundary that waits on him. Never raises;
+    reading never resumes, expires or deletes anything."""
+    from aletheia import browser_mission as bm
+    now = _utc(now)
+    try:
+        rows = bm.all_missions()
+    except Exception as exc:  # noqa: BLE001
+        return {"readable": False, "active": None, "waiting": [], "counts": {},
+                "note": f"the browser missions could not be read ({type(exc).__name__})"}
+    active = None
+    waiting = []
+    counts: dict[str, int] = {}
+    for r in rows:
+        state = str(r.get("state") or "")
+        counts[state] = counts.get(state, 0) + 1
+        fresh = not _safe(lambda r=r: bm.stale(r), True)
+        if state in (bm.RUNNING, bm.SUBMITTING) and fresh:
+            if active is None or str(r.get("beat") or "") > str(active.get("beat") or ""):
+                active = r
+        elif state in MISSION_WAITING:
+            boundary = r.get("boundary") or {}
+            waiting.append({"mission": r.get("id"), "goal": " ".join(str(r.get("goal") or "").split())[:160],
+                            "site": _site(boundary.get("url") or r.get("start_url")),
+                            "kind": boundary.get("kind") or state, "state": state,
+                            "said": boundary_words(r), "say": str(boundary.get("say") or "")[:300],
+                            "since": boundary.get("at") or r.get("beat")})
+    waiting.sort(key=lambda w: str(w.get("since") or ""), reverse=True)
+    out: dict = {"readable": True, "active": None, "waiting": waiting[:MAX_LISTED],
+                 "waiting_count": len(waiting), "counts": counts}
+    if active is not None:
+        checkpoints = active.get("checkpoints") or []
+        last = checkpoints[-1] if checkpoints else {}
+        stage = ("pressing submit" if active.get("state") == bm.SUBMITTING
+                 else CHECKPOINT_STAGE.get(str(active.get("last_checkpoint") or ""), "starting"))
+        out["active"] = {"mission": active.get("id"),
+                         "goal": " ".join(str(active.get("goal") or "").split())[:160],
+                         "site": _site(last.get("url") or active.get("resume_url") or active.get("start_url")),
+                         "stage": stage, "since": active.get("created"), "beat": active.get("beat"),
+                         "skill": active.get("skill")}
+    newest = max(rows, key=lambda r: str(r.get("beat") or ""), default=None)
+    if newest is not None:
+        out["last"] = {"mission": newest.get("id"), "goal": str(newest.get("goal") or "")[:160],
+                       "state": newest.get("state"), "at": newest.get("beat"),
+                       "site": _site(newest.get("start_url")), "said": _safe(lambda: bm.describe(newest), "")}
+    return out
+
+
+def agent_sessions(now: dt.datetime | None = None) -> dict:
+    """Her tool-using sessions and the requests they handed to him. Never
+    raises. A session record still marked running whose process is gone, or
+    that started too long ago, is reported as `abandoned`, not running."""
+    from aletheia import handoffs, proc, stateio
+    from aletheia.agent_session import LIVE_S
+    now = _utc(now)
+    running, abandoned = [], 0
+    try:
+        folder = stateio.private_dir("agent-sessions")
+        paths = sorted(folder.glob("agent-*.json"), key=lambda p: p.stat().st_mtime, reverse=True)[:40] \
+            if folder.is_dir() else []
+        readable = True
+    except Exception:
+        paths, readable = [], False
+    for path in paths:
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if record.get("outcome") != "running":
+            continue
+        started = _parse(record.get("started_at") or record.get("saved_at"))
+        alive = proc.pid_alive(record.get("pid")) if record.get("pid") else None
+        if alive is False or started is None or (now - started).total_seconds() > LIVE_S:
+            abandoned += 1
+            continue
+        running.append({"session": record.get("id"), "question": str(record.get("question") or "")[:160],
+                        "since": record.get("started_at")})
+    try:
+        rows = handoffs.all_handoffs()
+    except Exception:
+        rows, readable = [], False
+
+    def row(h: dict) -> dict:
+        return {"handoff": h.get("id"), "approval": h.get("approval"), "tool": h.get("tool"),
+                "state": h.get("state"), "said": str(h.get("consequence") or "")[:200],
+                "session": h.get("session"), "outcome": str(h.get("outcome") or "")[:200],
+                "at": h.get("finished_at") or h.get("started_at") or h.get("created_at")}
+    waiting = [row(h) for h in rows if h.get("state") == handoffs.AWAITING]
+    doing = [row(h) for h in rows if h.get("state") == handoffs.RUNNING]
+    floor = today_started(now)
+    finished = sorted((row(h) for h in rows if h.get("state") in handoffs.FINISHED
+                       and str(h.get("finished_at") or "") >= floor),
+                      key=lambda h: str(h.get("at") or ""), reverse=True)
+    return {"readable": readable, "running": running, "abandoned": abandoned,
+            "handoffs": {"waiting": waiting[:MAX_LISTED], "running": doing,
+                         "finished_today": finished[:MAX_LISTED],
+                         "counts": {"waiting": len(waiting), "running": len(doing),
+                                    "finished_today": len(finished)}}}
+
+
+def power_state() -> dict:
+    from aletheia import power
+    return power.section()
+
+
+def _rest_record(path_fn) -> dict:
+    try:
+        value = json.loads(path_fn().read_text(encoding="utf-8"))
+    except (OSError, ValueError, AttributeError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def usage(now: dt.datetime | None = None) -> dict:
+    """What is genuinely known about the subscriptions' usage. Never raises.
+
+    Known: the last time Claude or Codex REPORTED a spent limit in an error,
+    what it said, and when it said the window comes back (`reasoner` keeps
+    both). Not known, and said so: how much of a window is used, or any
+    weekly total - neither CLI reports that to her.
+    """
+    from aletheia import reasoner, sensitivity
+    now = _utc(now)
+
+    def one(record: dict, resting) -> dict:
+        until = _parse(record.get("until"))
+        said = " ".join(str(record.get("said") or "").split())
+        return {"resting_now": resting is not None,
+                "last_limit_hit": record.get("noted_at") or None,
+                "resets_at": _stamp(until) if until else None,
+                "why": record.get("why") or ("limit" if record else None),
+                "said": sensitivity.clean(said)[:160] if said else ""}
+    claude = one(_rest_record(reasoner._rest_path), _safe(lambda: reasoner.resting_until(now), None))
+    codex = one(_rest_record(reasoner._codex_rest_path), _safe(lambda: reasoner.codex_resting(now), None))
+    if not claude["last_limit_hit"]:
+        claude["note"] = "no limit has been recorded for Claude"
+    if not codex["last_limit_hit"]:
+        codex["note"] = "no limit is on record for Codex (a Codex that answers again clears its record)"
+    return {"claude": claude, "codex": codex, "window_used": "unknown", "weekly": "unknown",
+            "note": ("Only a limit a CLI reported, and the reset it named, is recorded. How much of a "
+                     "window is used, and weekly totals, are not reported to her: unknown.")}
+
+
+def browser(now: dt.datetime | None = None, *, hunt: dict | None = None,
+            missions: dict | None = None) -> dict:
+    """Active, site, purpose, stage — derived from any browser goal being
+    driven (`browser_mission`), the submit processes, the campaign lock and
+    the newest application record being worked. Never raises.
+
+    `source` says which store the answer came from, so a job-specific view
+    does not claim a browser that is doing something else, and `waiting`
+    lists the goals stopped at a boundary that needs him."""
     from aletheia import apply_run, proc
     now = _utc(now)
     hunt = hunt if hunt is not None else job_hunt(now)
     lock = hunt.get("campaign") or None
+    missions = missions if missions is not None else browser_missions(now)
+    goal = missions.get("active") if missions.get("readable") else None
+    waiting = list(missions.get("waiting") or [])
+
+    def with_missions(out: dict) -> dict:
+        out["waiting"] = waiting
+        out["waiting_count"] = int(missions.get("waiting_count") or 0)
+        if missions.get("readable") is False:
+            out["missions_note"] = missions.get("note")
+        return out
+
+    def from_goal() -> dict:
+        return with_missions({"active": True, "site": goal["site"], "purpose": goal["goal"],
+                              "stage": goal["stage"], "since": goal.get("since"),
+                              "application": None, "mission": goal["mission"],
+                              "source": "browser_mission"})
     try:
         rows = apply_run.all_runs()
     except Exception as exc:  # noqa: BLE001
-        return {"active": bool(lock and lock.get("running")), "site": "", "purpose": "",
-                "stage": "unknown", "readable": False,
-                "note": f"the application records could not be read ({type(exc).__name__})"}
+        if goal:
+            return from_goal()
+        return with_missions({"active": bool(lock and lock.get("running")), "site": "", "purpose": "",
+                              "stage": "unknown", "readable": False, "source": "applications",
+                              "note": f"the application records could not be read ({type(exc).__name__})"})
 
     def newest(records: list[dict], *keys: str) -> dict | None:
         best, best_at = None, ""
@@ -300,10 +495,14 @@ def browser(now: dt.datetime | None = None, *, hunt: dict | None = None) -> dict
     if pressing:
         record = newest(pressing, "pressed_at", "staged_at") or pressing[0]
         company, job = _name(record)
-        return {"active": True, "site": _site(record.get("url")),
-                "purpose": f"sending the application for {job}",
-                "stage": "pressing submit", "since": record.get("pressed_at"),
-                "application": record.get("id")}
+        return with_missions({"active": True, "site": _site(record.get("url")),
+                              "purpose": f"sending the application for {job}",
+                              "stage": "pressing submit", "since": record.get("pressed_at"),
+                              "application": record.get("id"), "source": "applications"})
+    # A goal being driven right now names the page it is on, which beats the
+    # campaign lock's guess from the newest record.
+    if goal:
+        return from_goal()
     if lock and lock.get("running"):
         started = str(lock.get("started_at") or "")
         worked = [r for r in rows if str(r.get("staged_at") or "") >= started]
@@ -313,27 +512,33 @@ def browser(now: dt.datetime | None = None, *, hunt: dict | None = None) -> dict
                    "answer": "putting your answer into the forms that asked for it"
                    }.get(kind, "finding openings and filling their forms")
         if record is None:
-            return {"active": True, "site": "", "purpose": purpose,
-                    "stage": "looking for openings" if kind == "apply" else "reading records",
-                    "since": lock.get("started_at"), "application": None}
+            return with_missions({"active": True, "site": "", "purpose": purpose,
+                                  "stage": "looking for openings" if kind == "apply" else "reading records",
+                                  "since": lock.get("started_at"), "application": None,
+                                  "source": "applications"})
         stage = {"AWAITING_YOU": "form filled, waiting for confirmation",
                  "NEEDS_YOU": "stopped on questions only you can answer",
                  "NEEDS_ACCOUNT": "stopped at an account wall",
                  "FAILED": "the form would not go", "REJECTED": "the site refused the form",
                  "SUBMITTED": "sent", "CLOSED": "closed without applying"
                  }.get(str(record.get("state")), str(record.get("state") or "")).lower()
-        return {"active": True, "site": _site(record.get("url")), "purpose": purpose,
-                "stage": stage, "since": lock.get("started_at"),
-                "application": record.get("id")}
+        return with_missions({"active": True, "site": _site(record.get("url")), "purpose": purpose,
+                              "stage": stage, "since": lock.get("started_at"),
+                              "application": record.get("id"), "source": "applications"})
     last = newest([r for r in rows if r.get("state") in WORKED_STATES],
                   "pressed_at", "submitted_at", "staged_at")
     out = {"active": False, "site": "", "purpose": "", "stage": "idle", "since": None,
-           "application": None}
+           "application": None, "source": ""}
     if last is not None:
         out["last"] = {"application": last.get("id"), "site": _site(last.get("url")),
                        "what": _name(last)[1], "state": last.get("state"),
                        "at": last.get("submitted_at") or last.get("pressed_at") or last.get("staged_at")}
-    return out
+    goal_last = missions.get("last") if missions.get("readable") else None
+    if goal_last and str(goal_last.get("at") or "") > str((out.get("last") or {}).get("at") or ""):
+        out["last"] = {"mission": goal_last.get("mission"), "site": goal_last.get("site"),
+                       "what": goal_last.get("goal"), "state": goal_last.get("state"),
+                       "at": goal_last.get("at")}
+    return with_missions(out)
 
 
 # ---- the code ------------------------------------------------------------
@@ -388,7 +593,8 @@ def code() -> dict:
 
 def agent(now: dt.datetime | None = None, *, hunt: dict | None = None,
           browsing: dict | None = None, pending_approvals: list | None = None,
-          waiting_operator: list | None = None, waiting_replies: list | None = None) -> dict:
+          waiting_operator: list | None = None, waiting_replies: list | None = None,
+          sessions: dict | None = None) -> dict:
     """Her state in the tiny vocabulary, with the evidence it came from.
 
     The order is the order of what he needs to know: halted beats
@@ -399,6 +605,8 @@ def agent(now: dt.datetime | None = None, *, hunt: dict | None = None,
     now = _utc(now)
     hunt = hunt if hunt is not None else job_hunt(now)
     browsing = browsing if browsing is not None else browser(now, hunt=hunt)
+    sessions = sessions if sessions is not None else _safe(lambda: agent_sessions(now), {})
+    handed = (sessions or {}).get("handoffs") or {}
 
     halt = _safe(policy.halted, None)
     if halt:
@@ -407,6 +615,16 @@ def agent(now: dt.datetime | None = None, *, hunt: dict | None = None,
     if _safe(closed.is_closed, False):
         return {"state": "HALTED", "mission": "closed - staying shut until you open me",
                 "step": _safe(closed.why, "") or "", "since": None}
+    doing = list(handed.get("running") or [])
+    if doing and not browsing.get("active"):
+        return {"state": "ACTING", "mission": "what you approved",
+                "step": "doing what you approved: " + str(doing[0].get("said") or doing[0].get("tool") or ""),
+                "since": doing[0].get("at")}
+    if browsing.get("active") and browsing.get("source") == "browser_mission":
+        return {"state": "ACTING", "mission": str(browsing.get("purpose") or "a browser goal"),
+                "step": str(browsing.get("stage") or "working") +
+                        (f" at {browsing['site']}" if browsing.get("site") else ""),
+                "since": browsing.get("since")}
     if browsing.get("active"):
         state = "LOOKING" if browsing.get("stage") == "looking for openings" else "ACTING"
         return {"state": state, "mission": "job hunt",
@@ -417,6 +635,12 @@ def agent(now: dt.datetime | None = None, *, hunt: dict | None = None,
     if _safe(followups.pending_count, 0):
         return {"state": "THINKING", "mission": "answering you", "step": "a reply is on its way",
                 "since": None}
+    thinking_now = list((sessions or {}).get("running") or [])
+    if thinking_now:
+        asked = str(thinking_now[0].get("question") or "").strip()
+        return {"state": "THINKING", "mission": "answering you",
+                "step": f"looking things up to answer “{asked}”" if asked else "looking things up",
+                "since": thinking_now[0].get("since")}
     if hunt.get("readable") and hunt.get("blocked"):
         minds = hunt.get("thinking") or {}
         until = (minds.get("claude") or {}).get("resting_until")
@@ -427,12 +651,17 @@ def agent(now: dt.datetime | None = None, *, hunt: dict | None = None,
     pending = pending_approvals if pending_approvals is not None else \
         [a for a in _safe(policy.all_approvals, []) if a.get("state") == "PENDING"]
     waiting_him = list(hunt.get("waiting_on_him") or []) if hunt.get("readable") else []
-    if pending or waiting_him or waiting_operator:
+    stopped_goals = int(browsing.get("waiting_count") or len(browsing.get("waiting") or []))
+    if pending or waiting_him or waiting_operator or stopped_goals:
         parts = []
         if pending:
             parts.append(f"{len(pending)} approval{'s' if len(pending) != 1 else ''}")
         if waiting_him:
             parts.append(f"{len(waiting_him)} application{'s' if len(waiting_him) != 1 else ''}")
+        if stopped_goals:
+            first = (browsing.get("waiting") or [{}])[0]
+            parts.append(f"{stopped_goals} browser goal{'s' if stopped_goals != 1 else ''}"
+                         + (f" ({first['said']})" if first.get("said") else ""))
         if waiting_operator:
             parts.append(f"{len(waiting_operator)} task{'s' if len(waiting_operator) != 1 else ''}")
         since = min((str(a.get("created_at") or "") for a in pending), default="") or None
@@ -453,22 +682,28 @@ def agent(now: dt.datetime | None = None, *, hunt: dict | None = None,
 # ---- the snapshot --------------------------------------------------------
 
 def sections(now: dt.datetime | None = None, *, fresh: bool = False) -> dict:
-    """The four derived sections, cached for a few seconds. Never raises."""
+    """The derived sections, cached for a few seconds. Never raises."""
     now = _utc(now)
     clock = time.monotonic()
     if not fresh and _SECTIONS["value"] is not None and clock - _SECTIONS["at"] < SECTIONS_CACHE_S:
         return json.loads(json.dumps(_SECTIONS["value"]))
     hunt = _safe(lambda: job_hunt(now), {"readable": False, "note": "the job hunt could not be read"})
-    browsing = _safe(lambda: browser(now, hunt=hunt),
+    missions = _safe(lambda: browser_missions(now), {"readable": False, "active": None, "waiting": []})
+    browsing = _safe(lambda: browser(now, hunt=hunt, missions=missions),
                      {"active": False, "site": "", "purpose": "", "stage": "unknown",
                       "readable": False})
+    sessions = _safe(lambda: agent_sessions(now), {"readable": False})
     value = {
-        "agent": _safe(lambda: agent(now, hunt=hunt, browsing=browsing),
+        "agent": _safe(lambda: agent(now, hunt=hunt, browsing=browsing, sessions=sessions),
                        {"state": "IDLE", "mission": "", "step": "", "since": None,
                         "readable": False}),
         "job_hunt": hunt,
         "browser": browsing,
+        "agent_sessions": sessions,
         "code": _safe(code, {"readable": False}),
+        "power": _safe(power_state, {"known": False, "said": "the power state could not be read"}),
+        "usage": _safe(lambda: usage(now), {"window_used": "unknown", "weekly": "unknown",
+                                            "note": "the usage records could not be read"}),
     }
     _SECTIONS.update({"at": clock, "value": json.loads(json.dumps(value, default=str))})
     return json.loads(json.dumps(value, default=str))
@@ -514,7 +749,7 @@ def snapshot(*, now: dt.datetime | None = None) -> dict:
     derived["agent"] = _safe(
         lambda: agent(now, hunt=derived["job_hunt"], browsing=derived["browser"],
                       pending_approvals=pending_approvals, waiting_operator=waiting_operator,
-                      waiting_replies=waiting_replies),
+                      waiting_replies=waiting_replies, sessions=derived.get("agent_sessions")),
         derived["agent"])
     return {
         "version": 2,
@@ -539,7 +774,10 @@ def snapshot(*, now: dt.datetime | None = None) -> dict:
         "capability_gaps": [{"id": c["id"], "status": c["status"]} for c in unavailable],
         "job_hunt": derived["job_hunt"],
         "browser": derived["browser"],
+        "agent_sessions": derived.get("agent_sessions"),
         "code": derived["code"],
+        "power": derived.get("power"),
+        "usage": derived.get("usage"),
     }
 
 
@@ -667,7 +905,8 @@ def agent_words(block: dict | None = None) -> str:
 def main(argv: list[str] | None = None) -> int:
     import argparse
     ap = argparse.ArgumentParser(description="The canonical model of now.")
-    ap.add_argument("section", nargs="?", help="agent, job_hunt, browser or code; omit for all")
+    ap.add_argument("section", nargs="?", help="agent, job_hunt, browser, agent_sessions, code, power "
+                                               "or usage; omit for all")
     ap.add_argument("--say", action="store_true", help="the spoken forms")
     args = ap.parse_args(argv)
     if args.say:

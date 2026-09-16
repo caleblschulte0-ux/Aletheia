@@ -259,5 +259,33 @@ class NeverTwice(Isolated):
         self.assertEqual(policy.all_approvals(), [])
 
 
+class TheCoreRunsThem(Isolated):
+    def test_the_beat_starts_them_only_when_something_waits(self):
+        from aletheia import runtime
+        with mock.patch.object(handoffs, "start_approved", return_value=True) as start:
+            self.assertEqual(runtime._run_approved_handoffs(), [])
+            start.assert_not_called()
+            self.ask()
+            self.assertEqual(runtime._run_approved_handoffs(), [{"handoffs": 1, "started": True}])
+            start.assert_called_once()
+
+    def test_saying_yes_kicks_them_too(self):
+        import inspect
+        from aletheia import core
+        self.assertIn("_run_approved_handoffs", inspect.getsource(core.kick_approved_work))
+
+    def test_the_background_runner_executes_what_was_approved(self):
+        _result, entry = self.ask()
+        policy.decide(entry["approval"], "APPROVED", via=intercom.ACTOR)
+        with mock.patch.object(handoffs, "run_approved",
+                               side_effect=lambda: handoffs._run_approved(catalog=self.catalog,
+                                                                         halted=lambda: False,
+                                                                         timeout_s=None)):
+            self.assertTrue(handoffs.start_approved())
+            handoffs._BACKGROUND["thread"].join(10)
+        self.assertEqual(handoffs.load(entry["handoff"])["state"], handoffs.DONE)
+        self.assertEqual(len(self.calls), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
