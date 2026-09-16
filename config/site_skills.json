@@ -8,6 +8,7 @@
     {
       "name": "greenhouse",
       "domains": ["greenhouse.io", "boards.greenhouse.io", "job-boards.greenhouse.io"],
+      "mail_domains": ["greenhouse-mail.io", "greenhouse.io"],
       "prefer": {"route": "the application form is on the posting page (or its #app anchor); no account"},
       "field_aliases": {"first name": "first_name", "last name": "last_name", "email": "email", "phone": "phone"},
       "page_states": [{"path": "/*/jobs/*", "state": "FORM"}],
@@ -17,6 +18,7 @@
     {
       "name": "lever",
       "domains": ["lever.co", "jobs.lever.co"],
+      "mail_domains": ["lever.co"],
       "prefer": {"route": "append /apply to the posting url; no account"},
       "field_aliases": {"full name": "legal_name", "email": "email", "phone": "phone", "current company": "current_employer"},
       "page_states": [{"path": "/*/*/apply", "state": "FORM"}],
@@ -26,6 +28,7 @@
     {
       "name": "workday",
       "domains": ["myworkdayjobs.com", "myworkdaysite.com", "workday.com"],
+      "mail_domains": ["myworkday.com", "workday.com"],
       "prefer": {"route": "Apply -> Apply Manually -> Create Account -> email verification -> wizard"},
       "field_aliases": {"email address": "email", "given name s": "first_name", "family name": "last_name",
                         "phone number": "phone", "address line 1": "street", "city": "city", "postal code": "postal_code"},
@@ -42,6 +45,7 @@
     {
       "name": "icims",
       "domains": ["icims.com"],
+      "mail_domains": ["icims.com"],
       "prefer": {"route": "Apply for this job online -> email lookup -> create account or sign in -> wizard"},
       "field_aliases": {"email address": "email", "first name": "first_name", "last name": "last_name"},
       "page_states": [],
@@ -51,6 +55,7 @@
     {
       "name": "ashby",
       "domains": ["ashbyhq.com", "jobs.ashbyhq.com"],
+      "mail_domains": ["ashbyhq.com"],
       "prefer": {"route": "the Application tab on the posting; no account"},
       "field_aliases": {"name": "legal_name", "email": "email", "phone": "phone"},
       "page_states": [],
@@ -60,6 +65,7 @@
     {
       "name": "smartrecruiters",
       "domains": ["smartrecruiters.com", "jobs.smartrecruiters.com"],
+      "mail_domains": ["smartrecruiters.com"],
       "prefer": {"route": "I'm interested -> one-page application; no account"},
       "field_aliases": {"first name": "first_name", "last name": "last_name", "email": "email", "confirm your email": "email"},
       "page_states": [],

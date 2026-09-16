@@ -146,6 +146,11 @@ def for_domain(url_or_host: str) -> dict:
         "domain": domain, "mode": mode if mode in MODES else MANUAL_ONLY,
         "manual_only_because": seed.get("manual_only_because", ""),
         "families": [f.get("name") for f in seed["families"]],
+        # Where this site's email comes from, when it is not the site's own
+        # domain (Greenhouse mails from greenhouse-mail.io). Seed only: a
+        # learned skill cannot widen which senders a code may be read from.
+        "mail_domains": sorted({str(d).casefold() for f in seed["families"]
+                                for d in f.get("mail_domains") or [] if d}),
         "prefer": next((f.get("prefer") for f in seed["families"] if f.get("prefer")), None),
         "field_aliases": aliases,
         "page_states": list(mine.get("page_states") or []) + states,

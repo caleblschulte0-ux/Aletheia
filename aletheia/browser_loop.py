@@ -44,7 +44,11 @@ one engine, a general layer on top.
 """
 from __future__ import annotations
 
+import datetime as dt
+import hashlib
+import json
 import re
+import time
 from pathlib import Path
 from typing import Any, Callable
 
@@ -55,6 +59,8 @@ ACTOR = "aletheia-browser-loop"
 MAX_STEPS = 30
 DEFAULT_BUDGET = 20
 ERROR_RETRIES = 2          # re-observing a failed page is always allowed
+LIVE_POLL_S = 2.0          # how often a held session asks whether he said yes
+MAX_HOLD_S = 30 * 60
 UNKNOWN_RETRIES = 2
 MAX_TARGETS = 90
 
@@ -459,10 +465,12 @@ def _say_boundary(kind: str, url: str, **bits) -> str:
                 + ". I will not make them up.")
     if kind == "WAITING_FOR_LINK":
         return (f"The site emailed a verification link for {where}. Give it to me (or open it "
-                "yourself) and I will carry on from there.")
+                "yourself) and I will carry on from there."
+                + (f" {bits['mail']}" if bits.get("mail") else ""))
     if kind == "WAITING_FOR_CODE":
         return (f"The site sent a {bits.get('via', 'verification')} code for {where}. Give it to me "
-                "and I will type it in and carry on.")
+                "and I will type it in and carry on."
+                + (f" {bits['mail']}" if bits.get("mail") else ""))
     if kind == "ERROR":
         return (f"The site kept failing at {where} ({bits.get('why', 'an error page')}); I looked "
                 f"again {ERROR_RETRIES} times. Nothing was submitted.")
@@ -483,7 +491,8 @@ def _stop(record: dict, state: str, kind: str, obs: dict | None, step: str = "",
     url = (obs or {}).get("url") or record.get("start_url") or ""
     boundary = {"kind": kind, "url": url, "page_state": (obs or {}).get("state", ""),
                 "step": step, "say": _say_boundary(kind, url, **bits)}
-    boundary.update({k: v for k, v in bits.items() if k in ("questions", "via", "why", "because") and v})
+    boundary.update({k: v for k, v in bits.items()
+                     if k in ("questions", "via", "why", "because", "mail", "site_said") and v})
     record = bm.stop_at(record, state, boundary)
     if kind in (ps.CAPTCHA, "SIGN_IN", "WAITING_FOR_CODE", "ERROR", "MANUAL_ONLY") and url:
         site_skills.learn(url, boundary={"kind": kind, "note": boundary["say"][:180]})
@@ -508,12 +517,23 @@ class _Crash(BaseException):
 
 def pursue(goal: str, start_url: str, *, inputs: dict | None = None, mode: str = AUTONOMOUS,
            skill=None, decide: Callable | None = None, session=None, budget: int = DEFAULT_BUDGET,
-           code_source: Callable | None = None, on_step: Callable | None = None) -> dict:
+           code_source: Callable | None = None, on_step: Callable | None = None,
+           hold_s: float = 0.0, retry: bool = False) -> dict:
     """Drive toward a goal until it is done or stops at a named boundary.
 
     Resumes the mission if one exists for this goal and page: the route is
     replayed, not redone, and a submission already made is never made
     again without proof it failed. Returns the mission record.
+
+    `hold_s`: at the approval boundary, keep this browser open that long
+    waiting for his yes. If it arrives and the page still reads exactly as it
+    did when the approval was made, the button is pressed HERE, in the live
+    session (an expiring code survives); otherwise the approval is pressed
+    later by the replay, exactly as before. Same approval, same invariant.
+
+    `retry`: a mission the site handed back is driven to a new approval only
+    when he gave new answers or asked for a retry; otherwise it stops with
+    what the site said.
     """
     policy.ensure_not_halted()
     goal = " ".join(str(goal or "").split())
@@ -528,6 +548,15 @@ def pursue(goal: str, start_url: str, *, inputs: dict | None = None, mode: str =
     if record.get("state") in (bm.DONE, bm.AWAITING_APPROVAL, bm.SUBMITTING,
                                bm.SUBMITTED_UNCONFIRMED, bm.REFUSED):
         return record              # nothing to drive: done, waiting on him, or never
+    refused = record.get("rejected") or {}
+    if refused and not retry and refused.get("inputs") == inputs_digest(record.get("inputs")):
+        # THE SITE SAID NO, AND NOTHING HAS CHANGED. Driving back to the same
+        # button with the same answers is a resubmission that ignores what the
+        # site said; the stop carries its words instead.
+        return _stop(record, bm.REJECTED, "REJECTED", {"url": refused.get("url") or start_url},
+                     step="change what the site objected to, then tell me to try again",
+                     site_said=refused.get("site_said") or None,
+                     say=rejected_words(refused))
     effective = _effective_mode(mode, site)
     if effective == MANUAL_ONLY:
         return _stop(record, bm.MANUAL_ONLY, "MANUAL_ONLY", {"url": start_url},
@@ -543,7 +572,8 @@ def pursue(goal: str, start_url: str, *, inputs: dict | None = None, mode: str =
         page = ctx.new_page()
         try:
             return _drive(ctx, page, record, goal, skill, site, decide=decide, budget=budget,
-                          code_source=code_source, on_step=on_step)
+                          code_source=code_source, on_step=on_step,
+                          hold_s=max(0.0, min(float(hold_s or 0), MAX_HOLD_S)))
         finally:
             try:
                 page.close()
@@ -575,6 +605,22 @@ def resume(mid: str, *, done: str = "", answers: dict | None = None, **kwargs) -
                   mode=record.get("mode") or AUTONOMOUS, **kwargs)
 
 
+def inputs_digest(inputs: dict | None) -> str:
+    """Which answers a press was made with, as a short fingerprint."""
+    text = json.dumps({str(k): str(v) for k, v in (inputs or {}).items()}, sort_keys=True)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
+
+
+def rejected_words(refused: dict) -> str:
+    said = [str(x) for x in refused.get("site_said") or [] if str(x).strip()]
+    if said:
+        return ("The site handed it back and said: " + "; ".join(said)[:400]
+                + ". Nothing was accepted. Tell me what to change and I will bring it back to you.")
+    evidence = " ".join(str(refused.get("evidence") or "").split())[:240]
+    return ("The site handed it back" + (f" (its page read: {evidence})" if evidence else "")
+            + ". Nothing was accepted. Tell me what to change and I will bring it back to you.")
+
+
 def _replay_from(record: dict) -> str:
     return record.get("resume_url") or record.get("start_url") or ""
 
@@ -585,7 +631,7 @@ def _load(page, url: str) -> None:
 
 
 def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, budget: int,
-           code_source, on_step) -> dict:
+           code_source, on_step, hold_s: float = 0.0) -> dict:
     tracker = StatusTracker()
     tracker.watch(page)
     hands = webtask._Hands(page)
@@ -678,14 +724,17 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
             # A LINK, not a code: "we sent a verification link". Following it
             # is navigation, allowed only onto the same site.
             link = bm.take_event(record, "link")
+            record["current_url"] = obs["url"]
             if not link and code_source is not None:
                 try:
                     link = str(code_source(record, "link") or "")
                 except Exception:
                     link = ""
+                bm.save(record)
             if not link:
                 return _stop(record, bm.NEEDS_YOU, "WAITING_FOR_LINK", obs, via="email",
-                             step="open the verification link the site emailed")
+                             step="open the verification link the site emailed",
+                             mail=_source_why(code_source, record))
             if not _same_site(link, obs["url"]):
                 return _stop(record, bm.NEEDS_YOU, "LINK_ELSEWHERE", obs,
                              say=f"The verification link goes to {site_skills.domain_of(link)}, not this "
@@ -699,14 +748,19 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
         if state in (ps.EMAIL_VERIFICATION, ps.SMS_VERIFICATION):
             via = "text" if state == ps.SMS_VERIFICATION else "email"
             code = bm.take_event(record, "code")
+            record["current_url"] = obs["url"]
             if not code and code_source is not None:
                 try:
                     code = str(code_source(record, via) or "")
                 except Exception:
                     code = ""
+                bm.save(record)
+                if code:
+                    _note(record, f"read the {via} code from his inbox")
             if not code:
                 return _stop(record, bm.NEEDS_YOU, "WAITING_FOR_CODE", obs, via=via,
-                             step="type the code the site sent")
+                             step="type the code the site sent",
+                             mail=_source_why(code_source, record))
             box = next((t for t in obs["targets"] if t["role"] == "textbox"), None)
             # Into the route too: the approved press replays the route in a
             # fresh browser, and a wizard behind a code is not reachable
@@ -719,9 +773,15 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
             press = next((c for kind in (ps.PROGRESS, ps.OTHER, ps.COMMIT) for c in kinds.get(kind, [])
                           if kind != ps.COMMIT or _VERIFY_BUTTON.search(c["label"])), None)
             if press is None:
-                result = _gate(ctx, page, obs, record, goal, route, attached)
-                if result is not None:
+                result = _gate(ctx, page, obs, record, goal, route, attached, hold_s=hold_s)
+                live = _press_live(ctx, page, hands, result, hold_s=hold_s, tracker=tracker,
+                                   skill=skill, site=site)
+                if live is None:
                     return result
+                record, page = live
+                if record.get("state") != bm.RUNNING:
+                    return record
+                route, attached, written, tried, last_seen = [], [], set(), set(), ("", "")
                 continue
             page = _click(ctx, page, hands, obs["_refs"][press["id"]], route, tracker)
             continue
@@ -766,9 +826,17 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
                                                 "label": nxt[0]["label"], "led_to": "next page"})
                 continue
             if kinds.get(ps.COMMIT) or kinds.get(ps.CREATE_ACCOUNT) or kinds.get(ps.SPEND):
-                result = _gate(ctx, page, obs, record, goal, route, attached)
-                if result is not None:
+                result = _gate(ctx, page, obs, record, goal, route, attached, hold_s=hold_s)
+                live = _press_live(ctx, page, hands, result, hold_s=hold_s, tracker=tracker,
+                                   skill=skill, site=site)
+                if live is None:
                     return result
+                record, page = live
+                if record.get("state") != bm.RUNNING:
+                    return record
+                # AN ACCOUNT WAS MADE IN THIS SESSION: carry straight on from the
+                # page the press landed on, with a fresh route for the next leg.
+                route, attached, written, tried, last_seen = [], [], set(), set(), ("", "")
                 continue
             state = ps.CONTENT                      # a form with no way on: look for one
 
@@ -790,6 +858,18 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
     return _stop(record, bm.NEEDS_YOU, "OUT_OF_STEPS", None,
                  say=f"I used all {budget} steps without finishing. Everything so far is saved; "
                      "tell me to carry on.")
+
+
+def _source_why(code_source, record: dict) -> str:
+    """The code source's own plain sentence for why nothing came (mail not
+    set up, not arrived yet). "" when it has none."""
+    explain = getattr(code_source, "why", None)
+    if not callable(explain):
+        return ""
+    try:
+        return str(explain(record) or "")[:240]
+    except Exception:
+        return ""
 
 
 def _note(record: dict, text: str) -> None:
@@ -952,7 +1032,7 @@ def _sign_in(ctx, page, hands, obs: dict, record: dict, route: list[dict], track
 
 
 def _gate(ctx, page, obs: dict, record: dict, goal: str, route: list[dict],
-          attached: list[dict]) -> dict | None:
+          attached: list[dict], *, hold_s: float = 0.0) -> dict | None:
     """The final button: refused (money), refused (a duplicate), a question
     (the page says something is still empty), or ONE hash-bound approval
     through the existing webtask path. Returns the stopped record."""
@@ -990,16 +1070,29 @@ def _gate(ctx, page, obs: dict, record: dict, goal: str, route: list[dict],
     # gate means every press asks him again, which is the point.
     record["gates"] = int(record.get("gates") or 0) + 1
     run_id = f"{record['id']}--g{record['gates']}"
-    out = webtask._await_him(run_id, goal, page, target["label"], selector, list(route),
+    refused = record.pop("rejected", None)
+    if refused:
+        # A RETRY HE ASKED FOR carries what the site said last time into the
+        # sentence he approves, so the yes is given knowing it.
+        record["rejected_before"] = refused
+    asked = goal + (f" (last time the site said: {'; '.join(refused.get('site_said') or [])[:160]})"
+                    if refused and refused.get("site_said") else "")
+    out = webtask._await_him(run_id, asked, page, target["label"], selector, list(route),
                              list(attached), commits, start_url=replay)
     webtask_record = {"id": run_id, "goal": goal, "steps": [], "attempt": record.get("attempt", 1),
                       "downloaded": [], "url": page.url, "title": obs.get("title", ""),
                       "mission": record["id"], "at": stateio.utcnow(), **out}
+    if hold_s and hold_s > 0:
+        # HELD: the beat's replay press leaves this one alone while the live
+        # session waits for his yes. It expires on its own if this process dies.
+        webtask_record["held_live_until"] = (dt.datetime.now(dt.timezone.utc)
+                                             + dt.timedelta(seconds=float(hold_s) + 30)).isoformat()
     stateio.write_json_atomic(webtask._record_path(run_id), webtask_record)
     record["route"], record["attached"] = route, attached
     record["approval"] = out["approval"]
     record["webtask_run"] = run_id
-    record["gate"] = {"button": target["label"], "kind": kind, "url": obs["url"]}
+    record["gate"] = {"button": target["label"], "kind": kind, "url": obs["url"],
+                      "digest": page_digest(obs, target["label"])}
     boundary_kind = "ACCOUNT_CREATION_APPROVAL" if kind == ps.CREATE_ACCOUNT else "SUBMIT_APPROVAL"
     record = bm.stop_at(record, bm.AWAITING_APPROVAL, {
         "kind": boundary_kind, "url": obs["url"], "page_state": obs["state"],
@@ -1008,6 +1101,100 @@ def _gate(ctx, page, obs: dict, record: dict, goal: str, route: list[dict],
                    f"{boundary_kind} for {goal[:80]} - waiting on his yes", actor=ACTOR,
                    refs=[f"approval:{out['approval']}"])
     return record
+
+
+def page_digest(obs: dict, button: str) -> str:
+    """What the page he approved looks like, as a fingerprint: where it is,
+    every answer on it (role, label, value, ticked), and that the approved
+    button is still there. A press in the live session happens only when
+    the page reads the same now."""
+    rows = sorted((t.get("role", ""), t.get("label", ""), str(t.get("value") or ""), bool(t.get("checked")))
+                  for t in obs.get("targets") or [] if t.get("role") in ps.ANSWER_ROLES)
+    present = any(_norm(t.get("label")) == _norm(button) for t in obs.get("targets") or []
+                  if t.get("role") in ps.PRESS_ROLES)
+    text = json.dumps({"url": str(obs.get("url") or "").split("#")[0], "answers": rows,
+                       "button": _norm(button), "present": present}, sort_keys=True)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
+def _release_hold(run_id: str) -> None:
+    try:
+        held = webtask.load_run(run_id)
+    except Exception:
+        return
+    if held.pop("held_live_until", None) is not None and held.get("state") == webtask.COMMIT:
+        stateio.write_json_atomic(webtask._record_path(run_id), held)
+
+
+def _press_live(ctx, page, hands, record: dict, *, hold_s: float, tracker, skill, site):
+    """Wait (up to `hold_s`) for his yes with the browser still open, and press
+    the approved button HERE when the page still matches. Returns
+    (mission record, page) when this session pressed, or None when it did
+    not - in which case nothing changed and the replay press takes over.
+
+    Nothing is looser than the replay path: the press goes through
+    `webtask.commit` (approval usable, route binding, one use, the mission's
+    no-second-press invariant written to disk before the click), and only
+    the browser it clicks in differs."""
+    if not hold_s or hold_s <= 0 or not isinstance(record, dict) \
+            or record.get("state") != bm.AWAITING_APPROVAL or not record.get("webtask_run"):
+        return None
+    run_id, approval = record["webtask_run"], record.get("approval") or ""
+    deadline = time.monotonic() + float(hold_s)
+    try:
+        while True:
+            policy.ensure_not_halted()
+            try:
+                decided = policy.load(approval).get("state")
+            except Exception:
+                decided = None
+            if decided == "APPROVED":
+                break
+            if decided in ("DENIED", "EXPIRED") or time.monotonic() >= deadline:
+                return None
+            _sleep(LIVE_POLL_S)
+        now = look(page, tracker=tracker, skill=skill, site=site)
+        wanted = (record.get("gate") or {}).get("digest")
+        if not wanted or page_digest(now, (record.get("gate") or {}).get("button", "")) != wanted:
+            _note(record, "he said yes, but the page no longer reads as it did when he was asked; "
+                          "the press will replay the route in a fresh browser instead")
+            return None
+        holder = {"page": page}
+
+        def live_presser(webtask_record: dict) -> dict:
+            before = webtask._open_pages(ctx)
+            hands.click(webtask_record["button_selector"])
+            try:
+                holder["page"].wait_for_load_state("domcontentloaded")
+            except Exception:
+                pass
+            moved = webtask.follow_new_tab(ctx, holder["page"], before)
+            webtask.settle(moved)
+            holder["page"] = moved
+            hands.page = moved
+            tracker.watch(moved)
+            return webtask.read_after_press(moved, webtask_record)
+
+        try:
+            webtask.commit(run_id, presser=live_presser)
+        except webtask.WebTaskError as exc:
+            # Refused BEFORE any click (a used approval, a duplicate, a changed
+            # route): nothing was pressed here, and the same refusal holds on
+            # every other path.
+            _note(bm.load(record["id"]), f"did not press in the live session: {str(exc)[:160]}")
+            return None
+        except Exception:                                 # noqa: BLE001
+            pass                  # the press path already folded the failure into the mission
+        after = bm.load(record["id"])
+        after.setdefault("history", []).append({"at": stateio.utcnow(),
+                                                "did": "pressed in the live session after his yes"})
+        return bm.save(after), holder["page"]
+    finally:
+        _release_hold(run_id)
+
+
+def _sleep(seconds: float) -> None:
+    time.sleep(seconds)
 
 
 # ---- the press, folded back into the mission -------------------------------------
@@ -1066,6 +1253,18 @@ def after_press(webtask_record: dict, result: dict | None, error: BaseException 
                                                    "verifying it."})
     record = bm.end_submit(record, verdict=verdict, evidence=evidence, url=str(result.get("url") or ""),
                            note=str(result.get("note") or ""))
+    if verdict == "rejected":
+        # WHAT THE SITE SAID, read off the page it handed back (the press path
+        # re-observes it: `webtask.site_errors`), into the stop - so the next
+        # move starts from its words, never from pressing the same thing again.
+        said = [str(x)[:240] for x in result.get("site_errors") or [] if str(x).strip()][:12]
+        record["rejected"] = {"at": stateio.utcnow(), "url": str(result.get("url") or gate.get("url") or ""),
+                              "site_said": said, "evidence": evidence[:600],
+                              "inputs": inputs_digest(record.get("inputs"))}
+        record["boundary"] = {**(record.get("boundary") or {}), "kind": "REJECTED",
+                              "site_said": said, "say": rejected_words(record["rejected"]),
+                              "step": "change what the site objected to, then tell me to try again"}
+        record = bm.save(record)
     if verdict == "confirmed" and gate.get("kind") == ps.CREATE_ACCOUNT:
         # AN ACCOUNT IS A STEP, NOT THE GOAL. The route to here must never be
         # replayed (it ends in the press that made the account), so the next

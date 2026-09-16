@@ -213,6 +213,33 @@ def _body_text(msg) -> str:
     return re.sub(r"\n{3,}", "\n\n", text).strip()[:MAX_READ_CHARS]
 
 
+_HREF = re.compile(r"""href\s*=\s*["']([^"'<>\s]+)["']""", re.I)
+_BARE_URL = re.compile(r"https?://[^\s<>\"')\]]+", re.I)
+
+
+def body_links(msg) -> list[str]:
+    """Every http(s) link a message carries - the HTML hrefs and the bare
+    urls in its text - in order, once each. Attachments are never opened.
+    Links are DATA: nothing here follows one."""
+    import html as _html
+    found: list[str] = []
+    parts = msg.walk() if msg.is_multipart() else [msg]
+    for part in parts:
+        if part.get_content_maintype() != "text" or part.get_filename():
+            continue
+        try:
+            payload = part.get_payload(decode=True) or b""
+            text = payload.decode(part.get_content_charset() or "utf-8", "replace")
+        except (LookupError, ValueError):
+            continue
+        hits = (_HREF.findall(text) if part.get_content_subtype() == "html" else []) + _BARE_URL.findall(text)
+        for link in hits:
+            link = _html.unescape(link).rstrip(".,;")
+            if link.lower().startswith(("http://", "https://")) and link not in found:
+                found.append(link)
+    return found[:60]
+
+
 def one_line(value) -> str:
     """Text with every control character gone and its whitespace collapsed.
 
@@ -294,6 +321,33 @@ class SmtpImapTransport:
             "message_id": mid,
             "text": _body_text(msg),
         }
+
+    def fetch_recent(self, since_epoch: float, limit: int = 25) -> list[dict]:
+        """Messages dated on or after a moment, read or unread, WITH their text
+        and links - for a browser mission waiting on a verification email.
+
+        Read-only in every way that matters: the mailbox is selected
+        readonly and bodies are fetched with BODY.PEEK, so nothing is marked
+        seen, moved or deleted. IMAP's SINCE is a whole day, so the caller
+        filters to the exact moment by each message's Date header."""
+        import imaplib
+        from email import message_from_bytes
+        day = dt.datetime.fromtimestamp(float(since_epoch or 0), dt.timezone.utc)
+        out: list[dict] = []
+        with imaplib.IMAP4_SSL(self.cfg["imap_host"], timeout=NETWORK_TIMEOUT_S) as imap:
+            imap.login(self.cfg["address"], self.cfg["password"])
+            imap.select("INBOX", readonly=True)
+            _, data = imap.search(None, "SINCE", day.strftime("%d-%b-%Y"))
+            ids = data[0].split()
+            for mid in reversed(ids[-max(1, int(limit)):]):
+                _, msg_data = imap.fetch(mid, "(BODY.PEEK[])")
+                msg = message_from_bytes(msg_data[0][1])
+                out.append({"from": _header(msg, "From", "?"),
+                            "subject": _header(msg, "Subject", "(no subject)"),
+                            "date": msg.get("Date", ""),
+                            "message_id": msg.get("Message-ID", ""),
+                            "text": _body_text(msg), "links": body_links(msg)})
+        return out
 
     def send(self, msg: EmailMessage) -> None:
         import smtplib
