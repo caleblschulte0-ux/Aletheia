@@ -93,6 +93,21 @@ _FORM_HARMLESS = re.compile(
     r"skip to (?:content|main)|menu|x|×)\s*$", re.I)
 
 
+#: An ORDER is spending even when no money word is on the button: "Submit
+#: order", "Complete my order", "Confirm order" (httpbin's pizza form, the
+#: one live observe). MONEY_WORDS only knew "place order".
+_ORDER = re.compile(r"\b(?:submit|confirm|complete|finish|send|review|finali[sz]e)\s+(?:my\s+|your\s+|the\s+)?"
+                    r"(?:order|booking|reservation)\b|\border\s+now\b", re.I)
+#: A price the page is about to charge: a total, an amount due, beside money.
+_CHARGE = re.compile(r"\b(?:order total|total due|amount due|grand total|total price|you(?:'|’)ll pay|"
+                     r"total)\b[^\n]{0,40}?[$€£]\s?\d|[$€£]\s?\d[\d,.]*\s*(?:due|total)\b", re.I)
+
+
+def shows_a_charge(text: str) -> bool:
+    """Does the page show a total it is about to charge?"""
+    return bool(_CHARGE.search(str(text or "")[:6000]))
+
+
 def control_kind(label: str, *, role: str = "button", on_form: bool = False) -> str:
     """What pressing this control would DO, from its accessible name.
 
@@ -103,7 +118,7 @@ def control_kind(label: str, *, role: str = "button", on_form: bool = False) -> 
     """
     from aletheia import computer, webtask
     text = " ".join(str(label or "").split())
-    if webtask.MONEY_WORDS.search(text):
+    if webtask.MONEY_WORDS.search(text) or _ORDER.search(text):
         return SPEND
     if _CREATE_ACCOUNT.search(text):
         return CREATE_ACCOUNT

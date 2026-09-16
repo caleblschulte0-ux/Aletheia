@@ -104,6 +104,21 @@ PICKY = """<h1>Feedback</h1>%s<form method="POST" action="/picky/send">
 <label for="z">Zip code *</label><input id="z" name="zip" value="%s" required>
 <button type="submit">Send feedback</button></form>"""
 
+# httpbin.org/forms/post, as read by the one live observe (2026-09-16): a pick-
+# any group of checkboxes, and a final button that orders food.
+PIZZA = """<form method="post" action="/pizza/post">
+ <p><label>Customer name: <input name="custname"></label></p>
+ <p><label>Telephone: <input type=tel name="custtel"></label></p>
+ <fieldset><legend> Pizza Size </legend>
+  <p><label> <input type=radio name=size value="small"> Small </label></p>
+  <p><label> <input type=radio name=size value="large"> Large </label></p></fieldset>
+ <fieldset><legend> Pizza Toppings </legend>
+  <p><label> <input type=checkbox name="topping" value="bacon"> Bacon </label></p>
+  <p><label> <input type=checkbox name="topping" value="cheese"> Extra Cheese </label></p>
+  <p><label> <input type=checkbox name="topping" value="onion"> Onion </label></p></fieldset>
+ <p><label>Delivery instructions: <textarea name="comments"></textarea></label></p>
+ <p><button>Submit order</button></p></form>"""
+
 
 def _site(state: dict):
     got = state["got"]
@@ -131,7 +146,8 @@ def _site(state: dict):
                 return self._send(PICKY % ("", ""))
             pages = {"/clinic": CLINIC, "/clinic/request": STEP1, "/clinic/about": "<p>About</p>",
                      "/library/card": LIBRARY, "/careers/42": POSTING, "/careers/42/apply": APPLY,
-                     "/portal/apply": PORTAL, "/flaky": FLAKY_FORM, "/volunteer": VERIFY1}
+                     "/portal/apply": PORTAL, "/flaky": FLAKY_FORM, "/volunteer": VERIFY1,
+                     "/pizza": PIZZA}
             self._send(pages.get(path, "<h1>404</h1>"), 200 if path in pages else 404)
 
         def do_POST(self):
@@ -419,6 +435,18 @@ class ObservingIsReadingOnly(LoopCase):
         self.assertIn(("textbox", "Full name *"), labels)
         self.assertIn(("button", "Create account"), labels)
         self.assertTrue(all("selector" not in t for t in seen["targets"]))
+        self.assertEqual(self.state["posts"], [])
+
+    def test_a_pick_any_group_keeps_its_options_and_an_order_is_never_pressed(self):
+        from aletheia import browser_tools
+        seen = browser_tools._observe({"url": self.url("/pizza")})
+        toppings = [(t["label"], t.get("question")) for t in seen["targets"] if t["role"] == "checkbox"]
+        self.assertEqual([label for label, _ in toppings], ["Bacon", "Extra Cheese", "Onion"])
+        self.assertTrue(all("Toppings" in (q or "") for _, q in toppings))
+        record = browser_loop.pursue("fill in the lunch form", self.url("/pizza"),
+                                     inputs={"customer name": "Caleb", "telephone": "5125550134",
+                                             "pizza size": "Large", "pizza toppings": "Onion"})
+        self.assertBoundary(record, bm.REFUSED, "SPENDING")
         self.assertEqual(self.state["posts"], [])
 
 

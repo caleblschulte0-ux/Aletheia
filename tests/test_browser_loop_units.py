@@ -113,6 +113,15 @@ class AControlIsJudgedByWhatPressingItDoes(unittest.TestCase):
         self.assertEqual(k("About us", role="link"), ps.NAVIGATE)
         self.assertEqual(k("Cancel my membership", role="link"), ps.COMMIT)
 
+    def test_an_order_is_spending_even_without_a_money_word(self):
+        """httpbin's pizza form, read live: its button says "Submit order"."""
+        for label in ("Submit order", "Complete my order", "Confirm booking", "Order now"):
+            with self.subTest(label=label):
+                self.assertEqual(ps.control_kind(label, on_form=True), ps.SPEND)
+        self.assertTrue(ps.shows_a_charge("Subtotal $18.00\nOrder total: $21.40"))
+        self.assertTrue(ps.shows_a_charge("Amount due $5"))
+        self.assertFalse(ps.shows_a_charge("Founded in 1998. 40 staff."))
+
     def test_an_unfamiliar_button_on_a_form_is_a_commit(self):
         """"Join the list" says no committing word and is a submit button."""
         for label in ("Join the list", "Let's go", "Count me in", ""):
@@ -163,6 +172,16 @@ class TheGeneralSkillTypesOnlyHisInputs(unittest.TestCase):
         self.assertEqual(typed, {"#a": "Caleb Schulte", "#d": "Tuesday"})
         self.assertEqual(plan["ask"], ["Phone *"], "a profile fact is not an input of this goal")
         self.assertNotIn("#c", typed, "'name' never answers 'company name'")
+
+    def test_a_pick_any_group_ticks_exactly_what_he_named(self):
+        obs = {"url": "https://x.example/f", "targets": [
+            {"id": "t1", "role": "checkbox", "label": "Bacon", "question": "Pizza Toppings"},
+            {"id": "t2", "role": "checkbox", "label": "Extra Cheese", "question": "Pizza Toppings"},
+            {"id": "t3", "role": "checkbox", "label": "Onion", "question": "Pizza Toppings", "checked": True}],
+            "_refs": {"t1": "#b", "t2": "#x", "t3": "#o"}}
+        plan = browser_loop.GENERAL.plan(obs, {"inputs": {"pizza toppings": "extra cheese, onion"}}, {})
+        self.assertEqual([(i["action"], i["selector"]) for i in plan["fill"]], [("check", "#x")])
+        self.assertEqual(plan["ask"], [])
 
 
 class TheSubmissionInvariant(Isolated):

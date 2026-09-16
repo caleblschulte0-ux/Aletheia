@@ -159,7 +159,8 @@ def look(page, *, tracker: StatusTracker | None = None, skill=None, site: dict |
         if str(field.get("type") or "").casefold() in ("hidden", "submit", "button", "image", "reset"):
             continue
         role = _role_of_field(field)
-        if role == "radio" and field.get("is_option"):
+        if role in ("radio", "checkbox") and field.get("is_option") and field.get("label") \
+                and field.get("is_option") != field.get("label"):
             add(role, field["is_option"], field["selector"], question=field.get("label"),
                 checked=field.get("checked"), required=field.get("required") or None)
             continue
@@ -303,10 +304,14 @@ class GeneralSkill:
         refs = obs.get("_refs") or {}
         fill, ask, aliases = [], [], {}
         radios: dict[str, list[dict]] = {}
+        boxes: dict[str, list[dict]] = {}
         for t in obs.get("targets") or []:
             role = t["role"]
             if role in ("radio", "option") and t.get("question"):
                 radios.setdefault(t["question"], []).append(t)
+                continue
+            if role == "checkbox" and t.get("question"):
+                boxes.setdefault(t["question"], []).append(t)
                 continue
             if role not in ("textbox", "combobox", "checkbox", "file"):
                 continue
@@ -363,6 +368,24 @@ class GeneralSkill:
             elif not target.get("checked"):
                 fill.append({"action": "click", "selector": refs[target["id"]], "value": chosen,
                              "label": question, "key": key})
+        for question, choices in boxes.items():
+            # Pick-any: his input names the options ("Bacon, Onion"); every one
+            # it names is ticked, and an option it does not name is left alone.
+            key = match_key(question, inputs, site)
+            if key is None:
+                if any(c.get("required") for c in choices) and not any(c.get("checked") for c in choices):
+                    ask.append(question)
+                continue
+            wanted = inputs[key] if isinstance(inputs[key], list) else re.split(r"\s*[,;]\s*", str(inputs[key]))
+            labels = [c["label"] for c in choices]
+            for want in [w for w in wanted if str(w).strip()]:
+                chosen = _pick_option(labels, str(want))
+                target = next((c for c in choices if c["label"] == chosen), None)
+                if target is None:
+                    ask.append(f"{question} (none of its choices is {want!r})")
+                elif not target.get("checked"):
+                    fill.append({"action": "check", "selector": refs[target["id"]], "value": chosen,
+                                 "label": question, "key": key})
         return {"fill": fill, "ask": ask, "aliases": aliases}
 
 
@@ -939,6 +962,10 @@ def _gate(ctx, page, obs: dict, record: dict, goal: str, route: list[dict],
                      say=f"The way on is a button that says {label[:60]!r}, which spends money. "
                          "I stopped and did not press it.")
     target = (kinds.get(ps.CREATE_ACCOUNT) or kinds.get(ps.COMMIT))[0]
+    if ps.shows_a_charge(obs.get("text", "")) or webtask.would_spend(target["label"]):
+        return _stop(record, bm.REFUSED, "SPENDING", obs,
+                     say=f"The last step is {target['label'][:60]!r} on a page that shows a charge. "
+                         "That spends money, so I stopped and did not press it.")
     kind = _kind(target, obs)
     if obs["state"] == ps.REVIEW or not bm.reached(record, bm.REVIEW_REACHED):
         record = bm.checkpoint(record, bm.REVIEW_REACHED, url=obs["url"], button=target["label"])
