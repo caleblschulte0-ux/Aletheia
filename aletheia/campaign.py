@@ -73,7 +73,8 @@ from pathlib import Path
 from urllib.parse import urljoin
 
 from aletheia import (applications, apply_run, browse, doctext, formfill, job_fit,
-                      journal, jobs, policy, proc, profile, speech, stateio, workspace)
+                      job_value, journal, jobs, policy, proc, profile, speech, stateio,
+                      workspace)
 
 ACTOR = "aletheia-campaign"
 
@@ -883,6 +884,28 @@ def _keep_the_job(record: dict, page: dict, **extra_fields) -> dict:
         return record
 
 
+def _record_discovery(pages: list[dict]) -> None:
+    """Today's discovery summary: what was found, what is realistic by value,
+    and the outliers by company, title and why. Never raises."""
+    try:
+        from aletheia import job_discovery
+        rows = [{"company": p.get("company", ""), "title": job_fit.bare_title(p.get("title", ""), p.get("company", "")),
+                 "why": job_value.why(p), "value": p.get("value"), "url": p.get("url", "")}
+                for p in pages]
+        queues = [p.get("queue") for p in pages]
+        job_discovery.record(
+            discovered=len(pages), qualified=sum(1 for q in queues if q),
+            outliers=[r for r, q in zip(rows, queues) if q == "outlier"],
+            best=[r for r, q in zip(rows, queues) if q == "best-fit"][:10])
+        summary = job_discovery.today()
+        if summary:
+            journal.append("note", "jobs", job_discovery.spoken(summary), actor=ACTOR)
+        # Yesterday's whole day, once, where he sees it.
+        job_discovery.announce()
+    except Exception:
+        pass
+
+
 def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         finder=None, reader=None, opener=None, stager=None, writer=None,
         json_think=None, searcher=None, draft_essays_too: bool = True,
@@ -933,7 +956,13 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
                             "direct": bool(j.get("direct", True)),
                             "needs_account": bool(j.get("needs_account")),
                             "provider": j.get("provider", ""),
-                            "score": j.get("score", 0)}
+                            "score": j.get("score", 0),
+                            # The facts `job_value` scores from, where a source
+                            # carried them (a JobPosting's pay and date, a
+                            # link nobody has verified yet).
+                            **{k: j[k] for k in ("location", "salary", "salary_unit", "posted",
+                                                 "description", "employment_type", "unverified",
+                                                 "found_by", "extracted_by") if j.get(k)}}
                            for j in found["matches"]]
 
         hits, pages = _openings(roles)
@@ -973,17 +1002,39 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
                   "posting": p["url"], "direct": False} for p in found]
 
     pages = captcha_later(pages)
-    staged, needs_you, failed = [], [], []
-    passed_over, duplicates, later, needs_account = [], [], [], []
-    tried: dict[str, int] = {}
-    attempts = 0
-    give_up_at = dt.datetime.now(dt.timezone.utc) + MAX_RUN
     real_search = finder is None and searcher is None
     judge_with = (fit_think if fit_think is not None
                   else (None if real_search and json_think is None else False))
     describe = describer or (jobs.posting_text if real_search else None)
     known_now = profile.known()
     early = bool(_seniority_to_leave_out(known_now))
+    # VALUE ORDER, not title-overlap order: pay against his floor and the
+    # place's cost of living, geography, the employer, recency, ease, and every
+    # rule he cannot be talked out of - with the reasons written on each page
+    # (`why_she_liked_it`). Outliers rank up. Stable, so between equals the
+    # CAPTCHA ordering above holds.
+    #
+    # Only when he has let discovery choose (`job_discovery.lets_discovery_choose`):
+    # the live applications loop sends from this order, so until then every page
+    # is still SCORED - the reasons kept on the record, the day summarised - and
+    # tried in the order it came. Reading posting text for the ranking is part
+    # of choosing, so it waits on the same switch.
+    try:
+        from aletheia import job_discovery
+        choose = job_discovery.lets_discovery_choose()
+    except Exception:
+        choose = False
+    ranked = job_value.rank(pages, known=known_now, resume_text=text,
+                            describe=describe if (real_search and choose) else None,
+                            taken=apply_run.role_taken)
+    if choose:
+        pages = ranked
+    _record_discovery(ranked)
+    staged, needs_you, failed = [], [], []
+    passed_over, duplicates, later, needs_account = [], [], [], []
+    tried: dict[str, int] = {}
+    attempts = 0
+    give_up_at = dt.datetime.now(dt.timezone.utc) + MAX_RUN
     roles_seen: set[str] = set()
     judged = 0
     for page in pages:
@@ -1090,7 +1141,10 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         except Exception as exc:
             failed.append({"url": form_url, "why": f"{type(exc).__name__}: {exc}"[:160]})
             continue
-        record = _keep_the_job(record, page, fit=fit, employment=fit.get("employment", ""))
+        record = _keep_the_job(record, page, fit=fit, employment=fit.get("employment", ""),
+                               value=page.get("value"), queue=page.get("queue"),
+                               why_she_liked_it=page.get("why_she_liked_it"),
+                               why_not=page.get("why_not"))
         # The form's own questions can say what the posting did not: "the
         # largest ACV deal you have personally closed" is a closing job.
         unfit = job_fit.quick_reason(record) if record.get("state") == "NEEDS_YOU" else ""

@@ -222,7 +222,17 @@ def infer_json(system_prompt: str, text: str, *, context: dict | None = None,
         if isinstance(detail, str) and detail:
             raise LocalBrainUnavailable("configured local model is unavailable")
         raise LocalBrainProtocolError("Ollama response missing message.content")
-    return _first_json_object(message["content"])
+    content = message["content"]
+    thinking = message.get("thinking")
+    if not content.strip() and not config.think and isinstance(thinking, str) and thinking.strip():
+        # A MODEL THAT CANNOT STOP THINKING. qwen3-vl:4b ignores
+        # `think: false` and returns its whole reply in `thinking` with an
+        # empty `content` (measured 2026-09-16, Ollama 0.34.1): every call
+        # failed as "no JSON object" while the object sat one field over.
+        # Only when thinking was switched OFF - then nothing in that field
+        # was asked to be reasoning, and it is the answer mis-channelled.
+        content = thinking
+    return _first_json_object(content)
 
 
 def status(config: OllamaConfig) -> dict[str, Any]:

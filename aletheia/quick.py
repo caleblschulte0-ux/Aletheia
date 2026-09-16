@@ -75,15 +75,39 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s)? waiting$"
         r"|^(?:is there )?anything (?:waiting )?for me$"
         r"|^(?:do )?(?:you )?need anything(?: from me)?$"
+        # "What do you need from me" is the fourth of the brief's four
+        # questions, and it paid a round trip to be answered from the same
+        # stores as "what's waiting on me".
+        r"|^what do (?:you|u) need from me(?: right now| today)?$"
+        r"|^(?:is there )?anything (?:you|u) need from me$"
         r"|^what needs me$|^anything i need to (?:do|see|look at)$"
         r"|^what(?:'s| is|s)? on my plate$"
         r"|^is there anything waiting(?: on me| for me)?$"
         r"|^anything i should know(?: about)?$"
         r"|^what am i blocking$|^am i blocking anything$")),
     ("doing", re.compile(
-        r"^what (?:are|r) (?:you|u) (?:doing|working on|up to)$"
-        r"|^what(?:'s| is|s)? (?:happening|going on|the status)$"
+        r"^what (?:are|r) (?:you|u) (?:doing|working on|up to)"
+        r"(?: right now| now| at the moment| currently)?$"
+        r"|^what(?:'s| is|s)? (?:happening|going on|the status)(?: right now| now)?$"
         r"|^status$|^how(?:'s| is) it going$")),
+    # The brief's first question, answered from the application records
+    # with no model: every number in the answer is a count of records.
+    ("job_hunt", re.compile(
+        r"^how (?:did|have|are) (?:the )?(?:job )?(?:applications|apps|job hunt|hunt|job search)"
+        r" (?:go|gone|going)(?: today| so far| so far today)?$"
+        r"|^how(?:'s| is) the (?:job )?(?:hunt|search|applications?)(?: going)?(?: today)?$"
+        r"|^how many (?:jobs|applications) (?:did|have) (?:you|u) (?:apply to|applied to|send|sent)"
+        r"(?: today| so far)?$"
+        r"|^(?:did|have) (?:you|u) (?:apply|applied) to (?:any|anything|any jobs)(?: today)?$"
+        r"|^(?:job )?(?:applications|hunt) (?:status|today|report)$")),
+    # The third question. It has a `recollection` pattern for the model's
+    # context and no fast answer, so "what went wrong today" paid a round
+    # trip to read out alerts that are a file read away.
+    ("wrong", re.compile(
+        r"^what went wrong(?: today| so far today)?$"
+        r"|^what(?:'s| is|s)? (?:broken|failing|stuck)(?: today)?$"
+        r"|^(?:did|has) anything (?:fail|failed|go wrong|gone wrong|break|broken)(?: today)?$"
+        r"|^what failed(?: today)?$|^any (?:errors|failures|problems)(?: today)?$")),
     ("today", re.compile(
         r"^what (?:did|have) (?:you|u) (?:do|done)(?: today)?$"
         r"|^what have (?:you|u) been doing$"
@@ -289,9 +313,13 @@ def _waiting() -> str:
         return _halted() + " Nothing runs until you resume me."
     waiting = list(now.get("waiting_on_you") or [])
     notices = list(now.get("notifications") or [])
+    # THE JOB HUNT IS THE THING MOST OFTEN WAITING ON HIM, and it was not
+    # here: twelve applications stopped on questions only he can answer,
+    # and "what do you need from me" said nothing was waiting.
+    hunt = _job_hunt_needs()
     if not waiting and not notices:
-        return "Nothing is waiting on you."
-    parts = []
+        return hunt or "Nothing is waiting on you."
+    parts = [hunt.rstrip(".")] if hunt else []
     if waiting:
         first = waiting[0]
         # `presence` calls it `label` and it is already a sentence a person
@@ -315,8 +343,47 @@ def _waiting() -> str:
     return ". ".join(parts) + "."
 
 
+def _job_hunt_needs() -> str:
+    """What the job hunt needs from him, or nothing. Never raises."""
+    try:
+        from aletheia import current_state
+        return current_state.needs_from_him_words()
+    except Exception:
+        return ""
+
+
+def _job_hunt() -> str | None:
+    """How the applications went today, counted from the records."""
+    try:
+        from aletheia import current_state
+        return current_state.job_hunt_words()
+    except Exception:
+        return None                 # she does not know; the model may look
+
+
+def _wrong() -> str | None:
+    """What went wrong today: blocked applications and journal alerts."""
+    try:
+        from aletheia import current_state
+        return current_state.wrong_today_words()
+    except Exception:
+        return None
+
+
 def _doing() -> str:
     from aletheia import presence, speech
+    # HER OWN STATE FIRST. The agent block knows she is pressing Submit at
+    # jobs.lever.co or stuck because nobody can think; `presence` knows
+    # about approvals and notices. When the agent block says she is doing
+    # something, that is the answer to "what are you doing"; when it says
+    # IDLE, the rest of this function says what is waiting instead.
+    try:
+        from aletheia import current_state
+        block = current_state.sections()["agent"]
+        if block.get("state") not in ("IDLE", None):
+            return current_state.agent_words(block)
+    except Exception:
+        pass
     now = presence.snapshot()
     headline = str(now.get("headline") or "").strip()
     if headline:
@@ -904,6 +971,8 @@ def _greeting() -> str | None:
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "waiting": lambda rest: _waiting(),
            "doing": lambda rest: _doing(),
+           "job_hunt": lambda rest: _job_hunt(),
+           "wrong": lambda rest: _wrong(),
            "today": lambda rest: _today(),
            "yesterday": lambda rest: _yesterday(),
            "clock": lambda rest: _clock(),
