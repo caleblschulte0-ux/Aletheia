@@ -1,0 +1,70 @@
+{
+  "_about": "Reviewed seed knowledge for aletheia.site_skills. Families are OPTIMISATIONS the general browser loop may prefer; nothing here is required for a new site. manual_only is the terms-of-service floor: a learned skill can never lift it. Learned skills live in private state, not here.",
+  "manual_only": [
+    {"domain": "indeed.com", "because": "Indeed's terms forbid automated access and applying; he applies there himself"},
+    {"domain": "linkedin.com", "because": "LinkedIn's user agreement forbids bots and automated applying; he applies there himself"}
+  ],
+  "families": [
+    {
+      "name": "greenhouse",
+      "domains": ["greenhouse.io", "boards.greenhouse.io", "job-boards.greenhouse.io"],
+      "prefer": {"route": "the application form is on the posting page (or its #app anchor); no account"},
+      "field_aliases": {"first name": "first_name", "last name": "last_name", "email": "email", "phone": "phone"},
+      "page_states": [{"path": "/*/jobs/*", "state": "FORM"}],
+      "nav_hints": [],
+      "boundaries": [{"kind": "EMAIL_VERIFICATION", "note": "may email a security code after Submit"}]
+    },
+    {
+      "name": "lever",
+      "domains": ["lever.co", "jobs.lever.co"],
+      "prefer": {"route": "append /apply to the posting url; no account"},
+      "field_aliases": {"full name": "legal_name", "email": "email", "phone": "phone", "current company": "current_employer"},
+      "page_states": [{"path": "/*/*/apply", "state": "FORM"}],
+      "nav_hints": [{"from_state": "CONTENT", "role": "link", "label": "Apply for this job", "led_to": "FORM"}],
+      "boundaries": [{"kind": "CAPTCHA", "note": "forms load an invisible hCaptcha; a press may not land"}]
+    },
+    {
+      "name": "workday",
+      "domains": ["myworkdayjobs.com", "myworkdaysite.com", "workday.com"],
+      "prefer": {"route": "Apply -> Apply Manually -> Create Account -> email verification -> wizard"},
+      "field_aliases": {"email address": "email", "given name s": "first_name", "family name": "last_name",
+                        "phone number": "phone", "address line 1": "street", "city": "city", "postal code": "postal_code"},
+      "page_states": [],
+      "nav_hints": [
+        {"from_state": "CONTENT", "role": "button", "label": "Apply", "led_to": "CONTENT"},
+        {"from_state": "CONTENT", "role": "button", "label": "Apply Manually", "led_to": "ACCOUNT_SIGNUP"}
+      ],
+      "boundaries": [
+        {"kind": "ACCOUNT_SIGNUP", "note": "every tenant wants its own candidate account; creating one is approval-gated"},
+        {"kind": "EMAIL_VERIFICATION", "note": "a new account is verified by an emailed link or code"}
+      ]
+    },
+    {
+      "name": "icims",
+      "domains": ["icims.com"],
+      "prefer": {"route": "Apply for this job online -> email lookup -> create account or sign in -> wizard"},
+      "field_aliases": {"email address": "email", "first name": "first_name", "last name": "last_name"},
+      "page_states": [],
+      "nav_hints": [{"from_state": "CONTENT", "role": "link", "label": "Apply for this job online", "led_to": "FORM"}],
+      "boundaries": [{"kind": "ACCOUNT_SIGNUP", "note": "wants a candidate account per employer; approval-gated"}]
+    },
+    {
+      "name": "ashby",
+      "domains": ["ashbyhq.com", "jobs.ashbyhq.com"],
+      "prefer": {"route": "the Application tab on the posting; no account"},
+      "field_aliases": {"name": "legal_name", "email": "email", "phone": "phone"},
+      "page_states": [],
+      "nav_hints": [{"from_state": "CONTENT", "role": "tab", "label": "Application", "led_to": "FORM"}],
+      "boundaries": []
+    },
+    {
+      "name": "smartrecruiters",
+      "domains": ["smartrecruiters.com", "jobs.smartrecruiters.com"],
+      "prefer": {"route": "I'm interested -> one-page application; no account"},
+      "field_aliases": {"first name": "first_name", "last name": "last_name", "email": "email", "confirm your email": "email"},
+      "page_states": [],
+      "nav_hints": [{"from_state": "CONTENT", "role": "button", "label": "I'm interested", "led_to": "FORM"}],
+      "boundaries": []
+    }
+  ]
+}
