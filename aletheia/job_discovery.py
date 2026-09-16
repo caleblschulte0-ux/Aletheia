@@ -6,13 +6,16 @@ at by a listing or an AI search for postings. His ECG job was never a posting
 anyone indexed. It was an employer - a small one, near him, in his field -
 with a careers page of its own. So:
 
-  1. `discover_employers` asks the AI web search (his subscription, the same
-     daily budget `web_search_jobs` keeps) for EMPLOYERS, not jobs, with
-     diverse queries built from his roles, his fields (`work_wanted`) and his
-     places (his city and state, remote, the country); and it takes every
-     employer The Muse's leads name. Each becomes a row in `employers`.
+  1. `discover_employers` asks for EMPLOYERS, not jobs, with diverse queries
+     built from his roles, his fields (`work_wanted`) and his places (his city
+     and state, remote, the country): first of an ordinary web search
+     (`search_web_for_employers`, plain HTTP, no model, a daily count), then
+     of the AI web search (his subscription, the same daily budget
+     `web_search_jobs` keeps); and it takes every employer The Muse's leads
+     name. Each becomes a row in `employers`.
   2. `career_sites.crawl_employers` reads the employers due a crawl on their
-     own sites (at most a few per batch, a day apart per employer).
+     own sites (at most a few per batch, a day apart per employer), the ones
+     near him first.
   3. `employer_openings` is the fourth source in `jobs.search_many`, sharing
      the third slot with the web search, The Muse and the AI search so none
      starves another.
@@ -20,7 +23,11 @@ with a careers page of its own. So:
      discovered, qualified, the outliers (company, title, why) and the
      employers first met today - the raw material for "I found 312 openings
      today; these nine look unusually good, including two small employers I
-     had never seen".
+     had never seen". `announce` posts a finished day as one notification.
+
+Discovery runs in her applications loop either way. Whether it CHANGES who is
+applied to - her crawl joining the queue, the queue tried in value order - is
+his switch (`lets_discovery_choose`, off by default; `--choose on`).
 
 Nothing a search model says is believed as a fact: an employer it names is a
 row to crawl, and a crawl reads what the site itself publishes.
@@ -227,13 +234,210 @@ def find_employers(roles: list[str], places: list[str], *, fields: list[str] | N
     return out
 
 
+# ---- the plain web search for employers ------------------------------------------------
+#
+# The same questions, asked of an ordinary search-results page
+# (`research.http_search`: Bing's RSS first, measured to answer from this PC)
+# rather than of a model. It costs no subscription, needs no model to be
+# awake, and reads what the search engine itself returned - so it is the
+# path that keeps discovering when Claude and Codex are both resting. A
+# result becomes an employer only when it LOOKS like one: a careers or jobs
+# address, a board on an applicant-tracking system, or a page that talks
+# about hiring near him. Never a job board, a news site, a directory or an
+# encyclopedia. The crawl decides the rest.
+
+MAX_HTTP_SEARCHES_PER_BATCH = 2
+MAX_HTTP_SEARCHES_PER_DAY = 24
+MAX_HTTP_EMPLOYERS_PER_SEARCH = 10
+
+#: Hosts that are never the employer a result is about.
+_NOT_AN_EMPLOYER = re.compile(
+    r"(?:^|\.)(?:wikipedia\.org|wikimedia\.org|wiktionary\.org|reddit\.com|facebook\.com|instagram\.com|"
+    r"twitter\.com|x\.com|tiktok\.com|youtube\.com|pinterest\.com|threads\.net|yelp\.com|bbb\.org|"
+    r"yellowpages\.com|mapquest\.com|google\.com|bing\.com|microsoft\.com|msn\.com|yahoo\.com|"
+    r"duckduckgo\.com|quora\.com|medium\.com|substack\.com|forbes\.com|bloomberg\.com|wsj\.com|"
+    r"nytimes\.com|cnn\.com|foxnews\.com|usatoday\.com|apnews\.com|argusleader\.com|keloland\.com|"
+    r"dakotanewsnow\.com|kelo\.com|ksfy\.com|sdpb\.org|southdakotasearchlight\.com|bizjournals\.com|"
+    r"prnewswire\.com|businesswire\.com|globenewswire\.com|crunchbase\.com|zoominfo\.com|dnb\.com|"
+    r"manta\.com|bls\.gov|census\.gov|usajobs\.gov|salary\.com|payscale\.com|comparably\.com|"
+    r"careeronestop\.org|thumbtack\.com|angi\.com|homeadvisor\.com|nerdwallet\.com|investopedia\.com|"
+    r"thebalancemoney\.com|merriam-webster\.com|dictionary\.com|cambridge\.org|craigslist\.org|"
+    r"amazon\.com|ebay\.com|etsy\.com|tripadvisor\.com|niche\.com|indeed\.com|linkedin\.com|"
+    r"glassdoor\.com|ziprecruiter\.com|simplyhired\.com|monster\.com|careerbuilder\.com|"
+    r"snagajob\.com|jooble\.org|talent\.com|lensa\.com|adzuna\.com|jobs\.com|recruit\.net|"
+    r"learn4good\.com|jobgether\.com|jobleads\.com|hiring\.cafe|remoterocketship\.com|"
+    r"workingnomads\.com|weworkremotely\.com|dailyremote\.com|builtin\.com|welcometothejungle\.com)$",
+    re.I)
+#: A registrable domain that is itself a job board, a staffing firm or a listing:
+#: "sdjobs.org", "dakotacareers.com", "midwesthiring.net", "acme-staffing.com".
+_BOARD_DOMAIN = re.compile(r"jobs?|careers?|hiring|hire|staffing|recruit|talent|employment|resume|vacanc",
+                           re.I)
+_TITLE_SPLIT = re.compile(r"\s+[|\-–—:·•]\s+|\s*\|\s*")
+_TITLE_NOISE = re.compile(
+    r"^(?:jobs?|careers?)\s+(?:at|with)\s+|\s+(?:jobs?|careers?)$|^(?:work|join us)\s+(?:at|with)\s+", re.I)
+#: A title segment that names the page, not the employer.
+_PAGE_WORDS = re.compile(r"(?:home|homepage|about|about us|contact|contact us|our story|our team|team|"
+                         r"welcome|news|blog|locations?|services|products|menu|overview|who we are)", re.I)
+_HIRING_WORDS = re.compile(r"\b(?:hiring|careers?|job openings?|open positions?|join our team|"
+                           r"employment opportunities|now hiring|we(?:'|’)re hiring)\b", re.I)
+
+
+def _registrable(host: str) -> str:
+    parts = [p for p in str(host or "").casefold().split(".") if p]
+    if len(parts) >= 3 and len(parts[-1]) == 2 and parts[-2] in {"co", "com", "org", "gov", "ac", "net"}:
+        return ".".join(parts[-3:])
+    return ".".join(parts[-2:])
+
+
+def employer_name_from(title: str, host: str = "") -> str:
+    """The employer a search result is about, from its title, else its domain.
+
+    "Careers | Sanford Health" -> "Sanford Health"; "Jobs at Raven Industries"
+    -> "Raven Industries"; a title that is only career words falls back to the
+    domain ("daktronics.com" -> "Daktronics").
+    """
+    from aletheia import career_sites
+    segments = [" ".join(s.split()) for s in _TITLE_SPLIT.split(str(title or "")) if s.strip()]
+    kept = []
+    for seg in segments:
+        seg = _TITLE_NOISE.sub("", seg).strip(" .,")
+        if not seg or len(seg) > 60 or career_sites._CAREER_TEXT.fullmatch(seg) or _PAGE_WORDS.fullmatch(seg):
+            continue
+        if _HIRING_WORDS.search(seg) or career_sites._CAREER_TEXT.search(seg) and len(seg.split()) > 3:
+            continue
+        kept.append(seg)
+    if kept:
+        # Brands sit at the end of a title ("Open Positions - Acme"), and a
+        # two-part title whose first part is the page is the same shape.
+        return kept[-1][:80]
+    label = _registrable(host).split(".")[0]
+    return label.replace("-", " ").title()[:80] if label else ""
+
+
+def employers_from_results(links: list[dict], *, place: str = "") -> list[dict]:
+    """Search results -> employer rows, in `employers_from`'s shape, or nothing.
+
+    Keeps a result only when it is an applicant-tracking board, a careers or
+    jobs address, or a page talking about hiring that names `place`.
+    """
+    from aletheia import career_sites, company_sites
+    import urllib.parse
+    out, seen = [], set()
+    local = place if place and place.casefold() not in {"remote", "united states"} else ""
+    first_word = local.split(",")[0].strip().casefold() if local else ""
+    for link in links or []:
+        href = str(link.get("href") or "").strip()
+        if not href.startswith("http"):
+            continue
+        host = company_sites.host_of(href)
+        title = " ".join(str(link.get("text") or "").split())
+        snippet = " ".join(str(link.get("snippet") or "").split())
+        if not host or company_sites.is_aggregator(href) or _NOT_AN_EMPLOYER.search(host):
+            continue
+        said = f"{title} {snippet}"
+        names_place = bool(first_word) and first_word in said.casefold()
+        ats = employers.ats_of(href)
+        path = urllib.parse.urlsplit(href).path or "/"
+        careers_host = bool(re.match(r"(?:jobs|careers)\.", host))
+        if not ats and _BOARD_DOMAIN.search(_registrable(host).split(".")[0]):
+            continue
+        if ats:
+            kind = "an applicant-tracking board"
+        elif career_sites._CAREER_PATH.search(path) or careers_host:
+            kind = "a careers page"
+        elif names_place and _HIRING_WORDS.search(said):
+            kind = "a page about hiring"
+        else:
+            continue
+        if re.search(r"/(?:news|blog|press|article|stories|story)s?/", path, re.I):
+            continue
+        name = employer_name_from(title, host)
+        if not name:
+            continue
+        key = (employers.name_key(name), employers.domain_of(href))
+        if key in seen:
+            continue
+        seen.add(key)
+        root = f"https://{host}/" if not ats else ""
+        out.append({"name": name, "website": root,
+                    "careers_url": href if kind != "a page about hiring" else "",
+                    "location": local if names_place else "",
+                    "why": f"{kind} a web search found: {title}"[:160]})
+    return out[:MAX_HTTP_EMPLOYERS_PER_SEARCH]
+
+
+def discovery_state_path():
+    return stateio.private_dir("jobs") / "discovery_state.json"
+
+
+def _read_json(path) -> dict:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def search_web_for_employers(roles: list[str], places: list[str], *, fields: list[str] | None = None,
+                             http=None, searches: int = MAX_HTTP_SEARCHES_PER_BATCH,
+                             report: dict | None = None, now: dt.datetime | None = None) -> list[dict]:
+    """Employers found by an ordinary web search, within a daily count. Never raises
+    for a search that fails: it costs that search."""
+    report = report if report is not None else {}
+    report.setdefault("http_searches", 0)
+    report.setdefault("http_queries", [])
+    if http is None:
+        from aletheia import research
+        http = research.http_search
+    state = _read_json(discovery_state_path())
+    day = _day(now)
+    if state.get("day") != day:
+        state = {"day": day, "http_searches_today": 0, "http_cursor": int(state.get("http_cursor") or 0)}
+    cursor = int(state.get("http_cursor") or 0)
+    queries = plan_employer_queries(roles, places, fields=fields, cursor=cursor, count=searches)
+    out, seen = [], set()
+    asked = 0
+    for query in queries:
+        if int(state.get("http_searches_today") or 0) >= MAX_HTTP_SEARCHES_PER_DAY:
+            report["http_stopped"] = f"today's {MAX_HTTP_SEARCHES_PER_DAY} web searches are spent"
+            break
+        # A search engine read as a page ignores `site:` and would filter every
+        # result away; the words around it still ask the question.
+        text = " ".join(re.sub(r"\bsite:\S+", " ", query["query"]).split())
+        report["http_queries"].append(text)
+        state["http_searches_today"] = int(state.get("http_searches_today") or 0) + 1
+        report["http_searches"] += 1
+        asked += 1
+        try:
+            page = http(text) or {}
+        except Exception as exc:
+            report.setdefault("http_errors", []).append(f"{type(exc).__name__}")
+            continue
+        if page.get("error") and not page.get("links"):
+            report.setdefault("http_errors", []).append(str(page["error"])[:160])
+        for row in employers_from_results(page.get("links") or [], place=query["place"]):
+            marker = (employers.name_key(row.get("name")), employers.domain_of(row.get("website")))
+            if marker in seen:
+                continue
+            seen.add(marker)
+            out.append({**row, "query": text})
+    state["http_cursor"] = (cursor + asked) % 10_000
+    try:
+        stateio.write_json_atomic(discovery_state_path(), state)
+    except Exception:
+        pass
+    return out
+
+
 def discover_employers(roles: list[str], places: list[str] | None = None, *, known: dict | None = None,
                        searcher=None, leads=None, fetch_json=None, report: dict | None = None,
-                       now: dt.datetime | None = None, search: bool = True) -> list[dict]:
-    """Turn the AI search and The Muse's leads into remembered employers.
+                       now: dt.datetime | None = None, search: bool = True, http=None,
+                       http_searches: int = MAX_HTTP_SEARCHES_PER_BATCH) -> list[dict]:
+    """Turn the web search, the AI search and The Muse's leads into remembered employers.
 
-    Returns the rows that were NEW this call. `leads` replaces The Muse
-    (tests); `search=False` skips the AI search. Never raises.
+    Returns the rows that were NEW this call. `http(query)` replaces the plain
+    web search and `leads` The Muse (tests); `search=False` skips the AI
+    search and `http_searches=0` the web one. Never raises.
     """
     report = report if report is not None else {}
     if known is None:
@@ -254,6 +458,25 @@ def discover_employers(roles: list[str], places: list[str] | None = None, *, kno
         return employers.name_key(row.get("name")) not in before and not (
             set(row.get("domains") or []) & before)
 
+    if http_searches > 0:
+        try:
+            found_on_web = search_web_for_employers(roles, places, fields=fields_for(roles, known), http=http,
+                                                    searches=http_searches, report=report, now=now)
+        except Exception as exc:
+            report["http_stopped"] = f"{type(exc).__name__}: {exc}"[:200]
+            found_on_web = []
+        report["http_named"] = len(found_on_web)
+        for row in found_on_web:
+            try:
+                kept = employers.upsert(name=row["name"], url=row["website"] or row["careers_url"],
+                                        career_url=row["careers_url"], location=row["location"],
+                                        source="a web search for employers", note=row["why"], now=stamp)
+            except Exception:
+                continue
+            if is_new(kept):
+                new.append(kept)
+                before.add(employers.name_key(kept.get("name")))
+                before.update(kept.get("domains") or [])
     if search:
         try:
             named = find_employers(roles, places, fields=fields_for(roles, known), wanted=wanted,
@@ -301,24 +524,39 @@ def discover_employers(roles: list[str], places: list[str] | None = None, *, kno
 def employer_openings(roles: list[str], *, limit: int = 10, country: str = "", exclude=(),
                       known: dict | None = None, searcher=None, fetch=None, feed=None, leads=None,
                       fetch_json=None, sleeper=time.sleep, now: dt.datetime | None = None,
-                      report: dict | None = None, crawl_limit: int | None = None) -> list[dict]:
+                      report: dict | None = None, crawl_limit: int | None = None,
+                      http=None) -> list[dict]:
     """The fourth source: discover employers, crawl the ones due, return their openings.
 
     In `jobs.search_many`'s shape, title-matched to his roles with the same
-    scoring the boards use, placed in his country. Never raises.
+    scoring the boards use, placed in his country. Employers near him are
+    crawled first. Never raises.
     """
     from aletheia import career_sites, jobs
     report = report if report is not None else {}
+    if known is None:
+        try:
+            from aletheia import profile
+            known = profile.known()
+        except Exception:
+            known = {}
     try:
         new = discover_employers(roles, known=known, searcher=searcher, leads=leads,
-                                 fetch_json=fetch_json, report=report, now=now)
+                                 fetch_json=fetch_json, report=report, now=now, http=http)
     except Exception:
         new = []
+
+    def near(row: dict) -> bool:
+        try:
+            from aletheia import job_value
+            return any(job_value._in_his_state(loc, known) for loc in row.get("locations") or [])
+        except Exception:
+            return False
     crawl_report: dict = {}
     try:
         found = career_sites.crawl_employers(
             limit=career_sites.MAX_EMPLOYERS_PER_BATCH if crawl_limit is None else crawl_limit,
-            fetch=fetch, feed=feed, sleeper=sleeper, now=now, report=crawl_report)
+            fetch=fetch, feed=feed, sleeper=sleeper, now=now, report=crawl_report, prefer=near)
     except Exception:
         found = []
     report["crawled"] = crawl_report.get("crawled", [])
@@ -443,15 +681,120 @@ def spoken(summary: dict | None) -> str:
     return line + "."
 
 
+_NUMBER_WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine"}
+
+
+def standouts(summary: dict | None, n: int = 9) -> list[dict]:
+    """The ones that look unusually good: outliers first, then the best fits, by value."""
+    if not summary:
+        return []
+    def by_value(rows):
+        return sorted(rows or [], key=lambda r: -int(r.get("value") or 0))
+    out, have = [], set()
+    for row in by_value(summary.get("outliers")) + by_value(summary.get("best")):
+        key = (row.get("company"), row.get("title"))
+        if key in have:
+            continue
+        have.add(key)
+        out.append(row)
+    return out[:max(0, n)]
+
+
+def announce(*, day: str = "", now: dt.datetime | None = None, publish=None) -> dict | None:
+    """Put a finished day's discovery where he sees it: one notification per day.
+
+    Defaults to YESTERDAY, so the numbers are a whole day's and not the first
+    batch's - "Yesterday I found 312 openings; these nine look unusually
+    good". Deduplicated by day, so every batch may call it. Returns the
+    notice, or None when that day found nothing. Never raises.
+    """
+    try:
+        when = (now or dt.datetime.now(dt.timezone.utc)).astimezone(dt.timezone.utc)
+        day = day or (when.date() - dt.timedelta(days=1)).isoformat()
+        summary = _load_summary()["days"].get(day)
+        if not summary or not summary.get("discovered"):
+            return None
+        top = standouts(summary)
+        said = spoken(summary).replace(" today", " yesterday" if day != when.date().isoformat() else " today")
+        lines = [said]
+        if top:
+            lines.append("")
+            lines.append("This one looks unusually good:" if len(top) == 1
+                         else f"These {_NUMBER_WORDS.get(len(top), len(top))} look unusually good:")
+            for row in top:
+                lines.append(f"{row.get('title')} at {row.get('company') or 'an employer'}"
+                             + (f": {row['why']}" if row.get("why") else ""))
+        if not lets_discovery_choose():
+            lines.append("")
+            lines.append("They are ranked and remembered; the order I apply in is unchanged until you "
+                         "turn on discovery choosing.")
+        if publish is None:
+            from aletheia import notifications
+            publish = notifications.publish
+        return publish(f"Job discovery, {day}", "\n".join(lines)[:3800], priority="NORMAL",
+                       source="jobs", dedupe_key=f"job-discovery:{day}",
+                       related={"discovery_day": day})
+    except Exception:
+        return None
+
+
+# ---- his switch -------------------------------------------------------------------------
+#
+# Discovery RUNS in her loop either way: employers are searched for, crawled,
+# remembered, and every opening is scored and summarised. What the switch
+# decides is whether discovery CHANGES WHO GETS APPLIED TO - whether openings
+# from her own crawl join the queue the live applications loop sends from, and
+# whether that queue is tried in value order instead of the order the search
+# returned. Off until he says so: the loop is sending real applications, and a
+# new source choosing for it is his call, not a code change's.
+
+def settings_path():
+    return stateio.private_dir("jobs") / "discovery_settings.json"
+
+
+def lets_discovery_choose() -> bool:
+    return _read_json(settings_path()).get("choose") is True
+
+
+def set_discovery_choose(on: bool, *, by: str) -> dict:
+    value = {"choose": bool(on), "set_at": stateio.utcnow(), "set_by": str(by or "")[:120]}
+    stateio.write_json_atomic(settings_path(), value)
+    try:
+        from aletheia import journal
+        journal.append("decision", "jobs",
+                       ("discovery may now choose what she applies to: her own crawl joins the queue "
+                        "and openings are tried in value order") if on else
+                       "discovery no longer chooses what she applies to; it still finds and ranks",
+                       actor=ACTOR)
+    except Exception:
+        pass
+    return value
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Discover employers, crawl them, say what today found.")
     ap.add_argument("roles", nargs="*", help="job titles; default: the ones on your profile's resume")
     ap.add_argument("--today", action="store_true", help="say what today's discovery found")
     ap.add_argument("--no-search", action="store_true", help="skip the AI search, crawl only")
     ap.add_argument("--crawl", type=int, default=None, help="employers to crawl this run")
+    ap.add_argument("--announce", nargs="?", const="", default=None, metavar="DAY",
+                    help="post a day's summary as a notification (default: yesterday)")
+    ap.add_argument("--choose", choices=("on", "off", "show"), default=None,
+                    help="whether discovery may change who she applies to (his switch)")
     args = ap.parse_args(argv)
+    if args.choose:
+        if args.choose != "show":
+            set_discovery_choose(args.choose == "on", by="the command line")
+        print("discovery chooses: " + ("on" if lets_discovery_choose() else "off"))
+        return 0
     if args.today:
         print(spoken(today()))
+        for row in standouts(today()):
+            print(f"  {row.get('title')} at {row.get('company')}: {row.get('why')}")
+        return 0
+    if args.announce is not None:
+        notice = announce(day=args.announce)
+        print(notice["body"] if notice else "nothing discovered that day")
         return 0
     roles = args.roles
     if not roles:
@@ -464,7 +807,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
     report: dict = {}
     if args.no_search:
-        new = discover_employers(roles, report=report, search=False)
+        discover_employers(roles, report=report, search=False)
         from aletheia import career_sites
         found = career_sites.crawl_employers(limit=args.crawl or career_sites.MAX_EMPLOYERS_PER_BATCH,
                                              report=report)

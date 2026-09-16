@@ -522,7 +522,7 @@ def openings(employer: dict, *, fetch=None, sleeper=time.sleep, feed=None,
 
 def crawl_employers(rows: list[dict] | None = None, *, limit: int = MAX_EMPLOYERS_PER_BATCH,
                     fetch=None, sleeper=time.sleep, feed=None, now: dt.datetime | None = None,
-                    report: dict | None = None) -> list[dict]:
+                    report: dict | None = None, prefer=None) -> list[dict]:
     """Openings from the employers due a crawl, remembering what each crawl taught.
 
     `rows` defaults to `employers.stale()`; at most `limit` are crawled. Each
@@ -535,6 +535,16 @@ def crawl_employers(rows: list[dict] | None = None, *, limit: int = MAX_EMPLOYER
     report.setdefault("crawled", [])
     now = now or dt.datetime.now(dt.timezone.utc)
     due = rows if rows is not None else employers.stale(RECRAWL_AFTER.total_seconds() / 86400, now=now)
+    if prefer is not None:
+        # `prefer(row)` True first (an employer near him), the stale order kept
+        # between equals - so a board employer met in San Francisco does not
+        # spend the batch a Sioux Falls employer was waiting for.
+        def _first(row: dict) -> bool:
+            try:
+                return not prefer(row)
+            except Exception:
+                return True
+        due = sorted(due, key=_first)
     out = []
     for employer in list(due)[:max(0, int(limit))]:
         one: dict = {}

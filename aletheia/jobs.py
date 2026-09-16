@@ -662,7 +662,7 @@ def search(role: str, *, where: str = "", limit: int = 10,
 def search_many(roles: list[str], *, where: str = "", limit: int = 10,
                 fetcher=None, discover: bool = False, http=None,
                 country: str = "", exclude=(), namer=None, companies=None,
-                websearch=None, employers=None) -> dict:
+                websearch=None, employers=None, admit_crawled: bool | None = None) -> dict:
     """Openings for ANY of these roles, each scored by the role it fits best.
 
     `discover` adds openings on boards nobody configured: a web search for
@@ -690,6 +690,12 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
     2026-09-15: "find unusually good opportunities wherever employers publish
     them, including small companies". `employers` replaces that finder. Every
     employer any source meets is remembered (`employers.remember_jobs`).
+
+    Those crawled openings join `matches` - the queue the applications loop
+    sends from - only when `admit_crawled` says so, and by default only when
+    he has turned discovery choosing on (`job_discovery.lets_discovery_choose`).
+    Until then the crawl still runs, remembers and summarises, and the count
+    it would have offered is `employer_sites_held`.
     """
     term_sets = [terms for terms in (_terms(r) for r in roles or []) if terms]
     if not term_sets:
@@ -818,6 +824,14 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
                 crawled.append(job)
         except Exception:
             crawled = []        # an employer crawl that fails costs this source
+    if admit_crawled is None:
+        try:
+            from aletheia import job_discovery
+            admit_crawled = job_discovery.lets_discovery_choose()
+        except Exception:
+            admit_crawled = False
+    held = [] if admit_crawled else crawled
+    crawled = crawled if admit_crawled else []
     # The web, the employers' own sites, the AI search and her own crawl take
     # turns in the third slot, so none crowds out another and none crowds out
     # the boards.
@@ -842,7 +856,7 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
         # Every employer met this search is remembered, from every source.
         try:
             from aletheia import employers as _employers
-            _employers.remember_jobs([job for _v, job in found] + web + own + searched + crawled)
+            _employers.remember_jobs([job for _v, job in found] + web + own + searched + crawled + held)
         except Exception:
             pass
     journal.append("action", "jobs",
@@ -851,13 +865,15 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
                    f"{len(discovered)} more by web search, "
                    f"{len(on_their_sites)} on employers' own sites, "
                    f"{len(anywhere)} found anywhere by an AI web search, "
-                   f"{len(on_crawled)} on employers she crawled herself, "
+                   f"{len(on_crawled)} on employers she crawled herself"
+                   + (f" ({len(held)} more held until discovery may choose)" if held else "") + ", "
                    f"{speech.count_phrase(len(failures), 'board')} failed",
                    actor=ACTOR)
     return {"role": ", ".join(roles), "roles": list(roles), "where": where,
             "matches": matches, "searched": boards_read, "matched": len(found),
             "discovered": len(discovered), "company_sites": len(on_their_sites),
             "web_searched": len(anywhere), "employer_sites": len(on_crawled),
+            "employer_sites_held": len(held),
             "failed": failures}
 
 

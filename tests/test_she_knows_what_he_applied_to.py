@@ -39,7 +39,10 @@ class HeCanAsk(unittest.TestCase):
 
 class TheAnswerComesFromTheStore(unittest.TestCase):
     def answer(self, rows):
-        with mock.patch.object(apply_run, "all_runs", return_value=rows):
+        # Nothing discovered today, whatever another test's campaign recorded:
+        # these tests are about the application records.
+        from aletheia import job_discovery
+        with mock.patch.object(apply_run, "all_runs", return_value=rows),              mock.patch.object(job_discovery, "today", return_value=None):
             return intercom.execute_command({"kind": "applications"}, {})
 
     def test_none_yet_says_so_without_denying_the_record(self):

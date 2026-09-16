@@ -897,6 +897,8 @@ def _record_discovery(pages: list[dict]) -> None:
         summary = job_discovery.today()
         if summary:
             journal.append("note", "jobs", job_discovery.spoken(summary), actor=ACTOR)
+        # Yesterday's whole day, once, where he sees it.
+        job_discovery.announce()
     except Exception:
         pass
 
@@ -1008,10 +1010,23 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
     # rule he cannot be talked out of - with the reasons written on each page
     # (`why_she_liked_it`). Outliers rank up. Stable, so between equals the
     # CAPTCHA ordering above holds.
-    pages = job_value.rank(pages, known=known_now, resume_text=text,
-                           describe=describe if real_search else None,
-                           taken=apply_run.role_taken)
-    _record_discovery(pages)
+    #
+    # Only when he has let discovery choose (`job_discovery.lets_discovery_choose`):
+    # the live applications loop sends from this order, so until then every page
+    # is still SCORED - the reasons kept on the record, the day summarised - and
+    # tried in the order it came. Reading posting text for the ranking is part
+    # of choosing, so it waits on the same switch.
+    try:
+        from aletheia import job_discovery
+        choose = job_discovery.lets_discovery_choose()
+    except Exception:
+        choose = False
+    ranked = job_value.rank(pages, known=known_now, resume_text=text,
+                            describe=describe if (real_search and choose) else None,
+                            taken=apply_run.role_taken)
+    if choose:
+        pages = ranked
+    _record_discovery(ranked)
     staged, needs_you, failed = [], [], []
     passed_over, duplicates, later, needs_account = [], [], [], []
     tried: dict[str, int] = {}

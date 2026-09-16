@@ -17,7 +17,7 @@ from pathlib import Path
 from unittest import mock
 
 from aletheia import (apply_run, campaign, career_sites, employers, job_discovery, job_value,
-                      jobs, journal, profile, web_search_jobs as wsj)
+                      jobs, journal, notifications, profile, research, web_search_jobs as wsj)
 
 NOW = dt.datetime(2026, 9, 15, 15, 0, tzinfo=dt.timezone.utc)
 KNOWN = {"state": "SD", "country": "United States", "willing_to_relocate": "Yes",
@@ -36,6 +36,11 @@ class Isolated(unittest.TestCase):
         for target, name, value in (
                 (employers, "path", lambda: self.root / "employers.json"),
                 (job_discovery, "summary_path", lambda: self.root / "discovery.json"),
+                (job_discovery, "settings_path", lambda: self.root / "discovery_settings.json"),
+                (job_discovery, "discovery_state_path", lambda: self.root / "discovery_state.json"),
+                (notifications, "NOTICES_DIR", self.root / "notices"),
+                # No test reaches a search engine: a real one answers differently on a train.
+                (research, "http_search", lambda query, **kw: {"links": [], "error": "no network in tests"}),
                 (wsj, "_state_path", lambda: self.root / "web_search.json"),
                 (wsj, "_cache_path", lambda: self.root / "web_search_cache.json"),
                 (jobs, "_learned_path", lambda: self.root / "learned.json"),
@@ -354,7 +359,8 @@ class EmployersAreDiscovered(Isolated):
             country="United States", known=KNOWN, now=NOW, report=report,
             searcher=lambda s, p: self.answer({"name": "Acme Manufacturing", "website": "https://acme.com",
                                                "careers_url": "", "location": "Sioux Falls, SD", "why": "x"}),
-            leads=lambda roles, **kw: [], fetch=site(), feed=lambda b: [], sleeper=lambda s: None)
+            leads=lambda roles, **kw: [], fetch=site(), feed=lambda b: [], sleeper=lambda s: None,
+            http=lambda q: {"links": []})
         titles = [j["title"] for j in out]
         self.assertIn("Business Development Associate", titles)
         self.assertIn("Operations Coordinator", titles)
@@ -366,7 +372,7 @@ class EmployersAreDiscovered(Isolated):
 
 
 class TheFourthSourceSharesTheSlot(Isolated):
-    def search(self, crawled, *, limit=9, companies=3, anywhere=3, rows=12):
+    def search(self, crawled, *, limit=9, companies=3, anywhere=3, rows=12, admit=True):
         board_rows = [{"title": "Account Manager", "company": f"Board{i}", "location": "",
                        "apply_url": f"https://board/{i}"} for i in range(rows)]
         own = [{"title": "Account Manager", "company": f"Own{i}", "location": "",
@@ -378,7 +384,7 @@ class TheFourthSourceSharesTheSlot(Isolated):
                                     discover=True, http=lambda q: {"links": []},
                                     companies=lambda roles, **kw: own,
                                     websearch=lambda roles, **kw: ai,
-                                    employers=lambda roles, **kw: crawled)
+                                    employers=lambda roles, **kw: crawled, admit_crawled=admit)
 
     @staticmethod
     def crawled(n, title="Account Manager"):
@@ -405,6 +411,18 @@ class TheFourthSourceSharesTheSlot(Isolated):
     def test_a_crawl_row_that_does_not_fit_his_roles_is_not_offered(self):
         out = self.search(self.crawled(2, title="Forklift Operator"), limit=12)
         self.assertEqual(out["employer_sites"], 0)
+
+    def test_until_he_lets_discovery_choose_the_crawl_is_held_out_of_the_queue(self):
+        self.assertFalse(job_discovery.lets_discovery_choose())
+        out = self.search(self.crawled(3), limit=12, admit=None)
+        kinds = [j.get("found_by") or "board" for j in out["matches"]]
+        self.assertNotIn("employer crawl", kinds)
+        self.assertEqual(out["employer_sites_held"], 3)
+        self.assertIsNotNone(employers.about("Crawl0"), "held, but still remembered")
+        job_discovery.set_discovery_choose(True, by="a test")
+        out = self.search(self.crawled(3), limit=12, admit=None)
+        self.assertIn("employer crawl", [j.get("found_by") for j in out["matches"]])
+        self.assertEqual(out["employer_sites_held"], 0)
 
     def test_every_employer_met_is_remembered(self):
         self.search(self.crawled(2), limit=12)
@@ -523,8 +541,9 @@ class TheCampaignTriesOpeningsInValueOrder(Isolated):
             self.addCleanup(patch.stop)
         profile.save({k: {"value": v, "at": "2026-09-01T00:00:00Z"} for k, v in KNOWN.items()})
 
-    def test_the_best_value_is_tried_first_and_the_reason_is_kept(self):
-        openings = [
+    @staticmethod
+    def openings():
+        return [
             {"title": "Business Development Associate", "company": "Far Away", "location": "Dublin, Ireland",
              "apply_url": "https://far/1", "posting_url": "https://faraway.com/jobs/1", "score": 1.0},
             {"title": "Business Development Associate", "company": "Acme Manufacturing",
@@ -534,6 +553,9 @@ class TheCampaignTriesOpeningsInValueOrder(Isolated):
             {"title": "Business Development Associate", "company": "Big Co", "location": "Remote",
              "apply_url": "https://big/1", "posting_url": "https://big.com/jobs/1", "score": 1.0},
         ]
+
+    def run_campaign(self):
+        openings = self.openings()
         tried, kept = [], []
 
         def stager(url, resume="", note="", extra=None, found_on=""):
@@ -547,6 +569,11 @@ class TheCampaignTriesOpeningsInValueOrder(Isolated):
             out = campaign.run("Business Development Associate", count=3, json_think=False,
                                searcher=lambda roles, **kw: {"matches": openings, "searched": 1},
                                stager=stager, draft_essays_too=False, fit_think=False)
+        return tried, kept
+
+    def test_the_best_value_is_tried_first_and_the_reason_is_kept(self):
+        job_discovery.set_discovery_choose(True, by="a test")
+        tried, kept = self.run_campaign()
         self.assertEqual(tried[:2], ["https://acme/1", "https://big/1"])
         first = next(f for rid, f in kept if rid == "https://acme/1")
         self.assertEqual(first["queue"], "outlier")
@@ -555,8 +582,122 @@ class TheCampaignTriesOpeningsInValueOrder(Isolated):
         self.assertEqual(summary["outliers"][0]["company"], "Acme Manufacturing")
         self.assertIn("unusually good", job_discovery.spoken(summary))
 
+    def test_until_he_lets_discovery_choose_the_order_is_unchanged_but_still_scored(self):
+        tried, kept = self.run_campaign()
+        self.assertEqual(tried[:3], ["https://far/1", "https://acme/1", "https://big/1"])
+        first = next(f for rid, f in kept if rid == "https://acme/1")
+        self.assertEqual(first["queue"], "outlier", "the reasons are kept either way")
+        self.assertEqual(job_discovery.today()["outliers"][0]["company"], "Acme Manufacturing")
+
+
+class TheWebIsSearchedForEmployers(Isolated):
+    LINKS = [
+        {"href": "https://www.sanfordhealth.org/careers", "text": "Careers | Sanford Health",
+         "snippet": "Find jobs in Sioux Falls, South Dakota."},
+        {"href": "https://www.indeed.com/q-business-development-l-south-dakota-jobs.html",
+         "text": "Business Development Jobs in South Dakota - Indeed", "snippet": "South Dakota"},
+        {"href": "https://www.argusleader.com/story/money/2026/09/01/acme-hiring/", "text": "Acme is hiring",
+         "snippet": "South Dakota manufacturer hiring 50"},
+        {"href": "https://en.wikipedia.org/wiki/Business_development", "text": "Business development",
+         "snippet": "Business development entails tasks"},
+        {"href": "https://jobs.lever.co/dakotacorp", "text": "Dakota Corp - Jobs", "snippet": "Open roles"},
+        {"href": "https://sdjobs.org/listing/1", "text": "Jobs in South Dakota", "snippet": "hiring"},
+        {"href": "https://www.ravenind.com/about", "text": "Raven Industries - About",
+         "snippet": "Raven is hiring across South Dakota"},
+        {"href": "https://www.example-bakery.com/menu", "text": "Menu - Example Bakery", "snippet": "Bread"},
+        {"href": "https://careers.daktronics.com/", "text": "Join Our Team", "snippet": "Brookings"},
+    ]
+
+    def test_only_results_that_look_like_an_employer_are_kept(self):
+        rows = job_discovery.employers_from_results(self.LINKS, place="South Dakota")
+        by_name = {r["name"]: r for r in rows}
+        self.assertEqual(set(by_name), {"Sanford Health", "Dakota Corp", "Raven Industries", "Daktronics"})
+        self.assertEqual(by_name["Sanford Health"]["careers_url"], "https://www.sanfordhealth.org/careers")
+        self.assertEqual(by_name["Sanford Health"]["location"], "South Dakota")
+        self.assertEqual(by_name["Raven Industries"]["careers_url"], "",
+                         "a page about hiring is not a careers page")
+        self.assertEqual(by_name["Dakota Corp"]["website"], "", "an ATS host is never the employer's site")
+
+    def test_a_name_comes_from_the_title_or_the_domain(self):
+        self.assertEqual(job_discovery.employer_name_from("Jobs at Raven Industries"), "Raven Industries")
+        self.assertEqual(job_discovery.employer_name_from(
+            "Business Development Jobs in Sioux Falls, SD - Acme Manufacturing"), "Acme Manufacturing")
+        self.assertEqual(job_discovery.employer_name_from("Careers", "careers.daktronics.com"), "Daktronics")
+
+    def test_the_web_search_is_counted_cursored_and_remembered(self):
+        asked = []
+
+        def http(query):
+            asked.append(query)
+            return {"links": self.LINKS}
+        report: dict = {}
+        new = job_discovery.discover_employers(["Business Development Associate"], known=KNOWN, now=NOW,
+                                               report=report, search=False, http=http,
+                                               leads=lambda roles, **kw: [])
+        self.assertEqual(len(asked), job_discovery.MAX_HTTP_SEARCHES_PER_BATCH)
+        self.assertTrue(all("site:" not in q for q in asked))
+        self.assertIn("Sanford Health", {r["name"] for r in new})
+        self.assertEqual(employers.about("sanfordhealth.org")["source"], "a web search for employers")
+        self.assertIn("https://www.sanfordhealth.org/careers", employers.about("Sanford Health")["career_urls"])
+        state = json.loads((self.root / "discovery_state.json").read_text())
+        self.assertEqual(state["http_cursor"], job_discovery.MAX_HTTP_SEARCHES_PER_BATCH)
+        again: list = []
+        job_discovery.search_web_for_employers(["Business Development Associate"], ["South Dakota"],
+                                               http=lambda q: again.append(q) or {"links": []}, now=NOW)
+        self.assertNotEqual(again[0], asked[0], "the next batch asks something else")
+        with mock.patch.object(job_discovery, "MAX_HTTP_SEARCHES_PER_DAY", 3):
+            spent: dict = {}
+            job_discovery.search_web_for_employers(["x"], ["South Dakota"], http=lambda q: {"links": []},
+                                                   report=spent, now=NOW)
+        self.assertIn("spent", spent["http_stopped"])
+
+    def test_employers_near_him_are_crawled_first(self):
+        employers.upsert(name="Far", url="https://far.com", location="San Francisco, CA",
+                         now="2026-09-01T00:00:00Z")
+        employers.upsert(name="Near", url="https://near.com", location="Sioux Falls, SD",
+                         now="2026-09-14T00:00:00Z")
+        report: dict = {}
+        career_sites.crawl_employers(limit=1, fetch=lambda url: (404, url, ""), sleeper=lambda s: None,
+                                     feed=lambda b: [], now=NOW, report=report,
+                                     prefer=lambda row: "SD" in " ".join(row.get("locations") or []))
+        self.assertEqual([r["name"] for r in report["crawled"]], ["Near"])
+
 
 class TheDayIsSummarised(Isolated):
+    def test_a_finished_day_is_announced_once_with_the_ones_that_stand_out(self):
+        yesterday = NOW - dt.timedelta(days=1)
+        job_discovery.record(discovered=312, qualified=40, now=yesterday, employers_new=["Acme"],
+                             outliers=[{"company": f"Small{i}", "title": "BD Associate", "why": "pay",
+                                        "value": 60 + i} for i in range(4)],
+                             best=[{"company": f"Big{i}", "title": "Account Manager", "why": "fit",
+                                    "value": 50 + i} for i in range(8)])
+        notice = job_discovery.announce(now=NOW)
+        self.assertEqual(notice["source"], "jobs")
+        lines = notice["body"].splitlines()
+        self.assertTrue(lines[0].startswith("I found 312 openings yesterday"), lines[0])
+        self.assertIn("These nine look unusually good:", lines)
+        self.assertEqual(sum(1 for l in lines if l.startswith("BD Associate at Small")), 4)
+        self.assertEqual(sum(1 for l in lines if l.startswith("Account Manager at Big")), 5)
+        self.assertIn("order I apply in is unchanged", notice["body"])
+        self.assertEqual(job_discovery.announce(now=NOW)["id"], notice["id"], "once a day")
+        self.assertEqual(len(notifications.all_notifications()), 1)
+        self.assertIsNone(job_discovery.announce(now=NOW + dt.timedelta(days=5)))
+
+    def test_asking_what_he_applied_to_hears_what_today_found(self):
+        from aletheia import intercom
+        job_discovery.record(discovered=40, employers_new=["Acme"])
+        with mock.patch.object(apply_run, "all_runs", return_value=[]):
+            said = intercom._applications_answer()
+        self.assertTrue(said.startswith("You haven't applied to anything through me yet."))
+        self.assertIn("I found 40 openings today", said)
+
+    def test_his_switch_is_off_until_he_says(self):
+        self.assertFalse(job_discovery.lets_discovery_choose())
+        self.assertEqual(job_discovery.main(["--choose", "on"]), 0)
+        self.assertTrue(job_discovery.lets_discovery_choose())
+        job_discovery.set_discovery_choose(False, by="a test")
+        self.assertFalse(job_discovery.lets_discovery_choose())
+
     def test_counts_add_up_and_names_are_kept_once(self):
         job_discovery.record(discovered=200, employers_new=["Acme", "Beta"], now=NOW)
         job_discovery.record(discovered=112, qualified=9, employers_new=["Acme"],
