@@ -114,12 +114,11 @@ def try_patch(args: dict, **_ignored) -> dict:
 TOOLS = (
     tools.declare(
         "memory.recall",
-        description=("Look something up in your own memory: exact records from your stores (basis "
-                     "KNOWN) and related passages from your history - journal, past sessions, browser "
-                     "missions, notifications, commit messages, code and docs (basis FOUND IN HISTORY, "
-                     "similar but not certain). query; sources narrows to any of ledger, journal, "
+        description=("Search your records and history by meaning (query): exact records, then past "
+                     "journal, sessions, fixes, code. sources narrows to any of ledger, journal, "
                      "sessions, missions, applications, employers, notifications, fixes, code, docs; k "
-                     "at most 8."),
+                     "at most 8. Each result says KNOWN (a fact) or FOUND IN HISTORY (related, not "
+                     "certain)."),
         input_schema={"properties": {"query": {"type": "string"},
                                      "sources": {"type": ["array", "string"]},
                                      "k": {"type": ["integer", "string"]}},
@@ -130,10 +129,9 @@ TOOLS = (
         provenance=tools.TRUSTED_LOCAL_STATE),
     tools.declare(
         "self.diagnose",
-        description=("Diagnose why something of yours failed or stopped: failure is a record id "
-                     "(a browser mission, an application), journal:<words>, test:<tests.module>, or "
-                     "plain words naming it; detail is any error text. Returns boundary or defect, the "
-                     "likely code location, evidence and confidence."),
+        description=("Why did something of yours fail or stop? (failure: words naming it or a record "
+                     "id; detail: error text). Says boundary or defect, where in your code, evidence, "
+                     "confidence. failure may also be journal:<words> or test:<tests.module>."),
         input_schema={"properties": {"failure": {"type": "string"}, "detail": {"type": "string"}},
                       "required": ["failure"]},
         handler=diagnose, capability="self.diagnose",
@@ -141,9 +139,8 @@ TOOLS = (
         provenance=tools.TRUSTED_LOCAL_STATE),
     tools.declare(
         "repo.propose_patch",
-        description=("Write a PROPOSAL to fix a diagnosed defect: failure (as for self.diagnose), diff "
-                     "(a unified diff), tests, summary. Records it for Caleb; applies nothing, changes "
-                     "no code, never branches or merges."),
+        description=("Record a proposed fix for a diagnosed defect for Caleb (failure; diff; tests; "
+                     "summary). Applies nothing and changes no code."),
         input_schema={"properties": {"failure": {"type": "string"}, "diff": {"type": "string"},
                                      "tests": {"type": ["array", "string"]},
                                      "summary": {"type": "string"}, "detail": {"type": "string"}},
@@ -154,8 +151,8 @@ TOOLS = (
         notes="non-authoritative: a record under private state, the brief's 'propose' step"),
     tools.declare(
         "repo.try_patch",
-        description=("Try a patch proposal in a throwaway worktree outside your running code and run "
-                     "only the named tests there (proposal; tests). Always handed to Caleb."),
+        description=("Try a patch proposal and its tests in a throwaway copy of your code (proposal; "
+                     "tests). Always handed to Caleb."),
         input_schema={"properties": {"proposal": {"type": "string"},
                                      "tests": {"type": ["array", "string"]}},
                       "required": ["proposal"]},
