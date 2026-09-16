@@ -69,6 +69,19 @@ MODEL_UNAVAILABLE = "model_unavailable"
 MODEL_ERROR = "model_error"
 REFUSED_AT_DOOR = "refused_at_door"
 
+#: How she knows what an observation says (brief §2: "distinguish knowing,
+#: looking and guessing"). KNOWN is a row in a store she keeps; FOUND IN
+#: HISTORY is a passage search matched - related, not certain; SEEN is a page
+#: or a message somebody else wrote, looked at just now; GUESS is nothing.
+KNOWN = "KNOWN"
+FOUND_IN_HISTORY = "FOUND IN HISTORY"
+SEEN_UNTRUSTED = "SEEN (untrusted)"
+GUESS = "GUESS"
+#: Strongest first. A session's `knowing` is the strongest basis any of its
+#: observations carried - it says what she COULD answer from, and the
+#: per-step bases in the receipts say which answer rested on which.
+BASIS_ORDER = (KNOWN, FOUND_IN_HISTORY, SEEN_UNTRUSTED, GUESS)
+
 #: Capability statuses a request cannot run against.
 NOT_RUNNABLE = frozenset({"NOT_BUILT", "UNAVAILABLE", "NEEDS_CONFIGURATION"})
 
@@ -237,6 +250,12 @@ class Broker:
             return Decision(REFUSED, "I am halted; only a resume from Caleb lifts that",
                             permanent=True)
         policy_says = str((entry or {}).get("approval_policy") or tool.approval)
+        # A PROPOSAL IS NOT AN ACT. A tool whose only write is a record of her
+        # own advice (a patch proposal: no code changed, nothing branched or
+        # merged) runs here - the brief's "propose" step is non-authoritative.
+        # Anything else that writes is still handed off below.
+        if tool.record_only and policy_says in ("none", ""):
+            return Decision(RUN)
         # A read-tier kind that MAKES something (a journal note, a
         # screenshot, a research document) still writes. `only_answers` is
         # the Core's own line between telling and doing.
@@ -313,6 +332,24 @@ def sanitise(result: Any, provenance: str, *, limit: int = MAX_OBSERVATION_CHARS
     return text, hidden
 
 
+def observation_basis(tool: tools.Tool, outcome: str, result: Any) -> str:
+    """How she knows what this observation says. A tool that labels its own
+    result (`memory.recall`, `self.diagnose`) is believed only within the
+    vocabulary; a store read is KNOWN; somebody else's page is SEEN."""
+    if outcome != "ok" or tool.record_only:
+        return ""                 # a receipt for her own proposal is not knowledge
+    if isinstance(result, dict) and result.get("basis") in BASIS_ORDER:
+        return str(result["basis"])
+    if tool.provenance in (tools.UNTRUSTED_WEB, tools.UNTRUSTED_EMAIL):
+        return SEEN_UNTRUSTED
+    return KNOWN
+
+
+def strongest_basis(bases) -> str:
+    present = {b for b in bases if b}
+    return next((b for b in BASIS_ORDER if b in present), GUESS)
+
+
 # ---- the prompt ------------------------------------------------------------
 
 SYSTEM = """You are Thea (Aletheia), Caleb's own assistant, running on his PC. Answer
@@ -328,6 +365,9 @@ Rules:
 - Your first reply is a tool request: you know nothing about today until you look.
 - Use the fewest tools that answer the question, then answer.
 - Say only what an observation shows. If a tool failed or found nothing, say so.
+- Say how you know. Basis KNOWN is a fact from your own records: state it. Basis
+  FOUND IN HISTORY is related history found by search: say "from my history" and do
+  not state it as certain. Basis GUESS means nothing was found: say you are guessing.
 - Never say you did something no tool did. A REFUSED or HANDOFF request did not run;
   do not ask for it again and do not claim it happened.
 - Answer in plain spoken sentences: no markdown, no ids, no JSON.
@@ -395,6 +435,7 @@ class Receipt:
     observation_sha256: str = ""
     observation_chars: int = 0
     redacted: list = field(default_factory=list)
+    basis: str = ""
     at: str = ""
 
 
@@ -406,6 +447,7 @@ class SessionResult:
     answer: str = ""
     basis: str = ""
     model_basis: str = ""
+    knowing: str = ""
     handoffs: list = field(default_factory=list)
     refusals: list = field(default_factory=list)
     receipts: list = field(default_factory=list)
@@ -604,16 +646,18 @@ class AgentSession:
             outcome, result = execute(tool, reply.args, timeout_s=self.tool_timeout_s,
                                       quote=self.question)
             observation, hidden = sanitise(result, tool.provenance)
+            basis = observation_basis(tool, outcome, result)
             self._receipt(tool_steps, reply, RUN, outcome, "", provenance=tool.provenance,
                           duration_ms=round((time.monotonic() - t1) * 1000),
-                          observation=observation, redacted=hidden)
+                          observation=observation, redacted=hidden, basis=basis)
             if outcome == "ok":
                 seen_ok[signature] = observation
-                if not any(s["tool"] == tool.name for s in res.sources):
-                    res.sources.append({"tool": tool.name, "provenance": tool.provenance})
+                if not any(s["tool"] == tool.name and s.get("basis") == basis for s in res.sources):
+                    res.sources.append({"tool": tool.name, "provenance": tool.provenance, "basis": basis})
             label = "OBSERVATION" if outcome == "ok" else f"TOOL {outcome.upper()}"
+            said = f"{tool.provenance}; basis {basis}" if basis else tool.provenance
             turns.append({"request": request_line,
-                          "observation": f"{label} ({tool.provenance}): {observation}"})
+                          "observation": f"{label} ({said}): {observation}"})
         res.outcome, res.note = STEP_CAP, "the model never gave a final answer"
         return res
 
@@ -624,6 +668,7 @@ class AgentSession:
         # She LOOKED only if an observation actually came back. A model that
         # says "looked" without one is guessing, whatever it calls it.
         res.basis = "looked" if res.sources else "guessing"
+        res.knowing = strongest_basis(s.get("basis") for s in res.sources)
         if reply.handoff:
             res.handoffs.append({"tool": None, "args": {}, "reason": reply.handoff})
         if res.handoffs:
@@ -634,7 +679,7 @@ class AgentSession:
 
     def _receipt(self, step: int, request: ToolRequest, verdict: str, outcome: str, reason: str,
                  *, provenance: str = "", duration_ms: int = 0, observation: str = "",
-                 redacted: list | None = None) -> None:
+                 redacted: list | None = None, basis: str = "") -> None:
         from aletheia import sensitivity
         try:
             args = json.loads(sensitivity.clean(json.dumps(request.args, default=str)))
@@ -644,7 +689,8 @@ class AgentSession:
             step=step, tool=request.tool, args=args, verdict=verdict, outcome=outcome,
             reason=reason, provenance=provenance, duration_ms=duration_ms,
             observation_sha256=hashlib.sha256(observation.encode("utf-8")).hexdigest() if observation else "",
-            observation_chars=len(observation), redacted=list(redacted or []), at=_stamp())))
+            observation_chars=len(observation), redacted=list(redacted or []), basis=basis,
+            at=_stamp())))
 
     def _save(self) -> None:
         """Receipts to private state. Never raises: a session that answered
@@ -715,11 +761,12 @@ def render(result: SessionResult) -> str:
         lines.append(f"(no answer: {result.note})")
     lines.append("")
     lines.append(f"outcome: {result.outcome}   basis: {result.basis or '-'}"
+                 f" ({result.knowing or '-'})"
                  f"   model: {result.model or '-'}   model calls: {result.model_calls}"
                  f" {result.model_seconds}   total: {result.duration_s}s")
     for r in result.receipts:
         extra = f" - {r['reason']}" if r["reason"] else ""
-        prov = f" [{r['provenance']}]" if r["provenance"] else ""
+        prov = f" [{r['provenance']}{'; ' + r['basis'] if r.get('basis') else ''}]" if r["provenance"] else ""
         lines.append(f"  {r['step']}. {r['tool']} {json.dumps(r['args'], ensure_ascii=False)}"
                      f" -> {r['verdict']}/{r['outcome']}{prov} {r['duration_ms']}ms{extra}")
     for h in result.handoffs:

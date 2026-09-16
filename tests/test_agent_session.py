@@ -144,9 +144,11 @@ class TheLoop(unittest.TestCase):
             self.assertEqual(len(receipt["observation_sha256"]), 64)
             self.assertEqual(receipt["outcome"], "ok")
         self.assertEqual(result.sources, [
-            {"tool": "state.now", "provenance": tools.TRUSTED_LOCAL_STATE},
-            {"tool": "web.read", "provenance": tools.UNTRUSTED_WEB}])
+            {"tool": "state.now", "provenance": tools.TRUSTED_LOCAL_STATE, "basis": s.KNOWN},
+            {"tool": "web.read", "provenance": tools.UNTRUSTED_WEB, "basis": s.SEEN_UNTRUSTED}])
+        self.assertEqual([r["basis"] for r in result.receipts], [s.KNOWN, s.SEEN_UNTRUSTED])
         self.assertEqual(result.basis, "looked")
+        self.assertEqual(result.knowing, s.KNOWN)
 
     def test_an_observation_is_scrubbed_and_untrusted_content_is_marked(self):
         calls = []
@@ -252,7 +254,13 @@ class TheBrokerRefuses(unittest.TestCase):
             with self.subTest(tool=name):
                 args = {k: "x" for k in tool.input_schema.get("required") or []}
                 decision = broker.check(s.ToolRequest(name, args))
-                if decision.verdict == s.RUN:
+                if decision.verdict == s.RUN and tool.record_only:
+                    # The one writer that runs: a record of her own advice
+                    # (a patch proposal), which changes no code and no world.
+                    self.assertEqual(set(tool.writes), set(tools.RECORD_ONLY_STORES))
+                    self.assertEqual(tool.approval, "none")
+                    self.assertIsNone(tool.kind)
+                elif decision.verdict == s.RUN:
                     self.assertTrue(tool.read_only, name)
                     self.assertTrue(tool.local_model_visible, name)
                     if tool.kind:
