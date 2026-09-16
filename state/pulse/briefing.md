@@ -1,6 +1,6 @@
 # Fleet briefing
 
-Generated 2026-09-15T21:26:14Z from fleet registry rev 5 via GitHubSource.
+Generated 2026-09-16T04:55:24Z from fleet registry rev 5 via GitHubSource.
 
 ## 🟢 `Aletheia` — hub (active)
 
@@ -9,8 +9,8 @@ The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT 
 Last commit `c8089d98c3d9` at 2026-09-13T15:52:48Z: Apply anywhere: her texts, four more systems, and no more black boxes
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-09-15T21:26:12Z
-- `ci.yml`: success at 2026-09-14T19:52:02Z
+- `pulse.yml`: in_progress at 2026-09-16T04:55:22Z
+- `ci.yml`: success at 2026-09-16T00:23:19Z
 
 ## 🔴 `Shorts-pipeline` — youtube-automation (active)
 
@@ -27,7 +27,7 @@ Watched workflows:
 - `story_forge.yml`: success at 2026-09-15T20:18:43Z
 - `third.yml`: failure at 2026-09-15T19:06:15Z
 - `explainer.yml`: success at 2026-09-15T20:45:32Z
-- `retro.yml`: success at 2026-09-15T04:57:41Z
+- `retro.yml`: success at 2026-09-16T04:52:30Z
 - `doctor.yml`: success at 2026-09-15T10:02:09Z
 
 ## 🔴 `schwab-trader` — trading-bot (active)
@@ -39,7 +39,7 @@ Vitals withheld (5, on his own screen): realized P&L, win rate, closed trades, o
 
 Watched workflows:
 - `sell-brain.yml`: failure at 2026-09-15T18:35:24Z
-- `watchdog.yml`: success at 2026-09-15T20:19:44Z
+- `watchdog.yml`: success at 2026-09-15T22:59:38Z
 
 ## 🟢 `Money_Machine` — product-ventures (active)
 
