@@ -57,6 +57,11 @@ class TheHeaderSaysWhatSheIsDoing(unittest.TestCase):
         self.assertFalse(out["stale"])
         self.assertEqual(out["banner"], "")
 
+    def test_a_refill_is_not_called_a_batch(self):
+        out = mc.header({"state": "ACTING", "step": "re-reading"}, now=NOW, core=CORE_OK, loop=LOOP_OK,
+                        hunt={"running": True, "campaign": {"kind": "retry", "limit": 60}})
+        self.assertIn("re-reading up to 60 waiting applications", out["next"])
+
     def test_a_dead_heartbeat_is_stale_whatever_the_state_says(self):
         out = mc.header({"state": "ACTING", "step": "filling a form"}, now=NOW,
                         core={"heartbeat_age_s": 3600.0, "alive": False}, loop=LOOP_OK)
@@ -96,6 +101,7 @@ class TheHeaderSaysWhatSheIsDoing(unittest.TestCase):
                         core=CORE_OK, loop=LOOP_OK, hunt=hunt, pending_approvals=2,
                         applications_waiting=31)
         self.assertIn("Brex is waiting on you: questions only you can answer (and 30 more)", out["next"])
+        self.assertEqual(out["doing"], "Waiting on you: 31 applications and 2 approvals waiting on you.")
         # an application's approval is not counted a second time
         self.assertEqual(out["needs_you"], 33)
 
@@ -287,6 +293,10 @@ class EyesShowOnlyWhatIsRecorded(unittest.TestCase):
         self.assertEqual(out["screenshot"]["of"], "the last application she worked")
         out = mc.eyes(browser, records_by_id=records, has_screenshot=lambda r: False)
         self.assertIsNone(out["screenshot"])
+        # neither has one: the newest record that does, said as exactly that
+        records["old"] = rec("old", "SUBMITTED", submitted_at=ago(900))
+        out = mc.eyes(browser, records_by_id=records, has_screenshot=lambda r: r["id"] == "old")
+        self.assertEqual(out["screenshot"]["of"], "the latest screenshot on record")
         self.assertEqual(out["site"], "jobs.lever.co")
 
 

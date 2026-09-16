@@ -66,7 +66,7 @@ GATHER_CACHE_S = 5.0
 _GATHERED: dict[str, Any] = {"at": 0.0, "value": None}
 
 #: Journal subjects that are plumbing, not something she did for him.
-NOISE_SUBJECTS = frozenset({"formfill", "workspace:read", "calendar:refresh", "quick"})
+NOISE_SUBJECTS = frozenset({"formfill", "workspace:read", "calendar:refresh", "quick", "desktop"})
 #: Journal subjects whose application-level lines the records say better.
 RECORD_SUBJECTS = frozenset({"apply"})
 
@@ -205,8 +205,20 @@ def header(agent: dict, *, now: dt.datetime, core: dict, loop: dict, hunt: dict 
     step = _words(agent.get("step"), 180)
     mission = _words(agent.get("mission"), 80)
     say_time = say_time or (lambda when: _stamp(when))
-
+    counted = applications_waiting is not None
+    waiting = list(hunt.get("waiting_on_him") or [])
+    if applications_waiting is None:
+        applications_waiting = len(waiting)
+    if state == "NEEDS YOU" and counted:
+        parts = []
+        if applications_waiting:
+            parts.append(_plural(applications_waiting, "application"))
+        if pending_approvals:
+            parts.append(_plural(pending_approvals, "approval"))
+        if parts:
+            step = " and ".join(parts) + " waiting on you"
     what = (step or mission).rstrip(". ")
+
     doing = {
         "HALTED": "Halted" + (f": {step.rstrip('. ')}" if step else "") + ". Nothing acts until you resume her.",
         "IDLE": "Nothing in flight right now.",
@@ -220,8 +232,6 @@ def header(agent: dict, *, now: dt.datetime, core: dict, loop: dict, hunt: dict 
     }[state]
 
     waiting = list(hunt.get("waiting_on_him") or [])
-    if applications_waiting is None:
-        applications_waiting = len(waiting)
     minds = hunt.get("thinking") or {}
     lock = hunt.get("campaign") or {}
     if state == "HALTED":
@@ -239,7 +249,11 @@ def header(agent: dict, *, now: dt.datetime, core: dict, loop: dict, hunt: dict 
         nxt = f"{_plural(pending_approvals, 'approval')} waiting for your yes or no."
     elif state in ("ACTING", "LOOKING"):
         size = lock.get("count") or lock.get("limit")
-        batch = f"this batch of {size}" if size else "this batch"
+        if str(lock.get("kind") or "") == "retry":
+            batch = (f"re-reading up to {size} waiting applications" if size
+                     else "re-reading the waiting applications")
+        else:
+            batch = f"this batch of {size}" if size else "this batch"
         nxt = (f"Finish {batch}; the apply loop starts another within 5 minutes."
                if loop.get("alive") else
                f"Finish {batch}. {str(loop.get('said') or '').capitalize()}, so nothing may follow it.")
@@ -531,7 +545,7 @@ def ribbon(*, journal_entries: Iterable[dict], records: Iterable[dict], sessions
         if not isinstance(record, dict) or not record.get("id"):
             continue
         receipt = {"kind": "application", "id": record["id"]}
-        named = describe(record)
+        named = describe(record).rstrip(".")
         state = record.get("state")
         if state == "SUBMITTED" and (record.get("submitted_at") or record.get("pressed_at")):
             items.append({"at": record.get("submitted_at") or record.get("pressed_at"), "tone": "good",
@@ -586,7 +600,8 @@ def ribbon(*, journal_entries: Iterable[dict], records: Iterable[dict], sessions
 
 # ---- eyes ------------------------------------------------------------------------------
 
-def eyes(browser: dict, *, records_by_id: dict, has_screenshot: Callable[[dict], bool]) -> dict:
+def eyes(browser: dict, *, records_by_id: dict, has_screenshot: Callable[[dict], bool],
+         newest_first: list | None = None) -> dict:
     """The browser's site, purpose and stage, and the screenshot on record. Pure."""
     browser = browser or {}
     out = {"active": bool(browser.get("active")), "site": browser.get("site") or "",
@@ -607,6 +622,16 @@ def eyes(browser: dict, *, records_by_id: dict, has_screenshot: Callable[[dict],
                                  "src": f"/api/mission/screenshot?id={app_id}",
                                  "at": _last_moved(record)}
             break
+    if out["screenshot"] is None:
+        ordered = newest_first if newest_first is not None else sorted(
+            records_by_id.values(), key=_last_moved, reverse=True)
+        for record in ordered[:40]:
+            if record.get("id") and has_screenshot(record):
+                out["screenshot"] = {"application": record["id"], "of": "the latest screenshot on record",
+                                     "title": describe(record),
+                                     "src": f"/api/mission/screenshot?id={record['id']}",
+                                     "at": _last_moved(record)}
+                break
     return out
 
 
@@ -744,25 +769,45 @@ def gather(now: dt.datetime | None = None, *, fresh: bool = False) -> dict:
         say_time = None
     referenced = {str(r.get("approval") or "") for r in records if r.get("approval")}
     other_approvals = [a for a in pending if a.get("id") not in referenced]
-    loop = apply_loop(hunt.get("campaign"), entries, now, halted=bool(halt),
-                      resting=bool(hunt.get("blocked")))
-    piped = pipeline(records, facts=facts, grant_live=_grant_live(now),
-                     discovery_today=summary, today_floor=current_state.today_started(now),
-                     has_screenshot=has_shot)
+    try:
+        loop = apply_loop(hunt.get("campaign"), entries, now, halted=bool(halt),
+                          resting=bool(hunt.get("blocked")))
+    except Exception:  # noqa: BLE001
+        loop = {"alive": None, "stale": True, "last_seen": None, "said": "could not be judged"}
+    def part(name: str, build: Callable[[], Any], fallback: Any) -> Any:
+        # One part that cannot be built must not blank the whole screen:
+        # it says so in `notes` and the rest renders.
+        try:
+            return build()
+        except Exception as exc:  # noqa: BLE001
+            notes.append(f"{name} could not be built ({type(exc).__name__})")
+            return fallback
+
+    piped = part("the pipeline", lambda: pipeline(
+        records, facts=facts, grant_live=_grant_live(now), discovery_today=summary,
+        today_floor=current_state.today_started(now), has_screenshot=has_shot),
+        {"stages": [], "off_ramps": [], "records": 0, "grant_live": False})
     waiting_count = next((st["count"] for st in piped["stages"] if st["stage"] == "NEEDS YOU"), 0) or 0
     value = {
         "version": 1,
         "as_of": _stamp(now),
-        "header": header(agent, now=now, core=core, loop=loop, hunt=hunt,
-                         browser=derived.get("browser"), pending_approvals=len(other_approvals),
-                         applications_waiting=waiting_count, say_time=say_time),
+        "header": part("the header", lambda: header(
+            agent, now=now, core=core, loop=loop, hunt=hunt, browser=derived.get("browser"),
+            pending_approvals=len(other_approvals), applications_waiting=waiting_count,
+            say_time=say_time),
+            {"state": "IDLE", "doing": "Her state could not be read.", "next": "", "stale": True,
+             "banner": "The header could not be built from her state.", "signals": [], "needs_you": 0}),
         "apply_loop": loop,
         "job_hunt": {"running": hunt.get("running"), "today": hunt.get("today"), "now": hunt.get("now"),
                      "readable": hunt.get("readable"), "note": hunt.get("note")},
         "pipeline": piped,
-        "discovery": discovery(summary),
-        "ribbon": ribbon(journal_entries=entries, records=records, sessions=_sessions()),
-        "eyes": eyes(derived.get("browser") or {}, records_by_id=by_id, has_screenshot=has_shot),
+        "discovery": part("the discovery summary", lambda: discovery(summary), discovery(None)),
+        "ribbon": part("the activity ribbon", lambda: ribbon(
+            journal_entries=entries, records=records, sessions=_sessions()), []),
+        "eyes": part("eyes", lambda: eyes(derived.get("browser") or {}, records_by_id=by_id,
+                                          has_screenshot=has_shot),
+                     {"active": False, "site": "", "purpose": "", "stage": "", "readable": False,
+                      "screenshot": None, "last": None}),
         "code": derived.get("code"),
         "notes": notes,
     }
