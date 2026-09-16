@@ -46,7 +46,12 @@ def handoff_card(record: dict, now: dt.datetime) -> dict | None:
     receipt = {"kind": "handoff", "id": record["id"]}
     needs, blockers = [], []
     if status == "NEEDS YOU":
-        needs.append({"said": f"approve or deny: {what}", "blocking": True, "receipt": receipt})
+        # THE APPROVAL ID RIDES ON THE NEED, so the card carries the same
+        # APPROVE / DENY the approvals list has, through the same endpoint.
+        # A card that says "approve or deny" with no way to do either sent
+        # him hunting for the matching row further down the page.
+        needs.append({"said": f"approve or deny: {what}", "blocking": True, "receipt": receipt,
+                      "approval": record.get("approval") or None})
         step, nxt = "", "It runs exactly as asked, once, when you approve it; nothing happens if you deny it."
     elif status == "RUNNING":
         step, nxt = f"doing what you approved: {what}", "Record what came of it."

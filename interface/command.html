@@ -640,6 +640,14 @@ async function toggleShot(btn) {
 document.addEventListener("click", ev => {
   const r = ev.target.closest("[data-receipt]");
   if (r) { toggleReceipt(r); return; }
+  const k = ev.target.closest("[data-decide]");
+  if (k) {
+    const cmd = k.dataset.decide === "approve"
+      ? {kind: "approve", id: k.dataset.approval}
+      : {kind: "deny", id: k.dataset.approval, because: "denied from command center"};
+    post(cmd).catch(err => { $("ask-note").textContent = err.message; });
+    return;
+  }
   const s = ev.target.closest("[data-shot]");
   if (s) { toggleShot(s); return; }
   const t = ev.target.closest("[data-stage]");
@@ -701,6 +709,16 @@ function paintOffline(err) {
   document.body.classList.add("offline");
 }
 
+// APPROVE / DENY on a card that waits on one approval. The SAME command the
+// approvals list posts ({kind: approve|deny, id}) through /api/command: no
+// second approval path, and the Core's gates decide exactly as they do there.
+function decisionButtons(approvalId) {
+  return approvalId
+    ? ` <button class="good" data-decide="approve" data-approval="${esc(approvalId)}">APPROVE</button>` +
+      ` <button class="danger" data-decide="deny" data-approval="${esc(approvalId)}">DENY</button>`
+    : "";
+}
+
 function receiptButton(rc, label) {
   return rc && rc.kind && rc.id
     ? `<button class="link" data-receipt data-kind="${esc(rc.kind)}" data-id="${esc(rc.id)}">${esc(label || "receipt")}</button>`
@@ -728,7 +746,7 @@ function missionHTML(c) {
     ${c.step ? `<p><em>Now</em>${esc(c.step)}</p>` : ""}
     ${c.stuck ? `<p class="blk"><em>Why is this stuck?</em>${esc(c.stuck)}</p>` : ""}
     ${needs.length ? `<p><em>${c.needs_count ? "Needs you" : "Yours when you get to it"}</em></p><ul>${needs.map(n =>
-        `<li>${esc(n.said)} ${receiptButton(n.receipt)}</li>`).join("")}${more ? `<li>and ${esc(more)} more</li>` : ""}</ul>` : ""}
+        `<li>${esc(n.said)} ${receiptButton(n.receipt)}${decisionButtons(n.approval)}</li>`).join("")}${more ? `<li>and ${esc(more)} more</li>` : ""}</ul>` : ""}
     ${c.next ? `<p><em>Next</em>${esc(c.next)}</p>` : ""}
     ${counts ? `<div class="meta">${counts}</div>` : ""}
     <div class="acts">
@@ -829,7 +847,7 @@ function paintMissions(m) {
   $("needs-missions").className = "";
   $("needs-missions").innerHTML = waiting.length ? waiting.slice(0, 8).map(n =>
     `<div class="rowbox"><div class="row"><div><div>${esc(n.said)}</div><div class="id">${esc(n.title)}</div></div>
-       ${receiptButton(n.receipt)}</div><div class="rcpt" hidden></div></div>`).join("") +
+       <div style="display:flex;gap:.4rem">${receiptButton(n.receipt)}${decisionButtons(n.approval)}</div></div><div class="rcpt" hidden></div></div>`).join("") +
     (waiting.length > 8 ? `<div class="empty" style="margin-top:.5rem">${esc(waiting.length - 8)} more on the missions below</div>` : "")
     : `<div class="empty">no mission is waiting on you</div>`;
 }

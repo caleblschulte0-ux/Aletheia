@@ -425,7 +425,8 @@ def needs_list(missions: Iterable[dict], approvals: Iterable[dict]) -> list[dict
         for n in m.get("needs") or []:
             if n.get("blocking"):
                 out.append({"said": n.get("said"), "kind": "mission", "id": m["id"], "mission": m["id"],
-                            "title": m.get("title"), "receipt": n.get("receipt")})
+                            "title": m.get("title"), "receipt": n.get("receipt"),
+                            "approval": n.get("approval") or None})
     return out
 
 
