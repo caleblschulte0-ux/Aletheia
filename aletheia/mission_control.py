@@ -366,7 +366,8 @@ def task_mission(task: dict, index: dict | None = None) -> dict | None:
         if status == "OPEN":
             status = "WAITING"
     if raw == "WAITING_OPERATOR":
-        needs.append({"said": _words(task.get("result") or task.get("description"), 200), "blocking": True,
+        # The description is the ask; `result` is the history of how it got here.
+        needs.append({"said": _words(task.get("description") or task.get("result"), 200), "blocking": True,
                       "receipt": {"kind": "task", "id": task["id"]}})
     nxt = {"RUNNING": "Finish it.", "NEEDS YOU": "Nothing moves until you do your part.",
            "BLOCKED": "Nothing moves until the blocker clears.",
@@ -451,7 +452,7 @@ def header(agent: dict, *, now: dt.datetime, core: dict, missions: Iterable[dict
     if state in ("IDLE", "WAITING", "LISTENING") and needs_total:
         state = "NEEDS YOU"
     if state == "NEEDS YOU" and needs_total:
-        parts = [_plural(int(m["needs_count"]), "thing") + f" for {m['title']}"
+        parts = [_plural(int(m["needs_count"]), "thing") + f" for {_words(m['title'], 48)}"
                  for m in missions if m.get("needs_count")]
         if approvals:
             parts.insert(0, _plural(int(approvals), "approval"))
@@ -479,7 +480,9 @@ def header(agent: dict, *, now: dt.datetime, core: dict, missions: Iterable[dict
         for m in missions:
             for n in m.get("needs") or []:
                 if n.get("blocking"):
-                    return f"{m['title']}: {n['said']}", mission_needs
+                    said, title = _words(n["said"], 160), str(m["title"]).removesuffix("...")
+                    # a task's need IS its title; say it once
+                    return (said if said.startswith(title[:40]) else f"{_words(title, 48)}: {said}"), mission_needs
         return "", 0
 
     if state == "HALTED":
