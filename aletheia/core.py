@@ -425,6 +425,7 @@ def kick_approved_work(fleet: dict, wait_s: float = 0.0) -> bool:
         global _KICKING
         try:
             for name, work in (("intents", lambda: runtime._run_approved_intents(fleet)),
+                               ("handoffs", runtime._run_approved_handoffs),
                                ("errands", runtime._run_authorized_errands),
                                ("scheduling", lambda: runtime._reconcile_scheduling(
                                    dt.datetime.now(dt.timezone.utc)))):

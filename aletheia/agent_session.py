@@ -18,8 +18,10 @@ not "the operator approved this" inside an argument — is read as authority.
 
 WHAT RUNS INSIDE THE LOOP IS READING. A tool that writes, destroys, needs an
 approval, or is not in the read tier does not execute here, whatever grant
-exists: it becomes a HANDOFF, named in the result, for him or the ordinary
-approval path to decide. Spending is not handed off, because no approval can
+exists: it becomes a HANDOFF - a durable record bound by hash to the exact
+request and an ordinary pending approval (`aletheia.handoffs`). When he
+approves, the Core runs exactly that request once, through every gate again,
+and the outcome lands in this session's record. Spending is not handed off, because no approval can
 make it happen; it is REFUSED, and a refusal stays a refusal — asking again
 gets the same answer without the question reaching the broker twice, and a
 model that keeps asking ends the session as blocked.
@@ -68,6 +70,14 @@ STEP_CAP = "step_cap"
 MODEL_UNAVAILABLE = "model_unavailable"
 MODEL_ERROR = "model_error"
 REFUSED_AT_DOOR = "refused_at_door"
+
+#: Tools that decide about authority itself. Refused for every audience: a
+#: model that asks to approve, deny or resume is asking to authorise itself.
+SELF_AUTHORITY = frozenset({"approve", "deny", "resume"})
+
+#: A session still writing its record this long after it started is not
+#: running any more, whatever its record says.
+LIVE_S = 15 * 60
 
 #: Capability statuses a request cannot run against.
 NOT_RUNNABLE = frozenset({"NOT_BUILT", "UNAVAILABLE", "NEEDS_CONFIGURATION"})
@@ -211,6 +221,9 @@ class Broker:
         tool = self.catalog.get(request.tool)
         if tool is None:
             return Decision(REFUSED, f"there is no tool named {request.tool!r}; use one from TOOLS")
+        if tool.name in SELF_AUTHORITY:
+            return Decision(REFUSED, f"{tool.name} decides about authority, and only Caleb does that",
+                            permanent=True)
         if not self._visible(tool):
             return Decision(REFUSED, f"{tool.name} is not one of the tools you were offered",
                             permanent=True)
@@ -441,7 +454,8 @@ class AgentSession:
     def __init__(self, question: str, *, think: Think, catalog: dict[str, tools.Tool] | None = None,
                  broker: Broker | None = None, max_steps: int = DEFAULT_STEPS,
                  audience: str = "local", tool_timeout_s: float = TOOL_TIMEOUT_S,
-                 now_line: Callable[[], str] | None = None, record: bool = True):
+                 now_line: Callable[[], str] | None = None, record: bool = True,
+                 file_handoffs: bool | None = None):
         self.question = " ".join(str(question or "").split())
         self.think = think
         self.catalog = catalog if catalog is not None else tools.catalog()
@@ -451,6 +465,9 @@ class AgentSession:
         self.tool_timeout_s = tool_timeout_s
         self.now_line = now_line or _now_line
         self.record = record
+        # A handed-off request becomes a pending approval when the session is
+        # recorded; a session that leaves no record leaves no approvals either.
+        self.file_handoffs = record if file_handoffs is None else bool(file_handoffs)
         self.result = SessionResult(id="agent-" + uuid.uuid4().hex[:10], question=self.question,
                                     outcome=MODEL_ERROR)
 
@@ -493,6 +510,8 @@ class AgentSession:
                     said = "That asks me to spend money, and I do not do that."
                 res.outcome, res.answer, res.basis = REFUSED_AT_DOOR, said, "rule"
                 return res
+            if self.record:
+                self._save(live=True)
             return self._loop()
         finally:
             res.duration_s = round(time.monotonic() - started, 2)
@@ -593,10 +612,13 @@ class AgentSession:
                 if decision.permanent or decision.verdict == HANDOFF:
                     decided[signature] = decision
                 entry = {"tool": reply.tool, "args": reply.args, "reason": decision.reason}
+                waiting = ""
+                if decision.verdict == HANDOFF and self.file_handoffs:
+                    waiting = self._file_handoff(reply, decision, entry)
                 (res.handoffs if decision.verdict == HANDOFF else res.refusals).append(entry)
                 self._receipt(tool_steps, reply, decision.verdict, decision.verdict, decision.reason)
                 word = "HANDOFF (not run; Caleb decides)" if decision.verdict == HANDOFF else "REFUSED (not run)"
-                turns.append({"request": request_line, "observation": f"{word}: {decision.reason}"})
+                turns.append({"request": request_line, "observation": f"{word}: {decision.reason}{waiting}"})
                 continue
 
             tool = self.catalog[reply.tool]
@@ -632,6 +654,24 @@ class AgentSession:
             res.outcome = ANSWERED
         return res
 
+    def _file_handoff(self, reply: ToolRequest, decision: Decision, entry: dict) -> str:
+        """The handed-off request, made a pending approval. Returns what the
+        model is told. A request that cannot be filed stays a handoff in the
+        result, named as not filed; it never runs."""
+        try:
+            from aletheia import handoffs
+            filed = handoffs.file(tool=self.catalog[reply.tool], args=reply.args,
+                                  session_id=self.result.id, question=self.question,
+                                  why=reply.why, reason=decision.reason, audience=self.audience)
+        except Exception as exc:                                          # noqa: BLE001
+            entry["filed"] = False
+            entry["not_filed_because"] = str(exc)[:200] or type(exc).__name__
+            return ""
+        entry.update({"filed": True, "handoff": filed["id"], "approval": filed["approval"],
+                      "state": filed["state"]})
+        return (". It is now waiting for Caleb's approval; nothing has happened yet. Tell him "
+                "it is waiting for his yes, not that it is done.")
+
     def _receipt(self, step: int, request: ToolRequest, verdict: str, outcome: str, reason: str,
                  *, provenance: str = "", duration_ms: int = 0, observation: str = "",
                  redacted: list | None = None) -> None:
@@ -646,19 +686,32 @@ class AgentSession:
             observation_sha256=hashlib.sha256(observation.encode("utf-8")).hexdigest() if observation else "",
             observation_chars=len(observation), redacted=list(redacted or []), at=_stamp())))
 
-    def _save(self) -> None:
+    def _save(self, *, live: bool = False) -> None:
         """Receipts to private state. Never raises: a session that answered
-        must not turn into an error because a receipt could not be written."""
+        must not turn into an error because a receipt could not be written.
+
+        `live` writes the record as RUNNING when the session starts, so "what
+        are you doing" can say she is answering something while she is, and a
+        session whose process died is visible as one that never finished."""
         try:
+            import os
             from aletheia import sensitivity, stateio
             record = self.result.as_dict()
             record["question"] = sensitivity.clean(record["question"])
             record["answer"] = sensitivity.clean(record["answer"])
             record["saved_at"] = _stamp()
+            record["pid"] = os.getpid()
+            if live:
+                record["outcome"] = "running"
+                record["started_at"] = record["saved_at"]
+                self._started_at = record["saved_at"]
+            else:
+                record["started_at"] = getattr(self, "_started_at", record["saved_at"])
             path = stateio.private_dir("agent-sessions") / f"{self.result.id}.json"
             path.parent.mkdir(parents=True, exist_ok=True)
             stateio.write_json_atomic(path, record)
-            self.result.note = (self.result.note + " " if self.result.note else "") + f"receipts: {path}"
+            if not live:
+                self.result.note = (self.result.note + " " if self.result.note else "") + f"receipts: {path}"
         except Exception:                                                  # noqa: BLE001
             pass
 
@@ -723,7 +776,8 @@ def render(result: SessionResult) -> str:
         lines.append(f"  {r['step']}. {r['tool']} {json.dumps(r['args'], ensure_ascii=False)}"
                      f" -> {r['verdict']}/{r['outcome']}{prov} {r['duration_ms']}ms{extra}")
     for h in result.handoffs:
-        lines.append(f"  needs Caleb: {h['reason']}")
+        waiting = f" (waiting for approval {h['approval']})" if h.get("approval") else ""
+        lines.append(f"  needs Caleb: {h['reason']}{waiting}")
     if result.note and result.answer:
         lines.append(f"  note: {result.note}")
     return "\n".join(lines)
