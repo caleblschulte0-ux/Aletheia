@@ -359,7 +359,7 @@ def declare(name: str, *, description: str, input_schema: dict, handler: Callabl
 #: must stay importable from anywhere (the intercom imports nothing from
 #: here). Adding a module here is how a new family of tools joins the
 #: catalog; nothing else needs to know.
-DECLARED_MODULES = ("aletheia.state_tools",)
+DECLARED_MODULES = ("aletheia.state_tools", "aletheia.repo_tools")
 
 
 def _declared() -> list[Tool]:
