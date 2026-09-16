@@ -1219,8 +1219,16 @@ def _applications_answer() -> str:
     """"What have I applied to" — from the application records."""
     from aletheia import apply_run, speech
     rows = apply_run.all_runs()
+    # What today's looking FOUND, beside what was sent - the discovery summary
+    # has a writer in the campaign and this is where he hears it.
+    try:
+        from aletheia import job_discovery
+        found_today = job_discovery.today()
+        found_line = job_discovery.spoken(found_today) if found_today else ""
+    except Exception:
+        found_line = ""
     if not rows:
-        return "You haven't applied to anything through me yet."
+        return " ".join(x for x in ("You haven't applied to anything through me yet.", found_line) if x)
     sent = [r for r in rows if r.get("state") == "SUBMITTED"]
     waiting = [r for r in rows if r.get("state") != "SUBMITTED"]
 
@@ -1248,7 +1256,7 @@ def _applications_answer() -> str:
     when = _day_words(newest.get("submitted_at") or newest.get("staged_at"))
     if when:
         parts.append(f"The most recent was {apply_run.describe(newest)[:60]} {when}")
-    return ". ".join(parts) + "."
+    return ". ".join(parts) + "." + (f" {found_line}" if found_line else "")
 
 
 def _day_words(stamp: object) -> str:
