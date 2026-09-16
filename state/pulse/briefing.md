@@ -1,44 +1,44 @@
 # Fleet briefing
 
-Generated 2026-09-16T11:44:19Z from fleet registry rev 5 via GitHubSource.
+Generated 2026-09-16T17:05:01Z from fleet registry rev 5 via GitHubSource.
 
-## 🟢 `Aletheia` — hub (active)
+## ⚪ `Aletheia` — hub (active)
 
 The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.
 
 Last commit `c8089d98c3d9` at 2026-09-13T15:52:48Z: Apply anywhere: her texts, four more systems, and no more black boxes
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-09-16T11:44:16Z
-- `ci.yml`: success at 2026-09-16T00:23:19Z
+- `pulse.yml`: in_progress at 2026-09-16T17:04:57Z
+- `ci.yml`: in_progress at 2026-09-16T17:04:05Z
 
 ## 🟢 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `c834cb7b15e2` at 2026-09-16T11:35:01Z: third: checkpoint posted log (claim upload slot) [skip ci]
+Last commit `294c29dfc593` at 2026-09-16T16:52:11Z: watchdog: chatgpt task verdicts 20260916 [skip ci]
 
-Vitals — trending posted: 324 · explainer posted: 249 · third posted: 512 · curiosity posted: 1
+Vitals — trending posted: 325 · explainer posted: 250 · third posted: 526 · curiosity posted: 1
 
 Watched workflows:
-- `daily.yml`: in_progress at 2026-09-16T11:25:42Z
-- `exchange_phase_a.yml`: success at 2026-09-16T09:54:10Z
+- `daily.yml`: success at 2026-09-16T15:27:36Z
+- `exchange_phase_a.yml`: success at 2026-09-16T14:21:22Z
 - `exchange_phase_b.yml`: success at 2026-09-15T18:19:11Z
 - `story_forge.yml`: success at 2026-09-16T10:03:35Z
-- `third.yml`: in_progress at 2026-09-16T11:25:41Z
-- `explainer.yml`: in_progress at 2026-09-16T11:25:48Z
+- `third.yml`: success at 2026-09-16T15:40:43Z
+- `explainer.yml`: success at 2026-09-16T16:21:46Z
 - `retro.yml`: success at 2026-09-16T04:52:30Z
 - `doctor.yml`: success at 2026-09-16T09:53:40Z
 
-## 🔴 `schwab-trader` — trading-bot (active)
+## 🟢 `schwab-trader` — trading-bot (active)
 
 Guardrailed paper-trading system. The SELL brain and executor watchdog are active; the subscription-backed BUY brain and trade executor are intentionally paused until the operator resumes them.
 
-Last commit `8c4cdb4ce671` at 2026-09-11T18:37:09Z: sell-brain: update exit decisions [skip ci]
+Last commit `2f9442619cae` at 2026-09-16T15:37:03Z: sell-brain: update exit decisions [skip ci]
 Vitals withheld (5, on his own screen): realized P&L, win rate, closed trades, open positions, cash
 
 Watched workflows:
-- `sell-brain.yml`: failure at 2026-09-15T18:35:24Z
+- `sell-brain.yml`: success at 2026-09-16T15:37:08Z
 - `watchdog.yml`: success at 2026-09-15T22:59:38Z
 
 ## 🟢 `Money_Machine` — product-ventures (active)
