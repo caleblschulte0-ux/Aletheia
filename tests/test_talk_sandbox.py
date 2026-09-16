@@ -135,5 +135,39 @@ class RedirectingReallyMovesThemCase(unittest.TestCase):
         self.assertEqual(policy.HALT_PATH, before)
 
 
+
+class TheNewStoresMoveWithPrivateState(unittest.TestCase):
+    """Sessions, handoffs, the semantic index, browser missions, power markers
+    and learned site skills are all written under `stateio.private_dir`, which
+    reads ALETHEIA_PRIVATE_STATE at call time - so `--sandbox` moves them with
+    no entry in SANDBOX_STORES. Held here, so one that starts binding a repo
+    path at import fails the suite instead of an audit."""
+
+    def test_each_resolves_inside_the_sandbox(self):
+        import os
+        from aletheia import browser_mission, handoffs, power, semantic_index, site_skills, stateio
+        room = Path(tempfile.mkdtemp()).resolve()
+        before = os.environ.get("ALETHEIA_PRIVATE_STATE")
+        os.environ["ALETHEIA_PRIVATE_STATE"] = str(room)
+        try:
+            paths = {
+                "agent-sessions": stateio.private_dir("agent-sessions"),
+                "handoffs": handoffs.handoffs_dir(),
+                "semantic index": semantic_index.index_dir(),
+                "browser missions": browser_mission.missions_dir(),
+                "site skills": site_skills.skills_dir(),
+                "power": stateio.private_dir("power"),
+            }
+        finally:
+            if before is None:
+                os.environ.pop("ALETHEIA_PRIVATE_STATE", None)
+            else:
+                os.environ["ALETHEIA_PRIVATE_STATE"] = before
+        for name, path in paths.items():
+            with self.subTest(store=name):
+                self.assertTrue(str(Path(path).resolve()).startswith(str(room)), path)
+        self.assertFalse(hasattr(power, "STATE_PATH"))       # nothing bound at import
+
+
 if __name__ == "__main__":
     unittest.main()
