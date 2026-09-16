@@ -135,6 +135,9 @@ _CODE_WALL = re.compile(
     r"enter the (?:\d+[- ](?:digit|character) )?code|we (?:just )?(?:sent|texted|e-?mailed) "
     r"(?:you )?(?:a|the|an?) (?:\d+[- ](?:digit|character) )?code|code we (?:just )?(?:sent|texted|e-?mailed)|"
     r"enter the code|check your (?:e-?mail|inbox|phone) for a code", re.I)
+_LINK_WALL = re.compile(
+    r"verification link|verify your (?:e-?mail|account)(?: address)?|confirm your e-?mail(?: address)?|"
+    r"check your (?:e-?mail|inbox) (?:to|for a link)|activate your account", re.I)
 _BY_TEXT = re.compile(r"\btext message\b|\bsms\b|\btexted\b|\bphone\b|\bmobile\b", re.I)
 _STEP_OF = re.compile(r"\bstep\s+\d+\s*(?:of|/)\s*\d+\b|\bpage\s+\d+\s+of\s+\d+\b|"
                       r"\b\d+\s+of\s+\d+\s+steps?\b", re.I)
@@ -202,6 +205,8 @@ def classify(observation: dict) -> dict:
         return out(ERROR, "the page is not there (404)")
 
     passwords = [t for t in typed if t.get("role") == "password"]
+    if not typed and _LINK_WALL.search(f"{title} {text[:3000]}"):
+        return out(EMAIL_VERIFICATION, "the page wants a link from email opened")
     if not typed and (_SUCCESS.search(text[:3000]) or _SUCCESS.search(title)):
         return out(SUCCESS, "the page says it went through and no questions remain")
 

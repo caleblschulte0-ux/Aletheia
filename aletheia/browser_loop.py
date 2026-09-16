@@ -434,6 +434,9 @@ def _say_boundary(kind: str, url: str, **bits) -> str:
     if kind == "QUESTIONS":
         return ("I need your answers for: " + "; ".join(bits.get("questions") or [])[:400]
                 + ". I will not make them up.")
+    if kind == "WAITING_FOR_LINK":
+        return (f"The site emailed a verification link for {where}. Give it to me (or open it "
+                "yourself) and I will carry on from there.")
     if kind == "WAITING_FOR_CODE":
         return (f"The site sent a {bits.get('via', 'verification')} code for {where}. Give it to me "
                 "and I will type it in and carry on.")
@@ -461,6 +464,18 @@ def _stop(record: dict, state: str, kind: str, obs: dict | None, step: str = "",
     record = bm.stop_at(record, state, boundary)
     if kind in (ps.CAPTCHA, "SIGN_IN", "WAITING_FOR_CODE", "ERROR", "MANUAL_ONLY") and url:
         site_skills.learn(url, boundary={"kind": kind, "note": boundary["say"][:180]})
+    # WHAT HE TRIED AND COULD NOT HAVE (CLAUDE.md: every doing path reports).
+    # A run that stopped at an account wall is a better fact about what to
+    # build than any guess.
+    try:
+        from aletheia import demand
+        said = {"SIGN_IN": "NEEDS_SIGN_IN", ps.CAPTCHA: "NEEDS_YOUR_EYES",
+                "OUT_OF_STEPS": "OUT_OF_STEPS"}.get(kind) or (
+            "REFUSED" if state in (bm.REFUSED, bm.MANUAL_ONLY) else "NEEDS_YOU")
+        demand.record_attempt("web.task", record.get("goal", ""), said, detail=boundary["say"][:200],
+                              source="browser_loop")
+    except Exception:
+        pass
     return record
 
 
@@ -512,18 +527,26 @@ def pursue(goal: str, start_url: str, *, inputs: dict | None = None, mode: str =
                 pass
 
 
-def resume(mid: str, *, done: str = "", **kwargs) -> dict:
+def resume(mid: str, *, done: str = "", answers: dict | None = None, **kwargs) -> dict:
     """Carry on after he passed a boundary (a CAPTCHA, a sign-in), or after a
     crash. The mission's route is replayed; nothing already submitted is
     pressed again."""
+    force = bool(kwargs.pop("force", False))
     record = bm.load(mid)
-    if record.get("state") == bm.RUNNING and not bm.stale(record) and not kwargs.pop("force", False):
+    if record.get("state") == bm.RUNNING and not bm.stale(record) and not force:
         raise LoopError(f"{mid} is running right now")
     if done:
         record.setdefault("history", []).append({"at": stateio.utcnow(), "did": f"he says he passed: {done}"})
+    if answers:
+        # HIS ANSWERS ARE INPUTS: the questions she stopped on are answered
+        # from them on the replayed page, and nothing he answered before is
+        # asked again.
+        record["inputs"] = {**(record.get("inputs") or {}), **{str(k): v for k, v in answers.items()}}
+        record.setdefault("history", []).append(
+            {"at": stateio.utcnow(), "did": f"he answered {len(answers)} question(s)"})
     if record.get("state") in (bm.NEEDS_YOU, bm.RUNNING, bm.REJECTED):
         record["state"] = bm.RUNNING
-        bm.save(record)
+    bm.save(record)
     return pursue(record["goal"], record["start_url"], inputs=record.get("inputs"),
                   mode=record.get("mode") or AUTONOMOUS, **kwargs)
 
@@ -602,6 +625,15 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
                               + (f", then {final['label']!r} is next" if final.get("label") else ""),
                          questions=planned["ask"][:12] or None)
         if state == ps.ACCOUNT_LOGIN:
+            # HER OWN ACCOUNT, on the exact host she made it on, with the
+            # password only the vault holds. Anything else - his accounts,
+            # a second try after the site said no - is his.
+            signed = _sign_in(ctx, page, hands, obs, record, route, tracker)
+            if signed is not None:
+                page = signed
+                record["route"] = route
+                bm.save(record)
+                continue
             return _stop(record, bm.NEEDS_YOU, "SIGN_IN", obs, step=f"sign in at {obs['url'][:90]}")
         if state == ps.SUCCESS:
             if bm.reached(record, bm.SUBMIT_CLICKED) or bm.reached(record, bm.REVIEW_REACHED):
@@ -617,6 +649,28 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
                 webtask.settle(page)
                 continue
             return _stop(record, bm.NEEDS_YOU, "NO_WAY_FORWARD", obs, page=ps.say(state))
+
+        if state == ps.EMAIL_VERIFICATION and not any(t["role"] == "textbox" for t in obs["targets"]):
+            # A LINK, not a code: "we sent a verification link". Following it
+            # is navigation, allowed only onto the same site.
+            link = bm.take_event(record, "link")
+            if not link and code_source is not None:
+                try:
+                    link = str(code_source(record, "link") or "")
+                except Exception:
+                    link = ""
+            if not link:
+                return _stop(record, bm.NEEDS_YOU, "WAITING_FOR_LINK", obs, via="email",
+                             step="open the verification link the site emailed")
+            if not _same_site(link, obs["url"]):
+                return _stop(record, bm.NEEDS_YOU, "LINK_ELSEWHERE", obs,
+                             say=f"The verification link goes to {site_skills.domain_of(link)}, not this "
+                                 "site, so I did not follow it. Open it yourself and tell me to carry on.")
+            _load(page, link)
+            route.append({"action": "goto", "selector": "", "value": link})
+            record["route"] = route
+            _note(record, "followed the emailed verification link")
+            continue
 
         if state in (ps.EMAIL_VERIFICATION, ps.SMS_VERIFICATION):
             via = "text" if state == ps.SMS_VERIFICATION else "email"
@@ -655,6 +709,10 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
                 if isinstance(extra, dict):         # a boundary
                     return extra
                 planned["fill"] += extra
+                named = next((i for i in planned["fill"] if i["action"] == "type"
+                              and _USERNAME.search(str(i.get("label") or ""))), None)
+                if named and record.get("account"):
+                    record["account"]["username"] = named["value"]
             # ONE WRITE PER FIELD PER PAGE. A select reads back its option's
             # VALUE ("tue") while his input is the option's words ("Tuesday"),
             # and without this the two never agree and the budget goes on
@@ -801,8 +859,45 @@ def _signup_passwords(obs: dict, record: dict):
         if not ok:
             return _stop(record, bm.NEEDS_YOU, "NO_VAULT", obs, why=why)
         signup._vault().put(alias, signup.new_password(), provider=host, kind="account")
+    record["account"] = {"host": host, "alias": alias}
     return [{"action": "secret", "selector": obs["_refs"][b["id"]], "alias": alias,
              "label": b["label"]} for b in boxes if not str(b.get("value") or "")]
+
+
+_USERNAME = re.compile(r"e-?mail|user\s*name|username|login|user id", re.I)
+
+
+def _same_site(url: str, here: str) -> bool:
+    a, b = site_skills.domain_of(url), site_skills.domain_of(here)
+    return bool(a and b) and (a == b or a.endswith("." + b) or b.endswith("." + a))
+
+
+def _sign_in(ctx, page, hands, obs: dict, record: dict, route: list[dict], tracker):
+    """Sign in with an account SHE made on this exact host (signup's store and
+    the vault), once per page. Returns the page after, or None."""
+    from aletheia import signup
+    host = site_skills.domain_of(obs["url"])
+    try:
+        account = signup.known_account(host)
+        from aletheia import secret_store
+        have = bool(account) and secret_store.exists(account["alias"])
+    except Exception:
+        account, have = None, False
+    tries = record.setdefault("sign_ins", {})
+    if not have or tries.get(site_skills.path_of(obs["url"]), 0) >= 1:
+        return None
+    user = next((t for t in obs["targets"] if t["role"] == "textbox" and _USERNAME.search(t["label"])), None)
+    boxes = [t for t in obs["targets"] if t["role"] == "password"]
+    button = (controls(obs).get(ps.SIGN_IN) or [None])[0]
+    if not (user and boxes and button and account.get("username")):
+        return None
+    tries[site_skills.path_of(obs["url"])] = 1
+    _apply(page, hands, [{"action": "type", "selector": obs["_refs"][user["id"]],
+                          "value": account["username"], "label": user["label"]}]
+           + [{"action": "secret", "selector": obs["_refs"][b["id"]], "alias": account["alias"],
+               "label": b["label"]} for b in boxes], route, [])
+    _note(record, f"signed in with the account I made at {host}")
+    return _click(ctx, page, hands, obs["_refs"][button["id"]], route, tracker)
 
 
 def _gate(ctx, page, obs: dict, record: dict, goal: str, route: list[dict],
@@ -904,12 +999,25 @@ def after_press(webtask_record: dict, result: dict | None, error: BaseException 
     elif verdict != "confirmed" and after["state"] == ps.SUCCESS:
         verdict = "confirmed"
         result.update({"verdict": verdict, "note": "The page says it went through."})
+    elif verdict != "confirmed" and gate.get("kind") == ps.CREATE_ACCOUNT and after["state"] in (
+            ps.EMAIL_VERIFICATION, ps.SMS_VERIFICATION, ps.ACCOUNT_LOGIN):
+        verdict = "confirmed"
+        result.update({"verdict": verdict, "note": "The site made the account and moved on to "
+                                                   "verifying it."})
     record = bm.end_submit(record, verdict=verdict, evidence=evidence, url=str(result.get("url") or ""),
                            note=str(result.get("note") or ""))
     if verdict == "confirmed" and gate.get("kind") == ps.CREATE_ACCOUNT:
         # AN ACCOUNT IS A STEP, NOT THE GOAL. The route to here must never be
         # replayed (it ends in the press that made the account), so the next
         # leg starts from where the press landed.
+        account = record.get("account") or {}
+        if account.get("host") and account.get("username"):
+            try:
+                from aletheia import signup
+                signup.record_account(account["host"], username=account["username"],
+                                      provider=",".join(site_skills.for_domain(account["host"])["families"]))
+            except Exception:
+                pass
         record.update({"state": bm.RUNNING, "resume_url": str(result.get("url") or ""),
                        "route_before_account": record.get("route") or [], "route": [], "attached": [],
                        "boundary": None})

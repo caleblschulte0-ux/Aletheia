@@ -386,6 +386,43 @@ class AVerificationCodeArrivesAsAnEvent(LoopCase):
 
 
 @needs_browser
+class AQuestionIsAskedOnceAndHisAnswerCarriesOn(LoopCase):
+    def test_questions_then_answers_then_approval_and_nothing_asked_twice(self):
+        goal, start = "request a dental cleaning appointment", self.url("/clinic")
+        partial = {k: v for k, v in CLINIC_INPUTS.items() if k != "reason for visit"}
+        record = browser_loop.pursue(goal, start, inputs=partial)
+        self.assertBoundary(record, bm.NEEDS_YOU, "QUESTIONS")
+        self.assertEqual(record["boundary"]["questions"], ["Reason for visit *"],
+                         "exactly what is missing, and nothing he already gave")
+
+        # A tool-level action may not type a value that is not his.
+        from aletheia import browser_tools
+        refused = browser_tools._act({"mission": record["id"], "act": "fill",
+                                      "target": {"role": "textbox", "label": "Reason for visit"},
+                                      "value": "a plausible reason I made up"})
+        self.assertFalse(refused["done"])
+        self.assertIn("will not type a guess", refused["problem"])
+        self.assertNotIn("_refs", refused["page"])
+        self.assertTrue(all("selector" not in t for t in refused["page"]["targets"]))
+
+        done = browser_loop.resume(record["id"], answers={"reason for visit": "Routine cleaning"})
+        self.assertBoundary(done, bm.AWAITING_APPROVAL, "SUBMIT_APPROVAL")
+
+
+@needs_browser
+class ObservingIsReadingOnly(LoopCase):
+    def test_the_observe_tool_returns_semantic_targets_and_a_state(self):
+        from aletheia import browser_tools
+        seen = browser_tools._observe({"url": self.url("/library/card")})
+        self.assertEqual(seen["state"], ps.FORM)
+        labels = {(t["role"], t["label"]) for t in seen["targets"]}
+        self.assertIn(("textbox", "Full name *"), labels)
+        self.assertIn(("button", "Create account"), labels)
+        self.assertTrue(all("selector" not in t for t in seen["targets"]))
+        self.assertEqual(self.state["posts"], [])
+
+
+@needs_browser
 class AManualOnlySiteIsNeverOpened(LoopCase):
     def test_indeed_is_his(self):
         with mock.patch.object(browse, "_Session", side_effect=AssertionError("opened a browser")):

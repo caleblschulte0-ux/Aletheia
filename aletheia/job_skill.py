@@ -55,6 +55,30 @@ class JobApplication(browser_loop.GeneralSkill):
         base = super().plan(obs, record, site)
         taken = {item["selector"] for item in base["fill"]}
         refs = obs.get("_refs") or {}
+        if obs.get("state") == ps.ACCOUNT_SIGNUP:
+            # AN ACCOUNT IS NOT AN APPLICATION. `signup.plan` owns what an
+            # account form gets - his signup number, never the one employers
+            # ring - and the loop owns the password (vault only).
+            from aletheia import signup, site_skills
+            try:
+                made = signup.plan(list(obs.get("_raw") or []), host=site_skills.domain_of(obs.get("url", "")),
+                                   password="unused-here-the-loop-fills-passwords-from-the-vault")
+            except Exception:
+                made = {"fill": [], "missing": []}
+            for item in made.get("fill") or []:
+                selector = (item.get("field") or {}).get("selector")
+                if item.get("is") == "password" or not selector or selector in taken:
+                    continue
+                base["fill"].append({"action": "type", "selector": selector, "value": str(item["value"]),
+                                     "label": (item.get("field") or {}).get("label", ""), "key": item["is"]})
+                taken.add(selector)
+            filled = {browser_loop._norm(i.get("label", "")) for i in base["fill"]}
+            base["ask"] = [q for q in base["ask"] if browser_loop._norm(q) not in filled]
+            for item in made.get("missing") or []:
+                label = str((item.get("field") or {}).get("label") or item.get("needs"))
+                if (item.get("field") or {}).get("required") and label not in base["ask"]:
+                    base["ask"].append(label)
+            return base
         try:
             mapped = formfill.plan(list(obs.get("_raw") or []))
         except Exception:
