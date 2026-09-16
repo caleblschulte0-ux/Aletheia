@@ -399,7 +399,8 @@ Rules:
   not state it as certain. Basis GUESS means nothing was found: say you are guessing.
 - Never say you did something no tool did. A REFUSED or HANDOFF request did not run;
   do not ask for it again and do not claim it happened.
-- Answer in plain spoken sentences: no markdown, no ids, no JSON.
+- Answer in plain spoken sentences: no markdown, no ids, no JSON, no URLs, and no
+  state codes - say "waiting on you", never NEEDS_YOU. It is read aloud in a room.
 - {authority}
 - {untrusted}
 
