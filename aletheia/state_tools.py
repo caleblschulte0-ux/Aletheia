@@ -151,7 +151,10 @@ def journal_query(args: dict, **_ignored) -> dict:
 def state_now(args: dict, **_ignored) -> dict:
     """The live snapshot, or one section of it."""
     from aletheia import current_state
-    section = str(args.get("section") or "").strip()
+    # "job hunt", "Job-Hunt" and "job_hunt" are one section: the first real
+    # local run asked for "job hunt", was told there is no such section, and
+    # asked the same thing again.
+    section = "_".join(str(args.get("section") or "").strip().lower().replace("-", " ").split())
     try:
         snapshot = current_state.snapshot()
     except Exception as exc:  # noqa: BLE001

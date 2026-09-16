@@ -376,6 +376,15 @@ class AModelThatCannotStopThinking(unittest.TestCase):
         self.assertEqual(out, {"answer": "hi"})
 
 
+class StateNowForgivesTheSpelling(unittest.TestCase):
+    def test_a_section_named_with_spaces_is_the_same_section(self):
+        from aletheia import current_state, state_tools
+        with mock.patch.object(current_state, "snapshot",
+                               return_value={"job_hunt": {"sent_today": 2}}):
+            out = state_tools.state_now({"section": "Job Hunt"})
+        self.assertEqual(out["job_hunt"], {"sent_today": 2})
+
+
 class TheCli(unittest.TestCase):
     def test_the_cli_prints_the_answer_and_the_steps(self):
         fake = s.SessionResult(id="agent-x", question="q", outcome=s.ANSWERED, answer="Three sent.",
