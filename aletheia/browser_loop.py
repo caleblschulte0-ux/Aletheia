@@ -538,7 +538,8 @@ def pursue(goal: str, start_url: str, *, inputs: dict | None = None, mode: str =
     bm.save(record)
     budget = max(1, min(int(budget), MAX_STEPS))
     opener = session or browse._Session
-    with opener() as ctx:
+    from aletheia import power
+    with power.keep_awake(f"browser goal {record['id']}"), opener() as ctx:
         page = ctx.new_page()
         try:
             return _drive(ctx, page, record, goal, skill, site, decide=decide, budget=budget,

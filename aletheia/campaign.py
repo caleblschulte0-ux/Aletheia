@@ -63,6 +63,7 @@ you work from" - went back to him. So now:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as dt
 import json
 import os
@@ -1809,6 +1810,17 @@ def main(argv: list[str] | None = None) -> int:
     p_one.add_argument("--notify", action="store_true")
     args = ap.parse_args(argv)
     stamp = stateio.utcnow()
+    # A BATCH HOLDS THE PC AWAKE, and only a batch. In a real incident the
+    # laptop slept on battery mid-hunt and she was silent for 22 hours.
+    # Released the moment the batch ends; `questions` only reads.
+    from aletheia import power
+    awake = (power.keep_awake(f"campaign {args.cmd}") if args.cmd != "questions"
+             else contextlib.nullcontext())
+    with awake:
+        return _main(args, stamp)
+
+
+def _main(args, stamp: str) -> int:
     try:
         if args.cmd == "run":
             try:
