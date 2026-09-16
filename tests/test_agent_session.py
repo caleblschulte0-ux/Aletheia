@@ -566,5 +566,18 @@ class WhichAndCompanyBothFilter(unittest.TestCase):
         self.assertIn("designer Palantir", out["note"])
 
 
+
+class AStateSpelledTheWayHeSaysItStillFilters(unittest.TestCase):
+    def test_needs_you_in_words(self):
+        from aletheia import apply_run, state_tools
+        runs = [{"id": "apply-a1", "state": "NEEDS_YOU", "company": "Okta"},
+                {"id": "apply-b2", "state": "FAILED", "company": "Okta"}]
+        with mock.patch.object(apply_run, "all_runs", return_value=runs):
+            for spelled in ("needs you", "Needs-You", "NEEDS_YOU"):
+                with self.subTest(spelled=spelled):
+                    out = state_tools.applications_query({"state": spelled})
+                    self.assertEqual([r["id"] for r in out["records"]], ["apply-a1"])
+
+
 if __name__ == "__main__":
     unittest.main()

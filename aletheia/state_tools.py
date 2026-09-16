@@ -83,7 +83,9 @@ def applications_query(args: dict, **_ignored) -> dict:
     except Exception as exc:  # noqa: BLE001 - the answer must say the store is unreadable
         return {"readable": False, "records": [], "counts": {},
                 "note": f"the application records could not be read ({type(exc).__name__})"}
-    state = str(args.get("state") or "").strip().upper()
+    # "needs you", "Needs-You" and NEEDS_YOU are one state: a model that spells it
+    # the way a person says it must not be told the store has nothing.
+    state = "_".join(str(args.get("state") or "").replace("-", " ").upper().split())
     # BOTH filter. `which or company` let `which` silently replace `company`,
     # so {"which": "engineer", "company": "Stripe"} returned every engineer
     # role anywhere - an answer about the wrong employer, said confidently.
