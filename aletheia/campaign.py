@@ -259,7 +259,10 @@ def open_questions() -> list[dict]:
             # A phone widget's search box and a captcha are not questions,
             # and live they made up a third of what he would have been read.
             if (question.get("type") == "search"
-                    or "recaptcha" in question["label"].casefold()):
+                    or "recaptcha" in question["label"].casefold()
+                    # hCaptcha's token box, from records staged before plan
+                    # stopped asking it (Palantir, 2026-09-14).
+                    or formfill.is_anti_bot(question)):
                 continue
             key = _question_key(question)
             held = seen.setdefault(key, {"label": question["label"],
@@ -1333,6 +1336,11 @@ def draft_essays(record: dict, resume_text: str, *, think=None) -> dict:
             break
         if (question.get("type") != "textarea" or question.get("choices")
                 or not question.get("selector")):
+            continue
+        if formfill.is_anti_bot(question):
+            # hCaptcha's token box is a textarea too. Live 2026-09-14 a model
+            # wrote Palantir an essay for `h-captcha-response`, keyed to be typed
+            # straight into it on the next stage.
             continue
         prompt = ESSAY_BRIEF.format(job=record.get("job_title") or record["url"],
                                     question=question["label"], facts=facts)

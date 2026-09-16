@@ -563,6 +563,10 @@ def observe(page) -> dict:
     fields = read_forms(page)
     trimmed = []
     for field in fields[:MAX_FIELDS]:
+        if formfill.is_anti_bot(field) or formfill.is_unseen_text_box(field):
+            # Not offered to the model as something to fill: a CAPTCHA's token
+            # box is not a question, and she does not pass the check for him.
+            continue
         row = {"selector": field["selector"], "type": field.get("type"),
                "label": (field.get("question") or field.get("label")
                          or field.get("name") or "")[:120],

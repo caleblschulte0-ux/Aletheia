@@ -49,7 +49,7 @@ class ADropdownIsNotAQuestionCase(unittest.TestCase):
                          ["#iti-0__item-af", "#iti-0__search-input",
                           "#g-recaptcha-response-100000"])
         for row in out["skipped"]:
-            self.assertEqual(row["why"], "part of a picker on the page, not a question")
+            self.assertIn("not a question", row["why"])
 
     def test_a_real_question_about_countries_still_reaches_him(self):
         """The label is not the test. An employer really does ask this."""
