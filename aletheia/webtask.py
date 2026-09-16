@@ -1274,6 +1274,13 @@ def walk(ctx, page, hands, route: list[dict], attachments: dict) -> object:
             hands.check(selector)
         elif action == "uncheck":
             hands.uncheck(selector)
+        elif action == "secret":
+            # A PASSWORD IS REPLAYED FROM THE VAULT, never from the route. The
+            # route is JSON in private state and its digest is what he
+            # approves; the plaintext lives only in `secret_store` (the rule
+            # `signup` exists to keep), so the step names the alias.
+            from aletheia import secret_store
+            hands.fill(selector, secret_store.get(str(step.get("alias") or "")))
         elif action == "click":
             for sel, path in attachments.items():
                 try:
@@ -1372,6 +1379,17 @@ def commit(run_id: str, *, presser=None) -> dict:
         raise WebTaskError(
             f"approval {record['approval']} was given for a different route "
             "than the one on file — nothing was pressed")
+    if record.get("mission"):
+        # A GENERAL BROWSER MISSION'S BUTTON. The mission's invariant is asked
+        # BEFORE the approval is consumed - a second press with no proof the
+        # first failed is refused here whichever path pressed it (this
+        # command, or the Core's beat) - and submit_clicked is on disk before
+        # the click, so a crash mid-press can never read as "not pressed".
+        from aletheia import browser_loop, browser_mission
+        try:
+            browser_loop.before_press(record)
+        except browser_mission.DuplicateSubmission as exc:
+            raise WebTaskError(f"{exc} - nothing was pressed") from None
     _claim(record)
     record["state"] = "COMMITTING"
     record["committed_at"] = stateio.utcnow()
@@ -1382,7 +1400,13 @@ def commit(run_id: str, *, presser=None) -> dict:
         record.update({"state": "FAILED",
                        "failure": f"{type(exc).__name__}: {exc}"[:300]})
         stateio.write_json_atomic(_record_path(run_id), record)
+        if record.get("mission"):
+            from aletheia import browser_loop
+            browser_loop.after_press(record, None, error=exc)
         raise
+    if record.get("mission"):
+        from aletheia import browser_loop
+        result = browser_loop.after_press(record, result)
     # PRESSED is not ACCEPTED. A site that hands the form back has refused
     # it, and calling that COMMITTED is the same lie as reporting "command
     # executed" as "goal achieved" (§30). Its own state, so a second press
