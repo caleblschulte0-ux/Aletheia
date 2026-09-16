@@ -177,6 +177,10 @@ class TheLoop(unittest.TestCase):
         self.assertEqual(result.outcome, s.ANSWERED)
         self.assertEqual(result.basis, "guessing")
         self.assertEqual(result.model_basis, "looked")
+        # and the words he hears say it, whatever the model called it
+        self.assertEqual(result.knowing, s.GUESS)
+        self.assertTrue(result.answer.startswith(s.GUESS_LEAD))
+        self.assertEqual(result.model_answer, "Everything is fine.")
 
 
 class TheBrokerRefuses(unittest.TestCase):

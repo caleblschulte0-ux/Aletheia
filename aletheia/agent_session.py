@@ -88,6 +88,10 @@ NOT_RUNNABLE = frozenset({"NOT_BUILT", "UNAVAILABLE", "NEEDS_CONFIGURATION"})
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 
+GUESS_LEAD = "I have not found this in my records, so this is a guess: "
+_SAYS_GUESS = re.compile(r"\bguess", re.I)
+
+
 class ModelUnavailable(RuntimeError):
     """Nobody can think right now. Not a failure of the question."""
 
@@ -364,6 +368,9 @@ Reply with exactly ONE JSON object, one of:
 Rules:
 - Your first reply is a tool request: you know nothing about today until you look.
 - Use the fewest tools that answer the question, then answer.
+- Asked WHY something failed, stopped or cannot be done: find out, do not try it.
+  self.diagnose reads the record, your history and your code; memory.recall finds
+  what happened before. A question is never an instruction to act.
 - Say only what an observation shows. If a tool failed or found nothing, say so.
 - Say how you know. Basis KNOWN is a fact from your own records: state it. Basis
   FOUND IN HISTORY is related history found by search: say "from my history" and do
@@ -448,6 +455,7 @@ class SessionResult:
     basis: str = ""
     model_basis: str = ""
     knowing: str = ""
+    model_answer: str = ""
     handoffs: list = field(default_factory=list)
     refusals: list = field(default_factory=list)
     receipts: list = field(default_factory=list)
@@ -669,6 +677,13 @@ class AgentSession:
         # says "looked" without one is guessing, whatever it calls it.
         res.basis = "looked" if res.sources else "guessing"
         res.knowing = strongest_basis(s.get("basis") for s in res.sources)
+        # AN ANSWER NOTHING BACKS SAYS SO IN ITS FIRST WORDS. The first cloud-off
+        # rerun of "why can't you handle the Palantir application" (qwen3-vl:4b,
+        # 2026-09-16) asked for a browser action, was handed off, and then
+        # explained the failure from nothing - plausibly, which is the danger.
+        if res.knowing == GUESS and res.answer and not _SAYS_GUESS.search(res.answer):
+            res.model_answer = res.answer
+            res.answer = GUESS_LEAD + res.answer
         if reply.handoff:
             res.handoffs.append({"tool": None, "args": {}, "reason": reply.handoff})
         if res.handoffs:
