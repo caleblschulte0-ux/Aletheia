@@ -100,7 +100,7 @@ def pursue(goal: str, url: str, *, budget: int = 16, decide=None, code_source=No
             raise browser_loop.LoopError(
                 f"an application already went to {url} at {gone.get('at')} - not applying twice")
     if decide is None:
-        decide = browser_loop.model_decider(think=_think)
+        decide = browser_loop.model_decider()
     return browser_loop.pursue(
         goal, url, inputs={**his_facts(), **dict(inputs or {})}, skill=skill, decide=decide,
         budget=budget, session=session,
@@ -109,8 +109,9 @@ def pursue(goal: str, url: str, *, budget: int = 16, decide=None, code_source=No
 
 
 def _think(system: str, text: str) -> dict:
-    from aletheia import reasoner
-    return reasoner.subscription_json(system, text)
+    """Kept for callers that pass a thinker: the standard class, not a company."""
+    from aletheia import reasoning_gateway
+    return reasoning_gateway.reason_json(system, text, policy="standard").output
 
 
 def spoken(record: dict) -> str:
@@ -175,7 +176,7 @@ def answer(mission: dict, answers: dict) -> str:
     from aletheia import browser_loop, verification_mail
     record = browser_loop.resume(mission["id"], answers=answers or None,
                                  skill=skill_for(mission.get("goal", ""), mission.get("start_url", "")),
-                                 decide=browser_loop.model_decider(think=_think),
+                                 decide=browser_loop.model_decider(),
                                  code_source=verification_mail.source(), hold_s=LIVE_HOLD_S)
     return spoken(record)
 
@@ -186,6 +187,6 @@ def retry(mission: dict) -> str:
     from aletheia import browser_loop, verification_mail
     record = browser_loop.resume(mission["id"], retry=True,
                                  skill=skill_for(mission.get("goal", ""), mission.get("start_url", "")),
-                                 decide=browser_loop.model_decider(think=_think),
+                                 decide=browser_loop.model_decider(),
                                  code_source=verification_mail.source(), hold_s=LIVE_HOLD_S)
     return spoken(record)

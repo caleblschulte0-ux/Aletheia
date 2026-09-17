@@ -482,9 +482,17 @@ def run(question: str, *, reader=browse.read_page, think=None,
                 f"she cannot read web pages right now: {why}. Research really "
                 "opens the pages it cites, so there is nothing honest to "
                 "return until that is fixed — everything else still works.")
-    think = think or reasoner.subscription_json
+    # A CLASS of reasoning, not a company (docs/REASONING_CLASSES.md): picking
+    # search queries is routine (her own model first); writing the cited
+    # report is standard (frontier first, her own model when it is out).
+    if think is None:
+        from aletheia import reasoning_gateway
+        plan_think = reasoning_gateway.thinker("routine")
+        think = reasoning_gateway.thinker("standard")
+    else:
+        plan_think = think
 
-    plan = think(PLAN_SYSTEM, question, model=reasoner.INTERPRET_MODEL,
+    plan = plan_think(PLAN_SYSTEM, question, model=reasoner.INTERPRET_MODEL,
                  validator=_plan_validator)
 
     candidates, seen_hosts = [], set()

@@ -842,16 +842,16 @@ def _validate_object(value):
 def _ask_own_model(system: str, text: str, timeout_s: float) -> tuple[dict, str]:
     """One call to her own fast model. Raises ModelReplyUnusable for a reply
     in the wrong shape; LocalPoolUnavailable when nobody answered."""
-    from aletheia import local_model_pool
+    from aletheia import local_model_pool, reasoning_gateway
     try:
-        run = local_model_pool.run_json(system, text, role="fast", validator=_validate_object,
-                                        timeout_s=max(0.5, min(timeout_s, 300.0)),
-                                        think_override=False)
+        run = reasoning_gateway.local_json(system, text, role="fast", validator=_validate_object,
+                                           timeout_s=max(0.5, min(timeout_s, 300.0)),
+                                           think_override=False)
     except local_model_pool.LocalPoolUnavailable as exc:
         if _WRONG_SHAPE.search(str(exc)):
             raise ModelReplyUnusable(str(exc)) from None
         raise
-    return run.output, f"ollama:{run.model}"
+    return run.output, run.provider
 
 
 #: One subscription step. Claude answers in ~4-8 s; the budget is for the
@@ -886,16 +886,18 @@ def chain_think(*, timeout_s: float = LOCAL_TIMEOUT_S,
     ends = None if deadline_s is None else time.monotonic() + float(deadline_s)
 
     def think(system: str, text: str) -> tuple[dict, str]:
-        from aletheia import local_model_pool, model_pool_config, reasoner
+        from aletheia import local_model_pool, model_pool_config, reasoner, reasoning_gateway
         if "why" not in fell:
             budget = subscription_timeout_s
             if ends is not None:
                 budget = max(MIN_SUBSCRIPTION_S, min(budget, ends - time.monotonic()))
             try:
-                value, provider = reasoner._subscription_json_with_provider(
+                # The STANDARD class, held sticky for the session: frontier
+                # first through the gateway, her own model once it is out.
+                said = reasoning_gateway.frontier_json(
                     system, text, context=None, model=reasoner.PLAN_MODEL,
                     timeout_s=budget, validator=_validate_object)
-                return value, provider
+                return said.output, said.provider
             except reasoner.ReasonerUnavailable as exc:
                 fell["why"] = str(exc) or type(exc).__name__
             except ValueError as exc:
@@ -910,7 +912,7 @@ def chain_think(*, timeout_s: float = LOCAL_TIMEOUT_S,
                               "It's slower.")
                 except Exception:                                      # noqa: BLE001
                     pass
-        if not (model_pool_config.enabled() and local_model_pool.reachable()):
+        if not reasoning_gateway.local_ready():
             mine = ("my own model is switched off" if not model_pool_config.enabled()
                     else "my own model is not running")
             raise ModelUnavailable(f"{fell['why']}; and {mine}")
@@ -927,10 +929,10 @@ def local_think(*, local_only: bool = True, timeout_s: float = LOCAL_TIMEOUT_S) 
     `local_only` False, a model that cannot run falls to the subscription
     path the gateway already uses; with it True, the cloud is never asked."""
     def think(system: str, text: str) -> tuple[dict, str]:
-        from aletheia import local_model_pool, model_pool_config, reasoner
+        from aletheia import local_model_pool, model_pool_config, reasoner, reasoning_gateway
 
         local_failure = None
-        if model_pool_config.enabled() and local_model_pool.reachable():
+        if reasoning_gateway.local_ready():
             try:
                 return _ask_own_model(system, text, timeout_s)
             except local_model_pool.LocalPoolUnavailable as exc:
@@ -941,9 +943,11 @@ def local_think(*, local_only: bool = True, timeout_s: float = LOCAL_TIMEOUT_S) 
         if local_only:
             raise ModelUnavailable(local_failure)
         try:
-            output = reasoner.subscription_json(system, text, timeout_s=min(timeout_s, 120.0),
-                                                validator=_validate_object)
-            return output, "subscription.auto"
+            # Frontier only as the rescue for a local-first (routine) ask.
+            said = reasoning_gateway.reason_json(system, text, policy="critical",
+                                                 timeout_s=min(timeout_s, 120.0),
+                                                 validator=_validate_object)
+            return said.output, said.provider
         except reasoner.ReasonerUnavailable as exc:
             raise ModelUnavailable(f"{local_failure}; and the subscriptions could not answer ({exc})") from None
     return think

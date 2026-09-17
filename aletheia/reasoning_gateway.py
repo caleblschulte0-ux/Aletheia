@@ -13,6 +13,7 @@ Policies:
 from __future__ import annotations
 
 import math
+import os
 import time
 from dataclasses import dataclass
 from typing import Callable, Any
@@ -71,7 +72,8 @@ def _checked(validator: Callable[[dict], dict] | None):
 def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
                 policy: str = "standard", model: str = reasoner.INTERPRET_MODEL,
                 timeout_s: float = reasoner.TIMEOUT_S,
-                validator: Callable[[dict], dict] | None = None) -> GatewayResult:
+                validator: Callable[[dict], dict] | None = None,
+                local_timeout_s: float | None = None) -> GatewayResult:
     if policy not in POLICIES:
         raise ValueError(f"policy must be one of {sorted(POLICIES)}")
     checked = _checked(validator)
@@ -108,7 +110,7 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
                 local = local_model_pool.auto_json(
                     system_prompt, text, context=ctx, validator=checked,
                     allow_failover=False,
-                    timeout_s=min(ROUTINE_LOCAL_TIMEOUT_S, max(0.5, remaining())),
+                    timeout_s=min(_local_slice(local_timeout_s), max(0.5, remaining())),
                 )
                 return GatewayResult(
                     local.output, f"ollama:{local.model}", policy,
@@ -120,7 +122,7 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
             raise reasoner.ReasonerUnavailable(
                 "I ran out of thinking time before an answer came back")
         try:
-            output = reasoner.subscription_json(
+            output = _subscription_json(
                 system_prompt, text, context=ctx, model=model,
                 timeout_s=remaining(), validator=checked,
             )
@@ -138,7 +140,7 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
             ) from None
 
     if policy == "critical":
-        output = reasoner.subscription_json(
+        output = _subscription_json(
             system_prompt, text, context=ctx, model=model,
             timeout_s=remaining(), validator=checked,
         )
@@ -152,7 +154,7 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
             subscription_budget = min(
                 subscription_budget, STANDARD_SUBSCRIPTION_SLICE_S,
             )
-        output = reasoner.subscription_json(
+        output = _subscription_json(
             system_prompt, text, context=ctx, model=model,
             timeout_s=subscription_budget, validator=checked,
         )
@@ -196,6 +198,99 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
             ) from None
 
 
+# ---- continuity: frontier off, and the two rungs by name --------------------------
+#
+# His 2026-09-16 brief: a subsystem asks for a CLASS of reasoning, not a company.
+# Callers that keep their own chain (a sticky agent session) still reach the
+# companies only through here, so there is one place that knows who they are and
+# one switch that can say "pretend they are all out" (acceptance test A).
+
+FRONTIER_OFF_ENV = "ALETHEIA_FRONTIER_OFF"
+
+
+def frontier_off() -> bool:
+    """True when this process is simulating Claude/Codex/ChatGPT unavailable.
+
+    Only ever REMOVES ability: it cannot make anything run that would not."""
+    return str(os.environ.get(FRONTIER_OFF_ENV, "")).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _local_slice(requested: float | None) -> float:
+    if requested is None:
+        return ROUTINE_LOCAL_TIMEOUT_S
+    value = float(requested)
+    if not math.isfinite(value):
+        return ROUTINE_LOCAL_TIMEOUT_S
+    return max(0.5, min(value, ROUTINE_TOTAL_TIMEOUT_S))
+
+
+def _subscription_json(system_prompt: str, text: str, **kwargs) -> dict:
+    if frontier_off():
+        raise reasoner.ReasonerUnavailable(
+            "the frontier models are switched off for this run")
+    return reasoner.subscription_json(system_prompt, text, **kwargs)
+
+
+def frontier_json(system_prompt: str, text: str, *, context: dict | None = None,
+                  model: str = reasoner.INTERPRET_MODEL,
+                  timeout_s: float = reasoner.TIMEOUT_S,
+                  validator: Callable[[dict], dict] | None = None) -> GatewayResult:
+    """One frontier answer with the provider named (Claude, then the ChatGPT
+    browser). For a caller that holds its own fallback (an agent session that
+    stops asking once they are out). Raises ReasonerUnavailable."""
+    if frontier_off():
+        raise reasoner.ReasonerUnavailable(
+            "the frontier models are switched off for this run")
+    value, provider = reasoner._subscription_json_with_provider(
+        system_prompt, text, context=context, model=model,
+        timeout_s=timeout_s, validator=validator)
+    return GatewayResult(value, provider, "critical")
+
+
+def frontier_available() -> bool:
+    """Could a frontier model plausibly answer now, WITHOUT asking one: not
+    switched off and Claude not known to be resting. Cheap and optimistic."""
+    if frontier_off():
+        return False
+    try:
+        return reasoner.resting_until() is None
+    except Exception:
+        return True
+
+
+def local_ready() -> bool:
+    """Her own model is switched on AND answering (cached probe)."""
+    return bool(model_pool_config.enabled() and local_model_pool.reachable())
+
+
+def local_json(system_prompt: str, text: str, *, context: dict | None = None,
+               role: str = "fast", validator: Callable[[dict], dict] | None = None,
+               timeout_s: float | None = None,
+               think_override: bool | None = None) -> GatewayResult:
+    """One answer from her own model in a named role. Raises
+    local_model_pool.LocalPoolUnavailable, whose words say why."""
+    run = local_model_pool.run_json(system_prompt, text, context=context, role=role,
+                                    validator=validator, timeout_s=timeout_s,
+                                    think_override=think_override)
+    return GatewayResult(run.output, f"ollama:{run.model}", "routine",
+                         run.role, run.model, turn_id=run.turn_id)
+
+
+def thinker(policy: str, **fixed) -> Callable[..., dict]:
+    """A drop-in for the old `reasoner.subscription_json(system, text, *,
+    context, model, timeout_s, validator)` seam that asks for a CLASS."""
+    if policy not in POLICIES:
+        raise ValueError(f"policy must be one of {sorted(POLICIES)}")
+
+    def think(system_prompt: str, text: str, **kwargs) -> dict:
+        merged = {**fixed, **kwargs}
+        allowed = {k: merged[k] for k in ("context", "model", "timeout_s", "validator",
+                                          "local_timeout_s") if k in merged}
+        return reason_json(system_prompt, text, policy=policy, **allowed).output
+    think.policy = policy  # type: ignore[attr-defined]
+    return think
+
+
 @dataclass(frozen=True)
 class HybridReasoner:
     system_prompt: str
@@ -222,6 +317,7 @@ def status() -> dict[str, Any]:
         local = {"error": f"{type(exc).__name__}: {exc}"}
     return {
         "policies": sorted(POLICIES),
+        "frontier_off": frontier_off(),
         "subscriptions": {"available": sub_ok, "detail": sub_detail},
         "local": local,
         "training": training_data.stats(),
