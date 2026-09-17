@@ -689,6 +689,12 @@ def work(now: dt.datetime | None = None) -> dict:
     return work_engine.summary(_utc(now))
 
 
+def work_session_section(now: dt.datetime | None = None) -> dict:
+    """The work session he started ("work on my projects"): running, done, waiting and why."""
+    from aletheia import project_work
+    return project_work.summary(_utc(now))
+
+
 def programs_section(now: dt.datetime | None = None) -> dict:
     """His long missions (`aletheia.programs`): each one's progress, what waits, what is his."""
     from aletheia import programs
@@ -727,6 +733,8 @@ def sections(now: dt.datetime | None = None, *, fresh: bool = False) -> dict:
         "usage": _safe(lambda: usage(now), {"window_used": "unknown", "weekly": "unknown",
                                             "note": "the usage records could not be read"}),
         "work": _safe(lambda: work(now), {"readable": False, "note": "the work inventory could not be read"}),
+        "work_session": _safe(lambda: work_session_section(now),
+                              {"readable": False, "note": "the work sessions could not be read"}),
         "programs": _safe(lambda: programs_section(now),
                           {"readable": False, "note": "the long missions could not be read"}),
         "conversations": _safe(lambda: conversations(now),
@@ -806,6 +814,7 @@ def snapshot(*, now: dt.datetime | None = None) -> dict:
         "power": derived.get("power"),
         "usage": derived.get("usage"),
         "work": derived.get("work"),
+        "work_session": derived.get("work_session"),
         "programs": derived.get("programs"),
     }
 

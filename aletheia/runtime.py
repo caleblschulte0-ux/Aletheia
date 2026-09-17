@@ -493,10 +493,19 @@ def _reconcile_work() -> list[dict]:
     # probe=False: a beat must not launch a browser to learn whether one works;
     # the browser requirement reads its last live result instead.
     result = work_engine.reconcile(probe=False)
-    if not (result["checkpointed"] or result["woke"] or result["ran"] or result.get("waits")):
+    # A work session ("work on my projects") whose process died with time left is
+    # carried on here (rule 7); a live one is left alone.
+    resumed = None
+    try:
+        from aletheia import project_work
+        resumed = project_work.resume_orphaned()
+    except Exception:  # noqa: BLE001 - the beat's other work is unaffected
+        resumed = None
+    if not (result["checkpointed"] or result["woke"] or result["ran"] or result.get("waits") or resumed):
         return []
     return [{"checkpointed": result["checkpointed"], "woke": result["woke"], "ran": result["ran"],
-             "waits": result.get("waits") or []}]
+             "waits": result.get("waits") or [],
+             **({"resumed_session": (resumed.get("session") or {}).get("id")} if resumed else {})}]
 
 
 def _watch_power() -> list[dict]:

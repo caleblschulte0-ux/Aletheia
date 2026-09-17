@@ -1531,6 +1531,35 @@ def _interpret(transcript: str) -> dict:
                     r"|(?:my |the )?(?:(?:long|big) )?missions?(?: status)?|mission status|where(?:'s| is) my mission at", low):
         return {"command": {"kind": "missions"}, "say": None}
 
+    # "WORK ON MY PROJECTS." (aletheia.project_work) - the continuity brief's final
+    # target, said the ways he says it. An ORDER to work, never a question about
+    # the projects ("how are my projects" stays below). "Stop working on X" is a
+    # drop, so only "keep/start/go" forms and the bare order are matched here.
+    if re.fullmatch(r"(?:(?:can|could|would|will) (?:you|u) |i (?:want|need) (?:you )?to |let'?s |go |now |just )?"
+                    r"(?:(?:go |get |start |keep |continue |carry on |get back to )(?:on )?)?"
+                    r"(?:work(?:ing)?|crack(?:ing)?|mak(?:e|ing) progress|push(?:ing)?|grind(?:ing)?) on "
+                    r"(?:all )?(?:my|our|the|his) (?:projects?|stuff|things|work|repos|code)"
+                    r"(?: (?:for (?:a (?:while|bit)|me|now|(?:the next )?(?:an? )?(?:hour|half(?: an)? hour|\d+ minutes?))|"
+                    r"now|today|tonight|"
+                    r"while i'?m (?:gone|away|out)|please))*"
+                    r"|(?:(?:can|could) (?:you|u) )?(?:get|do) some work done(?: on (?:my|our|the) (?:projects?|stuff))?"
+                    r"(?: (?:for me|now|please))*"
+                    r"|what (?:can|could) (?:you|u) get done(?: (?:right now|now|today|for me|without claude))*"
+                    r"|(?:go |get )?(?:be )?productive(?: on (?:my|the) projects?)?"
+                    r"|keep (?:going|working) on (?:my|the|our) (?:projects?|stuff|work)", low):
+        minutes = None
+        found = re.search(r"for (?:the next )?(an hour|half an hour|hour|half hour|(\d+) minutes?)", low)
+        if found:
+            minutes = int(found.group(2)) if found.group(2) else (30 if "half" in found.group(1) else 60)
+        return {"command": {"kind": "work_projects", **({"minutes": minutes} if minutes else {})}, "say": None}
+    if re.fullmatch(r"what (?:did|have) (?:you|u) (?:get|got|gotten|finish|finished|do|done) (?:done )?"
+                    r"(?:on|with|for) (?:my|the|our) (?:projects?|stuff|work)(?: (?:today|so far|just now))?"
+                    r"|how(?:'s| is|s| did) (?:the |your |my )?work(?:ing)? session (?:go(?:ing)?|doing)"
+                    r"|how(?:'s| is|s) the work (?:on my projects )?going"
+                    r"|what came of (?:the |your )?work(?:ing)? session"
+                    r"|(?:give me )?(?:the |a )?work (?:session )?report", low):
+        return {"command": {"kind": "work_report"}, "say": None}
+
     if re.fullmatch(r"(?:my projects?|what projects are (?:open|active)|"
                     r"what am i working on|"
                     # "Repos" is the word he uses, in a repository he

@@ -72,6 +72,9 @@ READER_FOR = {
     # A schedule starting this round of a recurring activity adds a task he
     # sees in the same answer.
     "mission_activity": "missions",
+    # "Work on my projects" is answered by "what did you get done": the session's
+    # receipts, what it queued for a stronger model and why, and what waits on him.
+    "work_projects": "work_report",
     "apply_prepare": "applications",
     "apply_campaign": "applications",
     "apply_answer": "applications",

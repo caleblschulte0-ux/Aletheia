@@ -133,6 +133,9 @@ _ANY = re.compile(r"\b(?:anything|something|everything|nothing)\b")
 #: What she is doing and what she needs, in any of his ways of asking.
 _DOING_OR_NEEDS = re.compile(
     r"\bwhat (?:are|r|were) (?:you|u) (?:doing|working on|up to|busy with|stuck on|waiting (?:on|for))\b"
+    # "what did you get done": her work sessions' receipts answer it (work.receipts)
+    r"|\bwhat (?:did|have|has) (?:you|u) (?:get|got|gotten) done\b"
+    r"|\bwhat (?:did|have) (?:you|u) (?:finish(?:ed)?|accomplish(?:ed)?)\b"
     r"|\bneed(?:s)? (?:from|of) me\b|\bneed me to\b|\bwaiting (?:on|for) me\b|\bneeds? me\b"
     r"|\bwhat(?:'s| is|s) (?:blocking|holding up|stopping) (?:you|u|it|the)\b")
 
@@ -219,6 +222,8 @@ def wants_session(text: str) -> bool:
 #: A tool, in the words a room can hear. Anything not named here is "my records".
 _LOOKING_AT = {
     "state.now": "what I'm doing right now",
+    "work.receipts": "what my work session did",
+    "work.inventory": "the work on record",
     "mission.status": "your missions",
     "mission.waiting": "what your missions are waiting on",
     "missions": "your missions",
