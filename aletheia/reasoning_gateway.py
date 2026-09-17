@@ -258,6 +258,39 @@ def frontier_available() -> bool:
         return True
 
 
+def frontier_status(now=None) -> dict:
+    """Which frontier worker could answer, WITHOUT asking one (no round trip):
+    {"ok", "why", "wake", "resets_at"}. The companies are named here so a
+    requirement check never has to know them."""
+    if frontier_off():
+        return {"ok": False, "why": "the frontier models are switched off for this run",
+                "wake": "when the frontier models are switched back on", "resets_at": None}
+    reasons, soonest = [], None
+    claude_cli = reasoner.cli_path()
+    claude_until = reasoner.resting_until(now)
+    if claude_cli and claude_until is None:
+        return {"ok": True, "why": "Claude CLI present with no limit on record", "wake": "", "resets_at": None}
+    if claude_until is not None:
+        reasons.append(f"Claude is resting until {claude_until.strftime('%Y-%m-%dT%H:%M:%SZ')}")
+        soonest = claude_until
+    elif not claude_cli:
+        reasons.append("the Claude CLI is not installed")
+    codex_cli = reasoner.codex_path()
+    codex = reasoner.codex_resting(now)
+    if codex_cli and codex is None:
+        return {"ok": True, "why": "Codex CLI present with no limit on record"
+                + (f" ({reasons[0]})" if reasons else ""), "wake": "", "resets_at": None}
+    if codex is not None:
+        reasons.append(f"Codex is resting until {codex[0].strftime('%Y-%m-%dT%H:%M:%SZ')}")
+        soonest = codex[0] if soonest is None else min(soonest, codex[0])
+    elif not codex_cli:
+        reasons.append("the Codex CLI is not installed")
+    return {"ok": False, "why": "; ".join(reasons) or "no frontier model is reachable",
+            "wake": ("when Claude's or Codex's limit resets" if soonest is not None
+                     else "when a frontier CLI is installed and signed in"),
+            "resets_at": soonest}
+
+
 def local_ready() -> bool:
     """Her own model is switched on AND answering (cached probe)."""
     return bool(model_pool_config.enabled() and local_model_pool.reachable())
