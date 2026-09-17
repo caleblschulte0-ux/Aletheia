@@ -80,6 +80,13 @@ _PROGRESS = re.compile(
     re.I)
 _BACK = re.compile(r"^\s*(?:[<‹←«]\s*)?(?:back|previous|go back|prev)\b", re.I)
 _SIGN_IN = re.compile(r"\b(?:sign|log)\s*-?\s*in\b", re.I)
+#: Signing in somewhere ELSE to bring something back: "Apply With LinkedIn",
+#: "Dropbox", "Indeed Resume" (live 2026-09-17, Avature). Each opens another
+#: company's sign-in, so it is a sign-in boundary, never a button to approve.
+_THIRD_PARTY = re.compile(
+    r"^\s*(?:(?:apply|sign up|continue|connect|import|log in|sign in)\s+(?:with|using|via|from)\s+)?"
+    r"(?:linkedin|google(?: drive)?|facebook|indeed(?: resume)?|dropbox|one ?drive|apple|microsoft|github|"
+    r"seek|glassdoor|ziprecruiter)(?: profile| account| resume)?\s*$", re.I)
 _CREATE_ACCOUNT = re.compile(
     r"\b(?:create (?:an |my |your |a )?(?:new )?account|sign\s*-?\s*up|register|"
     r"open (?:an |my )?account|create (?:my |a )?profile|join now)\b", re.I)
@@ -89,7 +96,7 @@ _CREATE_ACCOUNT = re.compile(
 #: a submit button. Bias toward calling it a commit - a false positive costs
 #: one approval, a false negative sends something without asking.
 _FORM_HARMLESS = re.compile(
-    r"^\s*(?:\+\s*)?(?:add(?: another| more| an?)?(?: \w+)?|upload(?: \w+)?|attach(?: \w+)?|browse|"
+    r"^\s*(?:\+\s*)?(?:add(?: another| more| an?)?(?: \w+)?|upload(?: (?:a|an|your|my|new))?(?: \w+)?|attach(?: (?:a|your|my))?(?: \w+)?|browse|"
     r"choose(?: a)? file|select file|show(?: \w+)?|hide(?: \w+)?|more|less|see more|read more|"
     r"search|clear|edit|expand|collapse|close|dismiss|help|accept all(?: cookies)?|"
     r"(?:decline|reject)(?: all)?(?: cookies)?|cookie settings|manage cookies|got it|"
@@ -125,7 +132,7 @@ def control_kind(label: str, *, role: str = "button", on_form: bool = False) -> 
         return SPEND
     if _CREATE_ACCOUNT.search(text):
         return CREATE_ACCOUNT
-    if _SIGN_IN.search(text):
+    if _SIGN_IN.search(text) or _THIRD_PARTY.search(text):
         return SIGN_IN
     if computer.committing_label(text):
         return COMMIT

@@ -1228,7 +1228,8 @@ CAPTCHA_ON_JS = r"""() => {
   if (document.querySelector('.h-captcha, [data-hcaptcha-widget-id], [name="h-captcha-response"]'))
     return 'hcaptcha';
   for (const el of document.querySelectorAll('.g-recaptcha')) {
-    if ((el.getAttribute('data-size') || '').toLowerCase() !== 'invisible') return 'recaptcha';
+    if ((el.getAttribute('data-size') || '').toLowerCase() !== 'invisible'
+        && !/^(?:BUTTON|INPUT|A)$/.test(el.tagName)) return 'recaptcha';
   }
   if (document.querySelector('.cf-turnstile, [name="cf-turnstile-response"]')) return 'turnstile';
   return '';

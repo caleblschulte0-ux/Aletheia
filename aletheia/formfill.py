@@ -320,7 +320,12 @@ READ_FORM_JS = r"""() => {
       name: el.name || '', id: el.id || '',
       role: el.getAttribute('role') || '',
       label: labelFor(el),
-      required: !!(el.required || el.getAttribute('aria-required') === 'true'),
+      // Required as the page's own script enforces it, too: Divi forms carry
+      // data-required_mark="required" and no `required` (live 2026-09-17, a city
+      // employment application read as "everything is filled in" with most empty).
+      required: !!(el.required || el.getAttribute('aria-required') === 'true'
+                   || el.getAttribute('data-required_mark') === 'required'
+                   || el.getAttribute('data-required') === 'true'),
       value: (el.value || '').slice(0, 200),
       // Can a PERSON see it? A honeypot is a box nobody can see, and so is
       // hCaptcha's token textarea. Python decides what that means per type:
@@ -336,9 +341,15 @@ READ_FORM_JS = r"""() => {
     // period / availability" plus an unlabelled input[name=CA_10627] that holds
     // what was picked; live 2026-09-13 the second went to him as "CA_10627".
     if (!row.label && el.name && type !== 'checkbox' && type !== 'radio' && type !== 'file') {
+      // The twin is the VISIBLE widget and this box is hidden behind it. A box a
+      // person can see, named in words, is its own question: Jane Street's visible required
+      // "university_email" was dropped because "university_email_reason" exists
+      // (live 2026-09-17), and the form could never be finished.
       const twins = [...document.querySelectorAll('input, select, textarea')]
         .filter(o => o !== el && o.id && o.id.includes(el.name) && labelFor(o));
-      if (twins.length) continue;
+      // (A code name like CA_10627 says nothing a person could answer; a worded
+      // one like university_email does.)
+      if (twins.length && (unseen(el) || !/[A-Za-z]{4,}/.test(el.name))) continue;
     }
     if (type === 'checkbox' || type === 'radio') {
       // A checkbox's `value` is "on" whether or not it is ticked, so a
@@ -817,6 +828,12 @@ def match_field(field: dict) -> str | None:
     # "In what city AND state do you reside?" is neither fact alone: live it
     # got "SD". Left for the facts step, which writes "Hartford, SD".
     if best in ("city", "state") and _says("city", label) and _says("state", label):
+        return None
+    # "City, State, Zip Code" is none of them alone either: live 2026-09-17 it got
+    # just the zip code.
+    if best in ("city", "state", "postal_code") and sum(
+            1 for words in (("city",), ("state",), ("zip", "postal code", "postcode"))
+            if any(_says(w, label) for w in words)) >= 2:
         return None
     return best
 
@@ -1970,9 +1987,23 @@ class Hands:
         else:
             target.select_option(css, value)
 
+    def _styled_choice(self, target, css, mode: str = "click") -> bool:
+        """A radio or checkbox drawn by CSS is clicked through its label (live
+        2026-09-17, Jane Street: the real input is invisible and a click on it
+        waited twenty seconds). True when that took; raises when it did not."""
+        try:
+            said = target.evaluate(CHOOSE_HIDDEN_JS, [css, mode])
+        except Exception:
+            return False
+        if said == "failed":
+            raise RuntimeError("the styled choice did not take")
+        return said == "yes"
+
     def check(self, selector):
         self._refuse_anti_bot(selector)
         target, css = resolve(self.page, selector)
+        if self._styled_choice(target, css, "check"):
+            return
         target.check(css)
 
     def uncheck(self, selector):
@@ -1985,7 +2016,24 @@ class Hands:
 
     def click(self, selector):
         target, css = resolve(self.page, selector)
+        if self._styled_choice(target, css):
+            return
         target.click(css)
+
+
+CHOOSE_HIDDEN_JS = r"""([css, mode]) => {
+  const el = document.querySelector(css);
+  if (!el || el.tagName !== 'INPUT' || !/^(?:radio|checkbox)$/.test(el.type)) return 'no';
+  const r = el.getBoundingClientRect(), st = getComputedStyle(el);
+  const shown = r.width > 1 && r.height > 1 && st.visibility !== 'hidden' && st.display !== 'none'
+                && parseFloat(st.opacity || '1') > 0.05;
+  if (shown) return 'no';
+  if (el.checked && (el.type === 'radio' || mode === 'check')) return 'yes';
+  const label = el.closest('label') || (el.id && document.querySelector(`label[for="${CSS.escape(el.id)}"]`));
+  if (!label) return 'no';
+  label.click();
+  return el.checked ? 'yes' : 'failed';
+}"""
 
 
 SETTLE_TRIES = 34              # ~10s for a single-page application to render
@@ -2337,7 +2385,14 @@ READY_JS = r"""() => {
   const groupsAsked = new Set();
   for (const el of document.querySelectorAll('input, select, textarea')) {
     if (typeof el.checkValidity !== 'function') continue;
-    if (el.disabled || el.type === 'hidden' || el.checkValidity()) continue;
+    const scripted = (el.getAttribute('data-required_mark') === 'required' || el.getAttribute('data-required') === 'true')
+      && !/^(?:radio|checkbox)$/.test(el.type) && !String(el.value || '').trim();
+    if (el.disabled || el.type === 'hidden' || (el.checkValidity() && !scripted)) continue;
+    // A BOX NOBODY CAN SEE is not blocking the form: Jane Street keeps a required
+    // "university_email" in a section that only shows for students (live
+    // 2026-09-17). A styled radio or checkbox is invisible on purpose and still counts.
+    if (!/^(?:radio|checkbox)$/.test(el.type) && !(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
+        && el.getAttribute('aria-autocomplete') !== 'list') continue;
     // A SEARCH BOX OVER A CHOICE ALREADY MADE. React-select style widgets keep
     // `required` on their (empty) search input while the chosen value sits in
     // a sibling "single value" element: live 2026-09-17 Paylocity showed

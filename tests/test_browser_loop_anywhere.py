@@ -532,5 +532,123 @@ class WhatTheMatrixFoundOnRealPagesStaysFixed(AnywhereCase):
         self.assertEqual(self.site["posts"], [])
 
 
+
+# ---- the second half of the matrix (Workday, UltiPro, Avature, Jane Street, a city form) ----
+
+class TheSecondHalfOfTheMatrixUnits(unittest.TestCase):
+    def test_a_renumbered_page_does_not_make_a_tried_control_new(self):
+        obs1 = {"_refs": {"t3": "a[href='/apply']"}}
+        obs2 = {"_refs": {"t9": "a[href='/apply']"}}
+        self.assertEqual(browser_loop.tried_key(obs1, {"id": "t3"}), browser_loop.tried_key(obs2, {"id": "t9"}))
+
+    def test_a_closed_posting_is_a_stop_for_the_job_skill_only(self):
+        obs = {"state": ps.CONTENT, "title": "Customer Service Supervisor",
+               "text": "Posting Details Posted: April 2, 2026 Closed: April 7, 2026 Full-Time Remote"}
+        stop = job_skill.SKILL.boundary(obs)
+        self.assertEqual(stop["kind"], "POSTING_CLOSED")
+        self.assertIsNone(browser_loop.GENERAL.boundary(obs), "the general loop knows nothing of postings")
+        self.assertIsNone(job_skill.SKILL.boundary({"state": ps.CONTENT, "text": "We closed deals. Apply now."}))
+
+    def test_signing_in_somewhere_else_is_a_sign_in_not_a_button_to_approve(self):
+        for label in ("Apply With LinkedIn", "Dropbox", "Indeed Resume", "Google Drive", "Sign in with Google"):
+            self.assertEqual(ps.control_kind(label, on_form=True), ps.SIGN_IN, label)
+        self.assertEqual(ps.control_kind("Upload a resume", on_form=True), ps.OTHER)
+        self.assertEqual(ps.control_kind("Submit application", on_form=True), ps.COMMIT)
+
+    def test_an_address_line_naming_three_things_is_none_of_them(self):
+        from aletheia import formfill
+        self.assertIsNone(formfill.match_field({"label": "City, State, Zip Code"}))
+        self.assertEqual(formfill.match_field({"label": "Zip Code"}), "postal_code")
+        self.assertIsNone(browser_loop.match_key("City, State, Zip Code", {"zip code": "57104"}))
+        poisoned = {"field_aliases": {"city state zip code": "zip code", "given name": "first_name"}}
+        self.assertIsNone(browser_loop.match_key("City, State, Zip Code", {"zip code": "57104"}, poisoned),
+                          "a learned alias the rules now refuse is not trusted")
+        self.assertEqual(browser_loop.match_key("Given name", {"first_name": "Pat"}, poisoned), "first_name")
+        self.assertEqual(browser_loop.match_key("Your email address", {"email address": "x"}), "email address")
+
+    def test_the_job_skill_does_not_type_what_the_page_already_holds(self):
+        obs = {"state": ps.FORM, "url": "https://x.example/apply", "title": "Apply", "text": "",
+               "targets": [{"id": "t1", "role": "textbox", "label": "First Name *", "value": "Pat", "required": True}],
+               "_refs": {"t1": "#fn"},
+               "_raw": [{"selector": "#fn", "tag": "input", "type": "text", "label": "First Name *",
+                         "required": True, "value": "Pat"}]}
+        from aletheia import profile
+        with mock.patch.object(profile, "known", return_value={"first_name": "Pat"}):
+            planned = job_skill.SKILL.plan(obs, {"inputs": {}, "attached": []}, {})
+        self.assertEqual(planned["fill"], [], "a resumed page is not refilled")
+
+
+CITY = """<h1>Employment Application</h1><form onsubmit="return false">
+<input type="text" id="c_last" placeholder="Last Name" data-required_mark="required">
+<input type="text" id="c_first" placeholder="First Name" data-required_mark="required">
+<input type="text" id="c_where" placeholder="City, State, Zip Code" data-required_mark="required">
+<input type="text" id="c_salary" placeholder="Desired Salary Range" data-required_mark="required">
+<button type="submit">Submit</button></form>"""
+STYLED = """<title>Apply</title><h1>Accounting Coordinator</h1><form method="POST" action="/js/send">
+<label for="n">Full name *</label><input id="n" name="name" required>
+<fieldset><legend>Are you currently a student? *</legend>
+<label style="position:relative"><input type="radio" name="student" id="student-true" value="true" required
+  style="position:absolute;opacity:0;width:0;height:0"><span>Yes</span></label>
+<label style="position:relative"><input type="radio" name="student" id="student-false" value="false"
+  style="position:absolute;opacity:0;width:0;height:0"><span>No</span></label></fieldset>
+<div>School email</div><input type="email" name="university_email" id="university_email" required>
+<label for="uer">If you do not have a school email, please provide a reason</label>
+<input id="university_email_reason" name="university_email_reason" style="display:none">
+<button type="submit" class="v4-button submit g-recaptcha" data-sitekey="x" style="width:200px;height:40px">Submit</button>
+</form>"""
+PASSWORD_PAGE = """<h1>Sign in</h1><form><label for="u">Email</label><input id="u" value="pat@example.com">
+<label for="pw">Password</label><input id="pw" type="password" value="hunter2-secret">
+<button type="submit">Sign in</button></form>"""
+CLOSED = """<title>Supervisor</title><h1>Customer Service Supervisor</h1><p>Posted: April 2, 2026</p>
+<p>Closed: April 7, 2026</p><a href="/elsewhere">Accessibility Accommodation for Applicants</a>"""
+
+
+@needs_browser
+class TheSecondHalfOfTheMatrixOnFixtures(WhatTheMatrixFoundOnRealPagesStaysFixed):
+    def setUp(self):
+        super().setUp()
+        self.site["pages"].update({"/city": CITY, "/js": STYLED, "/closed": CLOSED, "/pw": PASSWORD_PAGE})
+
+    def test_a_scripted_required_mark_is_a_question_not_everything_filled(self):
+        base = self.serve()
+        record = browser_loop.pursue("fill out the city employment application", base + "/city",
+                                     inputs={"last name": "Doe", "first name": "Pat", "zip code": "57104"})
+        self.assertBoundary(record, bm.NEEDS_YOU, "QUESTIONS")
+        self.assertIn("City, State, Zip Code", record["boundary"]["questions"])
+        self.assertIn("Desired Salary Range", record["boundary"]["questions"])
+        self.assertNotIn("57104", [r.get("value") for r in record["route"]])
+
+    def test_styled_radios_a_worded_twin_a_button_bound_recaptcha_and_no_password_in_sight(self):
+        base = self.serve()
+        record = browser_loop.pursue("apply for the accounting coordinator job", base + "/js",
+                                     inputs={"full name": "Pat Doe", "are you currently a student": "No"})
+        self.assertBoundary(record, bm.NEEDS_YOU, "QUESTIONS")
+        self.assertNotEqual(record["boundary"]["kind"], ps.CAPTCHA,
+                            "a submit button carrying g-recaptcha is the invisible check, not a wall")
+        self.assertIn("university email", record["boundary"]["questions"],
+                      "a visible box named only in code is asked, in words")
+        self.assertIn({"action": "click", "selector": "#student-false", "value": "No"},
+                      [{k: r.get(k) for k in ("action", "selector", "value")} for r in record["route"]])
+        from aletheia import browse as _b
+        with _b._Session() as ctx:
+            page = ctx.new_page()
+            browser_loop._load(page, base + "/pw")
+            seen = browser_loop.for_model(browser_loop.look(page))
+            page.close()
+        self.assertNotIn("hunter2-secret", str(seen), "a password's value never reaches a model")
+        done = browser_loop.resume(record["id"], answers={"university email": "pat@example.edu"})
+        self.assertBoundary(done, bm.AWAITING_APPROVAL, "SUBMIT_APPROVAL")
+        self.assertEqual(sum(1 for r in done["route"] if r.get("selector") == "#student-false"), 1,
+                         "the replayed choice is not chosen again")
+
+    def test_a_closed_posting_stops_before_any_wandering(self):
+        base = self.serve()
+        record = browser_loop.pursue("apply for the customer service supervisor job", base + "/closed",
+                                     inputs={}, skill=job_skill.SKILL,
+                                     decide=lambda *a: self.fail("no model is asked on a closed posting"))
+        self.assertBoundary(record, bm.NEEDS_YOU, "POSTING_CLOSED")
+        self.assertEqual(record["route"], [])
+
+
 if __name__ == "__main__":
     unittest.main()

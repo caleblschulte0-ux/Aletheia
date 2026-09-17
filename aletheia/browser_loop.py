@@ -103,6 +103,9 @@ CAPTCHA_VISIBLE_JS = r"""() => {
     if (marks.test(el.src || '') && big(el)) return (el.src.match(marks) || [''])[0].toLowerCase();
   }
   for (const el of document.querySelectorAll('.g-recaptcha, .h-captcha, .cf-turnstile, [data-captcha]')) {
+    // A SUBMIT BUTTON carrying the class is the INVISIBLE reCAPTCHA bound to it
+    // (live 2026-09-17, Jane Street): nothing to pass before pressing it.
+    if (/^(?:BUTTON|INPUT|A)$/.test(el.tagName) || (el.getAttribute('data-size') || '').toLowerCase() === 'invisible') continue;
     if (big(el)) return el.getAttribute('data-captcha') || el.className || 'captcha';
   }
   return '';
@@ -127,7 +130,22 @@ def _marked_required(field: dict) -> bool:
     (live 2026-09-17), so four screening questions were never asked."""
     if field.get("required"):
         return True
-    return bool(_REQUIRED_MARK.search(str(field.get("label") or "").strip()))
+    label = str(field.get("label") or "").strip()
+    first = next((ln.strip() for ln in label.splitlines() if ln.strip()), "")
+    # "Institution *" over "Select an option": the mark is on the question line.
+    return bool(_REQUIRED_MARK.search(label) or _REQUIRED_MARK.search(first))
+
+
+def _all_options(field: dict, raw: dict) -> list[str] | None:
+    """EVERY choice a dropdown offers. The page summary keeps forty, and an
+    alphabetical country list stops before "United States": live 2026-09-17
+    (Avature) she said none of the choices was United States."""
+    rows = raw.get("options") if isinstance(raw, dict) else None
+    if isinstance(rows, list) and len(rows) > len(field.get("options") or []):
+        texts = [str((o.get("text") or o.get("value") or "") if isinstance(o, dict) else o).strip()
+                 for o in rows]
+        return [t for t in texts if t][:1000]
+    return field.get("options")
 
 
 def _role_of_field(row: dict) -> str:
@@ -209,6 +227,9 @@ def look(page, *, tracker: StatusTracker | None = None, skill=None, site: dict |
             # to This Job" holding the page's own address made a BambooHR posting
             # read as a form, and its Apply button as a submit (live 2026-09-17).
             continue
+        label_now = str(field.get("label") or "").strip()
+        if label_now and label_now in (str(row_raw.get("name") or ""), str(row_raw.get("id") or "")):
+            field = {**field, "label": ""}     # the page reader fell back to the code name
         if not str(field.get("label") or "").strip():
             # A BOX WHOSE LABEL IS NOT TIED TO IT still says what it is in its
             # id or name: "info.firstName" is "info first name" (live 2026-09-17,
@@ -223,10 +244,17 @@ def look(page, *, tracker: StatusTracker | None = None, skill=None, site: dict |
                 checked=field.get("checked"), required=_marked_required(field) or None)
             continue
         value = field.get("value") or None
+        chosen_text = next((str(o.get("text") or "").strip() for o in row_raw.get("options") or []
+                            if isinstance(o, dict) and value and str(o.get("value")) == str(value)), "")
+        if chosen_text:
+            # A <select> reads back its option's VALUE ("233"); what is chosen is
+            # the option's words ("United States"). Compared by value, a resumed
+            # Avature form chose United States a second time (live 2026-09-17).
+            value = chosen_text
         if role == "password" and value:
             value = "(set)"                  # never the password itself, whoever reads this
         add(role, field.get("label"), field["selector"], value=value,
-            required=_marked_required(field) or None, options=field.get("options"),
+            required=_marked_required(field) or None, options=_all_options(field, row_raw),
             checked=field.get("checked") if role == "checkbox" else None)
     for button in seen.get("buttons") or []:
         if button.get("consent"):
@@ -268,7 +296,8 @@ def for_model(obs: dict, *, text_chars: int = 1_500) -> dict:
     return {"url": obs.get("url"), "title": obs.get("title"), "state": obs.get("state"),
             "evidence": obs.get("evidence"), "annotations": obs.get("annotations") or [],
             "status": obs.get("status"),
-            "targets": [dict(t) for t in obs.get("targets") or []],
+            "targets": [{**t, "options": t["options"][:40]} if t.get("options") else dict(t)
+                        for t in obs.get("targets") or []],
             "still_missing": [m.get("label") for m in obs.get("still_missing") or []
                               if isinstance(m, dict)][:10],
             "text": str(obs.get("text") or "")[:text_chars]}
@@ -309,7 +338,8 @@ def same_question(a: str, b: str) -> bool:
     other cut short. Live 2026-09-16 a long Greenhouse question arrived once
     cut at 120 characters (the page reader) and once whole (the form reader),
     and he was asked it twice."""
-    x, y = _norm(a), _norm(b)
+    # "Q (the page would not take the answer I have)" is still Q.
+    x, y = (_norm(re.sub(r"\s*\([^()]*\)\s*$", "", str(v or ""))) or _norm(v) for v in (a, b))
     if not x or not y:
         return False
     if x == y:
@@ -375,6 +405,12 @@ def match_key(label: str, inputs: dict, site: dict | None = None) -> str | None:
         return None
     by_norm = {site_skills.normal_label(k.replace("_", " ")): k for k in inputs}
     alias = site_skills.alias_for(site or {}, label)
+    spare = content_words(label) - content_words(str(alias or "").replace("_", " "))
+    if alias and content_words(str(alias).replace("_", " ")) and len(spare) >= 2             and content_words(str(alias).replace("_", " ")) <= content_words(label):
+        # A LEARNED ALIAS the matching rules now refuse is not trusted: a run
+        # before the fix taught "city state zip code" -> "zip code", and the
+        # lesson outlived the fix (live 2026-09-17).
+        alias = ""
     if alias:
         if alias in inputs:
             return alias
@@ -391,7 +427,9 @@ def match_key(label: str, inputs: dict, site: dict | None = None) -> str | None:
         theirs = content_words(norm_key)
         if not theirs:
             continue
-        if theirs == mine or (len(theirs) >= 2 and theirs <= mine) or (len(mine) >= 2 and mine <= theirs):
+        # One set inside the other, with at most ONE word to spare: "City, State,
+        # Zip Code" is not "zip code" (live 2026-09-17 it got only the zip).
+        if theirs == mine or (len(theirs) >= 2 and theirs <= mine and len(mine - theirs) <= 1)                 or (len(mine) >= 2 and mine <= theirs and len(theirs - mine) <= 1):
             if len(theirs) > best_size:
                 best, best_size = key, len(theirs)
     return best
@@ -426,6 +464,12 @@ class GeneralSkill:
 
     def nav_words(self, goal: str) -> set[str]:
         return content_words(goal)
+
+    def boundary(self, obs: dict) -> dict | None:
+        """A stop only this skill can recognise ({"kind", "say", "step"}), or
+        None. The general skill knows none: what "this posting has closed"
+        means is a job's business, not the loop's."""
+        return None
 
     def plan(self, obs: dict, record: dict, site: dict) -> dict:
         inputs = dict(record.get("inputs") or {})
@@ -714,8 +758,11 @@ def pursue(goal: str, start_url: str, *, inputs: dict | None = None, mode: str =
         return _stop(record, bm.MANUAL_ONLY, "MANUAL_ONLY", {"url": start_url},
                      because=site.get("manual_only_because") or "This site's terms forbid automation")
     record.update({"mode": effective, "state": bm.RUNNING, "boundary": None})
-    record.setdefault("history", []).append({"at": stateio.utcnow(), "did": "started" if not record.get("route") else
-                                             f"resumed: replaying {len(record['route'])} step(s) already done"})
+    done_before = len(record.get("route") or []) + len(record.get("attached") or [])
+    record.setdefault("history", []).append({"at": stateio.utcnow(), "did": "started" if not (
+        done_before or record.get("checkpoints")) else
+        f"resumed: replaying {len(record.get('route') or [])} step(s) and {len(record.get('attached') or [])} "
+        f"attachment(s) already done"})
     bm.save(record)
     budget = max(1, min(int(budget), MAX_STEPS))
     opener = session or browse._Session
@@ -804,10 +851,13 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
     attached = list(record.get("attached") or [])
     try:
         _load(page, _replay_from(record))
-        if route:
+        if route or attached:
             page = webtask.walk(ctx, page, hands, route, {a["selector"]: a["path"] for a in attached})
             hands.page = page
             tracker.watch(page)
+            # A file the replay put back makes the page redraw (Avature shows
+            # its Next only after an upload): let it, before the first look.
+            webtask.settle(page)
     except Exception as exc:                                  # noqa: BLE001
         return _stop(record, bm.NEEDS_YOU, "ERROR", {"url": _replay_from(record)},
                      why=f"the page could not be put back ({browse.say_reason(str(exc))[:160]})")
@@ -834,6 +884,11 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
         if _decline_cookies(page, hands, obs, record):
             continue                               # the banner is gone: look again
         state = obs["state"]
+        known_stop = skill.boundary(obs) if hasattr(skill, "boundary") else None
+        if known_stop:
+            record = bm.checkpoint(record, bm.OBSERVED, url=obs["url"], state=state)
+            return _stop(record, bm.NEEDS_YOU, str(known_stop.get("kind") or "SKILL_STOP"), obs,
+                         step=str(known_stop.get("step") or ""), say=str(known_stop.get("say") or ""))
         if (obs["url"], state) != last_seen:
             record = bm.checkpoint(record, bm.OBSERVED, url=obs["url"], state=state)
             # The first page after a replay keeps what the replay pressed.
@@ -1361,7 +1416,8 @@ def _apply(page, hands, fill: list[dict], route: list[dict], attached: list[dict
                 hands.click(selector)
             elif action == "attach":
                 hands.set_input_files(selector, value)
-                attached.append({"selector": selector, "path": value})
+                if not any(a.get("selector") == selector and a.get("path") == value for a in attached):
+                    attached.append({"selector": selector, "path": value})
                 done.append(item.get("label", ""))
                 continue
             elif action == "secret":
@@ -1635,7 +1691,9 @@ def _gate(ctx, page, obs: dict, record: dict, goal: str, route: list[dict],
         return _stop(record, bm.NEEDS_YOU, "DUPLICATE_SUBMIT", obs, why=why,
                      step="check whether the earlier press went through")
     try:
-        empty = [row["label"] for row in formfill.blocking(page)]
+        # A field known only by its code ("university_email") is said as words.
+        empty = [row["label"] if re.search(r"\s", row["label"]) else (code_words(row["label"]) or row["label"])
+                 for row in formfill.blocking(page)]
     except Exception:
         empty = []
     if empty:

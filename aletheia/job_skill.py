@@ -31,6 +31,10 @@ APPLICATION = "APPLICATION"
 
 _POSTING = re.compile(r"apply for this (?:job|position|role)|job description|responsibilities|"
                       r"qualifications|about the role|what you(?:'|’)ll do|jobposting", re.I)
+_CLOSED = re.compile(
+    r"\bclosed:\s*\w+ \d{1,2},? \d{4}|no longer accepting applications|(?:this|the) (?:job|position|posting|"
+    r"opening|requisition) (?:is|has been) (?:closed|filled|no longer available)|position (?:has been )?filled|"
+    r"job (?:posting )?(?:has )?expired|applications? (?:are |is )?(?:now )?closed", re.I)
 _RESUME = re.compile(r"\bresume\b|\bcv\b|curriculum vitae|r[ée]sum[ée]", re.I)
 
 
@@ -50,6 +54,21 @@ class JobApplication(browser_loop.GeneralSkill):
 
     def nav_words(self, goal: str) -> set[str]:
         return super().nav_words(goal) | {"apply", "application"}
+
+    def boundary(self, obs: dict) -> dict | None:
+        """A posting that says it has closed is a stop, not a page to wander
+        from. Live 2026-09-17 a closed UltiPro posting had no Apply, and her
+        own model followed "Accessibility Accommodation for Applicants"
+        instead, three minutes per guess."""
+        if obs.get("state") not in (ps.CONTENT, ps.ERROR, ps.UNKNOWN):
+            return None
+        blob = f"{obs.get('title', '')} {str(obs.get('text') or '')[:4000]}"
+        hit = _CLOSED.search(blob)
+        if not hit:
+            return None
+        return {"kind": "POSTING_CLOSED", "step": "pick another opening",
+                "say": f"This posting says it is closed ({' '.join(hit.group(0).split())[:80]}), so there is "
+                       "nothing to apply to. Nothing was filled or sent."}
 
     def plan(self, obs: dict, record: dict, site: dict) -> dict:
         base = super().plan(obs, record, site)
@@ -83,9 +102,23 @@ class JobApplication(browser_loop.GeneralSkill):
             mapped = formfill.plan(list(obs.get("_raw") or []))
         except Exception:
             mapped = {"fill": [], "ask": []}
-        answered_labels = set()
+        # ANSWERED BY THE GENERAL SKILL OR ALREADY CHOSEN ON THE PAGE: a group
+        # question with a ticked option is not his to answer again (live
+        # 2026-09-17, Jane Street's Yes/No kept coming back after his No).
+        answered_labels = {browser_loop._norm(i.get("label", "")) for i in base["fill"]}
+        answered_labels |= {browser_loop._norm(t.get("question")) for t in obs.get("targets") or []
+                            if t.get("question") and t.get("checked")}
+        # WHAT THE PAGE ALREADY HOLDS is not typed again: a resumed mission
+        # replays its route, and live 2026-09-17 (Avature) every profile field
+        # was then typed a second time into the route.
+        holds = {refs[t["id"]]: str(t.get("value") or "").strip() for t in obs.get("targets") or []
+                 if t["id"] in refs}
         for item in mapped.get("fill") or []:
             if item["selector"] in taken:
+                continue
+            if item["action"] == "type" and holds.get(item["selector"]) == str(item.get("value") or "").strip():
+                taken.add(item["selector"])
+                answered_labels.add(browser_loop._norm(item.get("label", "")))
                 continue
             action = item["action"] if item["action"] in ("type", "select", "click", "check") else "type"
             base["fill"].append({"action": action, "selector": item["selector"],
@@ -103,6 +136,9 @@ class JobApplication(browser_loop.GeneralSkill):
         for t in files:
             if not (_RESUME.search(t["label"]) or lone) or refs.get(t["id"]) in taken:
                 continue
+            if any(a.get("selector") == refs.get(t["id"]) for a in record.get("attached") or []):
+                answered_labels.add(browser_loop._norm(t["label"]))
+                continue                     # attached already (the replay puts it back)
             try:
                 from aletheia import webtask
                 resume = webtask.documents().get("resume")
