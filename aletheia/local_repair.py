@@ -55,6 +55,7 @@ investigation packet for a stronger model, never a weaker fix.
     python -m aletheia.local_repair investigate --path C:/src/project
     python -m aletheia.local_repair charter barkly [--no-pr]
     python -m aletheia.local_repair waiting
+    python -m aletheia.local_repair handoff
 """
 from __future__ import annotations
 
@@ -354,6 +355,7 @@ def _loop(where: Path, source: Path, rec: _Record, *, repo: str, base_ref: str, 
     # observe
     policy.ensure_not_halted()
     observed = inv.observe(where, failing)
+    observed["output_tail"] = inv.relativize(observed["output_tail"], where)
     rec.step("observe", command=observed["command"], passed=observed["passed"], failing=observed["failing"],
              test_seconds=observed["seconds"])
     if observed["passed"]:
@@ -374,6 +376,8 @@ def _loop(where: Path, source: Path, rec: _Record, *, repo: str, base_ref: str, 
 
     # evidence + reproduce
     repro = inv.reproduce(where, failing_now)
+    for row in repro.get("runs") or []:
+        row["output_tail"] = inv.relativize(row.get("output_tail", ""), where)
     rec.step("reproduce", reproduced=repro["reproduced"], order_dependent=repro.get("order_dependent"))
     gathered = inv.gather(where, repo=repo, failing=failing_now, output=observed["output_tail"], hint=objective)
     rec.step("evidence", source_files=gathered["source_files"], test_files=gathered["test_files"],
@@ -390,7 +394,11 @@ def _loop(where: Path, source: Path, rec: _Record, *, repo: str, base_ref: str, 
     else:
         policy.ensure_not_halted()
         classification = rc.classify(failure, think=classify_think, evidence_text=_evidence_text(gathered, observed))
+        found = observed_cause(gathered, observed)
+        if found and not classification.get("cause"):
+            classification = {**classification, "cause": found}
     rec.step("classify", verdict=classification["verdict"], kind=classification.get("kind"),
+             cause=classification.get("cause") or "",
              reasons=classification.get("reasons"), by=classification.get("by"),
              model=(classification.get("model") or {}).get("provider"))
     if classification["verdict"] != rc.BOUNDED:
@@ -418,7 +426,8 @@ def _loop(where: Path, source: Path, rec: _Record, *, repo: str, base_ref: str, 
         policy.ensure_not_halted()
         context = _repair_context(where, allowed, gathered, observed, classification, feedback)
         try:
-            draft, draft_provider = think(REPAIR_SYSTEM, _objective_text(objective, failing_now),
+            draft, draft_provider = think(REPAIR_SYSTEM, _objective_text(objective, failing_now,
+                                                                         classification.get("cause") or ""),
                                           context=context, validator=_edits_validator(set(allowed)))
             draft = _edits_validator(set(allowed))(draft)
         except policy.Halted:
@@ -626,9 +635,26 @@ def _branch_name(base_ref: str) -> str:
     return ref[len("origin/"):] if ref.startswith("origin/") else ref
 
 
-def _objective_text(objective: str, failing: list[str]) -> str:
+def _objective_text(objective: str, failing: list[str], cause: str = "") -> str:
+    """OURS, composed from facts she established; never repository text."""
     return (f"Make the failing test(s) {', '.join(failing[:3])} pass with the smallest correct change "
-            "to the source files shown.")[:1_000]
+            "to the source files shown." + (f" What she established: {cause}" if cause else ""))[:1_000]
+
+
+def observed_cause(gathered: dict, observed: dict) -> str:
+    """A cause established by LOOKING, before any model reads anything: the
+    crash site, and for a missing file, where the file really is. Built from
+    gathered facts only (paths git tracks, frames parsed from the run)."""
+    parts = []
+    site = inv.crash_site(gathered.get("frames") or [])
+    for hint in gathered.get("path_hints") or []:
+        if not hint.get("exists") and hint.get("tracked_with_that_name"):
+            parts.append(f"the code builds the path {hint['asked_for']}, which does not exist; the repository "
+                         f"tracks {' and '.join(hint['tracked_with_that_name'][:2])}, so the path is built from "
+                         "the wrong base directory")
+    if site and parts:
+        parts.append(f"it fails at {site['path']}:{site['line']} in {site.get('function')}")
+    return "; ".join(parts)[:500]
 
 
 def _repair_context(where: Path, allowed: list[str], gathered: dict, observed: dict, classification: dict,
@@ -655,6 +681,7 @@ def _repair_context(where: Path, allowed: list[str], gathered: dict, observed: d
     layout = [ln for ln in listed.splitlines() if ln.strip()][:60] if code == 0 else []
     context = {"files": files, "repository_layout": layout, "cause": classification.get("cause") or "",
                "kind": classification.get("kind"),
+               **({"missing_path_found": gathered["path_hints"]} if gathered.get("path_hints") else {}),
                "untrusted_repository_text": inv.clean(
                    ("TEST CODE:\n" + "\n".join(c["text"] for c in tests)[:900] + "\n\nTEST OUTPUT:\n"
                     + _failure_lines(observed["output_tail"])), 1_900)}
@@ -771,7 +798,8 @@ def _record_work(run: dict, *, state: str, reason: str, nxt: str) -> dict:
     ident = inv._work_id(run.get("repo") or Path(run.get("source") or "local").name, run["task_id"])
     path = inv.work_dir() / f"{ident}.json"
     now = inv._now()
-    item = {"version": 1, "id": ident, "kind": "code_repair", "repo": run.get("repo") or "",
+    item = {"version": 1, "id": ident, "kind": "code_repair", "assigned_worker": inv.local_repair_worker(),
+            "repo": run.get("repo") or "",
             "source": run.get("source") or "", "task_id": run["task_id"], "state": state,
             "reason": inv.clean(reason, 400), "next": nxt, "requires": ["user_decision"],
             "run_id": run["id"], "branch": run.get("branch"), "pr_url": run.get("pr_url"),
@@ -798,6 +826,7 @@ def investigate(source: str | Path, *, repo: str = "", base_ref: str = "HEAD", f
     with inv.worktree(source, base_sha, run_id) as top:
         where = _project_dir(top, subdir)
         observed = inv.observe(where, failing)
+        observed["output_tail"] = inv.relativize(observed["output_tail"], where)
         rec.step("observe", passed=observed["passed"], failing=observed["failing"], test_seconds=observed["seconds"])
         repro = inv.reproduce(where, observed["failing"])
         rec.step("reproduce", reproduced=repro.get("reproduced"))
@@ -900,6 +929,7 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("slug")
     c.add_argument("--no-pr", action="store_true")
     sub.add_parser("waiting", help="work items waiting for a stronger model")
+    sub.add_parser("handoff", help="give waiting packets for GitHub repositories to the frontier code worker now")
     args = ap.parse_args(argv)
     from aletheia import closed
     if args.cmd != "waiting" and closed.is_closed():
@@ -914,6 +944,18 @@ def main(argv: list[str] | None = None) -> int:
         elif args.cmd == "investigate":
             out = investigate(args.path, repo=args.repo, base_ref=args.ref, failing=args.test or None,
                               objective=args.objective, task_id=args.task)
+        elif args.cmd == "handoff":
+            out = []
+            for item in inv.waiting_for_frontier():
+                if not item.get("repo"):
+                    out.append({"id": item["id"], "status": "WAITING",
+                                "why": "a local-only repository: a Claude session takes this packet"})
+                    continue
+                try:
+                    run_out = handoff(item)
+                    out.append({"id": item["id"], "status": run_out.get("status"), "pr_url": run_out.get("pr_url")})
+                except reasoner.ReasonerUnavailable as exc:
+                    out.append({"id": item["id"], "status": "WAITING", "why": str(exc)[:200]})
         else:
             out = inv.waiting_for_frontier()
     except policy.Halted as exc:

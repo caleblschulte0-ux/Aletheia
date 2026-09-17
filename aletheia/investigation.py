@@ -86,6 +86,24 @@ def _state(name: str) -> str:
         return name
 
 
+def frontier_worker() -> str:
+    """Who a packet waits for, in the work engine's worker names, so the engine
+    reads it as NEEDS_STRONGER_MODEL while no frontier model can think."""
+    try:
+        from aletheia import work_states                              # type: ignore[attr-defined]
+        return "frontier" if "frontier" in work_states.FRONTIER_WORKERS else sorted(work_states.FRONTIER_WORKERS)[0]
+    except (ImportError, AttributeError):
+        return "frontier"
+
+
+def local_repair_worker() -> str:
+    try:
+        from aletheia import work_states                              # type: ignore[attr-defined]
+        return str(work_states.LOCAL_REPAIR_WORKER)
+    except (ImportError, AttributeError):
+        return "local-repair"
+
+
 def needs_stronger_model_state() -> str:
     return _state("NEEDS_STRONGER_MODEL")
 
@@ -481,10 +499,47 @@ def reduced_case(repro: dict) -> dict:
     return {}
 
 
+_MISSING = re.compile(r"(?:FileNotFoundError|NotADirectoryError|No such file or directory)[^'\"]*['\"]([^'\"]+)['\"]")
+
+
+def relativize(text: str, where: Path) -> str:
+    """Absolute worktree paths become repository-relative: where a throwaway
+    checkout lives is noise to a model, and a repository path is evidence."""
+    out = str(text or "")
+    for form in {str(where.resolve()), str(where), where.resolve().as_posix()}:
+        for variant in (form, form.replace("\\", "\\\\")):
+            out = out.replace(variant + "\\\\", "").replace(variant + "\\", "").replace(variant + "/", "")
+    return out
+
+
+def path_hints(where: Path, output: str) -> list[dict]:
+    """For a missing file: the path the code asked for, relative to the
+    repository, and the tracked files that have that name. Found by looking,
+    not by a model guessing - the commonest broken-path fix is 'it is over
+    there'."""
+    code, listed = git(["ls-files"], where)
+    tracked = [ln.strip() for ln in listed.splitlines() if ln.strip()] if code == 0 else []
+    hints: list[dict] = []
+    for raw in _MISSING.findall(output or ""):
+        wanted = raw.replace("\\\\", "\\")
+        try:
+            rel = Path(wanted).resolve().relative_to(where.resolve()).as_posix() if Path(wanted).is_absolute() \
+                else Path(wanted).as_posix()
+        except ValueError:
+            rel = Path(wanted).name
+        name = Path(rel).name
+        same = [t for t in tracked if Path(t).name == name]
+        row = {"asked_for": rel, "exists": (where / rel).exists(), "tracked_with_that_name": same[:5]}
+        if row not in hints:
+            hints.append(row)
+    return hints[:3]
+
+
 def gather(where: Path, *, repo: str, failing: list[str], output: str, hint: str = "") -> dict:
     found = implicated(where, failing, output)
     paths = found["source_files"] + [t for t in found["test_files"] if t not in found["source_files"]]
     return {**found,
+            "path_hints": path_hints(where, output),
             "code": code_excerpts(where, paths, found["frames"]),
             "suspect_commits": suspect_commits(where, found["source_files"] + found["test_files"], found["frames"]),
             "history": history(repo, f"{hint} {' '.join(failing)} {output[-300:]}")}
@@ -545,6 +600,7 @@ def build_packet(*, repo: str, source: str, base_ref: str, base_sha: str, task_i
                                                                if t not in (gathered.get("source_files") or [])],
         "frames": gathered.get("frames") or [],
         "crash_site": crash_site(gathered.get("frames") or []),
+        "path_hints": gathered.get("path_hints") or [],
         "code": gathered.get("code") or [],
         "suspect_commits": gathered.get("suspect_commits") or [],
         "history": gathered.get("history") or [],
@@ -601,7 +657,7 @@ def queue_for_stronger_model(packet: dict, *, reason: str) -> dict:
         except ValueError:
             existing = {}
     item = {
-        "version": 1, "id": ident, "kind": "code_repair",
+        "version": 1, "id": ident, "kind": "code_repair", "assigned_worker": frontier_worker(),
         "repo": packet.get("repo") or "", "source": packet.get("source") or "",
         "task_id": packet["task_id"], "objective": packet.get("objective") or "",
         "state": needs_stronger_model_state(), "reason": clean(reason, 400),

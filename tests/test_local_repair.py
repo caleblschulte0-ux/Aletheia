@@ -520,6 +520,17 @@ class PacketsCase(RepoCase):
         self.assertEqual(item["packet_id"], packet["id"])
         self.assertTrue(item["reason"] and item["next"])
         self.assertIn("frontier_reasoning", item["requires"])
+        self.assertEqual(item["assigned_worker"], "frontier", "the work engine's name for a frontier worker")
+
+    def test_a_missing_file_is_looked_for_not_guessed(self):
+        repo = make_repo(self.root, util_text=WINDOW_OK, extra={"data/rows.csv": "a\n"})
+        out = "FileNotFoundError: [Errno 2] No such file or directory: 'app\\\\data\\\\rows.csv'"
+        hints = inv.path_hints(repo, out)
+        self.assertEqual(hints, [{"asked_for": "app/data/rows.csv", "exists": False,
+                                  "tracked_with_that_name": ["data/rows.csv"]}])
+        where = repo.resolve()
+        self.assertEqual(inv.relativize(f'File "{where}\\app\\util.py", line 2', where),
+                         'File "app\\util.py", line 2')
 
     def test_the_frontier_starts_from_the_packet(self):
         repo = make_repo(self.root, util_text=WINDOW_OK,
