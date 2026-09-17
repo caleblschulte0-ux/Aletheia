@@ -116,6 +116,7 @@ SANDBOX_READ_ONLY_HOME = {
 # than the real one.
 SANDBOX_READ_ONLY = {
     ("aletheia.jobs", "BOARDS_PATH"),
+    ("aletheia.study_observe", "SOURCES_CONFIG"),
     ("aletheia.fleet", "DEFAULT_PATH"),
     ("aletheia.capabilities", "DEFAULT_PATH"),
     ("aletheia.core", "INTERFACE_DIR"),
