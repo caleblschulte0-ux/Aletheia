@@ -38,6 +38,14 @@ STANDARD_TOTAL_TIMEOUT_S = 180.0
 # the subscription fails FAST (a limit, an auth error), which is the case
 # it exists for.
 STANDARD_SUBSCRIPTION_SLICE_S = STANDARD_TOTAL_TIMEOUT_S - ROUTINE_LOCAL_TIMEOUT_S
+# CODE WORK waits longer, and only when it says so (`work_budget_s`). A
+# bounded repair drafted by qwen3:8b on his CPU-only laptop took 190 s for a
+# one-function fix (measured 2026-09-16, model cold, another worker sharing
+# the machine) - past the 180 s standard ceiling, so the local tier the brief
+# asks for could never answer. Conversation keeps the 180 s ceiling above.
+MAX_WORK_BUDGET_S = 600.0
+# local_brain refuses a single call longer than this
+LOCAL_MAX_TIMEOUT_S = 300.0
 
 
 @dataclass(frozen=True)
@@ -69,7 +77,13 @@ def _checked(validator: Callable[[dict], dict] | None):
 def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
                 policy: str = "standard", model: str = reasoner.INTERPRET_MODEL,
                 timeout_s: float = reasoner.TIMEOUT_S,
-                validator: Callable[[dict], dict] | None = None) -> GatewayResult:
+                validator: Callable[[dict], dict] | None = None,
+                max_context_bytes: int = reasoner.MAX_CONTEXT_BYTES,
+                work_budget_s: float | None = None) -> GatewayResult:
+    """`max_context_bytes` is the reasoner's own per-call bound (the code
+    worker shows whole files; everyone else keeps 8 KB). `work_budget_s`
+    lets long-running code work (never a conversation) replace the 180 s
+    standard/critical ceiling, up to MAX_WORK_BUDGET_S."""
     if policy not in POLICIES:
         raise ValueError(f"policy must be one of {sorted(POLICIES)}")
     checked = _checked(validator)
@@ -79,15 +93,19 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
     # Preserve the reasoner's existing whole-context contract for every route.
     # In particular, routine local-first requests must not get a larger input
     # budget than subscription requests or attempt a provider before degrading.
-    reasoner.validate_input(system_prompt, text, ctx)
+    limit = reasoner._bounded_context_limit(max_context_bytes)
+    reasoner.validate_input(system_prompt, text, ctx, max_context_bytes=limit)
     requested_budget = float(timeout_s)
     if not math.isfinite(requested_budget) or requested_budget < 0.5:
         raise ValueError("reasoning timeout must be finite and at least 0.5 seconds")
     started = time.monotonic()
-    total_budget = min(
-        requested_budget,
-        ROUTINE_TOTAL_TIMEOUT_S if policy == "routine" else STANDARD_TOTAL_TIMEOUT_S,
-    )
+    ceiling = ROUTINE_TOTAL_TIMEOUT_S if policy == "routine" else STANDARD_TOTAL_TIMEOUT_S
+    if work_budget_s is not None and policy != "routine":
+        work = float(work_budget_s)
+        if not math.isfinite(work) or not 0.5 <= work <= MAX_WORK_BUDGET_S:
+            raise ValueError(f"work budget must be 0.5..{MAX_WORK_BUDGET_S:.0f} seconds")
+        ceiling = work
+    total_budget = min(requested_budget, ceiling)
 
     def remaining() -> float:
         return max(0.0, total_budget - (time.monotonic() - started))
@@ -120,7 +138,7 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
         try:
             output = reasoner.subscription_json(
                 system_prompt, text, context=ctx, model=model,
-                timeout_s=remaining(), validator=checked,
+                timeout_s=remaining(), validator=checked, max_context_bytes=limit,
             )
             return GatewayResult(
                 output, "subscription.auto", policy,
@@ -138,7 +156,7 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
     if policy == "critical":
         output = reasoner.subscription_json(
             system_prompt, text, context=ctx, model=model,
-            timeout_s=remaining(), validator=checked,
+            timeout_s=remaining(), validator=checked, max_context_bytes=limit,
         )
         return GatewayResult(output, "subscription.auto", policy)
 
@@ -152,7 +170,7 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
             )
         output = reasoner.subscription_json(
             system_prompt, text, context=ctx, model=model,
-            timeout_s=subscription_budget, validator=checked,
+            timeout_s=subscription_budget, validator=checked, max_context_bytes=limit,
         )
         return GatewayResult(output, "subscription.auto", policy)
     except reasoner.ReasonerUnavailable as cloud_exc:
@@ -176,7 +194,7 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
                 system_prompt, text, context=ctx, validator=checked,
                 preferred_role="deep",
                 allow_failover=True,
-                timeout_s=max(0.5, remaining()),
+                timeout_s=min(LOCAL_MAX_TIMEOUT_S, max(0.5, remaining())),
             )
             return GatewayResult(
                 local.output, f"ollama:{local.model}", policy,
