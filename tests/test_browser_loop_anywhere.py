@@ -728,6 +728,30 @@ class SheDoesNotGoRoundInCircles(unittest.TestCase):
                                                   visited={obs["url"]}),
                           "her own model chose the page it was already on nineteen times running")
 
+
+    def test_a_basket_is_spending_and_a_pressed_control_is_not_offered_again(self):
+        for label in ("Add to basket", "Add to cart", "Add this book to my basket", "Buy now", "Checkout"):
+            self.assertEqual(ps.control_kind(label, on_form=True), ps.SPEND, label)
+        for label in ("Add another employer", "Add education", "Submit application"):
+            self.assertNotEqual(ps.control_kind(label, on_form=True), ps.SPEND, label)
+        obs = {"url": "https://books.example/catalogue/meditations/", "state": ps.CONTENT,
+               "targets": [{"id": "t3", "role": "button", "label": "Add to basket"},
+                           {"id": "t4", "role": "link", "label": "Reviews", "href": "https://books.example/r"}],
+               "_refs": {"t3": "#basket", "t4": "#reviews"}}
+        record = bm.open_mission("open the product page of Meditations", "https://books.example/")
+        seen = {}
+
+        def decide(goal, page, history):
+            seen["labels"] = [t["label"] for t in page["targets"]]
+            return {"target": "t3", "sure": True, "by": "ollama:qwen3:8b"}
+
+        self.assertIsNone(browser_loop._ask_model(decide, "open Meditations", obs, record),
+                          "a basket is spending, whoever chose it")
+        self.assertIn("Add to basket", seen["labels"])
+        self.assertIsNone(browser_loop._ask_model(lambda *a: {"target": "t4", "sure": True},
+                                                  "open Meditations", obs, record, tried={"#reviews"}),
+                          "a control she has already pressed on this page is not pressed again")
+
     def test_a_browser_left_dying_by_a_kill_does_not_stop_the_resume(self):
         from aletheia import browse
         self.assertTrue(browse._profile_in_use_error(RuntimeError(

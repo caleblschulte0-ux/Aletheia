@@ -107,7 +107,12 @@ _FORM_HARMLESS = re.compile(
 #: order", "Complete my order", "Confirm order" (httpbin's pizza form, the
 #: one live observe). MONEY_WORDS only knew "place order".
 _ORDER = re.compile(r"\b(?:submit|confirm|complete|finish|send|review|finali[sz]e)\s+(?:my\s+|your\s+|the\s+)?"
-                    r"(?:order|booking|reservation)\b|\border\s+now\b", re.I)
+                    r"(?:order|booking|reservation)\b|\border\s+now\b|"
+                    # PUTTING SOMETHING IN A BASKET is the first step of spending, and
+                    # "Add to basket" said none of the money words: live 2026-09-17 her own
+                    # model chose it five times running on a bookshop page.
+                    r"\badd(?:\s+\w+){0,2}\s+to\s+(?:my\s+|your\s+|the\s+)?(?:basket|cart|bag|trolley)\b|"
+                    r"\b(?:buy\s+now|buy\s+it|checkout|check\s+out|pre-?order)\b", re.I)
 #: A price the page is about to charge: a total, an amount due, beside money.
 _CHARGE = re.compile(r"\b(?:order total|total due|amount due|grand total|total price|you(?:'|’)ll pay|"
                      r"total)\b[^\n]{0,40}?[$€£]\s?\d|[$€£]\s?\d[\d,.]*\s*(?:due|total)\b", re.I)

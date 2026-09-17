@@ -1171,7 +1171,7 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
                 _sleep(RELOOK_S)
                 continue
             if target is None and decide is not None:
-                said = _ask_model(decide, goal, obs, record, visited=visited)
+                said = _ask_model(decide, goal, obs, record, visited=visited, tried=tried)
                 if isinstance(said, dict) and said.get("done"):
                     if record.get("route"):
                         # A READING GOAL IS DONE when the page in front of her
@@ -1255,7 +1255,8 @@ def _note(record: dict, text: str) -> None:
     bm.save(record)
 
 
-def _ask_model(decide: Callable, goal: str, obs: dict, record: dict, *, visited: set | None = None) -> dict | None:
+def _ask_model(decide: Callable, goal: str, obs: dict, record: dict, *, visited: set | None = None,
+               tried: set | None = None) -> dict | None:
     """A model picks a control when the deterministic reading has none. It
     names a target; the loop still refuses anything that commits."""
     # WHAT IS ACTUALLY A WAY ON is what the model is shown: a link back to a page
@@ -1264,7 +1265,8 @@ def _ask_model(decide: Callable, goal: str, obs: dict, record: dict, *, visited:
     been = (visited or set()) | {str(obs.get("url") or "").split("#")[0]}
     page = for_model(obs)
     page["targets"] = [t for t in page.get("targets") or []
-                       if not (t.get("href") and str(t["href"]).split("#")[0] in been)]
+                       if not (t.get("href") and str(t["href"]).split("#")[0] in been)
+                       and tried_key(obs, t) not in (tried or set())]
     page["url"] = str(obs.get("url") or "")
     try:
         said = decide(goal, page, list(record.get("history") or [])[-6:])
@@ -1276,11 +1278,15 @@ def _ask_model(decide: Callable, goal: str, obs: dict, record: dict, *, visited:
         if said.get("done") and not said.get("target"):
             return {"done": True, "by": said.get("by"), "why": said.get("why")}
     target = find_target(obs, (said or {}).get("target")) if isinstance(said, dict) else None
-    if target is not None and target.get("href")             and str(target["href"]).split("#")[0] in (visited or set()):
+    if target is not None and tried_key(obs, target) in (tried or set()):
+        return None                 # she pressed that already, on this page
+    if target is not None and target.get("href") \
+            and str(target["href"]).split("#")[0] in (visited or set()):
         # BACK WHERE SHE HAS BEEN. Live 2026-09-17 her own model chose the
         # "Books" link on the Books page nineteen times in a row.
         return None
-    if target is None or not _norm(target.get("label"))             or _kind(target, obs) in (ps.COMMIT, ps.CREATE_ACCOUNT, ps.SPEND, ps.SIGN_IN):
+    if target is None or not _norm(target.get("label")) \
+            or _kind(target, obs) in (ps.COMMIT, ps.CREATE_ACCOUNT, ps.SPEND, ps.SIGN_IN):
         # A control with no name is never pressed on a model's say-so: nobody
         # can tell what it does, least of all him from the history.
         return None
