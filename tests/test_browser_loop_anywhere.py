@@ -686,5 +686,33 @@ class APressReadsTheConfirmationNotTheFormBeforeIt(TheSecondHalfOfTheMatrixOnFix
         self.assertNotEqual(bm.load(record["id"])["state"], bm.DONE)
 
 
+
+class TheRoutineDecisionIsSmallEnoughForHerFastModel(unittest.TestCase):
+    def test_a_real_sized_page_prompt_goes_to_the_fast_role(self):
+        from aletheia import local_model_pool
+        page = {"title": "Philosophy | Books to Scrape - Sandbox", "state": ps.CONTENT,
+                "targets": [{"id": f"t{i}", "role": "link", "label": f"A fairly long book title number {i} here"}
+                            for i in range(1, 70)],
+                "text": "Philosophy results. " * 60}
+        text = browser_loop.compact_page("find the Marcus Aurelius book in the philosophy section", page,
+                                         [{"did": "followed 'Philosophy' (chosen by the page's own words)"}])
+        self.assertLessEqual(len(text), browser_loop.LOCAL_PROMPT_CHARS)
+        self.assertEqual(local_model_pool.choose_role(text), "fast",
+                         "a routine browser decision never asks the model that does not fit")
+        self.assertIn("GOAL: find the Marcus Aurelius book", text)
+        self.assertIn("t1 link", text, "the targets at the top of the page are kept")
+
+    def test_a_link_back_to_a_visited_page_is_not_a_way_forward(self):
+        obs = {"url": "https://books.example/catalogue/meditations/index.html", "state": ps.CONTENT,
+               "targets": [{"id": "t1", "role": "link", "label": "Philosophy",
+                            "href": "https://books.example/catalogue/category/philosophy/index.html"}],
+               "_refs": {"t1": "#crumb"}}
+        goal = "find the Marcus Aurelius book in the philosophy section"
+        self.assertIsNotNone(browser_loop.way_forward(obs, goal, browser_loop.GENERAL, {}, tried=set()))
+        self.assertIsNone(browser_loop.way_forward(
+            obs, goal, browser_loop.GENERAL, {}, tried=set(),
+            visited={"https://books.example/catalogue/category/philosophy/index.html"}))
+
+
 if __name__ == "__main__":
     unittest.main()

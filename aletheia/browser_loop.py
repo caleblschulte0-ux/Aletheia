@@ -595,7 +595,8 @@ def tried_key(obs: dict, target: dict) -> str:
     return str((obs.get("_refs") or {}).get(target.get("id")) or target.get("id"))
 
 
-def way_forward(obs: dict, goal: str, skill, site: dict, *, tried: set[str]) -> dict | None:
+def way_forward(obs: dict, goal: str, skill, site: dict, *, tried: set[str],
+                visited: set[str] | None = None) -> dict | None:
     """The link or harmless control that best moves toward the goal.
 
     A learned or seeded nav hint for this state wins; otherwise the control
@@ -604,6 +605,12 @@ def way_forward(obs: dict, goal: str, skill, site: dict, *, tried: set[str]) -> 
     kinds = controls(obs)
     candidates = kinds.get(ps.NAVIGATE, []) + kinds.get(ps.PROGRESS, []) + kinds.get(ps.OTHER, [])
     candidates = [c for c in candidates if tried_key(obs, c) not in tried and c["label"]]
+    # A LINK BACK TO WHERE SHE HAS BEEN is not a way forward: on a product page
+    # the breadcrumb "Philosophy" shares a word with the goal and led straight
+    # back to the list (live 2026-09-17, Scenario D).
+    here = str(obs.get("url") or "").split("#")[0]
+    candidates = [c for c in candidates
+                  if not (c.get("href") and str(c["href"]).split("#")[0] in ((visited or set()) | {here}))]
     if not candidates:
         return None
     for hint in site.get("nav_hints") or []:
@@ -1143,7 +1150,9 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
             state = ps.CONTENT                      # a form with no way on: look for one
 
         if state == ps.CONTENT:
-            target = way_forward(obs, goal, skill, site, tried=tried)
+            visited = {str(c.get("url") or "").split("#")[0] for c in record.get("checkpoints") or []
+                       if c.get("name") == bm.OBSERVED}
+            target = way_forward(obs, goal, skill, site, tried=tried, visited=visited)
             chooser = "the page's own words"
             if target is None and obs["url"] not in relooked:
                 # A SCRIPT-DRAWN PAGE may not have drawn its way on yet (live
@@ -1307,23 +1316,44 @@ LOCAL_TEXT_CHARS = 400
 LOCAL_DECIDE_S = 40.0
 
 
+#: The routine prompt stays under the local pool's "deep" threshold
+#: (`local_model_pool.choose_role`: 1,200 characters). Live 2026-09-17 a
+#: 1,393-character page prompt was routed to the 27B model that does not fit
+#: this laptop, failed in 0.3 s, and every decision fell through to the
+#: standard class's 180 s bridge instead of the 8B model.
+LOCAL_PROMPT_CHARS = 1_150
+
+
 def compact_page(goal: str, page: dict, history: list) -> str:
-    """The routine decision prompt: goal, page line, one short line per target."""
-    lines = [f"GOAL: {str(goal)[:200]}",
-             f"PAGE: {str(page.get('title') or '')[:80]} | {page.get('state') or ''}"]
+    """The routine decision prompt: goal, page line, one short line per target,
+    kept small enough that her fast local model is the one asked. Cut first:
+    page text, then the targets furthest down the page."""
+    head = [f"GOAL: {str(goal)[:200]}",
+            f"PAGE: {str(page.get('title') or '')[:80]} | {page.get('state') or ''}"]
     targets = [t for t in page.get("targets") or [] if isinstance(t, dict)]
-    lines.append("TARGETS:")
-    for t in targets[:LOCAL_TARGETS]:
-        lines.append(f"{t.get('id')} {t.get('role') or ''} {str(t.get('label') or '')[:60]}")
-    if len(targets) > LOCAL_TARGETS:
-        lines.append(f"(+{len(targets) - LOCAL_TARGETS} more not shown)")
-    text = " ".join(str(page.get("text") or "").split())[:LOCAL_TEXT_CHARS]
-    if text:
-        lines.append(f"TEXT: {text}")
+    rows = [f"{t.get('id')} {t.get('role') or ''} {str(t.get('label') or '')[:50]}"
+            for t in targets[:LOCAL_TARGETS]]
     done = [str(h.get("did") or "") for h in history[-3:] if isinstance(h, dict)]
-    if done:
-        lines.append("DONE: " + "; ".join(d[:60] for d in done))
-    return "\n".join(lines)
+    tail = ["DONE: " + "; ".join(d[:50] for d in done)] if done else []
+    text = " ".join(str(page.get("text") or "").split())[:LOCAL_TEXT_CHARS]
+
+    def build(n_rows: int, text_chars: int) -> str:
+        shown = rows[:n_rows]
+        more = len(targets) - len(shown)
+        lines = head + ["TARGETS:"] + shown + ([f"(+{more} more not shown)"] if more > 0 else [])
+        if text[:text_chars]:
+            lines.append(f"TEXT: {text[:text_chars]}")
+        return "\n".join(lines + tail)
+
+    n, chars = len(rows), len(text)
+    out = build(n, chars)
+    while len(out) > LOCAL_PROMPT_CHARS and chars > 0:
+        chars = max(0, chars - 100)
+        out = build(n, chars)
+    while len(out) > LOCAL_PROMPT_CHARS and n > 5:
+        n -= 1
+        out = build(n, chars)
+    return out
 
 
 def _decision_validator(page: dict) -> Callable[[dict], dict]:
