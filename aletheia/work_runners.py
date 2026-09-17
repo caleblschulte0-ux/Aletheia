@@ -1028,6 +1028,7 @@ def _frontier_packet(it: dict, where: dict, now: dt.datetime) -> dict:
         if run.get("status") == "PR_OPEN":
             return {"state": ws.BLOCKED_USER, "kind": "handed", "evidence": {**evidence, "pr_url": run.get("pr_url")},
                     "reason": f"a stronger model opened {run.get('pr_url')} from the packet",
+                    "kind_note": "frontier",
                     "next": "Caleb reviews it", "did": f"handed {_short(it, 70)} to a stronger model with its packet: "
                                                      f"it opened a pull request"}
         return {"state": ws.NEEDS_STRONGER_MODEL, "reason": f"the stronger model's attempt ended {run.get('status')}",
@@ -1055,7 +1056,7 @@ def _frontier_packet(it: dict, where: dict, now: dt.datetime) -> dict:
     read = validate(result.output)
     packet["frontier_read"] = {**read, "provider": result.provider, "at": _stamp(now)}
     inv.write_packet(packet)
-    return {"state": ws.BLOCKED_USER, "kind": "handed", "evidence": {**evidence, "frontier_read": result.provider},
+    return {"state": ws.BLOCKED_USER, "kind": "frontier", "evidence": {**evidence, "frontier_read": result.provider},
             "reason": (f"a stronger model read packet {packet_id}: {read['diagnosis'][:160]}"
                        + (" (a rehearsal opens no pull request)" if _rehearsing() else "")),
             "next": "the code worker opens a pull request from it outside a rehearsal; Caleb reviews it",

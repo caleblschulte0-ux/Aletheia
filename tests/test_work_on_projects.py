@@ -416,6 +416,18 @@ class TheSessionDoesNotStopWhileWorkIsExecutable(Isolated):
         self.assertIn("What I need from you: turn on GitHub Pages in Barkly", said)
         self.assertNotIn("_", said.replace("handoff/STATUS.md", "").replace("thea-work/x", ""))
 
+    def test_work_a_stronger_model_read_is_not_said_as_handed_to_him_and_every_item_is_counted(self):
+        receipts = [{"id": f"plan:p#{n}", "title": f"P: step number {n}", "kind": "frontier",
+                     "state": ws.BLOCKED_USER, "did": "handed"} for n in range(1, 6)]
+        said = project_work.report_words({"started_at": "2026-09-17T12:00:00Z", "finished_at": "2026-09-17T12:02:00Z",
+                                          "rehearsal": True, "receipts": receipts, "stopped": {"why": "nothing_left"},
+                                          "after": {"waiting": [dict(r, title=r["title"]) for r in receipts],
+                                                    "can_now": []}})
+        self.assertIn("Claude or Codex read the evidence I'd gathered for 5", said)
+        self.assertIn("and 1 more", said)
+        self.assertNotIn("handed 5 to you", said)
+        self.assertNotIn("What I need from you", said)
+
     def test_a_halt_stops_the_loop(self):
         calls = []
         items = self.items()

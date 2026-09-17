@@ -477,7 +477,8 @@ def report_words(record: dict) -> str:
     finished = [r for r in receipts if r.get("kind") in FINISHED_KINDS]
     queued = [r for r in receipts if r.get("kind") in QUEUED_KINDS]
     handed = [r for r in receipts if r.get("kind") in HANDED_KINDS]
-    other = [r for r in receipts if r not in finished + queued + handed]
+    read = [r for r in receipts if r.get("kind") == "frontier"]
+    other = [r for r in receipts if r not in finished + queued + handed + read]
     stopped = record.get("stopped") or {}
     parts = [f"I worked on your projects for {speech.count_phrase(minutes, 'minute')}."]
     if finished:
@@ -486,8 +487,13 @@ def report_words(record: dict) -> str:
         whys = [f"{_say_title(r['title'], 7)}, because {_reason_words(r)}" for r in queued[:4]]
         parts.append(f"I investigated {len(queued)} and queued {'them' if len(queued) > 1 else 'it'} for Claude or "
                      f"Codex with the evidence: " + "; ".join(whys) + ".")
+    if read:
+        parts.append(f"Claude or Codex read the evidence I'd gathered for {len(read)} and proposed how to do "
+                     f"{'them' if len(read) > 1 else 'it'}" + (" (a rehearsal, so no pull request was opened)"
+                                                                     if record.get("rehearsal") else "")
+                     + ": " + _listed([_say_title(r["title"], 8) for r in read]) + ".")
     if handed:
-        parts.append(f"I handed {len(handed)} to you: " + "; ".join(_say_title(r["title"], 8) for r in handed[:4]) + ".")
+        parts.append(f"I handed {len(handed)} to you: " + _listed([_say_title(r["title"], 8) for r in handed]) + ".")
     if other:
         parts.append(f"{len(other)} didn't finish: " + "; ".join(
             f"{_say_title(r['title'], 7)} ({_reason_words(r)})" for r in other[:3]) + ".")
@@ -496,10 +502,15 @@ def report_words(record: dict) -> str:
     after = record.get("after") or {}
     waiting = after.get("waiting") or []
     if waiting:
-        yours = [w for w in waiting if w.get("state") in (ws.BLOCKED_USER, ws.BLOCKED_LOGIN)]
+        proposed = {r["id"] for r in read}
+        yours = [w for w in waiting if w.get("state") in (ws.BLOCKED_USER, ws.BLOCKED_LOGIN)
+                 and w.get("id") not in proposed]
         stronger = [w for w in waiting if w.get("state") in (ws.NEEDS_STRONGER_MODEL, ws.BLOCKED_MODEL)]
-        rest = len(waiting) - len(yours) - len(stronger)
+        with_proposal = [w for w in waiting if w.get("id") in proposed]
+        rest = len(waiting) - len(yours) - len(stronger) - len(with_proposal)
         bits = []
+        if with_proposal:
+            bits.append(f"{len(with_proposal)} ready for a stronger model's pull request")
         if stronger:
             bits.append(f"{len(stronger)} for a stronger model")
         if yours:
@@ -507,7 +518,8 @@ def report_words(record: dict) -> str:
         if rest:
             bits.append(f"{rest} on other steps or the world")
         parts.append("Still waiting: " + speech.and_list(bits) + ".")
-        asks = [f"{_say_title(w['title'], 8)}" for w in yours if w.get("id") not in {r["id"] for r in handed}][:3]
+        not_his = {r["id"] for r in handed} | proposed
+        asks = [f"{_say_title(w['title'], 8)}" for w in yours if w.get("id") not in not_his][:3]
         needs = [_say_title(r["title"], 8) for r in handed[:3]] + asks
         if needs:
             parts.append("What I need from you: " + "; ".join(needs[:4]) + ".")
@@ -518,6 +530,12 @@ def report_words(record: dict) -> str:
     elif stopped.get("why") == "halted":
         parts.append("I stopped because I was halted.")
     return " ".join(p for p in parts if p)
+
+
+def _listed(names: list[str], limit: int = 4) -> str:
+    """At most `limit` names, and the count of the rest, so the number said matches."""
+    shown = "; ".join(names[:limit])
+    return shown + (f"; and {len(names) - limit} more" if len(names) > limit else "")
 
 
 def _finished_words(receipt: dict) -> str:
