@@ -63,6 +63,15 @@ READER_FOR = {
     "project_new": "projects",
     "project_step": "projects",
     "project_drop": "projects",
+    # A long mission he starts, adds to or confirms shows up at once in "how
+    # is my mission going" (and "what are we waiting on"): a draft being
+    # written, a draft with his questions, then the running mission.
+    "mission_new": "missions",
+    "mission_add": "missions",
+    "mission_confirm": "missions",
+    # A schedule starting this round of a recurring activity adds a task he
+    # sees in the same answer.
+    "mission_activity": "missions",
     "apply_prepare": "applications",
     "apply_campaign": "applications",
     "apply_answer": "applications",

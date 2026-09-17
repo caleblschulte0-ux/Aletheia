@@ -219,6 +219,9 @@ def wants_session(text: str) -> bool:
 #: A tool, in the words a room can hear. Anything not named here is "my records".
 _LOOKING_AT = {
     "state.now": "what I'm doing right now",
+    "mission.status": "your missions",
+    "mission.waiting": "what your missions are waiting on",
+    "missions": "your missions",
     "applications.query": "the application records",
     "applications": "the application records",
     "journal.query": "my journal",

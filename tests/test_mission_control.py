@@ -347,9 +347,10 @@ class TheRegistryPlugsTypesIn(IsolatedStores):
     def test_the_registry_is_explicit_and_holds_the_job_hunt(self):
         # Explicit and small: the job hunt is one type, beside the general
         # ones every goal uses (any browser goal, any request she handed him,
-        # and the work inventory across every queue).
+        # the work inventory across every queue, and his long missions, whatever
+        # they are about).
         registered = mc.registry()
-        self.assertEqual(list(registered), ["job_hunt", "browser_goal", "agent_request", "work"])
+        self.assertEqual(list(registered), ["job_hunt", "browser_goal", "agent_request", "work", "program"])
         for provider in registered.values():
             self.assertTrue(callable(provider.read) and callable(provider.build))
 
