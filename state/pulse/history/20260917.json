@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-17T04:58:25Z",
+  "generated_at": "2026-09-17T11:48:52Z",
   "fleet_revision": 5,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -46,14 +46,14 @@
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-09-17T04:58:22Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/35183916465"
+          "updated_at": "2026-09-17T11:48:49Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/35217663795"
         },
         "ci.yml": {
           "status": "completed",
           "conclusion": "failure",
-          "updated_at": "2026-09-17T03:08:40Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/35176338860"
+          "updated_at": "2026-09-17T11:43:07Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/35216126240"
         }
       },
       "state_files": {
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "d15539eac051",
-          "date": "2026-09-17T00:16:39Z",
+          "sha": "63a8f165866d",
+          "date": "2026-09-17T11:42:33Z",
+          "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
+        },
+        {
+          "sha": "017d6ccd61ea",
+          "date": "2026-09-17T11:38:16Z",
+          "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
+        },
+        {
+          "sha": "876d63357b09",
+          "date": "2026-09-17T11:33:49Z",
+          "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
+        },
+        {
+          "sha": "101b564c83d9",
+          "date": "2026-09-17T11:26:10Z",
+          "message": "deadman: repaired 2026-09-17 [skip ci]"
+        },
+        {
+          "sha": "9ea1e783b61c",
+          "date": "2026-09-17T11:25:53Z",
           "message": "explainer: update posted log + analytics [skip ci]"
-        },
-        {
-          "sha": "d25f8edefe7a",
-          "date": "2026-09-16T23:39:58Z",
-          "message": "daily: 2026-09-16 report + state [skip ci]"
-        },
-        {
-          "sha": "97eb5db12507",
-          "date": "2026-09-16T23:39:47Z",
-          "message": "third: analytics [skip ci]"
-        },
-        {
-          "sha": "b006efed5779",
-          "date": "2026-09-16T23:39:37Z",
-          "message": "third: update posted log + analytics [skip ci]"
-        },
-        {
-          "sha": "52f79b6d6841",
-          "date": "2026-09-16T23:36:55Z",
-          "message": "deadman: repaired 2026-09-16 [skip ci]"
         }
       ],
       "commit": {
-        "sha": "d15539eac051",
-        "date": "2026-09-17T00:16:39Z",
-        "message": "explainer: update posted log + analytics [skip ci]"
+        "sha": "63a8f165866d",
+        "date": "2026-09-17T11:42:33Z",
+        "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
       },
       "vitals": [
         {
@@ -108,11 +108,11 @@
         },
         {
           "label": "explainer posted",
-          "value": 252
+          "value": 253
         },
         {
           "label": "third posted",
-          "value": 526
+          "value": 532
         },
         {
           "label": "curiosity posted",
@@ -121,16 +121,16 @@
       ],
       "workflows": {
         "daily.yml": {
-          "status": "completed",
-          "conclusion": "success",
-          "updated_at": "2026-09-16T23:40:09Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35163070809"
+          "status": "in_progress",
+          "conclusion": null,
+          "updated_at": "2026-09-17T11:26:15Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35215665378"
         },
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-16T14:21:22Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35107907780"
+          "updated_at": "2026-09-17T09:43:29Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35206581626"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
@@ -141,20 +141,20 @@
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-16T20:15:31Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35145273823"
+          "updated_at": "2026-09-17T10:07:04Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35208569910"
         },
         "third.yml": {
-          "status": "completed",
-          "conclusion": "success",
-          "updated_at": "2026-09-16T23:39:54Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35163069563"
+          "status": "in_progress",
+          "conclusion": null,
+          "updated_at": "2026-09-17T11:26:13Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35215663231"
         },
         "explainer.yml": {
-          "status": "completed",
-          "conclusion": "failure",
-          "updated_at": "2026-09-17T00:16:45Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35163067979"
+          "status": "in_progress",
+          "conclusion": null,
+          "updated_at": "2026-09-17T11:26:21Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35215661191"
         },
         "retro.yml": {
           "status": "completed",
@@ -165,8 +165,8 @@
         "doctor.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-16T09:53:40Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35081947619"
+          "updated_at": "2026-09-17T09:57:28Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35207903962"
         }
       },
       "state_files": {
@@ -176,11 +176,11 @@
         },
         "state/explainer_posted_log.json": {
           "exists": true,
-          "bytes": 75699
+          "bytes": 76424
         },
         "state/third_posted_log.json": {
           "exists": true,
-          "bytes": 286391
+          "bytes": 289620
         },
         "state/curiosity_posted_log.json": {
           "exists": true,
@@ -188,14 +188,14 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 812122
+          "bytes": 821612
         },
         "config/channel_registry.json": {
           "exists": true,
           "bytes": 15208
         }
       },
-      "health": "red"
+      "health": "green"
     },
     "schwab_trader": {
       "github": "schwab-trader",
@@ -361,7 +361,7 @@
           "text": "Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push"
         },
         "last_progress_at": "2026-09-13T05:00:51Z",
-        "days_quiet": 3,
+        "days_quiet": 4,
         "commits_7d": 18,
         "open_prs": [
           {
@@ -491,7 +491,14 @@
     ],
     "evidence": []
   },
-  "transitions": [],
+  "transitions": [
+    {
+      "repo": "shorts_pipeline",
+      "github": "Shorts-pipeline",
+      "from": "red",
+      "to": "green"
+    }
+  ],
   "alerts": [
     {
       "repo": "aletheia",
@@ -499,14 +506,6 @@
       "health": "red",
       "failing": [
         "ci.yml"
-      ]
-    },
-    {
-      "repo": "shorts_pipeline",
-      "github": "Shorts-pipeline",
-      "health": "red",
-      "failing": [
-        "explainer.yml"
       ]
     },
     {
