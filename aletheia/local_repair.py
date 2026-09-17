@@ -114,9 +114,12 @@ def gateway_think(policy_name: str = BOUNDED_POLICY, *, model: str = reasoner.PL
 
 REPAIR_SYSTEM = """You repair ONE small, already-diagnosed bug in a software project.
 Reply with ONE JSON object:
-{"edits": [{"path": "<a path from files>", "find": "<exact text copied from that file>",
+{"bounded": true|false, "cause": "<one sentence: what is wrong, file:line>",
+ "edits": [{"path": "<a path from files>", "find": "<exact text copied from that file>",
   "replace": "<the corrected text>", "why": "<short>"}],
  "summary": "<one sentence>", "confidence": <0.0-1.0>}
+Say "bounded": false, with no edits, if a correct fix needs a design or product
+decision, touches several modules, or is anything bigger than a small local repair.
 Rules: change as little as possible. "find" must be copied exactly from the file and
 appear in it once; include enough surrounding text to be unique. Only edit paths listed
 in "files". Never edit tests, never weaken or delete an assertion, never add a skip,
@@ -163,7 +166,12 @@ def _edits_validator(allowed: set[str]):
                 continue
             clean_edits.append({"path": path, "find": find, "replace": replace,
                                 "why": " ".join(str(edit.get("why") or "").split())[:300]})
-        return {"edits": clean_edits, "summary": " ".join(str(value.get("summary") or "").split())[:400],
+        bounded = value.get("bounded", True)
+        if type(bounded) is not bool:
+            raise ValueError("bounded must be a boolean")
+        return {"edits": clean_edits, "bounded": bounded,
+                "cause": " ".join(str(value.get("cause") or "").split())[:400],
+                "summary": " ".join(str(value.get("summary") or "").split())[:400],
                 "confidence": confidence}
     return validate
 
@@ -295,9 +303,17 @@ def run(source: str | Path, *, repo: str = "", base_ref: str = "HEAD", failing: 
         objective: str = "", task_id: str | None = None, think: Think | None = None,
         review_think: Think | None = None, classify_think: Think | None = None,
         attempts: int = MAX_ATTEMPTS, open_pr: bool = False, request=None,
-        use_model_classifier: bool = True, subdir: str = "") -> dict:
+        use_model_classifier: bool = False, subdir: str = "") -> dict:
     """One bounded repair attempt, end to end. Never raises for a failure it
     could record; raises policy.Halted when the kill switch is thrown.
+
+    THE MODEL'S "NO" RIDES ON THE DRAFT. The classifier's rules decide
+    whether to try; the drafting call itself says `bounded` and a cause, and
+    an explicit false escalates before any edit is applied. A separate
+    classification call (`use_model_classifier=True`) is available, but on
+    his CPU-only laptop every call waits its turn in one Ollama queue (a
+    6-token answer waited 275 s behind another request, 2026-09-16), so the
+    default spends one call where one does the job.
     `subdir` is a project that lives in a folder of its repository (a
     charter's `path`): its tests run there, and its paths are published
     relative to the repository root."""
@@ -416,6 +432,14 @@ def _loop(where: Path, source: Path, rec: _Record, *, repo: str, base_ref: str, 
             continue
         rec.step("repair", attempt=n, provider=draft_provider, edits=len(draft["edits"]),
                  confidence=draft["confidence"], summary=draft["summary"])
+        if not draft["bounded"]:
+            tried.append({"attempt": n, "provider": draft_provider,
+                          "outcome": f"the model says this is not a small repair: {draft['cause'][:200]}"})
+            classification = {**classification, "cause": draft["cause"] or classification.get("cause", ""),
+                              "escalate_kinds": ["model_escalated"]}
+            break
+        if draft["cause"] and not classification.get("cause"):
+            classification = {**classification, "cause": draft["cause"]}
         if not draft["edits"] or draft["confidence"] < MIN_CONFIDENCE:
             tried.append({"attempt": n, "provider": draft_provider,
                           "outcome": (f"declined: {draft['summary'][:200]}" if not draft["edits"] else
@@ -610,7 +634,9 @@ def _objective_text(objective: str, failing: list[str]) -> str:
 def _repair_context(where: Path, allowed: list[str], gathered: dict, observed: dict, classification: dict,
                     feedback: str) -> dict:
     files: dict[str, str] = {}
-    budget = rc.MAX_CONTEXT_CHARS - 2_600
+    # Ollama runs qwen3:8b with a 4,096-token window here: the whole prompt,
+    # system and reply included, has to fit, so the files get what is left.
+    budget = rc.MAX_CONTEXT_CHARS - 3_200
     for path in allowed:
         try:
             text = (where / path).read_text(encoding="utf-8")
@@ -630,16 +656,24 @@ def _repair_context(where: Path, allowed: list[str], gathered: dict, observed: d
     context = {"files": files, "repository_layout": layout, "cause": classification.get("cause") or "",
                "kind": classification.get("kind"),
                "untrusted_repository_text": inv.clean(
-                   ("TEST CODE:\n" + "\n".join(c["text"] for c in tests)[:1_400] + "\n\nTEST OUTPUT:\n"
-                    + observed["output_tail"][-1_000:]), 2_500)}
+                   ("TEST CODE:\n" + "\n".join(c["text"] for c in tests)[:900] + "\n\nTEST OUTPUT:\n"
+                    + _failure_lines(observed["output_tail"])), 1_900)}
     if feedback:
         context["previous_attempt"] = inv.clean(feedback, 1_200)
     return context
 
 
+def _failure_lines(output: str, limit: int = 900) -> str:
+    """The part of a test run that says what failed: frames and the error,
+    without the ^^^^ markers and the runner's summary lines."""
+    keep = [ln for ln in str(output or "").splitlines()
+            if ln.strip() and not set(ln.strip()) <= set("^~-=") and not ln.startswith(("Ran ", "FAILED ("))]
+    return "\n".join(keep)[-limit:]
+
+
 def _evidence_text(gathered: dict, observed: dict) -> str:
     code = "\n".join(f"--- {c['path']} {c['start']}-{c['end']}\n{c['text']}" for c in gathered["code"])
-    return (observed["output_tail"][-1_800:] + "\n\n" + code)[:rc.MAX_CONTEXT_CHARS - 1_600]
+    return (_failure_lines(observed["output_tail"], 1_400) + "\n\n" + code)[:rc.MAX_CONTEXT_CHARS - 2_400]
 
 
 def _pr_body(repo, task_id, base_ref, base_sha, classification, success, review, failing) -> str:

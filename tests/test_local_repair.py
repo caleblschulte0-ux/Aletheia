@@ -306,6 +306,17 @@ class TheLoopCase(RepoCase):
         self.assertEqual(item["state"], inv.needs_stronger_model_state())
         self.assertEqual(self.repair_branches(repo), [], "a branch with no verified repair is not left behind")
 
+    def test_the_drafting_model_can_say_this_is_not_small_and_nothing_is_applied(self):
+        repo = make_repo(self.root)
+        think = Scripted(repair=[{"bounded": False, "cause": "needs a decision on window semantics",
+                                  "edits": [], "summary": "not mine to decide", "confidence": 0.0}])
+        out = local_repair.run(repo, base_ref="main", think=think, task_id="t-no")
+        self.assertEqual(out["status"], "ESCALATED")
+        self.assertIn("not a small repair", str(out["attempts"]))
+        self.assertNotIn("inspect", [s["step"] for s in out["steps"]])
+        self.assertEqual(think.count(rc.CLASSIFY_SYSTEM), 0, "one call, not two, on a CPU-only laptop")
+        self.assertIn("window semantics", inv.load_packet(out["packet_id"])["hypothesis"])
+
     def test_low_confidence_stops_at_once(self):
         repo = make_repo(self.root)
         think = Scripted(repair=[{"edits": [FIX], "summary": "maybe", "confidence": 0.2}])
