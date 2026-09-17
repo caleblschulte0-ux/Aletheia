@@ -1567,6 +1567,11 @@ def _press(record: dict) -> dict:
         hands.click(record["button_selector"])
         page.wait_for_load_state("domcontentloaded")
         out = read_after_press(page, record)
+        if record.get("mission"):
+            # A site that wants a code before it accepts (Greenhouse's security
+            # code) is finished in THIS browser, where the code page lives.
+            from aletheia import browser_loop
+            out, page = browser_loop.finish_verification(ctx, page, hands, record, out)
         page.close()
     return out
 

@@ -190,7 +190,9 @@ def may_submit(record: dict, *, button: str | None = None, url: str = "") -> tup
         said = {"confirmed": "and the site confirmed it",
                 "pending": "and no verdict was ever recorded (it may have gone through)",
                 "submitted, unconfirmed": "and the site did not say whether it went through",
-                "error": "and the site errored after the press, which is not proof it failed"}
+                "error": "and the site errored after the press, which is not proof it failed",
+                "verification_required": "and the site asked for a code before accepting it, which "
+                                         "is not proof it failed"}
         return False, (f"'{attempt.get('button') or 'the final button'}' was already pressed at "
                        f"{attempt.get('at')} {said.get(verdict, f'({verdict})')}; pressing it again "
                        "could send it twice, so it needs proof the first press failed")

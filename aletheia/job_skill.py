@@ -105,17 +105,23 @@ class JobApplication(browser_loop.GeneralSkill):
                 base["fill"].append({"action": "attach", "selector": refs[t["id"]], "value": str(resume),
                                      "label": t["label"], "key": "resume"})
                 answered_labels.add(browser_loop._norm(t["label"]))
-        base["ask"] = [q for q in base["ask"] if browser_loop._norm(q) not in answered_labels]
+        # ONE QUESTION, HOWEVER MANY READERS SAW IT: the page reader cuts a long
+        # label short and the form reader does not, so "answered" and "already
+        # asked" compare by `same_question`, never by exact text.
+        def answered(label: str) -> bool:
+            return any(browser_loop.same_question(label, done) for done in answered_labels)
+
+        base["ask"] = [q for q in base["ask"] if not answered(q)]
         # A question the page already holds an answer to (filled on an earlier
         # look this run, or by the site) is not asked again.
         holding = {refs[t["id"]] for t in obs.get("targets") or []
                    if t["id"] in refs and (str(t.get("value") or "").strip() or t.get("checked"))}
         for row in mapped.get("ask") or []:
             label = str(row.get("label") or "")
-            if row.get("required") and browser_loop._norm(label) not in answered_labels \
-                    and row.get("selector") not in taken and row.get("selector") not in holding \
-                    and label not in base["ask"]:
+            if row.get("required") and not answered(label) \
+                    and row.get("selector") not in taken and row.get("selector") not in holding:
                 base["ask"].append(label)
+        base["ask"] = browser_loop.unique_questions(base["ask"])
         return base
 
 

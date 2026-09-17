@@ -1207,13 +1207,29 @@ _NOT_A_RESUME_BOX = re.compile(r"cover letter|transcript|portfolio|writing sampl
 #: record says one is there so the send path and the campaign both know.
 CAPTCHA_ON_JS = r"""() => {
   const marks = /hcaptcha|recaptcha|turnstile|challenges\.cloudflare/i;
+  // The INVISIBLE reCAPTCHA (v3 / Enterprise score, the 256x60 corner badge) asks
+  // nobody anything: live 2026-09-16 it marked a Greenhouse form as a CAPTCHA. Its
+  // script carries render=<key>, its iframe size=invisible, its box data-size.
+  // An invisible hCaptcha is NOT skipped: that one blocked Lever's clicks.
+  const invisibleRe = (el) => {
+    const src = el.src || '';
+    return /recaptcha/i.test(src) && (/[?&]render=(?!explicit)/i.test(src) || /[?&]size=invisible/i.test(src)
+      || !!(el.closest && el.closest('.grecaptcha-badge')));
+  };
+  const badge = !!document.querySelector('.grecaptcha-badge, iframe[src*="size=invisible"]');
   for (const el of document.querySelectorAll('iframe[src], script[src]')) {
+    if (invisibleRe(el)) continue;
+    // A bare reCAPTCHA script on a page whose only widget is the badge is the
+    // same invisible check loading, not a second one.
+    if (badge && el.tagName === 'SCRIPT' && /recaptcha/i.test(el.src || '')) continue;
     const hit = (el.src || '').match(marks);
     if (hit) return hit[0].toLowerCase().replace('challenges.cloudflare', 'turnstile');
   }
   if (document.querySelector('.h-captcha, [data-hcaptcha-widget-id], [name="h-captcha-response"]'))
     return 'hcaptcha';
-  if (document.querySelector('.g-recaptcha, [name="g-recaptcha-response"]')) return 'recaptcha';
+  for (const el of document.querySelectorAll('.g-recaptcha')) {
+    if ((el.getAttribute('data-size') || '').toLowerCase() !== 'invisible') return 'recaptcha';
+  }
   if (document.querySelector('.cf-turnstile, [name="cf-turnstile-response"]')) return 'turnstile';
   return '';
 }"""
