@@ -294,7 +294,10 @@ OBSERVE_JS = r"""() => {
       : (el.type === 'submit' && document.querySelectorAll(bySubmit).length === 1
           ? bySubmit : path(el));
     if (!selector) continue;
-    buttons.push({selector, text: (el.innerText || el.value || '').trim().slice(0,70),
+    // A button drawn as an empty box with its name in aria-label (Workday's
+    // "Create Account" is a click-filter div, live 2026-09-17).
+    buttons.push({selector, text: ((el.innerText || '').trim() || el.value || el.getAttribute('aria-label')
+                                   || el.title || '').trim().slice(0,70),
                   ...(el.closest('#onetrust-consent-sdk, #onetrust-pc-sdk, #CybotCookiebotDialog, #usercentrics-root, #truste-consent-track, #didomi-host, .osano-cm-window, .cc-window, [id*="cookie" i], [class*="cookie" i], [aria-label*="cookie" i], [id*="consent-banner" i], [class*="consent-banner" i], [id*="tracking-consent" i], [class*="tracking-consent" i]') ? {consent: true} : {})});
     if (buttons.length > 30) break;
   }
@@ -579,7 +582,11 @@ def observe(page) -> dict:
         row = {"selector": field["selector"], "type": field.get("type"),
                "label": (field.get("question") or field.get("label")
                          or field.get("name") or "")[:120],
-               "value": (field.get("value") or "")[:60],
+               # A PASSWORD'S VALUE NEVER LEAVES THE PAGE: not to a model, not to a
+               # record. Live 2026-09-17 the vault password she had just typed was
+               # in the observation a model would be shown. Only that it is set.
+               "value": ("(set)" if field.get("value") else "") if field.get("type") == "password"
+                        else (field.get("value") or "")[:60],
                "required": bool(field.get("required"))}
         if field.get("type") in ("checkbox", "radio"):
             row["checked"] = bool(field.get("checked"))

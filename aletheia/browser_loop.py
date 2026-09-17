@@ -62,6 +62,7 @@ ERROR_RETRIES = 2          # re-observing a failed page is always allowed
 LIVE_POLL_S = 2.0          # how often a held session asks whether he said yes
 MAX_HOLD_S = 30 * 60
 UNKNOWN_RETRIES = 2
+RELOOK_S = 2.0
 MAX_TARGETS = 90
 
 AUTONOMOUS, ASSISTED, MANUAL_ONLY = site_skills.AUTONOMOUS, site_skills.ASSISTED, site_skills.MANUAL_ONLY
@@ -221,7 +222,10 @@ def look(page, *, tracker: StatusTracker | None = None, skill=None, site: dict |
             add(role, field["is_option"], field["selector"], question=field.get("label"),
                 checked=field.get("checked"), required=_marked_required(field) or None)
             continue
-        add(role, field.get("label"), field["selector"], value=field.get("value") or None,
+        value = field.get("value") or None
+        if role == "password" and value:
+            value = "(set)"                  # never the password itself, whoever reads this
+        add(role, field.get("label"), field["selector"], value=value,
             required=_marked_required(field) or None, options=field.get("options"),
             checked=field.get("checked") if role == "checkbox" else None)
     for button in seen.get("buttons") or []:
@@ -539,6 +543,14 @@ def controls(obs: dict) -> dict[str, list[dict]]:
     return out
 
 
+def tried_key(obs: dict, target: dict) -> str:
+    """What "already tried" remembers: the control itself, not its place in
+    this observation's numbering. Live 2026-09-17 Workday's Apply opened a
+    dialog on the same page, every target was renumbered, and the same Apply
+    link was clicked again under a new id until the dialog blocked it."""
+    return str((obs.get("_refs") or {}).get(target.get("id")) or target.get("id"))
+
+
 def way_forward(obs: dict, goal: str, skill, site: dict, *, tried: set[str]) -> dict | None:
     """The link or harmless control that best moves toward the goal.
 
@@ -547,7 +559,7 @@ def way_forward(obs: dict, goal: str, skill, site: dict, *, tried: set[str]) -> 
     skill's own words). Never a commit, a sign-in, a payment or Back."""
     kinds = controls(obs)
     candidates = kinds.get(ps.NAVIGATE, []) + kinds.get(ps.PROGRESS, []) + kinds.get(ps.OTHER, [])
-    candidates = [c for c in candidates if c["id"] not in tried and c["label"]]
+    candidates = [c for c in candidates if tried_key(obs, c) not in tried and c["label"]]
     if not candidates:
         return None
     for hint in site.get("nav_hints") or []:
@@ -567,7 +579,7 @@ def way_forward(obs: dict, goal: str, skill, site: dict, *, tried: set[str]) -> 
     # A Next only when nothing on the page names the goal: on a content page
     # "Next" is usually a list's next page, and live 2026-09-17 it outranked
     # the very link the goal named.
-    progress = [c for c in kinds.get(ps.PROGRESS, []) if c["id"] not in tried]
+    progress = [c for c in kinds.get(ps.PROGRESS, []) if tried_key(obs, c) not in tried]
     return progress[0] if progress else None
 
 
@@ -800,12 +812,19 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
         return _stop(record, bm.NEEDS_YOU, "ERROR", {"url": _replay_from(record)},
                      why=f"the page could not be put back ({browse.say_reason(str(exc))[:160]})")
     errors = unknowns = 0
+    # WHAT THE REPLAY ALREADY PRESSED is already tried: live 2026-09-17 a resumed
+    # Workday mission replayed its Apply click and then clicked Apply again.
+    # Only a LINK she followed, on the page the replay ends on - a wizard's Next
+    # shares its selector with the next step's Next and must stay pressable.
     tried: set[str] = set()
+    replayed_tried = {(str(step.get("on") or ""), str(step.get("selector")))
+                      for step in route if step.get("action") == "click" and step.get("follow")}
     written: set[tuple[str, str]] = set()
     # WHAT SHE TRIED TO SET AND THE PAGE WOULD NOT TAKE, per page. A silent
     # miss read as filled: live 2026-09-17 BambooHR's State box refused the
     # value and the stop never mentioned it.
     unset: dict[str, list[str]] = {}
+    relooked: set[str] = set()
     last_seen = ("", "")
     for step in range(budget):
         policy.ensure_not_halted()
@@ -817,8 +836,10 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
         state = obs["state"]
         if (obs["url"], state) != last_seen:
             record = bm.checkpoint(record, bm.OBSERVED, url=obs["url"], state=state)
+            # The first page after a replay keeps what the replay pressed.
+            tried = ({sel for on, sel in replayed_tried if on == obs["url"]}
+                     if last_seen == ("", "") else set())
             last_seen = (obs["url"], state)
-            tried = set()
             site_skills.learn(obs["url"], state=state)
         searched = record.get("searched") or {}
         if searched and obs["url"] != searched.get("from") and state not in (ps.ERROR, ps.CAPTCHA, ps.UNKNOWN):
@@ -1026,9 +1047,9 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
                 return _stop(record, bm.NEEDS_YOU, "QUESTIONS", obs, questions=planned["ask"][:12],
                              step="answer what only you can")
             kinds = controls(obs)
-            nxt = [c for c in kinds.get(ps.PROGRESS, []) if c["id"] not in tried]
+            nxt = [c for c in kinds.get(ps.PROGRESS, []) if tried_key(obs, c) not in tried]
             if nxt and state != ps.REVIEW:
-                tried.add(nxt[0]["id"])
+                tried.add(tried_key(obs, nxt[0]))
                 before = obs["url"]
                 page = _click(ctx, page, hands, obs["_refs"][nxt[0]["id"]], route, tracker)
                 record["route"] = route
@@ -1043,7 +1064,7 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
                 # query. Enter in the box, the way a person searches - a site's
                 # Search button is often hidden until the box has focus (live,
                 # Wikipedia: the click waited 20s on an invisible button).
-                tried.add(search["id"])
+                tried.add(tried_key(obs, search))
                 record["searched"] = {"from": obs["url"], "query": str(search.get("value") or "")}
                 page = _enter(ctx, page, hands, obs["_refs"][search["id"]], route, tracker)
                 record["route"] = route
@@ -1069,6 +1090,14 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
         if state == ps.CONTENT:
             target = way_forward(obs, goal, skill, site, tried=tried)
             chooser = "the page's own words"
+            if target is None and obs["url"] not in relooked:
+                # A SCRIPT-DRAWN PAGE may not have drawn its way on yet (live
+                # 2026-09-17: Workday's posting once had no Apply at 10 s). One
+                # more look, before a model or a stop.
+                relooked.add(obs["url"])
+                webtask.settle(page)
+                _sleep(RELOOK_S)
+                continue
             if target is None and decide is not None:
                 said = _ask_model(decide, goal, obs, record)
                 if isinstance(said, dict) and said.get("done"):
@@ -1089,9 +1118,9 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
                 chooser = (record.get("last_decision") or {}).get("by") or "a model"
             if target is None:
                 return _stop(record, bm.NEEDS_YOU, "NO_WAY_FORWARD", obs, page=ps.say(obs["state"]))
-            tried.add(target["id"])
+            tried.add(tried_key(obs, target))
             before, before_state = obs["url"], obs["state"]
-            page = _click(ctx, page, hands, obs["_refs"][target["id"]], route, tracker)
+            page = _click(ctx, page, hands, obs["_refs"][target["id"]], route, tracker, follow=obs["url"])
             record["route"] = route
             bm.save(record)
             _note(record, f"followed {target['label'][:50]!r} (chosen by {chooser})")
@@ -1350,7 +1379,7 @@ def _apply(page, hands, fill: list[dict], route: list[dict], attached: list[dict
     return done
 
 
-def _click(ctx, page, hands, selector: str, route: list[dict], tracker: StatusTracker):
+def _click(ctx, page, hands, selector: str, route: list[dict], tracker: StatusTracker, follow: str = ""):
     before = webtask._open_pages(ctx)
     hands.click(selector)
     try:
@@ -1358,7 +1387,8 @@ def _click(ctx, page, hands, selector: str, route: list[dict], tracker: StatusTr
     except Exception:
         pass
     moved = webtask.follow_new_tab(ctx, page, before)
-    route.append({"action": "click", "selector": selector})
+    route.append({"action": "click", "selector": selector,
+                  **({"follow": True, "on": follow} if follow else {})})
     webtask.settle(moved)
     if moved is not page:
         route.append({"action": "new_tab", "selector": ""})
@@ -1575,7 +1605,7 @@ def _search_control(obs: dict, tried: set) -> dict | None:
              if t.get("role") in ("textbox", "combobox", "file", "password")]
     if not typed or not all(_SEARCH_WORD.search(str(t.get("label") or "")) for t in typed):
         return None
-    return next((t for t in typed if t.get("role") in ("textbox", "combobox") and t["id"] not in tried
+    return next((t for t in typed if t.get("role") in ("textbox", "combobox") and tried_key(obs, t) not in tried
                  and str(t.get("value") or "").strip()), None)
 
 
