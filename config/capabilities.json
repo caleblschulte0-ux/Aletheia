@@ -1385,7 +1385,7 @@
     },
     {
       "id": "work.projects",
-      "description": "Work on his projects when he says so - even with Claude and Codex out: run what can run now within existing authority, investigate harder work into evidence packets for a stronger model, and report what was done, what waits and on whom",
+      "description": "Work on your projects when you say so - even with Claude and Codex out: run what can run now within existing authority, investigate harder work into evidence packets for a stronger model, and report what was done, what waits and on whom",
       "provider": "aletheia.local",
       "status": "EXPERIMENTAL",
       "risk_class": "medium",
