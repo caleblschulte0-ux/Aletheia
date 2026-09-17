@@ -232,6 +232,12 @@ def add_words(pid: str, words: str, *, via: str, now: dt.datetime | None = None)
     if _her_own(via):
         raise PermissionError("what he adds to his mission comes from Caleb")
     record = load(pid)
+    if re.match(r"(?:retry|try again|redo)\b", words.lower()):
+        try:
+            task = retry(pid, re.sub(r"^(?:retry|try again|redo)\s*(?:on|with)?\s*", "", words.lower()), via=via, now=now)
+            return {"became": "retry", "task": task["title"]}
+        except ProgramError:
+            pass
     for decision in record.get("decisions") or []:
         if decision.get("state") != "open":
             continue
@@ -659,14 +665,51 @@ def unmet_needs(record: dict, task: dict) -> list[dict]:
     return [by_key[k] for k in task.get("needs") or [] if k in by_key and by_key[k]["state"] != ws.DONE]
 
 
+def blocked_by_needs(record: dict, task: dict) -> tuple[str, str, str] | None:
+    """(state, reason, next) for a task still waiting on others; None when it may run.
+
+    A task it needs that FAILED will never be "done", so waiting for it would be a wait with no
+    wake: that is his call (retry it, or go on without it), and it says so."""
+    unmet = unmet_needs(record, task)
+    if not unmet:
+        return None
+    failed = [t for t in unmet if t["state"] == ws.FAILED]
+    if failed:
+        return (ws.BLOCKED_USER, "a task it needs did not work: " + "; ".join(
+                    f"{t['title']} ({t.get('reason') or 'failed'})" for t in failed)[:240],
+                "when Caleb says retry it, or to go on without it")
+    return (ws.BLOCKED_EXTERNAL, "needs " + "; ".join(t["title"] for t in unmet)[:200] + " first",
+            "when that is done")
+
+
+def retry(pid: str, which: str, *, via: str, now: dt.datetime | None = None) -> dict:
+    """His word to try a failed task again (or, with `without`, to drop it as a need of the others)."""
+    now = _now(now)
+    if _her_own(via):
+        raise PermissionError("retrying or dropping failed work is Caleb's call")
+    want = set(re.findall(r"[a-z0-9]{3,}", str(which).lower()))
+
+    def change(record):
+        failed = [t for t in record.get("tasks") or [] if t["state"] == ws.FAILED]
+        scored = sorted(((len(want & set(re.findall(r"[a-z0-9]{3,}", t["title"].lower()))), t) for t in failed),
+                        key=lambda x: -x[0])
+        if not scored or (want and not scored[0][0]):
+            raise ProgramError("no failed task of that mission matches")
+        task = scored[0][1]
+        task.update(state=ws.READY, reason="", next="", attempts=0, plan=None, cursor=0, run=None, not_before=None)
+        _history(task, f"retry asked by Caleb ({via})", now)
+        record["updated_at"] = stamp(now)
+        return task
+    return update(pid, change)[1]
+
+
 def _task_view(record: dict, task: dict) -> dict:
     held = current_wait(task) if task["state"] in ws.WORK_WAITING else None
     state, reason, nxt = task["state"], task.get("reason") or "", task.get("next") or ""
     if state == ws.READY:
-        unmet = unmet_needs(record, task)
-        if unmet:
-            state, reason, nxt = (ws.BLOCKED_EXTERNAL, "needs " + "; ".join(t["title"] for t in unmet)[:200]
-                                  + " first", "when that is done")
+        blocked = blocked_by_needs(record, task)
+        if blocked:
+            state, reason, nxt = blocked
     view = {"key": task["key"], "title": task["title"], "workstream": task.get("workstream"),
             "state": state, "reason": reason, "next": nxt,
             "not_before": task.get("not_before"), "recurring": task.get("from_activity"),
@@ -831,7 +874,14 @@ def spoken_waiting(which: str = "", *, now: dt.datetime | None = None) -> str:
     lines = []
     for r in rows[:4]:
         when = _when_words(r.get("when"))
-        lines.append(f"{r['task']}: {r['why']}" + (f", until {when}" if when and r["state"] != ws.BLOCKED_USER else ""))
+        nudge = (r.get("follow_up") or {}).get("next_at")
+        if when and nudge and nudge == r.get("when"):
+            tail = f"; I'll check in about a follow-up {when}"
+        elif when and r["state"] != ws.BLOCKED_USER:
+            tail = f", until {when}"
+        else:
+            tail = ""
+        lines.append(f"{r['task']}: {r['why']}{tail}")
     more = f" And {len(rows) - 4} more." if len(rows) > 4 else ""
     return f"{len(rows)} waiting. " + "; ".join(lines) + "." + more
 

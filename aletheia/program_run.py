@@ -139,11 +139,9 @@ def source(now: dt.datetime) -> list[dict]:
             elif t_state == ws.RUNNING and _stale(task.get("run"), now):
                 t_state, reason, nxt = ws.READY, "", "resume from its last finished step"
             elif t_state == ws.READY:
-                unmet = _unmet_needs(record, task)
-                if unmet:
-                    t_state = ws.BLOCKED_EXTERNAL
-                    reason = "needs " + "; ".join(t["title"] for t in unmet)[:200] + " first"
-                    nxt = "when that is done"
+                blocked = pg.blocked_by_needs(record, task)
+                if blocked:
+                    t_state, reason, nxt = blocked
                 else:
                     nxt = nxt or "run its next step"
             elif t_state in ws.WORK_WAITING:

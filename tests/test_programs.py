@@ -476,6 +476,23 @@ class TasksRunThroughTheBrokerAndWait(Sandbox):
         self.assertNotEqual(again[0]["id"], first["id"])
         self.assertEqual(self.task(pid, "t2")["state"], ws.BLOCKED_USER)
 
+    def test_a_failed_need_is_his_call_not_a_wait_that_never_wakes_and_retry_is_his_word(self):
+        pid = self.active()["id"]
+
+        def fail(r):
+            t = next(t for t in r["tasks"] if t["key"] == "t2")
+            t.update(state=ws.FAILED, reason="the step did not work three times")
+        pg.update(pid, fail)
+        row = self.items()[pg.item_id(pid, "t3")]
+        self.assertEqual(row["state"], ws.BLOCKED_USER)
+        self.assertIn("did not work", row["reason"])
+        with self.assertRaises(PermissionError):
+            pg.retry(pid, "contact", via="aletheia-programs")
+        said = pg.add_words(pid, "retry contact the lister", via="operator-voice", now=NOW)
+        self.assertEqual(said["became"], "retry")
+        self.assertEqual(self.task(pid, "t2")["state"], ws.READY)
+        self.assertEqual(self.items()[pg.item_id(pid, "t3")]["state"], ws.BLOCKED_EXTERNAL)
+
     def test_silence_follows_up_through_his_approval_and_a_timeout_asks_him_not_fails(self):
         pid = self.active()["id"]
         program_run.run_task(pid, "t2", now=NOW)

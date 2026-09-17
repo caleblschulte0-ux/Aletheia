@@ -1711,6 +1711,8 @@ def _mission_command(kind: str, cmd: dict, quote: str) -> str:
         left = said.get("remaining", 0)
         return ("Thanks. " + (f"{left} more question{'s' if left != 1 else ''} before the draft is ready."
                               if left else "I'll redraft the mission with your answers."))
+    if became == "retry":
+        return f"Trying {said['task']} again."
     if became == "revision":
         return f"I'll draft that change to {found['title']} and check it with you before it takes effect."
     return f"Added to the draft of {found['title']}; I'll fold it in."
