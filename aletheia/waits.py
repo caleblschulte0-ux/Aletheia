@@ -45,7 +45,7 @@ Condition kinds (`{"kind": ..., ...}`):
     user_decision    {"question", "options"?}         Caleb chooses (`decide`)
     approval         {"approval_id"}                  Caleb approves or denies
     handoff          {"handoff_id"}                   a handed-off request finished
-    model_available  {"requirement"?}                 a model can think again
+    model_available  {"requirement"?, "not_before"?}  a model can think again
     requirement      {"requirement"}                  any world requirement returns
     verification     {"action_id"}                    an action's outcome is verified
     any_of           {"conditions": [...]}            whichever comes first
@@ -562,6 +562,11 @@ def _check_one(cond: dict, record: dict, now: dt.datetime) -> dict:
     if kind == "handoff":
         return _check_handoff(cond, record, now)
     if kind in ("model_available", "requirement"):
+        # A requirement check says a model is RUNNING, not that it will answer this ask in time: a wait
+        # that just failed on it carries a not_before, so it does not wake and fail again every beat.
+        floor = parse(cond.get("not_before"))
+        if floor is not None and now < floor:
+            return _no(f"not looking again before {cond['not_before']}")
         return _check_requirement(cond["requirement"], now)
     if kind == "verification":
         return _check_verification(cond, record, now)
@@ -694,6 +699,8 @@ def next_wake_at(record: dict) -> str | None:
     for c in [cond] + list(cond.get("conditions") or []):
         if c.get("kind") == "time_after":
             times.append(parse(c.get("at")))
+        if c.get("kind") in ("model_available", "requirement"):
+            times.append(parse(c.get("not_before")))
     times.append(parse((record.get("follow_up") or {}).get("next_at")))
     times.append(parse((record.get("timeout") or {}).get("at")))
     known = [t for t in times if t is not None]

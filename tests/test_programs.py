@@ -547,10 +547,12 @@ class TasksRunThroughTheBrokerAndWait(Sandbox):
         self.assertEqual(self.task(pid, "tcal")["state"], ws.BLOCKED_MODEL)
         up = wr._result("reasoning", True, "back", live=True, now=NOW)
         with mock.patch.object(wr, "world", return_value=up):
-            waits.reconcile(self.at(minutes=1))
+            waits.reconcile(self.at(minutes=1))           # a model is up, but it just failed: not yet
+            self.assertEqual(self.task(pid, "tcal")["state"], ws.BLOCKED_MODEL)
+            waits.reconcile(self.at(minutes=16))
         self.assertEqual(self.task(pid, "tcal")["state"], ws.READY)
         with mock.patch.object(program_compose, "model_args", return_value={}):
-            program_run.run_task(pid, "tcal", now=self.at(minutes=2))
+            program_run.run_task(pid, "tcal", now=self.at(minutes=17))
         task = self.task(pid, "tcal")
         self.assertEqual(task["state"], ws.BLOCKED_USER)
         self.assertIn("what should I use for when", task["reason"])

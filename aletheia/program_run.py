@@ -394,7 +394,8 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
                 args.update(compose.model_args(tool, task, args, missing, think=think))
             except reasoner.ReasonerUnavailable as exc:
                 step["args"] = args
-                pg.hold(record, task, {"kind": "model_available", "requirement": "reasoning"},
+                pg.hold(record, task, {"kind": "model_available", "requirement": "reasoning",
+                                       "not_before": pg.stamp(now + MODEL_RETRY)},
                         reason=f"needs a model to work out the {', '.join(missing)} for {tool.name} ({str(exc)[:80]})",
                         purpose="model", now=now, extra={"step": i})
                 task["run"] = None
@@ -596,12 +597,14 @@ def _nudge(record: dict, task: dict, now: dt.datetime, n: int) -> dict:
     key = f"{task['key']}-nudge{n}"
     if any(t["key"] == key for t in record["tasks"]):
         return next(t for t in record["tasks"] if t["key"] == key)
+    then = {"for": "", "who": who} if who else None
     nudge = pg._task_from({"key": key, "workstream": task.get("workstream"),
                            "title": f"Follow up: {task['title']}",
                            "detail": f"Follow up{' with ' + who if who else ''} about: {task.get('detail') or task['title']}",
                            "does": [f"send a follow-up message{' to ' + who if who else ''}"],
-                           "uses": tools_used[-1:], "needs": [], "then_wait": None,
+                           "uses": tools_used[-1:], "needs": [], "then_wait": then,
                            "outcomes": task.get("outcomes")}, now)
+    nudge["waited"] = True          # the nudge itself is not waited on; the original task still is
     record["tasks"].append(nudge)
     return nudge
 
@@ -634,7 +637,7 @@ def on_wait(pid: str, held: dict, event: str, now: dt.datetime) -> dict:
             then = timeout.get("then", "wake")
             _result(task, step, "", "timeout", timeout.get("means") or "timed out", now)
             if then == "ask_caleb":
-                question = f"{task['title']}: {timeout.get('means')}. What next?"
+                question = f"{str(timeout.get('means') or 'nothing came').rstrip('.')}. What next?"
                 task["waited"] = True
                 pg.hold(record, task, {"kind": "user_decision", "question": question,
                                        "options": ["follow up again", "wait longer", "move on"]},

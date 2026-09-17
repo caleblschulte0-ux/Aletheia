@@ -295,6 +295,10 @@ def model_args(tool, task: dict, args: dict, missing: list[str], *, think=None) 
         return {"args": {k: v for k, v in got.items() if k in missing and str(v).strip()}}
     if think is None:
         from aletheia import reasoning_gateway
+        # Boring work is ROUTINE (her own model first). With no frontier model, though, the routine
+        # ceiling (15 s local, 45 s total) is shorter than her own model needs on a CPU, so the
+        # standard class carries it: frontier is out anyway, and local gets the time to answer.
+        policy = "routine" if reasoning_gateway.frontier_available() else "standard"
         return reasoning_gateway.reason_json(ARGS_SYSTEM, str(task.get("title") or ""), context=context,
-                                             policy="routine", validator=validate).output["args"]
+                                             policy=policy, validator=validate).output["args"]
     return think(ARGS_SYSTEM, str(task.get("title") or ""), context=context, validator=validate)["args"]
