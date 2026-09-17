@@ -197,3 +197,36 @@ and she has the general planning, browser, communication, calendar, memory,
 task management, local reasoning, fallback and long-running mission
 infrastructure to actually attempt it. The first is being built now; the
 second proves whether it was built correctly.
+
+## Addendum, 2026-09-17: research -> strategy -> execution -> measurement
+
+His words: *"Aletheia needs a general research → strategy → execution →
+measurement capability. I should be able to say something like, 'These three
+AI YouTube channels are doing way better than ours. Study them deeply, figure
+out what they do better, and improve our channel,' and have that trigger
+substantial research, comparison against our own project, evidence-backed
+hypotheses, actual project changes/experiments, and later measurement."*
+
+*"Do NOT build YouTube-specific architecture. This same pattern should work for
+Barkly competitors, products, websites, businesses, etc. The current project
+loop is good at fixing known defects; make sure Aletheia can also turn external
+research into justified project direction and then execute it safely."*
+
+So, as general capability (no domain-specific code; YouTube, Barkly, products,
+websites and businesses are use cases):
+
+- **Research**: study named or discovered comparables deeply (browser, web
+  read, research, public APIs where they exist), with provenance for every
+  observation; open-world content stays untrusted data.
+- **Compare**: the same lens applied to his own project (its repo, its public
+  surface, its own metrics), so differences are measured, not asserted.
+- **Strategy**: evidence-backed hypotheses, each naming the evidence, the
+  expected effect, the metric that would show it, and the cost/risk; ranked;
+  he can accept, reject or reshape them.
+- **Execution**: accepted hypotheses become real project changes or
+  experiments through the existing safe paths (charter steps, local repair or
+  the frontier code path, branches/PRs, approvals for anything outward-facing),
+  with a baseline recorded before the change.
+- **Measurement**: later, the metric is read again on a schedule (durable
+  waits), compared with the baseline, and the result feeds back into the
+  strategy (keep, revert, iterate) and into memory.
