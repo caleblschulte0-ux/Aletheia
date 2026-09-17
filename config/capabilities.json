@@ -338,7 +338,7 @@
     },
     {
       "id": "email.followup",
-      "description": "Send a follow-up on a conversation he already approved a message on - re-asking only what he approved asking",
+      "description": "Send a follow-up on a conversation you already approved a message on - re-asking only what you approved asking",
       "provider": "aletheia.local",
       "status": "EXPERIMENTAL",
       "risk_class": "medium",
@@ -363,7 +363,7 @@
     },
     {
       "id": "calendar.hold",
-      "description": "Find free time around travel, pencil in a tentative hold in her own calendar, propose and confirm times, and wake deadlines before they are due",
+      "description": "Find free time around travel, pencil in a tentative hold on the calendar, propose and confirm times, and wake deadlines before they are due",
       "provider": "aletheia.local",
       "status": "EXPERIMENTAL",
       "risk_class": "low",
@@ -1373,7 +1373,7 @@
     },
     {
       "id": "mission.long",
-      "description": "Carry a long mission he states in his own words - drafted into measurable outcomes, workstreams, tasks, recurring activities and decisions, confirmed by him, then worked for weeks through the work engine, with every wait (a reply, a date, his decision, a model) held durably with its reason, wake condition, follow-up and timeout",
+      "description": "Carry a long mission you state in your own words - drafted into measurable outcomes, workstreams, tasks, recurring activities and decisions, confirmed by you, then worked for weeks through the work engine, with every wait (a reply, a date, your decision, a model) held durably with its reason, wake condition, follow-up and timeout",
       "provider": "aletheia.local",
       "status": "EXPERIMENTAL",
       "risk_class": "medium",

@@ -652,9 +652,11 @@ _HE_CAN_ASK_FOR = {
     # actually asked. A capability nobody hears about is one he will
     # never use.
     "making Word, Excel and PowerPoint files": ("doc_make",),
-    "email": ("email_check", "email_read", "email_draft"),
+    "email": ("email_check", "email_read", "email_draft", "thread_draft", "thread_send",
+              "thread_status", "thread_followup"),
     "texting people": ("message_send",),
-    "your calendar and the weather": ("free_time", "meet"),
+    "your calendar and the weather": ("free_time", "meet", "calendar_find_free",
+                                      "calendar_hold", "calendar_propose"),
     "people you know": ("contacts", "contact_add", "watch_email_from",
                         "watches"),
     "remembering things": ("remember", "recall", "forget", "note"),
