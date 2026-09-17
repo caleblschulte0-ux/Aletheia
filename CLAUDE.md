@@ -691,11 +691,25 @@ the best of ChatGPT. Both halves are the rule.
   `reasoner.local_text` after Claude and ChatGPT, and the answer leads with
   "Claude's out until 4:40 PM, so this answer is from my own model." An
   answer he trusts as Claude's and is not is the failure he cannot detect.
-- **Repositories stay with the subscriptions.** Code proposals and merge
-  reviews call `subscription_json` directly and never reach a local model;
-  `tests/test_the_bridge.py` holds that. Charter DRAFTS may be written
-  locally — they are not code, he says yes before anything happens, and
-  the charter carries `drafted_by`.
+- **Small repairs may be local; everything else about code stays frontier.**
+  Until 2026-09-16 the rule was "Repositories stay with the subscriptions"
+  (from his 09-10 words that only Claude and the best of ChatGPT change his
+  repositories). His 2026-09-16 continuity brief (`docs/CONTINUITY_BRIEF.md`)
+  narrows it, in his words: *"If one of my projects has a small bug, a failed
+  scheduled task, a broken path, a simple script issue, a malformed config
+  value, a small UI regression, or another bounded problem, I want Aletheia
+  to have enough local coding capability to investigate it and safely fix it
+  without needing Claude or Codex every time."* So: a BOUNDED repair (the
+  brief's list) may be drafted by her own model, on a branch, with the code
+  worker's safety properties, tests and verification, and a PR — never a
+  default-branch push. Architecture, auth, permissions, authority,
+  migrations, sweeping refactors, dependency changes, unclear multi-system
+  failures and Aletheia's own safety boundaries are escalated to a frontier
+  model with an investigation packet. Merging without him still needs a
+  review by a DIFFERENT model through `project_merge`, and Aletheia's own code
+  and the trader still never merge autonomously. Code work asks the gateway
+  for a class of reasoning, not a company. Charter drafts may be local as
+  before, carrying `drafted_by`.
 - **Nobody able to think is not a failure.** A queued ask whose draft hit
   `ReasonerUnavailable` costs no attempt; the next cycle tries again.
 - **The job hunt has its own chain.** His words, 2026-09-13: *"make it so that
