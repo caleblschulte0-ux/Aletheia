@@ -80,6 +80,26 @@ Rules:
 """
 
 
+SKELETON_SYSTEM = """You shape a LONG-RUNNING MISSION for Caleb from his own words. DISCOVER its parts from what he
+said; do not use a fixed list of life areas. Only use facts he gave. Keep it short.
+Return JSON only:
+{"title": short name, "objective": one sentence, "horizon": his time frame or "",
+ "questions": [{"ask": a question that makes an outcome measurable}] (at most 3),
+ "outcomes": [{"key": "o1", "text": a concrete result, "measure": how to tell it is met}] (at most 4),
+ "workstreams": [{"key": "w1", "title": a part of the mission, "outcomes": ["o1"]}] (at most 4)}"""
+
+STREAM_SYSTEM = """You plan ONE workstream of Caleb's long mission as small concrete tasks. Only use facts he gave;
+never invent people, prices or dates. Anything that reaches another person is still a task (he approves it
+when it runs). Nothing may spend money. Return JSON only:
+{"tasks": [{"key": "t1", "title": imperative, "detail": specifics from his words, "does": [plain verb phrases],
+            "uses": [names from TOOLS or []], "needs": [earlier task keys],
+            "then_wait": null or {"for": "reply"|"date"|"event"|"decision", "who": ..., "in_days": n,
+                                  "follow_up_days": n, "timeout_days": n, "timeout_means": ...}}] (at most 4),
+ "activities": [{"key": "a1", "title": ..., "does": [...], "uses": [...],
+                 "cadence": {"every": "day"|"week", "at": "HH:MM"}, "watch": true or false}] (at most 1),
+ "decisions": [{"key": "d1", "question": ..., "options": [...], "after": [task keys]}] (at most 1)}"""
+
+
 class ShapeError(ValueError):
     pass
 
@@ -262,12 +282,102 @@ def context_for(words: str, *, catalog: dict, answers: list[dict] | None = None,
     return ctx
 
 
+def _skeleton_validator(value: Any) -> dict:
+    if not isinstance(value, dict):
+        raise ShapeError("the skeleton must be an object")
+    probe = dict(value)
+    probe["tasks"] = [{"title": "placeholder", "workstream": ""}]
+    checked = validate(probe)
+    checked.pop("tasks", None)
+    for key in ("activities", "decisions"):
+        checked.pop(key, None)
+    return checked
+
+
+def _stream_validator(stream: dict, names: set[str]) -> Callable[[Any], dict]:
+    def check(value: Any) -> dict:
+        if not isinstance(value, dict):
+            raise ShapeError("a workstream plan must be an object")
+        probe = {"title": "x", "outcomes": [{"key": o, "text": o} for o in stream.get("outcomes") or ["o1"]],
+                 "workstreams": [{"key": stream["key"], "title": stream["title"], "outcomes": stream.get("outcomes")}],
+                 "tasks": value.get("tasks"), "activities": value.get("activities"),
+                 "decisions": value.get("decisions")}
+        if not (value.get("tasks") or value.get("activities")):
+            return {"tasks": [], "activities": [], "decisions": []}     # a part with nothing to do yet
+        checked = validate(probe, tool_names=names)
+        return {k: checked[k] for k in ("tasks", "activities", "decisions")}
+    return check
+
+
+def shape_staged(words: str, *, catalog: dict, answers: list[dict] | None = None, current: dict | None = None,
+                 revision: str = "", think: Callable | None = None, now: dt.datetime | None = None) -> dict:
+    """The same structure in small calls - a skeleton, then one call per workstream - so a local model on a
+    CPU can finish each inside its time limit. Used when no frontier model can think."""
+    from aletheia import program_compose
+    names = set(catalog)
+    context = context_for(words, catalog=catalog, answers=answers, current=current, revision=revision, now=now)
+    context.pop("TOOLS", None)
+    if context.get("current_structure"):
+        cs = context["current_structure"]
+        context["current_structure"] = {"title": cs.get("title"), "outcomes": cs.get("outcomes"),
+                                        "workstreams": [{"key": w.get("key"), "title": w.get("title")}
+                                                        for w in cs.get("workstreams") or []]}
+    ask = _asker(think)
+    skeleton, provider, degraded = ask(SKELETON_SYSTEM, words, context, _skeleton_validator)
+    structure = dict(skeleton, tasks=[], activities=[], decisions=[])
+    for stream in skeleton["workstreams"]:
+        blob = f"{stream['title']} {words}"
+        sub = {"mission": skeleton.get("objective") or words[:300], "his_words": words[:900],
+               "workstream": {"key": stream["key"], "title": stream["title"]},
+               "outcomes": [o for o in skeleton["outcomes"] if o["key"] in (stream.get("outcomes") or [])],
+               "TOOLS": program_compose.menu(blob, catalog, limit=10, width=60), "today": context.get("today")}
+        if context.get("his_answers"):
+            sub["his_answers"] = context["his_answers"]
+        part, provider, degraded = ask(STREAM_SYSTEM, stream["title"], sub, _stream_validator(stream, names))
+        prefix = stream["key"]
+        rename = {t["key"]: f"{prefix}{t['key']}" for t in part["tasks"]}
+        for t in part["tasks"]:
+            t.update(key=rename[t["key"]], workstream=stream["key"], needs=[rename[n] for n in t["needs"] if n in rename])
+            structure["tasks"].append(t)
+        for a in part["activities"]:
+            structure["activities"].append(dict(a, key=f"{prefix}{a['key']}", workstream=stream["key"]))
+        for d in part["decisions"]:
+            structure["decisions"].append(dict(d, key=f"{prefix}{d['key']}", workstream=stream["key"],
+                                               after=[rename[k] for k in d["after"] if k in rename]))
+    structure = validate(structure, tool_names=names)
+    return {"structure": structure, "drafted_by": provider, "degraded": degraded, "staged": True}
+
+
+def _asker(think: Callable | None):
+    def ask(system: str, text: str, context: dict, validator: Callable) -> tuple[dict, str, str | None]:
+        if think is not None:
+            return think(system, text, context=context, validator=validator), getattr(think, "provider", "scripted"), None
+        from aletheia import reasoner, reasoning_gateway
+        result = reasoning_gateway.reason_json(system, text, context=context, policy="standard",
+                                               model=reasoner.PLAN_MODEL, timeout_s=WORK_BUDGET_S,
+                                               validator=validator, max_context_bytes=CONTEXT_BYTES,
+                                               work_budget_s=WORK_BUDGET_S)
+        return result.output, result.provider, result.degraded
+    return ask
+
+
 def shape(words: str, *, catalog: dict, answers: list[dict] | None = None, current: dict | None = None,
-          revision: str = "", think: Callable | None = None, now: dt.datetime | None = None) -> dict:
-    """{"structure", "drafted_by", "degraded"}. Raises reasoner.ReasonerUnavailable when nobody can think."""
+          revision: str = "", think: Callable | None = None, now: dt.datetime | None = None,
+          staged: bool | None = None) -> dict:
+    """{"structure", "drafted_by", "degraded"}. Raises reasoner.ReasonerUnavailable when nobody can think.
+
+    With a frontier model available it is one call; with none (her own model on a CPU) it is staged, because
+    one call for the whole structure does not finish inside a local model's time limit (measured 2026-09-16:
+    qwen3:8b timed out at 300 s on the single-call draft)."""
     words = _text(words, 1500)
     if not words:
         raise ShapeError("there is nothing to shape")
+    if staged is None and think is None:
+        from aletheia import reasoning_gateway
+        staged = not reasoning_gateway.frontier_available()
+    if staged:
+        return shape_staged(words, catalog=catalog, answers=answers, current=current, revision=revision,
+                            think=think, now=now)
     names = set(catalog)
     context = context_for(words, catalog=catalog, answers=answers, current=current, revision=revision, now=now)
 

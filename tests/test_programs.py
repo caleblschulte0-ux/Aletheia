@@ -253,6 +253,7 @@ class ShapingIsGeneral(Sandbox):
         result = reasoning_gateway.GatewayResult(draft(), "ollama:qwen3:8b", "standard", "fast", "qwen3:8b",
                                                  degraded="subscriptions unavailable: ReasonerUnavailable")
         with mock.patch.object(reasoning_gateway, "reason_json", return_value=result) as asked, \
+                mock.patch.object(reasoning_gateway, "frontier_available", return_value=True), \
                 mock.patch.object(program_run, "THINK", None):
             record = pg.propose("change things", via="operator-voice", now=NOW)
             program_run.do_shape(record["id"], now=NOW)
@@ -260,6 +261,26 @@ class ShapingIsGeneral(Sandbox):
         drafted = pg.load(record["id"])["drafted_by"]
         self.assertTrue(drafted["local"])
         self.assertIn("subscriptions unavailable", drafted["degraded"])
+
+    def test_with_no_frontier_it_drafts_in_small_staged_calls_that_a_local_model_can_finish(self):
+        calls = []
+
+        def think(system, text, *, context=None, validator=None, **_):
+            calls.append(system)
+            if system == program_shaping.SKELETON_SYSTEM:
+                return validator({k: draft()[k] for k in ("title", "objective", "questions", "outcomes",
+                                                           "workstreams")})
+            stream = context["workstream"]["key"]
+            tasks = [t for t in draft()["tasks"] if t["workstream"] == stream]
+            keys = {x["key"] for x in tasks}
+            return validator({"tasks": [dict(t, needs=[n for n in t["needs"] if n in keys]) for t in tasks],
+                              "activities": [], "decisions": []})
+        shaped = program_shaping.shape("change things", catalog=fake_catalog(), think=think, staged=True)
+        self.assertEqual(calls, [program_shaping.SKELETON_SYSTEM] + [program_shaping.STREAM_SYSTEM] * 2)
+        keys = [t["key"] for t in shaped["structure"]["tasks"]]
+        self.assertEqual(keys, ["w1t1", "w2t2", "w2t3"])
+        self.assertEqual(shaped["structure"]["tasks"][2]["needs"], ["w2t2"])
+        self.assertTrue(shaped["staged"])
 
     def test_nobody_able_to_think_is_blocked_model_not_failure(self):
         from aletheia import reasoning_gateway
