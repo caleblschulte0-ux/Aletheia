@@ -180,7 +180,7 @@ def act(it: dict, *, now: dt.datetime | None = None) -> dict:
                 "next": v.get("next", "when it arrives")}
     if outcome in {"small_capability", "large_capability"} and cap:
         from aletheia import gaps
-        worker = "local-repair" if outcome == "small_capability" else "claude"
+        worker = ws.LOCAL_REPAIR_WORKER if outcome == "small_capability" else "claude"
         filed = gaps.materialize([cap], worker=worker)
         ids = ", ".join(t["id"] for t in filed) or "nothing new"
         return {"state": ws.DONE, "reason": "", "next": f"queued as {ids} (goes through review and tests)"}
@@ -188,7 +188,7 @@ def act(it: dict, *, now: dt.datetime | None = None) -> dict:
         # No registry id to materialize: file the scoping as a task for the right tier.
         from aletheia import tasks
         tid = "build-" + re.sub(r"[^a-z0-9]+", "-", str(v.get("step") or "gap").lower()).strip("-")[:50]
-        worker = "local-repair" if outcome == "small_capability" else "claude"
+        worker = ws.LOCAL_REPAIR_WORKER if outcome == "small_capability" else "claude"
         try:
             tasks.create(tid, f"Scope and build: {v.get('step')}"[:200], assigned_worker=worker, priority=3)
         except FileExistsError:

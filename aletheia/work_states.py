@@ -48,6 +48,13 @@ STANDARD = "standard"    # frontier first; local fallback when frontier is out
 CRITICAL = "critical"    # frontier required; local may shadow, never answer
 REASONING_CLASSES = {ROUTINE, STANDARD, CRITICAL}
 
+# Who a queued item is assigned to, as the requirement it implies. A task for a
+# frontier worker is reserved for a stronger model (NEEDS_STRONGER_MODEL when none
+# can think); a task for the local repair tier needs only her own model.
+LOCAL_REPAIR_WORKER = "local-repair"
+FRONTIER_WORKERS = {"claude", "codex", "chatgpt", "frontier"}
+LOCAL_WORKERS = {LOCAL_REPAIR_WORKER, "local", "ollama"}
+
 # ---- requirements ---------------------------------------------------------------
 
 REQUIREMENTS = {

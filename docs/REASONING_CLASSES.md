@@ -13,7 +13,8 @@ gateway's policies (`aletheia/reasoning_gateway.py`, vocabulary in
 
 Gateway entry points: `reason_json(policy=...)`, `thinker(policy)` (a drop-in for
 the old `subscription_json` seam), `frontier_json` / `local_json` for a caller
-that keeps its own sticky chain, `local_ready()`, `frontier_available()`, and
+that keeps its own sticky chain, `local_ready()`, `frontier_available()`,
+`frontier_status()` (who could answer, and when a limit resets, without asking), and
 `ALETHEIA_FRONTIER_OFF=1`, which makes every gateway frontier rung refuse (a
 simulation for acceptance test A; it only ever removes ability).
 
@@ -51,6 +52,22 @@ the call through the gateway.
 
 ## Local browser decisions on this laptop
 
-See the measured timings below; the routine slice for one decision is
-`browser_loop.LOCAL_DECIDE_S`.
+Measured 2026-09-16 on his laptop (no GPU, Ollama `num_thread` 2), one real
+decision on a 20-target clinic home page, goal "book an annual physical", through
+the routine prompt (`browser_loop.compact_page`, about 1,000 characters, 290 prompt
+tokens, 14 output tokens). Both models chose the right link ("Request an
+appointment") and said they were sure.
+
+| model | cold | warm | notes |
+|---|---|---|---|
+| `qwen3-vl:4b` | 58.8 s (42.4 s load, 14.0 s prompt, 2.2 s output) | 2.6 s | answers in `thinking`; `local_brain` already reads it there |
+| `qwen3:8b` | not measured cold (it was already loaded) | 7.2 s (0.3 s prompt, 6.7 s output) | |
+| `qwen3:8b` while another worker was using Ollama | 180-260 s | | Ollama serves one request at a time; the wait is the queue |
+
+So a warm local decision costs 3-7 s, and the routine slice for one decision
+(`browser_loop.LOCAL_DECIDE_S`, 40 s, capped by the gateway's 45 s routine total)
+covers it; a cold load or a busy Ollama does not fit, and then the decision
+escalates to the standard class (frontier first). With the frontier off as well,
+a contended local model returns no decision and the loop stops at a named
+boundary (`NO_WAY_FORWARD`) rather than guessing.
 

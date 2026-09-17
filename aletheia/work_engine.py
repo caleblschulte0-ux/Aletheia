@@ -153,9 +153,9 @@ def _caps_to_requirements(capability_ids, worker: str = "") -> list[str]:
     """Registry capability ids and an assigned worker -> requirement names."""
     reqs = []
     worker = str(worker or "").lower()
-    if worker in {"claude", "codex", "chatgpt", "frontier"}:
+    if worker in ws.FRONTIER_WORKERS:
         reqs.append("frontier_reasoning")
-    elif worker in {"local", "local-repair", "ollama", "aletheia-local"}:
+    elif worker in ws.LOCAL_WORKERS:
         reqs.append("local_reasoning")
     for cid in capability_ids or []:
         head = str(cid).split(".")[0]
@@ -180,7 +180,7 @@ def source_tasks(now: dt.datetime) -> list[dict]:
                       # Work deliberately assigned to a frontier worker is reserved for a
                       # stronger model: with none able to think it NEEDS one, it is not merely
                       # waiting for a busy one.
-                      stronger=str(t.get("assigned_worker") or "").lower() in {"claude", "codex", "chatgpt"})
+                      stronger=str(t.get("assigned_worker") or "").lower() in ws.FRONTIER_WORKERS)
         note = str(t.get("result") or t.get("error") or "")
         title = str(t.get("description") or tid)
         if status == "COMPLETED":
