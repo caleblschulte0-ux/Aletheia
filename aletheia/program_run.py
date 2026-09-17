@@ -372,6 +372,12 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
             except Exception:  # noqa: BLE001 - the gap still shapes the task below
                 pass
     plan = task["plan"]
+    refused = next((g for g in plan["gaps"] if g["outcome"] == "refuse_policy"), None)
+    if refused is not None:
+        # One step that would spend money refuses the TASK: running the rest is not a smaller version of it.
+        task.update(state=ws.FAILED, run=None, reason=f"{refused['need']}: {refused['why']}", next=refused["next"])
+        _commit(pid, task, now)
+        return {"state": ws.FAILED, "why": refused["why"]}
     if not plan["steps"]:
         return _no_tool(record, task, now)
 
@@ -442,7 +448,7 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
                 _commit(pid, task, now)
                 return {"state": ws.FAILED, "why": str(exc)}
             pg.hold(record, task, {"kind": "handoff", "handoff_id": filed["id"]},
-                    reason=f"needs Caleb's approval: {filed.get('consequence') or tool.name}", purpose="handoff",
+                    reason=f"needs Caleb's approval to {(step.get('for') or task['title'])[:160]}", purpose="handoff",
                     now=now, extra={"step": i})
             task["run"] = None
             _commit(pid, task, now)

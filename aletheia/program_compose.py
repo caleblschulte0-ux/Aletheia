@@ -206,7 +206,18 @@ def compose(task: dict, catalog: dict, *, registry: dict | None = None) -> dict:
     if not needs and not steps:
         needs = [" ".join(str(x) for x in (task.get("title"), task.get("detail")) if x)]
     gaps: list[dict] = []
+    named = bool(steps)
     for need in needs:
+        if named:
+            # A model that named the tools is trusted to have covered the task with them; only the one
+            # permanent rule is re-checked on each need, so naming a tool can never carry a payment.
+            verdict = work_gaps.classify(need, registry=registry)
+            if verdict["outcome"] == "refuse_policy":
+                gaps.append({"need": need, "outcome": verdict["outcome"], "why": verdict["why"],
+                             "next": verdict["next"], "state": verdict["state"], "tool": ""})
+            elif not steps[0]["for"]:
+                steps[0]["for"] = need
+            continue
         covered = next((s for s in steps if score(need, catalog[s["tool"]]) >= MATCH_THRESHOLD), None)
         if covered is not None:
             covered["for"] = covered["for"] or need

@@ -396,6 +396,24 @@ class CompositionChoosesByCapability(Sandbox):
         self.assertEqual(plan["gaps"][0]["outcome"], "refuse_policy")
         self.assertEqual(other["gaps"][0]["state"] in ws.WORK_STATES, True)
 
+    def test_named_tools_cover_the_needs_but_can_never_carry_a_payment(self):
+        cat = fake_catalog()
+        with mock.patch("aletheia.work_gaps._registry", return_value={"capabilities": []}):
+            plan = program_compose.compose({"title": "x", "uses": ["send.message"],
+                                            "does": ["mention the times that suit him", "pay the deposit"]}, cat)
+        self.assertEqual([s["tool"] for s in plan["steps"]], ["send.message"])
+        self.assertEqual([g["outcome"] for g in plan["gaps"]], ["refuse_policy"])
+        pid = self.active()["id"]
+        record = pg.load(pid)
+        record["tasks"].append(pg._task_from({"key": "tx", "title": "Reserve it", "uses": ["send.message"],
+                                              "does": ["pay the deposit"]}, NOW))
+        with pg._LOCK:
+            pg.save(record)
+        with mock.patch("aletheia.work_gaps._registry", return_value={"capabilities": []}):
+            program_run.run_task(pid, "tx", now=NOW)
+        self.assertEqual(self.task(pid, "tx")["state"], ws.FAILED)
+        self.assertEqual(handoffs.all_handoffs(handoffs.AWAITING), [])      # nothing was even asked
+
     def test_the_real_catalog_composes_without_any_domain_table(self):
         cat = tools.catalog()
         plan = program_compose.compose({"title": "x", "does": ["research the cost of living there",
