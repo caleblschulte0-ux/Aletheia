@@ -1258,8 +1258,16 @@ def _note(record: dict, text: str) -> None:
 def _ask_model(decide: Callable, goal: str, obs: dict, record: dict, *, visited: set | None = None) -> dict | None:
     """A model picks a control when the deterministic reading has none. It
     names a target; the loop still refuses anything that commits."""
+    # WHAT IS ACTUALLY A WAY ON is what the model is shown: a link back to a page
+    # this mission has already read is not one, and leaving it in the list is how
+    # her own model spent nineteen steps choosing the page it was on.
+    been = (visited or set()) | {str(obs.get("url") or "").split("#")[0]}
+    page = for_model(obs)
+    page["targets"] = [t for t in page.get("targets") or []
+                       if not (t.get("href") and str(t["href"]).split("#")[0] in been)]
+    page["url"] = str(obs.get("url") or "")
     try:
-        said = decide(goal, for_model(obs), list(record.get("history") or [])[-6:])
+        said = decide(goal, page, list(record.get("history") or [])[-6:])
     except Exception:
         return None
     if isinstance(said, dict):
@@ -1343,7 +1351,8 @@ def compact_page(goal: str, page: dict, history: list, *, start: int = 0) -> str
     kept small enough that her fast local model is the one asked. Cut first:
     page text, then the targets furthest down the page."""
     head = [f"GOAL: {str(goal)[:200]}",
-            f"PAGE: {str(page.get('title') or '')[:80]} | {page.get('state') or ''}"]
+            f"PAGE: {str(page.get('title') or '')[:80]} | {page.get('state') or ''}",
+            "(Every target listed is somewhere you have NOT been yet.)"]
     targets = [t for t in page.get("targets") or [] if isinstance(t, dict)]
     rows = [f"{t.get('id')} {t.get('role') or ''} {str(t.get('label') or '')[:50]}"
             for t in targets[start:start + LOCAL_TARGETS]]
