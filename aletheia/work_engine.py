@@ -355,6 +355,12 @@ def source_native(now: dt.datetime) -> list[dict]:
             if isinstance(v, dict) and v.get("source") == "work"]
 
 
+def source_programs(now: dt.datetime) -> list[dict]:
+    """Long missions (`aletheia.programs`): their drafting, decisions and tasks."""
+    from aletheia import program_run
+    return program_run.source(now)
+
+
 #: Every store the engine reads, by name. A new queue adds ONE line here.
 SOURCES: dict[str, Callable[[dt.datetime], list[dict]]] = {
     "tasks": source_tasks,
@@ -362,6 +368,7 @@ SOURCES: dict[str, Callable[[dt.datetime], list[dict]]] = {
     "handoffs": source_handoffs,
     "browser_missions": source_browser_missions,
     "project_asks": source_project_asks,
+    "programs": source_programs,
     "waits": source_waits,
     "work": source_native,
 }
@@ -426,7 +433,8 @@ def assess(it: dict, now: dt.datetime, *, probe: bool = False, persist: bool = F
             return {"verdict": "wait", "state": state, "reason": it["reason"], "next": it["next"],
                     "not_before": it.get("not_before"), "checkpoint": False}
     not_before = _parse(it.get("not_before"))
-    if state == ws.RETRY_LATER and not_before and not_before > now:
+    # A known time before which looking again is pointless: a retry, or a model's reset.
+    if state in (ws.RETRY_LATER, ws.BLOCKED_MODEL) and not_before and not_before > now:
         return {"verdict": "wait", "state": state, "reason": it["reason"], "next": it["next"],
                 "not_before": it["not_before"], "checkpoint": False}
     requires = list(it["requires"])
@@ -488,6 +496,16 @@ def _run_gap(it: dict, now: dt.datetime) -> dict:
 RUNNERS: dict[str, Callable[[dict, dt.datetime], dict]] = {"gap": _run_gap}
 
 
+def _run_program_item(it: dict, now: dt.datetime) -> dict:
+    from aletheia import program_run
+    return program_run.run_item(it, now)
+
+
+#: Sources whose items the engine STARTS (their own store keeps the truth, so nothing
+#: is written to the overlay for them). A source not named here is inventory only.
+SOURCE_RUNNERS: dict[str, Callable[[dict, dt.datetime], dict]] = {"programs": _run_program_item}
+
+
 def _write_checkpoints(store: dict, views: list[dict], now: dt.datetime) -> list[str]:
     changed = []
     for view in views:
@@ -542,8 +560,18 @@ def reconcile(now: dt.datetime | None = None, *, probe: bool = True, max_runs: i
     for it in picked["executable"]:
         if len(ran) >= max_runs or picked["halted"]:
             break
-        runner = RUNNERS.get(it.get("kind") or "") if it["source"] == "work" else None
+        native = it["source"] == "work"
+        runner = RUNNERS.get(it.get("kind") or "") if native else SOURCE_RUNNERS.get(it["source"])
         if runner is None:
+            continue
+        if not native:
+            try:
+                outcome = runner(it, now)
+            except Exception as exc:  # noqa: BLE001 - one source's runner never stops the beat
+                outcome = {"state": ws.RETRY_LATER, "next": "try again",
+                           "reason": f"the runner failed ({type(exc).__name__}: {exc})"[:200]}
+            ran.append({"id": it["id"], "state": outcome.get("state"), "next": outcome.get("next")})
+            _journal("action", it["id"], f"work started -> {outcome.get('state')}: {str(outcome.get('next') or '')[:160]}")
             continue
         held = store["items"].get(it["id"]) or it
         try:
