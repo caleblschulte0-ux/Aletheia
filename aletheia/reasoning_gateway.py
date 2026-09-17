@@ -19,9 +19,11 @@ from typing import Callable, Any
 
 from aletheia import (
     brain, local_model_pool, model_pool_config, reasoner, training_data,
+    work_states,
 )
 
-POLICIES = {"routine", "standard", "critical"}
+# The classes are the shared vocabulary (aletheia.work_states), not restated here.
+POLICIES = set(work_states.REASONING_CLASSES)
 ROUTINE_TOTAL_TIMEOUT_S = 45.0
 ROUTINE_LOCAL_TIMEOUT_S = 15.0
 # 180, not 90 (2026-09-04): a planner call carries a 15 KB grammar and a

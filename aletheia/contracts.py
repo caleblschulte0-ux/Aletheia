@@ -51,6 +51,15 @@ GOAL_STEP_OWNERS = {"thea", "caleb"}
 GOAL_PROJECT_RISKS = {"low", "high"}
 
 
+# The continuity vocabulary (work states, requirements, gap outcomes) lives in
+# its own dependency-free module so every queue can import it; it is part of
+# this vocabulary all the same.
+from aletheia.work_states import (  # noqa: E402,F401
+    WORK_STATES, WORK_TERMINAL, WORK_WAITING, REQUIREMENTS, GAP_OUTCOMES,
+    REASONING_CLASSES,
+)
+
+
 # ---- validator machinery ----------------------------------------------------
 
 def _check(obj: dict, name: str, required: dict, optional: dict) -> list[str]:
