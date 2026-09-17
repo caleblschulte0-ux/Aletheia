@@ -294,7 +294,8 @@ OBSERVE_JS = r"""() => {
       : (el.type === 'submit' && document.querySelectorAll(bySubmit).length === 1
           ? bySubmit : path(el));
     if (!selector) continue;
-    buttons.push({selector, text: (el.innerText || el.value || '').trim().slice(0,70)});
+    buttons.push({selector, text: (el.innerText || el.value || '').trim().slice(0,70),
+                  ...(el.closest('#onetrust-consent-sdk, #onetrust-pc-sdk, #CybotCookiebotDialog, #usercentrics-root, #truste-consent-track, #didomi-host, .osano-cm-window, .cc-window, [id*="cookie" i], [class*="cookie" i], [aria-label*="cookie" i], [id*="consent-banner" i], [class*="consent-banner" i], [id*="tracking-consent" i], [class*="tracking-consent" i]') ? {consent: true} : {})});
     if (buttons.length > 30) break;
   }
   // The ARIA widgets: an answer she can click, and the question it answers.
@@ -571,7 +572,7 @@ def observe(page) -> dict:
     fields = read_forms(page)
     trimmed = []
     for field in fields[:MAX_FIELDS]:
-        if formfill.is_anti_bot(field) or formfill.is_unseen_text_box(field):
+        if formfill.is_anti_bot(field) or formfill.is_unseen_text_box(field) or field.get("consent"):
             # Not offered to the model as something to fill: a CAPTCHA's token
             # box is not a question, and she does not pass the check for him.
             continue
@@ -1296,6 +1297,10 @@ def walk(ctx, page, hands, route: list[dict], attachments: dict) -> object:
                 page, hands.page = moved, moved
         elif action == "select":
             hands.select_option(selector, label=step["value"])
+        elif action == "choose":
+            # A choice made in a search-as-you-type menu: the same pick again.
+            if not formfill.pick_option(page, selector, str(step.get("value", ""))):
+                raise WebTaskError(f"could not choose {str(step.get('value'))[:40]!r} again")
         elif action == "check":
             hands.check(selector)
         elif action == "uncheck":

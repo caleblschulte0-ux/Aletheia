@@ -93,8 +93,15 @@ class JobApplication(browser_loop.GeneralSkill):
                                  "key": item.get("profile_field", "profile")})
             taken.add(item["selector"])
             answered_labels.add(browser_loop._norm(item.get("label", "")))
-        for t in obs.get("targets") or []:
-            if t["role"] != "file" or not _RESUME.search(t["label"]) or refs.get(t["id"]) in taken:
+        files = [t for t in obs.get("targets") or [] if t["role"] == "file"]
+        # ONE UNNAMED FILE BOX on a page that talks about a resume is the resume
+        # box: BambooHR's reads only "Choose File*" (live 2026-09-17).
+        generic = {"file", "input", "upload", "choose", "select", "browse", "attach", "attachment",
+                   "document", "no", "selected", "drop", "here", "or"}
+        lone = (len(files) == 1 and set(browser_loop._norm(files[0].get("label")).split()) <= generic
+                and _RESUME.search(f"{obs.get('title', '')} {str(obs.get('text') or '')[:4000]}"))
+        for t in files:
+            if not (_RESUME.search(t["label"]) or lone) or refs.get(t["id"]) in taken:
                 continue
             try:
                 from aletheia import webtask

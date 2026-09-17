@@ -414,5 +414,123 @@ class TheInvisibleBadgeIsNotACaptchaToTheEngine(LoopCase):
                 page.close()
 
 
+
+# ---- what the live proof matrix found (2026-09-17) -----------------------------------
+
+class TheFormReaderReadsWhatTheLiveSitesSaid(unittest.TestCase):
+    def test_an_id_is_words_so_first_name_is_not_the_full_name(self):
+        from aletheia import formfill
+        known = {"first_name": "Jordan", "last_name": "Testperson", "legal_name": "Jordan Testperson",
+                 "email": "j@example.com", "phone": "(605) 555-0142"}
+        rows = [{"selector": f"#x{i}", "tag": "input", "type": "text", "name": "", "id": code, "label": "",
+                 "required": False, "value": ""}
+                for i, code in enumerate(["info.firstName", "info.middleName", "info.lastName", "info.email"])]
+        got = {f["label"]: (f["profile_field"], f["value"]) for f in formfill.plan(rows, answers=known)["fill"]}
+        self.assertEqual(got["info.firstName"], ("first_name", "Jordan"))
+        self.assertEqual(got["info.lastName"], ("last_name", "Testperson"))
+        self.assertNotIn("info.middleName", got, "a middle name is never his full name")
+        self.assertEqual(browser_loop.code_words("info.firstName"), "info first name")
+
+    def test_a_question_that_mentions_the_phone_is_not_asking_for_his_number(self):
+        from aletheia import formfill
+        self.assertIsNone(formfill.match_field(
+            {"label": "How much experience do you have providing Customer Service over the phone?*"}))
+        self.assertIsNone(formfill.match_field(
+            {"label": "Regarding providing customer service over the phone, what do you enjoy the most?"}))
+        self.assertEqual(formfill.match_field({"label": "What is your phone number?"}), "phone")
+        self.assertEqual(formfill.match_field({"label": "Phone*"}), "phone")
+
+    def test_an_asterisk_is_required_and_a_nameless_button_is_never_the_one_approved(self):
+        self.assertTrue(browser_loop._marked_required({"label": "Are you fluent in English and Spanish?*"}))
+        self.assertFalse(browser_loop._marked_required({"label": "Who referred you?"}))
+        obs = {"state": ps.FORM, "targets": [
+            {"id": "t1", "role": "textbox", "label": "Name"}, {"id": "t2", "role": "button", "label": ""},
+            {"id": "t3", "role": "button", "label": "SHARE"},
+            {"id": "t4", "role": "link", "label": "Submit Application"}]}
+        self.assertEqual(browser_loop.final_control(obs, "apply for the job")["label"], "Submit Application")
+        obs["targets"] = obs["targets"][:2]
+        self.assertIsNone(browser_loop.final_control(obs, "apply for the job"))
+
+
+CONSENT_POSTING = """<title>Administrative Assistant</title><h1>Administrative Assistant</h1>
+<p>Description. Responsibilities: answer phones.</p>
+<label for="share">Link to This Job</label><input id="share" readonly value="https://example.org/careers/167">
+<a href="/lv/apply">Apply</a>
+<div id="onetrust-consent-sdk" style="position:fixed;bottom:0;width:100%%;background:#eee">
+  <label><input type="checkbox" id="tc"> Targeting Cookies</label>
+  <button id="icon1" style="width:20px;height:20px"></button>
+  <button id="acc">Accept All Cookies</button><button id="rej">Reject All</button></div>"""
+LV_APPLY = """<title>Apply</title><h1>Application</h1><p>Upload your resume below.</p>
+<form method="POST" action="/lv/send">
+<label>First Name (required)</label><input id="info.firstName" required>
+<label>Middle Name</label><input id="info.middleName">
+<label for="q1">How much experience do you have providing customer service over the phone?*</label>
+<textarea id="q1" name="q1"></textarea>
+<div>Choose File*</div><input type="file">
+<button type="button">SHARE</button>
+<a href="#" id="go" onclick="document.forms[0].submit();return false;">Submit Application</a></form>"""
+
+
+@needs_browser
+class WhatTheMatrixFoundOnRealPagesStaysFixed(AnywhereCase):
+    def setUp(self):
+        super().setUp()
+        self.site["pages"] = {"/lv/posting": CONSENT_POSTING, "/lv/apply": LV_APPLY}
+
+    def serve(self):
+        pages = self.site["pages"]
+        original = self.site
+        import http.server as hs
+
+        class H(hs.BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_GET(self):
+                body = pages.get(self.path.split("?")[0], "<h1>404</h1>").encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def do_POST(self):
+                original["posts"].append(self.path)
+                body = b"<h1>Thank you</h1>"
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+        probe = hs.HTTPServer(("127.0.0.1", 0), lambda *a: None)
+        port = probe.server_address[1]
+        probe.server_close()
+        server = hs.ThreadingHTTPServer(("127.0.0.1", port), H)
+        server.daemon_threads = True
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        return f"http://127.0.0.1:{port}"
+
+    def test_a_posting_behind_a_cookie_banner_to_a_form_with_honest_questions(self):
+        from aletheia import profile
+        base = self.serve()
+        with mock.patch.object(profile, "known", return_value={
+                "first_name": "Pat", "last_name": "Doe", "legal_name": "Pat Doe", "phone": "(605) 555-0100"}):
+            record = browser_loop.pursue("apply for the administrative assistant job", base + "/lv/posting",
+                                         inputs={}, skill=job_skill.SKILL)
+        self.assertBoundary(record, bm.NEEDS_YOU, "QUESTIONS")
+        self.assertTrue(any("Reject All" in h["did"] for h in record["history"]),
+                        "the banner was closed by its least-consenting button")
+        self.assertFalse(any("Accept" in h["did"] for h in record["history"]))
+        values = {r["selector"]: r.get("value") for r in record["route"] if r["action"] == "type"}
+        self.assertEqual(values.get(r"#info\.firstName"), "Pat")
+        self.assertNotIn(r"#info\.middleName", values)
+        self.assertNotIn("#q1", values, "a question about the phone never gets his number")
+        self.assertTrue(record["attached"], "the one unnamed file box on a resume page takes the resume")
+        self.assertIn("How much experience do you have providing customer service over the phone?*",
+                      record["boundary"]["questions"])
+        self.assertEqual(self.site["posts"], [])
+
+
 if __name__ == "__main__":
     unittest.main()

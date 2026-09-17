@@ -93,7 +93,7 @@ _FORM_HARMLESS = re.compile(
     r"choose(?: a)? file|select file|show(?: \w+)?|hide(?: \w+)?|more|less|see more|read more|"
     r"search|clear|edit|expand|collapse|close|dismiss|help|accept all(?: cookies)?|"
     r"(?:decline|reject)(?: all)?(?: cookies)?|cookie settings|manage cookies|got it|"
-    r"skip to (?:content|main)|menu|x|×)\s*$", re.I)
+    r"skip to (?:content|main)|menu|x|×|share(?: this(?: job| page)?)?|print(?: this)?(?: job| page)?|copy link|save (?:job|for later)|follow|like|tweet|allow)\s*$", re.I)
 
 
 #: An ORDER is spending even when no money word is on the button: "Submit

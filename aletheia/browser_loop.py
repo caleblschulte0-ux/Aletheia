@@ -109,6 +109,26 @@ CAPTCHA_VISIBLE_JS = r"""() => {
 PROGRESSBAR_JS = r"""() => !!document.querySelector('[role=progressbar], progress, ol.steps, [aria-current=step]')"""
 
 
+def code_words(code: str) -> str:
+    """An id or name as words: "info.firstName" -> "info first name". "" for
+    an id that is only a number or a hash (it says nothing)."""
+    text = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", str(code or ""))
+    words = [w for w in re.sub(r"[^A-Za-z]+", " ", text).casefold().split() if len(w) > 1]
+    return " ".join(words)[:60]
+
+
+_REQUIRED_MARK = re.compile(r"(?:\*|✱|\(required\))\s*$", re.I)
+
+
+def _marked_required(field: dict) -> bool:
+    """Required as the PAGE says it, not only as the markup does: "Are you
+    fluent in English and Spanish?*" carried no required attribute on JazzHR
+    (live 2026-09-17), so four screening questions were never asked."""
+    if field.get("required"):
+        return True
+    return bool(_REQUIRED_MARK.search(str(field.get("label") or "").strip()))
+
+
 def _role_of_field(row: dict) -> str:
     kind = str(row.get("type") or "").casefold()
     if kind == "password":
@@ -167,23 +187,46 @@ def look(page, *, tracker: StatusTracker | None = None, skill=None, site: dict |
         by_selector.add(selector)
         tid = f"t{len(targets) + 1}"
         row = {"id": tid, "role": role, "label": " ".join(str(label or "").split())[:120]}
+        lines = [ln.strip() for ln in str(label or "").splitlines() if ln.strip()]
+        if len(lines) > 1 and role not in ("button", "link"):
+            # "Country" over "United States": the question, then what the widget shows
+            # (a placeholder or its current choice). The first line is the question.
+            row["lead"] = lines[0][:120]
         row.update({k: v for k, v in extra.items() if v not in (None, "", [])})
         targets.append(row)
         refs[tid] = selector
 
+    raw_by_selector = {str(r.get("selector")): r for r in raw if isinstance(r, dict)}
+    consent = [{"label": " ".join(str(b.get("text") or "").split())[:70], "selector": b.get("selector")}
+               for b in seen.get("buttons") or [] if b.get("consent") and b.get("selector")]
     for field in seen.get("fields") or []:
         if str(field.get("type") or "").casefold() in ("hidden", "submit", "button", "image", "reset"):
             continue
+        row_raw = raw_by_selector.get(str(field.get("selector"))) or {}
+        if row_raw.get("readonly") and str(field.get("value") or "").strip():
+            # A READ-ONLY BOX THAT ALREADY SAYS SOMETHING is not a question: "Link
+            # to This Job" holding the page's own address made a BambooHR posting
+            # read as a form, and its Apply button as a submit (live 2026-09-17).
+            continue
+        if not str(field.get("label") or "").strip():
+            # A BOX WHOSE LABEL IS NOT TIED TO IT still says what it is in its
+            # id or name: "info.firstName" is "info first name" (live 2026-09-17,
+            # Paylocity). Words, never the raw code, so nothing downstream sees a
+            # selector-shaped string.
+            row = raw_by_selector.get(str(field.get("selector"))) or {}
+            field = {**field, "label": code_words(row.get("id") or row.get("name") or "")}
         role = _role_of_field(field)
         if role in ("radio", "checkbox") and field.get("is_option") and field.get("label") \
                 and field.get("is_option") != field.get("label"):
             add(role, field["is_option"], field["selector"], question=field.get("label"),
-                checked=field.get("checked"), required=field.get("required") or None)
+                checked=field.get("checked"), required=_marked_required(field) or None)
             continue
         add(role, field.get("label"), field["selector"], value=field.get("value") or None,
-            required=field.get("required") or None, options=field.get("options"),
+            required=_marked_required(field) or None, options=field.get("options"),
             checked=field.get("checked") if role == "checkbox" else None)
     for button in seen.get("buttons") or []:
+        if button.get("consent"):
+            continue                     # a cookie banner's buttons are not the page's
         role = str(button.get("role") or "button")
         role = "button" if role in ("button", "summary") else role
         add(role, button.get("text") or button.get("question"), button.get("selector", ""),
@@ -203,7 +246,7 @@ def look(page, *, tracker: StatusTracker | None = None, skill=None, site: dict |
     obs = {"url": seen.get("url", ""), "title": seen.get("title", ""), "text": seen.get("text", ""),
            "status": tracker.status(page) if tracker else None, "targets": targets,
            "still_missing": seen.get("still_missing") or [], "captcha": captcha,
-           "progressbar": progressbar, "_refs": refs, "_raw": raw}
+           "progressbar": progressbar, "_refs": refs, "_raw": raw, "_consent": consent}
     understood = ps.classify(obs)
     obs.update({"state": understood["state"], "evidence": understood["evidence"],
                 "controls": understood["controls"]})
@@ -275,7 +318,9 @@ def unique_questions(questions) -> list[str]:
     """Each question once, the fullest wording kept, in the order first asked."""
     out: list[str] = []
     for q in questions or []:
-        q = str(q)
+        q = " ".join(str(q).split())            # a label's line breaks are not read out
+        if not q:
+            continue
         for i, have in enumerate(out):
             if same_question(have, q):
                 if len(_norm(q)) > len(_norm(have)):
@@ -334,7 +379,9 @@ def match_key(label: str, inputs: dict, site: dict | None = None) -> str | None:
             return hit
     mine = content_words(label)
     if not mine:
-        return None
+        # "Address*" is all filler words, and still the same question as an
+        # input named "address": only an exact match is taken.
+        return by_norm.get(site_skills.normal_label(label))
     best, best_size = None, 0
     for norm_key, key in by_norm.items():
         theirs = content_words(norm_key)
@@ -393,6 +440,8 @@ class GeneralSkill:
             if role not in ("textbox", "combobox", "checkbox", "file"):
                 continue
             key = match_key(t["label"], inputs, site)
+            if key is None and t.get("lead"):
+                key = match_key(t["lead"], inputs, site)
             if key is None:
                 if t.get("required") and not str(t.get("value") or "").strip() and not t.get("checked"):
                     ask.append(t["label"])
@@ -417,6 +466,11 @@ class GeneralSkill:
                 continue
             if role == "combobox" and t.get("options"):
                 option = _pick_option(t["options"], value)
+                if option is None and str(t.get("value") or "").strip() \
+                        and not any(re.search(r"[A-Za-z]", str(o)) for o in t["options"]):
+                    # Its choices have no words to read (BambooHR's Country lists
+                    # "1") and the site already chose one: nothing to say it is wrong.
+                    continue
                 if option is None:
                     ask.append(f"{t['label']} (none of its choices is {value!r})")
                     continue
@@ -748,12 +802,18 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
     errors = unknowns = 0
     tried: set[str] = set()
     written: set[tuple[str, str]] = set()
+    # WHAT SHE TRIED TO SET AND THE PAGE WOULD NOT TAKE, per page. A silent
+    # miss read as filled: live 2026-09-17 BambooHR's State box refused the
+    # value and the stop never mentioned it.
+    unset: dict[str, list[str]] = {}
     last_seen = ("", "")
     for step in range(budget):
         policy.ensure_not_halted()
         if on_step is not None:
             on_step(step, record)
         obs = look(page, tracker=tracker, skill=skill, site=site)
+        if _decline_cookies(page, hands, obs, record):
+            continue                               # the banner is gone: look again
         state = obs["state"]
         if (obs["url"], state) != last_seen:
             record = bm.checkpoint(record, bm.OBSERVED, url=obs["url"], state=state)
@@ -798,14 +858,19 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
             planned = skill.plan(obs, record, site)
             fresh = [i for i in planned["fill"] if (obs["url"], i["selector"]) not in written]
             written.update((obs["url"], i["selector"]) for i in fresh)
-            if _apply(page, hands, fresh, route, attached):
+            applied = _apply(page, hands, fresh, route, attached)
+            _note_unset(unset, obs["url"], fresh, applied)
+            if applied:
                 record["route"], record["attached"] = route, attached
                 record = bm.checkpoint(record, bm.FILLED, url=obs["url"], before="a human check")
-            final = (controls(obs).get(ps.COMMIT) or controls(obs).get(ps.PROGRESS) or [{}])[0]
+            final = final_control(obs, goal) or (controls(obs).get(ps.PROGRESS) or [{}])[0]
+            if not (_FINAL_WORDS.search(final.get("label") or "") or _kind(final, obs) == ps.PROGRESS
+                    if final else False):
+                final = {}                 # never name a dropdown's "Select" as the next step
             return _stop(record, bm.NEEDS_YOU, ps.CAPTCHA, obs,
                          step=f"pass the human check on {obs['url'][:90]}"
                               + (f", then {final['label']!r} is next" if final.get("label") else ""),
-                         questions=planned["ask"][:12] or None)
+                         questions=unique_questions(planned["ask"] + unset.get(obs["url"], []))[:12] or None)
         if state == ps.ACCOUNT_LOGIN:
             # HER OWN ACCOUNT, on the exact host she made it on, with the
             # password only the vault holds. Anything else - his accounts,
@@ -949,6 +1014,8 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
                      if (obs["url"], item["selector"]) not in written]
             written.update((obs["url"], item["selector"]) for item in fresh)
             done_now = _apply(page, hands, fresh, route, attached)
+            _note_unset(unset, obs["url"], fresh, done_now)
+            planned["ask"] = unique_questions(planned["ask"] + unset.get(obs["url"], []))
             if planned.get("aliases"):
                 site_skills.learn(obs["url"], aliases=planned["aliases"])
             if done_now:
@@ -1036,6 +1103,31 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
                      "tell me to carry on.")
 
 
+#: A cookie banner's least-consenting way out. Accepting is never pressed for him.
+_DECLINE_COOKIES = re.compile(r"\b(?:reject|decline|deny|refuse)\b|necessary|essential|only required|"
+                              r"^\s*(?:close|dismiss|x|×)\s*$", re.I)
+
+
+def _decline_cookies(page, hands, obs: dict, record: dict) -> bool:
+    """A cookie banner in the way is closed by its REJECT (or necessary-only)
+    button, once per page. Live 2026-09-17 OneTrust's banner intercepted every
+    click on a Paylocity form. Not a route step: the choice is remembered by
+    the site, so a replay would find no banner to press."""
+    choices = [c for c in obs.get("_consent") or [] if _DECLINE_COOKIES.search(c.get("label") or "")]
+    done = record.setdefault("cookies_declined", [])
+    here = site_skills.domain_of(obs.get("url") or "")
+    if not choices or here in done:
+        return False
+    done.append(here)
+    try:
+        hands.click(choices[0]["selector"])
+        webtask.settle(page)
+    except Exception:
+        return False
+    _note(record, f"closed the cookie banner by pressing {choices[0]['label'][:40]!r} (the least I could consent to)")
+    return True
+
+
 def _safe_url(page) -> str:
     try:
         return str(page.url or "")
@@ -1075,7 +1167,9 @@ def _ask_model(decide: Callable, goal: str, obs: dict, record: dict) -> dict | N
         if said.get("done") and not said.get("target"):
             return {"done": True, "by": said.get("by"), "why": said.get("why")}
     target = find_target(obs, (said or {}).get("target")) if isinstance(said, dict) else None
-    if target is None or _kind(target, obs) in (ps.COMMIT, ps.CREATE_ACCOUNT, ps.SPEND, ps.SIGN_IN):
+    if target is None or not _norm(target.get("label"))             or _kind(target, obs) in (ps.COMMIT, ps.CREATE_ACCOUNT, ps.SPEND, ps.SIGN_IN):
+        # A control with no name is never pressed on a model's say-so: nobody
+        # can tell what it does, least of all him from the history.
         return None
     return target
 
@@ -1199,11 +1293,33 @@ def gateway_decide(goal: str, page: dict, history: list) -> dict:
     return {**dict(strong.output), "by": strong.provider, "class": "standard", "escalated": True}
 
 
+def _note_unset(unset: dict, url: str, tried: list[dict], applied: list[str]) -> None:
+    left = list(applied)
+    for item in tried:
+        label = str(item.get("label") or "")
+        if label in left:
+            left.remove(label)
+            continue
+        if label:
+            unset.setdefault(url, []).append(f"{label} (the page would not take the answer I have)")
+
+
 def _apply(page, hands, fill: list[dict], route: list[dict], attached: list[dict]) -> list[str]:
     done = []
     for item in fill:
         selector, action, value = item["selector"], item["action"], item.get("value", "")
         try:
+            if action == "type" and formfill.is_combobox(page, selector):
+                # A SEARCH-AS-YOU-TYPE BOX is answered by CHOOSING from its menu;
+                # typed and left, the widget throws the text away (live 2026-09-17,
+                # Paylocity's State). No option that plainly is the answer: left
+                # empty, and the page's own verdict makes it a question.
+                chosen = formfill.pick_option(page, selector, value)
+                if not chosen:
+                    continue
+                route.append({"action": "choose", "selector": selector, "value": chosen})
+                done.append(item.get("label", ""))
+                continue
             if action == "type":
                 hands.fill(selector, value)
             elif action == "select":
@@ -1423,6 +1539,9 @@ def _recover_sign_in(ctx, page, hands, obs: dict, record: dict, route: list[dict
     return _click(ctx, page, hands, obs["_refs"][forgot["id"]], route, tracker)
 
 
+_FINAL_WORDS = re.compile(r"\b(?:submit|apply|send|finish|complete|register|request|confirm|sign up)\b", re.I)
+
+
 def final_control(obs: dict, goal: str) -> dict | None:
     """The button this page's goal ends on, or None.
 
@@ -1432,8 +1551,14 @@ def final_control(obs: dict, goal: str) -> dict | None:
     final one only on an account page or for a goal about an account; a
     link that makes one is never the final button of some other goal."""
     kinds = controls(obs)
-    commits = kinds.get(ps.COMMIT, [])
-    accounts = kinds.get(ps.CREATE_ACCOUNT, [])
+    # A BUTTON WITH NO NAME is never the one he is asked to approve: "press ''"
+    # tells him nothing (live 2026-09-17, Paylocity's icon buttons).
+    commits = [c for c in kinds.get(ps.COMMIT, []) if _norm(c.get("label"))]
+    # The FORM'S final button before any other committing word on the page:
+    # "Submit Application" is a link below JazzHR's form and a "SHARE" button
+    # sits above it (live 2026-09-17).
+    commits.sort(key=lambda c: 0 if _FINAL_WORDS.search(c.get("label") or "") else 1)
+    accounts = [c for c in kinds.get(ps.CREATE_ACCOUNT, []) if _norm(c.get("label"))]
     if obs.get("state") == ps.ACCOUNT_SIGNUP or _ACCOUNT_GOAL.search(str(goal or "")):
         order = accounts + commits
     else:

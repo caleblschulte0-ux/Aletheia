@@ -235,6 +235,11 @@ READ_FORM_JS = r"""() => {
       }
       return base;
     }
+    // THE ONLY FILE BOX on the page needs no id to be found: BambooHR's has
+    // neither id nor name, so it was never read and the resume never went
+    // on (live 2026-09-17).
+    if (el.type === 'file' && document.querySelectorAll('input[type=file]').length === 1)
+      return 'input[type=file]';
     return null;
   };
   // A checkbox or radio is an OPTION, not a question. Its own label says
@@ -321,6 +326,10 @@ READ_FORM_JS = r"""() => {
       // hCaptcha's token textarea. Python decides what that means per type:
       // a hidden native radio behind a styled label is still the real control.
       hidden: unseen(el),
+      readonly: !!el.readOnly,
+      // A COOKIE BANNER'S TOGGLES are not questions on the page (live 2026-09-17,
+      // Paylocity: OneTrust's "Targeting Cookies" boxes made a job posting a form).
+      consent: !!el.closest('#onetrust-consent-sdk, #onetrust-pc-sdk, #CybotCookiebotDialog, #usercentrics-root, #truste-consent-track, #didomi-host, .osano-cm-window, .cc-window, [id*="cookie" i], [class*="cookie" i], [aria-label*="cookie" i], [id*="consent-banner" i], [class*="consent-banner" i], [id*="tracking-consent" i], [class*="tracking-consent" i]'),
     };
     // The value field BEHIND a labelled widget is not a second question. A
     // Workable picker is a visible #input_CA_10627_input labelled "Notice
@@ -494,6 +503,14 @@ _ABOUT_HIMSELF = re.compile(r"^[^a-z0-9]*(?:i|i'm|i’m|i am|i have|i've)\b")
 _WRITTEN_QUESTION = re.compile(
     r"^[^a-z0-9]*(?:tell us|tell me|describe|share|explain|walk us|talk us|give us|"
     r"why|how (?:do|did|would|have|has)|what (?:was|did|would|makes|made))\b")
+#: A question ABOUT something that merely mentions a contact word: "How much
+#: experience do you have providing customer service over the phone?" got his
+#: phone number, live on JazzHR 2026-09-17. Asking FOR the fact ("What is your
+#: phone number?") opens differently.
+_ASKS_ABOUT = re.compile(
+    r"^[^a-z0-9]*(?:how (?:much|many|long|often|well|comfortable)|are you|do you|did you|have you|"
+    r"were you|would you|will you|can you|could you|regarding|in your|what do you|what does|"
+    r"what kind|what type|which (?:of|best))\b")
 _CONTACT_FIELDS = frozenset({
     "legal_name", "first_name", "last_name", "preferred_name", "email", "phone",
     "street", "city", "state", "postal_code", "country", "linkedin", "github",
@@ -709,7 +726,14 @@ def match_field(field: dict) -> str | None:
     if re.match(r"^[^a-z0-9]*if\b", label):
         return None
     yes_no = bool(_YES_NO_LEAD.match(label))
-    codes = " ".join(str(field.get(k) or "") for k in ("name", "id")).casefold()
+    # A field's name and id as WORDS: "info.firstName" is "info first name".
+    # Read as one lowercase blob it only contained "name", and live 2026-09-17
+    # (Paylocity, whose labels are not tied to their boxes) the full name went
+    # into First, Middle, Last and Preferred name alike.
+    codes = " ".join(re.sub(r"[^A-Za-z0-9]+", " ", re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ",
+                                                          str(field.get(k) or "")))
+                     for k in ("name", "id")).casefold()
+    named_by = label if label.strip() else codes
     best, best_len = None, 0
     for key, spec in profile.FIELDS.items():
         # A signup-only fact never reaches an employer. His Google Voice
@@ -737,6 +761,9 @@ def match_field(field: dict) -> str | None:
             continue
         if key in _CONTACT_FIELDS and _ABOUT_HIMSELF.match(label):
             continue
+        if key in _CONTACT_FIELDS and key not in ("linkedin", "github", "website", "twitter") \
+                and _ASKS_ABOUT.match(label):
+            continue
         # A written question that MENTIONS a link is not asking for the link.
         # Hugging Face's "Tell us about something you've built on top of our
         # tools ... Share a public link if you have one (GitHub, a demo, a
@@ -745,7 +772,7 @@ def match_field(field: dict) -> str | None:
         if key in _CONTACT_FIELDS and _WRITTEN_QUESTION.match(label) and len(label.split()) > 12:
             continue
         # "What is your legal MIDDLE name?" got "Caleb Schulte" on Tebra.
-        if key in _NAME_FIELDS and _says("middle", label):
+        if key in _NAME_FIELDS and _says("middle", named_by):
             continue
         if key == "notice_period" and _EMPLOYMENT_DATE.search(label):
             continue
@@ -784,7 +811,8 @@ def match_field(field: dict) -> str | None:
         for phrase in spec["asks"]:
             if len(phrase) <= best_len:
                 continue
-            if _says(phrase, label) or (not label.strip() and phrase in codes):
+            if _says(phrase, label) or (not label.strip() and (
+                    _says(phrase, codes) or phrase.replace(" ", "") in codes.replace(" ", ""))):
                 best, best_len = key, len(phrase)
     # "In what city AND state do you reside?" is neither fact alone: live it
     # got "SD". Left for the facts step, which writes "Hartford, SD".
@@ -2310,6 +2338,19 @@ READY_JS = r"""() => {
   for (const el of document.querySelectorAll('input, select, textarea')) {
     if (typeof el.checkValidity !== 'function') continue;
     if (el.disabled || el.type === 'hidden' || el.checkValidity()) continue;
+    // A SEARCH BOX OVER A CHOICE ALREADY MADE. React-select style widgets keep
+    // `required` on their (empty) search input while the chosen value sits in
+    // a sibling "single value" element: live 2026-09-17 Paylocity showed
+    // "United States" chosen and the form still read as blocked. A shown value
+    // that is not a placeholder ("Select a state") answers it.
+    if (el.getAttribute('aria-autocomplete') === 'list' || el.getAttribute('role') === 'combobox') {
+      let box = el.parentElement, shown = '';
+      for (let i = 0; box && i < 4 && !shown; i++, box = box.parentElement) {
+        const v = box.querySelector('[class*="single-value" i], [class*="singleValue" i], [class*="multi-value" i]');
+        if (v) shown = (v.innerText || '').trim();
+      }
+      if (shown && !/^(?:select|choose|pick|please|search|--|—)/i.test(shown)) continue;
+    }
     if (el.type === 'radio' && el.name) {
       // Every unpicked radio in a required group is invalid, so one question
       // came back once per OPTION, each named by that option ("YES", "NO").
@@ -2716,7 +2757,13 @@ def pick_option(page, selector: str, value, *, known: dict | None = None,
     queries.append("")                    # the whole list: "B.B.A." vs "Bachelor's Degree"
     for query in queries:
         try:
-            where.click(css)
+            try:
+                where.click(css, timeout=4000)
+            except Exception:
+                # The widget draws its current value OVER its own search box
+                # (react-select), so a click is intercepted; focus is what the
+                # click was for.
+                where.focus(css)
             where.fill(css, query)
         except Exception:
             return ""
