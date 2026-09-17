@@ -97,7 +97,7 @@ _PHONE = re.compile(r"(?<!\d)(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}
 _EMAIL = re.compile(r"[^@\s<>()]+@[^@\s<>()]+\.[A-Za-z]{2,}")
 
 
-def screen(body: str, *, recipient: str = "", subject: str = "") -> dict:
+def screen(body: str, *, recipient: str = "", subject: str = "", already_approved: str = "") -> dict:
     """What a message would DO: commit him, mention money, disclose what.
 
     Blunt by design, like `sensitivity`: a false positive costs him one tap on
@@ -126,22 +126,33 @@ def screen(body: str, *, recipient: str = "", subject: str = "") -> dict:
     if money:
         reasons.append("it mentions money")
     disclosures: set[str] = set()
+    found: dict[str, list[str]] = {}
     try:
         from aletheia import sensitivity
         _clean, hidden = sensitivity.scrub(text)
     except Exception:
         hidden = ["unscreenable"]
-    for found in hidden:
-        disclosures.add("secret" if "password" in found or "key" in found else "identity_number")
+    for kind in hidden:
+        # Never matched against earlier words: a secret is a secret every time.
+        disclosures.add("secret" if "password" in kind or "key" in kind else "identity_number")
     for name, pattern in _SENSITIVE:
-        if pattern.search(text):
-            disclosures.add(name)
-    if _PHONE.search(text):
-        disclosures.add("phone")
-    others = [m.group(0).casefold() for m in _EMAIL.finditer(text)
+        hits = [m.group(0) for m in pattern.finditer(text)]
+        if hits:
+            found[name] = hits
+    phones = [m.group(0) for m in _PHONE.finditer(text)]
+    if phones:
+        found["phone"] = phones
+    others = [m.group(0) for m in _EMAIL.finditer(text)
               if m.group(0).casefold() != str(recipient or "").casefold()]
     if others:
-        disclosures.add("email")
+        found["email"] = others
+    already = " ".join(str(already_approved or "").casefold().split())
+    for name, hits in found.items():
+        # A detail he ALREADY approved sending to this person on this thread (the
+        # listing's street address in the subject, say) is not a new disclosure
+        # when a follow-up repeats it. Any detail not in those words still counts.
+        if not already or any(" ".join(h.casefold().split()) not in already for h in hits):
+            disclosures.add(name)
     if disclosures:
         reasons.append("it would disclose " + ", ".join(sorted(disclosures)))
     return {"commitment": commitment, "money": money, "disclosures": sorted(disclosures),
@@ -149,11 +160,12 @@ def screen(body: str, *, recipient: str = "", subject: str = "") -> dict:
 
 
 def decide(*, kind: str, thread_id: str, recipient: str, body: str, subject: str = "",
-           prior_approved_to_recipient: bool = False) -> dict:
+           prior_approved_to_recipient: bool = False, already_approved: str = "") -> dict:
     """Which capability this message needs and the scope context a grant is
     checked against. Pure apart from the screen. Never grants anything itself:
     `policy.request` is where a grant is (or is not) spent."""
-    checked = screen(body, recipient=recipient, subject=subject)
+    checked = screen(body, recipient=recipient, subject=subject,
+                     already_approved=already_approved if prior_approved_to_recipient else "")
     context = {"thread_id": thread_id, "recipient": str(recipient or "").casefold(),
                "purpose": kind, "commitment": checked["commitment"], "money": checked["money"],
                "disclosures": checked["disclosures"]}

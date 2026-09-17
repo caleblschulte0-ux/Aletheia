@@ -360,9 +360,12 @@ def draft_message(thread: dict, body: str, *, kind: str = "reply", subject: str 
     subject = subject or (thread["subject"] if kind == "first" else f"Re: {thread['subject']}")
     sha = content_sha(thread["id"], address, subject, body, kind)
     message_id = f"{thread['id']}-m{len(thread.get('messages') or []) + 1}"
-    prior = any(m.get("state") == M_SENT for m in thread.get("messages") or [])
-    decision = conversation_authority.decide(kind=kind, thread_id=thread["id"], recipient=address, body=body,
-                                             subject=subject, prior_approved_to_recipient=prior)
+    sent_before = [m for m in thread.get("messages") or [] if m.get("state") == M_SENT
+                   and str(m.get("to", "")).casefold() == str(address).casefold()]
+    decision = conversation_authority.decide(
+        kind=kind, thread_id=thread["id"], recipient=address, body=body, subject=subject,
+        prior_approved_to_recipient=bool(sent_before),
+        already_approved=" ".join(f"{m.get('subject', '')} {m.get('body', '')}" for m in sent_before))
     approval = policy.request(
         message_id, action_for(sha),
         reason=f"send {'a follow-up' if kind == 'followup' else 'an email'} to {recipient.get('name')}: "
@@ -386,7 +389,8 @@ def draft_message(thread: dict, body: str, *, kind: str = "reply", subject: str 
     if message.get("granted_by"):
         return _transition(thread, FOLLOW_UP_DUE if kind == "followup" else AWAITING_APPROVAL,
                            f"a {kind} is covered by the permission he gave", "send it on the next beat", now=now)
-    return _transition(thread, AWAITING_APPROVAL, f"a {kind} to {recipient.get('name')} waits for his yes "
+    what = {"first": "the email", "reply": "a reply", "followup": "a follow-up", "answer": "an answer"}.get(kind, "a message")
+    return _transition(thread, AWAITING_APPROVAL, f"{what} to {recipient.get('name')} needs Caleb's approval "
                        f"({decision['why']})", "Caleb approves or denies the message", now=now)
 
 
@@ -683,6 +687,32 @@ def _record_outbound(thread: dict, message: dict, now: dt.datetime) -> None:
 
 # ---- replies ------------------------------------------------------------------------
 
+def adopt_inbound(sender: str, subject: str, message: dict, occurred: str, fingerprint: str) -> str | None:
+    """A message from someone she has exactly ONE open conversation with, that no
+    reply expectation claimed: record it on that conversation. Never a guess -
+    zero or several open conversations with that address adopt nothing."""
+    from aletheia import communications
+    address = str(sender or "").casefold()
+    if not address:
+        return None
+    matches = [t for t in all_threads() if t.get("state") not in (CLOSED, DRAFTED) and t.get("comms_thread")
+               and str((t.get("recipient") or {}).get("address", "")).casefold() == address]
+    if len(matches) != 1:
+        return None
+    thread = matches[0]
+    try:
+        communications.record_message(f"mail-{fingerprint[:24]}", thread_id=thread["comms_thread"],
+                                      direction="INBOUND", channel="email", participant=address,
+                                      summary=str(subject)[:200],
+                                      external_id=str(message.get("message_id") or fingerprint),
+                                      occurred_at=occurred)
+    except FileExistsError:
+        pass
+    except ValueError:
+        return None
+    return thread["id"]
+
+
 def _inbound_unseen(thread: dict) -> list[dict]:
     from aletheia import communications
     comms_id = thread.get("comms_thread")
@@ -909,9 +939,9 @@ def _accept_time(thread: dict, reading: dict, *, now: dt.datetime, estimator=Non
                       "hold": (held.get("event") or {}).get("id"), "note": note.strip(" ()")})
         save(thread, now=now)
         lines = [f"Hi {_first(_name(thread))},", "",
-                 (f"{slot['human'][:1].upper()}{slot['human'][1:]} works for me - see you then."
+                 (f"{_absolute(slot['start'])} works for me - see you then."
                   if slot["start"] in ours else
-                  f"Thanks! {slot['human'][:1].upper()}{slot['human'][1:]} works for me. Please confirm."),
+                  f"Thanks! {_absolute(slot['start'])} works for me. Please confirm."),
                  "", "Thanks,", _signature(thread)]
         drafted = draft_message(thread, "\n".join(lines), kind="reply", now=now)
         drafted = load(thread["id"])
@@ -929,13 +959,18 @@ def _accept_time(thread: dict, reading: dict, *, now: dt.datetime, estimator=Non
                            "Caleb picks a time", now=now)
     sched.update({"state": "WE_PROPOSING", "slots": options})
     save(thread, now=now)
-    offered = "\n".join(f"- {o['human'][:1].upper()}{o['human'][1:]}" for o in options)
+    offered = "\n".join(f"- {_absolute(o['start'])}" for o in options)
     body = (f"Hi {_first(_name(thread))},\n\nThanks - unfortunately those times don't work for me. "
             f"Would any of these work instead?\n{offered}\n\nThanks,\n{_signature(thread)}")
     drafted = draft_message(thread, body, kind="reply", now=now)
     drafted = load(thread["id"])
     drafted["scheduling"]["message"] = drafted["messages"][-1]["id"]
     return save(drafted, now=now)
+
+
+def _absolute(stamp: str) -> str:
+    """A time written to someone else: the date itself, never "tomorrow"."""
+    return calendar_reasoning.human(stamp, relative=False)
 
 
 def _confirm_scheduled(thread: dict, *, now: dt.datetime, provider=None) -> dict:
@@ -974,7 +1009,7 @@ def propose_times(thread_id: str, *, when: str = "next week", minutes: int | Non
         raise ConversationError(f"I found no free time {when} to offer")
     thread["scheduling"] = {"state": "WE_PROPOSING", "slots": options}
     save(thread, now=now)
-    offered = "\n".join(f"- {o['human'][:1].upper()}{o['human'][1:]}" for o in options)
+    offered = "\n".join(f"- {_absolute(o['start'])}" for o in options)
     body = (f"Hi {_first(_name(thread))},\n\nWould any of these times work?\n{offered}\n\n"
             f"Thanks,\n{_signature(thread)}")
     drafted = draft_message(thread, body, kind="reply", now=now)
@@ -1154,11 +1189,21 @@ def status_words(which: str = "", *, now: dt.datetime | None = None) -> str:
     try:
         thread = resolve_thread(which)
     except LookupError as exc:
+        recent = sorted(all_threads(), key=lambda t: str(t.get("updated_at") or ""), reverse=True)
+        pronoun = str(which or "").strip().lower() in ("", "they", "them", "him", "her", "it")
+        named = [t for t in recent if _mentions(t, which)] if not pronoun else recent
+        if named:
+            # "Did they reply?" about a conversation that has just closed still has an answer.
+            thread = named[0]
+            return f"{_status_head(thread, now)} {_next_words(thread, now)}".strip()
         text = str(exc)
         return text[:1].upper() + text[1:] + ("." if not text.endswith((".", "?")) else "")
+    return f"{_status_head(thread, now)} {_next_words(thread, now)}".strip()
+
+
+def _status_head(thread: dict, now: dt.datetime) -> str:
     name = _name(thread)
     replies = thread.get("replies") or []
-    state = thread.get("state")
     if replies:
         last = replies[-1]
         when = calendar_reasoning.human(str(last.get("received_at") or _stamp(now)), now=now)
@@ -1166,18 +1211,24 @@ def status_words(which: str = "", *, now: dt.datetime | None = None) -> str:
                 "question_back": "they asked you something", "rejection": "they said no",
                 "auto_reply": "it was an automatic reply", "bounce": "the email bounced",
                 "unrelated": "it was about something else"}.get(last.get("category"), "they wrote back")
-        head = f"Yes, {name} replied {when}: {what}."
-    elif state in (AWAITING_REPLY, FOLLOW_UP_DUE):
-        head = f"No reply from {name} yet."
-    else:
-        head = f"Nothing has gone to {name} yet."
-    return f"{head} {_next_words(thread, now)}".strip()
+        return f"Yes, {name} replied {when}: {what}."
+    if any(m.get("state") == M_SENT for m in thread.get("messages") or []):
+        return f"No reply from {name} yet."
+    return f"Nothing has gone to {name} yet."
 
 
 def _next_words(thread: dict, now: dt.datetime) -> str:
     state = thread.get("state")
     if state == AWAITING_APPROVAL:
-        return f"A message is waiting for your okay: {thread.get('reason') or ''}".rstrip(" :") + "."
+        pending = next((m for m in thread.get("messages") or [] if m.get("state") == M_AWAITING), {})
+        what = {"first": "The email", "reply": "My reply", "followup": "A follow-up",
+                "answer": "My answer"}.get(pending.get("kind"), "A message")
+        scheduling = thread.get("scheduling") or {}
+        extra = ""
+        if scheduling.get("state") in ("WE_ACCEPTED", "AGREED") and scheduling.get("slot"):
+            extra = f" I pencilled in {scheduling['slot'].get('human')}"
+            extra += f"; {scheduling['note']}." if scheduling.get("note") else "."
+        return f"{what} to {_name(thread)} is waiting for your okay.{extra}"
     if state == AWAITING_REPLY:
         due = (thread.get("follow_up") or {}).get("due")
         return (f"I'll follow up {calendar_reasoning.human(due, now=now)} if they haven't answered." if due

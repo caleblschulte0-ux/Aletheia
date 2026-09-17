@@ -660,6 +660,18 @@ def _observe(message: dict, fp: str) -> list[dict]:
         )
         actions.append({"action": "reply", "event": reply["event"]["id"],
                         "expectation": expectation["id"]})
+    elif not candidates:
+        # Nobody was waiting on an expectation, but a conversation she carries may
+        # still be open with exactly this person (they answered a question later,
+        # on their own). `conversations.adopt_inbound` records it there only when
+        # exactly one open conversation has this address; otherwise nothing.
+        try:
+            from aletheia import conversations
+            adopted = conversations.adopt_inbound(sender, subject, message, occurred, fp)
+        except Exception:
+            adopted = None
+        if adopted:
+            actions.append({"action": "reply", "thread": adopted})
     elif len(candidates) > 1:
         ambiguous = events.emit(
             "mail.reply_ambiguous", f"email:{sender}",

@@ -61,12 +61,17 @@ def _utc(now: dt.datetime | None) -> dt.datetime:
     return value.astimezone(dt.timezone.utc)
 
 
-def human(stamp: str, *, timezone: str | None = None, now: dt.datetime | None = None) -> str:
-    """"Friday, September 18 at 10 am" in HIS zone; "today"/"tomorrow" relative to `now`."""
+def human(stamp: str, *, timezone: str | None = None, now: dt.datetime | None = None,
+          relative: bool = True) -> str:
+    """"Friday, September 18 at 10 am" in HIS zone; "today"/"tomorrow" relative to `now`
+    when said TO HIM. An email to someone else uses `relative=False`: "tomorrow"
+    in a message read two days later names the wrong day."""
     zone = _zone(timezone)
     when = calendar.parse_time(stamp).astimezone(zone)
     ref = _utc(now).astimezone(zone)
     clock = when.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").replace(" AM", " am").replace(" PM", " pm")
+    if not relative:
+        return f"{when.strftime('%A, %B')} {when.day} at {clock}"
     days = (when.date() - ref.date()).days
     if days == 0:
         return f"today at {clock}"
