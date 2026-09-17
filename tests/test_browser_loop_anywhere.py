@@ -760,5 +760,52 @@ class SheDoesNotGoRoundInCircles(unittest.TestCase):
         self.assertFalse(browse._profile_in_use_error(RuntimeError("net::ERR_CONNECTION_RESET")))
 
 
+SHOP = """<title>All products | Shelf</title><h1>Books</h1><ul>
+<li><a href="/philosophy">Philosophy</a></li><li><a href="/poetry">Poetry</a></li></ul>
+<a href="/page-2">next</a>"""
+SHELF = """<title>Philosophy | Shelf</title><h1>Philosophy</h1>
+<a href="/meditations">Meditations</a> <a href="/stranger">The Stranger</a> <a href="/page-2">next</a>"""
+BOOK = """<title>Meditations | Shelf</title><h1>Meditations</h1><p>&pound;25.89 In stock</p>
+<a href="/philosophy">Philosophy</a> <button>Add to basket</button>"""
+
+
+@needs_browser
+class AReadingGoalIsDoneWhenThePageAnswersIt(TheSecondHalfOfTheMatrixOnFixtures):
+    def setUp(self):
+        super().setUp()
+        self.site["pages"].update({"/shop": SHOP, "/philosophy": SHELF, "/meditations": BOOK})
+
+    def test_two_hops_then_her_model_says_this_is_the_page(self):
+        base = self.serve()
+        asked = []
+
+        def judge(goal, obs):
+            asked.append(obs.get("title"))
+            return {"arrived": "Meditations" in str(obs.get("title")), "by": "ollama:qwen3:8b"}
+
+        with mock.patch.object(browser_loop, "arrived", judge):
+            record = browser_loop.pursue(
+                "open the page for the book Meditations in the philosophy category and tell me its price",
+                base + "/shop", inputs={}, decide=lambda *a: {}, budget=8)
+        self.assertEqual(record["state"], bm.DONE, record.get("boundary"))
+        self.assertIn("25.89", record["result"]["text"])
+        self.assertEqual(record["result"]["judged_by"], "ollama:qwen3:8b")
+        self.assertEqual(asked, ["Philosophy | Shelf", "Meditations | Shelf"],
+                         "asked only where the title already names something the goal named")
+        self.assertFalse(browser_loop._goal_words_on_the_page(
+            "open the page for the book Meditations", {"title": "All products | Shelf"}))
+        self.assertTrue(any("chosen by the page's own words" in h["did"] for h in record["history"]))
+        self.assertEqual(self.site["posts"], [], "a reading goal presses nothing")
+
+    def test_a_basket_button_is_never_the_way_on(self):
+        base = self.serve()
+        with mock.patch.object(browser_loop, "arrived", lambda goal, obs: {"arrived": False}):
+            record = browser_loop.pursue("read about Meditations", base + "/meditations",
+                                         inputs={}, decide=lambda *a: {"target": "t1", "sure": True},
+                                         budget=4)
+        self.assertEqual(record["state"], bm.NEEDS_YOU)
+        self.assertEqual(self.site["posts"], [])
+
+
 if __name__ == "__main__":
     unittest.main()
