@@ -98,6 +98,7 @@ TIMEOUT_THEN = ("wake", "ask_caleb", "follow_up")
 #: module imports nothing heavy and anything may import it.
 HANDLERS: dict[str, str] = {
     "programs": "aletheia.programs:on_wait",
+    "studies": "aletheia.study_run:on_wait",
 }
 
 #: A handler's own id, never accepted as the author of his decision.

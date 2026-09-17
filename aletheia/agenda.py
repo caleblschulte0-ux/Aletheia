@@ -98,6 +98,8 @@ FORBIDDEN_KINDS = {
     "dispatch",
     # a long mission becomes active on HIS yes, never on a budget's
     "mission_confirm",
+    # a study's proposals are accepted, and its comparables confirmed, on HIS words
+    "study_decide", "study_confirm",
 }
 
 REFUSAL_REASON = {
@@ -113,6 +115,8 @@ REFUSAL_REASON = {
     "rule": "a standing rule outlives this mission's budget",
     "dispatch": "that runs a workflow in another repository",
     "mission_confirm": "a long mission starts on his own yes, not a budget's",
+    "study_decide": "a study's change is accepted, kept or reverted on his own words",
+    "study_confirm": "what a study reads beyond what he named is his to confirm",
 }
 
 

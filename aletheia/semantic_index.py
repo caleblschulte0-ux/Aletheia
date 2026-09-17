@@ -484,6 +484,32 @@ def _render_notification(record: dict) -> Chunk | None:
                  locator=f"notification {record.get('id')}")
 
 
+def _render_study(record: dict) -> Chunk | None:
+    """What a study compared, proposed and learned. Never the raw text of a page: that is
+    untrusted, and memory is read back into prompts."""
+    if not str(record.get("id") or "").startswith("study-"):
+        return None
+    subject = (record.get("subject") or {}).get("name") or ""
+    comparison = record.get("comparison") or {}
+    rows = "; ".join(str(r.get("said") or "") for r in (comparison.get("rows") or [])[:8])
+    claims = "; ".join(str(c.get("text") or "") for c in (comparison.get("claims") or [])[:6])
+    hyps = "; ".join(f"{h.get('title')} [{h.get('state')}] metric {(h.get('metric') or {}).get('name')}"
+                     + (f" result: {(h.get('measurement') or {}).get('said')}" if h.get("measurement") else "")
+                     for h in (record.get("hypotheses") or [])[:8])
+    learned = "; ".join(f"{l.get('title')}: {l.get('metric')} {l.get('baseline')} -> {l.get('after')} "
+                        f"({l.get('verdict')})" for l in (record.get("learned") or [])[-6:])
+    text = (f"Study of {subject} against {', '.join(c.get('name') or '' for c in record.get('comparables') or [])}\n"
+            f"Asked: {record.get('words')}\nMeasured: {rows}\nClaims: {claims}\nProposals: {hyps}\n"
+            f"What worked: {learned}")
+    return Chunk(f"study {record.get('id')}", text, ts=str(record.get("updated_at") or ""),
+                 locator=f"study {record.get('id')}")
+
+
+def study_docs() -> Iterator[Doc]:
+    from aletheia import studies
+    return _json_dir_docs("studies", studies.studies_dir(), _render_study, pattern="study-*.json")
+
+
 def session_docs() -> Iterator[Doc]:
     from aletheia import stateio
     return _json_dir_docs("sessions", stateio.private_dir("agent-sessions"), _render_session)
@@ -560,6 +586,7 @@ SOURCES: dict[str, Callable[[], Iterable[Doc]]] = {
     "missions": mission_docs,
     "applications": application_docs,
     "sessions": session_docs,
+    "studies": study_docs,
     "notifications": notification_docs,
     "journal": journal_docs,
     "fixes": fix_docs,
@@ -568,7 +595,7 @@ SOURCES: dict[str, Callable[[], Iterable[Doc]]] = {
     "code": code_docs,
 }
 PRIVATE_SOURCES = frozenset({"missions", "applications", "sessions", "notifications",
-                             "journal", "employers"})
+                             "journal", "employers", "studies"})
 
 
 # ---- storage -------------------------------------------------------------------

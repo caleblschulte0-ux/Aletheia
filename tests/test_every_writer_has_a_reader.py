@@ -75,6 +75,11 @@ READER_FOR = {
     # "Work on my projects" is answered by "what did you get done": the session's
     # receipts, what it queued for a stronger model and why, and what waits on him.
     "work_projects": "work_report",
+    # A study, his decisions on it and his yes to its comparables are all read back by
+    # "how's the study going / what did you find / what should we change".
+    "study_new": "studies",
+    "study_decide": "studies",
+    "study_confirm": "studies",
     "apply_prepare": "applications",
     "apply_campaign": "applications",
     "apply_answer": "applications",
