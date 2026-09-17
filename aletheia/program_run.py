@@ -439,10 +439,15 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
             continue
         if decision.verdict == agent_session.HANDOFF:
             try:
-                filed = handoffs.file(tool=tool, args=args, session_id=f"mission-{pid}-{key}",
-                                      question=f"{record.get('title')}: {task['title']}",
-                                      why=step.get("for") or task.get("detail") or "", reason=decision.reason,
-                                      audience="all")
+                # A retried step is a NEW request for his yes: an earlier handoff that already finished
+                # (failed, expired, denied) is never waited on again.
+                for n in range(int(task.get("attempts") or 0), int(task.get("attempts") or 0) + 6):
+                    filed = handoffs.file(tool=tool, args=args, session_id=f"mission-{pid}-{key}-{i}-{n}",
+                                          question=f"{record.get('title')}: {task['title']}",
+                                          why=step.get("for") or task.get("detail") or "", reason=decision.reason,
+                                          audience="all")
+                    if filed.get("state") == handoffs.AWAITING:
+                        break
             except handoffs.NotFiled as exc:
                 task.update(state=ws.FAILED, run=None, reason=str(exc)[:240], next="")
                 _commit(pid, task, now)

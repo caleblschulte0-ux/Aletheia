@@ -459,6 +459,23 @@ class TasksRunThroughTheBrokerAndWait(Sandbox):
         self.assertEqual(self.task(pid, "t2")["state"], ws.DONE)
         self.assertEqual(self.items(self.at(days=1, minutes=5))[pg.item_id(pid, "t3")]["state"], ws.READY)
 
+    def test_a_retried_step_asks_for_a_fresh_yes_instead_of_waiting_on_a_finished_handoff(self):
+        pid = self.active()["id"]
+        program_run.run_task(pid, "t2", now=NOW)
+        first = handoffs.all_handoffs(handoffs.AWAITING)[0]
+        with mock.patch.object(program_run, "CATALOG", {**fake_catalog(), "send.message": tools.with_handler(
+                fake_catalog()["send.message"], lambda a, **_: {"error": "the line was busy"})}):
+            for row in handoffs.all_handoffs(handoffs.AWAITING):
+                policy.decide(row["approval"], "APPROVED", via="operator-phone", because="yes")
+            handoffs.run_approved(catalog=program_run.CATALOG)
+        waits.reconcile(self.at(minutes=1))
+        self.assertEqual(self.task(pid, "t2")["state"], ws.RETRY_LATER)
+        program_run.run_task(pid, "t2", now=self.at(hours=2))
+        again = handoffs.all_handoffs(handoffs.AWAITING)
+        self.assertEqual(len(again), 1)
+        self.assertNotEqual(again[0]["id"], first["id"])
+        self.assertEqual(self.task(pid, "t2")["state"], ws.BLOCKED_USER)
+
     def test_silence_follows_up_through_his_approval_and_a_timeout_asks_him_not_fails(self):
         pid = self.active()["id"]
         program_run.run_task(pid, "t2", now=NOW)
