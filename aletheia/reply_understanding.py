@@ -56,7 +56,7 @@ _WEEKDAYS = {"monday": 0, "mon": 0, "tuesday": 1, "tues": 1, "tue": 1, "wednesda
 _MONTHS = {"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6, "jul": 7, "aug": 8,
            "sep": 9, "sept": 9, "oct": 10, "nov": 11, "dec": 12}
 _WEEKDAY_RE = re.compile(r"\b(?:(this|next|coming)\s+)?(" + "|".join(sorted(_WEEKDAYS, key=len, reverse=True))
-                         + r")\b\.?(?:,?\s+(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?\b(?!\s*(?::|am|pm|a\.m|p\.m)))?", re.I)
+                         + r")\b\.?(?:,?\s+(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?\b(?!\s*(?::|/|am|pm|a\.m|p\.m)))?", re.I)
 _MONTHDAY_RE = re.compile(r"\b(jan|feb|mar|apr|may|jun|jul|aug|sept|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})"
                           r"(?:st|nd|rd|th)?\b(?!\s*(?::|am|pm))", re.I)
 _NUMERIC_RE = re.compile(r"\b(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?\b")
@@ -230,6 +230,22 @@ def extract_dates(text: str, *, reference: dt.datetime, timezone: str | None = N
     return [{"quote": str(text)[a:b], "date": d.isoformat()} for a, b, d in _dates(str(text or ""), local_ref.date())]
 
 
+# ---- what they wrote, not what they quoted ------------------------------------------
+
+_QUOTE_HEADER = re.compile(r"^\s*(?:On .{4,120}wrote:|-{2,}\s*Original Message\s*-{2,}|From:\s.+|"
+                           r"_{8,})\s*$", re.I | re.M)
+
+
+def fresh_text(text: str) -> str:
+    """The reply without the quoted history under it: a time or a question in
+    OUR earlier message, quoted back, is not something they proposed or asked."""
+    body = str(text or "")
+    cut = _QUOTE_HEADER.search(body)
+    if cut:
+        body = body[:cut.start()]
+    return "\n".join(line for line in body.splitlines() if not line.lstrip().startswith(">")).strip()
+
+
 # ---- questions -------------------------------------------------------------------
 
 _SENTENCE = re.compile(r"[^.!?\n]*\?")
@@ -277,7 +293,7 @@ def classify_rules(message: dict, *, open_asks: list[str] | None = None,
     """A reading from patterns alone. Always available; never reads a model."""
     sender = str(message.get("from") or "")
     subject = str(message.get("subject") or "")
-    text = str(message.get("text") or "")[:MAX_REPLY_CHARS]
+    text = fresh_text(message.get("text"))[:MAX_REPLY_CHARS]
     headers = {str(k).lower(): str(v) for k, v in (message.get("headers") or {}).items()}
     reference = reference or dt.datetime.now(dt.timezone.utc)
     times = extract_times(text, reference=reference, timezone=timezone)
@@ -417,7 +433,7 @@ def understand(message: dict, *, our_questions: list[str] | None = None, think: 
     which; `model_error` says why one did not."""
     asks = list(our_questions or [])
     reference = reference or _received(message) or dt.datetime.now(dt.timezone.utc)
-    text = str(message.get("text") or "")[:MAX_REPLY_CHARS]
+    text = fresh_text(message.get("text"))[:MAX_REPLY_CHARS]
     rules = classify_rules(message, open_asks=asks, reference=reference, timezone=timezone)
     result = {**rules, "understood_by": "rules", "untrusted": True, "model_error": "",
               "model_seconds": None}

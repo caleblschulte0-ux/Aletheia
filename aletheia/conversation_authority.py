@@ -177,14 +177,19 @@ def decide(*, kind: str, thread_id: str, recipient: str, body: str, subject: str
 # ---- grants from his words ---------------------------------------------------
 
 _NUMBER_WORDS = {"a": 1, "an": 1, "one": 1, "once": 1, "two": 2, "twice": 2, "three": 3, "four": 4,
-                 "five": 5, "six": 6, "seven": 7, "ten": 10, "fourteen": 14, "thirty": 30}
+                 "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11,
+                 "twelve": 12, "fourteen": 14, "fifteen": 15, "twenty": 20, "thirty": 30, "forty": 40,
+                 "fifty": 50, "hundred": 100}
 _GRANT = re.compile(
     r"(?:you (?:can|may)|go ahead and|feel free to|i give you permission to|you have my permission to|"
     r"you'?re allowed to)\s+(?:send |do |handle )?follow(?:[- ]?ups?| up)\s+(?:with|to|on)\s+(?P<who>.+?)"
     r"\s+without (?:asking|checking with) me\b", re.I)
 _NEGATED = re.compile(r"\b(?:don'?t|do not|never|not|stop)\b[^.]{0,40}follow", re.I)
-_COUNT = re.compile(r"\bup to (\d+|a|an|one|two|three|four|five|six|seven|ten)\b(?: (?:times|messages|follow[- ]?ups?|emails))?", re.I)
-_DAYS = re.compile(r"\bfor (?:the next )?(\d+|a|an|one|two|three|four|fourteen|thirty) (day|week|month)s?\b", re.I)
+# Any word in the number slot is read; a word that is not a number REFUSES the
+# grant rather than falling back to a default - a limit he said and she dropped
+# is a wider permission than the one he gave.
+_COUNT = re.compile(r"\b(?:up to|at most|no more than|max(?:imum)?(?: of)?) (\w+)\b", re.I)
+_DAYS = re.compile(r"\bfor (?:the next |up to )?(\w+) (day|week|month)s?\b", re.I)
 _SHARE = re.compile(r"\b(?:share|give|include|mention) my (phone(?: number)?|number|email(?: address)?)\b", re.I)
 
 
@@ -213,11 +218,15 @@ def parse_grant(quote: str) -> dict:
     counted = _COUNT.search(text)
     if counted:
         messages = _number(counted.group(1))
+        if not messages:
+            raise ValueError(f"I couldn't read {counted.group(1)!r} as a number of messages, so I granted nothing")
     days = DEFAULT_GRANT_DAYS
     lasting = _DAYS.search(text)
     if lasting:
         unit = {"day": 1, "week": 7, "month": 30}[lasting.group(2).lower()]
         days = _number(lasting.group(1)) * unit
+        if not days:
+            raise ValueError(f"I couldn't read {lasting.group(1)!r} as a length of time, so I granted nothing")
     if not 1 <= messages <= MAX_GRANT_MESSAGES:
         raise ValueError(f"a standing follow-up permission covers 1 to {MAX_GRANT_MESSAGES} messages")
     if not 1 <= days <= MAX_GRANT_DAYS:

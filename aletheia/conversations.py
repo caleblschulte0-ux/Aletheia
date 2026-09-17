@@ -675,7 +675,8 @@ def _record_outbound(thread: dict, message: dict, now: dt.datetime) -> None:
                                       external_id=message.get("external_id"), occurred_at=_stamp(now))
     except FileExistsError:
         pass
-    wait = wait_adapter.reply_from(comms_id, address, after_message_id=message["id"])
+    wait = wait_adapter.reply_from(comms_id, address, after_message_id=message["id"],
+                                   reason=f"waiting for {_name(thread)} to reply about {thread.get('subject')}")
     thread.setdefault("waits", []).append(wait)
     thread["waits"] = thread["waits"][-10:]
 
