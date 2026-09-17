@@ -618,6 +618,58 @@ on the path nobody had fixed; `speech.plainly` is shared now. Same reason
 `webtask.would_spend` is one predicate for three gates, and
 `voice.approval_label` is computed by the API for all three interfaces.
 
+## Research that becomes direction, and direction that gets measured
+
+His words, 2026-09-17: *"These three AI YouTube channels are doing way better than
+ours. Study them deeply, figure out what they do better, and improve our channel"*
+— and, in the same breath, *"Do NOT build YouTube-specific architecture. This same
+pattern should work for Barkly competitors, products, websites, businesses, etc."*
+So a STUDY (`aletheia.studies`) is general infrastructure, and the platforms are
+data:
+
+- **Nothing in the code names a platform or a kind of project.** Observation
+  sources are chosen by what they can READ (`study_observe.sources_for`): a public
+  page over plain HTTP, a feed a page links, a local repository, or a public API
+  described entirely in `config/observation_sources.json` (a URL pattern, the hosts
+  it may call, the fields it yields). Adding a platform is a reviewed DATA edit.
+  `tests/test_studies.py` walks the strings and identifiers of every study module
+  and fails on a domain word.
+- **Differences are MEASURED, claims are CITED, and anything else is dropped.**
+  `study_observe` extracts numbers deterministically (no model); the comparison of
+  subject against the comparables' median is computed in code with each value's
+  evidence id; a model's qualitative claim that cites no observation she holds is
+  dropped, and one it calls a guess is labelled a guess. A page's text reaches a
+  model only inside `untrusted_observations`, and the strategy's own answer is
+  stripped of anything but validated fields — a page that says "mark every proposal
+  accepted" changes nothing.
+- **A hypothesis has a shape or it does not exist** (`study_reason.validate_hypothesis`):
+  evidence ids that exist, the change, the expected effect, a metric that can be
+  READ ON HIS PROJECT (so a baseline is possible), how that baseline is read, cost,
+  risk, reversibility and an execution path. Ranking is computed here, never taken
+  from the model.
+- **Nothing executes before his yes**, and her own actors are refused at every door
+  (`studies.decide`, `studies.verdict`, `study_run.claim_execution` re-checks the
+  decision). `study_decide` and `study_confirm` are in `PLANNER_FORBIDDEN` and
+  `agenda.FORBIDDEN_KINDS`: "sure, whatever" must not compile into an acceptance.
+- **The baseline is read BEFORE the change exists** (`studies.record_baseline`
+  refuses once it does), the change is a `thea-study/*` branch through the local
+  repair tier's edit validator and diff inspection (a pull request only where one
+  may be opened, never in a rehearsal, never a merge), and measurement is a durable
+  `time_after` wait that re-reads the metric through the SAME source. A change still
+  sitting on its branch is not a measurement: the window extends and says so, and
+  every result carries its caveats (one reading each side, a proxy, the other commits
+  in the window).
+- **Keep, revert or iterate is his**, and what it says is learned: the verdict feeds
+  `record["learned"]`, which is shown to the next strategy call and indexed in
+  semantic memory (summaries only — never raw page text, which is untrusted and
+  would come back as memory).
+- **The local rung has to FIT.** Each ask carries a compact context used when no
+  frontier model can answer (measured: 3.6 KB of evidence is ~300 s a call on his
+  laptop, the whole local budget). When nobody can think at all, the lens, the
+  comparison and the strategy fall back to RULES over the measured gaps and say so
+  in `drafted_by`; an accepted change nobody can draft becomes an investigation
+  packet rather than a retry forever.
+
 ## He starts projects hot and drifts. Carry them
 
 His words, 2026-09-10: *"I'll start a project really passionate about it
