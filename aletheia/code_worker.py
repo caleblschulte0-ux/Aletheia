@@ -573,7 +573,7 @@ def open_repair_pr(repo_full_name: str, *, base_sha: str, base_branch: str, file
 
 def prepare_pr(repo_full_name: str, objective: str, *, task_id: str,
                evidence: str = "", request=gh.request, prefer_paths: list[str] | None = None,
-               packet_id: str | None = None) -> dict:
+               packet_id: str | None = None, base_branch: str | None = None) -> dict:
     """Prepare one independently reviewed PR. Never merge it.
 
     `objective` is OURS - composed by project_loop from a repository name,
@@ -581,6 +581,11 @@ def prepare_pr(repo_full_name: str, objective: str, *, task_id: str,
     failing job names, whatever a stranger typed. They travel in separate
     fields all the way down, and only the objective is ever the model's
     instruction.
+
+    `base_branch` is for work that lives on a branch other than the default (a
+    charter's own branch, from an investigation packet made there). It changes
+    only where the files are read and where the pull request points; every
+    refusal below is unchanged, and nothing here merges.
     """
     objective = str(objective or "").strip()
     if not objective or len(objective) > MAX_OBJECTIVE_CHARS:
@@ -601,6 +606,10 @@ def prepare_pr(repo_full_name: str, objective: str, *, task_id: str,
     if private:
         raise code_trust.CodeTrustRequired("unattended model coding is disabled for private repositories")
     default = str(meta.get("default_branch") or "main")
+    if base_branch:
+        if not re.fullmatch(r"(?!-)[A-Za-z0-9._/-]{1,200}", str(base_branch)):
+            raise CodeWorkerError("unsafe base branch")
+        default = str(base_branch)
     # The grant slot is claimed just before the first GitHub WRITE, below —
     # not here. Claiming up front meant a proposal the model declined, or
     # the reviewer rejected, cost the operator one of his PR attempts for
@@ -611,7 +620,7 @@ def prepare_pr(repo_full_name: str, objective: str, *, task_id: str,
     ref = request("GET", f"/repos/{encoded}/git/ref/heads/{quote(default, safe='')}")
     base_sha = (((ref or {}).get("object") or {}).get("sha"))
     if not isinstance(base_sha, str) or not base_sha:
-        raise CodeWorkerError("default branch head was unavailable")
+        raise CodeWorkerError(f"the head of {default} was unavailable")
     commit = request("GET", f"/repos/{encoded}/git/commits/{quote(base_sha, safe='')}")
     base_tree = ((commit or {}).get("tree") or {}).get("sha")
     if not isinstance(base_tree, str) or not base_tree:

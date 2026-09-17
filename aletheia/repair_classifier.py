@@ -114,6 +114,7 @@ KIND_SIGNS: tuple[tuple[str, re.Pattern], ...] = (
     ("obvious_traceback", re.compile(r"Traceback \(most recent call last\)", re.I)),
 )
 UI_SUFFIXES = (".html", ".css", ".jsx", ".tsx", ".vue", ".svelte")
+_MISSING_MODULE = re.compile(r"No module named ['\"]([A-Za-z_][\w.]*)['\"]")
 _ABS_PATH = re.compile(r"(?:\b[A-Za-z]:[\\/]|(?<![\w.])/(?=[\w.-]+/))[^\s\"'<>|]*")
 TEST_PATH = re.compile(r"(?:^|/)(?:tests?/|test_[^/]*$|[^/]*_test\.py$|[^/]*\.(?:test|spec)\.[jt]sx?$)", re.I)
 
@@ -208,6 +209,17 @@ def classify_rules(failure: dict) -> dict:
         if hit:
             escalate.append(kind)
             reasons.append(f"{kind}: the failure mentions {hit.group(0)!r}")
+    # A module that is not the repository's own is a missing INSTALL, not a bug in
+    # the code: her model "repairing" it would edit imports until the tests stop
+    # asking for a package this machine never had.
+    own = {PurePosixPath(p.replace("\\", "/")).parts[0].casefold() for p in sources + tests if p}
+    own |= {PurePosixPath(p.replace("\\", "/")).stem.casefold() for p in sources + tests if p}
+    for name in dict.fromkeys(_MISSING_MODULE.findall(raw)):
+        top = name.split(".")[0].casefold()
+        if top not in own:
+            escalate.append("dependency_change")
+            reasons.append(f"dependency_change: the tests need the package {name.split('.')[0]!r}, which is not "
+                           "installed here (an environment to set up, not code to repair)")
     if not failure.get("located"):
         escalate.append("unlocated")
         reasons.append("unlocated: nothing in the evidence points at a file in the repository")
