@@ -99,6 +99,10 @@ def validate_capability(c: dict) -> list[str]:
         # the importable module that performs this capability. Declaring it
         # makes NOT_BUILT falsifiable: see tests/test_contracts.py.
         "module": str,
+        # A standing grant over this capability must name a SCOPE (a thread or
+        # a recipient, the purposes it covers, what it may disclose), and a
+        # grant without one authorizes nothing. `aletheia.authority` enforces it.
+        "grant_requires_scope": bool,
     })
 
 

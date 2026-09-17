@@ -419,6 +419,11 @@ def draft(to: str, subject: str, body: str, requested_via: str = "voice") -> dic
 def send_approved(transport: MailTransport | None = None) -> list[dict]:
     if not MAIL_DIR.is_dir():
         return []
+    if (os.environ.get("ALETHEIA_REHEARSAL", "").strip().lower() in ("1", "true", "yes")
+            and not getattr(transport, "rehearsal_safe", False)):
+        # A sandbox that moves the files does not stop the email (CLAUDE.md):
+        # in a rehearsal an approved draft stays a draft.
+        return []
     results = []
     for path in sorted(MAIL_DIR.glob("mail-*.json")):
         if path.name.endswith((".sent.json", ".refused.json")):
@@ -536,6 +541,11 @@ def _reply_candidates(sender: str, subject: str) -> list[dict]:
         candidates.append(expectation)
     if len(candidates) <= 1:
         return candidates
+    if len({c.get("thread_id") for c in candidates}) == 1:
+        # Several waiting expectations on ONE conversation (a message and its
+        # follow-up) are not an ambiguity about which conversation a reply
+        # belongs to: it belongs to that one, and answers the latest message.
+        return [max(candidates, key=lambda c: str(c.get("created_at") or ""))]
     subject_key = _subject_key(subject)
     narrowed = []
     for expectation in candidates:

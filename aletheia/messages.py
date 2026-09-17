@@ -233,7 +233,12 @@ def send_approved(hands=None) -> list[dict]:
     screen before it presses anything.
     """
     from aletheia import computer
+    import os
 
+    if (hands is None and os.environ.get("ALETHEIA_REHEARSAL", "").strip().lower()
+            in ("1", "true", "yes")):
+        # A rehearsal never presses Send on his phone, approved or not.
+        return []
     results = []
     for record in pending():
         try:
