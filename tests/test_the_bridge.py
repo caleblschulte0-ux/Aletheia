@@ -152,15 +152,63 @@ class TheBridgeUsesTheModelThatFitsCase(unittest.TestCase):
         local.assert_not_called()
 
     def test_the_code_worker_and_the_merge_review_stay_on_the_subscriptions(self):
+        """THE RULE HE NARROWED, 2026-09-16 (docs/CONTINUITY_BRIEF.md; CLAUDE.md
+        "Small repairs may be local; everything else about code stays
+        frontier"). This test used to assert that no code path could reach a
+        local model at all. The rule it protects now has three halves:
+
+        - a BOUNDED repair may be drafted by her own model, and only through
+          the gateway (class `standard`) in the local repair tier, where the
+          repository's tests prove it;
+        - the code worker's own path (unverified proposals) and the merge
+          review ask the gateway for `critical`, which a local model never
+          answers;
+        - the merge review comes from a DIFFERENT model than the builder.
+        """
+        from aletheia import code_worker, local_repair, project_merge
         from aletheia.fleet import REPO_ROOT
-        for rel in ("aletheia/code_worker.py", "aletheia/project_merge.py"):
+        for rel in ("aletheia/code_worker.py", "aletheia/project_merge.py", "aletheia/local_repair.py"):
             body = (REPO_ROOT / rel).read_text(encoding="utf-8")
+            # Code work asks for a class of reasoning, never a company or a
+            # model pool directly.
             self.assertNotIn("local_model_pool", body, rel)
-            self.assertNotIn("reasoning_gateway", body, rel)
+            self.assertNotIn("subscription_json(", body, rel)
             # The job hunt's chain (Claude -> Codex -> local) is for reading
             # postings and forms, never for changing his repositories.
             self.assertNotIn("work_json", body, rel)
             self.assertNotIn("codex_json", body, rel)
+        self.assertEqual(local_repair.BOUNDED_POLICY, "standard")
+
+        seen = []
+
+        def gateway(system, text, **kwargs):
+            seen.append(kwargs["policy"])
+            return reasoning_gateway.GatewayResult({"approved": True, "summary": "ok", "findings": []},
+                                                   "subscription.auto", kwargs["policy"])
+        with mock.patch.object(reasoning_gateway, "reason_json", side_effect=gateway):
+            code_worker.critical_think("sys", "propose")
+            project_merge.review({"slug": "p", "title": "P", "goal": "g", "steps": [{"n": 1, "text": "t"}]},
+                                 1, "me/p", {"number": 1, "title": "t", "body": "b"},
+                                 [{"filename": "a.py", "patch": "+x"}])
+            local_repair.gateway_think()("sys", "fix")
+        self.assertEqual(seen, ["critical", "critical", "standard"])
+
+        # critical never falls to the local model, even with the frontier out
+        with mock.patch.object(reasoning_gateway.model_pool_config, "enabled", return_value=True), \
+             mock.patch.object(local_model_pool, "reachable", return_value=True), \
+             mock.patch.object(reasoner, "subscription_json",
+                               side_effect=reasoner.ClaudeResting(utc(2030, 1, 1))), \
+             mock.patch.object(local_model_pool, "auto_json") as local:
+            with self.assertRaises(reasoner.ReasonerUnavailable):
+                code_worker.critical_think("sys", "propose")
+        local.assert_not_called()
+
+        # the merge review is never the builder's own model
+        with mock.patch.object(project_merge.reasoner, "review_model", return_value=project_merge.BUILDER_MODEL), \
+             mock.patch.object(reasoning_gateway, "reason_json") as asked:
+            verdict = project_merge.review({"slug": "p", "steps": []}, 1, "me/p", {}, [])
+        self.assertFalse(verdict["approved"])
+        asked.assert_not_called()
 
 
 class HerOwnVoiceCase(ClearRest):
