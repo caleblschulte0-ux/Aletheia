@@ -317,6 +317,17 @@ class ShapingIsGeneral(Sandbox):
         self.assertTrue(drafted["drafted_by"]["local"])
         self.assertEqual(len(drafted["draft"]["tasks"]), 3)
 
+    def test_a_compact_local_plan_becomes_full_tasks_with_waits_that_mean_something(self):
+        value = program_shaping.expand_compact({"tasks": [
+            {"title": "Ask the person about it", "waits_for": "reply", "who": "someone@example.test", "after": 0},
+            {"title": "Go on the agreed day", "waits_for": "date", "who": "", "after": 1},
+            {"title": "Pick one", "waits_for": "decision", "after": 7}]})
+        first, second, third = value["tasks"]
+        self.assertEqual(first["then_wait"]["who"], "someone@example.test")
+        self.assertTrue(first["then_wait"]["follow_up_days"] and first["then_wait"]["timeout_means"])
+        self.assertEqual(second["needs"], ["t1"])
+        self.assertEqual((third["needs"], third["then_wait"]["question"]), ([], "Pick one"))
+
     def test_nobody_able_to_think_is_blocked_model_not_failure(self):
         from aletheia import reasoning_gateway
         with mock.patch.object(reasoning_gateway, "reason_json",

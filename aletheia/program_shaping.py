@@ -88,16 +88,17 @@ Return JSON only:
  "outcomes": [{"key": "o1", "text": a concrete result, "measure": how to tell it is met}] (at most 4),
  "workstreams": [{"key": "w1", "title": a part of the mission, "outcomes": ["o1"]}] (at most 4)}"""
 
-STREAM_SYSTEM = """You plan ONE workstream of Caleb's long mission as small concrete tasks. Only use facts he gave;
-never invent people, prices or dates. Anything that reaches another person is still a task (he approves it
-when it runs). Nothing may spend money. Return JSON only:
-{"tasks": [{"key": "t1", "title": imperative, "detail": specifics from his words, "does": [plain verb phrases],
-            "uses": [names from TOOLS or []], "needs": [earlier task keys],
-            "then_wait": null or {"for": "reply"|"date"|"event"|"decision", "who": ..., "in_days": n,
-                                  "follow_up_days": n, "timeout_days": n, "timeout_means": ...}}] (at most 4),
- "activities": [{"key": "a1", "title": ..., "does": [...], "uses": [...],
-                 "cadence": {"every": "day"|"week", "at": "HH:MM"}, "watch": true or false}] (at most 1),
- "decisions": [{"key": "d1", "question": ..., "options": [...], "after": [task keys]}] (at most 1)}"""
+STREAM_SYSTEM = """List the small concrete tasks for ONE part of Caleb's long mission. Only facts he gave; never
+invent people, prices or dates; nothing that spends money. Reaching a person is fine (he approves it). Be brief.
+Return JSON only: {"tasks": [{"title": imperative sentence with the specifics,
+ "waits_for": "reply" or "date" or "decision" or "", "who": person to hear from or "",
+ "after": number of an earlier task in this list or 0}]} with at most 3 tasks."""
+
+#: What a compact local plan's wait means, before he says otherwise: a reply is nudged (with his approval)
+#: after three days and stops being waited for after ten; a date is the next day.
+COMPACT_WAIT = {"reply": {"follow_up_days": 3, "timeout_days": 10,
+                          "timeout_means": "no reply in ten days; ask Caleb whether to try again or move on"},
+                "date": {"in_days": 1}, "decision": {}}
 
 
 class ShapeError(ValueError):
@@ -294,10 +295,32 @@ def _skeleton_validator(value: Any) -> dict:
     return checked
 
 
+def expand_compact(value: dict) -> dict:
+    """A compact local plan ({"title", "waits_for", "who", "after"}) in the full task shape."""
+    tasks = _list(value.get("tasks"))
+    if not tasks or not all(isinstance(t, dict) and "key" not in t for t in tasks):
+        return value
+    out = []
+    for n, t in enumerate(tasks, 1):
+        title = _text(t.get("title"), 160)
+        waits_for = str(t.get("waits_for") or "").strip().lower()
+        then = None
+        if waits_for in COMPACT_WAIT:
+            then = dict(COMPACT_WAIT[waits_for], **{"for": waits_for, "who": _text(t.get("who"), 120)})
+            if waits_for == "decision":
+                then["question"] = title
+        after = t.get("after")
+        needs = [f"t{int(after)}"] if str(after).isdigit() and 0 < int(after) < n else []
+        out.append({"key": f"t{n}", "title": title, "detail": title, "does": [], "uses": [], "needs": needs,
+                    "then_wait": then})
+    return {"tasks": out, "activities": value.get("activities") or [], "decisions": value.get("decisions") or []}
+
+
 def _stream_validator(stream: dict, names: set[str]) -> Callable[[Any], dict]:
     def check(value: Any) -> dict:
         if not isinstance(value, dict):
             raise ShapeError("a workstream plan must be an object")
+        value = expand_compact(value)
         probe = {"title": "x", "outcomes": [{"key": o, "text": o} for o in stream.get("outcomes") or ["o1"]],
                  "workstreams": [{"key": stream["key"], "title": stream["title"], "outcomes": stream.get("outcomes")}],
                  "tasks": value.get("tasks"), "activities": value.get("activities"),
@@ -329,12 +352,12 @@ def skeleton(words: str, context: dict, *, think: Callable | None = None) -> dic
 
 def stream_plan(words: str, skel: dict, stream: dict, context: dict, *, catalog: dict,
                 think: Callable | None = None) -> dict:
-    """Stage two, for ONE workstream: {"value", "provider", "degraded"}. Raises ReasonerUnavailable."""
-    from aletheia import program_compose
+    """Stage two, for ONE workstream: {"value", "provider", "degraded"}. Raises ReasonerUnavailable.
+    The compact shape (title, waits_for, who, after) is what a local model finishes in time; the tools are
+    then chosen by capability from the task's own words (`program_compose`)."""
     sub = {"mission": skel.get("objective") or words[:300], "his_words": words[:900],
            "workstream": {"key": stream["key"], "title": stream["title"]},
            "outcomes": [o for o in skel["outcomes"] if o["key"] in (stream.get("outcomes") or [])],
-           "TOOLS": program_compose.menu(f"{stream['title']} {words}", catalog, limit=10, width=60),
            "today": context.get("today")}
     if context.get("his_answers"):
         sub["his_answers"] = context["his_answers"]
