@@ -385,6 +385,87 @@ class FollowUps(Isolated):
         self.assertIn("no answer", after["reason"])
 
 
+class FoundByRehearsing(Isolated):
+    """Each of these passed every unit test above and failed the first full rehearsal."""
+
+    def test_a_follow_up_repeating_the_approved_subject_is_still_covered(self):
+        fake = conv.FakeMailTransport()
+        self.contact()
+        self.poll(fake)
+        thread = conv.start("the property manager", about="the two-bedroom listing at 412 Elm Street",
+                            asks=[ASK_PARKING], now=self.now)
+        self.approve(thread["messages"][0]["approval"])
+        conv.reconcile(now=self.later(minutes=1), transport=fake, use_model=False)
+        ca.grant_from_words("you can follow up with the property manager without asking me", via="operator-cli")
+        conv.reconcile(now=self.later(days=4), transport=fake, use_model=False)
+        self.assertEqual(len(fake.outbox), 2)
+        self.assertIn("412 Elm Street", fake.outbox[-1]["Subject"])
+        # ...but an address she has NOT sent before is still a new disclosure.
+        fresh = ca.decide(kind="followup", thread_id=thread["id"], recipient="dana@harborview-rentals.test",
+                          body="Following up - my place is 88 Birch Avenue.", prior_approved_to_recipient=True,
+                          already_approved="Re: 412 Elm Street")
+        self.assertIn("address", fresh["screen"]["disclosures"])
+
+    def test_a_time_written_to_someone_else_is_a_date_not_tomorrow(self):
+        fake = conv.FakeMailTransport()
+        self.contact()
+        self.poll(fake)
+        thread = conv.start("the property manager", about="the listing", asks=[ASK_TOUR], now=self.now)
+        self.approve(thread["messages"][0]["approval"])
+        conv.reconcile(now=self.later(minutes=1), transport=fake, use_model=False)
+        fake.deliver(sender="Dana Reyes <dana@harborview-rentals.test>", subject="Re: The listing",
+                     text="We could do tomorrow at 11am.", when=self.later(hours=1))
+        self.poll(fake)
+        conv.reconcile(now=self.later(hours=2), transport=fake, use_model=False)
+        body = conv.load(thread["id"])["messages"][-1]["body"]
+        self.assertNotIn("omorrow", body)
+        self.assertRegex(body, r"(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), \w+ \d+ at 11 am")
+
+    def test_an_answer_nobody_was_waiting_for_reaches_its_one_open_conversation(self):
+        fake = conv.FakeMailTransport()
+        self.contact()
+        self.poll(fake)
+        thread = conv.start("the property manager", about="the listing", asks=[ASK_TOUR, ASK_PARKING], now=self.now)
+        self.approve(thread["messages"][0]["approval"])
+        conv.reconcile(now=self.later(minutes=1), transport=fake, use_model=False)
+        fake.deliver(sender="Dana Reyes <dana@harborview-rentals.test>", subject="Re: The listing",
+                     text="Tours are Thursdays at 5pm.", when=self.later(hours=1))
+        self.poll(fake)
+        conv.reconcile(now=self.later(hours=2), transport=fake, use_model=False)   # the expectation is spent
+        fake.deliver(sender="Dana Reyes <dana@harborview-rentals.test>", subject="Parking",
+                     text="Forgot to say: yes, parking is included.", when=self.later(hours=3))
+        self.poll(fake)
+        conv.reconcile(now=self.later(hours=4), transport=fake, use_model=False)
+        after = conv.load(thread["id"])
+        self.assertEqual(len(after["replies"]), 2)
+        self.assertTrue(after["open_asks"][1]["answered_in"])
+
+    def test_two_open_conversations_with_one_person_adopt_nothing(self):
+        conv.start("dana@harborview-rentals.test", about="one", now=self.now)
+        conv.start("dana@harborview-rentals.test", about="two", now=self.now)
+        for thread in conv.all_threads():
+            thread["comms_thread"] = thread["id"]
+            thread["state"] = conv.AWAITING_REPLY
+            conv.save(thread)
+        self.assertIsNone(conv.adopt_inbound("dana@harborview-rentals.test", "hi", {"message_id": "<x@y>"},
+                                             self.now.strftime("%Y-%m-%dT%H:%M:%SZ"), "f" * 64))
+
+    def test_did_they_reply_after_it_closed(self):
+        fake = conv.FakeMailTransport()
+        self.contact()
+        self.poll(fake)
+        thread = conv.start("the property manager", about="the listing", asks=[ASK_PARKING], now=self.now)
+        self.approve(thread["messages"][0]["approval"])
+        conv.reconcile(now=self.later(minutes=1), transport=fake, use_model=False)
+        fake.deliver(sender="Dana Reyes <dana@harborview-rentals.test>", subject="Re: The listing",
+                     text="Yes, parking is included.", when=self.later(hours=1))
+        self.poll(fake)
+        conv.reconcile(now=self.later(hours=2), transport=fake, use_model=False)
+        self.assertEqual(conv.load(thread["id"])["state"], conv.CLOSED)
+        said = conv.status_words("they", now=self.later(hours=3))
+        self.assertTrue(said.startswith("Yes, Dana Reyes replied"), said)
+
+
 class TheReadersAndTheScreen(Isolated):
     def test_work_engine_reads_conversations(self):
         self.contact()
