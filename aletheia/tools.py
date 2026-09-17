@@ -131,6 +131,7 @@ STORE_OF = {
     "agent_stop": "agents", "agents_pause": "agents",
     "web_task": "webtasks", "web_task_retry": "webtasks", "web_task_answer": "webtasks",
     "subscription_cancel": "subscriptions",
+    "work_projects": "work", "work_report": "work",
     "missions": "programs", "mission_new": "programs", "mission_add": "programs",
     "mission_confirm": "programs", "mission_activity": "programs",
     "thread_draft": "conversations", "thread_status": "conversations", "thread_send": "conversations",
@@ -394,7 +395,8 @@ def declare(name: str, *, description: str, input_schema: dict, handler: Callabl
 #: here). Adding a module here is how a new family of tools joins the
 #: catalog; nothing else needs to know.
 DECLARED_MODULES = ("aletheia.state_tools", "aletheia.repo_tools", "aletheia.browser_tools",
-                    "aletheia.memory_tools", "aletheia.program_tools", "aletheia.conversation_tools")
+                    "aletheia.memory_tools", "aletheia.program_tools", "aletheia.conversation_tools",
+                    "aletheia.work_tools")
 
 
 def _declared() -> list[Tool]:

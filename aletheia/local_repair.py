@@ -304,7 +304,7 @@ def run(source: str | Path, *, repo: str = "", base_ref: str = "HEAD", failing: 
         objective: str = "", task_id: str | None = None, think: Think | None = None,
         review_think: Think | None = None, classify_think: Think | None = None,
         attempts: int = MAX_ATTEMPTS, open_pr: bool = False, request=None,
-        use_model_classifier: bool = False, subdir: str = "") -> dict:
+        use_model_classifier: bool = False, subdir: str = "", publish_base_sha: str = "") -> dict:
     """One bounded repair attempt, end to end. Never raises for a failure it
     could record; raises policy.Halted when the kill switch is thrown.
 
@@ -317,15 +317,18 @@ def run(source: str | Path, *, repo: str = "", base_ref: str = "HEAD", failing: 
     default spends one call where one does the job.
     `subdir` is a project that lives in a folder of its repository (a
     charter's `path`): its tests run there, and its paths are published
-    relative to the repository root."""
+    relative to the repository root.
+    `publish_base_sha` is the real commit a local MIRROR stands for
+    (`project_checkout`): the tests run on the mirror's own commit, and a pull
+    request is published against the commit it mirrors, never the mirror's."""
     source = Path(source).resolve()
     policy.ensure_not_halted()
-    base_sha = inv.resolve_sha(source, base_ref)
+    base_sha = inv.resolve_sha(source, "HEAD" if publish_base_sha else base_ref)
     task_id = task_id or ("local-" + hashlib.sha1(f"{source}|{base_sha}|{failing}".encode()).hexdigest()[:10])
     run_id = f"repair-{re.sub(r'[^a-z0-9-]+', '-', task_id.casefold())[:40]}-{secrets.token_hex(3)}"
     rec = _Record(id=run_id, repo=repo, source=str(source), base_ref=base_ref, base_sha=base_sha,
                   task_id=task_id, objective=inv.clean(objective, 600), merge=_merge_note(repo),
-                  subdir=subdir)
+                  subdir=subdir, **({"mirrors": publish_base_sha} if publish_base_sha else {}))
     think = think or gateway_think(BOUNDED_POLICY)
     review_think = review_think or think
     classify_think = classify_think or think
@@ -336,7 +339,7 @@ def run(source: str | Path, *, repo: str = "", base_ref: str = "HEAD", failing: 
                          review_think=review_think,
                          classify_think=classify_think if use_model_classifier else None,
                          attempts=max(1, min(int(attempts), 5)), open_pr=open_pr, request=request,
-                         subdir=subdir)
+                         subdir=subdir, publish_base_sha=publish_base_sha)
     except policy.Halted:
         rec.save("HALTED", reason="the kill switch was thrown mid-repair; nothing was published")
         _journal("event", run_id, "local repair stopped: halted")
@@ -351,7 +354,8 @@ def run(source: str | Path, *, repo: str = "", base_ref: str = "HEAD", failing: 
 
 def _loop(where: Path, source: Path, rec: _Record, *, repo: str, base_ref: str, base_sha: str,
           failing: list[str] | None, objective: str, task_id: str, think: Think, review_think: Think,
-          classify_think: Think | None, attempts: int, open_pr: bool, request, subdir: str = "") -> dict:
+          classify_think: Think | None, attempts: int, open_pr: bool, request, subdir: str = "",
+          publish_base_sha: str = "") -> dict:
     # observe
     policy.ensure_not_halted()
     observed = inv.observe(where, failing)
@@ -577,7 +581,8 @@ def _loop(where: Path, source: Path, rec: _Record, *, repo: str, base_ref: str, 
             files[f"{subdir.strip('/')}/{path}" if subdir else path] = {
                 "content": (where / path).read_text(encoding="utf-8"), "mode": mode}
         try:
-            pr = code_worker.open_repair_pr(repo, base_sha=base_sha, base_branch=_branch_name(base_ref),
+            pr = code_worker.open_repair_pr(repo, base_sha=publish_base_sha or base_sha,
+                                            base_branch=_branch_name(base_ref),
                                             files=files, task_id=task_id, title=title, body=body,
                                             request=request or gh.request)
         except policy.Halted:
@@ -899,10 +904,13 @@ def handoff(item: dict, *, request=None) -> dict:
                  "Start from the investigation packet in the evidence; make the smallest correct change. "
                  "Do not edit workflow, credential, policy, configuration or test files.")
     policy.ensure_not_halted()
+    ref = _branch_name(str(packet.get("base_ref") or ""))
     run = code_worker.prepare_pr(repo, objective, task_id=item["task_id"],
                                  evidence=code_worker.sanitize_external(inv.packet_evidence(packet)),
                                  request=request or gh.request, prefer_paths=packet.get("likely_files"),
-                                 packet_id=packet["id"])
+                                 packet_id=packet["id"],
+                                 # a packet made on a charter's own branch is worked THERE
+                                 base_branch=ref if ref and ref != "HEAD" and packet.get("on_branch") else None)
     if run.get("status") == "PR_OPEN":
         inv.settle(item["id"], state=inv.waiting_on_him_state(),
                    note=f"a stronger model opened {run.get('pr_url')} from the packet", result=run)

@@ -557,35 +557,43 @@ def _finish(pid: str, task: dict, now: dt.datetime, text: str = "") -> dict:
 RECIPIENT_ARGS = ("to", "person", "recipient", "email", "phone", "contact", "who")
 
 
+#: Tools whose own module already records what they send (`aletheia.conversations`).
+CONVERSATION_SEND_TOOLS = ("thread.send", "thread_send")
+
+
 def _record_outbound(pid: str, task: dict, held: dict, now: dt.datetime) -> None:
-    """A handed-off step that reached someone is recorded as an outbound message, so a reply can be awaited."""
-    from aletheia import communications, handoffs
+    """A handed-off step that reached someone is recorded ONCE, by the one owner of
+    outbound messages (`aletheia.conversations`), so a reply can be awaited.
+
+    Until C3 this wrote its own `mission-<pid>-<task>` communications thread while a
+    `thread.send` step had already been recorded by conversations under another,
+    each with its own follow-up clock. Now: a conversation's own send is LINKED,
+    any other door's send is recorded on a conversation, and the follow-up policy
+    belongs to this task's wait (`then_wait.follow_up_days` -> `waits`), not to a
+    second date on the thread."""
+    from aletheia import conversations, handoffs
     try:
         row = handoffs.load(held["condition"]["handoff_id"])
     except Exception:  # noqa: BLE001
         return
     args = row.get("args") or {}
-    who = next((str(args[k]).strip() for k in RECIPIENT_ARGS if str(args.get(k) or "").strip()), "")
-    if not who:
-        return
-    thread = stateio.safe_id(f"mission-{pid}-{task['key']}".lower()[:120], name="thread id")
+    item = pg.item_id(pid, task["key"])
+    owner = item if (task.get("then_wait") or {}).get("follow_up_days") else ""
     try:
-        communications.create_thread(thread, participants=["caleb", who], subject=task["title"][:120])
-    except FileExistsError:
-        pass
-    except ValueError:
+        if row.get("tool") in CONVERSATION_SEND_TOOLS and args.get("thread"):
+            linked = conversations.link_sent(str(args["thread"]), work_item=item, follow_up_owner=owner, now=now)
+        else:
+            who = next((str(args[k]).strip() for k in RECIPIENT_ARGS if str(args.get(k) or "").strip()), "")
+            if not who:
+                return
+            linked = conversations.record_sent_elsewhere(
+                who, subject=task["title"][:120], summary=str(row.get("consequence") or row.get("tool"))[:300],
+                work_item=item, via=f"mission:{pid}", follow_up_owner=owner, now=now)
+    except (conversations.ConversationError, ValueError, OSError):
         return
-    n = sum(1 for r in task.get("results") or [] if r.get("sent_to")) + 1
-    channel = "email" if "@" in who else "other"
-    try:
-        communications.record_message(f"out-{n}", thread_id=thread, direction="OUTBOUND", channel=channel,
-                                      participant="caleb", summary=str(row.get("consequence") or row.get("tool"))[:300],
-                                      occurred_at=pg.stamp(now))
-    except (FileExistsError, ValueError):
-        pass
     for r in reversed(task.get("results") or []):
         if r.get("tool") == row.get("tool"):
-            r.update(sent_to=who, thread=thread)
+            r.update(sent_to=linked["participant"], thread=linked["comms_thread"], conversation=linked["thread"])
             break
 
 

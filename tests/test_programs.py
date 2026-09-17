@@ -663,5 +663,86 @@ class ItIsReadBack(Sandbox):
         self.assertTrue({"mission.status", "mission.waiting"} <= {t["name"] for t in visible})
 
 
+
+class OneOwnerRecordsOutboundMessages(Sandbox):
+    """C3: a message a mission step sends is recorded ONCE, by conversations, and its
+    follow-up belongs to the task's wait, never to a second clock on a second thread."""
+
+    def outbound(self) -> list[dict]:
+        rows = []
+        for path in communications.THREADS_DIR.glob("*.json"):
+            rows += [m for m in communications.messages(path.stem) if m["direction"] == "OUTBOUND"]
+        return rows
+
+    def test_a_mission_step_send_is_one_record_on_one_conversation_with_one_follow_up_owner(self):
+        from aletheia import conversations
+        pid = self.active()["id"]
+        program_run.run_task(pid, "t2", now=NOW)
+        self.approve_all()
+        waits.reconcile(self.at(minutes=1))
+        self.assertEqual(len(SENT), 1)
+        self.assertEqual(len(self.outbound()), 1)                       # ONE record of the one message
+        threads = conversations.all_threads()
+        self.assertEqual(len(threads), 1)
+        thread = threads[0]
+        self.assertEqual([m["state"] for m in thread["messages"]], [conversations.M_SENT])
+        self.assertEqual(thread["work_item"], pg.item_id(pid, "t2"))
+        self.assertEqual(thread["follow_up"]["owner"], pg.item_id(pid, "t2"))
+        self.assertIsNone(thread["follow_up"]["due"])
+        program_run.run_task(pid, "t2", now=self.at(minutes=2))
+        held = pg.current_wait(self.task(pid, "t2"))
+        self.assertEqual(held["condition"]["thread_id"], thread["comms_thread"])   # waits on THAT thread
+        # conversations never drafts its own follow-up for it; the task's wait does
+        self.assertEqual(conversations.followups_due(now=self.at(days=5)), [])
+        waits.reconcile(self.at(days=3, minutes=5))
+        self.assertEqual(self.task(pid, "t2-nudge1")["state"], ws.READY)
+        # the reply lands on the one thread and wakes the task
+        communications.record_message("in-1", thread_id=thread["comms_thread"], direction="INBOUND",
+                                      channel="email", participant="lister@example.com", summary="still free",
+                                      occurred_at=waits.stamp(self.at(days=3, hours=1)))
+        waits.reconcile(self.at(days=3, hours=2))
+        self.assertEqual(self.task(pid, "t2")["state"], ws.DONE)
+        self.assertEqual(len(self.outbound()), 1)
+
+    def test_a_second_message_to_the_same_person_on_the_same_work_is_the_same_thread(self):
+        from aletheia import conversations
+        first = conversations.record_sent_elsewhere("lister@example.com", subject="Contact", summary="a",
+                                                    work_item="program:x#t2", via="mission:x", now=NOW)
+        second = conversations.record_sent_elsewhere("lister@example.com", subject="Contact", summary="b",
+                                                     work_item="program:x#t2", via="mission:x", now=self.at(days=3))
+        self.assertEqual(first["thread"], second["thread"])
+        self.assertEqual(len(conversations.all_threads()), 1)
+        self.assertEqual(len(self.outbound()), 2)
+
+    def test_a_conversation_send_handed_off_by_a_mission_is_linked_not_recorded_again(self):
+        from aletheia import conversations
+        thread = conversations.start("lister@example.com", about="whether the flat is free", now=NOW)
+        message = thread["messages"][-1]
+        policy.decide(message["approval"], "APPROVED", via="operator-phone", because="yes")
+        sent = conversations.send_approved(transport=_FakeTransport(), now=NOW)
+        self.assertEqual(sent[0]["outcome"], "sent")
+        self.assertEqual(len(self.outbound()), 1)
+        pid = self.active()["id"]
+        record = pg.load(pid)
+        task = next(t for t in record["tasks"] if t["key"] == "t2")
+        filed = {"id": "handoff-x", "tool": "thread.send", "args": {"thread": thread["id"]}}
+        with mock.patch.object(handoffs, "load", return_value=filed):
+            task["results"] = [{"tool": "thread.send", "outcome": "done"}]
+            program_run._record_outbound(pid, task, {"condition": {"handoff_id": "handoff-x"}}, NOW)
+        self.assertEqual(len(self.outbound()), 1)                       # linked, not recorded twice
+        self.assertEqual(task["results"][-1]["conversation"], thread["id"])
+        after = conversations.load(thread["id"])
+        self.assertEqual(after["follow_up"]["owner"], pg.item_id(pid, "t2"))
+        self.assertIsNone(after["follow_up"]["due"])
+
+
+class _FakeTransport:
+    rehearsal_safe = True
+    address = "caleb@example.com"
+
+    def send(self, email):
+        SENT.append({"to": email["To"]})
+
+
 if __name__ == "__main__":
     unittest.main()

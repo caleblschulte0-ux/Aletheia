@@ -1384,6 +1384,18 @@
       "notes": "Built 2026-09-16 for continuity brief Part IV (items 11-14) as general infrastructure: nothing in code names what a mission is about. EXPERIMENTAL until a real mission of his has been drafted, confirmed and carried across at least one real wait on his machine; Scenario E ran it in a throwaway sandbox with rehearsal outbound only. Outbound messages and calendar reasoning stay with their own layers; a mission step that reaches anyone is a handoff he approves."
     },
     {
+      "id": "work.projects",
+      "description": "Work on your projects when you say so - even with Claude and Codex out: run what can run now within existing authority, investigate harder work into evidence packets for a stronger model, and report what was done, what waits and on whom",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "medium",
+      "approval_policy": "none",
+      "caller": "intercom kinds 'work_projects' and 'work_report' (voice, phone, Command Center: \"work on my projects\", \"what did you get done on my projects\"); python -m aletheia.project_work start|status|preview; aletheia.work_engine.SOURCE_RUNNERS['tasks'|'plans'|'charter_ci'] -> aletheia.work_runners on the Core's beat (light routes) and inside a session (heavy routes); the work.receipts and work.inventory session tools (aletheia.work_tools); aletheia.mission_work's work-session card and ribbon lines; current_state section work_session",
+      "module": "aletheia.project_work",
+      "verification": "tests/test_work_on_projects.py: phrasings route to the command, runners run reads and hand world steps off, charter steps go to local repair / a packet / the cloud builder by rule, red CI on a charter branch becomes an item, one piece of work in two stores is one item, the local-model lease orders processes, and the report never says she can't work while anything is executable",
+      "notes": "Built 2026-09-17 (continuity wave C3b) for the final target of docs/CONTINUITY_BRIEF.md. Nothing it runs is new authority: pull requests go through code_worker.open_repair_pr with its grant and refusals, Aletheia and schwab-trader never merge autonomously, world-touching steps are handoffs, money is refused, and a rehearsal opens no pull request. EXPERIMENTAL until a real session on his machine has carried real work end to end; Scenario A ran it on a sandboxed copy of his state with the frontier switched off."
+    },
+    {
       "id": "charter.next",
       "description": "Say which charter step is next and, for every charter passed over, why - so a loop that decides nothing stops doing it silently",
       "provider": "aletheia.local",

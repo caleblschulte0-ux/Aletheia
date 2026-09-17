@@ -674,6 +674,7 @@ _HE_CAN_ASK_FOR = {
                                 "plan_step", "plan_set", "issue", "dispatch",
                                 "project_new", "project_step", "project_drop"),
     "long missions that run for weeks": ("missions", "mission_new", "mission_add", "mission_confirm"),
+    "working on your projects on your say-so": ("work_projects", "work_report"),
     "job applications": ("jobs", "apply_prepare", "apply_campaign", "apply_answer",
                          "applications", "apply_outcome"),
     "money you spend": ("money", "subscriptions", "subscription_cancel"),

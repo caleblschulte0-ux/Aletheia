@@ -75,6 +75,11 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "mission_confirm":  (set(), {"mission"}),
     "missions":         (set(), {"which", "about"}),
     "mission_activity": ({"mission", "activity"}, set()),
+    # "Work on my projects." (aletheia.project_work): a bounded work session over
+    # every queue - what can run now runs, what cannot is investigated or waits
+    # with its reason. `work_report` is how he asks what came of it.
+    "work_projects":    (set(), {"minutes"}),
+    "work_report":      (set(), {"about"}),
     "task_new":      ({"id", "description"}, {"goal", "worker", "deadline"}),
     "task_status":   ({"id", "state"}, {"note"}),
     # She could CREATE a task by voice and change its status, and had no
@@ -347,6 +352,14 @@ KIND_NOTES: dict[str, str] = {
     "mission_activity": (
         "Fired by a long mission's recurring schedule to start this occurrence of its "
         "activity. Never compiled from something he says."),
+    "work_projects": (
+        "He asks her to work on his projects now (\"work on my projects\", \"keep working on my "
+        "stuff\", \"what can you get done right now\"). She runs a bounded work session: whatever "
+        "can run now within her authority runs, harder work is investigated and queued for a "
+        "stronger model, and what waits says why. minutes bounds it (default 25)."),
+    "work_report": (
+        "What her work session did: finished, investigated, handed to him, what waits and on "
+        "whom. Read only."),
     "screen_record": (
         "Start recording ONE window to an MP4 on this PC - never the whole desktop, never "
         "uploaded. window is its title or a unique part of it (computer_observe lists them); "
@@ -569,6 +582,8 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                "project_new", "project_step", "project_drop",
                # his long missions live in private state on the PC
                "mission_new", "mission_add", "mission_confirm", "missions", "mission_activity",
+               # a work session checks projects out, runs tests and asks her own model: this PC
+               "work_projects", "work_report",
                # Phone Link is paired to his iPhone on THIS machine;
                # Actions cannot text anybody.
                "message_send", "music",
@@ -635,6 +650,8 @@ READ_ONLY_KINDS = frozenset({
     "projects", "car", "recall", "travel_time", "browse_read", "browse_shot",
     # how his long missions stand and what they wait on changes nothing
     "missions",
+    # what a work session did is read from its receipts
+    "work_report",
     # reads public pages and writes a document; commits him to nothing
     "research",
     # looking at his own files commits him to nothing
@@ -671,6 +688,11 @@ ROUTINE_KINDS = frozenset({
     # him through its own approval. A schedule starting an activity's
     # occurrence only adds a task to that private record.
     "mission_new", "mission_add", "mission_confirm", "mission_activity",
+    # Starting a work session on his say-so. It grants nothing: each item it runs
+    # goes through the gates that item already has (the broker, handoffs, the
+    # repair tier's branch-and-PR rule, rehearsal), and nothing world-touching
+    # happens without its own approval.
+    "work_projects",
     # Disabling a reminder is reversible by saying the opposite, which is
     # the whole test for this tier — the schedule is disabled, never
     # deleted, so "actually put that back" is one command.
@@ -1871,6 +1893,17 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 "within half an hour.")
     if kind in ("mission_new", "mission_add", "mission_confirm", "missions", "mission_activity"):
         return _mission_command(kind, cmd, quote)
+    if kind == "work_projects":
+        from aletheia import project_work
+        minutes = None
+        try:
+            minutes = float(cmd["minutes"]) if cmd.get("minutes") not in (None, "") else None
+        except (TypeError, ValueError):
+            minutes = None
+        return project_work.start(via=ACTOR, words=quote, minutes=minutes)["said"]
+    if kind == "work_report":
+        from aletheia import project_work
+        return project_work.spoken_status(str(cmd.get("about") or ""))
     if kind == "tasks":
         return _tasks_answer(cmd.get("which", ""))
     if kind == "task_done":
