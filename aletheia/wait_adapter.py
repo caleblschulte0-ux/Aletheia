@@ -18,10 +18,12 @@ condition is backed by the channel-neutral expectation store
 (`communications.expect_reply`), because that is what `mail.poll_events`
 resolves when a reply arrives: no second store, no second loop.
 
-MERGE NOTE: conversations keep their own follow-up date (the thread record's
-`follow_up.due`) because a follow-up here is drafted and authority-checked by
-`conversations`, not nudged by a notification. Moving that date into a waits
-`follow_up` policy with an owner handler is the reconciliation left for the merge.
+FOLLOW-UPS HAVE ONE OWNER (C3). A conversation he started keeps its own
+follow-up date (the thread's `follow_up.due`), because that follow-up is drafted
+and authority-checked by `conversations`. A message sent for a long mission's
+task is recorded by `conversations` too (`record_sent_elsewhere` / `link_sent`),
+but its follow-up belongs to the task's wait (`waits` follow_up policy): the
+thread carries `follow_up.owner` and no date, so nothing nudges twice.
 """
 from __future__ import annotations
 

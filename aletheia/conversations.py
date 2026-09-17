@@ -640,8 +640,8 @@ def _send_one(thread: dict, message: dict, *, transport, now: dt.datetime) -> di
         sched["state"] = "WE_PROPOSED"
     open_asks = [a for a in thread.get("open_asks") or [] if not a.get("answered_in")]
     due = now + dt.timedelta(days=int(thread["follow_up"].get("after_days") or FOLLOW_UP_AFTER_DAYS))
-    thread["follow_up"]["due"] = _stamp(due) if open_asks or sched.get("state") in (
-        "AWAITING_CONFIRMATION", "WE_PROPOSED") else None
+    thread["follow_up"]["due"] = _stamp(due) if (open_asks or sched.get("state") in (
+        "AWAITING_CONFIRMATION", "WE_PROPOSED")) and not thread["follow_up"].get("owner") else None
     journal.append("action", f"conversation:{thread['id']}",
                    f"sent {message['kind']} to {_name(thread)} - {message['subject'][:80]!r}"
                    + (f" under his standing grant {decided.split(':', 1)[1]}" if decided.startswith("grant:") else ""),
@@ -664,7 +664,11 @@ def _from_address() -> str:
 
 def _record_outbound(thread: dict, message: dict, now: dt.datetime) -> None:
     """Mirror onto the channel-neutral store, so `mail.poll_events` can match a
-    reply to this thread, and wait for it through the one wait seam."""
+    reply to this thread, and wait for it through the one wait seam.
+
+    THE ONE WRITER of an outbound message. A mission step that reached someone
+    through another tool comes here too (`record_sent_elsewhere`), so a message
+    is never recorded twice under two threads with two follow-up dates."""
     from aletheia import communications
     address = message["to"].casefold()
     comms_id = thread.get("comms_thread") or thread["id"]
@@ -673,8 +677,10 @@ def _record_outbound(thread: dict, message: dict, now: dt.datetime) -> None:
     except FileExistsError:
         pass
     thread["comms_thread"] = comms_id
+    channel = message.get("channel") or thread.get("channel") or "email"
     try:
-        communications.record_message(message["id"], thread_id=comms_id, direction="OUTBOUND", channel="email",
+        communications.record_message(message["id"], thread_id=comms_id, direction="OUTBOUND",
+                                      channel=channel if channel in communications.CHANNELS else "other",
                                       participant=address, summary=message["subject"][:200],
                                       external_id=message.get("external_id"), occurred_at=_stamp(now))
     except FileExistsError:
@@ -683,6 +689,73 @@ def _record_outbound(thread: dict, message: dict, now: dt.datetime) -> None:
                                    reason=f"waiting for {_name(thread)} to reply about {thread.get('subject')}")
     thread.setdefault("waits", []).append(wait)
     thread["waits"] = thread["waits"][-10:]
+
+
+def link_sent(thread_id: str, *, work_item: str, follow_up_owner: str = "",
+              now: dt.datetime | None = None) -> dict:
+    """A message this module ALREADY sent and recorded (a `thread.send` a mission
+    step handed to Caleb): link the work that asked for it, and hand the follow-up
+    policy to that work's wait when it has one. Records nothing new."""
+    now = _now(now)
+    thread = load(thread_id)
+    sent = [m for m in thread.get("messages") or [] if m.get("state") == M_SENT]
+    if not sent:
+        raise ConversationError("nothing has been sent on that conversation")
+    links = list(thread.get("linked_work") or [])
+    if work_item and work_item not in links:
+        links.append(work_item)
+    thread["linked_work"] = links[-10:]
+    if follow_up_owner:
+        thread.setdefault("follow_up", {})["owner"] = follow_up_owner
+        thread["follow_up"]["due"] = None
+    save(thread, now=now)
+    return {"thread": thread["id"], "comms_thread": thread.get("comms_thread") or thread["id"],
+            "message": sent[-1]["id"], "participant": str(sent[-1].get("to") or "").casefold(), "recorded": False}
+
+
+def record_sent_elsewhere(to: str, *, subject: str, summary: str, work_item: str, via: str,
+                          channel: str = "", follow_up_owner: str = "", external_id: str | None = None,
+                          now: dt.datetime | None = None) -> dict:
+    """A message that left through ANOTHER approved door (a mission step's text or
+    email tool, after Caleb's yes), recorded once, here, on a conversation.
+
+    The thread for that work and recipient is reused, so a second message to the
+    same person on the same work is a second message on one thread, never a
+    second thread. Nothing is sent by this function."""
+    now = _now(now)
+    who = " ".join(str(to or "").split())
+    if not who:
+        raise ConversationError("a sent message needs its recipient")
+    address = who.casefold()
+    channel = channel or ("email" if _ADDRESS.match(who) else "other")
+    thread = next((t for t in all_threads() if t.get("state") != CLOSED and t.get("work_item") == work_item
+                   and str((t.get("recipient") or {}).get("address") or "").casefold() == address), None)
+    if thread is None:
+        thread_id = f"conv-{secrets.token_hex(5)}"
+        thread = {"version": 1, "id": thread_id, "channel": channel, "who": who, "purpose": str(subject)[:120],
+                  "subject": str(subject)[:140], "state": SENT, "reason": "", "next": "",
+                  "created_at": _stamp(now), "updated_at": _stamp(now), "work_item": work_item,
+                  "via": str(via)[:120], "recipient": {"address": who, "name": who, "source": "approved_step",
+                                                       "provenance": {"work_item": work_item}},
+                  "messages": [], "replies": [], "open_asks": [], "waits": [],
+                  "follow_up": {"due": None, "sent": 0, "max": MAX_FOLLOW_UPS, "after_days": FOLLOW_UP_AFTER_DAYS},
+                  "scheduling": {"state": None}, "meeting": {}, "grants": [], "history": []}
+    message = {"id": f"{thread['id']}-m{len(thread.get('messages') or []) + 1}", "kind": "elsewhere",
+               "to": who, "subject": str(subject)[:140], "body": str(summary)[:MAX_BODY_CHARS], "state": M_SENT,
+               "sent_at": _stamp(now), "channel": channel, "sent_via": str(via)[:120], "attempts": 1,
+               **({"external_id": external_id} if external_id else {})}
+    thread.setdefault("messages", []).append(message)
+    if follow_up_owner:
+        thread["follow_up"]["owner"] = follow_up_owner
+        thread["follow_up"]["due"] = None
+    _record_outbound(thread, message, now)
+    journal.append("action", f"conversation:{thread['id']}",
+                   f"recorded a message to {_name(thread)} sent by {str(via)[:60]} - {message['subject'][:80]!r}",
+                   actor=ACTOR)
+    _transition(thread, AWAITING_REPLY, f"sent; waiting for {_name(thread)} to answer",
+                "read their reply when it comes", now=now)
+    return {"thread": thread["id"], "comms_thread": thread.get("comms_thread") or thread["id"],
+            "message": message["id"], "participant": address, "recorded": True}
 
 
 # ---- replies ------------------------------------------------------------------------
@@ -1053,6 +1126,8 @@ def followups_due(*, now: dt.datetime | None = None) -> list[dict]:
     now = _now(now)
     out = []
     for thread in all_threads(AWAITING_REPLY):
+        if (thread.get("follow_up") or {}).get("owner"):
+            continue            # its follow-up policy belongs to the work that sent it (a wait)
         due = _parse((thread.get("follow_up") or {}).get("due"))
         if due and due <= now and not any(m.get("state") == M_AWAITING for m in thread.get("messages") or []):
             out.append(thread)
