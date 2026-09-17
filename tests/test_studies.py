@@ -170,7 +170,8 @@ class StudyCase(unittest.TestCase):
         self.patches = [mock.patch.object(run, "EXECUTION", "inline"), mock.patch.object(so, "HOST_INTERVAL_S", 0.0),
                         mock.patch.object(st, "_journal", lambda *a, **k: None),
                         mock.patch.object(st, "_notify", lambda *a, **k: None),
-                        mock.patch("aletheia.site_skills.for_domain", lambda url: {"mode": "autonomous"})]
+                        mock.patch("aletheia.site_skills.for_domain", lambda url: {"mode": "autonomous"}),
+                        mock.patch("aletheia.research.http_search", lambda q, **k: {"links": []})]
         for p in self.patches:
             p.start()
         so._ROBOTS.clear()
@@ -520,6 +521,45 @@ class ExecutionAndMeasurementCase(StudyCase):
         props = [h for h in record["hypotheses"] if h["state"] == st.PROPOSED]
         self.assertTrue(props)
         self.assertEqual(props[0]["drafted_by"]["provider"], "rules")
+
+
+class TheDoorCase(StudyCase):
+    def test_names_without_addresses_are_found_by_search_and_wait_for_his_yes(self):
+        from aletheia import intercom
+        search = lambda name: {"links": [{"href": "https://theirs.example/"}]}  # noqa: E731
+        with mock.patch.object(run, "THINK", False), mock.patch.object(run, "OPENER", opener_for(self.pages)):
+            said = run.start("study Theirs Tool and improve my project", via="operator-via-intercom",
+                             path=str(self.project), search=search, now=NOW)
+            sid = said["study"]["id"]
+            self.assertIn("say study them", said["said"])
+            record = st.load(sid)
+            self.assertEqual(record["comparables"][0]["named_by"], "search")
+            self.assertEqual(so.all_evidence(sid), [], "nothing he has not confirmed is read")
+            rows = [r for r in run.source(NOW) if r["kind"] == "study_confirm"]
+            self.assertEqual(rows[0]["state"], "BLOCKED_USER")
+            answer = intercom.execute_command({"kind": "study_confirm"}, {}, quote="study them")
+            self.assertIn("Confirmed", answer)
+        record = st.load(sid)
+        self.assertEqual(record["pending"], [])
+        self.assertTrue(any(e["role"].startswith("comparable:") for e in so.all_evidence(sid)))
+
+    def test_no_comparables_and_no_project_are_questions_not_guesses(self):
+        said = run.start("study them deeply and improve our thing", via="operator-via-intercom", now=NOW)
+        self.assertIsNone(said["study"])
+        self.assertIn("Which ones", said["said"])
+        said = run.start("study https://theirs.example/ and improve my unheard-of project", via="operator-via-intercom",
+                         now=NOW)
+        self.assertIsNone(said["study"])
+        self.assertIn("don't know where", said["said"])
+
+    def test_the_engine_carries_a_step(self):
+        record = self.new_study()
+        item = next(r for r in run.source(NOW) if r["kind"] == "study_step")
+        self.assertEqual((item["state"], item["payload"]["step"]), ("READY", "shape"))
+        with mock.patch.object(run, "THINK", False), mock.patch.object(run, "OPENER", opener_for(self.pages)):
+            out = work_engine.SOURCE_RUNNERS["studies"](item, NOW)
+        self.assertEqual(out["state"], "RUNNING")
+        self.assertEqual(st.load(record["id"])["pending"], [])
 
 
 class ReadersCase(StudyCase):
