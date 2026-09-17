@@ -681,6 +681,14 @@ def agent(now: dt.datetime | None = None, *, hunt: dict | None = None,
 
 # ---- the snapshot --------------------------------------------------------
 
+def work(now: dt.datetime | None = None) -> dict:
+    """Every unfinished item across her queues as one inventory (`aletheia.work_engine`):
+    counts per state, what can run now, and each blocked item with why and when it
+    wakes. Read-only; no live probes."""
+    from aletheia import work_engine
+    return work_engine.summary(_utc(now))
+
+
 def sections(now: dt.datetime | None = None, *, fresh: bool = False) -> dict:
     """The derived sections, cached for a few seconds. Never raises."""
     now = _utc(now)
@@ -704,6 +712,7 @@ def sections(now: dt.datetime | None = None, *, fresh: bool = False) -> dict:
         "power": _safe(power_state, {"known": False, "said": "the power state could not be read"}),
         "usage": _safe(lambda: usage(now), {"window_used": "unknown", "weekly": "unknown",
                                             "note": "the usage records could not be read"}),
+        "work": _safe(lambda: work(now), {"readable": False, "note": "the work inventory could not be read"}),
     }
     _SECTIONS.update({"at": clock, "value": json.loads(json.dumps(value, default=str))})
     return json.loads(json.dumps(value, default=str))
@@ -778,6 +787,7 @@ def snapshot(*, now: dt.datetime | None = None) -> dict:
         "code": derived["code"],
         "power": derived.get("power"),
         "usage": derived.get("usage"),
+        "work": derived.get("work"),
     }
 
 

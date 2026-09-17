@@ -488,6 +488,16 @@ def _working_now() -> bool:
         return False
 
 
+def _reconcile_work() -> list[dict]:
+    from aletheia import work_engine
+    # probe=False: a beat must not launch a browser to learn whether one works;
+    # the browser requirement reads its last live result instead.
+    result = work_engine.reconcile(probe=False)
+    if not (result["checkpointed"] or result["woke"] or result["ran"]):
+        return []
+    return [{"checkpointed": result["checkpointed"], "woke": result["woke"], "ran": result["ran"]}]
+
+
 def _watch_power() -> list[dict]:
     """Tell him once when the PC is on battery while she works, or low."""
     from aletheia import power
@@ -927,6 +937,10 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # What her sessions handed to him and he approved: exactly that request,
     # once, through every gate again (aletheia.handoffs).
     approved_handoffs = guarded("handoffs", _run_approved_handoffs)
+    # Everything unfinished, read as one non-blocking queue (aletheia.work_engine):
+    # blocked items are checkpointed with why and when, cleared ones wake, and
+    # its own gap items take their next action. Inside the beat, never a second loop.
+    work = guarded("work", _reconcile_work)
     power_watch = guarded("power", _watch_power)
     room_devices = guarded("room", _observe_room)
     # Meetings arranging themselves across days (Phase 15): offers that have
@@ -982,6 +996,7 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
         "capability_gaps": capability_gaps,
         "approved_intents": approved_intents,
         "approved_handoffs": approved_handoffs,
+        "work": work,
         "power": power_watch,
         "web_tasks_pressed": web_tasks_pressed,
         "subscriptions_settled": subscriptions_settled,
