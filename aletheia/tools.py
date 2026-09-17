@@ -129,6 +129,8 @@ STORE_OF = {
     "agent_stop": "agents", "agents_pause": "agents",
     "web_task": "webtasks", "web_task_retry": "webtasks", "web_task_answer": "webtasks",
     "subscription_cancel": "subscriptions",
+    "missions": "programs", "mission_new": "programs", "mission_add": "programs",
+    "mission_confirm": "programs", "mission_activity": "programs",
 }
 
 #: Argument shapes the bare grammar cannot say. Everything not listed is
@@ -381,7 +383,7 @@ def declare(name: str, *, description: str, input_schema: dict, handler: Callabl
 #: here). Adding a module here is how a new family of tools joins the
 #: catalog; nothing else needs to know.
 DECLARED_MODULES = ("aletheia.state_tools", "aletheia.repo_tools", "aletheia.browser_tools",
-                    "aletheia.memory_tools")
+                    "aletheia.memory_tools", "aletheia.program_tools")
 
 
 def _declared() -> list[Tool]:

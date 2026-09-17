@@ -66,6 +66,15 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "project_new":   ({"idea"}, set()),
     "project_step":  ({"project", "text"}, set()),
     "project_drop":  ({"project"}, set()),
+    # His LONG missions, by saying so (aletheia.programs): an objective that
+    # runs for weeks, drafted by a model into outcomes, workstreams and tasks,
+    # and inert until his own "confirm". `mission_activity` is what a recurring
+    # activity's schedule fires; nothing he says means it.
+    "mission_new":      ({"objective"}, set()),
+    "mission_add":      ({"text"}, {"mission"}),
+    "mission_confirm":  (set(), {"mission"}),
+    "missions":         (set(), {"which", "about"}),
+    "mission_activity": ({"mission", "activity"}, set()),
     "task_new":      ({"id", "description"}, {"goal", "worker", "deadline"}),
     "task_status":   ({"id", "state"}, {"note"}),
     # She could CREATE a task by voice and change its status, and had no
@@ -307,6 +316,25 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # generated from KIND_ARGS and these together, so the model learns the
 # shape of a step list from the registry rather than from a guess.
 KIND_NOTES: dict[str, str] = {
+    "mission_new": (
+        "Start a LONG mission from his words - something that takes weeks or months and "
+        "spans several parts of his life (\"help me change X over the next six months\"). "
+        "objective is his sentence. She drafts outcomes, workstreams and questions for him; "
+        "nothing runs until he confirms."),
+    "mission_add": (
+        "Something he adds to his long mission: an answer to its questions, a choice for "
+        "one of its decisions, or a change. text is his words; mission names which one "
+        "when he has several."),
+    "mission_confirm": (
+        "His yes to a drafted long mission (or a drafted change to one). Only when he "
+        "plainly says to start or confirm it."),
+    "missions": (
+        "How his long missions are going: outcomes, what is running, what is waiting "
+        "and why, and the decisions that are his. about=waiting lists only what is "
+        "waiting and what wakes it; which names one mission."),
+    "mission_activity": (
+        "Fired by a long mission's recurring schedule to start this occurrence of its "
+        "activity. Never compiled from something he says."),
     "screen_record": (
         "Start recording ONE window to an MP4 on this PC - never the whole desktop, never "
         "uploaded. window is its title or a unique part of it (computer_observe lists them); "
@@ -496,6 +524,8 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                "doc_make",
                # what he asks about his projects queues in private state on the PC
                "project_new", "project_step", "project_drop",
+               # his long missions live in private state on the PC
+               "mission_new", "mission_add", "mission_confirm", "missions", "mission_activity",
                # Phone Link is paired to his iPhone on THIS machine;
                # Actions cannot text anybody.
                "message_send", "music",
@@ -557,6 +587,8 @@ READ_ONLY_KINDS = frozenset({
     "jobs", "tasks", "reminders", "shopping_list", "applications",
     "contacts", "watches",
     "projects", "car", "recall", "travel_time", "browse_read", "browse_shot",
+    # how his long missions stand and what they wait on changes nothing
+    "missions",
     # reads public pages and writes a document; commits him to nothing
     "research",
     # looking at his own files commits him to nothing
@@ -586,6 +618,11 @@ ROUTINE_KINDS = frozenset({
     # Queuing what he said about his projects: one private local file, and
     # nothing new starts from it until he says yes to the draft it becomes.
     "project_new", "project_step", "project_drop",
+    # A long mission is the same shape: his words queue a private draft, his
+    # confirm makes it active, and every step that reaches anyone still asks
+    # him through its own approval. A schedule starting an activity's
+    # occurrence only adds a task to that private record.
+    "mission_new", "mission_add", "mission_confirm", "mission_activity",
     # Disabling a reminder is reversible by saying the opposite, which is
     # the whole test for this tier — the schedule is disabled, never
     # deleted, so "actually put that back" is one command.
@@ -1638,6 +1675,49 @@ def _weekday_words(days: list[int]) -> str:
     return speech.and_list([WEEKDAY_NAMES[d].capitalize() for d in days])
 
 
+def _mission_command(kind: str, cmd: dict, quote: str) -> str:
+    """His long missions (aletheia.programs), said and answered in sentences."""
+    from aletheia import programs
+    via = ACTOR
+    words = " ".join(str(quote or "").split())[:300]
+    if kind == "missions":
+        if str(cmd.get("about") or "").strip().lower() == "waiting":
+            return programs.spoken_waiting(cmd.get("which", ""))
+        return programs.spoken_status(cmd.get("which", ""))
+    if kind == "mission_activity":
+        made = programs.activity_due(cmd["mission"], cmd["activity"])
+        return (f"started this round of {made['title']}" if made.get("made")
+                else f"nothing to start: {made.get('why')}")
+    if kind == "mission_new":
+        record = programs.propose(cmd["objective"], via=via)
+        return (f"Got it. I'll shape that into a mission - the outcomes, the workstreams and the "
+                f"questions only you can answer - and bring the draft back before anything starts.")
+    found = programs.find(cmd.get("mission", ""))
+    if found is None:
+        return "You don't have a long mission yet. Say start a mission, and what it is for."
+    if kind == "mission_confirm":
+        try:
+            record = programs.confirm(found["id"], words=words or "confirm", via=via)
+        except programs.ProgramError as exc:
+            return f"Nothing to confirm: {exc}."
+        live = sum(1 for t in record.get("tasks") or [] if t.get("state") == "READY")
+        return (f"{record['title']} is on. {live} task{'s' if live != 1 else ''} can start now; "
+                "anything that reaches another person still asks you first.")
+    said = programs.add_words(found["id"], cmd["text"], via=via)
+    became = said.get("became")
+    if became == "decision":
+        return f"Noted: {said['choice']}."
+    if became == "answer":
+        left = said.get("remaining", 0)
+        return ("Thanks. " + (f"{left} more question{'s' if left != 1 else ''} before the draft is ready."
+                              if left else "I'll redraft the mission with your answers."))
+    if became == "retry":
+        return f"Trying {said['task']} again."
+    if became == "revision":
+        return f"I'll draft that change to {found['title']} and check it with you before it takes effect."
+    return f"Added to the draft of {found['title']}; I'll fold it in."
+
+
 def _projects_answer() -> str:
     """Every kind of project he has, in one sentence.
 
@@ -1735,6 +1815,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         charters.ask("drop", project=found["slug"], via=ACTOR)
         return (f"Dropping {found['title']}. The builder will leave it alone "
                 "within half an hour.")
+    if kind in ("mission_new", "mission_add", "mission_confirm", "missions", "mission_activity"):
+        return _mission_command(kind, cmd, quote)
     if kind == "tasks":
         return _tasks_answer(cmd.get("which", ""))
     if kind == "task_done":

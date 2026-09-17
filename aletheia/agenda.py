@@ -96,6 +96,8 @@ FORBIDDEN_KINDS = {
     "rule",
     # fires workflows in other repositories: outward, and someone else's compute
     "dispatch",
+    # a long mission becomes active on HIS yes, never on a budget's
+    "mission_confirm",
 }
 
 REFUSAL_REASON = {
@@ -110,6 +112,7 @@ REFUSAL_REASON = {
     "intent": "an agenda filing intents that file intents is a loop",
     "rule": "a standing rule outlives this mission's budget",
     "dispatch": "that runs a workflow in another repository",
+    "mission_confirm": "a long mission starts on his own yes, not a budget's",
 }
 
 

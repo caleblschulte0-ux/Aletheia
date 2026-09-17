@@ -1470,6 +1470,34 @@ def _interpret(transcript: str) -> dict:
                     r"what(?:'s| is|s)? the mileage(?: on (?:my|the) car)?)", low):
         return {"command": {"kind": "car"}, "say": None}
 
+    # HIS LONG MISSIONS, BY SAYING SO (aletheia.programs). An objective that
+    # runs for weeks is a sentence; so is adding to it, confirming its draft,
+    # and asking what it waits on. The draft is a model's; the yes is his, and
+    # it is only ever this layer that reads "confirm my mission" as that yes -
+    # the words that start it are matched here, never compiled.
+    m = re.fullmatch(r"(?:(?:i want to |let's |lets |please )?(?:start|begin|create|make|open) )"
+                     r"(?:a |my |the )?(?:new )?(?:(?:long|big|long-term|long term) )?mission"
+                     r"(?: called| about| for| to)?[:,]? (.{3,})", low)
+    if m and not re.fullmatch(r"(?:draft|now|again|please)", m.group(1).strip()):
+        return {"command": {"kind": "mission_new", "objective": _as_he_said(transcript, m.group(1))},
+                "say": None}
+    if re.fullmatch(r"(?:yes[,]? )?(?:confirm|activate|launch|go ahead with|start) (?:the |my )?"
+                    r"(?:(?:long|big|new) )?mission(?: draft| now)?(?:[,]? please)?", low):
+        return {"command": {"kind": "mission_confirm"}, "say": None}
+    m = re.fullmatch(r"(?:add (?:this )?to|for|on|about|update) (?:my|the) (?:(?:long|big) )?mission[:,]? (.{2,})"
+                     r"|(?:my|the) (?:(?:long|big) )?mission[:,] (.{2,})", low)
+    if m:
+        return {"command": {"kind": "mission_add", "text": _as_he_said(transcript, m.group(1) or m.group(2))},
+                "say": None}
+    if re.fullmatch(r"what (?:are|r) we (?:still )?waiting (?:on|for)(?: now)?"
+                    r"|what(?:'s| is|s) (?:my |the )?(?:(?:long|big) )?mission (?:still )?waiting (?:on|for)"
+                    r"|what (?:are|is) (?:my |the )?(?:(?:long|big) )?missions? (?:still )?waiting (?:on|for)", low):
+        return {"command": {"kind": "missions", "about": "waiting"}, "say": None}
+    if re.fullmatch(r"how(?:'s| is|s) (?:my |the )?(?:(?:long|big) )?mission(?: going| coming along| doing)?"
+                    r"|how are my (?:(?:long|big) )?missions(?: going)?"
+                    r"|(?:my |the )?(?:(?:long|big) )?missions?(?: status)?|mission status|where(?:'s| is) my mission at", low):
+        return {"command": {"kind": "missions"}, "say": None}
+
     if re.fullmatch(r"(?:my projects?|what projects are (?:open|active)|"
                     r"what am i working on|"
                     # "Repos" is the word he uses, in a repository he

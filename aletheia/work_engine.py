@@ -331,9 +331,34 @@ def source_project_asks(now: dt.datetime) -> list[dict]:
     return out
 
 
+def source_waits(now: dt.datetime) -> list[dict]:
+    """Every durable wait (`aletheia.waits`) whose owner has no source of its own.
+
+    An owner that is itself a source here (a long mission's tasks) already shows
+    the waiting item with the wait's reason; listing the wait again would count
+    one unfinished thing twice."""
+    from aletheia import waits
+    out = []
+    for record in waits.waiting():
+        if record.get("owner") in SOURCES:
+            continue
+        out.append(item(f"wait:{record['id']}", "waits", f"{record.get('item')}: {record.get('reason')}",
+                        record.get("work_state") or ws.BLOCKED_EXTERNAL, reason=record.get("reason") or "waiting",
+                        next=record.get("next") or "when its condition is met",
+                        not_before=waits.next_wake_at(record), native_state=waits.WAITING,
+                        owner=str(record.get("owner") or ""), kind="wait", updated=str(record.get("updated_at") or "")))
+    return out
+
+
 def source_native(now: dt.datetime) -> list[dict]:
     return [dict(v) for v in load_store()["items"].values()
             if isinstance(v, dict) and v.get("source") == "work"]
+
+
+def source_programs(now: dt.datetime) -> list[dict]:
+    """Long missions (`aletheia.programs`): their drafting, decisions and tasks."""
+    from aletheia import program_run
+    return program_run.source(now)
 
 
 #: Every store the engine reads, by name. A new queue adds ONE line here.
@@ -343,6 +368,8 @@ SOURCES: dict[str, Callable[[dt.datetime], list[dict]]] = {
     "handoffs": source_handoffs,
     "browser_missions": source_browser_missions,
     "project_asks": source_project_asks,
+    "programs": source_programs,
+    "waits": source_waits,
     "work": source_native,
 }
 
@@ -406,7 +433,8 @@ def assess(it: dict, now: dt.datetime, *, probe: bool = False, persist: bool = F
             return {"verdict": "wait", "state": state, "reason": it["reason"], "next": it["next"],
                     "not_before": it.get("not_before"), "checkpoint": False}
     not_before = _parse(it.get("not_before"))
-    if state == ws.RETRY_LATER and not_before and not_before > now:
+    # A known time before which looking again is pointless: a retry, or a model's reset.
+    if state in (ws.RETRY_LATER, ws.BLOCKED_MODEL) and not_before and not_before > now:
         return {"verdict": "wait", "state": state, "reason": it["reason"], "next": it["next"],
                 "not_before": it["not_before"], "checkpoint": False}
     requires = list(it["requires"])
@@ -468,6 +496,16 @@ def _run_gap(it: dict, now: dt.datetime) -> dict:
 RUNNERS: dict[str, Callable[[dict, dt.datetime], dict]] = {"gap": _run_gap}
 
 
+def _run_program_item(it: dict, now: dt.datetime) -> dict:
+    from aletheia import program_run
+    return program_run.run_item(it, now)
+
+
+#: Sources whose items the engine STARTS (their own store keeps the truth, so nothing
+#: is written to the overlay for them). A source not named here is inventory only.
+SOURCE_RUNNERS: dict[str, Callable[[dict, dt.datetime], dict]] = {"programs": _run_program_item}
+
+
 def _write_checkpoints(store: dict, views: list[dict], now: dt.datetime) -> list[str]:
     changed = []
     for view in views:
@@ -495,6 +533,16 @@ def reconcile(now: dt.datetime | None = None, *, probe: bool = True, max_runs: i
         work_gaps.file_from_demand(now=now)
     except Exception:  # noqa: BLE001
         pass
+    # Waiting is first-class (brief IV.14): wake what is met, time out what ran out
+    # and hand due nudges to their owners BEFORE the picker reads the queues, so an
+    # item woken this beat can run this beat.
+    woke_waits: list[dict] = []
+    try:
+        from aletheia import waits
+        woke_waits = waits.reconcile(now)
+    except Exception as exc:  # noqa: BLE001
+        woke_waits = []
+        _journal("alert", "waits", f"the waits could not be reconciled ({type(exc).__name__})")
     items, notes = gather(now, sources=sources)
     picked = pick(items, now, probe=probe, persist=True)
     store = load_store()
@@ -512,8 +560,18 @@ def reconcile(now: dt.datetime | None = None, *, probe: bool = True, max_runs: i
     for it in picked["executable"]:
         if len(ran) >= max_runs or picked["halted"]:
             break
-        runner = RUNNERS.get(it.get("kind") or "") if it["source"] == "work" else None
+        native = it["source"] == "work"
+        runner = RUNNERS.get(it.get("kind") or "") if native else SOURCE_RUNNERS.get(it["source"])
         if runner is None:
+            continue
+        if not native:
+            try:
+                outcome = runner(it, now)
+            except Exception as exc:  # noqa: BLE001 - one source's runner never stops the beat
+                outcome = {"state": ws.RETRY_LATER, "next": "try again",
+                           "reason": f"the runner failed ({type(exc).__name__}: {exc})"[:200]}
+            ran.append({"id": it["id"], "state": outcome.get("state"), "next": outcome.get("next")})
+            _journal("action", it["id"], f"work started -> {outcome.get('state')}: {str(outcome.get('next') or '')[:160]}")
             continue
         held = store["items"].get(it["id"]) or it
         try:
@@ -530,7 +588,7 @@ def reconcile(now: dt.datetime | None = None, *, probe: bool = True, max_runs: i
     if changed or picked["woke"] or ran:
         save_store(store)
     return {"counts": picked["counts"], "executable": len(picked["executable"]), "checkpointed": changed,
-            "woke": picked["woke"], "ran": ran, "notes": notes}
+            "woke": picked["woke"], "ran": ran, "waits": woke_waits, "notes": notes}
 
 
 # ---- the read-only inventory -------------------------------------------------------------

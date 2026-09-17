@@ -671,6 +671,7 @@ _HE_CAN_ASK_FOR = {
     "your projects and repos": ("projects", "plan_new", "plan_add_step",
                                 "plan_step", "plan_set", "issue", "dispatch",
                                 "project_new", "project_step", "project_drop"),
+    "long missions that run for weeks": ("missions", "mission_new", "mission_add", "mission_confirm"),
     "job applications": ("jobs", "apply_prepare", "apply_campaign", "apply_answer",
                          "applications", "apply_outcome"),
     "money you spend": ("money", "subscriptions", "subscription_cancel"),
@@ -689,6 +690,8 @@ _NOT_A_THING_HE_ASKS_FOR = frozenset({
     "running", "brief", "setup_status", "notify_check", "notify_clear",
     "notify_snooze", "notify_operator", "announce_set", "rule",
     "authority_status", "mic", "mic_on", "mic_off",
+    # A recurring schedule's own verb for a long mission; nothing he says means it.
+    "mission_activity",
     # Switches over her own workings, like the microphone: he turns
     # them on and off, he does not ask her to DO them.
     "chatgpt", "chatgpt_on", "chatgpt_off",

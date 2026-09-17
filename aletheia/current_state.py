@@ -689,6 +689,12 @@ def work(now: dt.datetime | None = None) -> dict:
     return work_engine.summary(_utc(now))
 
 
+def programs_section(now: dt.datetime | None = None) -> dict:
+    """His long missions (`aletheia.programs`): each one's progress, what waits, what is his."""
+    from aletheia import programs
+    return programs.section(_utc(now))
+
+
 def sections(now: dt.datetime | None = None, *, fresh: bool = False) -> dict:
     """The derived sections, cached for a few seconds. Never raises."""
     now = _utc(now)
@@ -713,6 +719,8 @@ def sections(now: dt.datetime | None = None, *, fresh: bool = False) -> dict:
         "usage": _safe(lambda: usage(now), {"window_used": "unknown", "weekly": "unknown",
                                             "note": "the usage records could not be read"}),
         "work": _safe(lambda: work(now), {"readable": False, "note": "the work inventory could not be read"}),
+        "programs": _safe(lambda: programs_section(now),
+                          {"readable": False, "note": "the long missions could not be read"}),
     }
     _SECTIONS.update({"at": clock, "value": json.loads(json.dumps(value, default=str))})
     return json.loads(json.dumps(value, default=str))
@@ -788,6 +796,7 @@ def snapshot(*, now: dt.datetime | None = None) -> dict:
         "power": derived.get("power"),
         "usage": derived.get("usage"),
         "work": derived.get("work"),
+        "programs": derived.get("programs"),
     }
 
 

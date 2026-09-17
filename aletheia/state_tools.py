@@ -176,7 +176,7 @@ def state_now(args: dict, **_ignored) -> dict:
     # from /api/state, a model reads the headline sections.
     slim = {k: v for k, v in snapshot.items()
             if k in ("as_of", "halted", "agent", "job_hunt", "browser", "code",
-                     "needs_attention", "waiting")}
+                     "needs_attention", "waiting", "programs")}
     return {"readable": True, "state": json.loads(json.dumps(slim, default=str))}
 
 
