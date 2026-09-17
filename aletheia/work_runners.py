@@ -67,7 +67,11 @@ MODEL_RETRY = dt.timedelta(minutes=20)
 HYPOTHESIS_BUDGET_S = 330.0
 DOC_BUDGET_S = 480.0
 FRONTIER_BUDGET_S = 170.0
-EVIDENCE_CHARS = 3_600
+#: Measured in Scenario A (2026-09-17, qwen3:8b on his CPU with the live Core sharing
+#: Ollama): 3.6 KB of evidence took ~300 s per reading and a 3 KB document draft hit
+#: the 300 s local ceiling. Smaller asks finish.
+EVIDENCE_CHARS = 2_200
+DOC_SOURCE_CHARS = 1_600
 HEAVY = {"frontier_packet", "verify_tests", "doc", "failure", "change", "escalate", "investigate"}
 
 _SESSION: contextvars.ContextVar[dict | None] = contextvars.ContextVar("aletheia_work_session", default=None)
@@ -279,15 +283,33 @@ def run(it: dict, now: dt.datetime | None = None, *, investigate: bool = False) 
         except policy.Halted:
             raise
         except Exception as exc:  # noqa: BLE001 - a broken route is a retry, never a crash
-            out = {"state": ws.RETRY_LATER, "reason": f"it could not be worked ({type(exc).__name__}: {str(exc)[:160]})",
-                   "next": "try again later", "not_before": _stamp(now + RETRY_AFTER), "kind": "failed",
-                   "did": f"tried {_short(it)} and it did not work ({type(exc).__name__})"}
+            from aletheia import reasoner
+            retry = MODEL_RETRY if isinstance(exc, reasoner.ReasonerUnavailable) else RETRY_AFTER
+            out = {"state": ws.RETRY_LATER, "reason": _failure_words(exc),
+                   "next": "try again later", "not_before": _stamp(now + retry), "kind": "failed",
+                   "did": f"tried {_short(it)}; {_failure_words(exc)}",
+                   "evidence": {"error": f"{type(exc).__name__}: {str(exc)[:300]}"}}
     out.setdefault("evidence", {})
     out["route"] = name
     out["seconds"] = round(time.monotonic() - started, 1)
     if not out.get("noop"):
         _journal("action", it["id"], f"work ({name}) -> {out.get('state')}: {str(out.get('did') or out.get('reason'))[:180]}")
     return out
+
+
+def _failure_words(exc: Exception) -> str:
+    """Why an item did not finish, in a sentence (the class and detail stay in evidence)."""
+    from aletheia import reasoner
+    if isinstance(exc, reasoner.ReasonerUnavailable):
+        return "no model could finish thinking about it in time (my own model ran out of its time slice)"
+    try:
+        from aletheia import project_checkout
+        if isinstance(exc, project_checkout.CheckoutRefused):
+            return str(exc)
+    except Exception:  # noqa: BLE001
+        pass
+    from aletheia import speech
+    return speech.plainly(str(exc))[:200] or "it did not work"
 
 
 def _short(it: dict, limit: int = 90) -> str:
@@ -599,7 +621,7 @@ def _verify(it: dict, where: dict, now: dt.datetime) -> dict:
             return {"state": ws.BLOCKED_USER, "reason": note[:300], "kind": "verified",
                     "next": "when Caleb authorizes that live use (it reaches the world, so it is his)",
                     "evidence": {"tests": check},
-                    "did": f"ran the tests for {cid}: they pass; the live proof is {moves}"}
+                    "did": f"ran the tests for {cid} and they pass; the live proof is yours to authorize"}
         from aletheia import local_repair
         fleet_owner = _fleet_owner()
         run = local_repair.run(view["path"], repo=f"{fleet_owner}/Aletheia" if fleet_owner else "",
@@ -745,7 +767,7 @@ def _change(it: dict, where: dict, now: dt.datetime, *, kind: str = "no_test",
     from aletheia import project_checkout
     target = target_of(it)
     text = item_text(it)
-    reasons = reasons or ["it changes behaviour, and no failing test exists that her tests could use to prove "
+    reasons = reasons or ["it changes behaviour, and no failing test exists that my tests could use to prove "
                           "the change locally"]
     if target is None:
         return _investigate(it, where, now, kind=kind, reasons=reasons)
@@ -773,8 +795,8 @@ def _escalate(it: dict, where: dict, now: dt.datetime) -> dict:
     return _change(it, where, now, kind=kinds[0], reasons=list(where.get("signs") or []) or [where.get("why")])
 
 
-DOC_SYSTEM = """You write ONE short markdown document for a software/creative project, from the project's
-own files only. Reply with ONE JSON object:
+DOC_SYSTEM = """You write ONE short markdown document (at most 250 words) for a software/creative project,
+from the project's own files only. Reply with ONE JSON object:
 {"markdown": "<the document>", "sources": ["<paths you used>"], "unknowns": ["<what the files do not say>"]}
 Use only facts present in "files". Where the files do not say something the document asks for, write
 "not recorded in the repository" rather than guessing. No invented dates, names, links or numbers.
@@ -810,7 +832,7 @@ def _doc(it: dict, where: dict, now: dt.datetime) -> dict:
         listing = sorted(p.relative_to(root).as_posix() for p in base.rglob("*") if p.is_file() and ".git" not in p.parts)
         docs = sorted([p for p in listing if p.lower().endswith((".md", ".txt"))],
                       key=lambda p: (0 if re.search(r"brief|readme|status|handoff", p, re.I) else 1, p))
-        files, budget = {}, 3_000
+        files, budget = {}, DOC_SOURCE_CHARS
         for rel in docs:
             if rel == out_path:
                 continue
@@ -828,13 +850,15 @@ def _doc(it: dict, where: dict, now: dt.datetime) -> dict:
             md = value["markdown"].strip()
             if not 120 <= len(md) <= 9_000:
                 raise ValueError("the document must be between 120 and 9000 characters")
+            if len(md) > 2_400:
+                md = md[:2_400].rsplit("\n", 1)[0] + "\n\n(cut short: the rest was not drafted)"
             if sensitivity.carries_secret(md):
                 raise ValueError("the document carries something shaped like a secret")
             sources = [str(s) for s in value.get("sources") or [] if str(s) in allowed]
             unknowns = [" ".join(str(u).split())[:200] for u in (value.get("unknowns") or [])[:8]]
             return {"markdown": md + "\n", "sources": sources, "unknowns": unknowns}
         output, provider = _think(DOC_SYSTEM, f"Write {out_path}: {text[:500]}",
-                                  context={"files": files, "listing": listing[:80]}, validator=validate,
+                                  context={"files": files, "listing": listing[:40]}, validator=validate,
                                   budget_s=DOC_BUDGET_S)
         output = validate(output)
         target_file = root / out_path

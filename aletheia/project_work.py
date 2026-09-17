@@ -386,16 +386,27 @@ def resume_orphaned(now: dt.datetime | None = None) -> dict | None:
 
 # ---- the words --------------------------------------------------------------------------------
 
+_STOPWORDS_AT_END = {"a", "an", "the", "of", "in", "on", "at", "to", "for", "and", "or", "with", "which", "that",
+                     "by", "from", "noted", "is", "are", "its", "his", "her", "their", "your", "my"}
+
+
 def _say_title(title: str, limit: int = 9) -> str:
-    """A title a room can hear: the step's words, first clause, no commas."""
+    """A title a room can hear: the work's own words up to the first clause, never cut
+    on a dangling "of the", no commas (they collide with a spoken list), and the project
+    named after the work ("fix the goTo mismatch in Barkly")."""
+    import re
     text = " ".join(str(title or "").split())
-    head, _, rest = text.partition(": ")
-    body = rest or head
-    body = body.split(":")[0].split(";")[0]
-    words = body.replace(",", "").split()
-    said = " ".join(words[:limit])
-    project = head if rest and len(head) <= 30 else ""
-    return (f"{project}, {said}" if project else said).strip()
+    head, sep, rest = text.partition(": ")
+    project = head if sep and len(head) <= 30 else ""
+    body = rest if project else text
+    body = re.split(r"(?<=\w)[.;:(]\s|\s\(|: ", body)[0]
+    words = body.replace(",", "").replace("\u2014", " ").split()
+    words = words[:limit]
+    while len(words) > 2 and words[-1].lower().strip(".") in _STOPWORDS_AT_END:
+        words.pop()
+    said = " ".join(words).rstrip(".")
+    said = said[:1].lower() + said[1:] if said[:2].isalpha() and not said[:2].isupper() else said
+    return f"{said} in {project}" if project else said
 
 
 def opening_words(snap: dict) -> str:
@@ -470,7 +481,7 @@ def report_words(record: dict) -> str:
     stopped = record.get("stopped") or {}
     parts = [f"I worked on your projects for {speech.count_phrase(minutes, 'minute')}."]
     if finished:
-        parts.append(f"I finished {len(finished)}: " + "; ".join(r["did"] for r in finished[:4]).rstrip(".") + ".")
+        parts.append(f"I finished {len(finished)}: " + "; ".join(_finished_words(r) for r in finished[:4]) + ".")
     if queued:
         whys = [f"{_say_title(r['title'], 7)}, because {_reason_words(r)}" for r in queued[:4]]
         parts.append(f"I investigated {len(queued)} and queued {'them' if len(queued) > 1 else 'it'} for Claude or "
@@ -507,6 +518,22 @@ def report_words(record: dict) -> str:
     elif stopped.get("why") == "halted":
         parts.append("I stopped because I was halted.")
     return " ".join(p for p in parts if p)
+
+
+def _finished_words(receipt: dict) -> str:
+    """One finished item in a clause: what it was and what came of it."""
+    title = _say_title(receipt.get("title"), 8)
+    kind = receipt.get("kind")
+    ev = receipt.get("evidence") or {}
+    if kind == "verified":
+        return f"{title}: its tests pass, and the live proof is yours to authorize"
+    if kind == "drafted":
+        return f"{title}: a draft of {ev.get('file') or 'it'} is on a branch for you to read"
+    if kind == "repaired":
+        return f"{title}: a repair its tests prove is on a branch for you to review"
+    if kind == "started":
+        return f"{title}: started"
+    return f"{title}: done"
 
 
 def _reason_words(receipt: dict) -> str:

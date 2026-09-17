@@ -367,7 +367,8 @@ class TheSessionDoesNotStopWhileWorkIsExecutable(Isolated):
                 mock.patch.object(runners, "_frontier_ok", return_value=False), \
                 mock.patch.object(charter_ci, "refresh"), \
                 mock.patch("aletheia.notifications.publish"):
-            began = project_work.start(via="test", words="work on my projects", inline=True, runner=runner, now=NOW)
+            # the session runs on the real clock: a fixed NOW here would be a deadline already past
+            began = project_work.start(via="test", words="work on my projects", inline=True, runner=runner)
         record = project_work.load(began["session"]["id"])
         self.assertIn("I can take 4 things right now", began["said"])
         self.assertIn("Claude and Codex are out", began["said"])
@@ -408,10 +409,11 @@ class TheSessionDoesNotStopWhileWorkIsExecutable(Isolated):
                                          "state": ws.BLOCKED_USER}], "can_now": []}}
         said = project_work.report_words(record)
         self.assertIn("I worked on your projects for 24 minutes.", said)
-        self.assertIn("I finished 1: drafted handoff/STATUS.md", said)
+        self.assertIn("I finished 1: write a one-page status in Open Range", said)
+        self.assertIn("a draft of", said)
         self.assertIn("queued it for Claude or Codex with the evidence", said)
         self.assertIn("because its checks run under Node", said)
-        self.assertIn("What I need from you: Barkly, Turn on GitHub Pages", said)
+        self.assertIn("What I need from you: turn on GitHub Pages in Barkly", said)
         self.assertNotIn("_", said.replace("handoff/STATUS.md", "").replace("thea-work/x", ""))
 
     def test_a_halt_stops_the_loop(self):
@@ -425,7 +427,7 @@ class TheSessionDoesNotStopWhileWorkIsExecutable(Isolated):
                 mock.patch.object(charter_ci, "refresh"), mock.patch("aletheia.notifications.publish"), \
                 mock.patch.object(policy, "halted", side_effect=[None, None, {"reason": "stop"}, {"reason": "stop"},
                                                                   {"reason": "stop"}, {"reason": "stop"}]):
-            began = project_work.start(via="test", inline=True, now=NOW,
+            began = project_work.start(via="test", inline=True,
                                        runner=lambda it, now, mode: calls.append(it["id"]) or {"state": ws.DONE,
                                                                                                 "kind": "completed"})
         record = project_work.load(began["session"]["id"])

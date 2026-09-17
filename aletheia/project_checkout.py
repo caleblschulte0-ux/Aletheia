@@ -228,6 +228,16 @@ def clone_local(source: Path, *, root: Path | None = None) -> dict:
             "seconds": round(time.monotonic() - started, 1)}
 
 
+def _force_remove(func, path, _info) -> None:
+    """git marks its object files read-only on Windows; rmtree's ignore_errors
+    left every scratch checkout of Scenario A behind."""
+    try:
+        os.chmod(path, 0o700)
+        func(path)
+    except OSError:
+        pass
+
+
 def discard(view: dict | None) -> None:
     if view and view.get("scratch"):
-        shutil.rmtree(view["scratch"], ignore_errors=True)
+        shutil.rmtree(view["scratch"], onerror=_force_remove)
