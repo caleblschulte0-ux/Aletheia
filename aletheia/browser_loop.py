@@ -65,7 +65,7 @@ UNKNOWN_RETRIES = 2
 RELOOK_S = 2.0
 #: How many times one page may be observed in a mission before it is a circle.
 SAME_PAGE_LIMIT = 4
-MAX_TARGETS = 90
+MAX_TARGETS = 150         # a category page is a sidebar plus its actual contents
 
 AUTONOMOUS, ASSISTED, MANUAL_ONLY = site_skills.AUTONOMOUS, site_skills.ASSISTED, site_skills.MANUAL_ONLY
 

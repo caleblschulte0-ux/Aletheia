@@ -64,7 +64,12 @@ ACTOR = "aletheia-webtask"
 # resume from — the browser context closes with the run.
 MAX_STEPS = 24
 MAX_TEXT = 4_000
-MAX_LINKS = 40
+# A LIST PAGE'S CONTENT IS LINKS, and a sidebar eats the first forty: live
+# 2026-09-17 a shop's fifty category links hid every book on the page, so the
+# general loop could not see the one it was sent for. The model-facing prompt
+# of the older loop keeps its own smaller cut (MODEL_LINKS).
+MAX_LINKS = 120
+MODEL_LINKS = 40
 MAX_FIELDS = 45
 MAX_HIS_FILES = 40             # of his own documents she will offer to attach
 # What she may UPLOAD. Narrower than what she may read, on purpose: a
@@ -331,9 +336,15 @@ OBSERVE_JS = r"""() => {
     // goto loses whatever the click itself would have done.
     const raw = a.getAttribute('href') || '';
     const one = sel(a) || (raw ? `a[href="${raw.replace(/"/g, '\\"')}"]` : null);
-    links.push({href: a.href, text: text.slice(0, 70),
+    // A LIST CUTS ITS OWN TITLES ("The Death of Humanity: ..."); the whole
+    // thing is in the title attribute, and that is what the goal names.
+    const full = (a.getAttribute('title') || '').trim();
+    const said = (full.length > text.length && text.replace(/\W+$/, '')
+                  && full.toLowerCase().startsWith(text.replace(/[.…\s]+$/, '').toLowerCase()))
+                 ? full : text;
+    links.push({href: a.href, text: said.slice(0, 90),
                 ...(one ? {selector: one} : {})});
-    if (links.length > 60) break;
+    if (links.length > 140) break;
   }
   return {title: document.title, url: location.href,
           text: (document.body ? document.body.innerText : '').slice(0, 6000),
@@ -656,6 +667,7 @@ def _decide(goal: str, page_state: dict, history: list[dict], think,
     # popped by the loop. Nothing underscored ever reaches the model — a
     # forgotten pop would silently spend the whole prompt budget.
     page_state = {k: v for k, v in page_state.items() if not k.startswith("_")}
+    page_state["links"] = (page_state.get("links") or [])[:MODEL_LINKS]
     prompt = json.dumps({
         "goal": goal,
         "facts_about_him": _facts(goal)["about_him"],
