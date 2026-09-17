@@ -714,5 +714,27 @@ class TheRoutineDecisionIsSmallEnoughForHerFastModel(unittest.TestCase):
             visited={"https://books.example/catalogue/category/philosophy/index.html"}))
 
 
+
+class SheDoesNotGoRoundInCircles(unittest.TestCase):
+    def test_a_model_pick_back_to_a_visited_page_is_refused(self):
+        obs = {"url": "https://books.example/catalogue/category/books_1/index.html", "state": ps.CONTENT,
+               "targets": [{"id": "t1", "role": "link", "label": "Books",
+                            "href": "https://books.example/catalogue/category/books_1/index.html"}],
+               "_refs": {"t1": "#books"}}
+        record = bm.open_mission("open the product page of Meditations", "https://books.example/")
+        decide = lambda *a: {"target": "t1", "sure": True, "by": "ollama:qwen3:8b"}
+        self.assertIsNotNone(browser_loop._ask_model(decide, "open Meditations", obs, record))
+        self.assertIsNone(browser_loop._ask_model(decide, "open Meditations", obs, record,
+                                                  visited={obs["url"]}),
+                          "her own model chose the page it was already on nineteen times running")
+
+    def test_a_browser_left_dying_by_a_kill_does_not_stop_the_resume(self):
+        from aletheia import browse
+        self.assertTrue(browse._profile_in_use_error(RuntimeError(
+            "BrowserType.launch_persistent_context: Failed to create a ProcessSingleton for your "
+            "profile directory. This usually means that the profile is already in use")))
+        self.assertFalse(browse._profile_in_use_error(RuntimeError("net::ERR_CONNECTION_RESET")))
+
+
 if __name__ == "__main__":
     unittest.main()

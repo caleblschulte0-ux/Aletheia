@@ -378,6 +378,11 @@ def _profile_lock(profile: Path) -> "_ProfileLock":
                         wait_s=PROFILE_LOCK_WAIT_S)
 
 
+def _profile_in_use_error(exc: BaseException) -> bool:
+    text = str(exc).lower()
+    return "processsingleton" in text or "profile directory is already in use" in text         or "profile is already in use" in text
+
+
 def _close_orphans(profile: Path) -> bool:
     """Kill Chrome processes left running in `profile`. True if any were.
 
@@ -455,8 +460,15 @@ class _Session:
             except Exception as exc:
                 # A Chrome left behind in the profile by a killed session.
                 # We hold the lock, so it is nobody's: close it, try once more.
-                if not (_closed_browser_error(exc) and _close_orphans(self.profile)):
+                # A browser still DYING from a killed process (live 2026-09-17: a
+                # mission killed mid-run and resumed 4 s later) says "Failed to
+                # create a ProcessSingleton" instead; it gets the same recovery,
+                # plus a moment to finish exiting.
+                in_use = _profile_in_use_error(exc)
+                if not ((_closed_browser_error(exc) or in_use) and (_close_orphans(self.profile) or in_use)):
                     raise
+                if in_use:
+                    time.sleep(3.0)
                 self.context = self._pw.chromium.launch_persistent_context(
                     str(self.profile), **kwargs)
             self.context.set_default_timeout(DEFAULT_TIMEOUT_MS)
