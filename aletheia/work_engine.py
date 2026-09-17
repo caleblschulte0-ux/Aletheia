@@ -331,6 +331,25 @@ def source_project_asks(now: dt.datetime) -> list[dict]:
     return out
 
 
+def source_waits(now: dt.datetime) -> list[dict]:
+    """Every durable wait (`aletheia.waits`) whose owner has no source of its own.
+
+    An owner that is itself a source here (a long mission's tasks) already shows
+    the waiting item with the wait's reason; listing the wait again would count
+    one unfinished thing twice."""
+    from aletheia import waits
+    out = []
+    for record in waits.waiting():
+        if record.get("owner") in SOURCES:
+            continue
+        out.append(item(f"wait:{record['id']}", "waits", f"{record.get('item')}: {record.get('reason')}",
+                        record.get("work_state") or ws.BLOCKED_EXTERNAL, reason=record.get("reason") or "waiting",
+                        next=record.get("next") or "when its condition is met",
+                        not_before=waits.next_wake_at(record), native_state=waits.WAITING,
+                        owner=str(record.get("owner") or ""), kind="wait", updated=str(record.get("updated_at") or "")))
+    return out
+
+
 def source_native(now: dt.datetime) -> list[dict]:
     return [dict(v) for v in load_store()["items"].values()
             if isinstance(v, dict) and v.get("source") == "work"]
@@ -343,6 +362,7 @@ SOURCES: dict[str, Callable[[dt.datetime], list[dict]]] = {
     "handoffs": source_handoffs,
     "browser_missions": source_browser_missions,
     "project_asks": source_project_asks,
+    "waits": source_waits,
     "work": source_native,
 }
 
@@ -495,6 +515,16 @@ def reconcile(now: dt.datetime | None = None, *, probe: bool = True, max_runs: i
         work_gaps.file_from_demand(now=now)
     except Exception:  # noqa: BLE001
         pass
+    # Waiting is first-class (brief IV.14): wake what is met, time out what ran out
+    # and hand due nudges to their owners BEFORE the picker reads the queues, so an
+    # item woken this beat can run this beat.
+    woke_waits: list[dict] = []
+    try:
+        from aletheia import waits
+        woke_waits = waits.reconcile(now)
+    except Exception as exc:  # noqa: BLE001
+        woke_waits = []
+        _journal("alert", "waits", f"the waits could not be reconciled ({type(exc).__name__})")
     items, notes = gather(now, sources=sources)
     picked = pick(items, now, probe=probe, persist=True)
     store = load_store()
@@ -530,7 +560,7 @@ def reconcile(now: dt.datetime | None = None, *, probe: bool = True, max_runs: i
     if changed or picked["woke"] or ran:
         save_store(store)
     return {"counts": picked["counts"], "executable": len(picked["executable"]), "checkpointed": changed,
-            "woke": picked["woke"], "ran": ran, "notes": notes}
+            "woke": picked["woke"], "ran": ran, "waits": woke_waits, "notes": notes}
 
 
 # ---- the read-only inventory -------------------------------------------------------------

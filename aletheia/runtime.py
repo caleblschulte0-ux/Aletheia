@@ -493,9 +493,10 @@ def _reconcile_work() -> list[dict]:
     # probe=False: a beat must not launch a browser to learn whether one works;
     # the browser requirement reads its last live result instead.
     result = work_engine.reconcile(probe=False)
-    if not (result["checkpointed"] or result["woke"] or result["ran"]):
+    if not (result["checkpointed"] or result["woke"] or result["ran"] or result.get("waits")):
         return []
-    return [{"checkpointed": result["checkpointed"], "woke": result["woke"], "ran": result["ran"]}]
+    return [{"checkpointed": result["checkpointed"], "woke": result["woke"], "ran": result["ran"],
+             "waits": result.get("waits") or []}]
 
 
 def _watch_power() -> list[dict]:
