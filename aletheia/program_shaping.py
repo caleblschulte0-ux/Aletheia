@@ -88,7 +88,8 @@ Return JSON only:
  "outcomes": [{"key": "o1", "text": a concrete result, "measure": how to tell it is met}] (at most 4),
  "workstreams": [{"key": "w1", "title": a part of the mission, "outcomes": ["o1"]}] (at most 4)}"""
 
-STREAM_SYSTEM = """List the small concrete tasks for ONE part of Caleb's long mission. Only facts he gave; never
+STREAM_SYSTEM = """List the small concrete tasks for ONLY the part named in "workstream" of Caleb's long mission.
+The parts in "other_parts" are planned separately: leave their tasks out. Only facts he gave; never
 invent people, prices or dates; nothing that spends money. Reaching a person is fine (he approves it). Be brief.
 Return JSON only: {"tasks": [{"title": imperative sentence with the specifics,
  "waits_for": "reply" or "date" or "decision" or "", "who": person to hear from or "",
@@ -357,6 +358,7 @@ def stream_plan(words: str, skel: dict, stream: dict, context: dict, *, catalog:
     then chosen by capability from the task's own words (`program_compose`)."""
     sub = {"mission": skel.get("objective") or words[:300], "his_words": words[:900],
            "workstream": {"key": stream["key"], "title": stream["title"]},
+           "other_parts": [w["title"] for w in skel["workstreams"] if w["key"] != stream["key"]],
            "outcomes": [o for o in skel["outcomes"] if o["key"] in (stream.get("outcomes") or [])],
            "today": context.get("today")}
     if context.get("his_answers"):
@@ -369,11 +371,18 @@ def stream_plan(words: str, skel: dict, stream: dict, context: dict, *, catalog:
 def merge(skel: dict, parts: dict, *, catalog: dict) -> dict:
     """The skeleton and every workstream's plan as one validated structure."""
     structure = dict(skel, tasks=[], activities=[], decisions=[])
+    seen: dict[str, str] = {}
     for stream in skel["workstreams"]:
         part = parts.get(stream["key"]) or {"tasks": [], "activities": [], "decisions": []}
         prefix = stream["key"]
         rename = {t["key"]: f"{prefix}{t['key']}" for t in part["tasks"]}
         for t in part["tasks"]:
+            # A small model planning one part often repeats another part's work: one task, once.
+            same = " ".join(sorted(set(re.findall(r"[a-z0-9@.]{3,}", t["title"].lower()))))
+            if same in seen:
+                rename[t["key"]] = seen[same]
+                continue
+            seen[same] = rename[t["key"]]
             structure["tasks"].append(dict(t, key=rename[t["key"]], workstream=stream["key"],
                                            needs=[rename[n] for n in t["needs"] if n in rename]))
         for a in part["activities"]:

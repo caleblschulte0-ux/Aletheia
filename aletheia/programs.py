@@ -808,7 +808,7 @@ def spoken_status(which: str = "", *, now: dt.datetime | None = None) -> str:
         if m["state"] == DRAFT:
             q = m["questions"]
             parts.append(f"{m['title']} is a draft waiting for you"
-                         + (f"; first, {q[0]}" if q else "; say confirm my mission to start it") + ".")
+                         + (f"; first, {q[0].rstrip('.?!')}?" if q else "; say confirm my mission to start it."))
             continue
         bits = [f"{m['title']}: {m['done']} of {speech.count_phrase(m['total'], 'task')} done"]
         if m["executing"]:
