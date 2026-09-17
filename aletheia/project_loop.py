@@ -10,6 +10,19 @@ opens the pull request for work the cloud builder pushed, and merges the
 low-risk ones that pass every gate in aletheia.project_merge. Direction still
 comes only from the charters he approved, and this loop still never merges a
 change it proposed itself.
+
+Since 2026-09-16 (his continuity brief: "I should never not be able to work on
+my projects") a frontier outage no longer ends the cycle:
+
+- The repair is asked of the frontier first (`code_worker.prepare_pr`, class
+  `critical`). When no subscription can think, the SAME work goes to the
+  local tier (`_local_tier`): a throwaway anonymous clone of the public
+  repository, the repository's own tests, and `local_repair.run`, which
+  repairs a BOUNDED failure on a `thea-repair/*` branch and opens a PR, or
+  writes an investigation packet and a NEEDS_STRONGER_MODEL work item.
+- Work waiting for a stronger model is handed to the frontier FIRST when it
+  is back (`_hand_off_waiting`), starting from the packet.
+Neither path merges anything.
 """
 from __future__ import annotations
 
@@ -17,10 +30,11 @@ import argparse
 import hashlib
 import json
 import re
+from pathlib import Path
 from urllib.parse import quote
 
-from aletheia import (code_trust, code_worker, gh, mission, policy, portfolio,
-                      project_merge, stateio)
+from aletheia import (code_trust, code_worker, gh, investigation, mission, policy, portfolio,
+                      project_merge, reasoner, stateio)
 
 ROOT = stateio.private_dir("project-loop")
 LATEST = ROOT / "latest.json"
@@ -297,6 +311,54 @@ def _draft_asks(*, request=gh.request) -> dict:
         return {"error": f"{type(exc).__name__}: {exc}"[:200]}
 
 
+def _hand_off_waiting(public: list[dict], *, request=gh.request) -> dict | None:
+    """The frontier is asked about work her own model investigated and could
+    not safely do, before anything new is chosen. One per cycle, like every
+    other repair here. None when nothing is waiting or nobody can think."""
+    from aletheia import local_repair
+    names = {str(r.get("full_name") or "").casefold() for r in public}
+    for item in investigation.waiting_for_frontier():
+        if str(item.get("repo") or "").casefold() not in names:
+            continue
+        try:
+            run = local_repair.handoff(item, request=request)
+        except policy.Halted:
+            raise
+        except reasoner.ReasonerUnavailable:
+            return None                      # still out: it keeps waiting, costs no attempt
+        except Exception as exc:
+            return {"version": 1, "status": "ERROR", "repo": item.get("repo"), "source": "packet",
+                    "task_id": item.get("task_id"), "reason": type(exc).__name__,
+                    "detail": str(exc)[:200], "updated_at": stateio.utcnow()}
+        return {"version": 1, "status": "WORKED", "repo": item.get("repo"), "source": "packet",
+                "task_id": item.get("task_id"), "packet_id": item.get("packet_id"),
+                "work_status": run.get("status"), "pr_url": run.get("pr_url"),
+                "updated_at": stateio.utcnow()}
+    return None
+
+
+def _local_tier(repo: dict, work: dict, *, request=gh.request) -> dict:
+    """No subscription could think: the same work, for her own model, where
+    the repository's tests decide. A public repository only (the clone is
+    anonymous), a throwaway directory, and the branch the failure is on."""
+    from aletheia import local_repair
+    import shutil
+    import tempfile
+    full = repo["full_name"]
+    branch = str(repo.get("default_branch") or "main")
+    if investigation.packet_for(full, work["task_id"]):
+        return {"status": "WAITING_FOR_STRONGER_MODEL", "detail": "already investigated; its packet is queued"}
+    root = investigation.worktrees_root()
+    root.mkdir(parents=True, exist_ok=True)
+    scratch = Path(tempfile.mkdtemp(prefix="clone-", dir=str(root)))
+    try:
+        clone = investigation.clone_public(full, branch, scratch / "repo")
+        return local_repair.run(clone, repo=full, base_ref=branch, objective=work["objective"],
+                                task_id=work["task_id"], open_pr=True, request=request)
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+
+
 def cycle(*, request=gh.request, daily_limit: int = DEFAULT_DAILY_LIMIT) -> dict:
     if type(daily_limit) is not int or not 1 <= daily_limit <= 20:
         raise ValueError("daily_limit must be 1..20")
@@ -329,22 +391,39 @@ def cycle(*, request=gh.request, daily_limit: int = DEFAULT_DAILY_LIMIT) -> dict
 
     snapshot = portfolio.scan_all(request=request)
     public = [r for r in snapshot.get("repos", []) if isinstance(r, dict) and not r.get("private")]
+    handed = _hand_off_waiting(public, request=request)
+    if handed:
+        handed.update({"reconciled": len(reconciled), "carried": carried})
+        stateio.write_json_atomic(LATEST, handed)
+        return handed
     for repo in sorted(public, key=_repo_priority):
         work = choose_work(repo, request=request)
         if not work:
             continue
         try:
-            run = code_worker.prepare_pr(
-                repo["full_name"], work["objective"], task_id=work["task_id"],
-                evidence=work.get("evidence", ""), request=request
-            )
+            try:
+                run = code_worker.prepare_pr(
+                    repo["full_name"], work["objective"], task_id=work["task_id"],
+                    evidence=work.get("evidence", ""), request=request
+                )
+                tier = "frontier"
+            except reasoner.ReasonerUnavailable as out:
+                # Nobody who may write unverified code can think. Her own
+                # model may still repair a BOUNDED failure the tests prove,
+                # or investigate and queue it: never a dead end.
+                run = _local_tier(repo, work, request=request)
+                run["frontier"] = str(out)[:200]
+                tier = "local"
             result = {
                 "version": 1, "status": "WORKED", "repo": repo["full_name"],
-                "source": work["kind"], "task_id": work["task_id"],
+                "source": work["kind"], "task_id": work["task_id"], "tier": tier,
                 "work_status": run.get("status"), "pr_url": run.get("pr_url"),
+                **({"packet_id": run.get("packet_id")} if run.get("packet_id") else {}),
                 "reconciled": len(reconciled), "carried": carried,
                 "updated_at": stateio.utcnow(),
             }
+        except policy.Halted:
+            raise
         except Exception as exc:
             result = {
                 "version": 1, "status": "ERROR", "repo": repo["full_name"],
@@ -428,9 +507,12 @@ def run_mission_slice(*, request=gh.request, slice_max: int = SLICE_MAX) -> dict
         if not work:
             continue
         try:
-            run = code_worker.prepare_pr(
-                repo["full_name"], work["objective"], task_id=work["task_id"],
-                evidence=work.get("evidence", ""), request=request)
+            try:
+                run = code_worker.prepare_pr(
+                    repo["full_name"], work["objective"], task_id=work["task_id"],
+                    evidence=work.get("evidence", ""), request=request)
+            except reasoner.ReasonerUnavailable:
+                run = _local_tier(repo, work, request=request)
         except policy.Halted:
             raise
         except Exception as exc:
