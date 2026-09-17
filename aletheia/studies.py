@@ -441,10 +441,9 @@ def pick_hypothesis(record: dict, which: str, states: tuple = (PROPOSED,)) -> di
             return h
     m = re.search(r"\b(\d+)\b", low) or re.search(r"\b(" + "|".join(ordinals) + r")\b", low)
     if m:
+        # By POSITION in the list as she says it now ("1, ...; 2, ..."), never by a stored rank
+        # that an earlier decision left a gap in.
         n = int(m.group(1)) if m.group(1).isdigit() else ordinals[m.group(1)]
-        ranked = [h for h in rows if (h.get("rank") or 0) == n]
-        if ranked:
-            return ranked[0]
         return rows[n - 1] if 1 <= n <= len(rows) else None
     want = set(re.findall(r"[a-z0-9]{4,}", low))
     scored = sorted(((len(want & set(re.findall(r"[a-z0-9]{4,}", (h.get("title") or "").lower()))), h)
@@ -716,7 +715,8 @@ def spoken_status(which: str = "", about: str = "", *, now: dt.datetime | None =
     if not parts:
         parts.append(f"The study of {name} has {speech.count_phrase(s['evidence'], 'observation')} and nothing "
                      "waiting on you.")
-    return " ".join(p for p in parts if p)
+    # Titles and claims were written by a model and are read out loud: one door for that.
+    return speech.spoken_prose(" ".join(p for p in parts if p))
 
 
 def _when_words(stamp_text: str | None) -> str:
