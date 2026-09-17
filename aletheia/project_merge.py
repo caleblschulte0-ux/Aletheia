@@ -30,7 +30,13 @@ WHAT IT WILL NOT DO — each enforced below, not described:
 - Merge a change to `.github/`, a registry, a secret or any path the code
   worker protects, or a file with no text diff to read.
 - Merge on a same-model review. The builder writes with the plan model;
-  the review must come from another model, or there is no merge.
+  the review must come from another model, or there is no merge. The review
+  asks the reasoning gateway for class `critical` (a subscription answers
+  or nobody does): the local repair tier may DRAFT a bounded fix, but it
+  never reviews a merge (CLAUDE.md, "Small repairs may be local; everything
+  else about code stays frontier").
+- Merge a local repair. Those arrive on `thea-repair/*` branches, which are
+  not builder branches, so every one of them waits for him.
 - Run without BOTH his machine-bound code-work grant and the ruling switch
   (`python -m aletheia.project_merge on|off|status`), while halted, or past
   MAX_MERGES_PER_DAY.
@@ -243,7 +249,7 @@ def review(plan: dict, step_n: int, full: str, pr: dict, files: list[dict], *,
         return {"approved": False, "independent": False, "model": model, "findings": [],
                 "summary": "no model other than the builder's is reachable, so there is "
                            "no independent review"}
-    think = think or reasoner.subscription_json
+    think = think or code_worker.critical_think
     step = next((s for s in plan.get("steps", []) if s.get("n") == step_n), {})
     # The OBJECTIVE is composed from the charter, which is his and reviewed.
     # The pull request's own title and body are the builder's account of

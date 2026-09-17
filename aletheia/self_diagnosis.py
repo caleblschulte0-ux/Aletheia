@@ -30,9 +30,17 @@ locations that were actually gathered - anything else is dropped and the
 confidence capped. A stronger reviewer is optional and goes through the
 existing `reasoning_gateway` (policy "critical", the subscriptions); its
 verdict is stored BESIDE the local diagnosis under `provenance.reviewer`,
-never over it. Code proposals reaching a merge remain the subscriptions'
-and his (CLAUDE.md, "Repositories stay with the subscriptions"): nothing
-here merges, and `project_merge` still refuses Aletheia's own code.
+never over it. Nothing here merges, and `project_merge` still refuses
+Aletheia's own code.
+
+WHO DRAFTS A DIFF HERE. CLAUDE.md, "Small repairs may be local; everything
+else about code stays frontier" (his 2026-09-16 brief). A proposal from this
+module is an unverified diff of HER OWN code with no bounded classification
+and no test run behind it, so it stays frontier: `subscription_draft` asks
+the gateway for class `critical`, and a diff her local model wrote is still
+dropped. The local tier that IS allowed lives in `aletheia.local_repair`,
+where `repair_classifier` bounds the failure and the repository's own tests
+prove the fix before anything is kept.
 
 NOT KEYED TO ONE GOAL. A failure is resolved by a table of resolvers
 (`RESOLVERS`: missions, applications, journal, tests, free text through the
@@ -483,15 +491,18 @@ def local_think(timeout_s: float = THINK_TIMEOUT_S) -> Think:
 
 
 def subscription_draft(timeout_s: float = THINK_TIMEOUT_S) -> Think:
-    """The subscriptions (Claude -> ChatGPT), the only drafters of CODE.
+    """A frontier drafter: the gateway, class `critical` (a subscription
+    answers or nobody does).
 
-    CLAUDE.md, "Repositories stay with the subscriptions": code proposals call
-    `subscription_json` directly and never reach a local model. Her own model
-    may help DIAGNOSE (that is reading); it never writes a diff.
+    An unverified proposal against her own code is not a bounded local
+    repair: her own model may help DIAGNOSE (that is reading); it never
+    writes a diff here. See `aletheia.local_repair` for the tier where it may.
     """
     def draft(system: str, text: str) -> tuple[dict, str]:
-        from aletheia import reasoner
-        return reasoner.subscription_json(system, text, timeout_s=min(timeout_s, 300.0)), "subscription"
+        from aletheia import reasoning_gateway
+        result = reasoning_gateway.reason_json(system, text, policy="critical",
+                                               timeout_s=min(timeout_s, 180.0))
+        return result.output, "subscription"
     return draft
 
 
@@ -704,18 +715,20 @@ def propose_patch(failure_ref: str, *, diff: str = "", tests: list[str] | None =
     diff = str(diff or "")
     diff_by = drafted_by or ("supplied by the caller" if diff else "")
     if diff and _drafted_locally(drafted_by):
-        # Repositories stay with the subscriptions: a diff her own model wrote
-        # is not recorded as a proposal at all.
+        # An unverified diff of her own code stays frontier: a diff her own
+        # model wrote is not recorded as a proposal at all (local_repair is
+        # the bounded, test-proven tier).
         diff, diff_by = "", ""
         diagnosis.setdefault("provenance", {})["local_diff_refused"] = (
-            "a diff drafted by her local model was dropped: code proposals come from the subscriptions")
+            "a diff drafted by her local model was dropped: an unverified proposal comes from the frontier "
+            "(bounded, test-proven local repairs go through local_repair)")
     if not diff and drafter is not None and diagnosis.get("kind") != BOUNDARY:
         text = (f"DIAGNOSIS: {json.dumps({k: diagnosis.get(k) for k in ('kind', 'summary', 'likely_location')}, ensure_ascii=False)}\n"
                 "CODE:\n" + "\n".join(e["text"] for e in diagnosis["evidence"] if e["source"] == "code"))[:7000]
         try:
             output, provider = drafter(PATCH_SYSTEM, text)
             if _drafted_locally(provider):
-                raise RuntimeError(f"{provider} is a local model; code is drafted by the subscriptions")
+                raise RuntimeError(f"{provider} is a local model; an unverified proposal is drafted by the frontier")
             diff = str((output or {}).get("diff") or "")
             summary = summary or _short((output or {}).get("summary"), 300)
             tests = tests or [t for t in (output or {}).get("tests") or [] if isinstance(t, str)]

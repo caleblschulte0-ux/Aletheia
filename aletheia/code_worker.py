@@ -2,9 +2,26 @@
 
 This module is deliberately not a general coding shell. It reads PUBLIC GitHub
 repository text through the existing REST client, sends a small bounded context
-to the subscription reasoner, validates full-file replacements, runs a separate
+to the reasoning gateway, validates full-file replacements, runs a separate
 review pass, and only then creates a new `thea-auto/*` branch and pull request.
 It never writes or merges a default branch.
+
+WHO THINKS, BY CLASS (his continuity brief, 2026-09-16, and CLAUDE.md "Small
+repairs may be local; everything else about code stays frontier"). Code work
+asks the gateway for a CLASS of reasoning, never a company:
+
+- `prepare_pr` is the FRONTIER path. It has no local test run to prove a
+  change, so its proposal, file choice and review are `critical`: a
+  subscription must answer, and a local model never does. When an
+  investigation packet exists for the task (`aletheia.investigation`), the
+  proposal starts from it instead of rediscovering it.
+- A BOUNDED repair (`aletheia.repair_classifier`) is drafted in
+  `aletheia.local_repair`, where her own model may answer (`standard`: the
+  frontier first, local when it is out) because the repository's own tests,
+  run in a throwaway worktree, decide whether the change is a fix. It
+  publishes through `open_repair_pr` below, with every refusal here intact.
+- Merge review stays `critical` and must come from a DIFFERENT model than
+  the author (`project_merge`).
 """
 from __future__ import annotations
 
@@ -15,7 +32,7 @@ import secrets
 from pathlib import PurePosixPath
 from urllib.parse import quote
 
-from aletheia import code_trust, gh, journal, policy, reasoner, stateio
+from aletheia import code_trust, gh, journal, policy, reasoner, reasoning_gateway, stateio
 
 ACTOR = "aletheia-code-worker"
 RUNS_DIR = stateio.private_dir("code-worker") / "runs"
@@ -77,6 +94,10 @@ ALETHEIA_PROTECTED = {
     # added 2026-09-10: the one path that merges without him, and the
     # charters' evidence rule that decides what a merge is credited as
     "aletheia/project_merge.py", "aletheia/plans.py",
+    # added 2026-09-16: the local repair tier decides who may draft code and
+    # which class of reasoning answers; a repair must never edit its own gate
+    "aletheia/local_repair.py", "aletheia/repair_classifier.py", "aletheia/investigation.py",
+    "aletheia/reasoning_gateway.py", "aletheia/self_diagnosis.py",
     # the constitution and the playbook it serves: a worker must never
     # propose an edit to the rules it is judged by
     "claude.md", "docs/playbook.md", "docs/architecture.md", "readme.md",
@@ -170,6 +191,18 @@ def sanitize_external(text: str) -> str:
 
 class CodeWorkerError(RuntimeError):
     pass
+
+
+def critical_think(system_prompt: str, text: str, *, context: dict | None = None,
+                   model: str = reasoner.INTERPRET_MODEL, validator=None,
+                   max_context_bytes: int = CONTEXT_BYTES, timeout_s: float = reasoner.TIMEOUT_S) -> dict:
+    """The gateway, class `critical`: a subscription answers or nobody does.
+    Nothing on this module's own path has tests to prove a change, so nothing
+    here may be answered by a local model."""
+    return reasoning_gateway.reason_json(
+        system_prompt, text, context=context, policy="critical", model=model,
+        timeout_s=timeout_s, validator=validator, max_context_bytes=max_context_bytes,
+    ).output
 
 
 def _enc_repo(full: str) -> str:
@@ -327,7 +360,7 @@ def choose_paths(ranked: list[dict], objective: str, evidence: str, *,
     """
     if len(ranked) <= MAX_FILES:
         return ranked
-    think = think or reasoner.subscription_json
+    think = think or critical_think
     manifest = ranked[:MAX_CHOICE_MANIFEST]
     names = {str(e["path"]) for e in manifest}
     context = {"objective": objective, "max_files": MAX_FILES,
@@ -429,8 +462,118 @@ def _fetch_candidates(request, encoded: str, ref: str, ranked: list[dict]) -> di
     return selected
 
 
+def _prefer(ranked: list[dict], prefer_paths: list[str] | None) -> list[dict]:
+    """Paths an investigation packet named come first; nothing else changes.
+    A named path that is protected or not a text candidate was never in
+    `ranked`, so a packet cannot aim the proposer at what it may not edit."""
+    if not prefer_paths:
+        return ranked
+    wanted = []
+    for raw in prefer_paths:
+        try:
+            wanted.append(_safe_path(raw))
+        except CodeWorkerError:
+            continue
+    first = [e for p in wanted for e in ranked if str(e["path"]) == p]
+    return first + [e for e in ranked if e not in first]
+
+
+AUTONOMOUS_BRANCH_PREFIXES = ("thea-auto/", "thea-repair/")
+
+
+def _publish(request, encoded: str, *, base_sha: str, base_tree: str, files: dict[str, dict],
+             message: str, branch: str, title: str, body: str, base_branch: str) -> dict:
+    """Blobs -> a tree on the EXACT base tree -> a commit whose only parent is
+    the exact base -> a NEW branch ref -> a pull request. The only ref this
+    ever creates is a new autonomous branch; it never updates a ref, and so
+    never a default branch. `files`: path -> {"content": str, "mode": str}."""
+    if not branch.startswith(AUTONOMOUS_BRANCH_PREFIXES):
+        raise CodeWorkerError("autonomous branches are thea-auto/* or thea-repair/* only")
+    blob_shas = {}
+    for path, row in files.items():
+        blob = request("POST", f"/repos/{encoded}/git/blobs",
+                       {"content": row["content"], "encoding": "utf-8"})
+        sha = (blob or {}).get("sha")
+        if not isinstance(sha, str) or not sha:
+            raise CodeWorkerError("GitHub did not create replacement blob")
+        blob_shas[path] = sha
+    tree_rows = [
+        {"path": path, "mode": str(files[path].get("mode") or "100644"), "type": "blob", "sha": sha}
+        for path, sha in blob_shas.items()
+    ]
+    new_tree = request("POST", f"/repos/{encoded}/git/trees", {"base_tree": base_tree, "tree": tree_rows})
+    new_tree_sha = (new_tree or {}).get("sha")
+    if not isinstance(new_tree_sha, str) or not new_tree_sha:
+        raise CodeWorkerError("GitHub did not create proposed tree")
+    new_commit = request("POST", f"/repos/{encoded}/git/commits",
+                         {"message": message, "tree": new_tree_sha, "parents": [base_sha]})
+    commit_sha = (new_commit or {}).get("sha")
+    if not isinstance(commit_sha, str) or not commit_sha:
+        raise CodeWorkerError("GitHub did not create proposed commit")
+    request("POST", f"/repos/{encoded}/git/refs", {"ref": f"refs/heads/{branch}", "sha": commit_sha})
+    pr = request("POST", f"/repos/{encoded}/pulls", {
+        "title": title, "head": branch, "base": base_branch,
+        "body": body[:8_000], "maintainer_can_modify": True,
+    })
+    pr_url = (pr or {}).get("html_url")
+    if not isinstance(pr_url, str) or not pr_url:
+        raise CodeWorkerError("branch was created but GitHub did not create a pull request")
+    return {"commit_sha": commit_sha, "branch": branch, "pr_url": pr_url,
+            "pr_number": (pr or {}).get("number")}
+
+
+def open_repair_pr(repo_full_name: str, *, base_sha: str, base_branch: str, files: dict[str, dict],
+                   task_id: str, title: str, body: str, request=gh.request) -> dict:
+    """Publish a LOCALLY VERIFIED bounded repair as a pull request.
+
+    The same GitHub path and token as `prepare_pr`, and the same refusals:
+    public repositories only, no protected path, the operator's code-work
+    grant spent only here at the first write with HALT re-read right before
+    it, a new `thea-repair/*` branch whose commit sits on the EXACT commit
+    the tests ran against, and never a default-branch write or a merge.
+    `base_branch` is the branch the failure was observed on.
+    """
+    task_id = stateio.safe_id(task_id, name="code task id")
+    if not files:
+        raise CodeWorkerError("a repair pull request needs at least one changed file")
+    if not re.fullmatch(r"[0-9a-f]{40}", str(base_sha or "")):
+        raise CodeWorkerError("a repair is published on an exact 40-character base commit")
+    if len(files) > MAX_FILES:
+        raise CodeWorkerError("a repair pull request is bounded to a few files")
+    for path, row in files.items():
+        if protected_path(repo_full_name, path):
+            raise CodeWorkerError(f"a repair may not change a protected path ({path})")
+        if not isinstance(row.get("content"), str) or len(row["content"]) > MAX_CHANGE_CHARS:
+            raise CodeWorkerError("replacement content is not bounded text")
+    if not gh.token():
+        raise CodeWorkerError("GitHub write token is not configured locally (FLEET_TOKEN/GITHUB_TOKEN)")
+    encoded = _enc_repo(repo_full_name)
+    meta = request("GET", f"/repos/{encoded}")
+    if not isinstance(meta, dict):
+        raise CodeWorkerError("repository metadata was unavailable")
+    private = bool(meta.get("private"))
+    if private:
+        raise code_trust.CodeTrustRequired("unattended model coding is disabled for private repositories")
+    commit = request("GET", f"/repos/{encoded}/git/commits/{quote(base_sha, safe='')}")
+    base_tree = ((commit or {}).get("tree") or {}).get("sha")
+    if not isinstance(base_tree, str) or not base_tree:
+        raise CodeWorkerError("the tested base commit is not on GitHub, so there is nothing exact to build on")
+    policy.ensure_not_halted()
+    code_trust.claim(repo_full_name=repo_full_name, private=private, task_id=task_id)
+    slug = re.sub(r"[^a-z0-9-]+", "-", task_id.casefold()).strip("-")[:45] or "task"
+    out = _publish(request, encoded, base_sha=base_sha, base_tree=base_tree, files=files,
+                   message=f"[THEA-REPAIR] {title[:120]}",
+                   branch=f"thea-repair/{slug}-{secrets.token_hex(3)}",
+                   title=f"[THEA-REPAIR] {title[:90]}", body=body, base_branch=base_branch)
+    journal.append("action", f"code:{task_id}",
+                   f"opened a locally verified repair PR for {repo_full_name}: {out['pr_url']}", actor=ACTOR)
+    return {"status": "PR_OPEN", "repo": repo_full_name, "task_id": task_id, "base_sha": base_sha,
+            "base_branch": base_branch, "files": sorted(files), **out}
+
+
 def prepare_pr(repo_full_name: str, objective: str, *, task_id: str,
-               evidence: str = "", request=gh.request) -> dict:
+               evidence: str = "", request=gh.request, prefer_paths: list[str] | None = None,
+               packet_id: str | None = None) -> dict:
     """Prepare one independently reviewed PR. Never merge it.
 
     `objective` is OURS - composed by project_loop from a repository name,
@@ -482,9 +625,9 @@ def prepare_pr(repo_full_name: str, objective: str, *, task_id: str,
     # It is safe because ranking cannot WRITE: _is_text_candidate already
     # excludes every protected path, so the worst an attacker can do here is
     # aim attention at files the proposal is then refused from changing.
-    ranked = _rank_paths(repo_full_name, tree["tree"], f"{objective}\n{evidence}")
+    ranked = _prefer(_rank_paths(repo_full_name, tree["tree"], f"{objective}\n{evidence}"), prefer_paths)
     policy.ensure_not_halted()
-    ranked = choose_paths(ranked, objective, evidence)
+    ranked = _prefer(choose_paths(ranked, objective, evidence), prefer_paths)
     selected = _fetch_candidates(request, encoded, base_sha, ranked)
     if not selected:
         raise CodeWorkerError("no safe bounded text files were available for this objective")
@@ -493,7 +636,7 @@ def prepare_pr(repo_full_name: str, objective: str, *, task_id: str,
     if evidence:
         context["untrusted_external_text"] = evidence
     policy.ensure_not_halted()
-    proposal = reasoner.subscription_json(
+    proposal = critical_think(
         PROPOSE_SYSTEM, objective, context=context, model=reasoner.PLAN_MODEL,
         validator=_proposal_validator(set(selected)), max_context_bytes=CONTEXT_BYTES,
     )
@@ -530,7 +673,7 @@ def prepare_pr(repo_full_name: str, objective: str, *, task_id: str,
     # different model; when only one is reachable, say so in the record and
     # in the PR body rather than calling it independent.
     review_model = reasoner.review_model(reasoner.PLAN_MODEL)
-    review = reasoner.subscription_json(
+    review = critical_think(
         REVIEW_SYSTEM, objective,
         context={"objective": objective, "proposed_diff": diff,
                  "proposal_summary": proposal["summary"],
@@ -555,32 +698,8 @@ def prepare_pr(repo_full_name: str, objective: str, *, task_id: str,
     # is where the operator's grant is spent, and only here.
     policy.ensure_not_halted()
     code_trust.claim(repo_full_name=repo_full_name, private=private, task_id=task_id)
-    blob_shas = {}
-    for change in changes:
-        blob = request("POST", f"/repos/{encoded}/git/blobs",
-                       {"content": change["content"], "encoding": "utf-8"})
-        sha = (blob or {}).get("sha")
-        if not isinstance(sha, str) or not sha:
-            raise CodeWorkerError("GitHub did not create replacement blob")
-        blob_shas[change["path"]] = sha
-    tree_rows = [
-        {"path": path, "mode": str(selected[path].get("mode") or "100644"), "type": "blob", "sha": sha}
-        for path, sha in blob_shas.items()
-    ]
-    new_tree = request("POST", f"/repos/{encoded}/git/trees", {"base_tree": base_tree, "tree": tree_rows})
-    new_tree_sha = (new_tree or {}).get("sha")
-    if not isinstance(new_tree_sha, str) or not new_tree_sha:
-        raise CodeWorkerError("GitHub did not create proposed tree")
-    message = f"[THEA-AUTO] {objective[:120]}"
-    new_commit = request("POST", f"/repos/{encoded}/git/commits",
-                         {"message": message, "tree": new_tree_sha, "parents": [base_sha]})
-    commit_sha = (new_commit or {}).get("sha")
-    if not isinstance(commit_sha, str) or not commit_sha:
-        raise CodeWorkerError("GitHub did not create proposed commit")
-
     slug = re.sub(r"[^a-z0-9-]+", "-", task_id.casefold()).strip("-")[:45] or "task"
     branch = f"thea-auto/{slug}-{secrets.token_hex(3)}"
-    request("POST", f"/repos/{encoded}/git/refs", {"ref": f"refs/heads/{branch}", "sha": commit_sha})
     # Name the review honestly. A same-model second pass is a lint, not a
     # second opinion, and a reviewer skimming this PR must be able to tell
     # which one they are looking at without reading the run record.
@@ -595,26 +714,27 @@ def prepare_pr(repo_full_name: str, objective: str, *, task_id: str,
         f"Objective: {objective}\n\n"
         f"Proposal ({reasoner.PLAN_MODEL}): {proposal['summary']}\n\n"
         f"{review_label}: {review['summary']}\n\n"
-        "Safety boundary: public-repo bounded replacements only; no workflow/governance/"
+        + (f"Started from Aletheia's local investigation packet `{packet_id}`.\n\n" if packet_id else "")
+        + "Safety boundary: public-repo bounded replacements only; no workflow/governance/"
         "registry/secret paths; no default-branch write or merge. Files were read at the "
         "pinned base commit below, so this diff describes exactly the tree it was reviewed "
         "against. CI, if configured, remains authoritative — and a human merges.\n\n"
         f"Task: `{task_id}`\nBase: `{base_sha}`"
     )
-    pr = request("POST", f"/repos/{encoded}/pulls", {
-        "title": f"[THEA-AUTO] {objective[:90]}", "head": branch, "base": default,
-        "body": body[:8_000], "maintainer_can_modify": True,
-    })
-    pr_url = (pr or {}).get("html_url")
-    pr_number = (pr or {}).get("number")
-    if not isinstance(pr_url, str) or not pr_url:
-        raise CodeWorkerError("branch was created but GitHub did not create a pull request")
+    published = _publish(
+        request, encoded, base_sha=base_sha, base_tree=base_tree,
+        files={c["path"]: {"content": c["content"],
+                           "mode": str(selected[c["path"]].get("mode") or "100644")} for c in changes},
+        message=f"[THEA-AUTO] {objective[:120]}", branch=branch,
+        title=f"[THEA-AUTO] {objective[:90]}", body=body, base_branch=default)
+    commit_sha, pr_url, pr_number = published["commit_sha"], published["pr_url"], published["pr_number"]
     result = {
         "version": 1, "status": "PR_OPEN", "repo": repo_full_name, "task_id": task_id,
         "objective": objective, "base_branch": default, "base_sha": base_sha,
         "branch": branch, "commit_sha": commit_sha, "pr_url": pr_url,
         "pr_number": pr_number, "files": [c["path"] for c in changes],
         "summary": proposal["summary"], "review": review, "updated_at": stateio.utcnow(),
+        **({"packet_id": packet_id} if packet_id else {}),
     }
     _save_run(repo_full_name, task_id, result)
     journal.append(
