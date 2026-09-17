@@ -233,8 +233,12 @@ def main(argv=None) -> int:
     say("SIMULATED: Caleb accepts", f"{chosen['key']}: {chosen['title']}")
     st.decide(sid, chosen["key"], "accept", words="(simulated) yes, do that one", via=SIMULATED)
     t0 = time.monotonic()
-    assert run.claim_execution(sid, chosen["key"], run._now())
-    run.execute(sid, chosen["key"])
+    for attempt in range(2):                      # a model that could not draft is tried again, then a packet
+        assert run.claim_execution(sid, chosen["key"], run._now())
+        run.execute(sid, chosen["key"])
+        if st.hypothesis(st.load(sid), chosen["key"])["state"] != st.ACCEPTED:
+            break
+        say("execution is being retried (no model finished the draft)")
     log["timings"]["execute_s"] = round(time.monotonic() - t0, 1)
     h = st.hypothesis(st.load(sid), chosen["key"])
     log["execution"] = {"state": h["state"], "baseline": h.get("baseline"),

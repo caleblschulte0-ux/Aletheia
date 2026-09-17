@@ -522,6 +522,27 @@ class ExecutionAndMeasurementCase(StudyCase):
             self.assertLess(len(json.dumps(compact)), len(json.dumps(full)))
             self.assertLess(len(json.dumps(compact)), 2_500)
 
+    def test_an_edit_no_model_can_draft_becomes_a_packet_not_a_forever_retry(self):
+        from aletheia import investigation as inv, reasoner
+        sid, key, _thinker = self.accept()
+
+        def cannot(system, text, *, context, validator, compact=None):
+            raise reasoner.ReasonerUnavailable("her own model could not answer: it timed out")
+        with mock.patch.object(run, "THINK", cannot), mock.patch.object(run, "OPENER", opener_for(self.pages)):
+            run.claim_execution(sid, key, NOW)
+            run.execute(sid, key, now=NOW)
+            h = st.hypothesis(st.load(sid), key)
+            self.assertEqual(h["state"], st.ACCEPTED, "it tries again before it gives up")
+            self.assertEqual(h["baseline"]["value"], 0, "the baseline was read before any of that")
+            run.claim_execution(sid, key, NOW)
+            run.execute(sid, key, now=NOW)
+        h = st.hypothesis(st.load(sid), key)
+        self.assertEqual(h["state"], st.BLOCKED)
+        packet = inv.load_packet(h["execution_result"]["packet"])
+        self.assertIn("no model could draft the edit", packet["classification"]["reasons"][0])
+        self.assertIn(h["change"][:20], packet["objective"])
+        self.assertEqual(git(self.project, "branch", "--list").strip(), "* main", "nothing was branched")
+
     def test_with_nobody_able_to_think_rules_carry_it_and_say_so(self):
         record = self.new_study()
         with mock.patch.object(run, "THINK", False), mock.patch.object(run, "OPENER", opener_for(self.pages)):

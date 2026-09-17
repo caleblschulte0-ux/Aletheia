@@ -685,8 +685,14 @@ def _change(sid: str, record: dict, h: dict, now: dt.datetime) -> dict:
             output, provider = think(sr.EDIT_SYSTEM, f"Make this change: {h['change'][:400]}", context=context,
                                      validator=validator, compact=compact)
         except reasoner.ReasonerUnavailable as exc:
-            return _blocked(sid, h["key"], now, said=f"no model finished drafting the edit ({str(exc)[:120]})",
-                            work_state=ws.RETRY_LATER, nxt="draft it again", back_to=st.ACCEPTED)
+            tries = int((h.get("draft_tries") or 0)) + 1
+            st.set_hypothesis(sid, h["key"], lambda r, hh: hh.update(draft_tries=tries), now=now)
+            if tries < MODEL_TRIES_BEFORE_RULES:
+                return _blocked(sid, h["key"], now, said=f"no model finished drafting the edit ({str(exc)[:120]})",
+                                work_state=ws.RETRY_LATER, nxt="draft it again", back_to=st.ACCEPTED)
+            # Rule 5: what she cannot draft, she investigates into a packet rather than retrying forever.
+            return _packet(sid, record, h, now, base_sha=base_sha,
+                           reasons=[f"no model could draft the edit after {tries} tries ({str(exc)[:120]})"])
         draft = validator(output)
         attempt = {"provider": provider, "summary": draft["summary"], "confidence": draft["confidence"],
                    "edits": len(draft["edits"])}
