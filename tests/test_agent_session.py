@@ -259,9 +259,10 @@ class TheBrokerRefuses(unittest.TestCase):
                 args = {k: "x" for k in tool.input_schema.get("required") or []}
                 decision = broker.check(s.ToolRequest(name, args))
                 if decision.verdict == s.RUN and tool.record_only:
-                    # The one writer that runs: a record of her own advice
-                    # (a patch proposal), which changes no code and no world.
-                    self.assertEqual(set(tool.writes), set(tools.RECORD_ONLY_STORES))
+                    # The writers that run: a record of her own advice (a patch
+                    # proposal, a conversation draft, a tentative hold in her own
+                    # calendar), which changes no code, sends nothing, reaches nobody.
+                    self.assertTrue(set(tool.writes) <= set(tools.RECORD_ONLY_STORES), name)
                     self.assertEqual(tool.approval, "none")
                     self.assertIsNone(tool.kind)
                 elif decision.verdict == s.RUN:

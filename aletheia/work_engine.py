@@ -331,6 +331,23 @@ def source_project_asks(now: dt.datetime) -> list[dict]:
     return out
 
 
+def source_conversations(now: dt.datetime) -> list[dict]:
+    """Every conversation she carries (`aletheia.conversations`), in the shared vocabulary:
+    a message waiting for his yes is BLOCKED_USER with its approval as evidence, a thread
+    waiting on the other person is BLOCKED_EXTERNAL until the follow-up date, closed is DONE."""
+    from aletheia import conversations
+    out = []
+    for thread in conversations.all_threads():
+        view = conversations.work_view(thread)
+        title = f"conversation with {conversations._name(thread)}: {thread.get('subject') or thread.get('purpose')}"
+        out.append(item(f"conversation:{thread['id']}", "conversations", title, view["state"],
+                        requires=view["requires"], reason=view["reason"], next=view["next"],
+                        not_before=view["not_before"], native_state=str(thread.get("state") or ""),
+                        evidence=view["evidence"], updated=str(thread.get("updated_at") or ""),
+                        payload={"wake_at": view["not_before"]} if view["not_before"] else None))
+    return out
+
+
 def source_native(now: dt.datetime) -> list[dict]:
     return [dict(v) for v in load_store()["items"].values()
             if isinstance(v, dict) and v.get("source") == "work"]
@@ -343,6 +360,7 @@ SOURCES: dict[str, Callable[[dt.datetime], list[dict]]] = {
     "handoffs": source_handoffs,
     "browser_missions": source_browser_missions,
     "project_asks": source_project_asks,
+    "conversations": source_conversations,
     "work": source_native,
 }
 
@@ -399,6 +417,12 @@ def assess(it: dict, now: dt.datetime, *, probe: bool = False, persist: bool = F
         return {"verdict": "wait", "state": ws.BLOCKED_USER, "checkpoint": False,
                 "reason": f"Aletheia is halted ({halted.get('reason') or 'kill switch on'})",
                 "next": "when Caleb resumes her (she never lifts her own kill switch)", "not_before": None}
+    if state == ws.BLOCKED_EXTERNAL and it.get("source") == "work":
+        # WAITING FOR A DATE: a native item that carries `wake_at` wakes when the
+        # date arrives (a deadline coming due), not when someone else moves.
+        wake = _parse((it.get("payload") or {}).get("wake_at"))
+        if wake is not None and wake <= now:
+            return {"verdict": "run", "woke": True, "was": state}
     if state in (ws.BLOCKED_USER, ws.BLOCKED_LOGIN, ws.BLOCKED_EXTERNAL):
         # A person or the world has to move first; its own store says when.
         items_reqs = [r for r in it["requires"] if r in wr.ITEM_REQUIREMENTS]
@@ -465,7 +489,12 @@ def _run_gap(it: dict, now: dt.datetime) -> dict:
     return work_gaps.act(it, now=now)
 
 
-RUNNERS: dict[str, Callable[[dict, dt.datetime], dict]] = {"gap": _run_gap}
+def _run_deadline(it: dict, now: dt.datetime) -> dict:
+    from aletheia import calendar_reasoning
+    return calendar_reasoning.run_deadline(it, now)
+
+
+RUNNERS: dict[str, Callable[[dict, dt.datetime], dict]] = {"gap": _run_gap, "deadline": _run_deadline}
 
 
 def _write_checkpoints(store: dict, views: list[dict], now: dt.datetime) -> list[str]:
@@ -522,6 +551,8 @@ def reconcile(now: dt.datetime | None = None, *, probe: bool = True, max_runs: i
             outcome = {"state": ws.RETRY_LATER, "reason": f"the runner failed ({type(exc).__name__}: {exc})"[:200],
                        "next": "try again", "not_before": _stamp(now + dt.timedelta(minutes=30))}
         held.update({k: outcome.get(k, held.get(k)) for k in ("state", "reason", "next", "not_before")})
+        if isinstance(outcome.get("payload"), dict):
+            held["payload"] = {**(held.get("payload") or {}), **outcome["payload"]}
         held["updated"] = _stamp(now)
         _history(held, f"ran -> {held['state']}: {str(held.get('reason') or held.get('next'))[:120]}", now)
         store["items"][it["id"]] = held

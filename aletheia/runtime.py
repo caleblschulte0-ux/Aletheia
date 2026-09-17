@@ -515,6 +515,19 @@ def _reconcile_scheduling(now: dt.datetime) -> list[dict]:
     return scheduling.reconcile(now=now)
 
 
+def _reconcile_conversations(now: dt.datetime) -> list[dict]:
+    """Conversations she carries (aletheia.conversations): send what he approved
+    (or a grant of his covers), read replies as untrusted data, act on them, draft
+    follow-ups that came due, and write calendar holds he approved. Cheap when
+    there are none."""
+    from aletheia import conversations
+    if not conversations.all_threads():
+        return []
+    result = conversations.reconcile(now=now)
+    moved = {k: v for k, v in result.items() if v}
+    return [moved] if moved else []
+
+
 def _observe_room() -> list[dict]:
     """Refresh device reachability when a hub is configured; honest no-op
     when it is not, so an unconfigured room costs nothing per beat."""
@@ -949,6 +962,7 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     meetings_progress = guarded(
         "scheduling", lambda: _reconcile_scheduling(now))
     calendar_updates = guarded("calendar", lambda: _refresh_calendar(now))
+    conversations_progress = guarded("conversations", lambda: _reconcile_conversations(now))
     # LAST: everything above may create notifications. Attention never executes
     # them; it only classifies READY vs DEFERRED and escalates eligible priority.
     attention_records = guarded("attention", lambda: attention.reconcile(now=now))
@@ -1007,6 +1021,7 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
         "room_devices": room_devices,
         "meetings": meetings_progress,
         "calendar": calendar_updates,
+        "conversations": conversations_progress,
         "handle_requests": handle_requests,
         "attention": attention_records,
         "due_tasks": due_tasks,

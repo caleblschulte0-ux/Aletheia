@@ -60,12 +60,14 @@ OPEN_WORLD_KINDS = frozenset({
     "web_task_answer", "subscription_cancel", "dispatch", "issue", "meet",
     "travel_time", "email_check", "email_read", "email_draft", "message_send",
     "chatgpt_on", "setup_status",
+    # A conversation's status quotes what the other person wrote; sending reaches them.
+    "thread_status", "thread_send",
 })
 
 #: Kinds whose OUTPUT is his mail, which is written by other people.
 #: (`watch_email_from` only creates a watcher and returns nothing from a
 #: mailbox, so it is not here.)
-MAIL_KINDS = frozenset({"email_check", "email_read"})
+MAIL_KINDS = frozenset({"email_check", "email_read", "thread_status"})
 
 #: Kinds that remove, stop or switch something off. None of them is
 #: irreversible by design (a delete keeps a version, a reminder is
@@ -129,6 +131,9 @@ STORE_OF = {
     "agent_stop": "agents", "agents_pause": "agents",
     "web_task": "webtasks", "web_task_retry": "webtasks", "web_task_answer": "webtasks",
     "subscription_cancel": "subscriptions",
+    "thread_draft": "conversations", "thread_status": "conversations", "thread_send": "conversations",
+    "thread_followup": "conversations", "calendar_propose": "conversations",
+    "calendar_find_free": "calendar", "calendar_hold": "calendar",
 }
 
 #: Argument shapes the bare grammar cannot say. Everything not listed is
@@ -154,7 +159,13 @@ ARG_TYPES: dict[str, dict] = {
 #: Stores that hold only a record of her own ADVICE - never code, never the
 #: world, never his data. A tool that writes nothing else is non-authoritative
 #: (`Tool.record_only`), which is the one kind of writer a session may run.
-RECORD_ONLY_STORES = frozenset({"patch-proposals"})
+RECORD_ONLY_STORES = frozenset({
+    "patch-proposals",
+    # A conversation DRAFT (sends nothing; its own send approval is email.send,
+    # which no grant reaches) and a TENTATIVE hold in her own calendar model
+    # (reaches nobody; a live calendar write is a separate operator_always plan).
+    "conversation-drafts", "calendar-holds",
+})
 
 #: What an interface renders for a tool of each tier.
 UI_BY_TIER = {intercom.TIER_READ: "answer", intercom.TIER_ROUTINE: "form",
@@ -381,7 +392,7 @@ def declare(name: str, *, description: str, input_schema: dict, handler: Callabl
 #: here). Adding a module here is how a new family of tools joins the
 #: catalog; nothing else needs to know.
 DECLARED_MODULES = ("aletheia.state_tools", "aletheia.repo_tools", "aletheia.browser_tools",
-                    "aletheia.memory_tools")
+                    "aletheia.memory_tools", "aletheia.conversation_tools")
 
 
 def _declared() -> list[Tool]:

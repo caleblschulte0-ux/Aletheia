@@ -689,6 +689,14 @@ def work(now: dt.datetime | None = None) -> dict:
     return work_engine.summary(_utc(now))
 
 
+def conversations(now: dt.datetime | None = None) -> dict:
+    """The conversations she carries (`aletheia.conversations`): what waits for his
+    approval, who she is waiting to hear from, which follow-ups are due, what needs
+    his answer, and the calendar holds and clashes. An empty store says so."""
+    from aletheia import conversations as store
+    return store.summary(_utc(now))
+
+
 def sections(now: dt.datetime | None = None, *, fresh: bool = False) -> dict:
     """The derived sections, cached for a few seconds. Never raises."""
     now = _utc(now)
@@ -713,6 +721,8 @@ def sections(now: dt.datetime | None = None, *, fresh: bool = False) -> dict:
         "usage": _safe(lambda: usage(now), {"window_used": "unknown", "weekly": "unknown",
                                             "note": "the usage records could not be read"}),
         "work": _safe(lambda: work(now), {"readable": False, "note": "the work inventory could not be read"}),
+        "conversations": _safe(lambda: conversations(now),
+                               {"readable": False, "note": "the conversations could not be read"}),
     }
     _SECTIONS.update({"at": clock, "value": json.loads(json.dumps(value, default=str))})
     return json.loads(json.dumps(value, default=str))

@@ -349,7 +349,7 @@ class TheRegistryPlugsTypesIn(IsolatedStores):
         # ones every goal uses (any browser goal, any request she handed him,
         # and the work inventory across every queue).
         registered = mc.registry()
-        self.assertEqual(list(registered), ["job_hunt", "browser_goal", "agent_request", "work"])
+        self.assertEqual(list(registered), ["job_hunt", "browser_goal", "agent_request", "work", "conversation"])
         for provider in registered.values():
             self.assertTrue(callable(provider.read) and callable(provider.build))
 

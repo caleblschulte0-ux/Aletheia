@@ -176,12 +176,14 @@ class Provider:
 def registry() -> dict[str, Provider]:
     """Every registered mission-type provider, by type. Explicit on purpose:
     adding a type is a visible line here, not a module discovered by name."""
-    from aletheia import mission_browser, mission_jobs, mission_sessions, mission_work
+    from aletheia import mission_browser, mission_conversations, mission_jobs, mission_sessions, mission_work
     # The job hunt is one type among them, not the screen: any browser goal
     # and any request her sessions handed to him are cards of their own, and
     # the work inventory says what can run now and what waits on what.
+    # Conversations she carries (awaiting a reply, a follow-up due, a message
+    # waiting for his yes) and what she has pencilled into his calendar.
     providers = (mission_jobs.PROVIDER, mission_browser.PROVIDER, mission_sessions.PROVIDER,
-                 mission_work.PROVIDER)
+                 mission_work.PROVIDER, mission_conversations.PROVIDER)
     return {p.type: p for p in providers}
 
 
