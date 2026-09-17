@@ -1576,8 +1576,15 @@ def _press(record: dict) -> dict:
             raise PressNeverReached(
                 f"the route could not be replayed up to the button, so it was never "
                 f"pressed ({type(exc).__name__}: {str(exc)[:160]})") from exc
+        before_text = _body_text(page)
         hands.click(record["button_selector"])
         page.wait_for_load_state("domcontentloaded")
+        # A page that answers by SCRIPT navigates after the load event: live
+        # 2026-09-17 (Formy) the evidence was read from the form a moment
+        # before /thanks arrived - and a form "still there" read as REJECTED,
+        # which is the one verdict that permits a second press. Wait for the
+        # answer to arrive, then read.
+        wait_for_answer(page, record.get("url") or "", before_text)
         out = read_after_press(page, record)
         if record.get("mission"):
             # A site that wants a code before it accepts (Greenhouse's security
@@ -1586,6 +1593,38 @@ def _press(record: dict) -> dict:
             out, page = browser_loop.finish_verification(ctx, page, hands, record, out)
         page.close()
     return out
+
+
+ANSWER_WAIT_S = 6.0
+
+
+def _safe_url(page) -> str:
+    try:
+        return str(page.url or "")
+    except Exception:
+        return ""
+
+
+def _body_text(page) -> str:
+    try:
+        return page.inner_text("body") or ""
+    except Exception:
+        return ""
+
+
+def wait_for_answer(page, url_before: str, text_before: str, *, wait_s: float = ANSWER_WAIT_S) -> None:
+    """After a press, give the page up to `wait_s` to CHANGE (a new address or
+    different text) before anything is read from it; then let it settle."""
+    import time as _time
+    deadline = _time.monotonic() + max(0.0, float(wait_s))
+    while _time.monotonic() < deadline:
+        try:
+            if (url_before and page.url.split("#")[0] != str(url_before).split("#")[0])                     or _body_text(page) != text_before:
+                break
+            page.wait_for_timeout(250)
+        except Exception:
+            break
+    settle(page)
 
 
 def read_after_press(page, record: dict) -> dict:

@@ -650,5 +650,41 @@ class TheSecondHalfOfTheMatrixOnFixtures(WhatTheMatrixFoundOnRealPagesStaysFixed
         self.assertEqual(record["route"], [])
 
 
+
+SCRIPTED = """<title>Practice</title><h1>Complete Web Form</h1><form onsubmit="return false">
+<label for="fn">First name</label><input id="fn">
+<a id="go" href="#" role="button" onclick="setTimeout(function(){location.href='/thanks'}, 700); return false;">Submit</a>
+</form>"""
+THANKS = "<h1>Thanks for submitting your form</h1><div class='alert alert-success'>The form was successfully submitted!</div>"
+
+
+@needs_browser
+class APressReadsTheConfirmationNotTheFormBeforeIt(TheSecondHalfOfTheMatrixOnFixtures):
+    def setUp(self):
+        super().setUp()
+        self.site["pages"].update({"/practice": SCRIPTED, "/thanks": THANKS})
+
+    def test_a_script_that_navigates_after_the_press_is_read_after_it_arrives(self):
+        base = self.serve()
+        record = browser_loop.pursue("rehearse the practice form", base + "/practice", inputs={"first name": "Pat"})
+        self.assertBoundary(record, bm.AWAITING_APPROVAL, "SUBMIT_APPROVAL")
+        done = self.approve_and_press(record)
+        self.assertEqual(done["state"], bm.DONE, done.get("boundary"))
+        self.assertIn("successfully submitted", done["submits"][-1]["evidence"],
+                      "the evidence is the confirmation page, not the form a moment before it")
+
+    def test_a_live_success_reading_with_stale_evidence_is_not_a_confirmation(self):
+        record = bm.open_mission("rehearse the practice form", "https://practice.example.org/form")
+        record = bm.checkpoint(record, bm.REVIEW_REACHED, url="https://practice.example.org/form")
+        record["gate"] = {"button": "Submit", "kind": ps.COMMIT, "url": "https://practice.example.org/form"}
+        bm.begin_submit(record, button="Submit", url="https://practice.example.org/form")
+        out = browser_loop.after_press({"mission": record["id"], "button": "Submit"},
+                                       {"verdict": "submitted, unconfirmed", "page_state": ps.SUCCESS,
+                                        "evidence": "Complete Web Form First name Submit",
+                                        "url": "https://practice.example.org/thanks"})
+        self.assertNotEqual(out.get("verdict"), "confirmed")
+        self.assertNotEqual(bm.load(record["id"])["state"], bm.DONE)
+
+
 if __name__ == "__main__":
     unittest.main()

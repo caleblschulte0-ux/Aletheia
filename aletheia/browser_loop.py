@@ -1801,12 +1801,15 @@ def _press_live(ctx, page, hands, record: dict, *, hold_s: float, tracker, skill
 
         def live_presser(webtask_record: dict) -> dict:
             before = webtask._open_pages(ctx)
+            url_before, text_before = webtask._safe_url(holder["page"]), webtask._body_text(holder["page"])
             hands.click(webtask_record["button_selector"])
             try:
                 holder["page"].wait_for_load_state("domcontentloaded")
             except Exception:
                 pass
             moved = webtask.follow_new_tab(ctx, holder["page"], before)
+            if moved is holder["page"]:
+                webtask.wait_for_answer(moved, url_before, text_before)
             webtask.settle(moved)
             holder["page"] = moved
             hands.page = moved
@@ -1990,6 +1993,11 @@ def after_press(webtask_record: dict, result: dict | None, error: BaseException 
     verdict = str(result.get("verdict") or "submitted, unconfirmed")
     after = ps.classify({"text": evidence, "title": result.get("title", ""), "url": result.get("url", ""),
                          "targets": []})
+    if result.get("page_state") == ps.SUCCESS and after["state"] != ps.SUCCESS:
+        # The live page reads as a confirmation and the evidence text does not:
+        # the evidence is stale, and a verdict is only as good as its evidence.
+        result = {**result, "page_state": "", "note": "The page changed after the press and what I read "
+                                                       "does not show the confirmation."}
     if result.get("page_state") in ps.STATES and after["state"] not in (ps.ERROR, ps.SUCCESS):
         after = {**after, "state": result["page_state"]}
     step_press = gate.get("kind") == ps.CREATE_ACCOUNT or bool(record.get("recovering"))
