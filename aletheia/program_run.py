@@ -96,12 +96,18 @@ def source(now: dt.datetime) -> list[dict]:
             elif shape.get("failed") and pg.parse(until) and pg.parse(until) > now:
                 row_state, reason, nxt = ws.RETRY_LATER, shape["failed"], "draft it again"
             else:
-                row_state, reason, nxt = ws.READY, "", "draft the mission structure"
+                partial = shape.get("partial") or {}
+                pieces = len(partial.get("providers") or [])
+                row_state, reason = ws.READY, ""
+                nxt = (f"write the next piece of the draft ({pieces} done)" if pieces
+                       else "draft the mission structure")
             out.append(we.item(f"program:{pid}#shape", "programs",
                                f"{'Revise' if state in (pg.ACTIVE, pg.PAUSED) else 'Draft'} the mission: {title}",
                                row_state, requires=["reasoning"], reason=reason, next=nxt,
                                not_before=until if row_state != ws.READY else None, priority=2,
-                               native_state=f"shape:{len(record.get('asks') or [])}:{row_state}", owner=pg.OWNER,
+                               native_state=(f"shape:{len(record.get('asks') or [])}:{row_state}:"
+                                             f"{len(((shape.get('partial') or {}).get('providers')) or [])}"),
+                               owner=pg.OWNER,
                                kind="program_shape", payload={"program": pid}))
         if state == pg.DRAFT and not record.get("needs_shape"):
             open_q = [q["ask"] for q in record.get("questions") or [] if not q.get("answer")]
@@ -201,7 +207,8 @@ def run_item(it: dict, now: dt.datetime) -> dict:
 
 def _claim_shape(pid: str, now: dt.datetime) -> None:
     def change(record):
-        record["shape"] = {"running": True, "run": {"owner": PROCESS_ID, "at": pg.stamp(now)}}
+        record["shape"] = {"running": True, "run": {"owner": PROCESS_ID, "at": pg.stamp(now)},
+                           "partial": (record.get("shape") or {}).get("partial")}
     pg.update(pid, change)
 
 
@@ -231,24 +238,75 @@ def do_shape(pid: str, *, think: Callable | None = None, now: dt.datetime | None
                             for t in current["tasks"] or [] if not t.get("from_activity")]
     elif record.get("draft"):
         current = record["draft"]
+    think = think or THINK
     try:
-        shaped = program_shaping.shape(objective, catalog=catalog(), answers=answered, current=current,
-                                       revision=revision, think=think or THINK, now=now)
+        staged = think is None and not _frontier_available()
+        if staged:
+            shaped = _shape_one_piece(pid, record, objective, revision, answered, current, now)
+            if shaped is None:
+                return {"state": "partial"}
+        else:
+            shaped = program_shaping.shape(objective, catalog=catalog(), answers=answered, current=current,
+                                           revision=revision, think=think, now=now, staged=False)
     except reasoner.ReasonerUnavailable as exc:
         def blocked(r):
-            r["shape"] = {"blocked": f"no model could draft it ({str(exc)[:160]})",
-                          "until": pg.stamp(now + MODEL_RETRY)}
+            r["shape"] = {"blocked": f"no model could draft it ({str(exc)[:400]})",
+                          "until": pg.stamp(now + MODEL_RETRY), "partial": (r.get("shape") or {}).get("partial")}
         pg.update(pid, blocked)
         pg._journal("event", f"program:{pid}", f"drafting waits for a model: {str(exc)[:160]}")
         return {"state": ws.BLOCKED_MODEL, "why": str(exc)}
     except Exception as exc:  # noqa: BLE001 - an unusable draft is retried, never believed
         def failed(r):
-            r["shape"] = {"failed": f"the draft came back unusable ({type(exc).__name__}: {str(exc)[:120]})",
-                          "until": pg.stamp(now + RETRY_AFTER)}
+            r["shape"] = {"failed": f"the draft came back unusable ({type(exc).__name__}: {str(exc)[:200]})",
+                          "until": pg.stamp(now + RETRY_AFTER), "partial": (r.get("shape") or {}).get("partial")}
         pg.update(pid, failed)
         return {"state": ws.RETRY_LATER, "why": str(exc)}
     pg.apply_shape(pid, shaped, now=now)
     return {"state": "drafted", "by": shaped.get("drafted_by")}
+
+
+def _frontier_available() -> bool:
+    try:
+        from aletheia import reasoning_gateway
+        return reasoning_gateway.frontier_available()
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _shape_one_piece(pid: str, record: dict, objective: str, revision: str, answered: list[dict],
+                     current: dict | None, now: dt.datetime) -> dict | None:
+    """With no frontier model: ONE small call per run (the skeleton, or the next workstream's plan), each
+    finished piece kept on disk. Returns the whole shaped draft when the last piece lands, else None."""
+    from aletheia import program_shaping
+    tools = catalog()
+    generation = len(record.get("asks") or [])
+    partial = (record.get("shape") or {}).get("partial") or {}
+    if partial.get("generation") != generation:
+        partial = {"generation": generation, "skeleton": None, "parts": {}, "providers": []}
+    context = program_shaping.staged_context(objective, catalog=tools, answers=answered, current=current,
+                                             revision=revision, now=now)
+    if partial["skeleton"] is None:
+        got = program_shaping.skeleton(objective, context)
+        partial["skeleton"] = got["value"]
+    else:
+        stream = next((w for w in partial["skeleton"]["workstreams"] if w["key"] not in partial["parts"]), None)
+        got = None
+        if stream is not None:
+            got = program_shaping.stream_plan(objective, partial["skeleton"], stream, context, catalog=tools)
+            partial["parts"][stream["key"]] = got["value"]
+    if got is not None:
+        partial["providers"].append({"provider": got["provider"], "degraded": got["degraded"], "at": pg.stamp(now)})
+    done = all(w["key"] in partial["parts"] for w in partial["skeleton"]["workstreams"])
+    if not done:
+        def keep(r):
+            r["shape"] = {"partial": partial}
+            pg._history(r, f"draft piece {len(partial['providers'])} of {len(partial['skeleton']['workstreams']) + 1} "
+                           f"written by {partial['providers'][-1]['provider']}", now)
+        pg.update(pid, keep)
+        return None
+    last = partial["providers"][-1] if partial["providers"] else {"provider": "", "degraded": None}
+    return {"structure": program_shaping.merge(partial["skeleton"], partial["parts"], catalog=tools),
+            "drafted_by": last["provider"], "degraded": last["degraded"], "staged": True}
 
 
 # ---- executing one task -------------------------------------------------------------------------

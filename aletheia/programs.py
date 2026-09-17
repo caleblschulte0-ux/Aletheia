@@ -720,6 +720,9 @@ def summary(record: dict, now: dt.datetime | None = None) -> dict:
         "questions": open_q if record.get("state") in (DRAFTING, DRAFT) else [],
         "needs_confirm": record.get("state") == DRAFT or bool(record.get("pending_revision")),
         "drafting": bool(record.get("needs_shape")),
+        "drafting_blocked": ((record.get("shape") or {}).get("blocked") or (record.get("shape") or {}).get("failed"))
+        if record.get("needs_shape") else None,
+        "drafting_until": (record.get("shape") or {}).get("until") if record.get("needs_shape") else None,
         "next_wake_at": wakes[0] if wakes else None,
         "results": (record.get("results") or [])[-8:],
         "activities": [{"key": a["key"], "title": a["title"], "cadence": a.get("cadence"), "watch": a.get("watch"),
@@ -762,6 +765,10 @@ def waiting_view(which: str = "", *, now: dt.datetime | None = None) -> dict:
             rows.append({"mission": m["title"], "task": d["question"], "state": ws.BLOCKED_USER,
                          "why": "a choice only Caleb makes", "wakes": "when Caleb decides",
                          "when": None, "options": d["options"]})
+        if m.get("drafting_blocked"):
+            rows.append({"mission": m["title"], "task": "writing the draft", "state": ws.BLOCKED_MODEL,
+                         "why": m["drafting_blocked"], "wakes": "when a model can think again",
+                         "when": m.get("drafting_until")})
         if m["needs_confirm"]:
             rows.append({"mission": m["title"], "task": "the draft", "state": ws.BLOCKED_USER,
                          "why": "drafted; nothing runs until Caleb confirms it",

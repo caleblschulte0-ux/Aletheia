@@ -309,12 +309,8 @@ def _stream_validator(stream: dict, names: set[str]) -> Callable[[Any], dict]:
     return check
 
 
-def shape_staged(words: str, *, catalog: dict, answers: list[dict] | None = None, current: dict | None = None,
-                 revision: str = "", think: Callable | None = None, now: dt.datetime | None = None) -> dict:
-    """The same structure in small calls - a skeleton, then one call per workstream - so a local model on a
-    CPU can finish each inside its time limit. Used when no frontier model can think."""
-    from aletheia import program_compose
-    names = set(catalog)
+def staged_context(words: str, *, catalog: dict, answers: list[dict] | None = None, current: dict | None = None,
+                   revision: str = "", now: dt.datetime | None = None) -> dict:
     context = context_for(words, catalog=catalog, answers=answers, current=current, revision=revision, now=now)
     context.pop("TOOLS", None)
     if context.get("current_structure"):
@@ -322,30 +318,62 @@ def shape_staged(words: str, *, catalog: dict, answers: list[dict] | None = None
         context["current_structure"] = {"title": cs.get("title"), "outcomes": cs.get("outcomes"),
                                         "workstreams": [{"key": w.get("key"), "title": w.get("title")}
                                                         for w in cs.get("workstreams") or []]}
-    ask = _asker(think)
-    skeleton, provider, degraded = ask(SKELETON_SYSTEM, words, context, _skeleton_validator)
-    structure = dict(skeleton, tasks=[], activities=[], decisions=[])
-    for stream in skeleton["workstreams"]:
-        blob = f"{stream['title']} {words}"
-        sub = {"mission": skeleton.get("objective") or words[:300], "his_words": words[:900],
-               "workstream": {"key": stream["key"], "title": stream["title"]},
-               "outcomes": [o for o in skeleton["outcomes"] if o["key"] in (stream.get("outcomes") or [])],
-               "TOOLS": program_compose.menu(blob, catalog, limit=10, width=60), "today": context.get("today")}
-        if context.get("his_answers"):
-            sub["his_answers"] = context["his_answers"]
-        part, provider, degraded = ask(STREAM_SYSTEM, stream["title"], sub, _stream_validator(stream, names))
+    return context
+
+
+def skeleton(words: str, context: dict, *, think: Callable | None = None) -> dict:
+    """Stage one: {"value", "provider", "degraded"}. Raises ReasonerUnavailable."""
+    value, provider, degraded = _asker(think)(SKELETON_SYSTEM, words, context, _skeleton_validator)
+    return {"value": value, "provider": provider, "degraded": degraded}
+
+
+def stream_plan(words: str, skel: dict, stream: dict, context: dict, *, catalog: dict,
+                think: Callable | None = None) -> dict:
+    """Stage two, for ONE workstream: {"value", "provider", "degraded"}. Raises ReasonerUnavailable."""
+    from aletheia import program_compose
+    sub = {"mission": skel.get("objective") or words[:300], "his_words": words[:900],
+           "workstream": {"key": stream["key"], "title": stream["title"]},
+           "outcomes": [o for o in skel["outcomes"] if o["key"] in (stream.get("outcomes") or [])],
+           "TOOLS": program_compose.menu(f"{stream['title']} {words}", catalog, limit=10, width=60),
+           "today": context.get("today")}
+    if context.get("his_answers"):
+        sub["his_answers"] = context["his_answers"]
+    value, provider, degraded = _asker(think)(STREAM_SYSTEM, stream["title"], sub,
+                                              _stream_validator(stream, set(catalog)))
+    return {"value": value, "provider": provider, "degraded": degraded}
+
+
+def merge(skel: dict, parts: dict, *, catalog: dict) -> dict:
+    """The skeleton and every workstream's plan as one validated structure."""
+    structure = dict(skel, tasks=[], activities=[], decisions=[])
+    for stream in skel["workstreams"]:
+        part = parts.get(stream["key"]) or {"tasks": [], "activities": [], "decisions": []}
         prefix = stream["key"]
         rename = {t["key"]: f"{prefix}{t['key']}" for t in part["tasks"]}
         for t in part["tasks"]:
-            t.update(key=rename[t["key"]], workstream=stream["key"], needs=[rename[n] for n in t["needs"] if n in rename])
-            structure["tasks"].append(t)
+            structure["tasks"].append(dict(t, key=rename[t["key"]], workstream=stream["key"],
+                                           needs=[rename[n] for n in t["needs"] if n in rename]))
         for a in part["activities"]:
             structure["activities"].append(dict(a, key=f"{prefix}{a['key']}", workstream=stream["key"]))
         for d in part["decisions"]:
             structure["decisions"].append(dict(d, key=f"{prefix}{d['key']}", workstream=stream["key"],
                                                after=[rename[k] for k in d["after"] if k in rename]))
-    structure = validate(structure, tool_names=names)
-    return {"structure": structure, "drafted_by": provider, "degraded": degraded, "staged": True}
+    return validate(structure, tool_names=set(catalog))
+
+
+def shape_staged(words: str, *, catalog: dict, answers: list[dict] | None = None, current: dict | None = None,
+                 revision: str = "", think: Callable | None = None, now: dt.datetime | None = None) -> dict:
+    """The same structure in small calls - a skeleton, then one call per workstream - so a local model on a
+    CPU can finish each inside its time limit. All at once here; `program_run.do_shape` does it one call per
+    run and keeps each finished piece on disk, so an outage or a restart costs one call, not the draft."""
+    context = staged_context(words, catalog=catalog, answers=answers, current=current, revision=revision, now=now)
+    skel = skeleton(words, context, think=think)
+    parts, last = {}, skel
+    for stream in skel["value"]["workstreams"]:
+        last = stream_plan(words, skel["value"], stream, context, catalog=catalog, think=think)
+        parts[stream["key"]] = last["value"]
+    return {"structure": merge(skel["value"], parts, catalog=catalog), "drafted_by": last["provider"],
+            "degraded": last["degraded"], "staged": True}
 
 
 def _asker(think: Callable | None):

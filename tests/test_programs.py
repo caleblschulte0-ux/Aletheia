@@ -282,6 +282,41 @@ class ShapingIsGeneral(Sandbox):
         self.assertEqual(shaped["structure"]["tasks"][2]["needs"], ["w2t2"])
         self.assertTrue(shaped["staged"])
 
+    def test_with_the_frontier_out_each_beat_writes_one_piece_and_an_outage_keeps_the_pieces(self):
+        from aletheia import reasoning_gateway
+
+        def answer(system, text, *, context=None, validator=None, **_):
+            if system == program_shaping.SKELETON_SYSTEM:
+                value = {k: draft()[k] for k in ("title", "objective", "questions", "outcomes", "workstreams")}
+            else:
+                key = context["workstream"]["key"]
+                value = {"tasks": [dict(t, needs=[]) for t in draft()["tasks"] if t["workstream"] == key]}
+            return reasoning_gateway.GatewayResult(validator(value), "ollama:qwen3:8b", "standard",
+                                                   degraded="subscriptions unavailable: ReasonerUnavailable")
+        outage = [False]
+
+        def flaky(system, text, **kw):
+            if outage[0]:
+                raise reasoner.ReasonerUnavailable("the local model timed out")
+            return answer(system, text, **kw)
+        with mock.patch.object(reasoning_gateway, "reason_json", side_effect=flaky), \
+                mock.patch.object(reasoning_gateway, "frontier_available", return_value=False), \
+                mock.patch.object(program_run, "THINK", None):
+            record = pg.propose("change things", via="operator-voice", now=NOW)
+            pid = record["id"]
+            self.assertEqual(program_run.do_shape(pid, now=NOW)["state"], "partial")       # skeleton
+            outage[0] = True
+            self.assertEqual(program_run.do_shape(pid, now=NOW)["state"], ws.BLOCKED_MODEL)
+            kept = pg.load(pid)["shape"]["partial"]
+            self.assertIsNotNone(kept["skeleton"])                                          # nothing lost
+            outage[0] = False
+            self.assertEqual(program_run.do_shape(pid, now=self.at(minutes=20))["state"], "partial")  # w1
+            self.assertEqual(program_run.do_shape(pid, now=self.at(minutes=21))["state"], "drafted")  # w2
+        drafted = pg.load(pid)
+        self.assertEqual(drafted["state"], pg.DRAFT)
+        self.assertTrue(drafted["drafted_by"]["local"])
+        self.assertEqual(len(drafted["draft"]["tasks"]), 3)
+
     def test_nobody_able_to_think_is_blocked_model_not_failure(self):
         from aletheia import reasoning_gateway
         with mock.patch.object(reasoning_gateway, "reason_json",
