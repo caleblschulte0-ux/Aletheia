@@ -50,6 +50,12 @@ if not os.environ.get("ALETHEIA_JOURNAL_PATH"):
 # but a test run must never consume the live operator policy. Import only after
 # the private/journal roots above are established, then redirect the two policy
 # stores for this process. Tests that patch these paths continue to work.
+# The local-model lease is machine-wide on purpose (aletheia.local_lease): a
+# test that stands a fake model behind the pool must never queue behind, or
+# hold up, the live Core's real conversation.
+if not os.environ.get("ALETHEIA_LOCAL_LEASE_DIR"):
+    os.environ["ALETHEIA_LOCAL_LEASE_DIR"] = str(_suite_root / "locks")
+
 from aletheia import policy  # noqa: E402  (ordering is the safety mechanism)
 policy.APPROVALS_DIR = _suite_root / "approvals"
 policy.HALT_PATH = _suite_root / "halt.json"

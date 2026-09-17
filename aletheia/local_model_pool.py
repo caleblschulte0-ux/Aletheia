@@ -155,7 +155,15 @@ def run_json(system_prompt: str, text: str, *, context: dict | None = None,
     try:
         config = _config(role, timeout_s, think_override)
         payload = local_brain.build_payload(system_prompt, text, ctx, config)
-        proposal = local_brain.infer_json(system_prompt, text, context=ctx, config=config)
+        # ONE LOCAL MODEL JOB AT A TIME, across her processes, conversation
+        # first (aletheia.local_lease): Ollama has one queue on this laptop.
+        from aletheia import local_lease
+        try:
+            with local_lease.hold(what=f"{role} {config.model}", hold_s=float(config.timeout_s or 0) + 30.0):
+                started = time.perf_counter()
+                proposal = local_brain.infer_json(system_prompt, text, context=ctx, config=config)
+        except local_lease.LeaseBusy as busy:
+            raise LocalPoolUnavailable(f"her own model is busy: {busy}") from None
         output = validator(proposal) if validator else proposal
     except Exception as exc:
         elapsed = round((time.perf_counter() - started) * 1000)
