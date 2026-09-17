@@ -195,6 +195,18 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # demand ledger, in his own words. Same shape as email_draft: it
     # writes a draft and an approval and sends nothing.
     "message_send":  ({"to", "body"}, set()),
+    # A CONVERSATION, not a one-off message (continuity brief IV.15,
+    # aletheia.conversations): the thread keeps the recipient, what was asked,
+    # the reply and the follow-up date, so "did they reply" has an answer.
+    # Drafting sends nothing; the send waits for his yes (or a grant he gave).
+    "thread_draft":  ({"to"}, {"about", "body", "subject"}),
+    "thread_status": (set(), {"which"}),
+    "thread_send":   ({"thread"}, set()),
+    "thread_followup": ({"thread"}, set()),
+    # His calendar as agency (IV.16, aletheia.calendar_reasoning).
+    "calendar_find_free": ({"when"}, {"minutes", "location", "purpose", "part"}),
+    "calendar_hold": ({"title", "start"}, {"end", "minutes", "location", "thread"}),
+    "calendar_propose": ({"thread"}, {"when", "minutes", "location"}),
     # Word and Excel. The suffix picks the format; `content` is blocks
     # for a .docx and rows for a .xlsx.
     "doc_make":      ({"path", "content"}, {"sheet_name", "why"}),
@@ -503,6 +515,37 @@ KIND_NOTES: dict[str, str] = {
         "request is the ask in plain words. She writes a small Python program "
         "(standard library only, no network, no subprocess, workspace files only) "
         "and runs it. Use this ONLY when no other kind does the job."),
+    "thread_draft": (
+        'Start a CONVERSATION by email and draft its first message: "email the landlord about the '
+        'listing", "write to the clinic asking if they take my insurance". to is who (a contact, a name '
+        'she has written to before, or an address); about is what it is about in his words; body only '
+        'when he dictated the exact words. She keeps the thread: the reply, the questions still open and '
+        'when to follow up. It SENDS NOTHING - the message waits for his approval.'),
+    "thread_status": (
+        'Did they reply, and what happens next, read from the conversation she keeps: "did the landlord '
+        'reply", "any word from the recruiter", "did they get back to me". which is who or what it was '
+        'about; omit it (or "they") for the most recent conversation.'),
+    "thread_send": (
+        'Send the message on a conversation that he has ALREADY approved, now rather than on the next '
+        'beat. thread is who or what it is about. It never approves anything.'),
+    "thread_followup": (
+        'Follow up on a conversation that has gone quiet: "follow up with the landlord", "nudge the '
+        'recruiter". She re-asks only what was already asked; it waits for his approval unless he gave '
+        'standing permission for follow-ups on that conversation.'),
+    "calendar_find_free": (
+        'When he is free across a stretch of days, around what is already on his calendar (with travel '
+        'time when places are known): "when am I free next week for a tour", "what does Thursday look '
+        'like". when is today, tomorrow, a weekday, this week, next week, this weekend or a date; minutes '
+        'is how long; location where it is; part morning/afternoon/evening.'),
+    "calendar_hold": (
+        'Pencil something into HIS calendar as tentative, in her own calendar model (nothing is sent, '
+        'nothing goes onto a live calendar): "hold Friday at 10 for the tour". start is ISO-8601 in his '
+        'timezone; end or minutes; location; thread links it to a conversation. It refuses when it '
+        'clashes and says with what.'),
+    "calendar_propose": (
+        'Offer times to the other person in a conversation: "suggest some times to the landlord next '
+        'week". thread is who it is with; when the stretch of days; minutes; location. It drafts the '
+        'reply with free times and waits for his approval, because offering his hours commits him.'),
     "email_read": (
         "which is a sender name/address or a subject fragment; it must match exactly "
         "one UNREAD message (otherwise she asks which). Use email_check first to see "
@@ -529,6 +572,9 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                # Phone Link is paired to his iPhone on THIS machine;
                # Actions cannot text anybody.
                "message_send", "music",
+               # her conversations and his calendar model are private state on the PC
+               "thread_draft", "thread_status", "thread_send", "thread_followup",
+               "calendar_find_free", "calendar_hold", "calendar_propose",
                # research only READS pages, but it reads them with the
                # operator's browser, so it belongs to the PC runner
                "research",
@@ -603,6 +649,8 @@ READ_ONLY_KINDS = frozenset({
     # reading what a media file IS changes nothing
     "media_probe",
     "email_check", "email_read", "screen_ask", "authority_status", "setup_status",
+    # Reading her own conversation records and his free time changes nothing.
+    "thread_status", "calendar_find_free",
 })
 
 
@@ -665,6 +713,12 @@ ROUTINE_KINDS = frozenset({
     # Composing is a file_write whose text she writes instead of pastes:
     # same directory, same version history, same undo. Nothing wider.
     "compose",
+    # A conversation's DRAFT, a follow-up draft, a time proposal draft and a
+    # tentative hold in her own calendar model: private, reversible, reaching
+    # nobody. Every one of them that would SEND waits on its own hash-bound
+    # approval (email.send / email.followup), so this tier authorizes writing
+    # it down and nothing past that.
+    "thread_draft", "thread_followup", "calendar_hold", "calendar_propose",
     # Deleting and moving keep a version FIRST, so both are undoable. A
     # delete that cannot lose anything is a shelf, not a shredder.
     "file_delete", "file_move",
@@ -2164,6 +2218,84 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                        requested_via=f"intercom: {quote[:80]}")
         return (f"draft to {d['to_name']} ready — {d['subject']!r}. "
                 f"Approval {d['id']} is pending; approving it sends the email.")
+    if kind == "thread_draft":
+        from aletheia import conversations
+        if not (str(cmd.get("about") or "").strip() or str(cmd.get("body") or "").strip()):
+            raise act.Refused("say what the email should be about")
+        thread = conversations.start(cmd["to"], about=cmd.get("about") or "", body=cmd.get("body"),
+                                     subject=cmd.get("subject"), via=f"intercom: {quote[:80]}")
+        return conversations.spoken(thread)
+    if kind == "thread_status":
+        from aletheia import conversations
+        return conversations.status_words(cmd.get("which") or "")
+    if kind == "thread_send":
+        from aletheia import conversations
+        try:
+            thread = conversations.resolve_thread(cmd["thread"])
+        except LookupError as exc:
+            raise act.Refused(str(exc)) from None
+        done = conversations.send_approved(only_thread=thread["id"])
+        sent = [r for r in done if r.get("outcome") == "sent"]
+        if sent:
+            return f"Sent the email to {conversations._name(thread)}."
+        waiting = next((r.get("detail") for r in done if r.get("detail")), "")
+        return (f"Nothing went to {conversations._name(thread)}: "
+                + (waiting or "no message there has your approval yet") + ".")
+    if kind == "thread_followup":
+        from aletheia import conversations
+        try:
+            thread = conversations.resolve_thread(cmd["thread"])
+            return conversations.spoken(conversations.followup(thread["id"]))
+        except (LookupError, conversations.ConversationError) as exc:
+            raise act.Refused(str(exc)) from None
+    if kind == "calendar_find_free":
+        from aletheia import calendar_reasoning
+        try:
+            first, last = calendar_reasoning.window(cmd["when"])
+        except ValueError as exc:
+            raise act.Refused(str(exc)) from None
+        minutes = int(cmd.get("minutes") or 60)
+        slots = calendar_reasoning.find_free(first, last, minutes=minutes, location=cmd.get("location") or None,
+                                             part=cmd.get("part") or None)
+        said = calendar_reasoning.free_words(slots, first=first, last=last, purpose=cmd.get("purpose") or "")
+        held = [h for h in calendar_reasoning.upcoming_holds()
+                if first.isoformat() <= h["start"][:10] <= last.isoformat()]
+        if held:
+            said += " Pencilled in already: " + speech.and_list(
+                [f"{h['title']} {calendar_reasoning.human(h['start'])}" for h in held[:3]]) + "."
+        return said
+    if kind == "calendar_hold":
+        from aletheia import calendar_reasoning
+        import datetime as _dt
+        try:
+            start = _dt.datetime.fromisoformat(str(cmd["start"]).replace("Z", "+00:00"))
+        except ValueError:
+            raise act.Refused(f"I couldn't read {cmd['start']!r} as a time") from None
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=localtime.operator_tz())
+        if cmd.get("end"):
+            end = _dt.datetime.fromisoformat(str(cmd["end"]).replace("Z", "+00:00"))
+            end = end if end.tzinfo else end.replace(tzinfo=localtime.operator_tz())
+        else:
+            end = start + _dt.timedelta(minutes=int(cmd.get("minutes") or 60))
+        held = calendar_reasoning.hold(cmd["title"], start.isoformat(), end.isoformat(),
+                                       location=cmd.get("location") or None, thread_id=cmd.get("thread") or "")
+        if not held.get("event"):
+            raise act.Refused(f"I didn't pencil that in: {held.get('why')}")
+        return (f"Pencilled in {held['event']['title']} {calendar_reasoning.human(held['event']['start'])}, "
+                "tentative, on your calendar here only.")
+    if kind == "calendar_propose":
+        from aletheia import conversations
+        try:
+            thread = conversations.resolve_thread(cmd["thread"])
+            after = conversations.propose_times(thread["id"], when=cmd.get("when") or "next week",
+                                                minutes=int(cmd["minutes"]) if cmd.get("minutes") else None,
+                                                location=cmd.get("location") or None)
+        except (LookupError, ValueError) as exc:
+            raise act.Refused(str(exc)) from None
+        times = speech.or_list([s["human"] for s in after["scheduling"]["slots"]])
+        return (f"I drafted a reply to {conversations._name(after)} offering {times}. "
+                "It's waiting for your okay.")
     if kind == "music":
         from aletheia import music
         return music.control(cmd["action"])

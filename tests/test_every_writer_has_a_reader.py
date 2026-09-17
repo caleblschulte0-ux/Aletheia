@@ -108,6 +108,13 @@ READER_FOR = {
     # "Are you recording" is how he checks a recording started or stopped.
     "screen_record": "recording",
     "screen_record_stop": "recording",
+    # A conversation she drafts, follows up on or proposes times in is read
+    # back with "did they reply" / "what's happening with the landlord".
+    "thread_draft": "thread_status",
+    "thread_followup": "thread_status",
+    "calendar_propose": "thread_status",
+    # A hold makes that time busy: "when am I free" says so, and names it.
+    "calendar_hold": "calendar_find_free",
 }
 
 

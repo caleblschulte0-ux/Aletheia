@@ -1284,6 +1284,39 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:clear|dismiss|acknowledge) (?:my |the )?notifications?", low):
         return {"command": {"kind": "notify_clear"}, "say": None}
 
+    # A STANDING PERMISSION TO SEND IN HIS NAME is not taken off the air, for the
+    # same reason standing authority is not: a television could say it. It is
+    # typed (aletheia.conversation_authority.grant_from_words).
+    if (re.search(r"(?:you can|you may|go ahead and|feel free to|you have my permission to)\b.*"
+                  r"follow[- ]?up.*without (?:asking|checking)", low)):
+        return {"command": None,
+                "say": ("I won't take permission to send emails in your name by voice - anything in the room "
+                        "could say it. Type it: python -m aletheia.conversations grant \"" + text.strip() + "\"")}
+
+    # "Did they reply", "did the landlord get back to me", "any word from the
+    # recruiter": read from the conversation she keeps, not guessed.
+    m = re.fullmatch(r"(?:did|has|have) (.+?) (?:replied|reply|respond|responded|(?:gotten|got|get) back(?: to (?:me|us))?|"
+                     r"written back|write back|answered|answer)(?: yet)?(?: to (?:me|us|my email))?"
+                     r"(?: about .+)?", low)
+    if not m:
+        m = re.fullmatch(r"any (?:reply|replies|response|word|answer) (?:from|back from) (.+?)(?: yet)?", low)
+    if m and not re.search(r"\bapplication\b", low):
+        which = m.group(1).strip()
+        which = "" if which in ("they", "them", "anyone", "anybody") else which
+        return {"command": {"kind": "thread_status", **({"which": which} if which else {})}, "say": None}
+
+    # "When am I free next week for a tour": a stretch of days and a purpose,
+    # around his calendar. The single-day form below stays free_time.
+    m = re.fullmatch(r"(?:when am i free|when are we free|when could i (?:fit in|do|schedule)(?: a| an)?|"
+                     r"what times? (?:am i|are we) free|when do i have time)\s+"
+                     r"(this week|next week|this weekend|the next few days|next few days|next two weeks)"
+                     r"(?:\s+for (?:a |an |the )?(.+?))?", low)
+    if m:
+        command = {"kind": "calendar_find_free", "when": m.group(1).replace("the ", "")}
+        if m.group(2):
+            command["purpose"] = m.group(2).strip()
+        return {"command": command, "say": None}
+
     # free time. "Am I free tomorrow afternoon" is how a person asks this
     # and it matched none of these, so it fell through to the planner: six
     # and a half seconds, and the word "afternoon" thrown away on the way.
@@ -1806,6 +1839,19 @@ def _interpret(transcript: str) -> dict:
     if m:
         return {"command": {"kind": "email_draft", "to": m.group(1).strip(),
                             "body": m.group(2).strip()}, "say": None}
+
+    # "Email the landlord about the listing": a CONVERSATION she carries - the
+    # draft, the reply, the follow-up - rather than one message and forget.
+    m = re.match(r"(?:e?mail|write to|reach out to|contact)\s+(.+?)\s+(?:about|regarding|asking about|to ask about)"
+                 r"\s+(.+)", low)
+    if m and not re.search(r"\b(?:remind|reminder)\b", low):
+        return {"command": {"kind": "thread_draft", "to": m.group(1).strip(),
+                            "about": m.group(2).strip()}, "say": None}
+
+    # "Follow up with the landlord."
+    m = re.fullmatch(r"(?:follow up|nudge|chase up|check in)(?: with| on)? (.+?)(?: for me)?", low)
+    if m and not re.search(r"\b(?:remind|task|application)\b", low):
+        return {"command": {"kind": "thread_followup", "thread": m.group(1).strip()}, "say": None}
 
     # BEFORE the browse pattern: "look into X" and "look at example.com" both
     # start with "look", and the browse branch would swallow the first, then

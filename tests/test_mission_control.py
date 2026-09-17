@@ -350,7 +350,7 @@ class TheRegistryPlugsTypesIn(IsolatedStores):
         # the work inventory across every queue, and his long missions, whatever
         # they are about).
         registered = mc.registry()
-        self.assertEqual(list(registered), ["job_hunt", "browser_goal", "agent_request", "work", "program"])
+        self.assertEqual(list(registered), ["job_hunt", "browser_goal", "agent_request", "work", "program", "conversation"])
         for provider in registered.values():
             self.assertTrue(callable(provider.read) and callable(provider.build))
 
