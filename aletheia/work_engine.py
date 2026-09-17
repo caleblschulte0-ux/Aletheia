@@ -20,11 +20,21 @@ Claude and Claude is out, A is checkpointed and B runs. So:
   wake condition; every other item is still considered (rule 2). An item whose
   condition has cleared (the reset passed, the model is back) wakes to READY.
 - **It runs inside the Core's beat** (`runtime.tick` -> `reconcile`), bounded and
-  guarded like every other subsystem; it is not a second loop. It EXECUTES only its
-  own native items (turning a gap into its next action through existing gates:
-  `gaps.materialize`, a notification). Items owned by another store are run by that
-  store's executor (the handoff runner, the project loop, the cloud builder); for
-  them the engine is the inventory and the checkpoint, never a second executor.
+  guarded like every other subsystem; it is not a second loop. It EXECUTES its own
+  native items (a gap's next action through existing gates) and, through
+  `SOURCE_RUNNERS`, work that lives in other stores: long-mission tasks
+  (`program_run`), and since C3 tasks, charter steps and red CI on charter branches
+  (`work_runners`): what maps to a tool the broker runs without his approval runs,
+  bounded code work goes to the local repair tier (a branch and a PR, never a
+  merge), unbounded work is INVESTIGATED into a packet and queued for a stronger
+  model, and with a frontier model available charter steps stay with the cloud
+  builder as before. Heavy work (clones, tests, her own model) runs inside a work
+  session ("work on my projects", `project_work`), one job at a time; the beat
+  does the light part.
+- **One piece of work is one item** (`link`): the same work filed in two stores (a
+  task `light-up-the-wall-s4` and the charter step `plan:light-up-the-wall#4`, a red
+  CI run and the step "get CI green", a mission's message and its conversation) is
+  shown and run once, with the others as its aliases.
 
 Money is never hers (`payment` is never satisfied), approvals are never hers
 (`user_approval` is satisfied only by an APPROVED record), and a halted Aletheia runs
@@ -183,6 +193,8 @@ def source_tasks(now: dt.datetime) -> list[dict]:
                       stronger=str(t.get("assigned_worker") or "").lower() in ws.FRONTIER_WORKERS)
         note = str(t.get("result") or t.get("error") or "")
         title = str(t.get("description") or tid)
+        common["payload"] = {"task": tid, "goal": str(t.get("goal") or ""), "description": title,
+                             "worker": str(t.get("assigned_worker") or "")}
         if status == "COMPLETED":
             state, reason, nxt = ws.DONE, "", ""
         elif status in {"CANCELLED", "FAILED_TERMINAL"}:
@@ -224,9 +236,14 @@ def source_charters(now: dt.datetime) -> list[dict]:
             n, st = step.get("n"), str(step.get("state") or "")
             title = f"{plan.get('title') or slug}: {step.get('text') or ''}"
             who = plans.owner(step) if charter else "thea"
-            requires = ["github", "frontier_reasoning"] if charter and who != "caleb" else (
+            # HER charter steps need a thinker and the network, not specifically the
+            # frontier: with Claude out, the local tier investigates or repairs them
+            # (work_runners) and only what is beyond it waits for a stronger model.
+            requires = ["reasoning", "network"] if charter and who != "caleb" else (
                 ["reasoning"] if who != "caleb" else ["user_decision"])
-            common = dict(requires=requires, native_state=st, owner=who, priority=2 if charter else 3)
+            common = dict(requires=requires, native_state=st, owner=who, priority=2 if charter else 3,
+                          payload={"slug": slug, "n": n, "text": str(step.get("text") or ""),
+                                   "charter": charter})
             wid = f"plan:{slug}#{n}"
             if st == "done":
                 out.append(item(wid, "plans", title, ws.DONE, **common))
@@ -248,7 +265,8 @@ def source_charters(now: dt.datetime) -> list[dict]:
                                 next="when he replies done on the brief", **common))
             else:
                 out.append(item(wid, "plans", title, ws.READY,
-                                next=("the project builder takes it" if charter else "work the step"), **common))
+                                next=("the project builder takes it, or her local tier when no frontier model "
+                                      "can think" if charter else "work the step"), **common))
     return out
 
 
@@ -363,13 +381,21 @@ def source_conversations(now: dt.datetime) -> list[dict]:
                         requires=view["requires"], reason=view["reason"], next=view["next"],
                         not_before=view["not_before"], native_state=str(thread.get("state") or ""),
                         evidence=view["evidence"], updated=str(thread.get("updated_at") or ""),
-                        payload={"wake_at": view["not_before"]} if view["not_before"] else None))
+                        payload={**({"wake_at": view["not_before"]} if view["not_before"] else {}),
+                                 **({"same_as": thread["work_item"]} if str(thread.get("work_item") or "")
+                                    and not str(thread.get("work_item")).startswith("conversation:") else {})}))
     return out
 
 
 def source_native(now: dt.datetime) -> list[dict]:
     return [dict(v) for v in load_store()["items"].values()
             if isinstance(v, dict) and v.get("source") == "work"]
+
+
+def source_charter_ci(now: dt.datetime) -> list[dict]:
+    """Red CI on the branch a charter really lives on (`charter_ci`, cached reads)."""
+    from aletheia import charter_ci
+    return charter_ci.source(now)
 
 
 def source_programs(now: dt.datetime) -> list[dict]:
@@ -388,6 +414,7 @@ SOURCES: dict[str, Callable[[dt.datetime], list[dict]]] = {
     "programs": source_programs,
     "waits": source_waits,
     "conversations": source_conversations,
+    "charter_ci": source_charter_ci,
     "work": source_native,
 }
 
@@ -409,8 +436,81 @@ def gather(now: dt.datetime | None = None, *, sources: dict | None = None) -> tu
                     and held.get("native_state") == row["native_state"]
                     and held.get("state") in ws.WORK_WAITING):
                 row = {**row, **{k: held[k] for k in ("state", "reason", "next", "not_before") if k in held}}
+                if isinstance(held.get("evidence"), dict):
+                    row["evidence"] = {**(row.get("evidence") or {}), **held["evidence"]}
             items.append(row)
-    return items, notes
+    return link(items), notes
+
+
+# ---- one piece of work is one item ------------------------------------------------------
+
+#: Which store's view of a duplicated piece of work is the one shown and run.
+CANONICAL_RANK = {"plans": 0, "charter_ci": 1, "tasks": 2, "programs": 3, "handoffs": 4,
+                  "browser_missions": 5, "project_asks": 6, "conversations": 7, "waits": 8, "work": 9}
+#: How far along a state is; a merged item takes the furthest.
+_PROGRESS = {ws.READY: 0, ws.RETRY_LATER: 1, ws.BLOCKED_MODEL: 2, ws.NEEDS_STRONGER_MODEL: 3,
+             ws.BLOCKED_EXTERNAL: 3, ws.BLOCKED_LOGIN: 3, ws.BLOCKED_USER: 3, ws.RUNNING: 4,
+             ws.FAILED: 5, ws.DONE: 6}
+
+
+def _norm(text: str) -> str:
+    return " ".join(re.findall(r"[a-z0-9]+", str(text or "").lower()))
+
+
+def duplicate_keys(it: dict) -> list[str]:
+    """The keys under which two stores' items are the same work. Pure."""
+    payload = it.get("payload") or {}
+    keys = []
+    if payload.get("same_as"):
+        keys.append("id:" + str(payload["same_as"]))
+    keys.append("id:" + it["id"])
+    if it.get("source") == "plans" and payload.get("slug") and payload.get("n") is not None:
+        keys.append(f"step:{payload['slug']}#{payload['n']}")
+        if payload.get("text"):
+            keys.append(f"text:{payload['slug']}:{_norm(payload['text'])}")
+    if it.get("source") == "tasks":
+        goal, tid = str(payload.get("goal") or ""), str(payload.get("task") or "")
+        found = re.fullmatch(r"(.+)-s(\d+)", tid)
+        if found and goal and goal == found.group(1):
+            keys.append(f"step:{goal}#{int(found.group(2))}")
+        if goal and payload.get("description"):
+            keys.append(f"text:{goal}:{_norm(payload['description'])}")
+    return keys
+
+
+def link(items: list[dict]) -> list[dict]:
+    """Merge the same work seen from several stores into ONE item. Pure.
+
+    The canonical view is the store ranked first (a charter step before the task
+    filed for it); the others become `aliases` with their own ids, sources and
+    native states, so a runner can settle every copy and nothing is counted twice.
+    The merged state is the furthest along of the copies."""
+    groups: list[list[dict]] = []
+    where: dict[str, int] = {}
+    for it in items:
+        keys = duplicate_keys(it)
+        hit = next((where[k] for k in keys if k in where), None)
+        if hit is None:
+            hit = len(groups)
+            groups.append([])
+        groups[hit].append(it)
+        for k in keys:
+            where.setdefault(k, hit)
+    out = []
+    for group in groups:
+        if len(group) == 1:
+            out.append(group[0])
+            continue
+        ranked = sorted(group, key=lambda i: CANONICAL_RANK.get(i.get("source"), 99))
+        head = dict(ranked[0])
+        furthest = max(group, key=lambda i: _PROGRESS.get(i["state"], 0))
+        if _PROGRESS.get(furthest["state"], 0) > _PROGRESS.get(head["state"], 0):
+            head.update({k: furthest.get(k) for k in ("state", "reason", "next", "not_before")})
+        head["aliases"] = [{"id": o["id"], "source": o["source"], "native_state": o.get("native_state", ""),
+                            "payload": o.get("payload") or {}} for o in ranked[1:]]
+        head["evidence"] = {k: v for i in reversed(ranked) for k, v in (i.get("evidence") or {}).items()}
+        out.append(head)
+    return out
 
 
 # ---- the picker -----------------------------------------------------------------------
@@ -530,9 +630,47 @@ def _run_program_item(it: dict, now: dt.datetime) -> dict:
     return program_run.run_item(it, now)
 
 
-#: Sources whose items the engine STARTS (their own store keeps the truth, so nothing
-#: is written to the overlay for them). A source not named here is inventory only.
-SOURCE_RUNNERS: dict[str, Callable[[dict, dt.datetime], dict]] = {"programs": _run_program_item}
+def _run_work_item(it: dict, now: dt.datetime) -> dict:
+    from aletheia import work_runners
+    return work_runners.run(it, now)
+
+
+#: Sources whose items the engine STARTS. Their own store keeps the truth; an outcome
+#: that leaves an item waiting (NEEDS_STRONGER_MODEL with its packet, BLOCKED_USER on a
+#: branch he reviews, RETRY_LATER) is checkpointed in the overlay against the native
+#: state it was written for. A source not named here is inventory only.
+SOURCE_RUNNERS: dict[str, Callable[[dict, dt.datetime], dict]] = {
+    "programs": _run_program_item,
+    "tasks": _run_work_item,
+    "plans": _run_work_item,
+    "charter_ci": _run_work_item,
+}
+
+
+def record_outcome(it: dict, outcome: dict, now: dt.datetime | None = None, *, store: dict | None = None) -> list[str]:
+    """Checkpoint what a SOURCE runner left an item waiting on, for the item and every
+    alias, keyed to each one's native state. Returns the ids written. Saves the store
+    unless one is passed in."""
+    now = _now(now)
+    state = outcome.get("state")
+    if state not in ws.WORK_WAITING:
+        return []
+    own = store if store is not None else load_store()
+    view = {"state": state, "reason": str(outcome.get("reason") or state), "next": str(outcome.get("next") or "look again"),
+            "not_before": outcome.get("not_before"), "evidence": dict(outcome.get("evidence") or {})}
+    if state == ws.RETRY_LATER and not view["not_before"]:
+        view["not_before"] = _stamp(now + dt.timedelta(hours=1))
+    written = []
+    for member in [it] + list(it.get("aliases") or []):
+        if member.get("source") == "work":
+            continue
+        _write_checkpoints(own, [{**view, "id": member["id"], "source": member["source"],
+                                   "title": it.get("title") or member["id"],
+                                   "native_state": member.get("native_state", "")}], now)
+        written.append(member["id"])
+    if store is None and written:
+        save_store(own)
+    return written
 
 
 def _write_checkpoints(store: dict, views: list[dict], now: dt.datetime) -> list[str]:
@@ -542,6 +680,8 @@ def _write_checkpoints(store: dict, views: list[dict], now: dt.datetime) -> list
         base = held if view["source"] == "work" else {"id": view["id"], "source": view["source"],
                                                      "title": view["title"]}
         base.update({k: view.get(k) for k in ("state", "reason", "next", "not_before")})
+        if isinstance(view.get("evidence"), dict) and view["evidence"]:
+            base["evidence"] = {**(base.get("evidence") or {}), **view["evidence"]}
         base["native_state"] = view["native_state"] if view["source"] != "work" else base.get("native_state", "")
         base["updated"] = _stamp(now)
         _history(base, f"-> {view['state']}: {view['reason'][:120]}", now)
@@ -549,6 +689,43 @@ def _write_checkpoints(store: dict, views: list[dict], now: dt.datetime) -> list
         changed.append(view["id"])
         _journal("event", view["id"], f"checkpointed {view['state']}: {view['reason'][:160]}; next: {view['next'][:80]}")
     return changed
+
+
+def runner_for(it: dict) -> Callable[[dict, dt.datetime], dict] | None:
+    return RUNNERS.get(it.get("kind") or "") if it.get("source") == "work" else SOURCE_RUNNERS.get(it.get("source"))
+
+
+def run_one(it: dict, now: dt.datetime, store: dict) -> dict | None:
+    """Run ONE executable item with its runner and record what came of it in `store`
+    (the caller saves). None when no runner exists. A runner's failure is RETRY_LATER;
+    only the kill switch propagates."""
+    runner = runner_for(it)
+    if runner is None:
+        return None
+    try:
+        outcome = runner(it, now)
+    except Exception as exc:  # noqa: BLE001 - one runner never stops the rest
+        from aletheia import policy
+        if isinstance(exc, policy.Halted):
+            raise
+        outcome = {"state": ws.RETRY_LATER, "next": "try again",
+                   "reason": f"the runner failed ({type(exc).__name__}: {exc})"[:200],
+                   "not_before": _stamp(now + dt.timedelta(minutes=30))}
+    if outcome.get("noop"):
+        return outcome
+    if it["source"] != "work":
+        record_outcome(it, outcome, now, store=store)
+        _journal("action", it["id"], f"work started -> {outcome.get('state')}: {str(outcome.get('next') or '')[:160]}")
+        return outcome
+    held = store["items"].get(it["id"]) or it
+    held.update({k: outcome.get(k, held.get(k)) for k in ("state", "reason", "next", "not_before")})
+    if isinstance(outcome.get("payload"), dict):
+        held["payload"] = {**(held.get("payload") or {}), **outcome["payload"]}
+    held["updated"] = _stamp(now)
+    _history(held, f"ran -> {held['state']}: {str(held.get('reason') or held.get('next'))[:120]}", now)
+    store["items"][it["id"]] = held
+    _journal("action", it["id"], f"work ran -> {held['state']}: {str(held.get('next') or '')[:160]}")
+    return outcome
 
 
 def reconcile(now: dt.datetime | None = None, *, probe: bool = True, max_runs: int = MAX_RUNS_PER_BEAT,
@@ -589,33 +766,14 @@ def reconcile(now: dt.datetime | None = None, *, probe: bool = True, max_runs: i
     for it in picked["executable"]:
         if len(ran) >= max_runs or picked["halted"]:
             break
-        native = it["source"] == "work"
-        runner = RUNNERS.get(it.get("kind") or "") if native else SOURCE_RUNNERS.get(it["source"])
-        if runner is None:
+        outcome = run_one(it, now, store)
+        if outcome is None or outcome.get("noop"):
+            # No runner, or nothing was started (the cloud builder has it; heavy work
+            # waits for a work session): it costs this beat no slot and says nothing.
             continue
-        if not native:
-            try:
-                outcome = runner(it, now)
-            except Exception as exc:  # noqa: BLE001 - one source's runner never stops the beat
-                outcome = {"state": ws.RETRY_LATER, "next": "try again",
-                           "reason": f"the runner failed ({type(exc).__name__}: {exc})"[:200]}
-            ran.append({"id": it["id"], "state": outcome.get("state"), "next": outcome.get("next")})
-            _journal("action", it["id"], f"work started -> {outcome.get('state')}: {str(outcome.get('next') or '')[:160]}")
-            continue
-        held = store["items"].get(it["id"]) or it
-        try:
-            outcome = runner(it, now)
-        except Exception as exc:  # noqa: BLE001
-            outcome = {"state": ws.RETRY_LATER, "reason": f"the runner failed ({type(exc).__name__}: {exc})"[:200],
-                       "next": "try again", "not_before": _stamp(now + dt.timedelta(minutes=30))}
-        held.update({k: outcome.get(k, held.get(k)) for k in ("state", "reason", "next", "not_before")})
-        if isinstance(outcome.get("payload"), dict):
-            held["payload"] = {**(held.get("payload") or {}), **outcome["payload"]}
-        held["updated"] = _stamp(now)
-        _history(held, f"ran -> {held['state']}: {str(held.get('reason') or held.get('next'))[:120]}", now)
-        store["items"][it["id"]] = held
-        ran.append({"id": it["id"], "state": held["state"], "next": held.get("next")})
-        _journal("action", it["id"], f"work ran -> {held['state']}: {str(held.get('next') or '')[:160]}")
+        if it["source"] != "work" and outcome.get("state") in ws.WORK_WAITING:
+            changed.append(it["id"])
+        ran.append({"id": it["id"], "state": outcome.get("state"), "next": outcome.get("next")})
     if changed or picked["woke"] or ran:
         save_store(store)
     return {"counts": picked["counts"], "executable": len(picked["executable"]), "checkpointed": changed,

@@ -413,7 +413,10 @@ class TheSourcesMapTheirStores(Isolated):
         with mock.patch.object(plans, "all_plans", return_value=[plan]):
             got = {i["id"]: i for i in we.source_charters(NOW)}
         self.assertEqual(got["plan:p#1"]["state"], ws.READY)
-        self.assertIn("frontier_reasoning", got["plan:p#1"]["requires"])
+        # HER step needs a thinker of any kind (C3): with the frontier out the local tier
+        # investigates or repairs it, so it is never BLOCKED_MODEL merely for Claude being out.
+        self.assertIn("reasoning", got["plan:p#1"]["requires"])
+        self.assertNotIn("frontier_reasoning", got["plan:p#1"]["requires"])
         self.assertEqual(got["plan:p#2"]["state"], ws.BLOCKED_USER)
         self.assertEqual(got["plan:p#3"]["state"], ws.BLOCKED_EXTERNAL)
 
