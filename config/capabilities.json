@@ -331,10 +331,47 @@
       "status": "AVAILABLE",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "aletheia.mail.send_approved â€” the Core delivers every APPROVED draft each sync tick; drafts come from voice ('Thea, email X that ...'), the intercom kind email_draft, or the Command Center",
+      "caller": "intercom kind 'thread_send' and aletheia.conversations.send_approved (a conversation message he approved, hash-bound, sent once); aletheia.mail.send_approved â€” the Core delivers every APPROVED draft each sync tick; drafts come from voice ('Thea, email X that ...'), the intercom kind email_draft, or the Command Center",
       "verification": "live end to end on the operator's PC 2026-08-26: draft mail-a1e1957d0f -> operator_always approval decided with the operator's own word ('Approved', quoted in the decision) -> SMTP delivery -> exactly-once .sent receipt -> the message verified PRESENT in the inbox by independent IMAP read. Plus tests/test_mail.py (15) on the content-bound approval discipline.",
       "notes": "Credentials in ~/.aletheia/mail.json (app password, revocable). Every send remains operator_always, bound to the sha256 of the exact draft.",
       "module": "aletheia.mail"
+    },
+    {
+      "id": "email.followup",
+      "description": "Send a follow-up on a conversation he already approved a message on - re-asking only what he approved asking",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "grant_requires_scope": true,
+      "caller": "aletheia.conversations.followup via intercom kind 'thread_followup' and the Core beat (aletheia.runtime.tick -> conversations.reconcile); the authority decision is aletheia.conversation_authority.decide and the send is aletheia.conversations.send_approved",
+      "module": "aletheia.conversations",
+      "notes": "Registered 2026-09-16 for continuity brief IV.15 / III.10 (usable outbound communication, consequence-based authority). email.send is UNCHANGED (operator_always, never grantable); this is a narrower capability for one kind of message: a follow-up on a thread where he already approved a message to the same recipient, whose body re-asks only the questions he approved asking. Every follow-up still asks him - unless he created a SCOPED standing grant in his own words at a keyboard or trusted device (python -m aletheia.conversations grant \"...\"), which names the conversation or recipient, the purpose (followup), what it may disclose (phone/email at most), a message count (1-5) and a window (1-30 days), is signed to this machine, and is spent only through policy.request(scope=...). grant_requires_scope: an unscoped grant (standing on, assistant grant) never covers it. Anything that commits him, mentions money or discloses a sensitive detail is routed to email.send instead, whatever grant exists. EXPERIMENTAL: proven in a rehearsal against a fake mail transport only; no follow-up has been sent on a live account. What promotes it: one supervised live follow-up he watches go out under a grant he created.",
+      "verification": "tests/test_conversations.py and tests/test_conversation_authority.py: hash-bound approval sent once; grant scope, count and window; a model-, session-, relay-, voice- or email-authored grant refused; a forged or widened grant file refused by its machine binding; commitment/money/sensitive content always asks; rehearsal never sends"
+    },
+    {
+      "id": "conversation.thread",
+      "description": "Carry a conversation with someone: draft, identify the recipient, send under the right rule, wait for and understand the reply, decide the next step, follow up",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "intercom kinds 'thread_draft' and 'thread_status'; aletheia.conversation_tools (thread.draft, thread.status, thread.send, thread.followup for AgentSession); aletheia.runtime.tick -> conversations.reconcile each Core beat; python -m aletheia.conversations",
+      "module": "aletheia.conversations",
+      "notes": "Built 2026-09-16 (continuity brief IV.15). General, not mission-specific: a durable thread record (state/private/conversations) with recipient provenance (contact, prior thread, given address, or a web-found public contact with its page and quote), messages hash-bound to their approvals, open questions, the reply expectation (wait_adapter over communications.expect_reply, which mail.poll_events resolves), replies read as untrusted data (reply_understanding: rules plus the routine reasoning class, local first), and the next action. Drafting, reading and bookkeeping never ask; sending always goes through email.send or email.followup. Mapped onto the work vocabulary as a work_engine source. EXPERIMENTAL: the whole exchange has run in a rehearsal with fake mail and calendar providers, including with the frontier off and her own model reading the replies; nothing has been sent on his real account.",
+      "verification": "tests/test_conversations.py (thread workflow, rehearsal never sending, voice routing, tools, provider), tests/test_reply_understanding.py (classification, extraction, injection stays data)"
+    },
+    {
+      "id": "calendar.hold",
+      "description": "Find free time around travel, pencil in a tentative hold in her own calendar, propose and confirm times, and wake deadlines before they are due",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "intercom kinds 'calendar_find_free', 'calendar_hold' and 'calendar_propose'; aletheia.conversation_tools (calendar.find_free, calendar.propose, calendar.hold); aletheia.conversations (accepting and confirming times); python -m aletheia.calendar_reasoning",
+      "module": "aletheia.calendar_reasoning",
+      "notes": "Built 2026-09-16 (continuity brief IV.16). A hold is a TENTATIVE event in her local calendar model - private and reversible, so it asks nobody. Conflicts include travel buffers when both events have a location. Windows and sentences are in HIS timezone with the reference time passed in. Confirming a hold onto a LIVE calendar keeps calendar.write's rule unchanged: a write plan hash-bound to the exact event, operator_always, executed once after approval (calendar_reasoning.execute_approved_writes). Deadlines become work_engine items of kind 'deadline' that wake before they are due. EXPERIMENTAL: proven against InMemoryCalendarProvider only.",
+      "verification": "tests/test_calendar_reasoning.py: travel-buffer conflicts, timezone windows and rendering, free-slot proposal, holds, confirm-to-write-plan approval, deadline wake"
     },
     {
       "id": "calendar.read",
