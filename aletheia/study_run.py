@@ -679,9 +679,11 @@ def _change(sid: str, record: dict, h: dict, now: dt.datetime) -> dict:
                                       "metric": h["metric"]["description"], "direction": h["metric"]["direction"],
                                       "variant": (h.get("execution") or {}).get("variant") or ""},
                    "files": contents}
+        compact = {"decided_change": {"change": h["change"][:240], "metric": h["metric"]["description"]},
+                   "files": {f: body[:2_000] for f, body in contents.items()}}
         try:
             output, provider = think(sr.EDIT_SYSTEM, f"Make this change: {h['change'][:400]}", context=context,
-                                     validator=validator)
+                                     validator=validator, compact=compact)
         except reasoner.ReasonerUnavailable as exc:
             return _blocked(sid, h["key"], now, said=f"no model finished drafting the edit ({str(exc)[:120]})",
                             work_state=ws.RETRY_LATER, nxt="draft it again", back_to=st.ACCEPTED)

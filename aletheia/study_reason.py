@@ -37,6 +37,8 @@ from aletheia import studies as st, study_observe as so
 
 POLICY = "standard"
 BUDGET_S = 420.0
+#: What one local call gets when no frontier model can answer (the local ceiling).
+LOCAL_BUDGET_S = 300.0
 MAX_QUESTIONS = 5
 MAX_DIMENSIONS = 6
 MAX_CLAIMS = 12
@@ -48,18 +50,38 @@ Think = Callable[..., "tuple[dict, str]"]
 
 
 def gateway_think(*, budget_s: float = BUDGET_S) -> Think:
-    """(output, provider). A class of reasoning, never a company; the WORK lease."""
-    def think(system: str, text: str, *, context: dict, validator) -> tuple[dict, str]:
+    """(output, provider). A class of reasoning, never a company; the WORK lease.
+
+    THE LOCAL RUNG HAS TO FIT (CLAUDE.md). When no frontier model can answer, the ask
+    goes to her own model with the SMALL context the caller prepared (`compact`) and
+    with thinking off: measured on this laptop, 3.6 KB of evidence costs about 300 s a
+    call, which is the whole local budget, so the same prompt that suits Claude is a
+    prompt her own model can never finish."""
+    def think(system: str, text: str, *, context: dict, validator, compact: dict | None = None) -> tuple[dict, str]:
         from aletheia import local_lease, policy, reasoner, reasoning_gateway
         policy.ensure_not_halted()
+        frontier = reasoning_gateway.frontier_available()
         with local_lease.purpose(local_lease.WORK):
-            result = reasoning_gateway.reason_json(system, text, context=context, policy=POLICY,
-                                                   model=reasoner.PLAN_MODEL, timeout_s=budget_s,
-                                                   validator=validator, work_budget_s=budget_s)
+            if frontier or compact is None:
+                result = reasoning_gateway.reason_json(system, text, context=context, policy=POLICY,
+                                                       model=reasoner.PLAN_MODEL, timeout_s=budget_s,
+                                                       validator=validator, work_budget_s=budget_s)
+            else:
+                result = reasoning_gateway.local_json(system, text, context=compact, role="fast",
+                                                      validator=validator, timeout_s=LOCAL_BUDGET_S,
+                                                      think_override=False)
         policy.ensure_not_halted()
         provider = result.provider + (f" (degraded: {result.degraded})" if result.degraded else "")
         return result.output, provider
-    return think
+
+    def guarded(system: str, text: str, *, context: dict, validator, compact: dict | None = None):
+        from aletheia import local_model_pool, reasoner
+        try:
+            return think(system, text, context=context, validator=validator, compact=compact)
+        except local_model_pool.LocalPoolUnavailable as exc:
+            # One vocabulary for "nobody could think", whichever rung it was.
+            raise reasoner.ReasonerUnavailable(f"her own model could not answer: {exc}") from None
+    return guarded
 
 
 def _clean(text: Any, limit: int) -> str:
@@ -140,7 +162,10 @@ def draft_lens(record: dict, think: Think | None) -> dict:
     if think is None:
         return {**generic_lens(record.get("words") or ""), "drafted_by": {"provider": "rules", "local": True,
                                                                            "note": "no model could think"}}
-    output, provider = think(LENS_SYSTEM, "Plan the study.", context=context, validator=_lens_validator)
+    compact = {"their_words": _clean(record.get("words"), 400), "project": context["project"],
+               "comparables": context["comparables"], "metric_vocabulary": sorted(so.METRICS)}
+    output, provider = think(LENS_SYSTEM, "Plan the study.", context=context, validator=_lens_validator,
+                             compact=compact)
     return {**_lens_validator(output), "drafted_by": _by(provider)}
 
 
@@ -283,8 +308,12 @@ def compare(record: dict, evidence: list[dict], think: Think | None) -> dict:
                "measured_rows": [{"said": r["said"], "evidence": r["evidence"][:6]} for r in rows[:10]],
                "untrusted_observations": evidence_context(record, evidence, metrics)}
     validator = _compare_validator(allowed)
+    compact = {"questions": context["questions"][:2],
+               "measured_rows": [{"said": r["said"][:160], "evidence": r["evidence"][:3]} for r in rows[:6]],
+               "untrusted_observations": [{"id": o["id"], "whose": o["whose"], "headings": o["headings"][:3]}
+                                          for o in context["untrusted_observations"][:6]]}
     output, provider = think(COMPARE_SYSTEM, "Compare the project with the comparables.", context=context,
-                             validator=validator)
+                             validator=validator, compact=compact)
     said = validator(output)
     out.update(claims=said["claims"], answers=said["answers"], guesses_list=said["guesses"],
                dropped=said["dropped"], guesses=len(said["guesses"]), drafted_by=_by(provider))
@@ -472,7 +501,12 @@ def strategize(record: dict, evidence: list[dict], think: Think | None) -> dict:
                 raise ValueError("no hypothesis survived validation: cite observation ids you were given and "
                                  "use a metric from subject_metrics")
             return value
-        output, provider = think(STRATEGY_SYSTEM, "Propose the changes.", context=context, validator=validator)
+        compact = {"comparison": [{"said": r["said"][:160], "evidence": r["evidence"][:3]} for r in rows[:6]],
+                   "subject_metrics": s_metrics, "execution_paths": sorted(st.EXECUTION_PATHS),
+                   "project_files": context["project_files"][:8],
+                   "his_reshape_words": context["his_reshape_words"], "iterate_on": context["iterate_on"]}
+        output, provider = think(STRATEGY_SYSTEM, "Propose the changes.", context=context, validator=validator,
+                                 compact=compact)
         raw, drafted = output.get("hypotheses") or [], _by(provider)
     kept, dropped = [], []
     for row in raw[:MAX_HYPOTHESES * 2]:

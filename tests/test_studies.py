@@ -114,8 +114,9 @@ class Scripted:
     def __init__(self, **answers):
         self.answers, self.seen = answers, []
 
-    def __call__(self, system, text, *, context, validator):
+    def __call__(self, system, text, *, context, validator, compact=None):
         self.seen.append((system, context))
+        self.compacts = getattr(self, "compacts", []) + [compact]
         for key, value in self.answers.items():
             if key.upper() in system.upper()[:120] or key in system:
                 out = value(context) if callable(value) else value
@@ -510,6 +511,16 @@ class ExecutionAndMeasurementCase(StudyCase):
         self.assertTrue(any(h.get("iterates") == [key] for h in record["hypotheses"]))
         strategy_ctx = [c for s, c in thinker.seen if "propose changes" in s][-1]
         self.assertEqual(strategy_ctx["what_was_tried_before"][-1]["verdict"], "iterate")
+
+    def test_a_small_context_is_prepared_for_her_own_model(self):
+        """The local rung has to FIT: every ask carries a compact context for the day the
+        frontier is out, and it is a fraction of what Claude is shown."""
+        _record, thinker = self.carried()
+        pairs = [(c, ctx) for c, (_s, ctx) in zip(thinker.compacts, thinker.seen)]
+        self.assertTrue(all(c is not None for c, _ in pairs), "every study ask has a compact form")
+        for compact, full in pairs:
+            self.assertLess(len(json.dumps(compact)), len(json.dumps(full)))
+            self.assertLess(len(json.dumps(compact)), 2_500)
 
     def test_with_nobody_able_to_think_rules_carry_it_and_say_so(self):
         record = self.new_study()
