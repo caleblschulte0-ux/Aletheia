@@ -1,6 +1,6 @@
 # Fleet briefing
 
-Generated 2026-09-18T04:50:45Z from fleet registry rev 5 via GitHubSource.
+Generated 2026-09-18T11:23:50Z from fleet registry rev 5 via GitHubSource.
 
 ## 🔴 `Aletheia` — hub (active)
 
@@ -9,26 +9,26 @@ The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT 
 Last commit `c8089d98c3d9` at 2026-09-13T15:52:48Z: Apply anywhere: her texts, four more systems, and no more black boxes
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-09-18T04:50:41Z
+- `pulse.yml`: in_progress at 2026-09-18T11:23:47Z
 - `ci.yml`: failure at 2026-09-17T22:29:54Z
 
-## 🔴 `Shorts-pipeline` — youtube-automation (active)
+## 🟢 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `1059b3671b0f` at 2026-09-18T00:31:43Z: explainer: update posted log + analytics [skip ci]
+Last commit `3903dca1f8f3` at 2026-09-18T11:13:39Z: third: checkpoint posted log (claim upload slot) [skip ci]
 
-Vitals — trending posted: 328 · explainer posted: 253 · third posted: 548 · curiosity posted: 1
+Vitals — trending posted: 328 · explainer posted: 253 · third posted: 549 · curiosity posted: 1
 
 Watched workflows:
-- `daily.yml`: failure at 2026-09-17T23:41:39Z
-- `exchange_phase_a.yml`: success at 2026-09-17T14:27:01Z
+- `daily.yml`: in_progress at 2026-09-18T11:05:01Z
+- `exchange_phase_a.yml`: success at 2026-09-18T09:37:21Z
 - `exchange_phase_b.yml`: success at 2026-09-17T18:23:02Z
-- `story_forge.yml`: success at 2026-09-17T20:25:03Z
-- `third.yml`: success at 2026-09-17T23:40:12Z
-- `explainer.yml`: failure at 2026-09-18T00:31:49Z
+- `story_forge.yml`: success at 2026-09-18T09:53:53Z
+- `third.yml`: in_progress at 2026-09-18T11:05:03Z
+- `explainer.yml`: in_progress at 2026-09-18T11:05:10Z
 - `retro.yml`: success at 2026-09-18T04:47:37Z
-- `doctor.yml`: success at 2026-09-17T09:57:28Z
+- `doctor.yml`: success at 2026-09-18T09:41:40Z
 
 ## 🔴 `schwab-trader` — trading-bot (active)
 
