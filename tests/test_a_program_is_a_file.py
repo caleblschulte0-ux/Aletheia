@@ -206,6 +206,25 @@ class TheOfferIsKeepableCase(_InAWorkspace):
                 got = (voice._interpret(said) or {}).get("command") or {}
                 self.assertEqual(got.get("kind"), kind, said)
 
+    def test_an_address_with_a_goal_after_it_is_not_an_address(self):
+        """Acceptance D, live, 2026-09-18.
+
+        "go to https://books.toscrape.com and tell me the title of the first
+        book" joined the whole sentence into one string, and she answered:
+        "That failed: could not load
+        https://books.toscrape.comandtellmethetitleofthefirstbook - the
+        address did not resolve". A page plus a goal is a web task, and the
+        planner compiles those; only a bare address is a page read.
+        """
+        self.assertIsNone(voice._spoken_url(
+            "https://books.toscrape.com and tell me the title of the first book"))
+        self.assertIsNone(voice._spoken_url("example.com and count the links"))
+        got = (voice._interpret("go to https://books.toscrape.com and tell me the title") or {})
+        self.assertNotEqual((got.get("command") or {}).get("kind"), "browse_read")
+        # the ways a host is SAID are unchanged
+        self.assertEqual(voice._spoken_url("example dot com slash notes"), "https://example.com/notes")
+        self.assertEqual(voice._spoken_url("my site dot com"), "https://mysite.com")
+
 
 class ReadingItBackIsNotRecitingItCase(unittest.TestCase):
     def test_a_program_is_described_rather_than_read(self):

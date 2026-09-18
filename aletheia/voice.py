@@ -85,7 +85,26 @@ def _spoken_url(tail: str) -> str | None:
     t = re.sub(r"\s+slash\s+", "/", t)
     if "." not in t:
         return None
-    t = t.replace(" ", "")
+    # AN ADDRESS FOLLOWED BY AN OBJECTIVE IS NOT AN ADDRESS. Everything below
+    # joins the whole tail into one string, because that is how "example dot
+    # com" is said out loud - and that made "go to https://books.toscrape.com
+    # and tell me the title of the first book" into
+    # `https://books.toscrape.comandtellmethetitleofthefirstbook`, which she
+    # tried to load and reported back as "the address did not resolve"
+    # (measured live, acceptance D, 2026-09-18). A goal attached to a page is
+    # a web task; letting the planner have it is the whole point of returning
+    # None here. The joining still happens when the FIRST word is not already
+    # an address, so a spoken host ("my site dot com") is unchanged.
+    first, _, rest = t.partition(" ")
+    if rest.strip() and _one_address(first):
+        return None
+    return _one_address(t.replace(" ", ""))
+
+
+def _one_address(t: str) -> str | None:
+    """One token that is already an address, or None. No joining, no guessing."""
+    if not t or "." not in t:
+        return None
     if t.startswith(("http://", "https://")):
         return t
     host = t.split("/", 1)[0].split(":", 1)[0].split("?", 1)[0]
