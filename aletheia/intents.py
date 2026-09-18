@@ -514,6 +514,22 @@ def _hands_refused(hands: dict) -> str:
             + " Nothing is queued; tell me what to change and I'll plan it again.")
 
 
+def _degraded_line(detail: str) -> str:
+    """Why nothing could be planned, as a sentence rather than a log line.
+
+    The gateway's refusal carries BOTH causes on purpose, for the log. Read
+    out loud it is a paragraph of machine text that gets cut mid-clause, and
+    the only thing he needs is which rung was missing.
+    """
+    text = " ".join(str(detail or "").split())
+    low = text.lower()
+    if "unavailable" in low and "local" in low and ("subscription" in low or "frontier" in low):
+        off = "switched off for this run" in low
+        return ("the frontier models are switched off for this run, and my own model could not answer either"
+                if off else "nothing could think just now - neither the stronger models nor my own")
+    return speech.shorten(speech.plainly(text), 150)
+
+
 def spoken(record: dict) -> str:
     """What Thea says back. Short, honest about what is and is not happening."""
     # A real answer, when the ask was a QUESTION, beats every summary below.
@@ -535,7 +551,16 @@ def spoken(record: dict) -> str:
     manual = [s for s in steps if s.get("status") == planner.MANUAL]
     refused = [s for s in steps if s.get("status") == planner.REFUSED]
     if record.get("degraded") and not runnable:
-        return f"I could not plan that: {record['degraded'][:160]}"
+        # THE ROOM HEARS THIS ONE TOO. Measured live on 2026-09-18 (acceptance
+        # D): asked for an ordinary browser task with the frontier models off,
+        # she said "I could not plan that: ReasonerUnavailable: subscription
+        # reasoning and local deep reasoning are unavailable (subscription:
+        # neither Claude nor the ChatGPT browser could answer just now" - a log
+        # line with a class name on the front, cut off mid-word at 160
+        # characters. `plainly` and `shorten` already existed for exactly this
+        # and this branch was the one place that reached neither. The full
+        # diagnosis stays in the record, where it belongs.
+        return speech.tidy("I could not plan that: " + _degraded_line(record["degraded"]))
     if record.get("intent") == "clarify":
         # Through the sieve like everything else she says. A clarifying
         # question is model prose about her own state, so it carries the

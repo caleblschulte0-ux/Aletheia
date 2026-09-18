@@ -376,5 +376,40 @@ class IntentCase(unittest.TestCase):
         self.assertEqual(intents.run_approved(FLEET, executor=lambda *a, **k: "x"), [])
 
 
+class NobodyCouldThinkIsSaidInEnglishCase(unittest.TestCase):
+    """Acceptance D, live, 2026-09-18.
+
+    An ordinary browser ask with the frontier off came back as
+    "I could not plan that: ReasonerUnavailable: subscription reasoning and
+    local deep reasoning are unavailable (subscription: neither Claude nor the
+    ChatGPT browser could answer just now" - a log line, with a class name on
+    the front, cut off mid-word. The full diagnosis stays in the record.
+    """
+
+    def said(self, degraded):
+        return intents.spoken({"degraded": degraded, "steps": []})
+
+    def test_the_frontier_being_off_is_said_as_that(self):
+        said = self.said("ReasonerUnavailable: subscription reasoning and local deep reasoning are "
+                         "unavailable (subscription: the frontier models are switched off for this run; "
+                         "local: no local model fits in free memory)")
+        self.assertIn("switched off for this run", said)
+        self.assertIn("my own model could not answer either", said)
+        self.assertNotIn("ReasonerUnavailable", said)
+
+    def test_neither_rung_answering_is_one_clause_not_a_paragraph(self):
+        said = self.said("ReasonerUnavailable: subscription reasoning and local deep reasoning are "
+                         "unavailable (subscription: neither Claude nor the ChatGPT browser could answer "
+                         "just now; local: nothing fits in the memory that is free)")
+        self.assertIn("nothing could think just now", said)
+        self.assertNotIn("(", said, "no machine parenthetical is read out")
+        self.assertFalse(said.rstrip().endswith("local"), "never cut mid-clause")
+
+    def test_any_other_failure_keeps_its_own_words_without_the_class_name(self):
+        said = self.said("BrainOutputError: the model returned prose instead of JSON")
+        self.assertIn("the model returned prose instead of JSON", said)
+        self.assertNotIn("BrainOutputError", said)
+
+
 if __name__ == "__main__":
     unittest.main()
