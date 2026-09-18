@@ -187,8 +187,16 @@ def run_json(system_prompt: str, text: str, *, context: dict | None = None,
         # minute call already running is twenty minutes of silence in the room.
         should_yield = (local_lease.conversation_waiting
                         if attention == work_states.BACKGROUND else None)
+        # ONE THING SAYS WHAT THE WORK IS. Saying BACKGROUND is also saying WORK
+        # to the lease, so nothing can hold the long budget and still queue as a
+        # conversation - which is what `local_repair` did, drafting code for
+        # four minutes in front of the room because its think() never wrapped
+        # itself in `purpose(WORK)` the way work_runners and study_reason do.
+        # ATTENDED passes None and leaves whatever purpose the caller set.
+        background = attention == work_states.BACKGROUND
         try:
-            with local_lease.hold(what=f"{role} {config.model}", hold_s=float(config.timeout_s or 0) + 30.0):
+            with local_lease.hold(what=f"{role} {config.model}", hold_s=float(config.timeout_s or 0) + 30.0,
+                                  purpose_name=local_lease.WORK if background else None):
                 started = time.perf_counter()
                 proposal = local_brain.infer_json(system_prompt, text, context=ctx, config=config,
                                                   should_yield=should_yield)
