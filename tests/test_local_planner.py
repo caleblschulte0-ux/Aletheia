@@ -336,6 +336,34 @@ class TheAskDoesNotEvaporateCase(unittest.TestCase):
         self.assertIn("Claude or Codex is back", said)
         self.assertNotIn("work:abc", said, "an id is not a thing he can say back")
 
+    def test_the_queued_ask_waits_for_the_condition_it_named(self):
+        from aletheia import work_engine, work_states
+        item = {"kind": "replan", "payload": {"request": "read the front page of example.com"}}
+        with mock.patch("aletheia.reasoning_gateway.frontier_available", return_value=False), \
+             mock.patch("aletheia.reasoning_gateway.frontier_status",
+                        return_value={"why": "the frontier models are switched off for this run",
+                                      "wake": "when the frontier models are switched back on",
+                                      "resets_at": None}):
+            out = work_engine.RUNNERS["replan"](item, None)
+        self.assertEqual(out["state"], work_states.BLOCKED_MODEL)
+        self.assertIn("switched off", out["reason"])
+
+    def test_the_queued_ask_is_planned_again_when_a_stronger_model_is_back(self):
+        from aletheia import work_engine, work_states
+        item = {"kind": "replan", "payload": {"request": "read the front page of example.com"}}
+        asked = []
+
+        def propose(request, **kw):
+            asked.append(request)
+            return {"steps": [{"status": "EXECUTABLE"}], "summary": "Read it"}
+
+        with mock.patch("aletheia.reasoning_gateway.frontier_available", return_value=True), \
+             mock.patch("aletheia.intents.propose", propose), \
+             mock.patch("aletheia.intents.spoken", return_value="1 step ready."):
+            out = work_engine.RUNNERS["replan"](item, None)
+        self.assertEqual(asked, ["read the front page of example.com"])
+        self.assertEqual(out["state"], work_states.DONE)
+
     def test_nothing_is_queued_when_a_plan_actually_compiled(self):
         plan = planner.compile("do the thing", fleet=FLEET, registry=REGISTRY,
                                provider=brain.Provider("stub", lambda t, c: {
