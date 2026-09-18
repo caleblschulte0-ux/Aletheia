@@ -62,8 +62,9 @@ WORKTREE_VERBS = frozenset({"worktree", "switch", "add", "commit", "branch", "re
 FORBIDDEN_VERBS = frozenset({"push", "merge", "pull", "fetch", "rebase", "reset", "checkout", "stash",
                              "remote", "config", "clean", "gc", "filter-branch", "update-ref", "tag"})
 
-_SECRET_ENV = re.compile(r"(?:TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|ACCESS_?KEY|PRIVATE_?KEY|CREDENTIAL|"
-                         r"COOKIE|SESSION)", re.I)
+#: One pattern, in `project_runners`, because that module also scrubs the
+#: environment of the package manager and the checks it runs.
+_SECRET_ENV = runners.SECRET_ENV
 _FRAME = re.compile(r'File "([^"]+)", line (\d+), in (\S+)')
 
 

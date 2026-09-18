@@ -79,6 +79,21 @@ VENDOR_DIRS = ("node_modules/", "vendor/", "dist/", "build/", "out/", "coverage/
                "bower_components/", ".yarn/", "__pycache__/")
 
 
+#: His credentials never reach a package manager, a test runner or a check.
+#: (`investigation._SECRET_ENV` is this same pattern; it lives here because
+#: this module runs subprocesses and `investigation` imports it, not the
+#: other way round.)
+SECRET_ENV = re.compile(r"(?:TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|ACCESS_?KEY|PRIVATE_?KEY|CREDENTIAL|"
+                        r"COOKIE|SESSION)", re.I)
+
+
+def scrubbed_env(extra: dict | None = None) -> dict:
+    env = {k: v for k, v in os.environ.items() if not SECRET_ENV.search(k)}
+    env.update(CI="1", NO_COLOR="1", FORCE_COLOR="0", npm_config_update_notifier="false")
+    env.update(extra or {})
+    return env
+
+
 def is_vendor_path(path: str) -> bool:
     norm = str(path or "").replace("\\", "/").removeprefix("./")
     return norm.startswith(VENDOR_DIRS) or any(f"/{d}" in f"/{norm}" for d in VENDOR_DIRS)
@@ -900,10 +915,9 @@ def install(where: str | Path, *, detection: dict | None = None, timeout_s: int 
                     "refusal": f"{type(exc).__name__}: {str(exc)[:200]}",
                     "reason": f"refused to install here: {str(exc)[:200]}"}
     started = time.monotonic()
-    env = {k: v for k, v in os.environ.items()}
-    env.update(CI="1", NO_COLOR="1", FORCE_COLOR="0", npm_config_audit="false", npm_config_fund="false",
-               npm_config_update_notifier="false", npm_config_ignore_scripts="true",
-               ADBLOCK="1", DISABLE_OPENCOLLECTIVE="1")
+    env = scrubbed_env({"npm_config_audit": "false", "npm_config_fund": "false",
+                        "npm_config_ignore_scripts": "true", "ADBLOCK": "1",
+                        "DISABLE_OPENCOLLECTIVE": "1"})
     try:
         done = proc.run_tree(plan["command"], timeout_s, cwd=str(where), env=env)
         output = (done.stdout or "") + (done.stderr or "")
@@ -996,7 +1010,8 @@ def run_check(where: str | Path, check: dict, *, timeout_s: int = CHECK_TIMEOUT_
         return {"command": check.get("name") or "", "ran": False,
                 "said": f"there is no checkout at {where.name} to run it in"}
     started = time.monotonic()
-    run_env = dict(env or os.environ)
+    # A check runs the project's own tooling; his tokens are not its business.
+    run_env = dict(env) if env else scrubbed_env()
     run_env.update(CI="1", NO_COLOR="1", FORCE_COLOR="0")
     try:
         done = proc.run_tree(argv, timeout_s, cwd=str(where), env=run_env)

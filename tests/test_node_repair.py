@@ -861,6 +861,27 @@ class PacketsCarryWhatTheCommandsSaid(unittest.TestCase):
         self.assertTrue(row["reproduced"])
         self.assertIn('"high":3', row["output"])
 
+    def test_his_credentials_never_reach_the_package_manager_or_a_check(self):
+        where = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, where, True)
+        (where / "package.json").write_text(json.dumps({
+            "dependencies": {"x": "1"}}), encoding="utf-8")
+        (where / "package-lock.json").write_text("{}\n", encoding="utf-8")
+        seen = {}
+
+        def capture(argv, timeout, **kw):
+            seen.update(kw.get("env") or {})
+            return mock.Mock(returncode=0, stdout="added 1 package", stderr="")
+
+        with mock.patch.dict(os.environ, {"GITHUB_TOKEN": "ghp_secret", "MY_API_KEY": "k",
+                                          "SESSION_COOKIE": "c"}), \
+                mock.patch("aletheia.proc.run_tree", side_effect=capture):
+            runners.install(where)
+            runners.run_check(where, {"name": "npm audit", "argv": ["npm", "audit"]})
+        for name in ("GITHUB_TOKEN", "MY_API_KEY", "SESSION_COOKIE"):
+            self.assertNotIn(name, seen)
+        self.assertEqual(seen.get("NO_COLOR"), "1")
+
     def test_a_check_that_overruns_says_so_rather_than_hanging_the_packet(self):
         where = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, where, True)
