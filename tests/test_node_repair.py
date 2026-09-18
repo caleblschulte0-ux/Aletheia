@@ -405,6 +405,46 @@ class FailuresReadTheSameWay(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaises(runners.RunnerRefused):
                 runners.check_test_id(bad, runners.NODE)
 
+    def test_a_whole_file_as_a_test_id_still_finds_its_file(self):
+        # A suite that fails at COLLECTION (an import that will not resolve) is
+        # named by its file alone. The dotted-Python branch turned
+        # `test/basket.test.js` into `test/basket/test.py`, found nothing, and a
+        # wrong import path - which is on his own list of bounded repairs -
+        # escalated as "unlocated".
+        where = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, where, True)
+        (where / "test").mkdir()
+        (where / "src").mkdir()
+        (where / "src" / "basket.js").write_text("export const x = 1;\n", encoding="utf-8")
+        (where / "test" / "basket.test.js").write_text(
+            "import { x } from '../src/basket.js';\n", encoding="utf-8")
+        self.assertEqual(inv.test_file_for(where, "test/basket.test.js"), "test/basket.test.js")
+        found = inv.implicated(where, ["test/basket.test.js"], "",
+                               detection={"toolchain": runners.NODE, "runner": "vitest"})
+        self.assertEqual(found["source_files"], ["src/basket.js"])
+        self.assertTrue(found["located"])
+
+    def test_where_the_file_really_is_is_found_by_looking_not_by_guessing(self):
+        # The commonest broken-path fix is "it is over there", and a model that
+        # has to guess the new location is a model that guesses wrong.
+        where = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, where, True)
+        subprocess.run(["git", "init", "--quiet", "-b", "main"], cwd=where, env=GIT_ENV, check=True,
+                       capture_output=True)
+        (where / "src").mkdir()
+        (where / "src" / "pricing.js").write_text("export const TAX = 1;\n", encoding="utf-8")
+        (where / "src" / "basket.js").write_text("import { TAX } from './utils/pricing.js';\n",
+                                                 encoding="utf-8")
+        git(where, "add", "-A")
+        git(where, "commit", "--quiet", "-m", "basket")
+        hints = inv.path_hints(where, "Error: Failed to load url ./utils/pricing.js "
+                                      "(resolved id: ./utils/pricing.js) in src/basket.js.")
+        self.assertEqual(hints, [{"asked_for": "utils/pricing.js", "exists": False,
+                                  "tracked_with_that_name": ["src/pricing.js"]}])
+        cause = local_repair.observed_cause({"path_hints": hints, "frames": []}, {})
+        self.assertIn("src/pricing.js", cause)
+        self.assertIn("wrong base directory", cause)
+
     def test_local_imports_follow_relative_javascript_and_stop_at_packages(self):
         where = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, where, True)
@@ -589,6 +629,19 @@ class WhatJavaScriptRepairsAreAttempted(unittest.TestCase):
         self.assertEqual(out["verdict"], rc.ESCALATE)
         self.assertIn("build_config", out["escalate_kinds"])
         self.assertIn("bundler ALIAS", " ".join(out["reasons"]))
+
+    def test_vitests_own_wording_for_a_bad_import_is_understood(self):
+        # What vitest 2.1.9 really prints, quoting nothing. Requiring a quote
+        # made a wrong import path - on HIS own list of bounded repairs - come
+        # back as an unnamed narrow test failure with no hint attached.
+        said = ("Error: Failed to load url ./utils/pricing.js (resolved id: ./utils/pricing.js) "
+                "in src/basket.js. Does the file exist?")
+        out = self.verdict(text=said)
+        self.assertEqual(out["verdict"], rc.BOUNDED, out["reasons"])
+        self.assertEqual(out["kind"], "broken_path")
+        bare = self.verdict(text="Error: Failed to load url lodash-es (resolved id: lodash-es) in src/a.js.")
+        self.assertEqual(bare["verdict"], rc.ESCALATE)
+        self.assertIn("lodash-es", " ".join(bare["reasons"]))
 
     def test_a_relative_import_is_his_code_and_a_bare_one_is_a_package(self):
         near = self.verdict(text="Cannot find module './utils/math' imported from src/basket.js")

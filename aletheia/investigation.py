@@ -400,6 +400,14 @@ def frames(where: Path, output: str, *, detection: dict | None = None) -> list[d
 def test_file_for(where: Path, test_id: str) -> str | None:
     if "::" in test_id:
         return _rel(where, test_id.split("::", 1)[0])
+    # A whole FILE as the id: a suite that failed before any test in it ran (an
+    # import that would not resolve, a syntax error). Without this the dotted
+    # Python branch below turned `test/basket.test.js` into `test/basket/test.py`,
+    # found nothing, and a wrong import path - which is on his OWN list of
+    # bounded repairs - escalated as "unlocated".
+    path, _name = runners.split_js_id(test_id)
+    if path and path == test_id:
+        return _rel(where, path)
     parts = test_id.split(".")
     for cut in range(len(parts), 0, -1):
         candidate = "/".join(parts[:cut]) + ".py"
@@ -580,8 +588,13 @@ _MISSING = re.compile(r"(?:FileNotFoundError|NotADirectoryError|No such file or 
 #: The same question in JavaScript. Only a RELATIVE specifier is a path of
 #: his that may be in the wrong place; a bare one names a package, and where
 #: a package should have come from is the classifier's business, not a hint.
-_MISSING_JS_REL = re.compile(r"(?:Cannot find module|Failed to resolve import|Cannot find package|"
-                             r"Could not resolve)\s*[:\s]*['\"](\.{1,2}/[^'\"]+)['\"]")
+#: vitest 2.1.9 says `Failed to load url ./utils/pricing.js (resolved id: ...)
+#: in src/basket.js. Does the file exist?` and quotes nothing, so the specifier
+#: is matched quoted OR bare. Without this, the commonest broken-path fix -
+#: "the file is over there" - had no hint and the model had to guess.
+_MISSING_JS_REL = re.compile(r"(?:Cannot find module|Failed to resolve import|Failed to load url|"
+                             r"Cannot find package|Could not resolve)\s*[:\s]*"
+                             r"(?:['\"](\.{1,2}/[^'\"]+)['\"]|(\.{1,2}/[\w./-]+))")
 
 
 def relativize(text: str, where: Path) -> str:
@@ -603,10 +616,10 @@ def path_hints(where: Path, output: str) -> list[dict]:
     tracked = [ln.strip() for ln in listed.splitlines() if ln.strip()] if code == 0 else []
     hints: list[dict] = []
     wanted_all = list(_MISSING.findall(output or ""))
-    for spec in _MISSING_JS_REL.findall(output or ""):
+    for m in _MISSING_JS_REL.finditer(output or ""):
         # an import specifier may have no extension; the tracked-name lookup
         # below matches on the stem for exactly that reason
-        wanted_all.append(spec)
+        wanted_all.append(m.group(1) or m.group(2))
     for raw in wanted_all:
         wanted = raw.replace("\\\\", "\\")
         try:

@@ -155,8 +155,13 @@ KIND_SIGNS: tuple[tuple[str, re.Pattern], ...] = (
 #: The same ladder for JavaScript, consulted before KIND_SIGNS when the
 #: project is a Node one: its names for the same small bugs.
 JS_KIND_SIGNS: tuple[tuple[str, re.Pattern], ...] = (
-    ("broken_path", re.compile(r"(?:Cannot find module|Failed to resolve import|Cannot find package|"
-                               r"Could not resolve|ERR_MODULE_NOT_FOUND)\s*[:\s]*['\"]\.{1,2}/", re.I)),
+    # `Failed to load url ./utils/pricing.js (resolved id: ...) in src/basket.js.
+    # Does the file exist?` is what vitest 2.1.9 really prints, and it quotes
+    # nothing: requiring a quote here made a wrong import path - which is on HIS
+    # own list of bounded repairs - come back as an unnamed narrow test failure.
+    ("broken_path", re.compile(r"(?:Cannot find module|Failed to resolve import|Failed to load url|"
+                               r"Cannot find package|Could not resolve|ERR_MODULE_NOT_FOUND)"
+                               r"\s*[:\s]*['\"]?\.{1,2}/", re.I)),
     ("import_api_mismatch", re.compile(r"\b(?:does not provide an export named|is not exported by|"
                                        r"The requested module|ERR_REQUIRE_ESM|"
                                        r"Named export .* not found|is not a constructor)\b", re.I)),
@@ -175,7 +180,9 @@ _MISSING_MODULE = re.compile(r"No module named ['\"]([A-Za-z_][\w.]*)['\"]")
 #: A BARE JavaScript specifier: a package that is not installed, never a file
 #: of his in the wrong place. (A relative one is `broken_path`, above.)
 _MISSING_JS_PACKAGE = re.compile(r"(?:Cannot find module|Cannot find package|Failed to resolve import|"
-                                 r"Could not resolve)\s*[:\s]*['\"](?!\.{1,2}/)(@?[\w.-]+(?:/[\w.-]+)?)['\"]")
+                                 r"Failed to load url|Could not resolve)\s*[:\s]*"
+                                 r"(?:['\"](?!\.{1,2}/)(?P<quoted>@?[\w.-]+(?:/[\w.-]+)?)['\"]"
+                                 r"|(?![\.@~#/'\"])(?P<bare>[\w.-]+(?:/[\w.-]+)?)(?=[\s,)]|$))")
 #: An import through a BUNDLER ALIAS (`@/x`, `~/x`, `#x`) that did not resolve.
 #: An alias is defined in build configuration, and "configure the alias or
 #: rewrite every import that uses it" is a decision about the project's own
@@ -324,7 +331,8 @@ def classify_rules(failure: dict) -> dict:
         reasons.append(f"build_config: the import {spec!r} goes through a bundler ALIAS that did not resolve; "
                        "whether to configure the alias or rewrite the imports is a build-configuration "
                        "decision, not a small repair")
-    for name in dict.fromkeys(_MISSING_JS_PACKAGE.findall(raw)):
+    for name in dict.fromkeys(m.group("quoted") or m.group("bare")
+                              for m in _MISSING_JS_PACKAGE.finditer(raw)):
         top = name.split("/")[0].casefold()
         if top not in own and not top.startswith("node:"):
             escalate.append("dependency_change")
