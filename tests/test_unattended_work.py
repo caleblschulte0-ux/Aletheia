@@ -45,6 +45,15 @@ class Ledgered(unittest.TestCase):
         env = mock.patch.dict("os.environ", {"ALETHEIA_WORKSPACE": str(Path(self.tmp.name) / "work")})
         env.start()
         self.addCleanup(env.stop)
+        # AND THE APPROVALS. A test here drives the live question route, which
+        # files a real pending approval; left in the suite's shared store it
+        # made `test_current_state_v2` say NEEDS YOU where it expected IDLE and
+        # `test_quick` answer a different question - two failures in modules
+        # that have nothing to do with this one, and only in some orders.
+        from aletheia import policy
+        approvals = mock.patch.object(policy, "APPROVALS_DIR", Path(self.tmp.name) / "approvals")
+        approvals.start()
+        self.addCleanup(approvals.stop)
         self.catalog = tools.catalog()
 
 
