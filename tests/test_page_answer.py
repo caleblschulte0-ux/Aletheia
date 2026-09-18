@@ -241,6 +241,14 @@ class TheAnswerIsWhatSheSays(unittest.TestCase):
                           "url": "http://x/", "title": "A Light in the Attic"}}
         self.assertIn("a897fe39b1053632", bm.describe(rec))
 
+    def test_the_sites_own_name_is_not_read_out_with_the_page_name(self):
+        # "A Light in the Attic | Books to Scrape - Sandbox": out loud the
+        # vertical bar is a silence in the middle of a sentence.
+        self.assertEqual(page_answer.page_name("A Light in the Attic | Books to Scrape - Sandbox"),
+                         "A Light in the Attic")
+        self.assertEqual(page_answer.page_name("", "http://x/y"), "http://x/y")
+        self.assertEqual(page_answer.page_name("Meditations"), "Meditations")
+
     def test_a_result_with_no_answer_says_nothing_rather_than_something_empty(self):
         self.assertEqual(page_answer.spoken({}), "")
         self.assertEqual(page_answer.spoken({"answer": "   "}), "")

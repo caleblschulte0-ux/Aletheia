@@ -223,13 +223,25 @@ def answer(goal: str, obs: dict, *, think: Callable | None = None,
             "title": str((obs or {}).get("title") or "")}
 
 
+#: A page title's site furniture: "A Light in the Attic | Books to Scrape -
+#: Sandbox" is one thing followed by the site's own name, and out loud the
+#: vertical bar is a silence in the middle of a sentence.
+_TITLE_TAIL = re.compile(r"\s*[|·—–]\s*|\s+-\s+")
+
+
+def page_name(title: str, url: str = "") -> str:
+    """What to call the page in a sentence. The part that names the thing."""
+    first = _TITLE_TAIL.split(str(title or "").strip())[0].strip()
+    return first or str(title or "").strip() or str(url or "").strip()
+
+
 def spoken(result: dict) -> str:
     """The answer, said with the page it came from. For the room."""
     found = dict(result or {})
     answer_text = str(found.get("answer") or "").strip()
     if not answer_text:
         return ""
-    where = str(found.get("title") or "").strip() or str(found.get("url") or "").strip()
+    where = page_name(found.get("title") or "", found.get("url") or "")
     quote = str(found.get("quote") or "").strip()
     said = answer_text.rstrip(".")
     line = f"{said}."
