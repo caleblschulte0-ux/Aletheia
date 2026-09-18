@@ -1396,6 +1396,18 @@
       "notes": "Built 2026-09-17 (continuity wave C3b) for the final target of docs/CONTINUITY_BRIEF.md. Nothing it runs is new authority: pull requests go through code_worker.open_repair_pr with its grant and refusals, Aletheia and schwab-trader never merge autonomously, world-touching steps are handoffs, money is refused, and a rehearsal opens no pull request. EXPERIMENTAL until a real session on his machine has carried real work end to end; Scenario A ran it on a sandboxed copy of his state with the frontier switched off."
     },
     {
+      "id": "study.improve",
+      "description": "Study what does better than one of your projects - pages, feeds, public repositories or APIs, and your own project read the same way - measure the differences with evidence for each, propose ranked changes you accept, reject or reshape, carry an accepted one through the existing safe paths with its baseline read first, and measure it again later for your keep, revert or iterate",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "medium",
+      "approval_policy": "none",
+      "caller": "intercom kinds 'study_new', 'studies', 'study_decide' and 'study_confirm' (voice, phone, Command Center: \"study X, Y and Z and improve my project\", \"how's the study going\", \"what did you find\", \"accept the first one\", \"keep it\"); aletheia.work_engine.SOURCES['studies'] and SOURCE_RUNNERS['studies'] -> aletheia.study_run on the Core's beat; aletheia.waits.HANDLERS['studies'] for measurement windows and his decisions; the study.status and study.evidence session tools (aletheia.study_tools); aletheia.mission_studies on the mission screen; current_state section studies; aletheia.semantic_index source studies",
+      "module": "aletheia.studies",
+      "verification": "tests/test_studies.py: the study model and its gates (only his words accept, keep or revert; her own actors refused), no domain words or category lists in the new modules, provenance on every observation, uncited claims dropped, injected page text stays data, hypothesis shape validation, baseline read before any change, measurement woken by a fake clock, keep/revert/iterate, the provider, the session tools and voice routing; scripts/rehearse_study.py ran two unrelated domains in a sandbox with rehearsal on",
+      "notes": "Built 2026-09-17 (continuity wave C4a) for the addendum to docs/CONTINUITY_BRIEF.md. Nothing in code names a platform or a kind of project: observation sources are chosen by what they can read, and a public API is described as data in config/observation_sources.json. Pages are read over plain HTTP within robots.txt and site terms, a few requests per study. Nothing it runs is new authority: a change is a thea-study branch or a pull request through code_worker.open_repair_pr (never in a rehearsal, never the default branch, never a merge), code work beyond a bounded edit is a packet for a stronger model, anything outward is a handoff, money is refused. EXPERIMENTAL until a real study of his has been carried from his sentence to a measured verdict on his machine."
+    },
+    {
       "id": "charter.next",
       "description": "Say which charter step is next and, for every charter passed over, why - so a loop that decides nothing stops doing it silently",
       "provider": "aletheia.local",

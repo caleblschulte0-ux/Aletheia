@@ -153,3 +153,6 @@
 {"ts": "2026-09-17T17:05:38Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue updated — Aletheia, Shorts-pipeline, schwab-trader"}
 {"ts": "2026-09-17T21:27:37Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:aletheia", "text": "health red -> unknown"}
 {"ts": "2026-09-17T21:27:37Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:shorts_pipeline", "text": "health red -> green"}
+{"ts": "2026-09-18T04:50:57Z", "kind": "alert", "actor": "aletheia", "subject": "repo:aletheia", "text": "health unknown -> red"}
+{"ts": "2026-09-18T04:50:57Z", "kind": "alert", "actor": "aletheia", "subject": "repo:shorts_pipeline", "text": "health green -> red"}
+{"ts": "2026-09-18T04:50:59Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue updated — Aletheia, Shorts-pipeline, schwab-trader"}

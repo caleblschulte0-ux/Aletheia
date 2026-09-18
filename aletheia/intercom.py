@@ -80,6 +80,14 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # with its reason. `work_report` is how he asks what came of it.
     "work_projects":    (set(), {"minutes"}),
     "work_report":      (set(), {"about"}),
+    # "Study these and improve my project." (aletheia.studies): research ->
+    # comparison -> evidence-backed changes he decides on -> execution through
+    # the existing safe paths -> measurement. `study_decide` and
+    # `study_confirm` are HIS words only (PLANNER_FORBIDDEN).
+    "study_new":        ({"words"}, {"project", "path"}),
+    "studies":          (set(), {"which", "about"}),
+    "study_decide":     ({"choice"}, {"which", "study", "words"}),
+    "study_confirm":    (set(), {"study"}),
     "task_new":      ({"id", "description"}, {"goal", "worker", "deadline"}),
     "task_status":   ({"id", "state"}, {"note"}),
     # She could CREATE a task by voice and change its status, and had no
@@ -360,6 +368,22 @@ KIND_NOTES: dict[str, str] = {
     "work_report": (
         "What her work session did: finished, investigated, handed to him, what waits and on "
         "whom. Read only."),
+    "study_new": (
+        "He asks her to study things that do better than a project of his and improve it (\"study "
+        "X, Y and Z and improve my <project>\"). words is his whole sentence; project names the "
+        "project when the sentence does not; path is its folder when he gives one. She reads them "
+        "and his project the same way, measures the differences and proposes changes he decides on."),
+    "studies": (
+        "How a study is going, what it found and what it proposes to change (\"how's the study "
+        "going\", \"what did you find\", \"what should we change\"). about is found, change or "
+        "empty. Read only."),
+    "study_decide": (
+        "HIS decision on a study's proposal or measured change: choice is accept, reject, reshape, "
+        "keep, revert or iterate; which names it (\"the first one\", \"2\"); words are his reshape "
+        "words. Never compiled by the planner."),
+    "study_confirm": (
+        "His yes to comparables she found by searching, before she reads them. Never compiled by "
+        "the planner."),
     "screen_record": (
         "Start recording ONE window to an MP4 on this PC - never the whole desktop, never "
         "uploaded. window is its title or a unique part of it (computer_observe lists them); "
@@ -584,6 +608,8 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                "mission_new", "mission_add", "mission_confirm", "missions", "mission_activity",
                # a work session checks projects out, runs tests and asks her own model: this PC
                "work_projects", "work_report",
+               # a study reads his project folder and keeps its evidence in private state here
+               "study_new", "studies", "study_decide", "study_confirm",
                # Phone Link is paired to his iPhone on THIS machine;
                # Actions cannot text anybody.
                "message_send", "music",
@@ -652,6 +678,8 @@ READ_ONLY_KINDS = frozenset({
     "missions",
     # what a work session did is read from its receipts
     "work_report",
+    # what a study found and proposes is read from its record
+    "studies",
     # reads public pages and writes a document; commits him to nothing
     "research",
     # looking at his own files commits him to nothing
@@ -693,6 +721,10 @@ ROUTINE_KINDS = frozenset({
     # repair tier's branch-and-PR rule, rehearsal), and nothing world-touching
     # happens without its own approval.
     "work_projects",
+    # A study reads public pages politely and his own project, and proposes; his
+    # decision on a proposal is recorded here, and an accepted change runs only
+    # through paths that already have their gates (a branch, a packet, a handoff).
+    "study_new", "study_decide", "study_confirm",
     # Disabling a reminder is reversible by saying the opposite, which is
     # the whole test for this tier — the schedule is disabled, never
     # deleted, so "actually put that back" is one command.
@@ -884,6 +916,10 @@ PLANNER_FORBIDDEN = frozenset({
     # screenshot carries whatever happened to be on screen, and unlike
     # window text it cannot be redacted on the way out.
     "eyes_on",
+    # A study's proposal is accepted, kept or reverted on HIS words, and the
+    # comparables she found are read on his yes: a compiler that turns "sure,
+    # whatever" into an acceptance decides for him.
+    "study_decide", "study_confirm",
 })
 
 
@@ -1904,6 +1940,9 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "work_report":
         from aletheia import project_work
         return project_work.spoken_status(str(cmd.get("about") or ""))
+    if kind in ("study_new", "studies", "study_decide", "study_confirm"):
+        from aletheia import study_run
+        return study_run.command(kind, cmd, quote=quote, via=ACTOR)
     if kind == "tasks":
         return _tasks_answer(cmd.get("which", ""))
     if kind == "task_done":

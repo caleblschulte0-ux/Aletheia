@@ -105,7 +105,7 @@ _STATUS = re.compile(
 #: record he cannot name ("the Palantir one").
 _WORK = re.compile(
     r"\b(?:applications?|apps?|jobs?|job hunt|hunt|campaign|forms?|employers?|"
-    r"tasks?|projects?|plans?|charters?|missions?|goals?|steps?|errands?|"
+    r"tasks?|projects?|plans?|charters?|missions?|goals?|steps?|errands?|stud(?:y|ies)|experiments?|"
     r"reminders?|approvals?|handoffs?|requests?|runs?|loop|sessions?|"
     r"browser|pages?|sites?|captcha|account|"
     r"emails? you|mail you|messages? you|"
@@ -225,6 +225,8 @@ _LOOKING_AT = {
     "work.receipts": "what my work session did",
     "work.inventory": "the work on record",
     "mission.status": "your missions",
+    "study.status": "your studies",
+    "study.evidence": "what the study read",
     "mission.waiting": "what your missions are waiting on",
     "missions": "your missions",
     "applications.query": "the application records",

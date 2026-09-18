@@ -750,6 +750,25 @@ def interpret(transcript: str) -> dict:
     return _his_capitals(strip_wake_word(transcript), _interpret(transcript))
 
 
+def _a_study_is_open() -> bool:
+    """A study's own words ("accept the first one", "what did you find") mean a study only
+    when one is open; otherwise they belong to whatever else he might mean."""
+    try:
+        from aletheia import studies
+        return any(s.get("state") == studies.OPEN for s in studies.all_studies())
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _a_study_waits_for_a_verdict() -> bool:
+    try:
+        from aletheia import studies
+        return any(h.get("state") == studies.VERDICT for s in studies.all_studies() if s.get("state") == studies.OPEN
+                   for h in s.get("hypotheses") or [])
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def _interpret(transcript: str) -> dict:
     text = strip_wake_word(transcript)
     low = _without_preamble(text.lower().strip().rstrip(".?!"))
@@ -1530,6 +1549,46 @@ def _interpret(transcript: str) -> dict:
                     r"|how are my (?:(?:long|big) )?missions(?: going)?"
                     r"|(?:my |the )?(?:(?:long|big) )?missions?(?: status)?|mission status|where(?:'s| is) my mission at", low):
         return {"command": {"kind": "missions"}, "say": None}
+
+    # "STUDY THESE AND IMPROVE MY PROJECT." (aletheia.studies) - research that turns
+    # into changes he decides on, then measurement. An ORDER to study AND improve
+    # something of his: a question about a study ("how's the study going") starts
+    # with a question word and is matched below, never here.
+    if (not re.match(r"(?:how|what|why|when|where|which|who|is|are|did|does|do|can you tell)\b", low)
+            and re.search(r"\b(?:stud(?:y|ied)|research|analy[sz]e|dig into|look (?:in)?to|learn from)\b", low)
+            and re.search(r"\b(?:improve|do(?:ing)? (?:way |much |a lot )?better|make (?:it|ours|mine|my \w+|our \w+) better|"
+                          r"better than (?:ours|mine|my|our))\b", low)
+            and re.search(r"\b(?:my|our|ours|mine)\b", low)):
+        return {"command": {"kind": "study_new", "words": _as_he_said(text, low)}, "say": None}
+    m = re.fullmatch(r"(accept|reject|reshape|decline|turn down) (?:the |proposal |change |idea |hypothesis |number )?"
+                     r"(first|second|third|fourth|fifth|top|last|\d)(?: one| idea| proposal| change| hypothesis)?"
+                     r"(?:[:,]? (?:so that |to |and |but )?(.{3,}))?", low)
+    if m and _a_study_is_open():
+        choice = {"decline": "reject", "turn down": "reject"}.get(m.group(1), m.group(1))
+        cmd = {"kind": "study_decide", "choice": choice, "which": m.group(2)}
+        if m.group(3):
+            cmd["words"] = _as_he_said(text, m.group(3))
+        return {"command": cmd, "say": None}
+    m = re.fullmatch(r"(keep|revert|undo|roll back|iterate on) (?:the |that |this )?(?:study |measured )?change"
+                     r"(?: (?:from|in) the study)?|(iterate on|keep|revert) (?:it|that)(?: then)?", low)
+    if m and _a_study_waits_for_a_verdict():
+        verb = m.group(1) or m.group(2)
+        choice = {"undo": "revert", "roll back": "revert", "iterate on": "iterate"}.get(verb, verb)
+        return {"command": {"kind": "study_decide", "choice": choice}, "say": None}
+    if re.fullmatch(r"(?:yes[,]? |ok(?:ay)?[,]? |sure[,]? )?(?:go ahead and )?(?:study|read) (?:them|those)(?: (?:too|then|now))?"
+                    r"|confirm (?:the |those )?comparables", low) and _a_study_is_open():
+        return {"command": {"kind": "study_confirm"}, "say": None}
+    if re.fullmatch(r"how(?:'s| is|s) (?:the |my |our |your )?(?:study|research study)(?: (?:going|coming along|doing))?"
+                    r"|(?:the |my )?study(?: status| update)"
+                    r"|where (?:are we|is it) (?:with|on) the study", low):
+        return {"command": {"kind": "studies"}, "say": None}
+    if re.fullmatch(r"what did (?:you|the study|your study) (?:find|learn|measure)(?: out)?(?: (?:in|from|about) (?:the study|them|it))?"
+                    r"|what(?:'s| is|s| are) (?:the )?(?:study'?s? )?findings", low) and _a_study_is_open():
+        return {"command": {"kind": "studies", "about": "found"}, "say": None}
+    if re.fullmatch(r"what should (?:we|i|you) change(?: (?:about|in|on) (?:it|my \w+|our \w+|the project))?"
+                    r"|what (?:changes|proposals) (?:do you have|are there|did you come up with)"
+                    r"|what do you (?:propose|suggest) (?:we |i )?change", low) and _a_study_is_open():
+        return {"command": {"kind": "studies", "about": "change"}, "say": None}
 
     # "WORK ON MY PROJECTS." (aletheia.project_work) - the continuity brief's final
     # target, said the ways he says it. An ORDER to work, never a question about

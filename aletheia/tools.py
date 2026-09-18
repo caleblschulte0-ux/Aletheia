@@ -132,6 +132,7 @@ STORE_OF = {
     "web_task": "webtasks", "web_task_retry": "webtasks", "web_task_answer": "webtasks",
     "subscription_cancel": "subscriptions",
     "work_projects": "work", "work_report": "work",
+    "study_new": "studies", "studies": "studies", "study_decide": "studies", "study_confirm": "studies",
     "missions": "programs", "mission_new": "programs", "mission_add": "programs",
     "mission_confirm": "programs", "mission_activity": "programs",
     "thread_draft": "conversations", "thread_status": "conversations", "thread_send": "conversations",
@@ -396,7 +397,7 @@ def declare(name: str, *, description: str, input_schema: dict, handler: Callabl
 #: catalog; nothing else needs to know.
 DECLARED_MODULES = ("aletheia.state_tools", "aletheia.repo_tools", "aletheia.browser_tools",
                     "aletheia.memory_tools", "aletheia.program_tools", "aletheia.conversation_tools",
-                    "aletheia.work_tools")
+                    "aletheia.work_tools", "aletheia.study_tools")
 
 
 def _declared() -> list[Tool]:

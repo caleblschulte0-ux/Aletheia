@@ -178,7 +178,10 @@ class TheKillSwitchIsNotSomethingASENTENCECanTrip(unittest.TestCase):
         from aletheia import intercom
         self.assertEqual(intercom.PLANNER_FORBIDDEN,
                          frozenset({"halt", "resume", "approve", "deny",
-                                    "close", "open", "mic_on", "eyes_on"}))
+                                    "close", "open", "mic_on", "eyes_on",
+                                    # 2026-09-17: a study's proposal is accepted, kept or
+                                    # reverted, and its comparables confirmed, on HIS words
+                                    "study_decide", "study_confirm"}))
 
     def test_the_agenda_refuses_the_same_ones(self):
         """Two lists that disagree is one list that is wrong."""

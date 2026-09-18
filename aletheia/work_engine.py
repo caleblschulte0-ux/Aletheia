@@ -398,6 +398,12 @@ def source_charter_ci(now: dt.datetime) -> list[dict]:
     return charter_ci.source(now)
 
 
+def source_studies(now: dt.datetime) -> list[dict]:
+    """Studies (`aletheia.studies`): their steps, his decisions, accepted changes and measurements."""
+    from aletheia import study_run
+    return study_run.source(now)
+
+
 def source_programs(now: dt.datetime) -> list[dict]:
     """Long missions (`aletheia.programs`): their drafting, decisions and tasks."""
     from aletheia import program_run
@@ -412,6 +418,7 @@ SOURCES: dict[str, Callable[[dt.datetime], list[dict]]] = {
     "browser_missions": source_browser_missions,
     "project_asks": source_project_asks,
     "programs": source_programs,
+    "studies": source_studies,
     "waits": source_waits,
     "conversations": source_conversations,
     "charter_ci": source_charter_ci,
@@ -446,7 +453,7 @@ def gather(now: dt.datetime | None = None, *, sources: dict | None = None) -> tu
 
 #: Which store's view of a duplicated piece of work is the one shown and run.
 CANONICAL_RANK = {"plans": 0, "charter_ci": 1, "tasks": 2, "programs": 3, "handoffs": 4,
-                  "browser_missions": 5, "project_asks": 6, "conversations": 7, "waits": 8, "work": 9}
+                  "browser_missions": 5, "project_asks": 6, "conversations": 7, "waits": 8, "work": 9, "studies": 10}
 #: How far along a state is; a merged item takes the furthest.
 _PROGRESS = {ws.READY: 0, ws.RETRY_LATER: 1, ws.BLOCKED_MODEL: 2, ws.NEEDS_STRONGER_MODEL: 3,
              ws.BLOCKED_EXTERNAL: 3, ws.BLOCKED_LOGIN: 3, ws.BLOCKED_USER: 3, ws.RUNNING: 4,
@@ -630,6 +637,11 @@ def _run_program_item(it: dict, now: dt.datetime) -> dict:
     return program_run.run_item(it, now)
 
 
+def _run_study_item(it: dict, now: dt.datetime) -> dict:
+    from aletheia import study_run
+    return study_run.run_item(it, now)
+
+
 def _run_work_item(it: dict, now: dt.datetime) -> dict:
     from aletheia import work_runners
     return work_runners.run(it, now)
@@ -641,6 +653,7 @@ def _run_work_item(it: dict, now: dt.datetime) -> dict:
 #: state it was written for. A source not named here is inventory only.
 SOURCE_RUNNERS: dict[str, Callable[[dict, dt.datetime], dict]] = {
     "programs": _run_program_item,
+    "studies": _run_study_item,
     "tasks": _run_work_item,
     "plans": _run_work_item,
     "charter_ci": _run_work_item,

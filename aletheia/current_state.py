@@ -695,6 +695,12 @@ def work_session_section(now: dt.datetime | None = None) -> dict:
     return project_work.summary(_utc(now))
 
 
+def studies_section(now: dt.datetime | None = None) -> dict:
+    """His studies (`aletheia.studies`): evidence, proposals awaiting him, changes being measured."""
+    from aletheia import studies
+    return studies.section(_utc(now))
+
+
 def programs_section(now: dt.datetime | None = None) -> dict:
     """His long missions (`aletheia.programs`): each one's progress, what waits, what is his."""
     from aletheia import programs
@@ -737,6 +743,8 @@ def sections(now: dt.datetime | None = None, *, fresh: bool = False) -> dict:
                               {"readable": False, "note": "the work sessions could not be read"}),
         "programs": _safe(lambda: programs_section(now),
                           {"readable": False, "note": "the long missions could not be read"}),
+        "studies": _safe(lambda: studies_section(now),
+                         {"readable": False, "note": "the studies could not be read"}),
         "conversations": _safe(lambda: conversations(now),
                                {"readable": False, "note": "the conversations could not be read"}),
     }
@@ -816,6 +824,7 @@ def snapshot(*, now: dt.datetime | None = None) -> dict:
         "work": derived.get("work"),
         "work_session": derived.get("work_session"),
         "programs": derived.get("programs"),
+        "studies": derived.get("studies"),
     }
 
 
