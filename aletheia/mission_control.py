@@ -675,7 +675,10 @@ def gather(now: dt.datetime | None = None, *, fresh: bool = False,
             notes.append(f"{name} could not be read ({type(exc).__name__})")
             return fallback
 
-    derived = attempt("her current state", lambda: current_state.sections(now), {})
+    # FRESH means fresh all the way down: the sections cache is three seconds
+    # long, and a screen asked to refresh that showed a three-second-old
+    # answer is a screen that disagrees with the store it is rendering.
+    derived = attempt("her current state", lambda: current_state.sections(now, fresh=fresh), {})
     hunt = derived.get("job_hunt") or {}
     browser = derived.get("browser") or {}
     entries = attempt("the journal", lambda: journal.entries()[-600:], [])

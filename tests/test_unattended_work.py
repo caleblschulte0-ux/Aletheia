@@ -233,13 +233,30 @@ class WhatSheSaysAboutIt(Ledgered):
         self.assertIn("call the landlord back", said)
 
     def test_it_is_sayable_out_loud(self):
+        """No identifier, no state code, no markdown: it is read in a room.
+
+        The first version put `say undo un-3af32fc6a8a4 and I will take it
+        back` in the sentence, which is not something a person can say back."""
         from aletheia import speech
         autonomy.record(tool="note", args={"text": "x"}, consequence=tools.VISIBLE_TO_HIM,
                         session="agent-1", said="noted what he said about the tour")
+        autonomy.record(tool="task_new", args={"id": "t1"}, consequence=tools.REVERSIBLE_LOCAL,
+                        session="agent-1", said="added a task to call the landlord back",
+                        undo={"how": autonomy.TASK_CANCEL, "task": "t1"})
         said = autonomy.spoken()
         self.assertEqual(said, speech.spoken_prose(said).strip() or said)
+        self.assertNotIn("un-", said)
         for jargon in ("reversible_local", "REVERSIBLE", "consequence=", "{"):
             self.assertNotIn(jargon, said)
+        self.assertIn("which one to undo", said)
+
+    def test_a_long_list_is_cut_and_the_count_still_matches(self):
+        for n in range(7):
+            autonomy.record(tool="note", args={"text": "x"}, consequence=tools.VISIBLE_TO_HIM,
+                            session="agent-1", said=f"noted thing {n}")
+        said = autonomy.spoken()
+        self.assertIn("7 things", said)
+        self.assertIn("and 4 more", said)
 
     def test_an_empty_ledger_proves_the_ledger(self):
         said = autonomy.spoken()

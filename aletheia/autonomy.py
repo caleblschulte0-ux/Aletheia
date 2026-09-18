@@ -297,6 +297,53 @@ def tools_consequence_local() -> str:
     return tools.REVERSIBLE_LOCAL
 
 
+#: How each unattended action READS OUT. A receipt is not a sentence
+#: (CLAUDE.md: "Say it OUT LOUD before you believe the receipt"), and the
+#: intercom's own detail for `note` is the single word "journaled" - which, in
+#: a list of things she did without asking, tells him nothing at all. The value
+#: is a format string over the tool's arguments; anything not named here falls
+#: back to the receipt, then to the tool's name.
+SAID_AS = {
+    "note": "noted: {text}",
+    "task_new": "added a task: {description}",
+    "task_status": "set the task {id} to {state}",
+    "task_done": "ticked off {which}",
+    "remember": "remembered your {domain}: {key}",
+    "file_write": "wrote {path} in my workspace",
+    "file_edit": "edited {path} in my workspace",
+    "compose": "wrote {path} in my workspace",
+    "doc_make": "made the document {path}",
+    "thread_draft": "drafted a message to {to} (nothing sent)",
+    "calendar_hold": "pencilled in {title} (a tentative hold in my own calendar, nothing sent)",
+    "shopping_add": "put {item} on your list",
+    "plan_step": "moved a step of {slug}",
+    "notify_operator": "raised a notice: {text}",
+    "remind_at": "set a reminder: {text}",
+}
+
+
+def said_for(tool, args: dict, result: Any = None) -> str:
+    """One unattended action in a sentence he can hear. Never an identifier on
+    its own, never a bare receipt word."""
+    name = str(getattr(tool, "name", tool) or "")
+    shape = SAID_AS.get(name)
+    if shape:
+        try:
+            said = shape.format_map({k: " ".join(str(v).split()) for k, v in (args or {}).items()})
+            return " ".join(said.split())[:MAX_SAID]
+        except (KeyError, IndexError, ValueError):
+            pass
+    try:
+        from aletheia import handoffs
+        receipt = handoffs._said_result(result)
+    except Exception:                                              # noqa: BLE001
+        receipt = ""
+    receipt = " ".join(str(receipt or "").split())
+    if len(receipt) >= 12:
+        return receipt[:MAX_SAID]
+    return f"ran {name}" + (f" ({receipt})" if receipt else "")
+
+
 def branch_undo(*, path: str, branch: str, repo: str = "") -> dict:
     """The undo for a branch she prepared in a throwaway checkout: delete the
     branch and drop the workspace. Nothing was pushed, so nothing is un-pushed."""
@@ -397,19 +444,28 @@ def _drop_branch(plan: dict) -> str:
 
 # ---- said out loud ----------------------------------------------------------
 
+#: How many are named out loud. A list of everything is a list of nothing
+#: (CLAUDE.md: he stops listening at the fourth item).
+SPOKEN_LIMIT = 3
+
+
 def said_line(row: dict) -> str:
-    """One unattended action, in a sentence. Reversible and local, said so."""
+    """One unattended action, in a sentence.
+
+    NO IDENTIFIER. This is read out in a room, and `un-3af32fc6a8a4` is not a
+    thing a person can say back (CLAUDE.md: "Everything a model writes is going
+    to be read out in a room"). The id lives in the ledger and on the screen,
+    where the undo command is one click; out loud he says "undo the task you
+    added" and the sentence has to be enough to name it.
+    """
     what = str(row.get("said") or "").strip() or f"ran {row.get('tool')}"
     what = what.rstrip(".")
     if row.get("undone"):
         return f"{what} - and I took that back"
-    how = str((row.get("undo") or {}).get("how") or NONE)
-    if how == NONE:
-        return what
-    return f"{what} - say undo {row.get('id')} and I will take it back"
+    return what
 
 
-def spoken(rows: list[dict] | None = None, *, hours: float = 24.0, limit: int = 5) -> str:
+def spoken(rows: list[dict] | None = None, *, hours: float = 24.0, limit: int = SPOKEN_LIMIT) -> str:
     """"What did you do without asking me", answered from the ledger.
 
     The wording has one job beyond listing: to make plain that every one of
@@ -418,14 +474,23 @@ def spoken(rows: list[dict] | None = None, *, hours: float = 24.0, limit: int = 
     cost me".
     """
     from aletheia import speech
-    rows = recent(hours=hours, limit=limit) if rows is None else rows
+    rows = recent(hours=hours, limit=max(limit, 20)) if rows is None else rows
     if not rows:
         return (f"Nothing in the last {int(hours)} hours. Everything I did either you asked for, "
                 "or it is still waiting for your yes.")
-    lines = [said_line(r) for r in rows[:limit]]
+    shown = rows[:max(1, limit)]
+    lines = [said_line(r) for r in shown]
+    rest = len(rows) - len(shown)
     lead = (f"{speech.count_phrase(len(rows), 'thing')} in the last {int(hours)} hours, and every one of "
             "them was reversible and stayed on this machine - nothing was sent, published or spent: ")
-    return lead + "; ".join(lines) + "."
+    undoable = [r for r in rows if not r.get("undone")
+                and (r.get("undo") or {}).get("how") not in (None, NONE)]
+    tail = "."
+    if rest > 0:
+        tail = f"; and {rest} more."
+    if undoable:
+        tail += " Tell me which one to undo and I will take it back."
+    return lead + "; ".join(lines) + tail
 
 
 def summary(*, hours: float = 24.0, limit: int = 8, now: dt.datetime | None = None) -> dict:
@@ -449,7 +514,9 @@ def summary(*, hours: float = 24.0, limit: int = 8, now: dt.datetime | None = No
                      "why_not_undoable": (r.get("undo") or {}).get("why", "")
                      if (r.get("undo") or {}).get("how") == NONE else ""}
                     for r in rows],
-        "said": spoken(rows, hours=hours, limit=limit),
+        # The LIST may be long (it is rendered); the SENTENCE names three and
+        # counts the rest, because it is read out loud.
+        "said": spoken(rows, hours=hours, limit=SPOKEN_LIMIT),
         "note": "" if rows else "nothing has run unattended in this window",
     }
 

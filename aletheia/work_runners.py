@@ -667,10 +667,10 @@ def _note_unattended(tool, args: dict, result, *, session: str, route: str = "")
     """One reversible thing the work session did without asking, with its undo.
     Never raises: the work already happened."""
     try:
-        from aletheia import autonomy, handoffs
+        from aletheia import autonomy
         return autonomy.record(tool=getattr(tool, "name", str(tool)), args=dict(args or {}),
                                consequence=getattr(tool, "consequence", ""), session=session,
-                               route=route, said=handoffs._said_result(result),
+                               route=route, said=autonomy.said_for(tool, args, result),
                                undo=autonomy.undo_plan(tool, args, result))
     except Exception as exc:  # noqa: BLE001
         return {"id": "", "recorded": False, "why": f"{type(exc).__name__}: {str(exc)[:120]}"}
@@ -702,10 +702,12 @@ def _from_repair(it: dict, run: dict, *, target: dict | None, check: dict | None
         if status == "BRANCH_READY" and run.get("branch") and (view or {}).get("path"):
             # A branch in a throwaway copy, prepared without asking. Nothing is
             # pushed; the ledger says so and says how to throw it away.
+            where_repo = str(run.get("repo") or (target or {}).get("repo") or "").split("/")[-1]
             noted = _note_branch(it, branch=str(run["branch"]), path=str(view["path"]),
                                  repo=str(run.get("repo") or (target or {}).get("repo") or ""),
-                                 said=f"prepared a verified repair on the branch {run['branch']} in a "
-                                      f"throwaway copy of {_short(it, 50)}; nothing was pushed",
+                                 said=f"prepared a verified repair on the branch {run['branch']}, in a "
+                                      f"throwaway copy of {where_repo or 'the project'}; nothing was "
+                                      "pushed and nothing was merged",
                                  route="failure")
             if noted.get("id"):
                 evidence["unattended"] = [noted["id"]]

@@ -837,10 +837,10 @@ class AgentSession:
         Never raises: the action already happened, and losing the undo is worse
         said than hidden, so a failure is recorded on the result."""
         try:
-            from aletheia import autonomy, handoffs
+            from aletheia import autonomy
             entry = autonomy.record(tool=tool.name, args=dict(args or {}),
                                     consequence=tool.consequence, session=self.result.id,
-                                    said=handoffs._said_result(result),
+                                    said=autonomy.said_for(tool, args, result),
                                     undo=autonomy.undo_plan(tool, args, result))
         except Exception as exc:                                   # noqa: BLE001
             self.result.unattended.append({"tool": tool.name, "recorded": False,
