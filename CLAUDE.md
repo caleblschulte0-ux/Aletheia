@@ -148,6 +148,68 @@ froze the stale literal instead of asserting the contract. See
 `docs/ROADMAP.md` Phase 7 and the journal. That is what this rule looks
 like working: permission given, work done, review real, defects caught.
 
+## Consequence, not "read vs write" — and everything unattended is undoable
+
+His continuity brief, Part III item 10, built 2026-09-18 (wave C4b), in his
+words: *"Move from 'reads autonomous, writes ask Caleb' toward
+consequence-based authority: temporary local workspaces, fixing a project in a
+branch, drafts, tasks, internal project state, rescheduling its own queued
+work, notes, running tests, preparing PRs and other reversible actions may run
+under standing or bounded authority. Money, binding commitments, destructive
+operations, outward communications and authority changes keep their approval
+rules. Do not weaken existing safety."*
+
+So every descriptor carries the CONSEQUENCE of doing it (`aletheia.tools`),
+derived from what it already said — the tier, the stores it changes, the
+switch and container sets, the destructive and open-world flags — with
+`CONSEQUENCE_OF` for the handful derivation gets wrong. Three values:
+
+    reversible_local      a scratch worktree, a branch, a draft, a note in a
+                          store of hers, a task, internal project state, a
+                          test run, her own queue rescheduled
+    reversible_visible    reaches HIM and nobody else: a notification, a
+                          journal line, a reminder, a hold in her own calendar
+    outward               reaches somebody else or cannot be taken back
+
+**Consequence is not permission, and both have to say yes.** `approval` still
+says who must authorise it, it is checked FIRST, and a registry entry always
+wins: `repo.try_patch` is reversible and still waits for him because he said
+so. `tools.runs_unattended` is the conjunction, and it is the only thing that
+makes a writer run inside a session.
+
+Four things bound it, and none of them is a flag:
+
+- **A budget** (`aletheia.autonomy`): per session and per day. Reversible is
+  not free — a loop that drafts the same note four hundred times costs him a
+  day. Past the cap the action stops being unattended and becomes a handoff.
+- **The kill switch before EVERY action**, not once per session: a session
+  outlives the moment he says stop, and it fails closed.
+- **An undo, recorded at the time**: the branch name and the throwaway copy,
+  the file path, the task id, the memory key. `python -m aletheia.autonomy
+  undo <id>`. Where there is no undo it SAYS so (the journal is append-only)
+  rather than saying nothing. She undoes her own reversible actions and
+  nothing else: an outward action and a decision of his are both refused by
+  name.
+- **Honesty surfaces**: `current_state` and the Command Center carry the
+  list, the work session's report ends with it, and "what did you do without
+  asking me" reaches a session that reads the ledger
+  (`autonomy.unattended`). The wording says every one of them was reversible
+  and stayed on this machine, and names three — an identifier is not a thing
+  he can say back, so the id lives on the screen and not in the sentence.
+
+Unchanged, and no flag reaches any of it: spending is REFUSED rather than
+handed off; sending, publishing, deleting for good, creating an account, a
+live calendar write, a pull request, his decisions and authority itself are
+outward and still become approvals; she cannot approve her own requests,
+create or widen a grant, or lift her own halt.
+
+The descriptors are also the source the rest is checked against
+(`tests/test_the_descriptors_are_the_source.py`, brief item 9): the grammar,
+the tiers, the approval policies, the capability ids, the session catalog and
+"what can you do" all have a test that fails when they and the descriptors
+disagree. The spoken groups MOVED into `tools.py`; everything else is still
+its own table, derived from and checked against the descriptor.
+
 ## Tasks and goals are durable, verification is real
 
 Real-world work outlives conversations (§27): anything multi-step or

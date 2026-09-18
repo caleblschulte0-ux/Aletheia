@@ -282,6 +282,27 @@ class WhatSheSaysAboutIt(Ledgered):
         self.assertIn("append-only", row["why_not_undoable"])
 
 
+class TheWorkSessionSaysWhatItDidWithoutAsking(Ledgered):
+    def test_the_report_names_it_and_offers_the_undo(self):
+        from aletheia import project_work
+        entry = autonomy.record(tool="local_repair.branch", args={"branch": "thea-repair/x"},
+                                consequence=tools.REVERSIBLE_LOCAL, session="work-1",
+                                said="prepared a verified repair on the branch thea-repair/x, in a "
+                                     "throwaway copy of barkly; nothing was pushed",
+                                undo=autonomy.branch_undo(path="/tmp/x", branch="thea-repair/x"))
+        record = {"receipts": [{"title": "fix the goTo mismatch", "kind": "repaired",
+                                "evidence": {"unattended": [entry["id"]]}}]}
+        said = project_work.unattended_words(record)
+        self.assertIn("without asking", said)
+        self.assertIn("reversible", said)
+        self.assertIn("this machine", said)
+        self.assertIn("thea-repair/x", said)
+
+    def test_a_session_that_did_nothing_unattended_says_nothing(self):
+        from aletheia import project_work
+        self.assertEqual(project_work.unattended_words({"receipts": [{"title": "x", "evidence": {}}]}), "")
+
+
 class TheSurfacesShowIt(Ledgered):
     def test_current_state_carries_the_section(self):
         from aletheia import current_state
@@ -330,6 +351,55 @@ class TheSurfacesShowIt(Ledgered):
                 self.assertTrue(investigate.wants_session(said), said)
         # and an ordinary question about the world still does not
         self.assertFalse(investigate.wants_session("why is the sky blue"))
+
+
+class NothingHereCanWidenItself(unittest.TestCase):
+    """The rules that are not allowed to have an exception, checked against the
+    SOURCE rather than against behaviour: a behaviour test passes for a module
+    that grew a flag nobody noticed."""
+
+    def code(self):
+        """The module's CODE, with the docstrings taken out - a rule about what
+        it may reach must not be tripped by a sentence describing the rule."""
+        import ast
+        from pathlib import Path as P
+        import aletheia.autonomy as module
+        tree = ast.parse(P(module.__file__).read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+                body = node.body
+                if (body and isinstance(body[0], ast.Expr)
+                        and isinstance(body[0].value, ast.Constant)
+                        and isinstance(body[0].value.value, str)):
+                    body[0].value.value = ""
+        return ast.unparse(tree)
+
+    def test_it_never_touches_authority_or_grants(self):
+        text = self.code()
+        for forbidden in ("import authority", "authority.", "policy.resume", "policy.halt(",
+                          "front_door", "delegable", "satisfy("):
+            self.assertNotIn(forbidden, text, f"autonomy.py must not reach {forbidden}")
+
+    def test_it_never_decides_an_approval(self):
+        text = self.code()
+        for forbidden in ("policy.decide", "APPROVED", "handoffs.run_approved"):
+            self.assertNotIn(forbidden, text)
+
+    def test_the_caps_are_constants_and_not_read_from_anywhere(self):
+        """A budget an environment variable can raise is not a budget."""
+        text = self.code()
+        self.assertIn("SESSION_LIMIT = ", text)
+        self.assertIn("DAY_LIMIT = ", text)
+        self.assertNotIn("os.environ", text)
+
+    def test_spending_is_never_a_question_for_this_module(self):
+        """It cannot allow a spending action, and it has no word for money."""
+        from aletheia import tools
+        catalog = tools.catalog()
+        for kind in ("web_task", "subscription_cancel", "web_task_retry"):
+            with self.subTest(kind=kind):
+                ok, _why = autonomy.allow(catalog[kind], session="x", halted=lambda: False)
+                self.assertFalse(ok)
 
 
 class TheSessionWritesItDown(Ledgered):
