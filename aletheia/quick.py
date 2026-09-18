@@ -641,70 +641,22 @@ def _approvals() -> str:
 # nothing: he stops listening at the fourth item.
 SPOKEN_GROUPS = 6
 
-_HE_CAN_ASK_FOR = {
-    "your tasks and reminders": ("task_new", "tasks", "task_done",
-                                 "task_status", "remind_at", "remind_daily",
-                                 "remind_weekly", "reminders", "reminder_off",
-                                 "do_task"),
-    "your lists": ("shopping_add", "shopping_list", "shopping_off"),
-    # Third on purpose: dict order is spoken order, only the first six
-    # are said, and "can you make me a spreadsheet" is a question he
-    # actually asked. A capability nobody hears about is one he will
-    # never use.
-    "making Word, Excel and PowerPoint files": ("doc_make",),
-    "email": ("email_check", "email_read", "email_draft", "thread_draft", "thread_send",
-              "thread_status", "thread_followup"),
-    "texting people": ("message_send",),
-    "your calendar and the weather": ("free_time", "meet", "calendar_find_free",
-                                      "calendar_hold", "calendar_propose"),
-    "people you know": ("contacts", "contact_add", "watch_email_from",
-                        "watches"),
-    "remembering things": ("remember", "recall", "forget", "note"),
-    "music": ("music",),
-    "your files": ("file_find", "file_size", "file_list", "file_read",
-                   "file_write", "file_edit", "file_move", "file_delete",
-                   "compose"),
-    "looking things up on the web": ("browse_read", "browse_shot", "research",
-                                     "web_task", "web_task_answer",
-                                     "web_task_retry"),
-    "driving your computer": ("computer_do", "computer_observe", "screen_ask",
-                              "screenshot", "screen_record", "screen_record_stop",
-                              "recording"),
-    "your projects and repos": ("projects", "plan_new", "plan_add_step",
-                                "plan_step", "plan_set", "issue", "dispatch",
-                                "project_new", "project_step", "project_drop"),
-    "long missions that run for weeks": ("missions", "mission_new", "mission_add", "mission_confirm"),
-    "working on your projects on your say-so": ("work_projects", "work_report"),
-    "studying what does better and improving your projects": ("study_new", "studies", "study_decide",
-                                                          "study_confirm"),
-    "job applications": ("jobs", "apply_prepare", "apply_campaign", "apply_answer",
-                         "applications", "apply_outcome"),
-    "money you spend": ("money", "subscriptions", "subscription_cancel"),
-    "your car and journeys": ("car", "travel_time"),
-    "media files": ("media_probe", "media_trim", "media_join", "media_audio",
-                    "media_captions", "media_convert"),
-    "putting workers on something": ("agents", "agent_new", "agent_stop",
-                                         "agents_pause"),
-}
+# CONSOLIDATED 2026-09-18 (continuity brief, item 9). The two tables moved to
+# `tools.SPOKEN_GROUPS_BY_NAME` and `tools.INTERNAL_KINDS`, beside the
+# descriptors, so one edit teaches the catalog and the answer at once. They are
+# reached through the module `__getattr__` below rather than imported at the
+# top, because `quick` is the fast lane: importing `tools` imports the whole
+# intercom, and the point of this module is that it costs a file read.
 
-# Reachable, but not things a person asks FOR: switches, plumbing and the
-# machinery of asking. Named so the test can tell "deliberately unlisted"
-# from "somebody added a verb and forgot".
-_NOT_A_THING_HE_ASKS_FOR = frozenset({
-    "halt", "resume", "close", "open", "approve", "deny", "intent", "handle",
-    "running", "brief", "setup_status", "notify_check", "notify_clear",
-    "notify_snooze", "notify_operator", "announce_set", "rule",
-    "authority_status", "mic", "mic_on", "mic_off",
-    # A recurring schedule's own verb for a long mission; nothing he says means it.
-    "mission_activity",
-    # Switches over her own workings, like the microphone: he turns
-    # them on and off, he does not ask her to DO them.
-    "chatgpt", "chatgpt_on", "chatgpt_off",
-    # And looking at the actual picture of his screen. Asking about the
-    # screen is `screen_ask`, which is listed; these three are the switch
-    # behind it, which he flips rather than asks for.
-    "eyes", "eyes_on", "eyes_off",
-})
+
+def __getattr__(name):
+    if name == "_HE_CAN_ASK_FOR":
+        from aletheia import tools
+        return tools.SPOKEN_GROUPS_BY_NAME
+    if name == "_NOT_A_THING_HE_ASKS_FOR":
+        from aletheia import tools
+        return tools.INTERNAL_KINDS
+    raise AttributeError(name)
 
 
 def _capabilities() -> str | None:
@@ -726,7 +678,8 @@ def _capabilities() -> str | None:
         return None
 
     # A group is worth naming when the grammar can still reach it.
-    named = [name for name, kinds in _HE_CAN_ASK_FOR.items()
+    from aletheia import tools
+    named = [name for name, kinds in tools.SPOKEN_GROUPS_BY_NAME.items()
              if any(k in intercom.KIND_ARGS for k in kinds)]
     if not named:
         return None

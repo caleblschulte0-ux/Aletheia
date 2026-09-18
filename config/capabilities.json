@@ -1865,6 +1865,30 @@
       "module": "aletheia.gvoice",
       "verification": "tests/test_gvoice.py: every real SMS code shape is read where the email extractor caught one of six, a year or a price is refused, a signed-out page says NOT SIGNED IN rather than reporting no messages, a code older than ten minutes or one she cannot date is refused, and an AST walk holds that she reads and never replies",
       "notes": "Built 2026-09-13. The signup number is a Google Voice line, and half of what she signs up for sends its code by TEXT - so an account got as far as 'we sent you a code' and stopped, with the code in a tab he would have to read himself. Read through the authorized Chrome profile browse already uses, because Google Voice has no public API for a personal account and there are no API keys anywhere. UNPROVEN against the real voice.google.com: the parsing is written from the page's visible text and Google changes that without notice, so a run that finds nothing reports 'nothing readable' rather than 'no messages'. Codes are refused when older than ten minutes, the lesson from 2026-09-12 on the mail path, where an hour-old code was typed in and the form's refusal read like a broken form rather than a stale code. She reads and never sends: replying as him is a different capability with a different risk."
+    },
+    {
+      "id": "repo.read",
+      "description": "Read my own code to answer a question about myself - list files, search, read a file, find where a function or class is defined, the working state, a diff and the recent commits",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "AgentSession tools repo.list, repo.search, repo.read, repo.symbol, repo.status, repo.diff and repo.log (aletheia.repo_tools); reached whenever a question about why something in my own code behaves as it does goes to a session (aletheia.investigate)",
+      "module": "aletheia.repo_tools",
+      "verification": "Live on his PC 2026-09-18: a sandboxed agent session answered a question about her own code by requesting repo.search and repo.read, and the receipts name both. The entry was missing until then, although the seven tools had real callers - tests/test_the_descriptors_are_the_source.py fails now if a descriptor names a capability the registry does not hold.",
+      "notes": "Reads only, inside the repository, through aletheia.repo_tools' own path guard. It writes nothing: proposing a patch is repo.propose_patch and trying one is repo.try_patch, and both are separate entries with their own rules."
+    },
+    {
+      "id": "autonomy.unattended",
+      "description": "Tell you everything I did WITHOUT asking you - every reversible, local action I took on my own, newest first, with the one command that takes each of them back and how much of my daily allowance is left",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.autonomy list|undo|budget; the AgentSession tool autonomy.unattended (aletheia.state_tools), which is how \"what did you do without asking me\" is answered (aletheia.investigate); current_state section 'unattended' and the same block on the Command Center (aletheia.mission_control)",
+      "module": "aletheia.autonomy",
+      "verification": "Live on his PC 2026-09-18 in a sandboxed private state: a work session and an agent session did reversible things unattended, the ledger listed them with their undo, and one was undone and stayed undone.",
+      "notes": "The ledger and the undo for docs/CONTINUITY_BRIEF.md Part III item 10. It grants nothing: aletheia.tools decides what is reversible, and this only counts it, bounds it per session and per day, and reverses it. It refuses to undo anything outward and anything of yours - a decision, an approval - and no flag here reaches spending or the kill switch. EXPERIMENTAL until a week of real sessions has run against it."
     }
   ]
 }

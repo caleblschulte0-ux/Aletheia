@@ -139,6 +139,20 @@ _DOING_OR_NEEDS = re.compile(
     r"|\bneed(?:s)? (?:from|of) me\b|\bneed me to\b|\bwaiting (?:on|for) me\b|\bneeds? me\b"
     r"|\bwhat(?:'s| is|s) (?:blocking|holding up|stopping) (?:you|u|it|the)\b")
 
+#: "What did you do without asking me." The question his continuity brief made
+#: askable: since she may now do reversible local work unattended, he is owed a
+#: straight answer about what that was, from the receipts rather than from a
+#: model's memory of the turn. Written with its negatives and its synonyms in
+#: the same sitting (CLAUDE.md: "The question she is asked in the negative
+#: reaches nothing") - without asking, without telling, without my say-so, on
+#: your own, by yourself, unattended, behind my back.
+_WITHOUT_ASKING = re.compile(
+    r"\bwithout (?:asking|telling|checking with|clearing (?:it )?with|my say|my say-so|"
+    r"my approval|my permission|me knowing|letting me know)\b"
+    r"|\b(?:on your own|by yourself|off your own back|unattended|autonomously|"
+    r"behind my back)\b"
+    r"|\bdid(?:n'?t| not)? (?:you )?(?:ask|check with) me\b")
+
 #: "How is Barkly going", "where are we with the promo video", "any update on X".
 _HOW_IS_X_GOING = re.compile(
     r"^(?:how(?:'s| is|s| are)|how(?:'re)) (?:the |my |our |your )?(?P<x>[\w .&'-]{2,40}?) "
@@ -188,6 +202,10 @@ def wants_session(text: str) -> bool:
         return False
     if _DOING_OR_NEEDS.search(said) or _WHAT_IS_WRONG.match(said):
         return True
+    # "What did you do without asking me" names her and names the thing; the
+    # ledger holds the answer and no fixed context carries it.
+    if _WITHOUT_ASKING.search(said) and (_HER.search(said) or _ANY.search(said)):
+        return True
     going = _HOW_IS_X_GOING.match(said)
     if going:
         subject = next((going.group(k) for k in ("x", "x2", "x3", "x4", "x5") if going.group(k)), "")
@@ -223,6 +241,7 @@ def wants_session(text: str) -> bool:
 _LOOKING_AT = {
     "state.now": "what I'm doing right now",
     "work.receipts": "what my work session did",
+    "autonomy.unattended": "what I did without asking you",
     "work.inventory": "the work on record",
     "mission.status": "your missions",
     "study.status": "your studies",

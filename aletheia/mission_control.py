@@ -768,6 +768,13 @@ def gather(now: dt.datetime | None = None, *, fresh: bool = False,
         "details": details,
         "providers": [{"type": p.type, "label": p.label} for p in registered.values()],
         "code": derived.get("code"),
+        # WHAT SHE DID WITHOUT ASKING, on the screen he already looks at. Not a
+        # mission card: none of it is waiting on him, and putting it in the
+        # needs-you column would teach him to ignore that column. A short list
+        # with the command that undoes each one (continuity brief item 10).
+        "unattended": derived.get("unattended") or attempt(
+            "what ran unattended", lambda: current_state.unattended(now),
+            {"readable": False, "note": "the unattended ledger could not be read"}),
         "notes": notes,
     }
     value = json.loads(json.dumps(value, default=str))
