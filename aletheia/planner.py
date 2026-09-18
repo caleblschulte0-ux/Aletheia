@@ -422,7 +422,8 @@ def _compile_locally(request: str, context: dict | None, now: str | None,
                        f"her own model could not plan it either: "
                        f"{speech.shorten(str(exc), 160)}", actor=ACTOR)
         return None
-    return output, f"ollama:{model_name}" if ":" not in str(model_name) else str(model_name), kinds
+    named = str(model_name or "her own model")
+    return output, named if named.startswith("ollama:") else f"ollama:{named}", kinds
 
 
 def queue_unplanned(request: str, reason: str) -> str:
