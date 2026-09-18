@@ -95,6 +95,20 @@ Error: Failed to load url @/basket.js (resolved id: @/basket.js) in C:/tmp/hard/
       Tests  3 passed (3)
 """
 
+#: jest 29.7.0 exits ZERO for this too, and Barkly's own test script is jest.
+JEST_NOTHING_MATCHED = """
+Test Suites: 1 skipped, 0 of 1 total
+Tests:       2 skipped, 2 total
+Snapshots:   0 total
+Ran all test suites within paths "__tests__/basket.test.js".
+"""
+JEST_ONE_MATCHED = """
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 1 skipped, 2 total
+Snapshots:   0 total
+Ran all test suites within paths "__tests__/basket.test.js".
+"""
+
 VITEST_NOTHING_MATCHED = """
  RUN  v2.1.9 C:/tmp/x
 
@@ -366,7 +380,12 @@ class FailuresReadTheSameWay(unittest.TestCase):
         detection = {"toolchain": runners.NODE, "runner": "vitest"}
         self.assertEqual(runners.tests_ran(VITEST_NOTHING_MATCHED, detection=detection), 0)
         self.assertEqual(runners.tests_ran(VITEST_OUT, detection=detection), 3)
-        self.assertEqual(runners.tests_ran(JEST_OUT, detection={"toolchain": runners.NODE, "runner": "jest"}), 2)
+        jest = {"toolchain": runners.NODE, "runner": "jest"}
+        self.assertEqual(runners.tests_ran(JEST_OUT, detection=jest), 2)
+        # jest 29.7.0 exits ZERO for a -t that matches nothing, and Barkly's
+        # own test script is jest.
+        self.assertEqual(runners.tests_ran(JEST_NOTHING_MATCHED, detection=jest), 0)
+        self.assertEqual(runners.tests_ran(JEST_ONE_MATCHED, detection=jest), 1)
         self.assertEqual(runners.tests_ran(MOCHA_OUT, detection={"toolchain": runners.NODE, "runner": "mocha"}), 2)
         self.assertEqual(runners.tests_ran(NODE_TEST_OUT,
                                            detection={"toolchain": runners.NODE, "runner": "node-test"}), 2)
