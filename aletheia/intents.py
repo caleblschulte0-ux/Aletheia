@@ -348,6 +348,10 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
         "approval": approval_id,
         "provider": plan.provider,
         "degraded": plan.degraded,
+        # WHICH RUNG COMPILED IT, on the receipt and in the sentence.
+        "compiled_by": plan.compiled_by,
+        "shortlist": list(plan.shortlist),
+        "queued_work": plan.queued,
         "steps": [{"n": s.n, "status": s.status, "detail": s.detail,
                    "command": s.command, "capability": s.capability}
                   for s in plan.steps],
@@ -530,6 +534,20 @@ def _degraded_line(detail: str) -> str:
     return speech.shorten(speech.plainly(text), 150)
 
 
+def _own_model_line(record: dict) -> str:
+    """HER OWN ANSWERS SAY THEY ARE HERS (CLAUDE.md).
+
+    `converse` already leads with "Claude's out ... so this answer is from my
+    own model". A PLAN compiled on the same rung needs the same disclosure for
+    the same reason: an answer he trusts as Claude's and is not is the failure
+    he cannot detect - and this one ends in "say approve to run it".
+    """
+    if not record.get("compiled_by"):
+        return ""
+    return ("Claude and Codex are out, so I planned this with "
+            f"{record['compiled_by']}. ")
+
+
 def spoken(record: dict) -> str:
     """What Thea says back. Short, honest about what is and is not happening."""
     # A real answer, when the ask was a QUESTION, beats every summary below.
@@ -560,7 +578,15 @@ def spoken(record: dict) -> str:
         # characters. `plainly` and `shorten` already existed for exactly this
         # and this branch was the one place that reached neither. The full
         # diagnosis stays in the record, where it belongs.
-        return speech.tidy("I could not plan that: " + _degraded_line(record["degraded"]))
+        said = "I could not plan that: " + _degraded_line(record["degraded"])
+        # AND IT IS NOT LOST (continuity rule 3). Asked on 2026-09-18 what
+        # was queued she said "I don't have a list of them queued, though,
+        # so you'd have to ask me again once Claude or Codex is back."
+        # There is a list now, so the sentence says so - and says it
+        # without the identifier, which is not a thing he can say back.
+        if record.get("queued_work"):
+            said += " It's on my list, and I'll pick it up when Claude or Codex is back."
+        return speech.tidy(said)
     if record.get("intent") == "clarify":
         # Through the sieve like everything else she says. A clarifying
         # question is model prose about her own state, so it carries the
@@ -679,7 +705,7 @@ def spoken(record: dict) -> str:
             # Nothing else to say, so the dropped step IS the answer —
             # but in his words, not the validator's.
             parts.append("I couldn't make sense of part of that — say it again?")
-    return " ".join(parts) or "Nothing to do."
+    return _own_model_line(record) + (" ".join(parts) or "Nothing to do.")
 
 
 # A question ABOUT money is not an instruction to spend it.

@@ -255,6 +255,15 @@ class Plan:
     confidence: float | None = None
     provider: str = ""
     degraded: str | None = None
+    #: Set when this plan came from HER OWN MODEL rather than the frontier
+    #: (`local_planner.COMPILED_BY`). Honest provenance: an answer he trusts
+    #: as Claude's and is not is the failure he cannot detect.
+    compiled_by: str = ""
+    #: The few kinds the local rung was shown, for the receipt. Empty on the
+    #: frontier path, which sees the whole grammar.
+    shortlist: list[str] = field(default_factory=list)
+    #: The durable work item filed when NOBODY could plan this (rule 3).
+    queued: str = ""
 
     @property
     def executable(self) -> list[PlannedStep]:
@@ -356,10 +365,97 @@ def _production_context(context: dict | None, provider_supplied: bool) -> dict |
         }
 
 
+#: Degradation reasons that mean NOBODY COULD THINK, as opposed to a model
+#: that thought and produced the wrong shape. Only the first kind falls to
+#: the compact local rung; the second is already retried above.
+_NOBODY_THOUGHT = ("ReasonerUnavailable", "LocalPoolUnavailable")
+
+
+def _nobody_could_think(degraded: str | None) -> bool:
+    return any(name in str(degraded or "") for name in _NOBODY_THOUGHT)
+
+
+def _frontier_provider(registry: dict, now: str | None, model: str | None) -> brain.Provider:
+    """The full grammar, asked of a FRONTIER model only.
+
+    Until 2026-09-18 this was the gateway's `standard` policy, whose local
+    fallback was handed the same 28.7 KB prompt. Measured on his laptop that
+    prompt timed out at 180 s and again at 300 s, so the local rung of the
+    planner had never once carried a request - the acceptance pass found the
+    browser ask dying at the door with the frontier switched off. The local
+    rung is `local_planner` now, with a prompt sized for the hardware; the
+    big prompt goes only where a model can read it in one gulp.
+    """
+    from aletheia import reasoning_gateway
+    system = system_prompt(registry, now)
+    chosen = model or reasoner.PLAN_MODEL
+
+    def think(text: str, context: dict | None = None) -> dict:
+        return reasoning_gateway.frontier_json(
+            system, text, context=context, model=chosen,
+            timeout_s=reasoner.TIMEOUT_S, validator=brain.validate_output).output
+
+    return brain.Provider(f"reasoning.frontier.plan.{chosen}", think)
+
+
+def _compile_locally(request: str, context: dict | None, now: str | None,
+                     local) -> tuple[dict, str, list[str]] | None:
+    """Her own model, shown only the kinds this sentence could plausibly mean.
+
+    Returns (output, provider_id, shortlisted_kinds), or None when even her
+    own model could not produce a usable plan. The money door is asked BEFORE
+    the model is: a refusal that arrives after a two-minute local round trip
+    arrives too late and reads as consent in the meantime.
+    """
+    from aletheia import local_planner
+    refusal = local_planner._refusal_for_spending(request)
+    if refusal is not None:
+        return ({"intent": "plan", "summary": request[:200],
+                 "steps": [{"kind": "web_task", "goal": request[:400]}],
+                 "required_capabilities": [], "confidence": 0.0},
+                "aletheia.local-planner.refused", [])
+    try:
+        propose = local or local_planner.propose
+        output, model_name, kinds = propose(request, context=context, now=now)
+    except Exception as exc:  # noqa: BLE001 - it says why, in English
+        journal.append("event", "planner",
+                       f"her own model could not plan it either: "
+                       f"{speech.shorten(str(exc), 160)}", actor=ACTOR)
+        return None
+    return output, f"ollama:{model_name}" if ":" not in str(model_name) else str(model_name), kinds
+
+
+def queue_unplanned(request: str, reason: str) -> str:
+    """The ask does not evaporate when nobody could plan it (continuity rule 3).
+
+    Her words on 2026-09-18, asked what was queued: *"I don't have a list of
+    them queued, though, so you'd have to ask me again once Claude or Codex is
+    back."* There is a list now. One durable work item, BLOCKED_MODEL, with
+    the sentence, why nothing could plan it, and the condition that clears it,
+    so the work engine picks it up and she can say what is waiting. Never
+    raises: failing to file is not a reason to fail the ask as well.
+    """
+    try:
+        from aletheia import work_engine, work_states
+        item = work_engine.add(
+            f"Plan and do: {str(request or '')[:150]}",
+            requires=["frontier_reasoning"], kind="replan",
+            state=work_states.BLOCKED_MODEL,
+            reason=speech.shorten(str(reason or "nobody could plan it"), 200),
+            next="when Claude or Codex is back", key=f"replan:{request[:200]}",
+            payload={"request": str(request or "")[:1000]})
+        return str(item.get("id") or "")
+    except Exception as exc:  # noqa: BLE001
+        journal.append("event", "planner",
+                       f"could not queue the unplanned ask ({type(exc).__name__})",
+                       actor=ACTOR)
+        return ""
+
+
 def compile(request: str, fleet: dict | None = None, context: dict | None = None,
             provider: brain.Provider | None = None,
             registry: dict | None = None, now: str | None = None,
-            model: str | None = None) -> Plan:
+            model: str | None = None, local=None, queue=None) -> Plan:
     """Turn a sentence into a gated plan. Executes NOTHING.
 
     `model` trades latency for depth. Voice passes the fast one: a person
@@ -371,9 +467,7 @@ def compile(request: str, fleet: dict | None = None, context: dict | None = None
     registry = registry or capabilities.load_registry()
     provider_supplied = provider is not None
     context = _production_context(context, provider_supplied)
-    provider = provider or reasoner.CliReasoner(
-        model=model or reasoner.PLAN_MODEL,
-        system_prompt=system_prompt(registry, now)).provider("claude.cli.plan")
+    provider = provider or _frontier_provider(registry, now, model)
     output, degraded = reasoner.infer_or_fallback(provider, request, context)
     if degraded and "BrainOutputError" in degraded:
         # The provider reasoned, but produced a shape the contract refuses.
@@ -389,11 +483,29 @@ def compile(request: str, fleet: dict | None = None, context: dict | None = None
         else:
             degraded = f"{degraded}; after one repair attempt: {retry_degraded}"
 
+    # THE LOCAL RUNG, AND IT IS A FALLBACK. The frontier is asked first and
+    # keeps the whole grammar; only when nobody up there could think does the
+    # compact path run, with the few kinds this sentence could plausibly mean.
+    #
+    # `local` is the seam a test opts into, the way `provider` is: a caller
+    # that brought its own provider brought its own boundary, and her own
+    # model is not reached behind it unless it says so.
+    provider_id, compiled_by, shortlisted = provider.id, "", []
+    if degraded and (local is not None or not provider_supplied) \
+            and _nobody_could_think(degraded):
+        from aletheia import local_planner
+        locally = _compile_locally(request, context, now, local)
+        if locally is not None:
+            output, provider_id, shortlisted = locally
+            compiled_by = local_planner.COMPILED_BY
+            degraded = None
+
     plan = Plan(request=request, summary=str(output.get("summary", ""))[:400],
                 intent=output.get("intent", "clarify"),
                 required_capabilities=list(output.get("required_capabilities") or []),
                 confidence=output.get("confidence"),
-                provider=provider.id, degraded=degraded)
+                provider=provider_id, degraded=degraded,
+                compiled_by=compiled_by, shortlist=list(shortlisted))
 
     proposed = list(output.get("steps") or [])
     if not proposed and isinstance(output.get("command"), dict):
@@ -421,6 +533,15 @@ def compile(request: str, fleet: dict | None = None, context: dict | None = None
                 "named as required but not in the registry at all",
                 capability=unknown))
     compile_unmatched_into_a_task(plan, fleet=fleet, registry=registry)
+    # THE ASK DOES NOT EVAPORATE (continuity rule 3). When nobody could plan
+    # it - not the frontier and not her own model - it becomes a durable work
+    # item with the sentence, the reason and the condition that clears it,
+    # rather than a sentence in a room that nobody wrote down.
+    # `queue` is the seam a test opts into; the production path (no provider
+    # injected) always files, and a hermetic test with its own provider never
+    # touches the store unless it asks to.
+    if plan.degraded and not plan.executable and (queue is not None or not provider_supplied):
+        plan.queued = (queue or queue_unplanned)(request, plan.degraded)
     return plan
 
 

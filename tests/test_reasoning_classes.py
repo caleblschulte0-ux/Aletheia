@@ -83,10 +83,9 @@ ALLOWED = {
     ("setup", "_claude_cli", "infer_text"):
         ("critical", "setup audit: a live one-word prompt to the Claude CLI"),
     # -- adapters that already route through the gateway
-    ("planner", "compile", "CliReasoner"):
-        ("routine/standard", "CliReasoner.infer IS reasoning_gateway.reason_json (interpret routine, plan standard)"),
     ("planner", "compile", "infer_or_fallback"):
-        ("routine/standard", "runs the gateway-backed provider, deterministic brain on refusal"),
+        ("standard", "runs the gateway-backed frontier provider, deterministic brain on refusal; "
+                     "the local rung is local_planner through reasoning_gateway.local_json"),
     # -- code work: owned by the local-repair wave (claude/continuity-local-repair)
     ("code_worker", "*", "subscription_json"):
         ("critical", "code proposal and review; the local-repair wave owns code_worker.py"),
