@@ -159,7 +159,7 @@ class TheLoopFinishesInsteadOfAsking(unittest.TestCase):
 
     def test_a_reading_goal_finishes_with_the_answer_and_its_citation(self):
         rec = self.record("what is the UPC of A Light in the Attic")
-        found = browser_loop._answer_from(rec["goal"], obs(), use_model=False)
+        found = browser_loop._answer_from(rec["goal"], obs(), decide=None)
         browser_loop._finish_reading(rec, obs(), judged_by=found["found_by"], found=found)
         self.assertEqual(rec["state"], bm.DONE)
         self.assertEqual(rec["result"]["answer"], "a897fe39b1053632")
@@ -181,7 +181,39 @@ class TheLoopFinishesInsteadOfAsking(unittest.TestCase):
 
     def test_reading_a_page_is_never_why_a_mission_crashes(self):
         with mock.patch.object(page_answer, "answer", side_effect=RuntimeError("boom")):
-            self.assertEqual(browser_loop._answer_from("what is the UPC", obs(), use_model=False), {})
+            self.assertEqual(browser_loop._answer_from("what is the UPC", obs(), decide=None), {})
+
+    def test_a_scripted_loop_never_pays_for_a_real_local_call(self):
+        """A suite that scripts `decide` must not be charged two minutes a test."""
+        from aletheia import reasoning_gateway
+
+        def scripted(*a):
+            return {}
+
+        with mock.patch.object(reasoning_gateway, "reason_json",
+                               side_effect=AssertionError("the suite paid for a real model call")):
+            # The page does not lay this one out, so only a model could answer it.
+            self.assertEqual(browser_loop._answer_from("who wrote it", obs(), decide=scripted), {})
+
+    def test_a_scripted_loop_can_script_the_reading_too(self):
+        def scripted(*a):
+            return {}
+        scripted.read = lambda system, text: {"answer": "22", "quote": "In stock (22 available)"}
+        scripted.read.provider = "scripted"
+        found = browser_loop._answer_from("how many are available", obs(), decide=scripted)
+        self.assertEqual(found["answer"], "22")
+
+    def test_the_real_loop_does_reach_the_gateway(self):
+        seen = {}
+
+        def reason_json(system, text, **kwargs):
+            seen["policy"] = kwargs.get("policy")
+            raise ValueError("nothing today")
+
+        from aletheia import reasoning_gateway
+        with mock.patch.object(reasoning_gateway, "reason_json", side_effect=reason_json):
+            browser_loop._answer_from("who wrote it", obs(), decide=browser_loop.gateway_decide)
+        self.assertEqual(seen["policy"], "routine")
 
 
 class TheAnswerIsWhatSheSays(unittest.TestCase):

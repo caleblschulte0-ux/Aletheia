@@ -1178,7 +1178,7 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
                 record.setdefault("asked_arrived", []).append(obs["url"])
                 verdict = arrived(goal, obs)
                 if verdict.get("arrived"):
-                    found = _answer_from(goal, obs, use_model=decide is not None)
+                    found = _answer_from(goal, obs, decide=decide)
                     _finish_reading(record, obs, judged_by=verdict.get("by") or "a model", found=found)
                     _note(record, (f"this is the page the goal asked for: {obs.get('title', '')[:60]} "
                                    f"(judged by {verdict.get('by') or 'a model'})")
@@ -1203,7 +1203,7 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
                         # answers it. Nothing was submitted, so there is no
                         # receipt: the page itself is the evidence, and who
                         # judged it is named.
-                        found = _answer_from(goal, obs, use_model=True)
+                        found = _answer_from(goal, obs, decide=decide)
                         _finish_reading(record, obs, judged_by=said.get("by") or "a model", found=found)
                         _note(record, (f"the goal is reached at {obs['url'][:90]} "
                                        f"(judged by {said.get('by') or 'a model'})")
@@ -1223,7 +1223,7 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
                 # THAT, which is a different sentence and a truer one.
                 from aletheia import page_answer
                 if page_answer.is_a_question(goal):
-                    found = _answer_from(goal, obs, use_model=decide is not None)
+                    found = _answer_from(goal, obs, decide=decide)
                     if found:
                         _finish_reading(record, obs, judged_by=found["found_by"], found=found)
                         _note(record, f"answered from the page at {obs['url'][:90]}: "
@@ -1524,17 +1524,29 @@ _GOAL_CHROME = frozenset({"open", "find", "show", "get", "go", "page", "product"
                           "look", "up", "read", "about", "info", "information", "details"})
 
 
-def _answer_from(goal: str, obs: dict, *, use_model: bool) -> dict:
+def _answer_from(goal: str, obs: dict, *, decide) -> dict:
     """What this page says in answer to the goal, if the goal is a question.
 
     A READING GOAL HAS A MOVE (aletheia.page_answer). Live 2026-09-18 the loop
     walked onto the page holding the answer and stopped with "nothing on it
     moves toward the goal without a guess. Tell me what to press." - because
     every move it had was a move that presses something, and the goal wanted
-    reading, not pressing. Never guesses: {} when the page does not say."""
+    reading, not pressing. Never guesses: {} when the page does not say.
+
+    IT ASKS ONLY THE MODEL THIS LOOP WAS GIVEN. Reaching for the gateway behind
+    the caller's back made a scripted `decide` in the suite pay for a real local
+    call - fifteen seconds a test is how a suite stops being run (CLAUDE.md), and
+    two minutes a test is worse. The deterministic read needs no model and always
+    runs; a caller with a scripted decider can script the reading too by putting
+    a `read(system, text)` callable on it."""
     from aletheia import page_answer
     try:
-        return page_answer.answer(goal, obs, use_model=use_model) or {}
+        if decide is None:
+            return page_answer.answer(goal, obs, use_model=False) or {}
+        if decide is gateway_decide:
+            return page_answer.answer(goal, obs, use_model=True) or {}
+        read = getattr(decide, "read", None)
+        return page_answer.answer(goal, obs, think=read, use_model=read is not None) or {}
     except Exception:  # noqa: BLE001 - reading a page is never why a mission crashes
         return {}
 

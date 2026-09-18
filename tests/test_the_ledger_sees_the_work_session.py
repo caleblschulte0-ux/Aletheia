@@ -216,5 +216,30 @@ class TheRoutesRecord(LedgerCase):
         self.assertIn("OSError", row["why"])
 
 
+class TheSessionReportSaysTheSameThing(LedgerCase):
+    """One implementation. The report used to write its own sentence."""
+
+    def test_it_does_not_call_a_pull_request_reversible_and_on_this_machine(self):
+        from aletheia import project_work
+        out = self.a_pull_request()
+        local = self.a_checkout()
+        record = {"receipts": [{"title": "fix the red CI", "kind": "repaired",
+                                "evidence": {"unattended": [out["id"], local["id"]]}}]}
+        said = project_work.unattended_words(record)
+        self.assertIn("pull request", said)
+        head = said[:said.index("Also,")]
+        self.assertNotIn("stayed on this machine", head, said)
+        self.assertIn("without asking me", said)
+
+    def test_a_session_with_only_reversible_work_reads_as_it_did(self):
+        from aletheia import project_work
+        local = self.a_checkout()
+        record = {"receipts": [{"title": "x", "evidence": {"unattended": [local["id"]]}}]}
+        said = project_work.unattended_words(record)
+        self.assertIn("reversible", said)
+        self.assertIn("this machine", said)
+        self.assertNotIn("reached beyond", said)
+
+
 if __name__ == "__main__":
     unittest.main()
