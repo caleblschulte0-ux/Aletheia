@@ -840,6 +840,36 @@ Measured on this laptop (no GPU): qwen3:8b drafted a charter in 100 s warm,
 188 s cold. That is the price of never running out, and it is paid only
 when the subscriptions are gone.
 
+- **A local prompt has a SIZE BUDGET, and it is measured.** The planner's own
+  system prompt is generated from the registries and had grown to 28.7 KB, 18.2
+  KB of it the whole grammar - all 117 kinds, on every ask. A frontier model
+  reads that in one gulp. Measured 2026-09-18 on his laptop, with the same
+  sentence and the same lease: 2.0 KB came back in 33 s warm and 162 s cold,
+  4.0 KB in 113 s, and 28.7 KB timed out at 180 s and again at 300 s, the
+  per-call ceiling - so a bigger budget is not the fix. Ollama loads qwen3:8b
+  with a 4,096-token window here, and 28.7 KB is about 7,200 tokens, so the
+  front of the prompt - the part that says what the output must look like -
+  never arrived. The local rung of the planner had therefore never once
+  carried a request, and acceptance D found the browser ask dying at the door.
+  `aletheia.local_planner` shows her own model a SHORTLIST: the few kinds this
+  sentence could plausibly mean, chosen deterministically from the descriptors
+  and a small table of the obvious verbs, with their schemas and one example
+  each, inside `BUDGET_BYTES`. The CONTEXT counts against the same budget,
+  because the model reads it in the same breath - a 2.8 KB prompt with an 8 KB
+  snapshot behind it is an 11 KB ask wearing a 3 KB label. A smaller prompt is
+  never a smaller gate: every compiled step still goes through
+  `planner._classify`, the shortlist is drawn from `planner_visible`
+  descriptors so a forbidden verb is not in the catalog it is shown, and the
+  money door is asked before her own model is. And it says whose plan it is:
+  "Claude and Codex are out, so I planned this with my own model."
+- **The ask does not evaporate when nobody could plan it.** Asked what was
+  queued with the frontier off, she said *"I don't have a list of them queued,
+  though, so you'd have to ask me again once Claude or Codex is back."*
+  `planner.queue_unplanned` files one durable work item - the sentence, the
+  reason, BLOCKED_MODEL, `requires: frontier_reasoning`, next "when Claude or
+  Codex is back" - and `work_engine.RUNNERS["replan"]` re-proposes it through
+  every gate once a stronger model is back.
+
 ## Applying to jobs is end to end, and fluid
 
 His words, 2026-09-10: *"tonight when I ask this to apply to jobs for me it
