@@ -82,7 +82,7 @@ class TheBrowserDecidesLocallyFirst(unittest.TestCase):
         p = page()
         p["targets"] = p["targets"] * 30
         text = browser_loop.compact_page("book a checkup", p, [{"did": "followed 'Home'"}])
-        self.assertIn("more not shown", text)
+        self.assertIn("of 90 targets shown", text, "the model is told the page holds more")
         self.assertLess(len(text), 3500)
         self.assertIn("GOAL: book a checkup", text)
 
@@ -127,6 +127,40 @@ class TheBrowserDecidesLocallyFirst(unittest.TestCase):
             said = browser_loop.gateway_decide("book a checkup", page(), [])
         self.assertEqual(calls, ["routine"])
         self.assertIsNone(said["target"])
+
+    def test_a_routine_timeout_with_nobody_stronger_gives_her_model_more_time_on_the_small_prompt(self):
+        calls = []
+
+        def fake(system, text, **kw):
+            calls.append((kw["policy"], system, len(text)))
+            if kw["policy"] == "routine":
+                raise reasoner.ReasonerUnavailable("the local model could not either")
+            return gw.GatewayResult(kw["validator"]({"target": "t2", "sure": True}), "ollama:qwen3:8b", "standard")
+        with mock.patch.object(gw, "reason_json", side_effect=fake),                 mock.patch.object(gw, "frontier_available", return_value=False):
+            said = browser_loop.gateway_decide("book a checkup", page(), [])
+        self.assertEqual([c[0] for c in calls], ["routine", "standard"])
+        self.assertIs(calls[1][1], browser_loop.DECIDE_LOCAL_SYSTEM, "the same cached system prompt")
+        self.assertLessEqual(calls[1][2], browser_loop.LOCAL_PROMPT_CHARS)
+        self.assertEqual(said["target"], "t2")
+        self.assertEqual(said["by"], "ollama:qwen3:8b")
+
+    def test_a_long_page_is_shown_a_chunk_at_a_time_before_anything_escalates(self):
+        p = page()
+        p["targets"] = [{"id": f"t{i}", "role": "link", "label": f"Category {i}"} for i in range(1, 60)]
+        p["targets"].append({"id": "t60", "role": "link", "label": "Meditations"})
+        seen = []
+
+        def fake(system, text, **kw):
+            seen.append(text)
+            if "t60 link Meditations" in text:
+                return gw.GatewayResult(kw["validator"]({"target": "t60", "sure": True}), "ollama:qwen3:8b", "routine")
+            return gw.GatewayResult(kw["validator"]({"target": None, "sure": False}), "ollama:qwen3:8b", "routine")
+        with mock.patch.object(gw, "reason_json", side_effect=fake),                 mock.patch.object(gw, "frontier_available", return_value=False):
+            said = browser_loop.gateway_decide("find the Marcus Aurelius book", p, [])
+        self.assertEqual(said["target"], "t60")
+        self.assertEqual(said["chunk"], 3)
+        self.assertEqual(len(seen), 3)
+        self.assertTrue(all(len(t) <= browser_loop.LOCAL_PROMPT_CHARS for t in seen))
 
     def test_a_target_not_on_the_page_is_refused_by_the_validator(self):
         check = browser_loop._decision_validator(page())

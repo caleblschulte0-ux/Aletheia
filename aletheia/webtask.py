@@ -64,7 +64,12 @@ ACTOR = "aletheia-webtask"
 # resume from — the browser context closes with the run.
 MAX_STEPS = 24
 MAX_TEXT = 4_000
-MAX_LINKS = 40
+# A LIST PAGE'S CONTENT IS LINKS, and a sidebar eats the first forty: live
+# 2026-09-17 a shop's fifty category links hid every book on the page, so the
+# general loop could not see the one it was sent for. The model-facing prompt
+# of the older loop keeps its own smaller cut (MODEL_LINKS).
+MAX_LINKS = 120
+MODEL_LINKS = 40
 MAX_FIELDS = 45
 MAX_HIS_FILES = 40             # of his own documents she will offer to attach
 # What she may UPLOAD. Narrower than what she may read, on purpose: a
@@ -294,7 +299,11 @@ OBSERVE_JS = r"""() => {
       : (el.type === 'submit' && document.querySelectorAll(bySubmit).length === 1
           ? bySubmit : path(el));
     if (!selector) continue;
-    buttons.push({selector, text: (el.innerText || el.value || '').trim().slice(0,70)});
+    // A button drawn as an empty box with its name in aria-label (Workday's
+    // "Create Account" is a click-filter div, live 2026-09-17).
+    buttons.push({selector, text: ((el.innerText || '').trim() || el.value || el.getAttribute('aria-label')
+                                   || el.title || '').trim().slice(0,70),
+                  ...(el.closest('#onetrust-consent-sdk, #onetrust-pc-sdk, #CybotCookiebotDialog, #usercentrics-root, #truste-consent-track, #didomi-host, .osano-cm-window, .cc-window, [id*="cookie" i], [class*="cookie" i], [aria-label*="cookie" i], [id*="consent-banner" i], [class*="consent-banner" i], [id*="tracking-consent" i], [class*="tracking-consent" i]') ? {consent: true} : {})});
     if (buttons.length > 30) break;
   }
   // The ARIA widgets: an answer she can click, and the question it answers.
@@ -327,9 +336,15 @@ OBSERVE_JS = r"""() => {
     // goto loses whatever the click itself would have done.
     const raw = a.getAttribute('href') || '';
     const one = sel(a) || (raw ? `a[href="${raw.replace(/"/g, '\\"')}"]` : null);
-    links.push({href: a.href, text: text.slice(0, 70),
+    // A LIST CUTS ITS OWN TITLES ("The Death of Humanity: ..."); the whole
+    // thing is in the title attribute, and that is what the goal names.
+    const full = (a.getAttribute('title') || '').trim();
+    const said = (full.length > text.length && text.replace(/\W+$/, '')
+                  && full.toLowerCase().startsWith(text.replace(/[.…\s]+$/, '').toLowerCase()))
+                 ? full : text;
+    links.push({href: a.href, text: said.slice(0, 90),
                 ...(one ? {selector: one} : {})});
-    if (links.length > 60) break;
+    if (links.length > 140) break;
   }
   return {title: document.title, url: location.href,
           text: (document.body ? document.body.innerText : '').slice(0, 6000),
@@ -571,14 +586,18 @@ def observe(page) -> dict:
     fields = read_forms(page)
     trimmed = []
     for field in fields[:MAX_FIELDS]:
-        if formfill.is_anti_bot(field) or formfill.is_unseen_text_box(field):
+        if formfill.is_anti_bot(field) or formfill.is_unseen_text_box(field) or field.get("consent"):
             # Not offered to the model as something to fill: a CAPTCHA's token
             # box is not a question, and she does not pass the check for him.
             continue
         row = {"selector": field["selector"], "type": field.get("type"),
                "label": (field.get("question") or field.get("label")
                          or field.get("name") or "")[:120],
-               "value": (field.get("value") or "")[:60],
+               # A PASSWORD'S VALUE NEVER LEAVES THE PAGE: not to a model, not to a
+               # record. Live 2026-09-17 the vault password she had just typed was
+               # in the observation a model would be shown. Only that it is set.
+               "value": ("(set)" if field.get("value") else "") if field.get("type") == "password"
+                        else (field.get("value") or "")[:60],
                "required": bool(field.get("required"))}
         if field.get("type") in ("checkbox", "radio"):
             row["checked"] = bool(field.get("checked"))
@@ -648,6 +667,7 @@ def _decide(goal: str, page_state: dict, history: list[dict], think,
     # popped by the loop. Nothing underscored ever reaches the model — a
     # forgotten pop would silently spend the whole prompt budget.
     page_state = {k: v for k, v in page_state.items() if not k.startswith("_")}
+    page_state["links"] = (page_state.get("links") or [])[:MODEL_LINKS]
     prompt = json.dumps({
         "goal": goal,
         "facts_about_him": _facts(goal)["about_him"],
@@ -1296,6 +1316,10 @@ def walk(ctx, page, hands, route: list[dict], attachments: dict) -> object:
                 page, hands.page = moved, moved
         elif action == "select":
             hands.select_option(selector, label=step["value"])
+        elif action == "choose":
+            # A choice made in a search-as-you-type menu: the same pick again.
+            if not formfill.pick_option(page, selector, str(step.get("value", ""))):
+                raise WebTaskError(f"could not choose {str(step.get('value'))[:40]!r} again")
         elif action == "check":
             hands.check(selector)
         elif action == "uncheck":
@@ -1564,11 +1588,55 @@ def _press(record: dict) -> dict:
             raise PressNeverReached(
                 f"the route could not be replayed up to the button, so it was never "
                 f"pressed ({type(exc).__name__}: {str(exc)[:160]})") from exc
+        before_text = _body_text(page)
         hands.click(record["button_selector"])
         page.wait_for_load_state("domcontentloaded")
+        # A page that answers by SCRIPT navigates after the load event: live
+        # 2026-09-17 (Formy) the evidence was read from the form a moment
+        # before /thanks arrived - and a form "still there" read as REJECTED,
+        # which is the one verdict that permits a second press. Wait for the
+        # answer to arrive, then read.
+        wait_for_answer(page, record.get("url") or "", before_text)
         out = read_after_press(page, record)
+        if record.get("mission"):
+            # A site that wants a code before it accepts (Greenhouse's security
+            # code) is finished in THIS browser, where the code page lives.
+            from aletheia import browser_loop
+            out, page = browser_loop.finish_verification(ctx, page, hands, record, out)
         page.close()
     return out
+
+
+ANSWER_WAIT_S = 6.0
+
+
+def _safe_url(page) -> str:
+    try:
+        return str(page.url or "")
+    except Exception:
+        return ""
+
+
+def _body_text(page) -> str:
+    try:
+        return page.inner_text("body") or ""
+    except Exception:
+        return ""
+
+
+def wait_for_answer(page, url_before: str, text_before: str, *, wait_s: float = ANSWER_WAIT_S) -> None:
+    """After a press, give the page up to `wait_s` to CHANGE (a new address or
+    different text) before anything is read from it; then let it settle."""
+    import time as _time
+    deadline = _time.monotonic() + max(0.0, float(wait_s))
+    while _time.monotonic() < deadline:
+        try:
+            if (url_before and page.url.split("#")[0] != str(url_before).split("#")[0])                     or _body_text(page) != text_before:
+                break
+            page.wait_for_timeout(250)
+        except Exception:
+            break
+    settle(page)
 
 
 def read_after_press(page, record: dict) -> dict:

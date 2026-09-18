@@ -235,6 +235,11 @@ READ_FORM_JS = r"""() => {
       }
       return base;
     }
+    // THE ONLY FILE BOX on the page needs no id to be found: BambooHR's has
+    // neither id nor name, so it was never read and the resume never went
+    // on (live 2026-09-17).
+    if (el.type === 'file' && document.querySelectorAll('input[type=file]').length === 1)
+      return 'input[type=file]';
     return null;
   };
   // A checkbox or radio is an OPTION, not a question. Its own label says
@@ -315,21 +320,36 @@ READ_FORM_JS = r"""() => {
       name: el.name || '', id: el.id || '',
       role: el.getAttribute('role') || '',
       label: labelFor(el),
-      required: !!(el.required || el.getAttribute('aria-required') === 'true'),
+      // Required as the page's own script enforces it, too: Divi forms carry
+      // data-required_mark="required" and no `required` (live 2026-09-17, a city
+      // employment application read as "everything is filled in" with most empty).
+      required: !!(el.required || el.getAttribute('aria-required') === 'true'
+                   || el.getAttribute('data-required_mark') === 'required'
+                   || el.getAttribute('data-required') === 'true'),
       value: (el.value || '').slice(0, 200),
       // Can a PERSON see it? A honeypot is a box nobody can see, and so is
       // hCaptcha's token textarea. Python decides what that means per type:
       // a hidden native radio behind a styled label is still the real control.
       hidden: unseen(el),
+      readonly: !!el.readOnly,
+      // A COOKIE BANNER'S TOGGLES are not questions on the page (live 2026-09-17,
+      // Paylocity: OneTrust's "Targeting Cookies" boxes made a job posting a form).
+      consent: !!el.closest('#onetrust-consent-sdk, #onetrust-pc-sdk, #CybotCookiebotDialog, #usercentrics-root, #truste-consent-track, #didomi-host, .osano-cm-window, .cc-window, [id*="cookie" i], [class*="cookie" i], [aria-label*="cookie" i], [id*="consent-banner" i], [class*="consent-banner" i], [id*="tracking-consent" i], [class*="tracking-consent" i]'),
     };
     // The value field BEHIND a labelled widget is not a second question. A
     // Workable picker is a visible #input_CA_10627_input labelled "Notice
     // period / availability" plus an unlabelled input[name=CA_10627] that holds
     // what was picked; live 2026-09-13 the second went to him as "CA_10627".
     if (!row.label && el.name && type !== 'checkbox' && type !== 'radio' && type !== 'file') {
+      // The twin is the VISIBLE widget and this box is hidden behind it. A box a
+      // person can see, named in words, is its own question: Jane Street's visible required
+      // "university_email" was dropped because "university_email_reason" exists
+      // (live 2026-09-17), and the form could never be finished.
       const twins = [...document.querySelectorAll('input, select, textarea')]
         .filter(o => o !== el && o.id && o.id.includes(el.name) && labelFor(o));
-      if (twins.length) continue;
+      // (A code name like CA_10627 says nothing a person could answer; a worded
+      // one like university_email does.)
+      if (twins.length && (unseen(el) || !/[A-Za-z]{4,}/.test(el.name))) continue;
     }
     if (type === 'checkbox' || type === 'radio') {
       // A checkbox's `value` is "on" whether or not it is ticked, so a
@@ -494,6 +514,14 @@ _ABOUT_HIMSELF = re.compile(r"^[^a-z0-9]*(?:i|i'm|i’m|i am|i have|i've)\b")
 _WRITTEN_QUESTION = re.compile(
     r"^[^a-z0-9]*(?:tell us|tell me|describe|share|explain|walk us|talk us|give us|"
     r"why|how (?:do|did|would|have|has)|what (?:was|did|would|makes|made))\b")
+#: A question ABOUT something that merely mentions a contact word: "How much
+#: experience do you have providing customer service over the phone?" got his
+#: phone number, live on JazzHR 2026-09-17. Asking FOR the fact ("What is your
+#: phone number?") opens differently.
+_ASKS_ABOUT = re.compile(
+    r"^[^a-z0-9]*(?:how (?:much|many|long|often|well|comfortable)|are you|do you|did you|have you|"
+    r"were you|would you|will you|can you|could you|regarding|in your|what do you|what does|"
+    r"what kind|what type|which (?:of|best))\b")
 _CONTACT_FIELDS = frozenset({
     "legal_name", "first_name", "last_name", "preferred_name", "email", "phone",
     "street", "city", "state", "postal_code", "country", "linkedin", "github",
@@ -709,7 +737,14 @@ def match_field(field: dict) -> str | None:
     if re.match(r"^[^a-z0-9]*if\b", label):
         return None
     yes_no = bool(_YES_NO_LEAD.match(label))
-    codes = " ".join(str(field.get(k) or "") for k in ("name", "id")).casefold()
+    # A field's name and id as WORDS: "info.firstName" is "info first name".
+    # Read as one lowercase blob it only contained "name", and live 2026-09-17
+    # (Paylocity, whose labels are not tied to their boxes) the full name went
+    # into First, Middle, Last and Preferred name alike.
+    codes = " ".join(re.sub(r"[^A-Za-z0-9]+", " ", re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ",
+                                                          str(field.get(k) or "")))
+                     for k in ("name", "id")).casefold()
+    named_by = label if label.strip() else codes
     best, best_len = None, 0
     for key, spec in profile.FIELDS.items():
         # A signup-only fact never reaches an employer. His Google Voice
@@ -737,6 +772,9 @@ def match_field(field: dict) -> str | None:
             continue
         if key in _CONTACT_FIELDS and _ABOUT_HIMSELF.match(label):
             continue
+        if key in _CONTACT_FIELDS and key not in ("linkedin", "github", "website", "twitter") \
+                and _ASKS_ABOUT.match(label):
+            continue
         # A written question that MENTIONS a link is not asking for the link.
         # Hugging Face's "Tell us about something you've built on top of our
         # tools ... Share a public link if you have one (GitHub, a demo, a
@@ -745,7 +783,7 @@ def match_field(field: dict) -> str | None:
         if key in _CONTACT_FIELDS and _WRITTEN_QUESTION.match(label) and len(label.split()) > 12:
             continue
         # "What is your legal MIDDLE name?" got "Caleb Schulte" on Tebra.
-        if key in _NAME_FIELDS and _says("middle", label):
+        if key in _NAME_FIELDS and _says("middle", named_by):
             continue
         if key == "notice_period" and _EMPLOYMENT_DATE.search(label):
             continue
@@ -784,11 +822,18 @@ def match_field(field: dict) -> str | None:
         for phrase in spec["asks"]:
             if len(phrase) <= best_len:
                 continue
-            if _says(phrase, label) or (not label.strip() and phrase in codes):
+            if _says(phrase, label) or (not label.strip() and (
+                    _says(phrase, codes) or phrase.replace(" ", "") in codes.replace(" ", ""))):
                 best, best_len = key, len(phrase)
     # "In what city AND state do you reside?" is neither fact alone: live it
     # got "SD". Left for the facts step, which writes "Hartford, SD".
     if best in ("city", "state") and _says("city", label) and _says("state", label):
+        return None
+    # "City, State, Zip Code" is none of them alone either: live 2026-09-17 it got
+    # just the zip code.
+    if best in ("city", "state", "postal_code") and sum(
+            1 for words in (("city",), ("state",), ("zip", "postal code", "postcode"))
+            if any(_says(w, label) for w in words)) >= 2:
         return None
     return best
 
@@ -1942,9 +1987,23 @@ class Hands:
         else:
             target.select_option(css, value)
 
+    def _styled_choice(self, target, css, mode: str = "click") -> bool:
+        """A radio or checkbox drawn by CSS is clicked through its label (live
+        2026-09-17, Jane Street: the real input is invisible and a click on it
+        waited twenty seconds). True when that took; raises when it did not."""
+        try:
+            said = target.evaluate(CHOOSE_HIDDEN_JS, [css, mode])
+        except Exception:
+            return False
+        if said == "failed":
+            raise RuntimeError("the styled choice did not take")
+        return said == "yes"
+
     def check(self, selector):
         self._refuse_anti_bot(selector)
         target, css = resolve(self.page, selector)
+        if self._styled_choice(target, css, "check"):
+            return
         target.check(css)
 
     def uncheck(self, selector):
@@ -1957,7 +2016,24 @@ class Hands:
 
     def click(self, selector):
         target, css = resolve(self.page, selector)
+        if self._styled_choice(target, css):
+            return
         target.click(css)
+
+
+CHOOSE_HIDDEN_JS = r"""([css, mode]) => {
+  const el = document.querySelector(css);
+  if (!el || el.tagName !== 'INPUT' || !/^(?:radio|checkbox)$/.test(el.type)) return 'no';
+  const r = el.getBoundingClientRect(), st = getComputedStyle(el);
+  const shown = r.width > 1 && r.height > 1 && st.visibility !== 'hidden' && st.display !== 'none'
+                && parseFloat(st.opacity || '1') > 0.05;
+  if (shown) return 'no';
+  if (el.checked && (el.type === 'radio' || mode === 'check')) return 'yes';
+  const label = el.closest('label') || (el.id && document.querySelector(`label[for="${CSS.escape(el.id)}"]`));
+  if (!label) return 'no';
+  label.click();
+  return el.checked ? 'yes' : 'failed';
+}"""
 
 
 SETTLE_TRIES = 34              # ~10s for a single-page application to render
@@ -2309,7 +2385,27 @@ READY_JS = r"""() => {
   const groupsAsked = new Set();
   for (const el of document.querySelectorAll('input, select, textarea')) {
     if (typeof el.checkValidity !== 'function') continue;
-    if (el.disabled || el.type === 'hidden' || el.checkValidity()) continue;
+    const scripted = (el.getAttribute('data-required_mark') === 'required' || el.getAttribute('data-required') === 'true')
+      && !/^(?:radio|checkbox)$/.test(el.type) && !String(el.value || '').trim();
+    if (el.disabled || el.type === 'hidden' || (el.checkValidity() && !scripted)) continue;
+    // A BOX NOBODY CAN SEE is not blocking the form: Jane Street keeps a required
+    // "university_email" in a section that only shows for students (live
+    // 2026-09-17). A styled radio or checkbox is invisible on purpose and still counts.
+    if (!/^(?:radio|checkbox)$/.test(el.type) && !(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
+        && el.getAttribute('aria-autocomplete') !== 'list') continue;
+    // A SEARCH BOX OVER A CHOICE ALREADY MADE. React-select style widgets keep
+    // `required` on their (empty) search input while the chosen value sits in
+    // a sibling "single value" element: live 2026-09-17 Paylocity showed
+    // "United States" chosen and the form still read as blocked. A shown value
+    // that is not a placeholder ("Select a state") answers it.
+    if (el.getAttribute('aria-autocomplete') === 'list' || el.getAttribute('role') === 'combobox') {
+      let box = el.parentElement, shown = '';
+      for (let i = 0; box && i < 4 && !shown; i++, box = box.parentElement) {
+        const v = box.querySelector('[class*="single-value" i], [class*="singleValue" i], [class*="multi-value" i]');
+        if (v) shown = (v.innerText || '').trim();
+      }
+      if (shown && !/^(?:select|choose|pick|please|search|--|—)/i.test(shown)) continue;
+    }
     if (el.type === 'radio' && el.name) {
       // Every unpicked radio in a required group is invalid, so one question
       // came back once per OPTION, each named by that option ("YES", "NO").
@@ -2716,7 +2812,13 @@ def pick_option(page, selector: str, value, *, known: dict | None = None,
     queries.append("")                    # the whole list: "B.B.A." vs "Bachelor's Degree"
     for query in queries:
         try:
-            where.click(css)
+            try:
+                where.click(css, timeout=4000)
+            except Exception:
+                # The widget draws its current value OVER its own search box
+                # (react-select), so a click is intercepted; focus is what the
+                # click was for.
+                where.focus(css)
             where.fill(css, query)
         except Exception:
             return ""

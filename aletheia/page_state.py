@@ -16,6 +16,8 @@ skill adds on top (`job_skill`), never a state the loop has to know.
     ACCOUNT_SIGNUP      wants an account MADE - a durable thing, approval-gated
     EMAIL_VERIFICATION  wants a code that arrives by mail
     SMS_VERIFICATION    wants a code that arrives by text
+    MFA_CHALLENGE       wants a second factor only he holds (an authenticator
+                        app, a push to his phone, a security key)
     REVIEW              everything answered, a final button to press
     SUCCESS             the site says it went through
     CAPTCHA             wants a person; she never solves one
@@ -42,6 +44,7 @@ ACCOUNT_LOGIN = "ACCOUNT_LOGIN"
 ACCOUNT_SIGNUP = "ACCOUNT_SIGNUP"
 EMAIL_VERIFICATION = "EMAIL_VERIFICATION"
 SMS_VERIFICATION = "SMS_VERIFICATION"
+MFA_CHALLENGE = "MFA_CHALLENGE"
 MULTI_PAGE_WIZARD = "MULTI_PAGE_WIZARD"
 REVIEW = "REVIEW"
 SUCCESS = "SUCCESS"
@@ -50,8 +53,8 @@ ERROR = "ERROR"
 UNKNOWN = "UNKNOWN"
 
 STATES = (CONTENT, FORM, ACCOUNT_LOGIN, ACCOUNT_SIGNUP, EMAIL_VERIFICATION,
-          SMS_VERIFICATION, MULTI_PAGE_WIZARD, REVIEW, SUCCESS, CAPTCHA, ERROR,
-          UNKNOWN)
+          SMS_VERIFICATION, MFA_CHALLENGE, MULTI_PAGE_WIZARD, REVIEW, SUCCESS, CAPTCHA,
+          ERROR, UNKNOWN)
 
 #: Roles a person answers (as opposed to presses or follows).
 ANSWER_ROLES = frozenset({"textbox", "combobox", "checkbox", "radio", "file",
@@ -77,6 +80,13 @@ _PROGRESS = re.compile(
     re.I)
 _BACK = re.compile(r"^\s*(?:[<‹←«]\s*)?(?:back|previous|go back|prev)\b", re.I)
 _SIGN_IN = re.compile(r"\b(?:sign|log)\s*-?\s*in\b", re.I)
+#: Signing in somewhere ELSE to bring something back: "Apply With LinkedIn",
+#: "Dropbox", "Indeed Resume" (live 2026-09-17, Avature). Each opens another
+#: company's sign-in, so it is a sign-in boundary, never a button to approve.
+_THIRD_PARTY = re.compile(
+    r"^\s*(?:(?:apply|sign up|continue|connect|import|log in|sign in)\s+(?:with|using|via|from)\s+)?"
+    r"(?:linkedin|google(?: drive)?|facebook|indeed(?: resume)?|dropbox|one ?drive|apple|microsoft|github|"
+    r"seek|glassdoor|ziprecruiter)(?: profile| account| resume)?\s*$", re.I)
 _CREATE_ACCOUNT = re.compile(
     r"\b(?:create (?:an |my |your |a )?(?:new )?account|sign\s*-?\s*up|register|"
     r"open (?:an |my )?account|create (?:my |a )?profile|join now)\b", re.I)
@@ -86,18 +96,23 @@ _CREATE_ACCOUNT = re.compile(
 #: a submit button. Bias toward calling it a commit - a false positive costs
 #: one approval, a false negative sends something without asking.
 _FORM_HARMLESS = re.compile(
-    r"^\s*(?:\+\s*)?(?:add(?: another| more| an?)?(?: \w+)?|upload(?: \w+)?|attach(?: \w+)?|browse|"
+    r"^\s*(?:\+\s*)?(?:add(?: another| more| an?)?(?: \w+)?|upload(?: (?:a|an|your|my|new))?(?: \w+)?|attach(?: (?:a|your|my))?(?: \w+)?|browse|"
     r"choose(?: a)? file|select file|show(?: \w+)?|hide(?: \w+)?|more|less|see more|read more|"
     r"search|clear|edit|expand|collapse|close|dismiss|help|accept all(?: cookies)?|"
     r"(?:decline|reject)(?: all)?(?: cookies)?|cookie settings|manage cookies|got it|"
-    r"skip to (?:content|main)|menu|x|×)\s*$", re.I)
+    r"skip to (?:content|main)|menu|x|×|share(?: this(?: job| page)?)?|print(?: this)?(?: job| page)?|copy link|save (?:job|for later)|follow|like|tweet|allow)\s*$", re.I)
 
 
 #: An ORDER is spending even when no money word is on the button: "Submit
 #: order", "Complete my order", "Confirm order" (httpbin's pizza form, the
 #: one live observe). MONEY_WORDS only knew "place order".
 _ORDER = re.compile(r"\b(?:submit|confirm|complete|finish|send|review|finali[sz]e)\s+(?:my\s+|your\s+|the\s+)?"
-                    r"(?:order|booking|reservation)\b|\border\s+now\b", re.I)
+                    r"(?:order|booking|reservation)\b|\border\s+now\b|"
+                    # PUTTING SOMETHING IN A BASKET is the first step of spending, and
+                    # "Add to basket" said none of the money words: live 2026-09-17 her own
+                    # model chose it five times running on a bookshop page.
+                    r"\badd(?:\s+\w+){0,2}\s+to\s+(?:my\s+|your\s+|the\s+)?(?:basket|cart|bag|trolley)\b|"
+                    r"\b(?:buy\s+now|buy\s+it|checkout|check\s+out|pre-?order)\b", re.I)
 #: A price the page is about to charge: a total, an amount due, beside money.
 _CHARGE = re.compile(r"\b(?:order total|total due|amount due|grand total|total price|you(?:'|’)ll pay|"
                      r"total)\b[^\n]{0,40}?[$€£]\s?\d|[$€£]\s?\d[\d,.]*\s*(?:due|total)\b", re.I)
@@ -122,7 +137,7 @@ def control_kind(label: str, *, role: str = "button", on_form: bool = False) -> 
         return SPEND
     if _CREATE_ACCOUNT.search(text):
         return CREATE_ACCOUNT
-    if _SIGN_IN.search(text):
+    if _SIGN_IN.search(text) or _THIRD_PARTY.search(text):
         return SIGN_IN
     if computer.committing_label(text):
         return COMMIT
@@ -153,7 +168,20 @@ _CODE_WALL = re.compile(
 _LINK_WALL = re.compile(
     r"verification link|verify your (?:e-?mail|account)(?: address)?|confirm your e-?mail(?: address)?|"
     r"check your (?:e-?mail|inbox) (?:to|for a link)|activate your account", re.I)
-_BY_TEXT = re.compile(r"\btext message\b|\bsms\b|\btexted\b|\bphone\b|\bmobile\b", re.I)
+#: A code that came BY TEXT. Not the bare words "phone" or "mobile": nearly
+#: every application form has a Phone box, and a Greenhouse page asking for the
+#: security code it EMAILED read as a text-message code because of it.
+_BY_TEXT = re.compile(
+    r"\btext message\b|\bsms\b|\btexted\b|\bvia text\b|\bby text\b|"
+    r"(?:sent|send|sending)\b[^.]{0,40}\bto (?:your |the )?(?:phone|mobile|cell)|"
+    r"(?:phone|mobile|cell)(?: number)? ending in|code (?:to|on) your (?:phone|mobile|cell)", re.I)
+#: A second factor she cannot fetch from anywhere: his authenticator app, a
+#: push prompt on his phone, a hardware key. A named boundary, never a wait on mail.
+_MFA = re.compile(
+    r"authenticator app|authentication app|code from your (?:authenticator|authentication)|"
+    r"security key|passkey|approve (?:the |this )?(?:sign-?in|login|request)|"
+    r"(?:check|open) (?:the \w+ app on )?your (?:phone|device) to (?:approve|continue|confirm)|"
+    r"push notification|tap (?:yes|approve) on your", re.I)
 _STEP_OF = re.compile(r"\bstep\s+\d+\s*(?:of|/)\s*\d+\b|\bpage\s+\d+\s+of\s+\d+\b|"
                       r"\b\d+\s+of\s+\d+\s+steps?\b", re.I)
 _REVIEW = re.compile(
@@ -225,6 +253,8 @@ def classify(observation: dict) -> dict:
     if not typed and (_SUCCESS.search(text[:3000]) or _SUCCESS.search(title)):
         return out(SUCCESS, "the page says it went through and no questions remain")
 
+    if _MFA.search(f"{title} {text[:3000]}") and not passwords and len(typed) <= 2:
+        return out(MFA_CHALLENGE, "the page wants a second factor only he holds")
     if _CODE_WALL.search(text[:4000]) and any(t.get("role") == "textbox" for t in typed) \
             and not passwords:
         if _BY_TEXT.search(text[:4000]):
@@ -261,6 +291,7 @@ def say(state: str) -> str:
         CONTENT: "a page to read", FORM: "a form", ACCOUNT_LOGIN: "a sign-in page",
         ACCOUNT_SIGNUP: "a page to create an account", EMAIL_VERIFICATION:
         "a page wanting a code from email", SMS_VERIFICATION: "a page wanting a code by text",
+        MFA_CHALLENGE: "a page wanting a second sign-in factor",
         MULTI_PAGE_WIZARD: "one step of a multi-page form", REVIEW: "a review page",
         SUCCESS: "a confirmation page", CAPTCHA: "a human check", ERROR: "an error page",
         UNKNOWN: "a page I cannot read yet"}.get(state, "a page")
