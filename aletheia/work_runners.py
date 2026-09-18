@@ -71,8 +71,12 @@ from aletheia import work_states as ws
 ACTOR = "aletheia-work"
 RETRY_AFTER = dt.timedelta(hours=6)
 MODEL_RETRY = dt.timedelta(minutes=20)
-HYPOTHESIS_BUDGET_S = 330.0
-DOC_BUDGET_S = 480.0
+#: A work session's own thinking is BACKGROUND (`work_states.BACKGROUND`): he
+#: asked for the session, not for this sentence, and a call in flight is put
+#: down the moment he starts talking. That is what buys these the 20 minute
+#: local ceiling instead of conversation's 300 s.
+HYPOTHESIS_BUDGET_S = 1_200.0
+DOC_BUDGET_S = 1_200.0
 FRONTIER_BUDGET_S = 170.0
 #: Measured in Scenario A (2026-09-17, qwen3:8b on his CPU with the live Core sharing
 #: Ollama): 3.6 KB of evidence took ~300 s per reading and a 3 KB document draft hit
@@ -346,7 +350,8 @@ def _think(system: str, text: str, *, context: dict, validator, budget_s: float,
     with local_lease.purpose(local_lease.WORK):
         result = reasoning_gateway.reason_json(system, text, context=context, policy=policy_name,
                                                model=reasoner.PLAN_MODEL, timeout_s=budget_s,
-                                               validator=validator, work_budget_s=budget_s)
+                                               validator=validator, work_budget_s=budget_s,
+                                               attention=reasoning_gateway.BACKGROUND)
     policy.ensure_not_halted()
     return result.output, result.provider
 

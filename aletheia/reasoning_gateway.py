@@ -47,8 +47,35 @@ STANDARD_SUBSCRIPTION_SLICE_S = STANDARD_TOTAL_TIMEOUT_S - ROUTINE_LOCAL_TIMEOUT
 # the machine) - past the 180 s standard ceiling, so the local tier the brief
 # asks for could never answer. Conversation keeps the 180 s ceiling above.
 MAX_WORK_BUDGET_S = 600.0
-# local_brain refuses a single call longer than this
-LOCAL_MAX_TIMEOUT_S = 300.0
+# HOW LONG DEPENDS ON WHAT THE WORK IS, not on one number for the machine.
+# His ruling, 2026-09-18, asked how long her own model should get: *"I don't
+# know, like a while."* A while is two numbers, because one Ollama queue serves
+# both a sentence he is standing there waiting for and a repair draft nobody is
+# looking at: a Node repair DRAFT measured 217-270 s with the queue free and
+# died at the old 300 s ceiling whenever the live Core was also talking to him.
+# The ceilings themselves are `work_states.LOCAL_CEILING_S` (300 s attended,
+# 1200 s background) so the conversation path can read the same number; the
+# budgets below are this gateway's own.
+ATTENDED = work_states.ATTENDED
+BACKGROUND = work_states.BACKGROUND
+# A background caller may spend the whole 20 minutes on the model and still
+# have a moment to validate; attended work keeps the 600 s it had.
+MAX_BACKGROUND_BUDGET_S = work_states.LOCAL_CEILING_S[BACKGROUND] + 60.0
+# What a single local call may take, by class. Nothing gets the long one
+# without asking for it by name (`attention=BACKGROUND`).
+LOCAL_MAX_TIMEOUT_S = work_states.LOCAL_CEILING_S[ATTENDED]
+
+
+def local_ceiling_s(attention: str = ATTENDED) -> float:
+    """How long ONE call to her own model may take for this class of work."""
+    return work_states.local_ceiling_s(attention)
+
+
+def work_budget_ceiling_s(attention: str = ATTENDED) -> float:
+    """The most a caller may claim with `work_budget_s`, by class of work."""
+    if attention not in work_states.ATTENTION:
+        raise ValueError(f"attention must be one of {sorted(work_states.ATTENTION)}")
+    return MAX_BACKGROUND_BUDGET_S if attention == BACKGROUND else MAX_WORK_BUDGET_S
 
 
 @dataclass(frozen=True)
@@ -83,14 +110,23 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
                 validator: Callable[[dict], dict] | None = None,
                 local_timeout_s: float | None = None,
                 max_context_bytes: int = reasoner.MAX_CONTEXT_BYTES,
-                work_budget_s: float | None = None) -> GatewayResult:
+                work_budget_s: float | None = None,
+                attention: str = ATTENDED) -> GatewayResult:
     """`local_timeout_s` bounds a routine local attempt. `max_context_bytes`
     is the reasoner's own per-call bound (the code worker shows whole files;
     everyone else keeps 8 KB). `work_budget_s` lets long-running code work
     (never a conversation) replace the 180 s standard/critical ceiling, up to
-    MAX_WORK_BUDGET_S."""
+    `work_budget_ceiling_s(attention)`.
+
+    `attention` says WHAT THE WORK IS: ATTENDED (the default - he is waiting on
+    it) or BACKGROUND (a draft, a review, a reading nobody is sitting in front
+    of). It is the only thing that buys her own model the long ceiling, and it
+    is never inherited: a caller that does not say BACKGROUND gets the 300 s
+    conversation has always had, however large a budget it asked for."""
     if policy not in POLICIES:
         raise ValueError(f"policy must be one of {sorted(POLICIES)}")
+    if attention not in work_states.ATTENTION:
+        raise ValueError(f"attention must be one of {sorted(work_states.ATTENTION)}")
     checked = _checked(validator)
     ctx = context or {}
     if not isinstance(ctx, dict):
@@ -107,8 +143,9 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
     ceiling = ROUTINE_TOTAL_TIMEOUT_S if policy == "routine" else STANDARD_TOTAL_TIMEOUT_S
     if work_budget_s is not None and policy != "routine":
         work = float(work_budget_s)
-        if not math.isfinite(work) or not 0.5 <= work <= MAX_WORK_BUDGET_S:
-            raise ValueError(f"work budget must be 0.5..{MAX_WORK_BUDGET_S:.0f} seconds")
+        cap = work_budget_ceiling_s(attention)
+        if not math.isfinite(work) or not 0.5 <= work <= cap:
+            raise ValueError(f"work budget must be 0.5..{cap:.0f} seconds")
         ceiling = work
     total_budget = min(requested_budget, ceiling)
 
@@ -130,6 +167,7 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
                     system_prompt, text, context=ctx, validator=checked,
                     allow_failover=False,
                     timeout_s=min(_local_slice(local_timeout_s), max(0.5, remaining())),
+                    attention=attention,
                 )
                 return GatewayResult(
                     local.output, f"ollama:{local.model}", policy,
@@ -199,7 +237,8 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
                 system_prompt, text, context=ctx, validator=checked,
                 preferred_role="deep",
                 allow_failover=True,
-                timeout_s=min(LOCAL_MAX_TIMEOUT_S, max(0.5, remaining())),
+                timeout_s=min(local_ceiling_s(attention), max(0.5, remaining())),
+                attention=attention,
             )
             return GatewayResult(
                 local.output, f"ollama:{local.model}", policy,
@@ -318,12 +357,14 @@ def local_ready() -> bool:
 def local_json(system_prompt: str, text: str, *, context: dict | None = None,
                role: str = "fast", validator: Callable[[dict], dict] | None = None,
                timeout_s: float | None = None,
-               think_override: bool | None = None) -> GatewayResult:
+               think_override: bool | None = None,
+               attention: str = ATTENDED) -> GatewayResult:
     """One answer from her own model in a named role. Raises
-    local_model_pool.LocalPoolUnavailable, whose words say why."""
+    local_model_pool.LocalPoolUnavailable, whose words say why. `attention`
+    chooses the per-call ceiling exactly as in `reason_json`."""
     run = local_model_pool.run_json(system_prompt, text, context=context, role=role,
                                     validator=validator, timeout_s=timeout_s,
-                                    think_override=think_override)
+                                    think_override=think_override, attention=attention)
     return GatewayResult(run.output, f"ollama:{run.model}", "routine",
                          run.role, run.model, turn_id=run.turn_id)
 

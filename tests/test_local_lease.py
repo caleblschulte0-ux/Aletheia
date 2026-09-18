@@ -79,16 +79,19 @@ class LeaseCase(unittest.TestCase):
     def test_every_call_to_her_own_model_goes_through_the_lease(self):
         seen = []
 
-        def fake_infer(system, text, *, context=None, config=None):
+        def fake_infer(system, text, *, context=None, config=None, should_yield=None):
             seen.append(local_lease.holder())
+            # A conversation is never interrupted: it passes no checkpoint.
+            seen.append(should_yield)
             return {"ok": True}
         with mock.patch.object(local_model_pool, "room_for_role", return_value={"fits": True}), \
                 mock.patch.object(local_model_pool.model_pool_config, "enabled", return_value=True), \
                 mock.patch.object(local_brain, "infer_json", side_effect=fake_infer), \
                 mock.patch.object(local_model_pool.training_data, "record_turn", return_value="t"):
             local_model_pool.run_json("system", "text", role="fast")
-        self.assertEqual(len(seen), 1)
+        self.assertEqual(len(seen), 2)
         self.assertIsNotNone(seen[0])
+        self.assertIsNone(seen[1])
         self.assertEqual(seen[0]["purpose"], local_lease.CONVERSATION)
         self.assertIsNone(local_lease.holder())
 

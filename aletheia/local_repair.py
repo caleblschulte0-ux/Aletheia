@@ -82,7 +82,15 @@ MIN_CONFIDENCE = 0.5
 BOUNDED_POLICY = "standard"
 #: Everything else about code.
 CRITICAL_POLICY = "critical"
-WORK_BUDGET_S = 330.0
+#: NOBODY IS SITTING IN FRONT OF A REPAIR DRAFT. Measured on this CPU-only 16 GB
+#: laptop, a Node repair draft takes 217-270 s with Ollama free and died at the
+#: old 300 s ceiling whenever the live Core was also talking to him - so the tier
+#: that exists for "when the subscriptions run out" could not finish its one job
+#: on the machine it exists for. His ruling, 2026-09-18, asked how long her own
+#: model should get: *"I don't know, like a while."* A while is 20 minutes here,
+#: and it is the BACKGROUND class that buys it: a call in flight is put down the
+#: moment he starts talking (`local_lease.conversation_waiting`).
+WORK_BUDGET_S = 1_200.0
 MAX_EDIT_CHARS = 2_000
 MAX_EDITS = 6
 NEVER_MERGE = frozenset({"aletheia", "schwab-trader"})
@@ -107,7 +115,8 @@ def gateway_think(policy_name: str = BOUNDED_POLICY, *, model: str = reasoner.PL
         policy.ensure_not_halted()
         result = reasoning_gateway.reason_json(system, text, context=context, policy=policy_name, model=model,
                                                timeout_s=budget_s, validator=validator,
-                                               work_budget_s=budget_s)
+                                               work_budget_s=budget_s,
+                                               attention=reasoning_gateway.BACKGROUND)
         policy.ensure_not_halted()
         return result.output, result.provider
     return think

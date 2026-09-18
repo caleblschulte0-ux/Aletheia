@@ -6,10 +6,16 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Any
 
-from aletheia import local_brain, model_pool_config, training_data
+from aletheia import local_brain, model_pool_config, training_data, work_states
 
 FAST_TIMEOUT_S = 12.0
 DEEP_TIMEOUT_S = 45.0
+#: The two classes of work and their per-call ceilings live in
+#: `work_states.LOCAL_CEILING_S` (300 s attended, 1200 s background). Re-exported
+#: here only so a caller reaching for the pool does not have to know where they
+#: live; never copy the numbers.
+ATTENDED = work_states.ATTENDED
+BACKGROUND = work_states.BACKGROUND
 FAST_SMOKE_TIMEOUT_S = 120.0
 DEEP_HINTS = (
     "architecture", "root cause", "debug", "code review", "review the code",
@@ -20,6 +26,14 @@ DEEP_HINTS = (
 
 class LocalPoolUnavailable(RuntimeError):
     pass
+
+
+class LocalPoolYielded(LocalPoolUnavailable):
+    """Background work put her own model down so a conversation could have it.
+
+    A reason to try again shortly, never a failure of the work - and never a
+    reason to fail over to the other role, which would take the queue straight
+    back off him."""
 
 
 @dataclass(frozen=True)
@@ -115,11 +129,17 @@ def room_for_role(role: str) -> dict:
 
 
 def _config(role: str, timeout_s: float | None = None,
-            think_override: bool | None = None) -> local_brain.OllamaConfig:
+            think_override: bool | None = None,
+            attention: str = work_states.ATTENDED) -> local_brain.OllamaConfig:
     profile = model_pool_config.resolve(role)
     timeout = timeout_s if timeout_s is not None else (
         FAST_TIMEOUT_S if role == "fast" else DEEP_TIMEOUT_S
     )
+    # THE CEILING IS THE CLASS OF WORK, and the class is attended unless the
+    # caller said otherwise. A caller that asks for twenty minutes without
+    # saying the work is background gets the five minutes conversation has
+    # always had: the long budget is opt-in, never inherited, never a default.
+    timeout = min(float(timeout), work_states.local_ceiling_s(attention))
     return local_brain.OllamaConfig.for_model(
         profile["model"],
         think=profile["think"] if think_override is None else think_override,
@@ -131,9 +151,12 @@ def run_json(system_prompt: str, text: str, *, context: dict | None = None,
              role: str = "fast", validator: Callable[[dict], dict] | None = None,
              timeout_s: float | None = None,
              require_enabled: bool = True,
-             think_override: bool | None = None) -> LocalRun:
+             think_override: bool | None = None,
+             attention: str = work_states.ATTENDED) -> LocalRun:
     if role not in {"fast", "deep"}:
         raise ValueError("local role must be fast or deep")
+    if attention not in work_states.ATTENTION:
+        raise ValueError(f"attention must be one of {sorted(work_states.ATTENTION)}")
     if require_enabled and not model_pool_config.enabled():
         raise LocalPoolUnavailable("local reasoning is disabled")
     ctx = context or {}
@@ -153,15 +176,22 @@ def run_json(system_prompt: str, text: str, *, context: dict | None = None,
     config = None
     payload = None
     try:
-        config = _config(role, timeout_s, think_override)
+        config = _config(role, timeout_s, think_override, attention)
         payload = local_brain.build_payload(system_prompt, text, ctx, config)
         # ONE LOCAL MODEL JOB AT A TIME, across her processes, conversation
         # first (aletheia.local_lease): Ollama has one queue on this laptop.
         from aletheia import local_lease
+        # A background call is also PUT DOWN when he starts talking. The lease
+        # keeps background work from taking the queue while a conversation
+        # waits; it cannot help with the call already running, and a twenty
+        # minute call already running is twenty minutes of silence in the room.
+        should_yield = (local_lease.conversation_waiting
+                        if attention == work_states.BACKGROUND else None)
         try:
             with local_lease.hold(what=f"{role} {config.model}", hold_s=float(config.timeout_s or 0) + 30.0):
                 started = time.perf_counter()
-                proposal = local_brain.infer_json(system_prompt, text, context=ctx, config=config)
+                proposal = local_brain.infer_json(system_prompt, text, context=ctx, config=config,
+                                                  should_yield=should_yield)
         except local_lease.LeaseBusy as busy:
             raise LocalPoolUnavailable(f"her own model is busy: {busy}") from None
         output = validator(proposal) if validator else proposal
@@ -173,6 +203,8 @@ def run_json(system_prompt: str, text: str, *, context: dict | None = None,
                 request_payload=payload, result=proposal, status="error",
                 error_type=type(exc).__name__, error=str(exc), duration_ms=elapsed,
             )
+        if isinstance(exc, local_brain.LocalBrainYielded):
+            raise LocalPoolYielded(str(exc)) from None
         if isinstance(exc, local_brain.LocalBrainError):
             # LocalBrainError messages are deliberately bounded diagnostics
             # containing no prompt, response body, URL path, or credentials.
@@ -197,7 +229,8 @@ def auto_json(system_prompt: str, text: str, *, context: dict | None = None,
               preferred_role: str | None = None,
               allow_failover: bool = True,
               timeout_s: float | None = None,
-              require_enabled: bool = True) -> LocalRun:
+              require_enabled: bool = True,
+              attention: str = work_states.ATTENDED) -> LocalRun:
     first = preferred_role or choose_role(text, context)
     if first not in {"fast", "deep"}:
         raise ValueError("preferred_role must be fast or deep")
@@ -206,8 +239,11 @@ def auto_json(system_prompt: str, text: str, *, context: dict | None = None,
         return run_json(
             system_prompt, text, context=context, role=first,
             validator=validator, timeout_s=timeout_s,
-            require_enabled=require_enabled,
+            require_enabled=require_enabled, attention=attention,
         )
+    except LocalPoolYielded:
+        # He is talking. The second role would take the queue straight back.
+        raise
     except LocalPoolUnavailable as first_failure:
         if not allow_failover:
             raise
@@ -215,7 +251,7 @@ def auto_json(system_prompt: str, text: str, *, context: dict | None = None,
             return run_json(
                 system_prompt, text, context=context, role=second,
                 validator=validator, timeout_s=timeout_s,
-                require_enabled=require_enabled,
+                require_enabled=require_enabled, attention=attention,
             )
         except LocalPoolUnavailable as second_failure:
             # BOTH REASONS, not a shrug. "Both local reasoning roles are

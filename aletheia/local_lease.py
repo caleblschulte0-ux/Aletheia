@@ -164,6 +164,20 @@ def _wants(now: float) -> list[dict]:
     return rows
 
 
+def conversation_waiting(*, now: float | None = None) -> bool:
+    """Is a conversation waiting for her own model RIGHT NOW? Never raises.
+
+    The lease stops background work from TAKING the queue while he is waiting,
+    which is not enough once a background call may run for twenty minutes: the
+    call that is already running is the one in front of him. Background work
+    passes this to `local_brain.infer_json` as its checkpoint, so a call in
+    flight is put down rather than finished."""
+    try:
+        return bool(_wants(time.time() if now is None else now))
+    except Exception:  # noqa: BLE001 - a checkpoint may never be the reason a call fails
+        return False
+
+
 def _try_take(path: Path, record: dict) -> bool:
     try:
         fd = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
