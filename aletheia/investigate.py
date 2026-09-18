@@ -355,8 +355,16 @@ def propose(request: str, *, quote: str = "", think=None, report: Callable[[str]
     from aletheia import agent_session, converse, journal, stateio
     report = report or _report
     think = think or agent_session.chain_think(on_switch=report, deadline_s=budget_s + DEADLINE_GRACE_S)
+    # A QUESTION IS NEVER AN INSTRUCTION. Since C4b a session may do reversible
+    # local work without asking (his continuity brief item 10) - and this route
+    # exists precisely because the sentence was a question. "Why didn't the
+    # Palantir one send" must not end with a task added, however reversible the
+    # task is, so THIS route turns unattended work off and anything that writes
+    # becomes a handoff exactly as it did before. An instruction goes to the
+    # planner, and the work session is where she acts.
     session = agent_session.AgentSession(request, think=think, max_steps=max_steps,
-                                         on_step=_narrator(report), budget_s=budget_s)
+                                         on_step=_narrator(report), budget_s=budget_s,
+                                         unattended=False)
     result = session.run()
     outcome = result.outcome
     if outcome in (agent_session.ANSWERED, agent_session.HANDED_OFF, agent_session.REFUSED_AT_DOOR):

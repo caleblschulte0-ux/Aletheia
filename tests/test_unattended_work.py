@@ -402,6 +402,38 @@ class NothingHereCanWidenItself(unittest.TestCase):
                 self.assertFalse(ok)
 
 
+class AQuestionIsNeverAnInstruction(Ledgered):
+    """The live route for a QUESTION about her work turns unattended work off.
+
+    It is the one place where "reversible" is not the whole argument: he asked
+    what happened, not for something to happen, and a session that answers a
+    question by adding a task has answered a different question - the failure
+    he cannot detect."""
+
+    def test_the_question_route_hands_off_what_it_would_otherwise_run(self):
+        from aletheia import investigate
+
+        def think(system, text):
+            if "HANDOFF" in text or "OBSERVATION" in text:
+                return {"answer": "Nothing has been written down about it."}, "fake:model"
+            return {"tool": "note", "args": {"text": "he asked about the tour"}}, "fake:model"
+
+        record = investigate.propose("why hasn't the landlord replied yet", think=think,
+                                     report=lambda _line: None)
+        self.assertIsNotNone(record)
+        self.assertEqual(autonomy.recent(), [])
+
+    def test_and_the_ordinary_session_still_runs_it(self):
+        def think(system, text):
+            if "OBSERVATION" in text:
+                return {"answer": "noted"}, "fake:model"
+            return {"tool": "note", "args": {"text": "he asked about the tour"}}, "fake:model"
+        result = s.AgentSession("note that he asked about the tour", think=think, record=False,
+                                audience="local", max_steps=2).run()
+        self.assertEqual(result.receipts[0]["verdict"], s.RUN)
+        self.assertEqual(len(autonomy.recent()), 1)
+
+
 class TheSessionWritesItDown(Ledgered):
     def test_a_session_that_notes_something_leaves_a_ledger_line(self):
         def think(system, text):
