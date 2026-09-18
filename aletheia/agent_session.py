@@ -16,10 +16,19 @@ the one permanent rule (`webtask.would_spend`, the same predicate the door,
 the planner and the runner share). Nothing the model writes — not a `why`,
 not "the operator approved this" inside an argument — is read as authority.
 
-WHAT RUNS INSIDE THE LOOP IS READING. A tool that writes, destroys, needs an
-approval, or is not in the read tier does not execute here, whatever grant
-exists: it becomes a HANDOFF - a durable record bound by hash to the exact
-request and an ordinary pending approval (`aletheia.handoffs`). When he
+WHAT RUNS INSIDE THE LOOP IS DECIDED BY CONSEQUENCE, not by "read vs write"
+(his continuity brief, Part III item 10, built 2026-09-18). Reading always ran.
+Since C4b a REVERSIBLE-LOCAL action that no approval policy names runs here too
+- a task, a note, a draft, a file in her own workspace, her own queued work
+rescheduled - under a per-session and per-day budget, with the kill switch
+checked before each one, and written to the unattended ledger with how to undo
+it (`aletheia.autonomy`). A tool that reaches the world or cannot be taken back
+does not execute here, whatever grant exists: money, sending, publishing,
+deleting for good, an account, a live calendar, a pull request, his decisions
+and authority itself all become a HANDOFF - a durable record bound by hash to
+the exact request and an ordinary pending approval (`aletheia.handoffs`). An
+approval policy is a decision he made and is checked FIRST: a reversible action
+the registry says he must authorise still waits for him. When he
 approves, the Core runs exactly that request once, through every gate again,
 and the outcome lands in this session's record. Spending is not handed off, because no approval can
 make it happen; it is REFUSED, and a refusal stays a refusal — asking again
@@ -197,12 +206,20 @@ class Broker:
 
     def __init__(self, catalog: dict[str, tools.Tool], *, audience: str = "local",
                  registry: dict | None = None, fleet: dict | None = None,
-                 halted: Callable[[], Any] | None = None):
+                 halted: Callable[[], Any] | None = None,
+                 unattended: bool = True, session: str = ""):
         self.catalog = catalog
         self.audience = audience
         self._registry = registry
         self._fleet = fleet
         self._halted = halted
+        # CONSEQUENCE-BASED AUTHORITY (continuity brief item 10). With this on,
+        # a reversible-local action that no approval policy names runs inside
+        # the session and is written to the unattended ledger with its undo.
+        # With it off, the old rule holds and every writer is handed off - which
+        # is what a caller that cannot record an undo should ask for.
+        self.unattended = bool(unattended)
+        self.session = str(session or "")
 
     def _visible(self, tool: tools.Tool) -> bool:
         if self.audience == "local":
@@ -275,25 +292,48 @@ class Broker:
         if (tool.kind or not tool.read_only) and self._is_halted():
             return Decision(REFUSED, "I am halted; only a resume from Caleb lifts that",
                             permanent=True)
-        policy_says = str((entry or {}).get("approval_policy") or tool.approval)
+        policy_says = tools.approval_of(tool, entry)
+        # AN APPROVAL POLICY IS A DECISION HE MADE, not a guess about
+        # consequence. It is checked first and nothing below overrides it, so a
+        # reversible action the registry says he must authorise still waits.
+        if policy_says not in ("none", ""):
+            return Decision(HANDOFF, f"{tool.name} needs Caleb's approval ({policy_says}), so it "
+                            "does not run inside this session", permanent=True)
         # A PROPOSAL IS NOT AN ACT. A tool whose only write is a record of her
         # own advice (a patch proposal: no code changed, nothing branched or
         # merged) runs here - the brief's "propose" step is non-authoritative.
-        # Anything else that writes is still handed off below.
-        if tool.record_only and policy_says in ("none", ""):
+        if tool.record_only:
             return Decision(RUN)
-        # A read-tier kind that MAKES something (a journal note, a
-        # screenshot, a research document) still writes. `only_answers` is
-        # the Core's own line between telling and doing.
-        if tool.kind and not intercom.only_answers(tool.kind):
-            return Decision(HANDOFF, f"{tool.name} records or creates something, so it does "
-                            "not run inside this session", permanent=True)
-        if (not tool.read_only or tool.destructive or tool.risk != intercom.TIER_READ
-                or tool.approval != "none" or policy_says not in ("none", "")):
-            return Decision(HANDOFF, f"{tool.name} changes something or needs Caleb's approval "
-                            f"({policy_says}), so it does not run inside this session",
+        # Reading changes nothing, and always ran.
+        if tool.read_only and (tool.kind is None or intercom.only_answers(tool.kind)):
+            return Decision(RUN)
+        # CONSEQUENCE, NOT "READ VS WRITE" (continuity brief, Part III item 10).
+        # A reversible-local action - a draft, a note, a task, a file in her own
+        # workspace, her own queue rescheduled - runs here and is written down
+        # with how to undo it. Everything else becomes a handoff exactly as
+        # before: money, sending, publishing, deleting for good, an account, a
+        # calendar provider, his decisions, authority.
+        if self.unattended and tools.runs_unattended(tool):
+            allowed, why = self._unattended_ok(tool)
+            if allowed:
+                return Decision(RUN)
+            return Decision(HANDOFF, f"{tool.name} is reversible, but {why}, so it waits for Caleb",
                             permanent=True)
-        return Decision(RUN)
+        return Decision(HANDOFF, f"{tool.name} {self._why_not(tool)}, so it does not run inside "
+                        "this session", permanent=True)
+
+    def _why_not(self, tool: tools.Tool) -> str:
+        if tool.consequence == tools.OUTWARD:
+            return "reaches the world or cannot be taken back"
+        return "changes something I cannot undo on my own"
+
+    def _unattended_ok(self, tool: tools.Tool) -> tuple[bool, str]:
+        """The budget and the kill switch, asked for THIS action. Fails closed."""
+        try:
+            from aletheia import autonomy
+            return autonomy.allow(tool, session=self.session, halted=self._halted)
+        except Exception as exc:                                   # noqa: BLE001
+            return False, f"I could not check my own limits ({type(exc).__name__})"
 
 
 # ---- the executor ----------------------------------------------------------
@@ -399,6 +439,10 @@ Rules:
   not state it as certain. Basis GUESS means nothing was found: say you are guessing.
 - Never say you did something no tool did. A REFUSED or HANDOFF request did not run;
   do not ask for it again and do not claim it happened.
+- A few tools CHANGE something and still run here, because they are reversible and
+  stay on this machine: a task, a note, a draft, a file in your own workspace. Use
+  one only when Caleb asked for that thing, say plainly that you did it, and say it
+  can be undone. Anything that sends, publishes, spends or decides goes to him.
 - Answer in plain spoken sentences: no markdown, no ids, no JSON, no URLs, and no
   state codes - say "waiting on you", never NEEDS_YOU. It is read aloud in a room.
 - {authority}
@@ -481,6 +525,8 @@ class SessionResult:
     model_answer: str = ""
     handoffs: list = field(default_factory=list)
     refusals: list = field(default_factory=list)
+    #: What she did inside this session without asking, each with its undo.
+    unattended: list = field(default_factory=list)
     receipts: list = field(default_factory=list)
     sources: list = field(default_factory=list)
     model: str = ""
@@ -520,7 +566,7 @@ class AgentSession:
                  now_line: Callable[[], str] | None = None, record: bool = True,
                  file_handoffs: bool | None = None,
                  on_step: Callable[[str, dict], Any] | None = None,
-                 budget_s: float | None = None):
+                 budget_s: float | None = None, unattended: bool = True):
         self.question = " ".join(str(question or "").split())
         # Told about each tool the broker lets run, BEFORE it runs, so a
         # listener can say what she is looking at. Never trusted with anything.
@@ -532,7 +578,7 @@ class AgentSession:
         self.think = think
         self.catalog = catalog if catalog is not None else tools.catalog()
         self.audience = audience
-        self.broker = broker or Broker(self.catalog, audience=audience)
+        self.unattended = bool(unattended)
         self.max_steps = max(1, min(int(max_steps), MAX_STEPS))
         self.tool_timeout_s = tool_timeout_s
         self.now_line = now_line or _now_line
@@ -542,6 +588,10 @@ class AgentSession:
         self.file_handoffs = record if file_handoffs is None else bool(file_handoffs)
         self.result = SessionResult(id="agent-" + uuid.uuid4().hex[:10], question=self.question,
                                     outcome=MODEL_ERROR)
+        # Built AFTER the id exists: the broker charges unattended work to this
+        # session, and a session with no id could not be given a budget.
+        self.broker = broker or Broker(self.catalog, audience=audience,
+                                       unattended=self.unattended, session=self.result.id)
 
     # -- the transcript ----------------------------------------------------
 
@@ -730,6 +780,10 @@ class AgentSession:
                 seen_ok[signature] = observation
                 if not any(s["tool"] == tool.name and s.get("basis") == basis for s in res.sources):
                     res.sources.append({"tool": tool.name, "provenance": tool.provenance, "basis": basis})
+                # SOMETHING SHE DID WITHOUT ASKING, written down with its undo.
+                # Only what CHANGES something: a lookup is not an act.
+                if not tool.read_only or (tool.kind and not intercom.only_answers(tool.kind)):
+                    self._note_unattended(tool, reply.args, result)
             label = "OBSERVATION" if outcome == "ok" else f"TOOL {outcome.upper()}"
             said = f"{tool.provenance}; basis {basis}" if basis else tool.provenance
             turns.append({"request": request_line,
@@ -777,6 +831,25 @@ class AgentSession:
                       "state": filed["state"]})
         return (". It is now waiting for Caleb's approval; nothing has happened yet. Tell him "
                 "it is waiting for his yes, not that it is done.")
+
+    def _note_unattended(self, tool: tools.Tool, args: dict, result: Any) -> None:
+        """The ledger line for a reversible action nobody was asked about.
+        Never raises: the action already happened, and losing the undo is worse
+        said than hidden, so a failure is recorded on the result."""
+        try:
+            from aletheia import autonomy
+            entry = autonomy.record(tool=tool.name, args=dict(args or {}),
+                                    consequence=tool.consequence, session=self.result.id,
+                                    said=autonomy.said_for(tool, args, result),
+                                    undo=autonomy.undo_plan(tool, args, result))
+        except Exception as exc:                                   # noqa: BLE001
+            self.result.unattended.append({"tool": tool.name, "recorded": False,
+                                           "why": f"{type(exc).__name__}: {str(exc)[:120]}"})
+            return
+        self.result.unattended.append({"id": entry["id"], "tool": tool.name,
+                                       "consequence": tool.consequence,
+                                       "said": entry["said"], "undo": entry["undo"].get("how"),
+                                       "recorded": "not_recorded_because" not in entry})
 
     def _receipt(self, step: int, request: ToolRequest, verdict: str, outcome: str, reason: str,
                  *, provenance: str = "", duration_ms: int = 0, observation: str = "",
@@ -976,6 +1049,10 @@ def render(result: SessionResult) -> str:
         prov = f" [{r['provenance']}{'; ' + r['basis'] if r.get('basis') else ''}]" if r["provenance"] else ""
         lines.append(f"  {r['step']}. {r['tool']} {json.dumps(r['args'], ensure_ascii=False)}"
                      f" -> {r['verdict']}/{r['outcome']}{prov} {r['duration_ms']}ms{extra}")
+    for u in result.unattended:
+        lines.append(f"  did without asking ({u.get('consequence')}): {u.get('said') or u.get('tool')}"
+                     + (f" [undo: python -m aletheia.autonomy undo {u['id']}]"
+                        if u.get("id") and u.get("undo") not in (None, "none") else ""))
     for h in result.handoffs:
         waiting = f" (waiting for approval {h['approval']})" if h.get("approval") else ""
         lines.append(f"  needs Caleb: {h['reason']}{waiting}")

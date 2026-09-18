@@ -180,7 +180,42 @@ def state_now(args: dict, **_ignored) -> dict:
     return {"readable": True, "state": json.loads(json.dumps(slim, default=str))}
 
 
+def unattended_query(args: dict, **_ignored) -> dict:
+    """What she did without asking him, from the ledger that holds the undos."""
+    from aletheia import autonomy
+    try:
+        hours = float(args.get("hours") or 24)
+    except (TypeError, ValueError):
+        hours = 24.0
+    try:
+        limit = min(int(args.get("limit") or MAX_RECORDS), 20)
+    except (TypeError, ValueError):
+        limit = MAX_RECORDS
+    try:
+        block = autonomy.summary(hours=max(1.0, hours), limit=max(1, limit))
+    except Exception as exc:                                       # noqa: BLE001
+        return {"readable": False, "note": f"the unattended ledger could not be read ({type(exc).__name__})"}
+    if not block.get("readable"):
+        return block
+    # An EMPTY store still proves the store (CLAUDE.md): the note says which of
+    # the three situations this is, so nothing answers "I don't keep that".
+    if not block["actions"]:
+        block["note"] = (f"I did nothing without asking in the last {hours:g} hours. I do keep this "
+                         "record; it is empty for that window.")
+    return block
+
+
 TOOLS = (
+    tools.declare(
+        "autonomy.unattended",
+        description=("What you did WITHOUT asking Caleb - every reversible, local action you took on "
+                     "your own, newest first, with how each one can be undone and how much of your "
+                     "daily allowance is left. hours is the window (default 24), limit at most 20. "
+                     "This is the answer to 'what did you do without asking me'."),
+        input_schema={"properties": {"hours": {"type": ["integer", "number", "string"]},
+                                     "limit": {"type": ["integer", "string"]}}},
+        handler=unattended_query, capability="autonomy.unattended", reads=("unattended",),
+        provenance=tools.TRUSTED_LOCAL_STATE),
     tools.declare(
         "state.now",
         description=("What you are doing right now, the job hunt so far today, the browser, "
@@ -188,7 +223,7 @@ TOOLS = (
                      "section narrows it to one of: agent, job_hunt, browser, code, "
                      "needs_attention, focus, waiting, upcoming, capability_gaps."),
         input_schema={"properties": {"section": {"type": "string"}}},
-        handler=state_now, capability="state.now", reads=("current_state",),
+        handler=state_now, capability="current_state.read", reads=("current_state",),
         provenance=tools.TRUSTED_LOCAL_STATE),
     tools.declare(
         "applications.query",
@@ -200,7 +235,7 @@ TOOLS = (
         input_schema={"properties": {"which": {"type": "string"}, "company": {"type": "string"},
                                      "state": {"type": "string"},
                                      "limit": {"type": ["integer", "string"]}}},
-        handler=applications_query, capability="state.now", reads=("applications",),
+        handler=applications_query, capability="current_state.read", reads=("applications",),
         provenance=tools.TRUSTED_LOCAL_STATE),
     tools.declare(
         "journal.query",

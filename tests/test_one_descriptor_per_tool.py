@@ -84,29 +84,38 @@ class TheFlagsAgreeWithTheSetsTheyCameFrom(unittest.TestCase):
         shown = {t["name"] for t in tools.for_model("planner")["tools"]}
         self.assertEqual(shown & intercom.PLANNER_FORBIDDEN, set())
 
-    def test_the_local_model_sees_only_tools_that_read_or_are_handed_off(self):
-        """What it may RUN is reads. A declared tool that writes (the browser
-        goal loop) may be SHOWN so she can ask for it - the brief's "becomes a
-        handoff inside AgentSession" - and then the broker, not the catalog,
-        is what stops it, and the row tells the model it will not run."""
+    def test_every_row_the_local_model_sees_says_truly_whether_it_will_run(self):
+        """A row's `runs` is a promise, and the broker is what keeps it.
+
+        Until 2026-09-18 this asserted "nothing that writes is shown locally".
+        His continuity brief (item 10) replaced that rule, so the assertion is
+        the rule that matters underneath it: whatever the row SAYS about
+        running is what the broker actually does, and a row that says it runs
+        is never outward."""
         from aletheia import agent_session
         broker = agent_session.Broker(self.catalog, halted=lambda: False)
         for row in tools.for_model("local")["tools"]:
             tool = self.catalog[row["name"]]
             with self.subTest(tool=row["name"]):
                 self.assertEqual(row["read_only"], tool.read_only)
+                self.assertEqual(row["consequence"], tool.consequence)
+                args = {k: "x" for k in tool.input_schema.get("required") or []}
+                verdict = broker.check(agent_session.ToolRequest(tool.name, args)).verdict
                 if tool.read_only:
                     continue
-                self.assertIsNone(tool.kind, "no intercom kind that writes is shown locally")
                 if tool.record_only:
-                    # A proposal record runs, and the row says it only writes that.
                     self.assertIn("proposal record", row["runs"])
                     continue
-                self.assertNotEqual(tool.approval, "none")
-                args = {k: "x" for k in tool.input_schema.get("required") or []}
-                self.assertNotEqual(broker.check(agent_session.ToolRequest(tool.name, args)).verdict,
-                                    agent_session.RUN)
-                self.assertIn("never run", row["runs"])
+                if "never run" in row["runs"]:
+                    self.assertNotEqual(tools.approval_of(tool), "none")
+                    self.assertNotEqual(verdict, agent_session.RUN)
+                    continue
+                # It says it runs here and can be undone: then it must be
+                # reversible, need no approval, and not be outward.
+                self.assertIn("undo", row["runs"])
+                self.assertIn(tool.consequence, tools.UNATTENDED)
+                self.assertEqual(tools.approval_of(tool), "none")
+                self.assertTrue(tools.runs_unattended(tool))
         # and it does see the three that answer questions about her state
         names = {t["name"] for t in tools.for_model("local")["tools"]}
         self.assertTrue({"state.now", "applications.query", "journal.query"} <= names)

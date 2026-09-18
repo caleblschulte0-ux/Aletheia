@@ -207,12 +207,35 @@ class TheBrokerRefuses(unittest.TestCase):
         self.assertEqual(result.handoffs[0]["tool"], "tasks.write")
         self.assertEqual(result.receipts[0]["verdict"], s.HANDOFF)
 
-    def test_a_kind_that_makes_something_does_not_run_in_the_loop(self):
+    def test_a_reversible_kind_that_makes_something_runs_and_is_written_down(self):
+        """THE RULE CHANGED, on his brief (item 10): a note is reversible and
+        local, so it runs inside the session rather than becoming a question.
+        What it must not do is happen silently - the ledger line and its undo
+        are the price of not asking."""
         calls = []
         result = session(scripted({"tool": "note", "args": {"text": "hello"}},
                                   {"answer": "noted"}), calls).run()
-        self.assertEqual(calls, [])
-        self.assertEqual(result.receipts[0]["verdict"], s.HANDOFF)
+        self.assertEqual(result.receipts[0]["verdict"], s.RUN)
+        self.assertEqual(len(result.unattended), 1)
+        self.assertEqual(result.unattended[0]["tool"], "note")
+        self.assertEqual(result.unattended[0]["consequence"], tools.VISIBLE_TO_HIM)
+        self.assertTrue(result.unattended[0]["recorded"])
+
+    def test_a_reversible_kind_still_waits_when_she_is_halted(self):
+        catalog = tools.catalog()
+        broker = s.Broker(catalog, audience="all", halted=lambda: True)
+        self.assertEqual(broker.check(s.ToolRequest("note", {"text": "x"})).verdict, s.REFUSED)
+
+    def test_an_outward_kind_is_never_run_unattended(self):
+        catalog = tools.catalog()
+        broker = s.Broker(catalog, audience="all", halted=lambda: False)
+        for name, args in (("issue", {"repo": "a/b", "title": "t", "body": "b"}),
+                           ("message_send", {"who": "sam", "text": "hi"}),
+                           ("forget", {"domain": "people", "key": "k"}),
+                           ("study_decide", {"study": "s1", "hypothesis": "h1", "decision": "accept"})):
+            with self.subTest(tool=name):
+                self.assertEqual(catalog[name].consequence, tools.OUTWARD)
+                self.assertNotEqual(broker.check(s.ToolRequest(name, args)).verdict, s.RUN)
 
     def test_spending_is_refused_permanently_never_handed_off(self):
         calls = []
@@ -249,27 +272,48 @@ class TheBrokerRefuses(unittest.TestCase):
         broker = s.Broker(catalog, halted=lambda: False, registry=registry, fleet={"repos": {}})
         self.assertEqual(broker.check(s.ToolRequest("state.now", {})).verdict, s.REFUSED)
 
-    def test_the_real_local_catalog_only_ever_runs_reads(self):
-        """Against the REAL catalog: every tool the local model is shown
-        either runs as a read or is stopped, and nothing that writes runs."""
+    def test_the_real_catalog_runs_only_reads_proposals_and_reversible_work(self):
+        """Against the REAL catalog: everything the broker RUNS is one of three
+        things, and nothing outward is ever one of them.
+
+        This test asserted "nothing that writes runs" until 2026-09-18. That was
+        the rule his continuity brief replaced (Part III item 10), so the
+        assertion says the new rule rather than freezing the old behaviour: a
+        writer runs only when its consequence is reversible AND no approval
+        policy names it."""
         catalog = tools.catalog()
-        broker = s.Broker(catalog, halted=lambda: False)
+        broker = s.Broker(catalog, audience="all", halted=lambda: False)
+        ran_a_writer = False
         for name, tool in catalog.items():
             with self.subTest(tool=name):
                 args = {k: "x" for k in tool.input_schema.get("required") or []}
                 decision = broker.check(s.ToolRequest(name, args))
-                if decision.verdict == s.RUN and tool.record_only:
-                    # The writers that run: a record of her own advice (a patch
-                    # proposal, a conversation draft, a tentative hold in her own
-                    # calendar), which changes no code, sends nothing, reaches nobody.
+                if decision.verdict != s.RUN:
+                    continue
+                self.assertNotEqual(tool.consequence, tools.OUTWARD, name)
+                if tool.read_only and (tool.kind is None or intercom.only_answers(tool.kind)):
+                    continue
+                if tool.record_only:
+                    # A record of her own advice (a patch proposal, a conversation
+                    # draft, a tentative hold in her own calendar): changes no
+                    # code, sends nothing, reaches nobody.
                     self.assertTrue(set(tool.writes) <= set(tools.RECORD_ONLY_STORES), name)
                     self.assertEqual(tool.approval, "none")
-                    self.assertIsNone(tool.kind)
-                elif decision.verdict == s.RUN:
-                    self.assertTrue(tool.read_only, name)
-                    self.assertTrue(tool.local_model_visible, name)
-                    if tool.kind:
-                        self.assertTrue(intercom.only_answers(tool.kind), name)
+                    continue
+                ran_a_writer = True
+                self.assertIn(tool.consequence, tools.UNATTENDED, name)
+                self.assertEqual(tools.approval_of(tool), "none", name)
+                self.assertTrue(tools.runs_unattended(tool), name)
+        self.assertTrue(ran_a_writer, "the new rule needs a subject")
+
+    def test_with_unattended_off_the_old_rule_holds(self):
+        """The switch a caller that cannot record an undo asks for."""
+        catalog = tools.catalog()
+        broker = s.Broker(catalog, audience="all", halted=lambda: False, unattended=False)
+        for name, args in (("note", {"text": "x"}), ("task_new", {"id": "t1", "description": "x"}),
+                           ("remember", {"domain": "people", "key": "k", "value": "v"})):
+            with self.subTest(tool=name):
+                self.assertEqual(broker.check(s.ToolRequest(name, args)).verdict, s.HANDOFF)
 
 
 class ARefusalStaysARefusal(unittest.TestCase):

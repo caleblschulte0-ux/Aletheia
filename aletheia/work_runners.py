@@ -27,14 +27,21 @@ work goes), and run within the authority that already exists:
     his              done inside an account or place only Caleb can reach: asked
                      once, BLOCKED_USER
     compose          anything else: composed from the tool catalog; a step the
-                     broker runs without his approval (a read) runs, anything that
-                     changes the world is handed to him as a handoff
+                     broker runs without his approval - a read, or (since C4b) a
+                     REVERSIBLE-LOCAL write recorded with its undo - runs, and
+                     anything outward is handed to him as a handoff
 
 AUTHORITY IS UNCHANGED. Nothing here merges, pushes to a default branch, sends,
 spends, approves or widens a grant: pull requests go through
 `code_worker.open_repair_pr` (its grant, its halt checks, its refusals), world
 steps through `handoffs.file`, and in a rehearsal (`ALETHEIA_REHEARSAL`) no pull
 request is opened at all - work stops at "branch ready" in a throwaway mirror.
+
+WHAT RUNS UNATTENDED IS WRITTEN DOWN (continuity brief item 10, C4b). A branch
+prepared in a throwaway copy, a document drafted onto one, and a reversible step
+the broker runs in `_compose` each leave a line in `aletheia.autonomy` with how
+to undo it - the branch name and the copy, the record id, the file path. The
+budget and the kill switch are checked per action, not once per session.
 
 HEAVY WORK RUNS IN A SESSION. A clone, a test run or her own model is started only
 inside a work session (`project_work`, "work on my projects"), one item at a time,
@@ -628,7 +635,8 @@ def _verify(it: dict, where: dict, now: dt.datetime) -> dict:
                                failing=result["failing"][:3] or None, task_id=f"verify-{cid}",
                                objective=f"Repair capability {cid}: its tests fail", open_pr=_gh_can_publish())
         keep = run.get("status") == "BRANCH_READY"
-        return _from_repair(it, run, target={"repo": run.get("repo"), "base_ref": "HEAD"}, check=check)
+        return _from_repair(it, run, target={"repo": run.get("repo"), "base_ref": "HEAD"}, check=check,
+                            view=view)
     finally:
         if not keep:
             project_checkout.discard(view)
@@ -650,18 +658,64 @@ def _session_keep(view: dict) -> None:
         session.setdefault("kept", []).append(view.get("scratch") or view.get("path"))
 
 
+def _only_answers(kind: str) -> bool:
+    from aletheia import intercom
+    return intercom.only_answers(kind)
+
+
+def _note_unattended(tool, args: dict, result, *, session: str, route: str = "") -> dict:
+    """One reversible thing the work session did without asking, with its undo.
+    Never raises: the work already happened."""
+    try:
+        from aletheia import autonomy
+        return autonomy.record(tool=getattr(tool, "name", str(tool)), args=dict(args or {}),
+                               consequence=getattr(tool, "consequence", ""), session=session,
+                               route=route, said=autonomy.said_for(tool, args, result),
+                               undo=autonomy.undo_plan(tool, args, result))
+    except Exception as exc:  # noqa: BLE001
+        return {"id": "", "recorded": False, "why": f"{type(exc).__name__}: {str(exc)[:120]}"}
+
+
+def _note_branch(it: dict, *, branch: str, path: str, repo: str, said: str, route: str) -> dict:
+    """A BRANCH she prepared in a throwaway copy of a project: the brief's own
+    example of reversible local work ("fixing a project in a branch", "preparing
+    PRs"). Nothing is pushed, so the undo is deleting the branch and the copy."""
+    try:
+        from aletheia import autonomy
+        return autonomy.record(tool="local_repair.branch", args={"repo": repo, "branch": branch},
+                               consequence=autonomy.tools_consequence_local(), session=f"work-{_task_id(it)}",
+                               route=route, said=said,
+                               undo=autonomy.branch_undo(path=path, branch=branch, repo=repo))
+    except Exception as exc:  # noqa: BLE001
+        return {"id": "", "recorded": False, "why": f"{type(exc).__name__}: {str(exc)[:120]}"}
+
+
 def _from_repair(it: dict, run: dict, *, target: dict | None, check: dict | None = None,
-                 ci: dict | None = None, commands: list[dict] | None = None) -> dict:
+                 ci: dict | None = None, commands: list[dict] | None = None,
+                 view: dict | None = None) -> dict:
     """A local repair run, in the work vocabulary."""
     from aletheia import investigation as inv
     status = run.get("status")
     if status in ("BRANCH_READY", "PR_OPEN"):
         where = run.get("pr_url") or f"local branch {run.get('branch')}"
+        evidence = {"repair_run": run.get("id"), "branch": run.get("branch"), "pr_url": run.get("pr_url")}
+        if status == "BRANCH_READY" and run.get("branch") and (view or {}).get("path"):
+            # A branch in a throwaway copy, prepared without asking. Nothing is
+            # pushed; the ledger says so and says how to throw it away.
+            where_repo = str(run.get("repo") or (target or {}).get("repo") or "").split("/")[-1]
+            noted = _note_branch(it, branch=str(run["branch"]), path=str(view["path"]),
+                                 repo=str(run.get("repo") or (target or {}).get("repo") or ""),
+                                 said=f"prepared a verified repair on the branch {run['branch']}, in a "
+                                      f"throwaway copy of {where_repo or 'the project'}; nothing was "
+                                      "pushed and nothing was merged",
+                                 route="failure")
+            if noted.get("id"):
+                evidence["unattended"] = [noted["id"]]
         return {"state": ws.BLOCKED_USER, "kind": "repaired",
                 "reason": (f"a verified repair is on {where}" + ("" if run.get("pr_url") else
                            " (a rehearsal opens no pull request)" if _rehearsing() else ""))[:300],
                 "next": "Caleb reviews it; it is never merged by her",
-                "evidence": {"repair_run": run.get("id"), "branch": run.get("branch"), "pr_url": run.get("pr_url")},
+                "evidence": evidence,
                 "did": f"repaired {_short(it)} locally and verified it with its tests ({where})"}
     if status == "ESCALATED" and run.get("packet_id"):
         try:
@@ -754,7 +808,7 @@ def _failure(it: dict, where: dict, now: dt.datetime) -> dict:
                                  did=f"checked out {target['repo'].split('/')[-1]}, ran its tests (they pass), read "
                                      f"the failing run, and queued {_short(it, 60)} for a stronger model")
         keep = run.get("status") == "BRANCH_READY"
-        return _from_repair(it, run, target=target, ci=ci, commands=commands)
+        return _from_repair(it, run, target=target, ci=ci, commands=commands, view=view)
     finally:
         if keep:
             _session_keep(view)
@@ -892,6 +946,12 @@ def _doc(it: dict, where: dict, now: dt.datetime) -> dict:
         else:
             keep = True
             where_now = f"local branch {branch}"
+            noted = _note_branch(it, branch=branch, path=str(root), repo=target["repo"],
+                                 said=f"drafted {out_path} on the branch {branch} in a throwaway copy "
+                                      f"of {target['repo'].split('/')[-1]}; nothing was pushed",
+                                 route="doc")
+            if noted.get("id"):
+                evidence["unattended"] = [noted["id"]]
         return {"state": ws.BLOCKED_USER, "kind": "drafted",
                 "reason": (f"a draft of {out_path} is ready on {where_now}"
                            + (" (a rehearsal opens no pull request)" if _rehearsing() else ""))[:300],
@@ -937,8 +997,15 @@ def _compose(it: dict, where: dict, now: dt.datetime) -> dict:
             return {"state": ws.BLOCKED_EXTERNAL, "kind": "waiting", "reason": gap["why"], "next": gap["next"],
                     "did": f"found {_short(it, 80)} waits on something outside"}
         return _investigate(it, where, now, kind=gap["outcome"], reasons=[f"no tool of hers can do it: {gap['why']}"])
-    broker = agent_session.Broker(catalog, audience="all")
+    # CONSEQUENCE, NOT "READ VS WRITE" (continuity brief item 10): inside a
+    # work item a reversible-local step runs and is written to the unattended
+    # ledger with its undo; anything outward still becomes his approval. The
+    # work item is the session the budget is charged to, so one item cannot
+    # churn through a day's allowance.
+    session_id = f"work-{_task_id(it)}"
+    broker = agent_session.Broker(catalog, audience="all", session=session_id)
     said = []
+    unattended = []
     for step in plan["steps"]:
         tool = catalog[step["tool"]]
         args, missing = program_compose.fill_args(tool, {"title": text, "detail": text}, step.get("args"))
@@ -952,6 +1019,9 @@ def _compose(it: dict, where: dict, now: dt.datetime) -> dict:
                         "reason": f"{tool.name} {outcome}", "next": "try again later",
                         "did": f"tried {tool.name} for {_short(it, 60)} and it did not work"}
             said.append(handoffs._said_result(result)[:200])
+            if not tool.read_only or (tool.kind and not _only_answers(tool.kind)):
+                unattended.append(_note_unattended(tool, args, result, session=session_id,
+                                                   route="compose"))
             continue
         if decision.verdict == agent_session.HANDOFF:
             filed = handoffs.file(tool=tool, args=args, session_id=f"work-{_task_id(it)}", question=text[:200],
@@ -960,14 +1030,16 @@ def _compose(it: dict, where: dict, now: dt.datetime) -> dict:
                     "next": "when Caleb approves or denies the request", "evidence": {"approval": filed["id"]},
                     "did": f"handed {_short(it, 70)} to you: it changes something, so it waits for your yes"}
         return _his(it, {"why": f"{tool.name} was refused: {decision.reason}"}, now)
+    evidence = {"unattended": [u["id"] for u in unattended if u.get("id")]} if unattended else {}
     tid = (it.get("payload") or {}).get("task")
     if tid and it.get("source") == "tasks":
         from aletheia import tasks
         tasks.set_status(tid, "COMPLETED", "; ".join(said)[:400] or "done by the work session")
-        return {"state": ws.DONE, "kind": "completed", "reason": "", "next": "",
+        return {"state": ws.DONE, "kind": "completed", "reason": "", "next": "", "evidence": evidence,
                 "did": f"did {_short(it, 80)} ({'; '.join(said)[:120]})"}
     return {"state": ws.BLOCKED_USER, "kind": "completed", "reason": "done by a tool; confirm it to close the step",
-            "next": "when Caleb marks the step done", "did": f"did {_short(it, 80)}; the step closes when you say so"}
+            "next": "when Caleb marks the step done", "evidence": evidence,
+            "did": f"did {_short(it, 80)}; the step closes when you say so"}
 
 
 def _investigate(it: dict, where: dict, now: dt.datetime, *, kind: str = "reserved",

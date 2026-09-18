@@ -523,6 +523,9 @@ def report_words(record: dict) -> str:
         needs = [_say_title(r["title"], 8) for r in handed[:3]] + asks
         if needs:
             parts.append("What I need from you: " + "; ".join(needs[:4]) + ".")
+    unattended = unattended_words(record)
+    if unattended:
+        parts.append(unattended)
     left = after.get("can_now") or []
     if stopped.get("why") == "time" and left:
         parts.append(f"I ran out of the time you gave me with {len(left)} more I could take; say work on my projects "
@@ -530,6 +533,33 @@ def report_words(record: dict) -> str:
     elif stopped.get("why") == "halted":
         parts.append("I stopped because I was halted.")
     return " ".join(p for p in parts if p)
+
+
+def unattended_words(record: dict) -> str:
+    """What this session did WITHOUT asking him, in a sentence he can act on.
+
+    The honesty half of consequence-based authority (continuity brief item 10):
+    the point is not that she may now do reversible things on her own, it is
+    that he is told she did and told how to take them back in the same breath.
+    Says nothing when nothing ran unattended - a sentence about an empty list is
+    noise he learns to talk over.
+    """
+    from aletheia import speech
+    ids = [i for r in (record.get("receipts") or []) for i in (r.get("evidence") or {}).get("unattended", [])]
+    if not ids:
+        return ""
+    try:
+        from aletheia import autonomy
+        rows = [r for r in autonomy.recent(hours=24.0, limit=50) if r.get("id") in set(ids)]
+    except Exception:  # noqa: BLE001
+        rows = []
+    if not rows:
+        return ""
+    said = [str(r.get("said") or r.get("tool")).rstrip(".") for r in rows[:3]]
+    lead = (f"{speech.count_phrase(len(rows), 'thing')} I did without asking, all of them reversible and "
+            f"all of them on this machine: ")
+    return lead + "; ".join(said) + ". Say what did you do without asking me and I'll list them with how " \
+                                    "to undo each one."
 
 
 def _listed(names: list[str], limit: int = 4) -> str:
@@ -597,7 +627,8 @@ def summary(now: dt.datetime | None = None) -> dict:
                  for r in receipts[-12:]],
         "waiting": [{k: w.get(k) for k in ("id", "title", "state", "reason", "next")}
                     for w in (after.get("waiting") or [])[:12]],
-        "stopped": record.get("stopped"), "said": spoken_status()}}
+        "stopped": record.get("stopped"), "said": spoken_status(),
+        "unattended": [i for r in receipts for i in (r.get("evidence") or {}).get("unattended", [])]}}
 
 
 def main(argv: list[str] | None = None) -> int:

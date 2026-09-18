@@ -695,6 +695,14 @@ def work_session_section(now: dt.datetime | None = None) -> dict:
     return project_work.summary(_utc(now))
 
 
+def unattended(now: dt.datetime | None = None) -> dict:
+    """What she did WITHOUT asking him (`aletheia.autonomy`): every reversible,
+    local action she took on her own, with the command that undoes each one and
+    how much of her daily allowance is left. Empty says so."""
+    from aletheia import autonomy
+    return autonomy.summary(hours=24.0, now=_utc(now))
+
+
 def studies_section(now: dt.datetime | None = None) -> dict:
     """His studies (`aletheia.studies`): evidence, proposals awaiting him, changes being measured."""
     from aletheia import studies
@@ -747,6 +755,8 @@ def sections(now: dt.datetime | None = None, *, fresh: bool = False) -> dict:
                          {"readable": False, "note": "the studies could not be read"}),
         "conversations": _safe(lambda: conversations(now),
                                {"readable": False, "note": "the conversations could not be read"}),
+        "unattended": _safe(lambda: unattended(now),
+                            {"readable": False, "note": "the unattended ledger could not be read"}),
     }
     _SECTIONS.update({"at": clock, "value": json.loads(json.dumps(value, default=str))})
     return json.loads(json.dumps(value, default=str))
@@ -825,6 +835,7 @@ def snapshot(*, now: dt.datetime | None = None) -> dict:
         "work_session": derived.get("work_session"),
         "programs": derived.get("programs"),
         "studies": derived.get("studies"),
+        "unattended": derived.get("unattended"),
     }
 
 

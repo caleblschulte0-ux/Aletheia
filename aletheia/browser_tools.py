@@ -97,7 +97,7 @@ TOOLS = (
         description=("Where your browser goals stand: each one's state, last checkpoint and the "
                      "exact boundary it stopped at (mission narrows to one)."),
         input_schema={"properties": {"mission": {"type": "string"}}},
-        handler=_missions, capability="state.now", reads=("browser-missions", "site-skills")),
+        handler=_missions, capability="current_state.read", reads=("browser-missions", "site-skills")),
     tools.declare(
         "browser.pursue",
         description=("Pursue a goal on a website until done or a named boundary (goal, url; inputs "

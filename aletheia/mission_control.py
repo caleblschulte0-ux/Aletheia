@@ -675,7 +675,10 @@ def gather(now: dt.datetime | None = None, *, fresh: bool = False,
             notes.append(f"{name} could not be read ({type(exc).__name__})")
             return fallback
 
-    derived = attempt("her current state", lambda: current_state.sections(now), {})
+    # FRESH means fresh all the way down: the sections cache is three seconds
+    # long, and a screen asked to refresh that showed a three-second-old
+    # answer is a screen that disagrees with the store it is rendering.
+    derived = attempt("her current state", lambda: current_state.sections(now, fresh=fresh), {})
     hunt = derived.get("job_hunt") or {}
     browser = derived.get("browser") or {}
     entries = attempt("the journal", lambda: journal.entries()[-600:], [])
@@ -768,6 +771,13 @@ def gather(now: dt.datetime | None = None, *, fresh: bool = False,
         "details": details,
         "providers": [{"type": p.type, "label": p.label} for p in registered.values()],
         "code": derived.get("code"),
+        # WHAT SHE DID WITHOUT ASKING, on the screen he already looks at. Not a
+        # mission card: none of it is waiting on him, and putting it in the
+        # needs-you column would teach him to ignore that column. A short list
+        # with the command that undoes each one (continuity brief item 10).
+        "unattended": derived.get("unattended") or attempt(
+            "what ran unattended", lambda: current_state.unattended(now),
+            {"readable": False, "note": "the unattended ledger could not be read"}),
         "notes": notes,
     }
     value = json.loads(json.dumps(value, default=str))
