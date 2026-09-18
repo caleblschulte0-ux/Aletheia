@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import socket
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -17,7 +18,16 @@ from typing import Any
 
 DEFAULT_BASE_URL = "http://127.0.0.1:11434"
 DEFAULT_TIMEOUT_S = 45.0
+#: The hard ceiling on ONE call, whoever is asking. It is not a budget: the
+#: budget is chosen per class of work in `work_states.LOCAL_CEILING_S` (300 s
+#: attended, 1200 s background) and nothing gets the long one by default. This
+#: is only the point past which a single local call is a hung process rather
+#: than a slow answer. 1800 s = 30 minutes; it was 300 s, which made his
+#: 2026-09-18 ruling ("like a while") inexpressible.
+MAX_TIMEOUT_S = 1_800.0
 DEFAULT_KEEP_ALIVE = "30s"
+#: A streamed call looks at `should_yield` no less often than this.
+YIELD_CHECK_S = 0.5
 MAX_RESPONSE_BYTES = 512 * 1024
 MAX_CONTEXT_BYTES = 16 * 1024
 MAX_PROMPT_CHARS = 24_000
@@ -33,6 +43,14 @@ class LocalBrainUnavailable(LocalBrainError):
 
 class LocalBrainProtocolError(LocalBrainError):
     pass
+
+
+class LocalBrainYielded(LocalBrainUnavailable):
+    """Background work gave the one Ollama queue back to a waiting conversation.
+
+    Not a failure of the work: it is the same "try again shortly" as
+    `local_lease.LeaseBusy`, raised from inside a call that was already running
+    when he started talking."""
 
 
 @dataclass(frozen=True)
@@ -74,8 +92,8 @@ class OllamaConfig:
             raise ValueError("local AI URL must be a plain loopback base URL")
         if not isinstance(self.model, str) or not self.model.strip() or len(self.model) > 200:
             raise ValueError("local AI model name must be non-empty and bounded")
-        if not 0.5 <= float(self.timeout_s) <= 300:
-            raise ValueError("local AI timeout must be 0.5..300 seconds")
+        if not 0.5 <= float(self.timeout_s) <= MAX_TIMEOUT_S:
+            raise ValueError(f"local AI timeout must be 0.5..{MAX_TIMEOUT_S:.0f} seconds")
         return self
 
 
@@ -209,13 +227,115 @@ def build_payload(system_prompt: str, text: str, context: dict, config: OllamaCo
     }
 
 
+def _stream_chat(config: OllamaConfig, payload: dict, should_yield) -> dict[str, Any]:
+    """One chat call whose generation can be STOPPED partway through.
+
+    Ollama has one queue on this laptop, so a twenty-minute background draft
+    would sit in front of every sentence he says unless the draft can be put
+    down. It can only be put down at a checkpoint, and a non-streamed call has
+    none: it blocks in one read until the answer is finished. Streaming makes
+    every chunk a checkpoint. The reader runs in a daemon thread and the
+    checkpoint runs here, so the prompt-evaluation phase - which on a CPU can be
+    a minute before the first token - is interruptible too. Closing the response
+    cancels the generation at Ollama's end rather than leaving it running.
+
+    Returns the same {"message": {...}} shape as the non-streamed call.
+    """
+    import queue as _queue
+    import threading
+
+    data = json.dumps({**payload, "stream": True}, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        config.base_url.rstrip("/") + "/api/chat", data=data, method="POST",
+        headers={"Accept": "application/x-ndjson", "Content-Type": "application/json"},
+    )
+    lines: _queue.Queue = _queue.Queue()
+    holder: dict[str, Any] = {}
+    read_bytes = 0
+
+    def read() -> None:
+        try:
+            with urllib.request.urlopen(req, timeout=config.timeout_s) as response:
+                holder["response"] = response
+                for raw in response:
+                    lines.put(raw)
+        except BaseException as exc:  # noqa: BLE001 - reported through the queue
+            holder["error"] = exc
+        finally:
+            lines.put(None)
+
+    worker = threading.Thread(target=read, name="aletheia-local-stream", daemon=True)
+    worker.start()
+    deadline = time.monotonic() + float(config.timeout_s)
+    content: list[str] = []
+    thinking: list[str] = []
+    error: str | None = None
+
+    def close() -> None:
+        response = holder.get("response")
+        if response is not None:
+            try:
+                response.close()
+            except Exception:  # noqa: BLE001
+                pass
+
+    while True:
+        if should_yield():
+            close()
+            raise LocalBrainYielded("her own model stopped to answer the conversation")
+        if time.monotonic() > deadline:
+            close()
+            raise LocalBrainUnavailable("local Ollama unavailable (TimeoutError)")
+        try:
+            raw = lines.get(timeout=YIELD_CHECK_S)
+        except _queue.Empty:
+            continue
+        if raw is None:
+            break
+        read_bytes += len(raw)
+        if read_bytes > MAX_RESPONSE_BYTES:
+            close()
+            raise LocalBrainProtocolError("local AI response exceeded size limit")
+        try:
+            chunk = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        if not isinstance(chunk, dict):
+            continue
+        if isinstance(chunk.get("error"), str) and chunk["error"]:
+            error = chunk["error"]
+        message = chunk.get("message")
+        if isinstance(message, dict):
+            if isinstance(message.get("content"), str):
+                content.append(message["content"])
+            if isinstance(message.get("thinking"), str):
+                thinking.append(message["thinking"])
+    exc = holder.get("error")
+    if exc is not None and not (content or thinking):
+        if isinstance(exc, (urllib.error.URLError, TimeoutError, socket.timeout,
+                            ConnectionError, OSError)):
+            raise LocalBrainUnavailable(f"local Ollama unavailable ({type(exc).__name__})") from None
+        raise LocalBrainUnavailable(f"local Ollama unavailable ({type(exc).__name__})") from None
+    if error and not (content or thinking):
+        raise LocalBrainUnavailable("configured local model is unavailable")
+    return {"message": {"content": "".join(content), "thinking": "".join(thinking)}}
+
+
 def infer_json(system_prompt: str, text: str, *, context: dict | None = None,
-               config: OllamaConfig) -> dict:
+               config: OllamaConfig, should_yield=None) -> dict:
+    """`should_yield` is the checkpoint: a callable asked repeatedly while the
+    model is thinking, and when it says True the call is abandoned with
+    `LocalBrainYielded`. Only background work passes one; a conversation is
+    never interrupted, and the call it makes is unchanged (unstreamed)."""
     ctx = context or {}
     if not isinstance(ctx, dict):
         raise ValueError("local reasoning context must be an object")
     payload = build_payload(system_prompt, text, ctx, config)
-    response = request_json(config, "/api/chat", payload)
+    if should_yield is None:
+        response = request_json(config, "/api/chat", payload)
+    else:
+        config.validated()
+        response = _stream_chat(config, payload, should_yield)
     message = response.get("message")
     if not isinstance(message, dict) or not isinstance(message.get("content"), str):
         detail = response.get("error")
