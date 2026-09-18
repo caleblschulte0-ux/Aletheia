@@ -89,7 +89,23 @@ LONG = ("Are you legally authorized to work in the United States for any employe
         "current or future visa sponsorship, including OPT, CPT or H-1B transfer?")
 
 
-class ALongQuestionIsAskedOnce(unittest.TestCase):
+class OwnRoom(unittest.TestCase):
+    """Its own private state. A mission record written into the suite's shared
+    room outlives the module: three `current_state` tests read a browser that
+    was still 'active' hours later, in another file entirely."""
+
+    def setUp(self):
+        import os, tempfile
+        from pathlib import Path
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        env = mock.patch.dict(os.environ, {"ALETHEIA_PRIVATE_STATE": tmp.name,
+                                           "ALETHEIA_WORKSPACE": str(Path(tmp.name) / "ws")})
+        env.start()
+        self.addCleanup(env.stop)
+
+
+class ALongQuestionIsAskedOnce(OwnRoom):
     def test_cut_and_whole_are_one_question(self):
         cut = LONG[:120]
         self.assertTrue(browser_loop.same_question(cut, LONG))
@@ -106,7 +122,7 @@ class ALongQuestionIsAskedOnce(unittest.TestCase):
         self.assertEqual(stopped["boundary"]["questions"], [LONG, "Pronouns"])
 
 
-class ContentNavigationPrefersTheGoal(unittest.TestCase):
+class ContentNavigationPrefersTheGoal(OwnRoom):
     def obs(self):
         return {"url": "https://shop.example.org/c", "state": ps.CONTENT,
                 "targets": [{"id": "t1", "role": "link", "label": "next"},
