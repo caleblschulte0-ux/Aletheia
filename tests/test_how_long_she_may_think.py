@@ -179,6 +179,57 @@ class SheStaysWarmForTheRoomAndNotForADraft(unittest.TestCase):
             self.assertEqual(local_brain.build_payload("s", "t", {}, config)["keep_alive"], "10s")
 
 
+class AModelThatNeverSawTheQuestion(unittest.TestCase):
+    """Ollama's default window is 4096 tokens and it truncates SILENTLY.
+
+    This layer will build a 24,000 character prompt on top of 16 KB of context,
+    and what Ollama drops first is the oldest thing in it - the system prompt,
+    the rules, the safety instructions. Nothing errors. The answer comes back
+    having been asked something else, which is the failure he cannot detect.
+
+    Measured on his laptop 2026-09-18, the same prompt each time: a 4096 window
+    took 90.1 s and held 5.94 GB, a 16384 window took 89.5 s and held 7.89 GB.
+    A bigger window costs memory, not time - so it is asked for by SIZE, and a
+    conversational prompt keeps the small, cheap runner."""
+
+    def test_a_small_prompt_keeps_the_small_window(self):
+        self.assertEqual(local_brain.window_for(100), 4096)
+
+    def test_a_prompt_that_would_not_fit_asks_for_one_that_does(self):
+        # 30,000 characters is about 10,000 tokens: two and a half times the
+        # default window, and every token of the overflow was being dropped.
+        self.assertGreater(local_brain.window_for(30_000), 4096)
+
+    def test_the_window_is_never_smaller_than_the_prompt_plus_a_reply(self):
+        for chars in (0, 5_000, 12_000, 20_000):
+            window = local_brain.window_for(chars)
+            self.assertGreaterEqual(window, min(chars / local_brain.CHARS_PER_TOKEN
+                                                + local_brain.WINDOW_HEADROOM_TOKENS,
+                                                max(local_brain.CONTEXT_WINDOWS)))
+
+    def test_the_biggest_is_a_cap_and_not_a_promise(self):
+        self.assertEqual(local_brain.window_for(10_000_000), max(local_brain.CONTEXT_WINDOWS))
+
+    def test_every_call_says_what_window_it_needs(self):
+        config = local_brain.OllamaConfig(model="m")
+        small = local_brain.build_payload("sys", "hello", {}, config)
+        big = local_brain.build_payload("sys", "x" * 20_000, {}, config)
+        self.assertEqual(small["options"]["num_ctx"], 4096)
+        self.assertGreater(big["options"]["num_ctx"], small["options"]["num_ctx"])
+
+    def test_inference_gets_half_the_machine(self):
+        # 2 threads 106.7 s, 4 threads 87.3 s, 6 threads 87.3 s: four is where
+        # it stops helping, and half the laptop is still his.
+        with mock.patch.object(local_brain.os, "cpu_count", return_value=8),                 mock.patch.dict(os.environ, {"ALETHEIA_LOCAL_AI_THREADS": ""}):
+            threads, _ = local_brain._runtime_limits()
+        self.assertEqual(threads, 4)
+
+    def test_his_own_setting_still_wins(self):
+        with mock.patch.object(local_brain.os, "cpu_count", return_value=8),                 mock.patch.dict(os.environ, {"ALETHEIA_LOCAL_AI_THREADS": "2"}):
+            threads, _ = local_brain._runtime_limits()
+        self.assertEqual(threads, 2)
+
+
 class ConversationStillWins(unittest.TestCase):
     """The lease already puts conversation first. A twenty minute call needs
     more than that: the call ALREADY RUNNING is the one in front of him."""

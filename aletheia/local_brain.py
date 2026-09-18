@@ -42,6 +42,36 @@ MAX_RESPONSE_BYTES = 512 * 1024
 MAX_CONTEXT_BYTES = 16 * 1024
 MAX_PROMPT_CHARS = 24_000
 
+#: A MODEL THAT NEVER SAW THE QUESTION. Ollama loads qwen3:8b with a 4096 token
+#: window by default and silently DROPS whatever does not fit, oldest first -
+#: which is the system prompt, the rules and the safety instructions. Nothing
+#: errors; the answer just comes back having been asked something else. This
+#: layer will happily build a 24,000 character prompt on top of 16 KB of
+#: context, so it has to say how big a window it needs.
+#:
+#: Measured 2026-09-18 on his laptop, the same prompt each time: 4096 took
+#: 90.1 s and held 5.94 GB, 16384 took 89.5 s and held 7.89 GB. So a bigger
+#: window costs MEMORY and not time - which is why it is asked for by size
+#: rather than taken always: a conversational prompt keeps the small, cheap
+#: runner (and never pays a reload for a window it does not need).
+CONTEXT_WINDOWS = (4096, 8192, 16384)
+#: Conservative for English prose with JSON in it; under-estimating tokens per
+#: character is what silently truncates.
+CHARS_PER_TOKEN = 3.0
+#: Room for the reply, which shares the window.
+WINDOW_HEADROOM_TOKENS = 1_024
+
+
+def window_for(chars: int) -> int:
+    """The smallest context window that holds a prompt this long, with room to
+    answer. The largest is a cap, not a promise: past it, Ollama truncates and
+    the caller's own context bounds are what keep that from happening."""
+    need = int(max(0, chars) / CHARS_PER_TOKEN) + WINDOW_HEADROOM_TOKENS
+    for window in CONTEXT_WINDOWS:
+        if need <= window:
+            return window
+    return CONTEXT_WINDOWS[-1]
+
 
 class LocalBrainError(RuntimeError):
     pass
@@ -182,7 +212,12 @@ def _read_json(response) -> dict[str, Any]:
 def _runtime_limits(want: str = "") -> tuple[int, str]:
     """Keep local inference useful without letting it monopolize the laptop."""
     logical_cpus = max(1, os.cpu_count() or 1)
-    default_threads = max(1, logical_cpus // 4)
+    # HALF THE MACHINE, not a quarter. Measured 2026-09-18 on his 8-thread
+    # laptop, the same prompt each time: 2 threads 106.7 s, 4 threads 87.3 s,
+    # 6 threads 87.3 s. Four is where it stops helping - past that it is
+    # waiting on memory, not on cores - so this takes the whole of the win and
+    # still leaves half the machine to him and to his job loop.
+    default_threads = max(1, logical_cpus // 2)
     raw_threads = os.environ.get("ALETHEIA_LOCAL_AI_THREADS", "").strip()
     if raw_threads:
         try:
@@ -234,7 +269,8 @@ def build_payload(system_prompt: str, text: str, context: dict, config: OllamaCo
         "think": config.think,
         "format": "json",
         "keep_alive": keep_alive,
-        "options": {"temperature": 0, "num_thread": threads},
+        "options": {"temperature": 0, "num_thread": threads,
+                    "num_ctx": window_for(len(system_prompt) + len(text) + len(ctx))},
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": text + ("\n\n--- UNTRUSTED CONTEXT JSON ---\n" + ctx if context else "")},
