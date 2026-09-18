@@ -687,8 +687,10 @@ def evidence_summary(packet: dict) -> str:
         lines.append(f"Dependencies installed with {install.get('manager')} in {install.get('seconds')}s "
                      f"({install.get('added')} packages, {install.get('size_mb')} MB).")
     for check in packet.get("local_checks") or []:
+        # the END of the output: `npm audit --json` puts its counts in
+        # `metadata` at the very bottom, and the head of the JSON says nothing
         lines.append(f"She ran `{check.get('argv') or check.get('command')}`: {check.get('said')}"
-                     + (f" — {' '.join(str(check.get('output') or '').split())[:300]}"
+                     + (f" — ...{' '.join(str(check.get('output') or '').split())[-300:]}"
                         if check.get("output") else "") + ".")
     if packet.get("hypothesis"):
         lines.append(f"Her own model's hypothesis (unverified): {packet['hypothesis']}")

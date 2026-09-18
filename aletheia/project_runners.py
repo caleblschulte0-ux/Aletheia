@@ -1021,8 +1021,10 @@ def run_check(where: str | Path, check: dict, *, timeout_s: int = CHECK_TIMEOUT_
         output, code = f"stopped after {timeout_s} seconds", -1
     except OSError as exc:
         output, code = f"could not run ({type(exc).__name__}: {str(exc)[:120]})", -1
-    return {"command": check.get("name") or " ".join(Path(argv[0]).name for _ in [0]),
-            "argv": " ".join([Path(argv[0]).name, *argv[1:]]), "exit_code": code, "ran": True,
+    # `npm.CMD` is how Windows spells it and not how anything should read it
+    tool = Path(argv[0]).stem.casefold()
+    return {"command": check.get("name") or tool,
+            "argv": " ".join([tool, *argv[1:]]), "exit_code": code, "ran": True,
             "reproduced": code != 0, "seconds": round(time.monotonic() - started, 1),
             "output": (output or "")[-MAX_CHECK_OUTPUT:],
             "said": ("it passed" if code == 0 else f"it exited {code}")}

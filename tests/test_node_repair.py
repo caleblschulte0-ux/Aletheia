@@ -909,7 +909,10 @@ class PacketsCarryWhatTheCommandsSaid(unittest.TestCase):
         self.addCleanup(shutil.rmtree, where, True)
         done = mock.Mock(returncode=1, stdout='{"vulnerabilities":{"high":3}}', stderr="")
         with mock.patch("aletheia.proc.run_tree", return_value=done):
-            row = runners.run_check(where, {"name": "npm audit", "argv": ["npm", "audit", "--json"]})
+            row = runners.run_check(where, {"name": "npm audit",
+                                            "argv": [r"C:\Program Files\nodejs\npm.CMD",
+                                                     "audit", "--json"]})
+        self.assertEqual(row["argv"], "npm audit --json")      # not npm.CMD, and not a full path
         self.assertEqual(row["exit_code"], 1)
         self.assertTrue(row["reproduced"])
         self.assertIn('"high":3', row["output"])
@@ -963,6 +966,8 @@ class PacketsCarryWhatTheCommandsSaid(unittest.TestCase):
         self.assertIn("installed with npm from package-lock.json", packet["evidence_summary"])
         self.assertIn("44 packages", packet["evidence_summary"])
         self.assertIn('"high":3', packet["evidence_summary"])
+        # the END of the output: npm audit puts its counts at the very bottom
+        self.assertIn("...", packet["evidence_summary"])
         self.assertIn('"high":3', inv.packet_evidence(packet))
         self.assertIn("npm audit --json", inv.packet_evidence(packet))
 

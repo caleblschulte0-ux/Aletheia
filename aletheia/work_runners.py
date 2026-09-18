@@ -538,7 +538,7 @@ def _summary(packet: dict) -> str:
         # the OUTPUT, not the name of the command: the Barkly packet named
         # `npm audit` and carried none of what it said (his brief's rule 5)
         lines.append(f"She ran `{check.get('argv') or check.get('command')}`: {check.get('said')}"
-                     + (f" — {' '.join(str(check.get('output') or '').split())[:400]}"
+                     + (f" — ...{' '.join(str(check.get('output') or '').split())[-400:]}"
                         if check.get("output") else "") + ".")
     if packet.get("likely_files"):
         lines.append(f"Located: {', '.join(packet['likely_files'][:6])}.")
