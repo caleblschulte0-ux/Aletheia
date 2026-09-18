@@ -38,7 +38,7 @@ import subprocess
 import tempfile
 import time
 from contextlib import contextmanager
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Iterator
 
 from aletheia import project_runners as runners
@@ -555,6 +555,63 @@ def observe(where: Path, failing_hint: list[str] | None = None) -> dict:
     base = run_tests(where, failing_hint or None)
     failing = base["failing"] or ([] if base["passed"] else list(failing_hint or []))
     return {**base, "failing": failing}
+
+
+#: A runner saying it could not resolve something. Node first (jest, metro,
+#: webpack, vite), then Python's relative-import form.
+_UNRESOLVED = (
+    re.compile(r"Cannot find module ['\"]([^'\"\n]+)['\"]"),
+    re.compile(r"Module not found:[^'\"\n]*['\"]([^'\"\n]+)['\"]"),
+    re.compile(r"Failed to resolve import ['\"]([^'\"\n]+)['\"]"),
+    re.compile(r"ImportError: cannot import name ['\"][^'\"\n]+['\"] from ['\"]([^'\"\n]+)['\"]"),
+)
+
+
+def absent_from_this_copy(where: Path, output: str, *, limit: int = 8) -> list[str]:
+    """What the run could not resolve BECAUSE THIS COPY DOES NOT HAVE IT.
+
+    The local tier works on a sparse mirror: `project_checkout` deliberately
+    leaves out media and large blobs so a 640 MB repository fits on his laptop.
+    A project whose tests import an asset therefore fails in the copy and
+    passes in his CI, and nothing downstream could tell the two apart.
+
+    Measured 2026-09-18 (acceptance B, plan:barkly#1): Barkly's suite reported
+    45 failures in the mirror -- every one a jest resolver error for a `.png`
+    the mirror never copied -- and the packet told a stronger model "45 tests
+    fail (at most 3)" and "8 source files are implicated". Its CI had failed
+    one step, the dependency audit, and nothing else. Evidence a copy invented
+    is worse than no evidence: it sends the next reader somewhere real work
+    never was.
+
+    Only a RELATIVE specifier counts (a bare package name that is missing is an
+    install problem, which has its own honest refusal), and only one whose file
+    is nowhere in the copy under any extension.
+    """
+    root = Path(where)
+    wanted: list[str] = []
+    for pattern in _UNRESOLVED:
+        for found in pattern.findall(str(output or "")):
+            spec = str(found).strip()
+            if spec.startswith(".") or spec.startswith("/") or spec.startswith("~/"):
+                if spec not in wanted:
+                    wanted.append(spec)
+    if not wanted:
+        return []
+    have: set[str] = set()
+    try:
+        for n, path in enumerate(root.rglob("*")):
+            if n > 40_000:
+                break
+            if ".git" in path.parts or "node_modules" in path.parts:
+                continue
+            if path.is_file():
+                have.add(path.name.casefold())
+                have.add(path.stem.casefold())
+    except OSError:
+        return []
+    absent = [spec for spec in wanted if PurePosixPath(spec).name.casefold() not in have
+              and PurePosixPath(spec).stem.casefold() not in have]
+    return absent[:limit]
 
 
 def reproduce(where: Path, failing: list[str]) -> dict:

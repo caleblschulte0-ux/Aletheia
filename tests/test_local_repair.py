@@ -522,6 +522,39 @@ class PacketsCase(RepoCase):
         self.assertIn("frontier_reasoning", item["requires"])
         self.assertEqual(item["assigned_worker"], "frontier", "the work engine's name for a frontier worker")
 
+    def test_a_failure_the_sparse_copy_invented_is_named_as_the_copys_own(self):
+        """Acceptance B, live, 2026-09-18 (plan:barkly#1).
+
+        The mirror leaves out media, Barkly's suite asserts on real .png files,
+        and 45 jest resolver errors were reported to a stronger model as "45
+        tests fail (at most 3)" and "8 source files are implicated". His CI had
+        failed one step, the dependency audit.
+        """
+        where = Path(self.tmp.name) / "copy"
+        (where / "src").mkdir(parents=True)
+        (where / "src" / "app.ts").write_text("export const x = 1;\n", encoding="utf-8")
+        output = ("Cannot find module '../assets/treeline.png' from '__tests__/voiceBank.test.ts'\n"
+                  "Cannot find module './src/app' from 'x.test.ts'\n"
+                  "Cannot find module 'react-native' from 'y.test.ts'\n")
+        absent = inv.absent_from_this_copy(where, output)
+        self.assertEqual(absent, ["../assets/treeline.png"],
+                         "a file the copy has is not absent, and a package is an install problem")
+
+    def test_the_repair_loop_escalates_a_copys_own_gap_without_classifying_on_it(self):
+        repo = make_repo(self.root, util_text=WINDOW_BUG)
+        observed = {"passed": False, "failing": ["a", "b", "c", "d"], "seconds": 1.0, "command": "jest",
+                    "output_tail": "Cannot find module '../assets/treeline.png' from '__tests__/v.test.ts'",
+                    "install": {}}
+        with mock.patch.object(inv, "observe", return_value=observed), \
+                mock.patch.object(inv, "absent_from_this_copy",
+                                  return_value=["../assets/treeline.png"]):
+            out = local_repair.run(repo, base_ref="main", think=Scripted(), task_id="t-copy")
+        self.assertEqual(out["status"], "ESCALATED")
+        packet = inv.load_packet(out["packet_id"])
+        self.assertEqual(packet["classification"]["kind"], "checkout_incomplete")
+        self.assertIn("my copy of the project does not contain", packet["classification"]["reasons"][0])
+        self.assertNotIn("multi_system", packet["classification"].get("escalate_kinds") or [])
+
     def test_a_missing_file_is_looked_for_not_guessed(self):
         repo = make_repo(self.root, util_text=WINDOW_OK, extra={"data/rows.csv": "a\n"})
         out = "FileNotFoundError: [Errno 2] No such file or directory: 'app\\\\data\\\\rows.csv'"

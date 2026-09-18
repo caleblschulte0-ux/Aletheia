@@ -56,6 +56,8 @@ ESCALATE_KINDS: tuple[str, ...] = (
     "protected_path", "unlocated", "too_large", "design_decision",
     # added with the Node runners, 2026-09-18
     "build_config", "multi_package", "no_local_tests", "install_failed",
+    # added 2026-09-18 after acceptance B: the sparse mirror's own gaps
+    "checkout_incomplete",
 )
 
 #: Bounds on a local repair. The loop enforces the diff bounds again on the

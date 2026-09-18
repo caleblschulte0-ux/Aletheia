@@ -411,6 +411,24 @@ def _loop(where: Path, source: Path, rec: _Record, *, repo: str, base_ref: str, 
         out = rec.save("NOTHING_FAILING", note="the tests pass at this commit; there is nothing to repair")
         _journal("event", rec.data["id"], f"local repair: nothing failing in {repo or source.name}")
         return out
+    # A FAILURE THIS COPY INVENTED IS NOT EVIDENCE. The mirror leaves out media
+    # and large blobs, so a suite that imports an asset fails here and passes in
+    # his CI. Say that, in the same shape as the install refusal above, rather
+    # than classifying on a failing list the copy manufactured.
+    absent = inv.absent_from_this_copy(where, observed["output_tail"])
+    if absent:
+        return _escalate(rec, where, repo=repo, base_ref=base_ref, base_sha=base_sha, task_id=task_id,
+                         objective=objective, observed=observed, repro={}, gathered=None,
+                         classification={"verdict": rc.ESCALATE, "kind": "checkout_incomplete",
+                                         "escalate_kinds": ["checkout_incomplete"],
+                                         "reasons": [
+                                             "checkout_incomplete: this run could not resolve "
+                                             + ", ".join(absent[:3])
+                                             + (f" and {len(absent) - 3} more" if len(absent) > 3 else "")
+                                             + ", which my copy of the project does not contain (it leaves out "
+                                               "media and large files), so these failures are the copy's and "
+                                               "not the project's"]},
+                         source=source, think=None, detection=detection)
     baseline = observed if not failing else inv.run_tests(where, None)
     if failing:
         rec.step("baseline", failing=baseline["failing"], passed=baseline["passed"])
