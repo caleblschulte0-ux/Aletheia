@@ -253,6 +253,37 @@ class WhatTheProjectIs(unittest.TestCase):
         self.assertEqual(found["toolchain"], runners.NODE)
         self.assertEqual(found["also"], [runners.PYTHON])
 
+    def test_the_project_is_not_always_the_folder_a_charter_named(self):
+        # Measured on his real Barkly charter (2026-09-18): its `path` is
+        # `barkly` and its package.json is at `barkly/app`, so asking the named
+        # folder what it was answered "nothing names a toolchain" for a project
+        # with fifty test files one directory down.
+        (self.root / "app").mkdir()
+        (self.root / "app" / "package.json").write_text(json.dumps({
+            "scripts": {"test": "jest"}, "devDependencies": {"jest": "29"}}), encoding="utf-8")
+        (self.root / "app" / "package-lock.json").write_text("{}\n", encoding="utf-8")
+        found, why = runners.find_project_root(self.root)
+        self.assertEqual(found, "app")
+        self.assertIn("not at the folder it was named by", why)
+        self.assertEqual(runners.detect(self.root / found)["runner"], "jest")
+
+    def test_a_folder_that_is_itself_the_project_does_not_descend(self):
+        self.node()
+        self.assertEqual(runners.find_project_root(self.root), ("", ""))
+
+    def test_two_packages_under_one_folder_is_not_a_guess_she_makes(self):
+        for name in ("api", "web"):
+            (self.root / name).mkdir()
+            (self.root / name / "package.json").write_text("{}", encoding="utf-8")
+        found, why = runners.find_project_root(self.root)
+        self.assertEqual(found, "")
+        self.assertIn("holds 2 packages", why)
+
+    def test_a_package_inside_node_modules_is_never_the_project(self):
+        (self.root / "node_modules" / "left-pad").mkdir(parents=True)
+        (self.root / "node_modules" / "left-pad" / "package.json").write_text("{}", encoding="utf-8")
+        self.assertEqual(runners.find_project_root(self.root), ("", ""))
+
     def test_a_node_project_with_no_lockfile_cannot_be_run(self):
         self.node(lockfile="")
         ok, why = runners.can_run(runners.detect(self.root))
@@ -913,6 +944,23 @@ class WhereNodeWorkGoesNow(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("lockfile", why)
         self.assertNotIn("the local repair tier does not run", why)
+
+    def test_the_charters_folder_is_not_always_the_project_and_the_routing_knows(self):
+        # Barkly's charter path is `barkly`; its package.json is at `barkly/app`.
+        from aletheia import work_runners
+        mirror = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, mirror, True)
+        app = mirror / "barkly" / "app"
+        app.mkdir(parents=True)
+        (app / "package.json").write_text(json.dumps({
+            "scripts": {"test": "jest"}, "devDependencies": {"jest": "29"}}), encoding="utf-8")
+        (app / "package-lock.json").write_text("{}\n", encoding="utf-8")
+        (app / "__tests__").mkdir()
+        (app / "__tests__" / "a.test.ts").write_text("// t\n", encoding="utf-8")
+        view = self.view(mirror, subdir="barkly", node_tests=["barkly/app/__tests__/a.test.ts"],
+                         package_json=["barkly/app/package.json"])
+        self.assertEqual(work_runners._project_root(view), app)
+        self.assertEqual(work_runners._local_tests_reason(view), (True, ""))
 
     def test_a_project_with_no_tests_at_all_still_becomes_a_packet(self):
         from aletheia import work_runners

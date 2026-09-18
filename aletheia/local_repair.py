@@ -347,6 +347,7 @@ def run(source: str | Path, *, repo: str = "", base_ref: str = "HEAD", failing: 
     classify_think = classify_think or think
     try:
         with inv.worktree(source, base_sha, run_id) as top:
+            subdir = _resolve_project_dir(top, subdir, rec)
             return _loop(_project_dir(top, subdir), source, rec, repo=repo, base_ref=base_ref, base_sha=base_sha,
                          failing=failing, objective=objective, task_id=task_id, think=think,
                          review_think=review_think,
@@ -707,6 +708,24 @@ def _commit(where: Path, message: str, task_id: str, base_sha: str, provider: st
                    where, identity=("Thea (local repair)", "thea@localhost"))
 
 
+def _resolve_project_dir(top: Path, subdir: str, rec: _Record) -> str:
+    """A charter names a FOLDER, and the folder is not always the project.
+    Barkly's charter path is `barkly` and its package.json is at `barkly/app`,
+    so the named folder answered "nothing names a toolchain" for a project with
+    fifty test files one directory down. The extra hop is folded into `subdir`,
+    so every path the loop records and publishes stays relative to the
+    repository root exactly as before."""
+    from aletheia import project_runners as runners
+    extra, why = runners.find_project_root(_project_dir(top, subdir))
+    if why:
+        rec.data["project_dir_note"] = why
+    if not extra:
+        return subdir
+    deeper = f"{str(subdir).strip('/')}/{extra}".strip("/")
+    rec.data["project_dir"] = deeper
+    return deeper
+
+
 def _project_dir(top: Path, subdir: str) -> Path:
     if not subdir:
         return top
@@ -917,6 +936,7 @@ def investigate(source: str | Path, *, repo: str = "", base_ref: str = "HEAD", f
     rec = _Record(id=run_id, repo=repo, source=str(source), base_ref=base_ref, base_sha=base_sha,
                   task_id=task_id, objective=inv.clean(objective, 600))
     with inv.worktree(source, base_sha, run_id) as top:
+        subdir = _resolve_project_dir(top, subdir, rec)
         where = _project_dir(top, subdir)
         detection = inv.toolchain(where, ci_commands=_ci_commands(objective))
         rec.data["toolchain"] = {k: detection.get(k) for k in ("toolchain", "runner", "package_manager",

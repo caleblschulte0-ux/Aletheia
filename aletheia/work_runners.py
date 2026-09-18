@@ -694,6 +694,16 @@ def _checkout(target: dict):
     return project_checkout.checkout(target["repo"], target["base_ref"], subdir=target.get("subdir") or "")
 
 
+def _project_root(view: dict) -> Path:
+    """The folder a charter names, and then the folder the project really
+    starts in (Barkly's charter path is `barkly`; its package.json is at
+    `barkly/app`). The repair loop resolves the same hop for itself."""
+    from aletheia import project_runners as runners
+    root = Path(view["path"]) / view["subdir"] if view.get("subdir") else Path(view["path"])
+    extra, _why = runners.find_project_root(root)
+    return (root / extra) if extra else root
+
+
 def _local_tests_reason(view: dict) -> tuple[bool, str]:
     """Can the repair tier run THIS project's own tests to prove a fix?
 
@@ -702,7 +712,7 @@ def _local_tests_reason(view: dict) -> tuple[bool, str]:
     script and a committed lockfile is runnable; the same package.json with no
     lockfile is not, and the packet says which."""
     from aletheia import project_runners as runners
-    root = Path(view["path"]) / view["subdir"] if view.get("subdir") else Path(view["path"])
+    root = _project_root(view)
     detection = runners.detect(root)
     ok, why = runners.can_run(detection)
     if not ok:
@@ -719,7 +729,7 @@ def _evidence_checks(view: dict, commands: list[dict]) -> list[dict]:
     names, not their names. Only rows of `project_runners.CHECK_COMMANDS` run,
     in the throwaway mirror, read-only."""
     from aletheia import investigation as inv, policy, project_runners as runners
-    root = Path(view["path"]) / view["subdir"] if view.get("subdir") else Path(view["path"])
+    root = _project_root(view)
     try:
         wanted = runners.checks_for([c.get("command") or "" for c in commands or ()], where=root)
     except Exception:  # noqa: BLE001

@@ -614,6 +614,42 @@ def test_files(where: str | Path, *, limit: int = 60) -> list[str]:
     return found
 
 
+#: What says "a project starts here".
+MANIFEST_NAMES = ("package.json", "pyproject.toml", "setup.py", "setup.cfg", "Cargo.toml", "go.mod")
+
+
+def find_project_root(where: str | Path, *, max_depth: int = 2) -> tuple[str, str]:
+    """Where the project ACTUALLY starts, relative to `where`, and why.
+
+    A charter names a folder, and the folder is not always the project: Barkly's
+    charter path is `barkly`, and its package.json is at `barkly/app`. Asking
+    the named folder what it is got "nothing names a toolchain" for a project
+    with 50 test files sitting one directory down.
+
+    Conservative: only descends when the named folder has NO manifest of its
+    own, and only when EXACTLY ONE manifest is found within `max_depth`. Two
+    of them is a monorepo, and which package a failure belongs to is not a
+    guess this makes."""
+    where = Path(where)
+    if any((where / name).is_file() for name in MANIFEST_NAMES):
+        return "", ""
+    found: list[str] = []
+    for depth in range(1, max_depth + 1):
+        for name in MANIFEST_NAMES:
+            for path in where.glob("/".join(["*"] * depth) + "/" + name):
+                rel = path.parent.relative_to(where).as_posix()
+                if not is_vendor_path(rel + "/") and rel not in found:
+                    found.append(rel)
+        if found:
+            break
+    if len(found) == 1:
+        return found[0], f"the project starts at {found[0]}, not at the folder it was named by"
+    if len(found) > 1:
+        return "", (f"this folder holds {len(found)} packages ({', '.join(sorted(found)[:4])}); "
+                    "which one a failure belongs to is not a guess she makes")
+    return "", ""
+
+
 def detect(where: str | Path, *, ci_commands: tuple[str, ...] | list[str] = ()) -> dict:
     """What this project IS, from its own files.
 
