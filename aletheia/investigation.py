@@ -310,8 +310,9 @@ def test_env(where: Path, *, detection: dict | None = None) -> dict:
     return env
 
 
-def parse_failures(output: str, *, detection: dict | None = None) -> list[str]:
-    return runners.parse_failures(output, detection=detection)
+def parse_failures(output: str, *, detection: dict | None = None,
+                   root: Path | None = None) -> list[str]:
+    return runners.parse_failures(output, detection=detection, root=root)
 
 
 def run_tests(where: Path, tests: list[str] | None = None, *, timeout_s: int = TEST_TIMEOUT_S,
@@ -349,7 +350,16 @@ def run_tests(where: Path, tests: list[str] | None = None, *, timeout_s: int = T
         passed = done.returncode == 0
     except subprocess.TimeoutExpired:
         output, passed = f"the tests took longer than {timeout_s} seconds and were stopped", False
-    return {"passed": passed, "failing": parse_failures(output, detection=detection),
+    ran = runners.tests_ran(output, detection=detection)
+    if tests and passed and ran == 0:
+        # A NAMED test that matched nothing is not a passing test. vitest
+        # exits zero for "3 skipped", and believing it would turn the loop's
+        # "the failing test passes now" into exactly the lie this tier must
+        # never tell.
+        passed = False
+        output += (f"\n\nAletheia: the runner matched NO test for {', '.join(tests)} and still exited 0. "
+                   "Nothing was proved by this run.")
+    return {"passed": passed, "failing": parse_failures(output, detection=detection, root=where), "ran": ran,
             "seconds": round(time.monotonic() - started, 1),
             "command": " ".join(Path(c).name if i == 0 else c for i, c in enumerate(cmd)),
             "toolchain": detection.get("toolchain"), "runner": detection.get("runner"),
@@ -366,7 +376,13 @@ def _rel(where: Path, raw: str) -> str | None:
     except (ValueError, OSError):
         return None
     text = rel.as_posix()
-    return text if text and not text.startswith("..") and (where / text).is_file() else None
+    if not text or text.startswith("..") or not (where / text).is_file():
+        return None
+    # An installed package or a build output is not his code. A vitest frame
+    # points into node_modules/vite/dist as readily as into src/, and letting
+    # that become an implicated file would show a model a bundled dependency
+    # and invite it to edit one.
+    return None if runners.is_vendor_path(text) else text
 
 
 def frames(where: Path, output: str, *, detection: dict | None = None) -> list[dict]:

@@ -68,6 +68,21 @@ MAX_CHECK_OUTPUT = 4_000
 #: JavaScript/TypeScript sources a stack frame or an import may land in.
 JS_SUFFIXES = (".js", ".mjs", ".cjs", ".jsx", ".ts", ".mts", ".cts", ".tsx", ".vue", ".svelte")
 
+#: Directories that are NOT his code even though they sit inside the checkout:
+#: installed packages and build output. A vitest failure frame points into
+#: `node_modules/vite/dist/...` as readily as into `src/`, and a tier that let
+#: that become an implicated source file would show a model a bundled
+#: dependency and invite it to edit one. Nothing under these is ever a file a
+#: repair may touch, and nothing under them is ever evidence about his code.
+VENDOR_DIRS = ("node_modules/", "vendor/", "dist/", "build/", "out/", "coverage/", ".next/",
+               ".nuxt/", ".svelte-kit/", "site-packages/", ".venv/", "venv/", "target/",
+               "bower_components/", ".yarn/", "__pycache__/")
+
+
+def is_vendor_path(path: str) -> bool:
+    norm = str(path or "").replace("\\", "/").removeprefix("./")
+    return norm.startswith(VENDOR_DIRS) or any(f"/{d}" in f"/{norm}" for d in VENDOR_DIRS)
+
 
 class RunnerRefused(RuntimeError):
     """Said in a sentence: why this project cannot be installed or run here."""
@@ -133,8 +148,19 @@ _JS_FRAME = re.compile(
     r":(?P<line>\d+)(?::\d+)?\)?", re.M)
 #: node:test's TAP `location:` / `stack:` lines name the file the same way.
 _JS_TAP_LOC = re.compile(r"^\s*(?:location|stack):\s*'?(?P<path>[^']+?):(?P<line>\d+):\d+'?\s*$", re.M)
+#: A frame inside a TAP `stack: |-` block, which has no `at ` in front of it:
+#:     TestContext.<anonymous> (file:///C:/x/test/math.test.js:6:10)
+#: Without this, node:test's only frame is the `test(...)` declaration line
+#: rather than the line that actually threw.
+_JS_BARE_FRAME = re.compile(r"^\s+(?P<fn>[\w$.<>\[\]-]+)\s*\((?P<path>(?:file:///|[A-Za-z]:[\\/])"
+                            r"[^)\s]+?):(?P<line>\d+):\d+\)\s*$", re.M)
 
 _VITEST_FAIL = re.compile(r"^\s*(?:FAIL|×|✕|❯)\s+(?P<file>\S+?\.[cm]?[jt]sx?)\s*>\s*(?P<name>.+?)\s*$", re.M)
+#: A whole FILE that failed before any test in it ran (an import that would not
+#: resolve, a syntax error): vitest prints `FAIL  path [ path ]`. Without this
+#: the run failed and named nothing, and "unlocated" is a much worse answer
+#: than "this file does not even load".
+_VITEST_SUITE_FAIL = re.compile(r"^\s*FAIL\s+(?P<file>\S+?\.[cm]?[jt]sx?)\s*\[", re.M)
 _JEST_FILE = re.compile(r"^\s*(?:FAIL|●\s*Console)?\s*FAIL\s+(?P<file>\S+\.[cm]?[jt]sx?)\s*$", re.M)
 _JEST_CASE = re.compile(r"^\s*●\s+(?P<name>(?!Console\b)(?!Test suite failed)[^\n]+?)\s*$", re.M)
 _MOCHA_CASE = re.compile(r"^\s*\d+\)\s*(?P<head>.+?)\s*$\n(?P<rest>(?:^\s{5,}.+$\n?)+)", re.M)
@@ -154,6 +180,10 @@ def _clean_path(raw: str) -> str:
         text = text[len("file:///"):]
         if not re.match(r"^[A-Za-z]:", text):
             text = "/" + text
+    # node:test prints its TAP `location:` as YAML, where a Windows path's
+    # backslashes arrive DOUBLED. Left alone, every node:test failure names a
+    # file that does not exist.
+    text = text.replace("\\\\", "\\")
     return text.replace("%20", " ")
 
 
@@ -175,6 +205,9 @@ def js_frames(output: str) -> list[dict]:
     for m in _JS_FRAME.finditer(output or ""):
         rows.append({"path": _clean_path(m.group("path")), "line": int(m.group("line")),
                      "function": (m.group("fn") or "<anonymous>")[:80]})
+    for m in _JS_BARE_FRAME.finditer(output or ""):
+        rows.append({"path": _clean_path(m.group("path")), "line": int(m.group("line")),
+                     "function": m.group("fn")[:80]})
     for m in _JS_TAP_LOC.finditer(output or ""):
         rows.append({"path": _clean_path(m.group("path")), "line": int(m.group("line")),
                      "function": "<anonymous>"})
@@ -213,6 +246,10 @@ def vitest_failures(output: str) -> list[str]:
         ident = _js_id(m.group("file"), m.group("name").replace(" > ", " ").strip())
         if ident not in found:
             found.append(ident)
+    for m in _VITEST_SUITE_FAIL.finditer(output or ""):
+        path = _clean_path(m.group("file")).replace("\\", "/").removeprefix("./")
+        if not any(f.startswith(path + "::") for f in found) and path not in found:
+            found.append(path)                 # the whole file: no test in it ran
     return found
 
 
@@ -258,19 +295,117 @@ def node_test_failures(output: str) -> list[str]:
     return found
 
 
+#: HOW MANY TESTS ACTUALLY RAN. Measured on vitest 2.1.9: `-t 'a name that
+#: matches nothing'` prints "Tests 3 skipped (3)" and exits ZERO. A runner that
+#: reports success for running no tests turns the loop's "the failing test
+#: passes now" into a lie, so every named-test run is checked against this.
+#: None means the runner did not say, and nothing is inferred from silence.
+_RAN_COUNTS: dict[str, re.Pattern] = {
+    "vitest": re.compile(r"^\s*Tests\s+(?P<body>.+)$", re.M),
+    "jest": re.compile(r"^\s*Tests:\s+(?P<body>.+)$", re.M),
+    "mocha": re.compile(r"^\s*(?P<body>\d+ (?:passing|failing|pending).*)$", re.M),
+    "node-test": re.compile(r"^#\s*(?:pass|fail)\s+\d+\s*$", re.M),
+    "pytest": re.compile(r"^(?P<body>.*\b\d+ (?:passed|failed|error).*)$", re.M),
+    "unittest": re.compile(r"^Ran (?P<n>\d+) tests?\b", re.M),
+}
+#: Words a runner counts by. Only the first group RAN; `skipped`, `todo` and
+#: `pending` are counted so that "3 skipped" reads as ZERO ran rather than as
+#: "the runner did not say".
+_COUNT_PIECE = re.compile(r"(\d+)\s+(passed|failed|passing|failing|errors?|"
+                          r"skipped|todo|pending|cancelled)\b", re.I)
+_RAN_WORDS = {"passed", "failed", "passing", "failing", "error", "errors"}
+
+
+def tests_ran(output: str, *, detection: dict | None = None) -> int | None:
+    """How many tests the runner says it ran (skips do not count), or None."""
+    runner = str((detection or {}).get("runner") or "unittest")
+    pattern = _RAN_COUNTS.get(runner)
+    text = output or ""
+    if pattern is None:
+        return None
+    if runner == "unittest":
+        m = pattern.search(text)
+        return int(m.group("n")) if m else None
+    if runner == "node-test":
+        total = 0
+        seen = False
+        for line in re.findall(r"^#\s*(pass|fail)\s+(\d+)\s*$", text, re.M):
+            seen = True
+            total += int(line[1])
+        return total if seen else None
+    found = pattern.findall(text)
+    if not found:
+        return None
+    # mocha prints one line per outcome ("1 passing", "1 failing"); the others
+    # print one summary line, and a re-run appends a newer one.
+    bodies = found if runner == "mocha" else found[-1:]
+    pieces = [p for body in bodies
+              for p in _COUNT_PIECE.findall(body if isinstance(body, str) else body[0])]
+    if not pieces:
+        return None
+    return sum(int(n) for n, word in pieces if word.casefold() in _RAN_WORDS)
+
+
+#: Lines a runner prints that say nothing about WHY a test failed. Measured on
+#: his laptop (CLAUDE.md, "the local rung has to FIT"): a bounded repair draft
+#: on qwen3:8b takes 200-300 s and LOCAL_MAX_TIMEOUT_S is 300, so the size of
+#: the failure text is the difference between a repair and a packet. vitest
+#: prints every failure TWICE (once inline, once in a "Failed Tests" block),
+#: quotes the source with a line-number gutter, and wraps it all in box-drawing
+#: rules; none of that is evidence a model does not already have in `files`.
+_NOISE = re.compile(
+    r"^\s*(?:RUN\s+v[\d.]|DEV\s+v[\d.]|Test Files\s|Tests\s+\d|Start at\s|Duration\s"
+    r"|Snapshots\s|Coverage|Time:\s|Ran all test suites|Test Suites:\s"
+    r"|[-=_─-╿⎯]{3,}|#\s*(?:subtest|pass|fail|cancelled|skipped|todo|duration_ms)"
+    r"|\d+\s+(?:passing|failing|pending)\b|ok \d+ -|\.{3}$|---$)", re.I)
+#: A quoted source line with a gutter: "     12|     expect(x).toBe(1);"
+_GUTTER = re.compile(r"^\s*>?\s*\d+\s*[|│]")
+
+
+def compact_failure(output: str, *, detection: dict | None = None, limit: int = 900) -> str:
+    """The part of a run that says what failed, with the runner's furniture
+    taken out. Same job as before for Python; the JavaScript runners are
+    simply much noisier."""
+    keep: list[str] = []
+    for line in str(output or "").splitlines():
+        text = line.rstrip()
+        if not text.strip():
+            continue
+        if set(text.strip()) <= set("^~-=_ "):
+            continue
+        if text.startswith(("Ran ", "FAILED (")):
+            continue
+        if _NOISE.match(text) or _GUTTER.match(text):
+            continue
+        if text not in keep:                      # vitest says every failure twice
+            keep.append(text)
+    return "\n".join(keep)[-limit:]
+
+
 def split_js_id(test_id: str) -> tuple[str, str]:
-    """`path::full name` -> (path, name). ("", id) when it carries no path."""
-    if "::" not in str(test_id or ""):
-        return "", str(test_id or "")
-    path, name = str(test_id).split("::", 1)
-    return path, name
+    """`path::full name` -> (path, name). A bare path is the WHOLE file, which
+    is what a suite that failed before any test ran amounts to."""
+    value = str(test_id or "")
+    if "::" in value:
+        path, name = value.split("::", 1)
+        return path, name
+    if value.lower().endswith(JS_SUFFIXES):
+        return value, ""
+    return "", value
+
+
+#: JavaScript's regex metacharacters, and only those. Python's `re.escape`
+#: also escapes a SPACE (for re.VERBOSE), and `\ ` is a syntax error in a
+#: unicode-mode JavaScript RegExp - so escaping too much is its own way of
+#: matching no test and calling it passed.
+_JS_META = re.compile(r"([.*+?^${}()|\[\]\\/])")
 
 
 def _pattern(name: str) -> str:
     """A runner's `-t` / `--grep` argument is a REGEX. His test titles contain
     parentheses and dots often enough that an unescaped one silently matches
     nothing, and "the test passes now" would be a lie."""
-    return re.escape(name)
+    return _JS_META.sub(r"\\\1", str(name))
 
 
 # ---- the toolchains, as data -----------------------------------------------------------
@@ -567,11 +702,39 @@ def test_command(where: str | Path, tests: list[str] | None = None, *, detection
     return spec["suite"](where, detection)
 
 
-def parse_failures(output: str, *, detection: dict | None = None) -> list[str]:
+def relative_to(root: str | Path | None, path: str) -> str:
+    """A repository-relative path. Jest, mocha and node:test name a test file
+    by the absolute path it happens to sit at, and a throwaway worktree's
+    location is noise in a record, a prompt and a packet."""
+    text = _clean_path(path).replace("\\", "/")
+    if root is None:
+        return text
+    try:
+        base = Path(root).resolve()
+        target = Path(text)
+        rel = (target if target.is_absolute() else base / target).resolve().relative_to(base)
+    except (ValueError, OSError):
+        return text
+    out = rel.as_posix()
+    return out if out and not out.startswith("..") else text
+
+
+def parse_failures(output: str, *, detection: dict | None = None,
+                   root: str | Path | None = None) -> list[str]:
     """Every runner's output, read into the same list of test ids."""
     detection = detection or {"toolchain": PYTHON}
     spec = TOOLCHAINS.get(detection.get("toolchain") or PYTHON) or TOOLCHAINS[PYTHON]
-    return spec["read"](output or "", detection)
+    found = spec["read"](output or "", detection)
+    if (detection.get("toolchain") or PYTHON) != NODE:
+        return found
+    out: list[str] = []
+    for ident in found:
+        path, name = split_js_id(ident)
+        rel = relative_to(root, path) if path else ""
+        value = f"{rel}::{name}" if (rel and name) else (rel or ident)
+        if value not in out:
+            out.append(value)
+    return out
 
 
 def parse_frames(output: str, *, detection: dict | None = None) -> list[dict]:

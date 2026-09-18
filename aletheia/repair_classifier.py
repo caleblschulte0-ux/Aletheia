@@ -31,6 +31,8 @@ import re
 from pathlib import PurePosixPath
 from typing import Any, Callable
 
+from aletheia import project_runners
+
 BOUNDED = "BOUNDED"
 ESCALATE = "ESCALATE"
 
@@ -158,10 +160,10 @@ JS_KIND_SIGNS: tuple[tuple[str, re.Pattern], ...] = (
     ("import_api_mismatch", re.compile(r"\b(?:does not provide an export named|is not exported by|"
                                        r"The requested module|ERR_REQUIRE_ESM|"
                                        r"Named export .* not found|is not a constructor)\b", re.I)),
+    ("config_parsing_bug", re.compile(r"(?:Unexpected token .{0,12} in JSON|\bJSON\.parse\b|"
+                                      r"\bis not valid JSON\b|\bYAMLException\b|\bInvalid configuration\b)", re.I)),
     ("typo", re.compile(r"\b(?:ReferenceError|SyntaxError|Unexpected token|Unexpected identifier|"
                         r"is not defined)\b", re.I)),
-    ("config_parsing_bug", re.compile(r"\b(?:Unexpected token .{0,12} in JSON|JSON\.parse|"
-                                      r"is not valid JSON|YAMLException|Invalid configuration)\b", re.I)),
     ("data_transformation_bug", re.compile(r"\b(?:TypeError|RangeError|Cannot read propert(?:y|ies)|"
                                            r"is not a function|is not iterable|NaN)\b", re.I)),
     ("narrow_failing_test", re.compile(r"\bAssertionError\b|\bexpect\(received\)|"
@@ -174,6 +176,12 @@ _MISSING_MODULE = re.compile(r"No module named ['\"]([A-Za-z_][\w.]*)['\"]")
 #: of his in the wrong place. (A relative one is `broken_path`, above.)
 _MISSING_JS_PACKAGE = re.compile(r"(?:Cannot find module|Cannot find package|Failed to resolve import|"
                                  r"Could not resolve)\s*[:\s]*['\"](?!\.{1,2}/)(@?[\w.-]+(?:/[\w.-]+)?)['\"]")
+#: An import through a BUNDLER ALIAS (`@/x`, `~/x`, `#x`) that did not resolve.
+#: An alias is defined in build configuration, and "configure the alias or
+#: rewrite every import that uses it" is a decision about the project's own
+#: conventions - his escalate list, not a typo.
+_ALIAS_UNRESOLVED = re.compile(r"(?:Failed to (?:resolve import|load url)|Cannot find module|Could not resolve|"
+                               r"Cannot resolve)\s*[:\s]*['\"]?(?P<spec>[@~#][/\w.-]*/[\w./-]+)", re.I)
 _ABS_PATH = re.compile(r"(?:\b[A-Za-z]:[\\/]|(?<![\w.])/(?=[\w.-]+/))[^\s\"'<>|]*")
 TEST_PATH = re.compile(r"(?:^|/)(?:tests?/|__tests__/|__mocks__/|test_[^/]*$|[^/]*_test\.py$|"
                        r"[^/]*\.(?:test|spec)\.[cm]?[jt]sx?$|[^/]*_test\.[cm]?[jt]sx?$)", re.I)
@@ -210,7 +218,9 @@ def boundary_refusals(repo: str, paths: list[str]) -> list[str]:
     for path in paths:
         norm = str(path or "").replace("\\", "/")
         base = PurePosixPath(norm.casefold()).name
-        if _protected(repo, norm):
+        if project_runners.is_vendor_path(norm):
+            out.append(f"protected_path: {norm} is an installed package or a build output, never his code")
+        elif _protected(repo, norm):
             out.append(f"protected_path: {norm}")
         elif base in DEPENDENCY_FILES:
             out.append(f"dependency_change: {norm}")
@@ -232,7 +242,6 @@ def runner_refusal(detection: dict | None) -> tuple[bool, str]:
     Escalating here is not a defeat: it is the packet saying WHY, in a
     sentence, instead of Scenario A's "the local repair tier does not run
     Node"."""
-    from aletheia import project_runners
     if not detection:
         return True, ""
     ok, why = project_runners.can_run(detection)
@@ -310,6 +319,11 @@ def classify_rules(failure: dict) -> dict:
     # worth having: `Cannot find module './util'` is a wrong import path in HIS
     # code (bounded, and `path_hints` usually says where the file really is);
     # `Cannot find module 'lodash'` is a package this checkout never had.
+    for spec in dict.fromkeys(m.group("spec") for m in _ALIAS_UNRESOLVED.finditer(raw)):
+        escalate.append("build_config")
+        reasons.append(f"build_config: the import {spec!r} goes through a bundler ALIAS that did not resolve; "
+                       "whether to configure the alias or rewrite the imports is a build-configuration "
+                       "decision, not a small repair")
     for name in dict.fromkeys(_MISSING_JS_PACKAGE.findall(raw)):
         top = name.split("/")[0].casefold()
         if top not in own and not top.startswith("node:"):

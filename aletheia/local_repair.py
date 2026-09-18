@@ -216,9 +216,22 @@ def restore(where: Path, originals: dict[str, str]) -> None:
         (where / path).write_text(text, encoding="utf-8", newline="")
 
 
-_ASSERTION = re.compile(r"\b(?:assert\w*|self\.assert\w+|expect\(|pytest\.raises|self\.fail)\b")
+_ASSERTION = re.compile(r"\b(?:assert\w*|self\.assert\w+|expect\(|pytest\.raises|self\.fail)\b|"
+                        # JavaScript says the same things differently
+                        r"\b(?:assert\.\w+|chai\.expect|\.should\.|t\.assert\w*|toThrow)\b")
 _WEAKENING = re.compile(r"(?:@(?:unittest\.)?skip|pytest\.mark\.(?:skip|xfail)|\bassert\s+True\b|"
                         r"self\.skipTest|expectedFailure|# ?noqa|except\s*(?:Exception)?\s*:\s*pass)")
+#: The same move in JavaScript: skip or focus a test, silence the checker, or
+#: swallow the error the test was about to see. Matched against the ADDED text
+#: as a whole, because an empty catch spans lines.
+_JS_WEAKENING = re.compile(
+    r"\b(?:x?it|x?describe|x?test|suite|context)\.(?:skip|only|todo|failing)\b"
+    r"|\b(?:xit|xdescribe|xtest)\s*\("
+    r"|@ts-(?:ignore|nocheck|expect-error)"
+    r"|eslint-disable"
+    r"|\bistanbul ignore\b"
+    r"|catch\s*(?:\([^)]*\))?\s*\{\s*(?:/\*[^*]*\*/|//[^\n]*)?\s*\}"
+    r"|\bexpect\([^)]*\)\.(?:toBe|toEqual)\(\s*expect\.anything\(\)\s*\)")
 _SECRET_SHAPES = re.compile(r"(?:-----BEGIN [A-Z ]*PRIVATE KEY-----|\bgh[pousr]_[A-Za-z0-9]{20,}|"
                             r"\bgithub_pat_[A-Za-z0-9_]{20,}|\bAKIA[0-9A-Z]{16}\b|\bsk-[A-Za-z0-9]{20,}|"
                             r"\bxox[baprs]-[A-Za-z0-9-]{10,})")
@@ -248,7 +261,7 @@ def inspect_diff(repo: str, originals: dict[str, str], where: Path) -> dict:
             refusals.append(f"weakened_test: {path} loses {lost} assertion(s)")
         if any(re.match(r"\s*def test", ln) for ln in removed):
             refusals.append(f"weakened_test: {path} deletes a test")
-        if any(_WEAKENING.search(ln) for ln in added):
+        if any(_WEAKENING.search(ln) for ln in added) or _JS_WEAKENING.search("\n".join(added)):
             refusals.append(f"weakened_test: {path} adds a skip, an expected failure or a swallowed error")
         if any(_SECRET_SHAPES.search(ln) or sensitivity.carries_secret(ln) for ln in added):
             refusals.append(f"secret: {path} adds something shaped like a credential")
@@ -366,7 +379,7 @@ def _loop(where: Path, source: Path, rec: _Record, *, repo: str, base_ref: str, 
                                                            "lockfile", "why")}
     runnable, why_not = rc.runner_refusal(detection)
     if not runnable:
-        rec.step("toolchain", **rec.data["toolchain"], can_run=False, why=why_not)
+        rec.step("toolchain", **rec.data["toolchain"], can_run=False, cannot_run_because=why_not)
         return _escalate(rec, where, repo=repo, base_ref=base_ref, base_sha=base_sha, task_id=task_id,
                          objective=objective, observed={"failing": [], "output_tail": "", "command": ""},
                          repro={}, gathered=None,
@@ -768,10 +781,12 @@ def _repair_context(where: Path, allowed: list[str], gathered: dict, observed: d
 
 def _failure_lines(output: str, limit: int = 900) -> str:
     """The part of a test run that says what failed: frames and the error,
-    without the ^^^^ markers and the runner's summary lines."""
-    keep = [ln for ln in str(output or "").splitlines()
-            if ln.strip() and not set(ln.strip()) <= set("^~-=") and not ln.startswith(("Ran ", "FAILED ("))]
-    return "\n".join(keep)[-limit:]
+    without the ^^^^ markers, the quoted source gutters and the runner's
+    summary lines. THE LOCAL RUNG HAS TO FIT: measured on his laptop, a draft
+    on qwen3:8b takes 200-300 s against a 300 s ceiling, so what gets cut here
+    is the difference between a repair and a packet."""
+    from aletheia import project_runners as runners
+    return runners.compact_failure(output, limit=limit)
 
 
 def _evidence_text(gathered: dict, observed: dict) -> str:
