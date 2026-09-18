@@ -629,7 +629,40 @@ def _run_deadline(it: dict, now: dt.datetime) -> dict:
     return calendar_reasoning.run_deadline(it, now)
 
 
-RUNNERS: dict[str, Callable[[dict, dt.datetime], dict]] = {"gap": _run_gap, "deadline": _run_deadline}
+def _run_replan(it: dict, now: dt.datetime) -> dict:
+    """An ask NOBODY could plan, planned again once somebody can.
+
+    `planner.queue_unplanned` files these when neither the frontier nor her
+    own model could compile a sentence (continuity rule 3). Her words on
+    2026-09-18 were "I don't have a list of them queued, though, so you'd have
+    to ask me again once Claude or Codex is back" - so the list exists, and so
+    does the thing that reads it.
+
+    It re-PROPOSES, exactly as if he had said the sentence again: the plan
+    faces every gate it would have faced, an approval is his, and nothing here
+    executes. A plan that still cannot be compiled stays blocked with the same
+    condition rather than failing.
+    """
+    from aletheia import intents, reasoning_gateway
+    request = str((it.get("payload") or {}).get("request") or "").strip()
+    if not request:
+        return {"state": ws.FAILED, "reason": "the queued ask has no sentence in it",
+                "next": "ask him again"}
+    if not reasoning_gateway.frontier_available():
+        status = reasoning_gateway.frontier_status(now)
+        return {"state": ws.BLOCKED_MODEL, "reason": status["why"],
+                "next": status["wake"] or "when Claude or Codex is back"}
+    record = intents.propose(request, quote=f"queued while nobody could plan: {request[:120]}")
+    if record.get("degraded") and not [s for s in record.get("steps") or []
+                                       if s.get("status") == "EXECUTABLE"]:
+        return {"state": ws.BLOCKED_MODEL, "reason": "still nobody could plan it",
+                "next": "when Claude or Codex is back"}
+    return {"state": ws.DONE, "reason": "planned it again now a stronger model is back",
+            "next": str(intents.spoken(record))[:200]}
+
+
+RUNNERS: dict[str, Callable[[dict, dt.datetime], dict]] = {
+    "gap": _run_gap, "deadline": _run_deadline, "replan": _run_replan}
 
 
 def _run_program_item(it: dict, now: dt.datetime) -> dict:
