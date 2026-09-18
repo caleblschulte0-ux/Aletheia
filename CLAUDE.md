@@ -193,9 +193,23 @@ Four things bound it, and none of them is a flag:
 - **Honesty surfaces**: `current_state` and the Command Center carry the
   list, the work session's report ends with it, and "what did you do without
   asking me" reaches a session that reads the ledger
-  (`autonomy.unattended`). The wording says every one of them was reversible
-  and stayed on this machine, and names three — an identifier is not a thing
-  he can say back, so the id lives on the screen and not in the sentence.
+  (`autonomy.unattended`). It names three — an identifier is not a thing he
+  can say back, so the id lives on the screen and not in the sentence.
+
+  **And the ledger holds what she did, not only the harmless half of it.**
+  Live, 2026-09-18: `autonomy list` said "Nothing in the last 48 hours" while
+  a work session had run two test suites, made three mirror checkouts, drafted
+  a document and opened a real pull request on his repository. Only the branch
+  had ever had a line, so the answer was a flat lie and the missing half held
+  the act he would have wanted to hear about first. `work_runners._note*`
+  records every route's own acts now, and an OUTWARD one (a pull request,
+  anything reaching somebody else) is recorded too — which is only safe
+  because four things are true at once: it is marked outward on the row
+  (`autonomy.is_outward`, failing CLOSED on anything unrecognised), the
+  sentence says it FIRST and never says it stayed on this machine, `undo`
+  refuses it by name as before, and `autonomy.counts` leaves it out of the
+  unattended budget, because recording something must never change what is
+  permitted.
 
 Unchanged, and no flag reaches any of it: spending is REFUSED rather than
 handed off; sending, publishing, deleting for good, creating an account, a
@@ -839,6 +853,37 @@ the best of ChatGPT. Both halves are the rule.
 Measured on this laptop (no GPU): qwen3:8b drafted a charter in 100 s warm,
 188 s cold. That is the price of never running out, and it is paid only
 when the subscriptions are gone.
+
+**How long she may think depends on WHAT THE WORK IS.** His ruling,
+2026-09-18, asked how long her own model should get: *"I don't know, like a
+while."* One 300 s ceiling served two situations that are nothing alike, on
+one machine with one Ollama queue — a sentence he is standing in the room
+waiting for, and a repair draft nobody is looking at — and served neither: a
+Node repair DRAFT measured 217-270 s free and died at the ceiling whenever the
+live Core was also talking to him. So `work_states.ATTENTION` is the class and
+`work_states.LOCAL_CEILING_S` is the number, in one place because the
+conversation path, `reasoning_gateway` and `local_model_pool` must not each
+keep their own:
+
+    attended    300 s   the default EVERYWHERE; exactly what conversation had
+    background  1200 s  drafts, reviews, readings — and it must be asked for
+
+Nothing inherits the long budget: a caller that asks for twenty minutes
+without saying `attention=BACKGROUND` is cut to five, and `reason_json`
+refuses a background-sized `work_budget_s` from an attended caller.
+`local_brain.MAX_TIMEOUT_S` (1800 s) is not a budget — it is the point past
+which one call is a hung process rather than a slow answer.
+
+**Conversation still wins, and the lease alone stopped being enough.**
+`local_lease` keeps background work from TAKING the queue while he waits, but
+the call already running is the one in front of him, and it may now last
+twenty minutes. A background call is therefore STREAMED and put down at a
+checkpoint (`local_lease.conversation_waiting`, asked every half second
+including during prompt evaluation, closing the response so Ollama stops
+generating). A yield is `LocalPoolYielded`: try again shortly, never a failure
+of the work, and never a failover to the other role — that would take the
+queue straight back off him. Saying BACKGROUND is also saying WORK to the
+lease, so nothing can hold the long budget and still queue as a conversation.
 
 ## Applying to jobs is end to end, and fluid
 

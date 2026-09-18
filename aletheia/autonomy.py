@@ -124,16 +124,33 @@ def _days(back: int = 7, now: dt.datetime | None = None) -> list[str]:
 def record(*, tool: str, args: dict | None = None, consequence: str, session: str = "",
            said: str = "", undo: dict | None = None, route: str = "",
            now: dt.datetime | None = None) -> dict:
-    """One unattended action, written down with how to reverse it. Never raises:
-    an action that ran must not become an error because the ledger could not be
-    written - but it says so in the returned record."""
+    """One thing she did on her own, written down with how to reverse it.
+
+    Not only the reversible ones. The live pass, 2026-09-18: the ledger said
+    "Nothing in the last 48 hours" while a work session had run two test suites,
+    made three mirror checkouts, drafted a document and opened a real pull
+    request on his repository. A ledger holding only the harmless half of what
+    she did cannot answer "what did you do without asking me" - and the half it
+    was missing is the half he would want to hear about first. So an OUTWARD act
+    belongs in here too: marked outward, said first, never undoable by her, and
+    never counted against the unattended budget (it was authorised by its own
+    gate, not by that budget).
+
+    Never raises: an action that ran must not become an error because the ledger
+    could not be written - but it says so in the returned record."""
+    from aletheia import tools as tools_mod
     when = _now(now)
+    # FAIL CLOSED on a consequence nobody recognises: unknown means outward,
+    # which means not undoable and never described as having stayed here.
+    named = str(consequence)
+    if named not in tools_mod.CONSEQUENCES:
+        named = tools_mod.OUTWARD
     entry = {
         "id": "un-" + secrets.token_hex(6),
         "at": _stamp(when),
         "tool": str(tool),
         "args": _clean(args or {}),
-        "consequence": str(consequence),
+        "consequence": named,
         "session": str(session or ""),
         "route": str(route or ""),
         "said": " ".join(str(said or "").split())[:MAX_SAID],
@@ -201,9 +218,24 @@ def load(record_id: str, *, now: dt.datetime | None = None) -> tuple[str, dict]:
     raise KeyError(f"no unattended action {record_id!r}")
 
 
+def is_outward(row: dict) -> bool:
+    """Did this one reach somebody else, or can it not be taken back?
+
+    Fails CLOSED: a row whose consequence is missing or unrecognised is outward,
+    because the only thing worse than an unreversible act is one described as
+    reversible."""
+    from aletheia import tools as tools_mod
+    return str((row or {}).get("consequence") or "") not in tools_mod.UNATTENDED
+
+
 def counts(*, session: str = "", now: dt.datetime | None = None) -> dict:
+    """The unattended budget. OUTWARD rows are in the ledger and NOT in here: an
+    outward act passed its own approval or trust gate, so counting it would
+    quietly shrink the budget for the reversible work the budget is about - and
+    would have changed what she may do the day outward acts began to be
+    recorded. Recording something must never change what is permitted."""
     when = _now(now)
-    today = _read_day(_stamp(when)[:10])
+    today = [r for r in _read_day(_stamp(when)[:10]) if not is_outward(r)]
     return {"day": len(today), "day_limit": DAY_LIMIT,
             "session": sum(1 for r in today if session and r.get("session") == session),
             "session_limit": SESSION_LIMIT}
@@ -468,29 +500,45 @@ def said_line(row: dict) -> str:
 def spoken(rows: list[dict] | None = None, *, hours: float = 24.0, limit: int = SPOKEN_LIMIT) -> str:
     """"What did you do without asking me", answered from the ledger.
 
-    The wording has one job beyond listing: to make plain that every one of
-    these was reversible and stayed on this machine. An answer that only lists
-    them invites the question he actually means, which is "and what did that
-    cost me".
+    The wording used to do its second job - making plain what these cost him -
+    by asserting something that is not always true any more: that every one was
+    reversible and stayed on this machine. Now the work session's own routes
+    record here, some of them REACHED THE WORLD (a pull request on his
+    repository is the one that found this), and a sentence claiming otherwise is
+    the worst kind of lie: wrong exactly where he is trusting it. The outward
+    ones are said FIRST, by name, as the ones that cannot be taken back; the
+    reversible ones keep their old sentence, now about themselves only.
     """
     from aletheia import speech
     rows = recent(hours=hours, limit=max(limit, 20)) if rows is None else rows
     if not rows:
         return (f"Nothing in the last {int(hours)} hours. Everything I did either you asked for, "
                 "or it is still waiting for your yes.")
-    shown = rows[:max(1, limit)]
-    lines = [said_line(r) for r in shown]
-    rest = len(rows) - len(shown)
-    lead = (f"{speech.count_phrase(len(rows), 'thing')} in the last {int(hours)} hours, and every one of "
-            "them was reversible and stayed on this machine - nothing was sent, published or spent: ")
-    undoable = [r for r in rows if not r.get("undone")
-                and (r.get("undo") or {}).get("how") not in (None, NONE)]
-    tail = "."
-    if rest > 0:
-        tail = f"; and {rest} more."
-    if undoable:
-        tail += " Tell me which one to undo and I will take it back."
-    return lead + "; ".join(lines) + tail
+    outward = [r for r in rows if is_outward(r)]
+    local = [r for r in rows if not is_outward(r)]
+    parts: list[str] = []
+    if outward:
+        shown = outward[:max(1, limit)]
+        rest = len(outward) - len(shown)
+        parts.append(
+            f"{speech.count_phrase(len(outward), 'thing')} in the last {int(hours)} hours reached beyond "
+            "this machine, and I cannot take " + ("those" if len(outward) > 1 else "that") + " back: "
+            + "; ".join(said_line(r) for r in shown)
+            + (f"; and {rest} more" if rest > 0 else "") + ".")
+    if local:
+        shown = local[:max(1, limit)]
+        rest = len(local) - len(shown)
+        lead = (("Also, " if outward else "")
+                + f"{speech.count_phrase(len(local), 'thing')} in the last {int(hours)} hours, and every "
+                  "one of those was reversible and stayed on this machine - nothing was sent, published "
+                  "or spent: ")
+        tail = f"; and {rest} more." if rest > 0 else "."
+        undoable = [r for r in local if not r.get("undone")
+                    and (r.get("undo") or {}).get("how") not in (None, NONE)]
+        if undoable:
+            tail += " Tell me which one to undo and I will take it back."
+        parts.append(lead + "; ".join(said_line(r) for r in shown) + tail)
+    return " ".join(parts)
 
 
 def summary(*, hours: float = 24.0, limit: int = 8, now: dt.datetime | None = None) -> dict:
@@ -504,15 +552,21 @@ def summary(*, hours: float = 24.0, limit: int = 8, now: dt.datetime | None = No
         "readable": True,
         "hours": hours,
         "count": len(rows),
+        "outward": sum(1 for r in rows if is_outward(r)),
         "budget": seen,
         "actions": [{"id": r.get("id"), "at": r.get("at"), "tool": r.get("tool"),
                      "consequence": r.get("consequence"), "said": r.get("said"),
                      "session": r.get("session"), "undone": bool(r.get("undone")),
-                     "undo": f"python -m aletheia.autonomy undo {r.get('id')}"
-                             if (r.get("undo") or {}).get("how") not in (None, NONE) and not r.get("undone")
-                             else "",
-                     "why_not_undoable": (r.get("undo") or {}).get("why", "")
-                     if (r.get("undo") or {}).get("how") == NONE else ""}
+                     "route": r.get("route", ""), "outward": is_outward(r),
+                     "undo": "" if is_outward(r) else
+                             (f"python -m aletheia.autonomy undo {r.get('id')}"
+                              if (r.get("undo") or {}).get("how") not in (None, NONE)
+                              and not r.get("undone") else ""),
+                     "why_not_undoable":
+                         "it reached beyond this machine, so taking it back is not mine to do"
+                         if is_outward(r) else
+                         ((r.get("undo") or {}).get("why", "")
+                          if (r.get("undo") or {}).get("how") == NONE else "")}
                     for r in rows],
         # The LIST may be long (it is rendered); the SENTENCE names three and
         # counts the rest, because it is read out loud.
