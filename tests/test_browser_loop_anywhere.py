@@ -703,7 +703,7 @@ class APressReadsTheConfirmationNotTheFormBeforeIt(TheSecondHalfOfTheMatrixOnFix
 
 
 
-class TheRoutineDecisionIsSmallEnoughForHerFastModel(unittest.TestCase):
+class TheRoutineDecisionIsSmallEnoughForHerFastModel(OwnRoom):
     def test_a_real_sized_page_prompt_goes_to_the_fast_role(self):
         from aletheia import local_model_pool
         page = {"title": "Philosophy | Books to Scrape - Sandbox", "state": ps.CONTENT,
@@ -731,7 +731,7 @@ class TheRoutineDecisionIsSmallEnoughForHerFastModel(unittest.TestCase):
 
 
 
-class SheDoesNotGoRoundInCircles(unittest.TestCase):
+class SheDoesNotGoRoundInCircles(OwnRoom):
     def test_a_model_pick_back_to_a_visited_page_is_refused(self):
         obs = {"url": "https://books.example/catalogue/category/books_1/index.html", "state": ps.CONTENT,
                "targets": [{"id": "t1", "role": "link", "label": "Books",
