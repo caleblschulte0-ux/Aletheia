@@ -399,13 +399,16 @@ def _frontier_provider(registry: dict, now: str | None, model: str | None) -> br
 
 
 def _compile_locally(request: str, context: dict | None, now: str | None,
-                     local) -> tuple[dict, str, list[str]] | None:
+                     local) -> tuple[dict, str, list[str]] | str:
     """Her own model, shown only the kinds this sentence could plausibly mean.
 
-    Returns (output, provider_id, shortlisted_kinds), or None when even her
-    own model could not produce a usable plan. The money door is asked BEFORE
-    the model is: a refusal that arrives after a two-minute local round trip
-    arrives too late and reads as consent in the meantime.
+    Returns (output, provider_id, shortlisted_kinds), or the REASON as a
+    string when even her own model could not produce a usable plan - because
+    "the frontier models are switched off" is true and incomplete, and a
+    degradation he hears that names only the rung that was off sounds like
+    nothing else was tried. The money door is asked BEFORE the model is: a
+    refusal that arrives after a two-minute local round trip arrives too late
+    and reads as consent in the meantime.
     """
     from aletheia import local_planner
     refusal = local_planner._refusal_for_spending(request)
@@ -418,10 +421,10 @@ def _compile_locally(request: str, context: dict | None, now: str | None,
         propose = local or local_planner.propose
         output, model_name, kinds = propose(request, context=context, now=now)
     except Exception as exc:  # noqa: BLE001 - it says why, in English
+        reason = speech.shorten(str(exc) or type(exc).__name__, 160)
         journal.append("event", "planner",
-                       f"her own model could not plan it either: "
-                       f"{speech.shorten(str(exc), 160)}", actor=ACTOR)
-        return None
+                       f"her own model could not plan it either: {reason}", actor=ACTOR)
+        return reason
     named = str(model_name or "her own model")
     return output, named if named.startswith("ollama:") else f"ollama:{named}", kinds
 
@@ -496,10 +499,17 @@ def compile(request: str, fleet: dict | None = None, context: dict | None = None
             and _nobody_could_think(degraded):
         from aletheia import local_planner
         locally = _compile_locally(request, context, now, local)
-        if locally is not None:
+        if isinstance(locally, tuple):
             output, provider_id, shortlisted = locally
             compiled_by = local_planner.COMPILED_BY
             degraded = None
+        else:
+            # BOTH RUNGS, not just the one that was switched off. Measured
+            # live 2026-09-18: her own model timed out on a reminder and the
+            # room would have heard only "the frontier models are switched
+            # off for this run" - true, and it sounds like nothing else was
+            # tried. `intents._degraded_line` reads this as one clause.
+            degraded = f"{degraded}; local reasoning is unavailable too: {locally}"
 
     plan = Plan(request=request, summary=str(output.get("summary", ""))[:400],
                 intent=output.get("intent", "clarify"),

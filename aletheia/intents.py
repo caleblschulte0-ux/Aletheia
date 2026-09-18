@@ -585,7 +585,11 @@ def spoken(record: dict) -> str:
         # There is a list now, so the sentence says so - and says it
         # without the identifier, which is not a thing he can say back.
         if record.get("queued_work"):
-            said += " It's on my list, and I'll pick it up when Claude or Codex is back."
+            # A FULL STOP, because the clause before it came from `shorten`
+            # and does not carry one: live on 2026-09-18 the room would have
+            # heard "switched off for this run It's on my list", which is one
+            # run-on sentence out loud.
+            said = said.rstrip(" .,;") + ". It's on my list, and I'll pick it up when Claude or Codex is back."
         return speech.tidy(said)
     if record.get("intent") == "clarify":
         # Through the sieve like everything else she says. A clarifying

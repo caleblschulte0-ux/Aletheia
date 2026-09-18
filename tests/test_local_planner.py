@@ -371,6 +371,27 @@ class TheAskDoesNotEvaporateCase(unittest.TestCase):
         self.assertEqual(len(filed), 1)
         self.assertIn("books.toscrape.com", filed[0][0])
 
+    def test_both_rungs_are_named_not_only_the_one_that_was_off(self):
+        """Measured live 2026-09-18: her own model TIMED OUT on a reminder and
+        the record said only "the frontier models are switched off for this
+        run" - true, and it sounds like nothing else was tried."""
+        from aletheia import intents
+        plan = planner.compile(
+            "remind me at 7:40 tomorrow to move the car", fleet=FLEET, registry=REGISTRY,
+            provider=_exploding(), local=_no_local(), queue=lambda r, why: "work:abc")
+        self.assertIn("local reasoning is unavailable too", plan.degraded)
+        said = intents.spoken({"degraded": plan.degraded, "steps": [], "queued_work": "work:abc"})
+        self.assertIn("my own model could not answer either", said)
+
+    def test_the_sentence_does_not_run_on_into_the_next_one(self):
+        """"switched off for this run It's on my list" is one run-on sentence
+        out loud; `shorten` does not leave a full stop behind it."""
+        from aletheia import intents
+        said = intents.spoken({"degraded": "ReasonerUnavailable: the frontier models are "
+                                           "switched off for this run",
+                               "steps": [], "queued_work": "work:abc"})
+        self.assertIn("run. It's on my list", said)
+
     def test_and_the_room_is_told_it_is_on_the_list(self):
         from aletheia import intents
         said = intents.spoken({"degraded": "ReasonerUnavailable: nothing could think",
