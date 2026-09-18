@@ -328,8 +328,10 @@ class LocalSmokeCase(unittest.TestCase):
         def status(config):
             return {"online": True, "model_available": True, "model": config.model}
 
-        def infer(system, text, *, context, config):
+        def infer(system, text, *, context, config, should_yield=None):
             del system, text, context
+            # The activation probe is attended: nothing interrupts it.
+            assert should_yield is None
             role = "fast" if config.model == "qwen3:8b" else "deep"
             observed_timeouts[role] = config.timeout_s
             observed_thinking[role] = config.think

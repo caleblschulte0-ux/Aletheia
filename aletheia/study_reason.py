@@ -36,9 +36,9 @@ from typing import Any, Callable
 from aletheia import studies as st, study_observe as so
 
 POLICY = "standard"
-BUDGET_S = 420.0
-#: What one local call gets when no frontier model can answer (the local ceiling).
-LOCAL_BUDGET_S = 300.0
+BUDGET_S = 1_200.0
+#: What one local call gets when no frontier model can answer (the background ceiling).
+LOCAL_BUDGET_S = 1_200.0
 MAX_QUESTIONS = 5
 MAX_DIMENSIONS = 6
 MAX_CLAIMS = 12
@@ -65,11 +65,13 @@ def gateway_think(*, budget_s: float = BUDGET_S) -> Think:
             if frontier or compact is None:
                 result = reasoning_gateway.reason_json(system, text, context=context, policy=POLICY,
                                                        model=reasoner.PLAN_MODEL, timeout_s=budget_s,
-                                                       validator=validator, work_budget_s=budget_s)
+                                                       validator=validator, work_budget_s=budget_s,
+                                                       attention=reasoning_gateway.BACKGROUND)
             else:
                 result = reasoning_gateway.local_json(system, text, context=compact, role="fast",
                                                       validator=validator, timeout_s=LOCAL_BUDGET_S,
-                                                      think_override=False)
+                                                      think_override=False,
+                                                      attention=reasoning_gateway.BACKGROUND)
         policy.ensure_not_halted()
         provider = result.provider + (f" (degraded: {result.degraded})" if result.degraded else "")
         return result.output, provider

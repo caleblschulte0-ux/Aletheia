@@ -48,6 +48,38 @@ STANDARD = "standard"    # frontier first; local fallback when frontier is out
 CRITICAL = "critical"    # frontier required; local may shadow, never answer
 REASONING_CLASSES = {ROUTINE, STANDARD, CRITICAL}
 
+# ---- attention: is he waiting on this answer? ------------------------------------
+#
+# His ruling, 2026-09-18, asked how long her own model should get to think:
+# *"I don't know, like a while."* A while is not one number, because the same
+# model serves two completely different situations on one laptop with one Ollama
+# queue: a sentence he is standing in the room waiting for, and a repair draft
+# nobody is looking at. Measured on this CPU-only 16 GB machine, a Node repair
+# draft takes 217-270 s when Ollama is free - so the old single 300 s ceiling was
+# simultaneously far too long to keep him waiting and too short to draft code.
+#
+# ATTENDED is the default everywhere and nothing gets BACKGROUND without asking
+# for it by name. The numbers live here because this module imports nothing from
+# Aletheia, so the conversation path (`quick`, `voice`, the planner), the gateway
+# and the local pool can all read ONE ceiling rather than three that drift.
+ATTENDED = "attended"        # he is waiting on it: conversation, and anything he asked for now
+BACKGROUND = "background"    # nobody is sitting in front of it: drafts, reviews, readings
+ATTENTION = {ATTENDED, BACKGROUND}
+
+#: Seconds ONE call to her own model may take, by what the work is.
+LOCAL_CEILING_S = {
+    ATTENDED: 300.0,      # unchanged: the ceiling conversation has always had
+    BACKGROUND: 1_200.0,  # "a while": 20 minutes, ~4x the longest measured draft
+}
+
+
+def local_ceiling_s(attention: str) -> float:
+    """How long her own model may think about one call of this kind."""
+    if attention not in ATTENTION:
+        raise ValueError(f"attention must be one of {sorted(ATTENTION)}")
+    return LOCAL_CEILING_S[attention]
+
+
 # Who a queued item is assigned to, as the requirement it implies. A task for a
 # frontier worker is reserved for a stronger model (NEEDS_STRONGER_MODEL when none
 # can think); a task for the local repair tier needs only her own model.

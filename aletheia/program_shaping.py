@@ -41,7 +41,9 @@ WAIT_FOR = ("reply", "date", "event", "decision", "result")
 CADENCES = ("day", "week", "hours")
 CONTEXT_BYTES = 24 * 1024
 #: Shaping is background work, never a conversation: it may use the long ceiling.
-WORK_BUDGET_S = 600.0
+#: Program/study drafting is BACKGROUND work: he asked for the program, not for
+#: this call, so her own model gets the 20 minute ceiling (work_states.BACKGROUND).
+WORK_BUDGET_S = 1_200.0
 
 SYSTEM = """You shape a LONG-RUNNING MISSION for Caleb from his own words. It may run for weeks
 or months and span several unrelated parts of his life; you do not know in advance what those
@@ -416,7 +418,8 @@ def _asker(think: Callable | None):
         result = reasoning_gateway.reason_json(system, text, context=context, policy="standard",
                                                model=reasoner.PLAN_MODEL, timeout_s=WORK_BUDGET_S,
                                                validator=validator, max_context_bytes=CONTEXT_BYTES,
-                                               work_budget_s=WORK_BUDGET_S)
+                                               work_budget_s=WORK_BUDGET_S,
+                                               attention=reasoning_gateway.BACKGROUND)
         return result.output, result.provider, result.degraded
     return ask
 
@@ -450,5 +453,5 @@ def shape(words: str, *, catalog: dict, answers: list[dict] | None = None, curre
     result = reasoning_gateway.reason_json(
         SYSTEM, words, context=context, policy="standard", model=reasoner.PLAN_MODEL,
         timeout_s=WORK_BUDGET_S, validator=validator, max_context_bytes=CONTEXT_BYTES,
-        work_budget_s=WORK_BUDGET_S)
+        work_budget_s=WORK_BUDGET_S, attention=reasoning_gateway.BACKGROUND)
     return {"structure": result.output, "drafted_by": result.provider, "degraded": result.degraded}

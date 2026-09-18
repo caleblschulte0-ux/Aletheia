@@ -66,13 +66,17 @@ from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from aletheia import work_states as ws
+from aletheia import already_done, work_states as ws
 
 ACTOR = "aletheia-work"
 RETRY_AFTER = dt.timedelta(hours=6)
 MODEL_RETRY = dt.timedelta(minutes=20)
-HYPOTHESIS_BUDGET_S = 330.0
-DOC_BUDGET_S = 480.0
+#: A work session's own thinking is BACKGROUND (`work_states.BACKGROUND`): he
+#: asked for the session, not for this sentence, and a call in flight is put
+#: down the moment he starts talking. That is what buys these the 20 minute
+#: local ceiling instead of conversation's 300 s.
+HYPOTHESIS_BUDGET_S = 1_200.0
+DOC_BUDGET_S = 1_200.0
 FRONTIER_BUDGET_S = 170.0
 #: Measured in Scenario A (2026-09-17, qwen3:8b on his CPU with the live Core sharing
 #: Ollama): 3.6 KB of evidence took ~300 s per reading and a 3 KB document draft hit
@@ -270,8 +274,23 @@ def run(it: dict, now: dt.datetime | None = None, *, investigate: bool = False) 
     started = time.monotonic()
     policy.ensure_not_halted()
     frontier = _frontier_ok(now)
+    noted: list[str] = []
+    token = _NOTED.set(noted)
     where = route(it, frontier=frontier, investigate=investigate)
     name = where["route"]
+    # IS THIS ALREADY DONE? Asked in code, before anybody's model is asked
+    # anything (aletheia.already_done). The live pass on 2026-09-18 spent a
+    # local pass and a frontier turn on a charter step that was complete at the
+    # base commit; only a doc note was stale. The free half of the check runs
+    # here, where the item's own stores are already loaded; the half that has to
+    # read a file runs inside the route that has the checkout.
+    settled = already_done.check(it)
+    if settled["done"]:
+        _NOTED.reset(token)
+        out = already_done.skipped(it, settled, route=name)
+        out["seconds"] = round(time.monotonic() - started, 1)
+        _journal("action", it["id"], f"work ({name}) -> already done: {settled.get('why')}"[:200])
+        return out
     heavy = name in HEAVY or (name == "verify" and not _verify_is_bookkeeping(where.get("capability")))
     if name in ("builder", "frontier_worker", "wait_stronger"):
         out = {"noop": True, "state": it.get("state") or ws.READY, "reason": it.get("reason") or "",
@@ -288,6 +307,7 @@ def run(it: dict, now: dt.datetime | None = None, *, investigate: bool = False) 
         try:
             out = handler(it, where, now)
         except policy.Halted:
+            _NOTED.reset(token)
             raise
         except Exception as exc:  # noqa: BLE001 - a broken route is a retry, never a crash
             from aletheia import reasoner
@@ -296,7 +316,13 @@ def run(it: dict, now: dt.datetime | None = None, *, investigate: bool = False) 
                    "next": "try again later", "not_before": _stamp(now + retry), "kind": "failed",
                    "did": f"tried {_short(it)}; {_failure_words(exc)}",
                    "evidence": {"error": f"{type(exc).__name__}: {str(exc)[:300]}"}}
+    _NOTED.reset(token)
     out.setdefault("evidence", {})
+    # EVERYTHING THIS ITEM'S WORK RECORDED, on the outcome, so the session report
+    # and "what did you do without asking me" read one list and not two.
+    if noted:
+        out["evidence"]["unattended"] = list(dict.fromkeys(
+            list(out["evidence"].get("unattended") or []) + noted))
     out["route"] = name
     out["seconds"] = round(time.monotonic() - started, 1)
     if not out.get("noop"):
@@ -346,7 +372,8 @@ def _think(system: str, text: str, *, context: dict, validator, budget_s: float,
     with local_lease.purpose(local_lease.WORK):
         result = reasoning_gateway.reason_json(system, text, context=context, policy=policy_name,
                                                model=reasoner.PLAN_MODEL, timeout_s=budget_s,
-                                               validator=validator, work_budget_s=budget_s)
+                                               validator=validator, work_budget_s=budget_s,
+                                               attention=reasoning_gateway.BACKGROUND)
     policy.ensure_not_halted()
     return result.output, result.provider
 
@@ -553,6 +580,7 @@ def _queue_packet(it: dict, *, kind: str, reasons: list[str], target: dict | Non
     packet["evidence_summary"] = _summary(packet)
     written = inv.write_packet(packet)
     queued = inv.queue_for_stronger_model(written, reason="; ".join(reasons[:3]) or kind)
+    _note_packet(it, packet_id=ident, repo=repo, route="packet")
     return {"state": ws.NEEDS_STRONGER_MODEL, "reason": ("; ".join(reasons[:2]) or kind)[:300],
             "next": f"when Claude or Codex is available, it starts from packet {ident} instead of rediscovering it",
             "evidence": {"packet": ident, "repair_item": queued["id"]}, "kind": "investigated",
@@ -651,9 +679,12 @@ def _verify(it: dict, where: dict, now: dt.datetime) -> dict:
                              evidence_text=json.dumps({k: entry.get(k) for k in ("id", "status", "caller", "module")}),
                              did=f"looked for tests of {cid}, found none, and queued it with what the registry says")
     view = project_checkout.clone_local(stateio.REPO_ROOT)
+    _note_checkout(it, view, repo="Aletheia", route="verify")
     keep = False
     try:
         result = inv.run_tests(Path(view["path"]), modules, timeout_s=300)
+        _note_tests(it, what=f"the tests for {cid} ({', '.join(modules)})", command=result["command"],
+                    passed=result["passed"], seconds=result["seconds"], route="verify")
         check = {"command": result["command"], "passed": result["passed"], "seconds": result["seconds"],
                  "said": "they pass" if result["passed"] else f"{len(result['failing'])} fail"}
         if result["passed"]:
@@ -700,17 +731,113 @@ def _only_answers(kind: str) -> bool:
     return intercom.only_answers(kind)
 
 
+#: The ids of everything one item's work recorded, collected as it goes so no
+#: handler has to thread them back through its return shape.
+_NOTED: contextvars.ContextVar = contextvars.ContextVar("aletheia_work_noted", default=None)
+
+
+def _note(*, tool: str, args: dict, consequence: str, said: str, session: str,
+          route: str = "", undo: dict | None = None) -> dict:
+    """One thing the work session itself did, into the SAME ledger the broker uses.
+
+    THE LEDGER DID NOT SEE THE WORK SESSION. Live, 2026-09-18: `autonomy list`
+    said "Nothing in the last 48 hours" while this module had, inside that
+    window, run two test suites, made three mirror checkouts, drafted a document
+    and opened a real pull request on his repository. Only the branch had a
+    line. So the answer to "what did you do without asking me" was a flat lie,
+    and the missing half contained the one act he would have wanted to hear
+    about first.
+
+    The consequence is the CALLER'S to state and it is not decoration: an
+    OUTWARD row (a pull request, anything reaching somebody else) is recorded,
+    said first, never undoable by her, and never counted against the unattended
+    budget - recording something must not change what is permitted. Never
+    raises: the work already happened."""
+    try:
+        from aletheia import autonomy
+        row = autonomy.record(tool=tool, args=dict(args or {}), consequence=consequence,
+                              session=session, route=route, said=said,
+                              undo=dict(undo or {"how": autonomy.NONE,
+                                                 "why": "there is nothing recorded to take back"}))
+    except Exception as exc:  # noqa: BLE001
+        return {"id": "", "recorded": False, "why": f"{type(exc).__name__}: {str(exc)[:120]}"}
+    bag = _NOTED.get()
+    if bag is not None and row.get("id"):
+        bag.append(row["id"])
+    return row
+
+
+def _noted_session(it: dict) -> str:
+    return f"work-{_task_id(it)}"
+
+
+def _note_checkout(it: dict, view: dict, *, repo: str, route: str) -> dict:
+    """A throwaway copy of a project: a directory on his disk, and nothing else."""
+    from aletheia import autonomy
+    name = str(repo or "").split("/")[-1] or "the project"
+    return _note(tool="project_checkout.checkout",
+                 args={"repo": repo, "base_sha": view.get("base_sha", ""), "path": view.get("path", "")},
+                 consequence=autonomy.tools_consequence_local(), session=_noted_session(it), route=route,
+                 said=f"made a throwaway copy of {name}"
+                      + (f" at {str(view.get('base_sha'))[:7]}" if view.get("base_sha") else "")
+                      + " on this machine",
+                 undo={"how": autonomy.NONE,
+                       "why": "a throwaway copy is discarded when the work finishes; nothing of yours changed"})
+
+
+def _note_tests(it: dict, *, what: str, command: str, passed, seconds=0, route: str) -> dict:
+    """A test run. His brief names running tests as reversible local work."""
+    from aletheia import autonomy
+    said = (f"ran {what} in a throwaway copy"
+            + (f" ({'they pass' if passed else 'some fail'}, {float(seconds or 0):.0f} s)" if seconds else
+               f" ({'they pass' if passed else 'some fail'})"))
+    return _note(tool="investigation.run_tests",
+                 args={"command": str(command or "")[:300], "passed": bool(passed)},
+                 consequence=autonomy.tools_consequence_local(), session=_noted_session(it), route=route,
+                 said=said,
+                 undo={"how": autonomy.NONE,
+                       "why": "running tests changed nothing, so there is nothing to take back"})
+
+
+def _note_packet(it: dict, *, packet_id: str, repo: str, route: str) -> dict:
+    from aletheia import autonomy
+    return _note(tool="investigation.write_packet", args={"packet": packet_id, "repo": repo},
+                 consequence=autonomy.tools_consequence_local(), session=_noted_session(it), route=route,
+                 said=f"wrote an investigation packet about {_short(it, 60)} and queued it for a stronger model",
+                 undo={"how": autonomy.NONE,
+                       "why": "the packet is a note of mine on this machine; say so and I will drop the queued item"})
+
+
+def _note_outward(it: dict, *, tool: str, args: dict, said: str, route: str, why_not: str) -> dict:
+    """SOMETHING THAT REACHED THE WORLD. Recorded so the ledger is honest, marked
+    outward so nothing counts it as reversible, and never undoable by her."""
+    from aletheia import autonomy, tools as tools_mod
+    return _note(tool=tool, args=args, consequence=tools_mod.OUTWARD, session=_noted_session(it),
+                 route=route, said=said, undo={"how": autonomy.NONE, "why": why_not})
+
+
+def _note_visible(it: dict, *, tool: str, args: dict, said: str, route: str, why_not: str) -> dict:
+    """Something that reached HIM and nobody else."""
+    from aletheia import autonomy, tools as tools_mod
+    return _note(tool=tool, args=args, consequence=tools_mod.VISIBLE_TO_HIM, session=_noted_session(it),
+                 route=route, said=said, undo={"how": autonomy.NONE, "why": why_not})
+
+
 def _note_unattended(tool, args: dict, result, *, session: str, route: str = "") -> dict:
     """One reversible thing the work session did without asking, with its undo.
     Never raises: the work already happened."""
     try:
         from aletheia import autonomy
-        return autonomy.record(tool=getattr(tool, "name", str(tool)), args=dict(args or {}),
-                               consequence=getattr(tool, "consequence", ""), session=session,
-                               route=route, said=autonomy.said_for(tool, args, result),
-                               undo=autonomy.undo_plan(tool, args, result))
+        row = autonomy.record(tool=getattr(tool, "name", str(tool)), args=dict(args or {}),
+                              consequence=getattr(tool, "consequence", ""), session=session,
+                              route=route, said=autonomy.said_for(tool, args, result),
+                              undo=autonomy.undo_plan(tool, args, result))
     except Exception as exc:  # noqa: BLE001
         return {"id": "", "recorded": False, "why": f"{type(exc).__name__}: {str(exc)[:120]}"}
+    bag = _NOTED.get()
+    if bag is not None and row.get("id"):
+        bag.append(row["id"])
+    return row
 
 
 def _note_branch(it: dict, *, branch: str, path: str, repo: str, said: str, route: str) -> dict:
@@ -719,12 +846,16 @@ def _note_branch(it: dict, *, branch: str, path: str, repo: str, said: str, rout
     PRs"). Nothing is pushed, so the undo is deleting the branch and the copy."""
     try:
         from aletheia import autonomy
-        return autonomy.record(tool="local_repair.branch", args={"repo": repo, "branch": branch},
-                               consequence=autonomy.tools_consequence_local(), session=f"work-{_task_id(it)}",
-                               route=route, said=said,
-                               undo=autonomy.branch_undo(path=path, branch=branch, repo=repo))
+        row = autonomy.record(tool="local_repair.branch", args={"repo": repo, "branch": branch},
+                              consequence=autonomy.tools_consequence_local(), session=f"work-{_task_id(it)}",
+                              route=route, said=said,
+                              undo=autonomy.branch_undo(path=path, branch=branch, repo=repo))
     except Exception as exc:  # noqa: BLE001
         return {"id": "", "recorded": False, "why": f"{type(exc).__name__}: {str(exc)[:120]}"}
+    bag = _NOTED.get()
+    if bag is not None and row.get("id"):
+        bag.append(row["id"])
+    return row
 
 
 def _from_repair(it: dict, run: dict, *, target: dict | None, check: dict | None = None,
@@ -736,6 +867,17 @@ def _from_repair(it: dict, run: dict, *, target: dict | None, check: dict | None
     if status in ("BRANCH_READY", "PR_OPEN"):
         where = run.get("pr_url") or f"local branch {run.get('branch')}"
         evidence = {"repair_run": run.get("id"), "branch": run.get("branch"), "pr_url": run.get("pr_url")}
+        if run.get("pr_url"):
+            # A PULL REQUEST IS OUTWARD. It is on his repository, other people
+            # can see it, and closing it is his, not hers.
+            _note_outward(it, tool="code_worker.open_repair_pr",
+                          args={"repo": run.get("repo") or (target or {}).get("repo") or "",
+                                "pr_url": run.get("pr_url"), "branch": run.get("branch")},
+                          said=f"opened a pull request on "
+                               f"{str(run.get('repo') or (target or {}).get('repo') or 'your repository').split('/')[-1]}"
+                               f" with a verified repair of {_short(it, 60)}",
+                          route="failure",
+                          why_not="a pull request on your repository is yours to close, not mine to take back")
         if status == "BRANCH_READY" and run.get("branch") and (view or {}).get("path"):
             # A branch in a throwaway copy, prepared without asking. Nothing is
             # pushed; the ledger says so and says how to throw it away.
@@ -864,6 +1006,7 @@ def _failure(it: dict, where: dict, now: dt.datetime) -> dict:
     ci_text = _ci_text(ci, commands)
     try:
         view = _checkout(target)
+        _note_checkout(it, view, repo=target["repo"], route="failure")
     except project_checkout.CheckoutRefused as why:
         return _queue_packet(it, kind="too_large", target=target, objective=text, reasons=[str(why)],
                              evidence_text=ci_text, ci=ci, commands=commands,
@@ -883,6 +1026,11 @@ def _failure(it: dict, where: dict, now: dt.datetime) -> dict:
             kind = ("node_tests" if view.get("package_json") else "no_local_tests")
             hypothesis = _hypothesis(text, ci_text, found["code"], found["files"])
             checks = _evidence_checks(view, commands)
+            if checks:
+                _note_tests(it, what=f"{len(checks)} read-only check(s) of "
+                                     f"{target['repo'].split('/')[-1]}",
+                            command="; ".join(str(c.get("command") or "") for c in checks)[:300],
+                            passed=all(c.get("passed") for c in checks), route="failure")
             return _queue_packet(it, kind=kind, target=target, objective=text, reasons=[why_not],
                                  evidence_text=ci_text, code=found["code"], files=found["files"], ci=ci,
                                  commands=commands, hypothesis=hypothesis, base_sha=view["base_sha"],
@@ -983,6 +1131,11 @@ def _doc(it: dict, where: dict, now: dt.datetime) -> dict:
     try:
         root = Path(view["path"])
         base = root / view["subdir"] if view["subdir"] else root
+        # ALREADY TRUE? The file this step asks for may already say it - that is
+        # exactly what plan:barkly#3 was, and a model was asked anyway.
+        settled = already_done.check(it, root=base, out_path=out_path, text=text)
+        if settled["done"]:
+            return already_done.skipped(it, settled, route="doc")
         listing = sorted(p.relative_to(root).as_posix() for p in base.rglob("*") if p.is_file() and ".git" not in p.parts)
         docs = sorted([p for p in listing if p.lower().endswith((".md", ".txt"))],
                       key=lambda p: (0 if re.search(r"brief|readme|status|handoff", p, re.I) else 1, p))

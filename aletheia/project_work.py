@@ -544,7 +544,6 @@ def unattended_words(record: dict) -> str:
     Says nothing when nothing ran unattended - a sentence about an empty list is
     noise he learns to talk over.
     """
-    from aletheia import speech
     ids = [i for r in (record.get("receipts") or []) for i in (r.get("evidence") or {}).get("unattended", [])]
     if not ids:
         return ""
@@ -555,11 +554,15 @@ def unattended_words(record: dict) -> str:
         rows = []
     if not rows:
         return ""
-    said = [str(r.get("said") or r.get("tool")).rstrip(".") for r in rows[:3]]
-    lead = (f"{speech.count_phrase(len(rows), 'thing')} I did without asking, all of them reversible and "
-            f"all of them on this machine: ")
-    return lead + "; ".join(said) + ". Say what did you do without asking me and I'll list them with how " \
-                                    "to undo each one."
+    # ONE IMPLEMENTATION. This used to write its own sentence, which said "all
+    # of them reversible and all of them on this machine" - true until the work
+    # session's routes began recording the OUTWARD ones too, and then a lie in
+    # the one place he is being told what she did on her own. `autonomy.spoken`
+    # is the sentence that answers "what did you do without asking me"; this is
+    # the same question about one session, so it is the same sentence.
+    from aletheia import autonomy as ledger
+    said = ledger.spoken(rows, hours=24.0)
+    return said + " Say what did you do without asking me and I'll list them with how to undo each one."
 
 
 def _listed(names: list[str], limit: int = 4) -> str:

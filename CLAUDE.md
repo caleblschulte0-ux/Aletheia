@@ -193,9 +193,23 @@ Four things bound it, and none of them is a flag:
 - **Honesty surfaces**: `current_state` and the Command Center carry the
   list, the work session's report ends with it, and "what did you do without
   asking me" reaches a session that reads the ledger
-  (`autonomy.unattended`). The wording says every one of them was reversible
-  and stayed on this machine, and names three — an identifier is not a thing
-  he can say back, so the id lives on the screen and not in the sentence.
+  (`autonomy.unattended`). It names three — an identifier is not a thing he
+  can say back, so the id lives on the screen and not in the sentence.
+
+  **And the ledger holds what she did, not only the harmless half of it.**
+  Live, 2026-09-18: `autonomy list` said "Nothing in the last 48 hours" while
+  a work session had run two test suites, made three mirror checkouts, drafted
+  a document and opened a real pull request on his repository. Only the branch
+  had ever had a line, so the answer was a flat lie and the missing half held
+  the act he would have wanted to hear about first. `work_runners._note*`
+  records every route's own acts now, and an OUTWARD one (a pull request,
+  anything reaching somebody else) is recorded too — which is only safe
+  because four things are true at once: it is marked outward on the row
+  (`autonomy.is_outward`, failing CLOSED on anything unrecognised), the
+  sentence says it FIRST and never says it stayed on this machine, `undo`
+  refuses it by name as before, and `autonomy.counts` leaves it out of the
+  unattended budget, because recording something must never change what is
+  permitted.
 
 Unchanged, and no flag reaches any of it: spending is REFUSED rather than
 handed off; sending, publishing, deleting for good, creating an account, a
@@ -209,6 +223,51 @@ the tiers, the approval policies, the capability ids, the session catalog and
 "what can you do" all have a test that fails when they and the descriptors
 disagree. The spoken groups MOVED into `tools.py`; everything else is still
 its own table, derived from and checked against the descriptor.
+
+## Before you spend a pass on it: is it already true?
+
+The live acceptance pass, 2026-09-18, spent a local pass and a frontier turn on
+a charter step that was COMPLETE at the base commit; only a doc note was stale.
+`aletheia.already_done` asks first, in code: the item's own store before a route
+is chosen, and - inside the route that already has the checkout - whether the
+file the step asks for already says it. Three rules make a skip safe, and all
+three have tests:
+
+- **Deterministic only.** It never asks a model. A model deciding "already
+  done" is how work silently stops happening, and it is unfalsifiable
+  afterwards; every skip names a fact somebody can go and look at.
+- **Unknown means do the work**, the same safety argument as `quick.py`: it may
+  only ever remove a wasted pass, never an answer. The file check needs every
+  distinctive word of the step present AND one adjacent pair of them adjacent
+  there too, because scattered words are a coincidence and a phrase is the thing.
+- **A skip is recorded like anything else**, with the check that produced it and
+  the evidence it read, so "why did nothing happen" has an answer.
+
+## Nothing to press is not nothing to do
+
+The browser loop walked onto the page holding the answer and stopped with
+*"nothing on it moves toward the goal without a guess. Tell me what to press."*
+Nothing moved toward the goal because nothing needed pressing: the goal was a
+QUESTION and every move the loop had was a move that presses something.
+
+`aletheia.page_answer` is the missing move, and it runs BEFORE a target is
+chosen - live, with her own model choosing, she otherwise pressed "Books", then
+"Books to Scrape", then "Classics", and ran out of steps while standing on the
+answer. Deterministic first: a table, a spec list and a definition list all come
+out of `innerText` as one line per row, so a label made of the goal's own words
+is a key/value pair read in code with no model and nothing to hallucinate (the
+label covering the MOST of the goal wins, abbreviations count by prefix only,
+and two equally good labels that disagree are refused rather than picked
+between). Her own model is asked only where there is nothing left to press, and
+only by QUOTING: the quote must be on the page she holds and the answer must be
+inside that quote, or the whole reply is thrown away - an invented answer comes
+with an invented quote, and an invented quote is checkable. A page that does not
+hold the answer gets its own boundary and says so; it never guesses. The answer
+travels with its citation and is what the room hears.
+
+The loop asks only the model IT WAS GIVEN. Reaching for the gateway behind the
+caller's back made a scripted `decide` in the suite pay for a real local call,
+and a suite that takes two minutes a test stops being run.
 
 ## Tasks and goals are durable, verification is real
 
@@ -869,6 +928,37 @@ when the subscriptions are gone.
   reason, BLOCKED_MODEL, `requires: frontier_reasoning`, next "when Claude or
   Codex is back" - and `work_engine.RUNNERS["replan"]` re-proposes it through
   every gate once a stronger model is back.
+
+**How long she may think depends on WHAT THE WORK IS.** His ruling,
+2026-09-18, asked how long her own model should get: *"I don't know, like a
+while."* One 300 s ceiling served two situations that are nothing alike, on
+one machine with one Ollama queue — a sentence he is standing in the room
+waiting for, and a repair draft nobody is looking at — and served neither: a
+Node repair DRAFT measured 217-270 s free and died at the ceiling whenever the
+live Core was also talking to him. So `work_states.ATTENTION` is the class and
+`work_states.LOCAL_CEILING_S` is the number, in one place because the
+conversation path, `reasoning_gateway` and `local_model_pool` must not each
+keep their own:
+
+    attended    300 s   the default EVERYWHERE; exactly what conversation had
+    background  1200 s  drafts, reviews, readings — and it must be asked for
+
+Nothing inherits the long budget: a caller that asks for twenty minutes
+without saying `attention=BACKGROUND` is cut to five, and `reason_json`
+refuses a background-sized `work_budget_s` from an attended caller.
+`local_brain.MAX_TIMEOUT_S` (1800 s) is not a budget — it is the point past
+which one call is a hung process rather than a slow answer.
+
+**Conversation still wins, and the lease alone stopped being enough.**
+`local_lease` keeps background work from TAKING the queue while he waits, but
+the call already running is the one in front of him, and it may now last
+twenty minutes. A background call is therefore STREAMED and put down at a
+checkpoint (`local_lease.conversation_waiting`, asked every half second
+including during prompt evaluation, closing the response so Ollama stops
+generating). A yield is `LocalPoolYielded`: try again shortly, never a failure
+of the work, and never a failover to the other role — that would take the
+queue straight back off him. Saying BACKGROUND is also saying WORK to the
+lease, so nothing can hold the long budget and still queue as a conversation.
 
 ## Applying to jobs is end to end, and fluid
 

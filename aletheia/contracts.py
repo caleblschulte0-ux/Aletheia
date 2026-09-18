@@ -56,7 +56,7 @@ GOAL_PROJECT_RISKS = {"low", "high"}
 # this vocabulary all the same.
 from aletheia.work_states import (  # noqa: E402,F401
     WORK_STATES, WORK_TERMINAL, WORK_WAITING, REQUIREMENTS, GAP_OUTCOMES,
-    REASONING_CLASSES,
+    REASONING_CLASSES, ATTENTION, ATTENDED, BACKGROUND,
 )
 
 
