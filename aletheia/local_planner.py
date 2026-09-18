@@ -57,8 +57,18 @@ from aletheia import intercom, localtime, tools
 #: into with room for the sentence, the context and the answer — and it
 #: came back in 113 s warm. 8 KB and up is where the curve leaves the room.
 BUDGET_BYTES = 4_096
-#: What assembly aims for, so an unusually wordy descriptor still fits.
-TARGET_BYTES = 2_800
+#: The prompt's share of it. The rest is the context, which the model reads in
+#: the same breath: `situational.snapshot()` is 2.4 KB on an empty machine and
+#: up to 8 KB on his, so a 2.8 KB prompt with the whole snapshot behind it is
+#: an 11 KB ask wearing a 3 KB label. A budget that counts only half of what
+#: travels is not a budget.
+PROMPT_BUDGET_BYTES = 3_000
+CONTEXT_BUDGET_BYTES = BUDGET_BYTES - PROMPT_BUDGET_BYTES
+#: The snapshot's keys, most useful to a PLANNER first. `now` is dropped
+#: outright: the prompt already carries his local time and the offset, and the
+#: snapshot spends 1.6 KB saying it again.
+CONTEXT_KEYS = ("trust_boundary", "recent_conversation", "operator",
+                "recent_references", "calendar_next", "room")
 #: How many kinds a local model is shown. More is not more accurate: every
 #: one of them is read on every ask, and the 4 KB run that named seven kinds
 #: chose the right one while the 2 KB run that named twenty-six did not.
@@ -292,8 +302,38 @@ def kind_block(kind: str, catalog: dict[str, "tools.Tool"]) -> str:
     return "\n".join(out)
 
 
+def compact_context(context: dict | None, *, budget: int = CONTEXT_BUDGET_BYTES) -> dict:
+    """The snapshot, cut to what a PLANNER needs and to what the budget allows.
+
+    It is still untrusted data and still carries the sentence that says so.
+    Dropping a key is honest in a way that truncating its value is not, so the
+    keys go in order of usefulness and whatever does not fit is left out with
+    `trimmed` saying it was.
+    """
+    import json
+    if not isinstance(context, dict) or not context:
+        return {}
+    out: dict = {}
+    dropped = False
+    for key in CONTEXT_KEYS:
+        if key not in context:
+            continue
+        candidate = {**out, key: context[key]}
+        try:
+            size = len(json.dumps(candidate, default=str).encode("utf-8"))
+        except (TypeError, ValueError):
+            continue
+        if size > budget:
+            dropped = True
+            continue
+        out = candidate
+    if dropped or set(context) - set(CONTEXT_KEYS) - {"version", "as_of"}:
+        out["trimmed"] = "this is a short view of her state, not all of it"
+    return out
+
+
 def compact_prompt(kinds, *, catalog: dict[str, "tools.Tool"] | None = None,
-                   now: str | None = None, budget: int = BUDGET_BYTES) -> str:
+                   now: str | None = None, budget: int = PROMPT_BUDGET_BYTES) -> str:
     """The whole local system prompt, inside `budget` bytes.
 
     The budget is a refusal, not a preference: a prompt over it is trimmed by
@@ -363,13 +403,14 @@ def propose(request: str, *, context: dict | None = None,
     catalog = catalog if catalog is not None else tools.catalog()
     kinds = shortlist(request, catalog=catalog)
     prompt = compact_prompt(kinds, catalog=catalog, now=now)
+    context = compact_context(context)
     think = thinker or _local_thinker()
     asked = request
     last = ""
     from aletheia import brain
     for attempt in (1, 2):
         try:
-            output, model = think(prompt, asked, context=context or {})
+            output, model = think(prompt, asked, context=context)
         except Exception as exc:  # noqa: BLE001 - the pool says why in English
             raise LocalPlanUnavailable(str(exc) or type(exc).__name__) from None
         try:

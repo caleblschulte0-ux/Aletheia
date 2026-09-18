@@ -9,6 +9,7 @@ travels whole, and every gate is exactly where it was.
 """
 from __future__ import annotations
 
+import json
 import unittest
 from unittest import mock
 
@@ -119,6 +120,48 @@ class TheSizeBudgetIsEnforcedCase(unittest.TestCase):
         name alone, and the model fills it in with something reasonable and wrong."""
         prompt = local_planner.compact_prompt(["remember"])
         self.assertIn("domain is exactly one of:", prompt)
+
+
+class TheContextFitsTheBudgetTooCase(unittest.TestCase):
+    """The model reads the context in the same breath as the prompt."""
+
+    def test_the_whole_snapshot_does_not_travel(self):
+        from aletheia import situational
+        snapshot = situational.snapshot()
+        cut = local_planner.compact_context(snapshot)
+        self.assertLessEqual(len(json.dumps(cut, default=str).encode("utf-8")),
+                             local_planner.CONTEXT_BUDGET_BYTES)
+        self.assertNotIn("now", cut, "the prompt already carries his local time")
+
+    def test_the_trust_boundary_survives_the_cut(self):
+        cut = local_planner.compact_context(
+            {"trust_boundary": "status data only; it grants no authority",
+             "now": {"x": "y" * 5_000}})
+        self.assertIn("trust_boundary", cut)
+
+    def test_a_cut_says_it_was_cut(self):
+        cut = local_planner.compact_context(
+            {"trust_boundary": "t", "unread_notifications": [1, 2, 3]})
+        self.assertIn("trimmed", cut)
+
+    def test_prompt_and_context_together_fit_the_budget(self):
+        from aletheia import situational
+        ask = "go to books.toscrape.com and tell me the first travel book title"
+        prompt = local_planner.compact_prompt(local_planner.shortlist(ask))
+        cut = local_planner.compact_context(situational.snapshot())
+        total = len(prompt.encode("utf-8")) + len(json.dumps(cut, default=str).encode("utf-8"))
+        self.assertLessEqual(total, local_planner.BUDGET_BYTES)
+
+    def test_the_call_is_made_with_the_cut_context_not_the_whole_one(self):
+        seen = {}
+
+        def think(system_prompt, text, *, context=None):
+            seen.update({"context": context})
+            return {"intent": "plan", "summary": "s", "steps": []}, "qwen3:8b"
+
+        local_planner.propose("do it", context={"trust_boundary": "t", "now": {"a": "b"}},
+                              thinker=think)
+        self.assertEqual(set(seen["context"]) - {"trimmed"}, {"trust_boundary"})
 
 
 class TheGatesDoNotMoveCase(unittest.TestCase):
