@@ -535,7 +535,11 @@ def _summary(packet: dict) -> str:
     if packet.get("failure", {}).get("command"):
         lines.append(f"The failing step runs: {packet['failure']['command'][:200]}.")
     for check in packet.get("local_checks") or []:
-        lines.append(f"She ran {check.get('command')}: {check.get('said')}.")
+        # the OUTPUT, not the name of the command: the Barkly packet named
+        # `npm audit` and carried none of what it said (his brief's rule 5)
+        lines.append(f"She ran `{check.get('argv') or check.get('command')}`: {check.get('said')}"
+                     + (f" — {' '.join(str(check.get('output') or '').split())[:400]}"
+                        if check.get("output") else "") + ".")
     if packet.get("likely_files"):
         lines.append(f"Located: {', '.join(packet['likely_files'][:6])}.")
     if packet.get("hypothesis"):
@@ -690,6 +694,51 @@ def _checkout(target: dict):
     return project_checkout.checkout(target["repo"], target["base_ref"], subdir=target.get("subdir") or "")
 
 
+def _local_tests_reason(view: dict) -> tuple[bool, str]:
+    """Can the repair tier run THIS project's own tests to prove a fix?
+
+    The answer is the project's own files (`project_runners.detect` on the
+    mirror), not a guess from the file list: a package.json with a vitest
+    script and a committed lockfile is runnable; the same package.json with no
+    lockfile is not, and the packet says which."""
+    from aletheia import project_runners as runners
+    root = Path(view["path"]) / view["subdir"] if view.get("subdir") else Path(view["path"])
+    detection = runners.detect(root)
+    ok, why = runners.can_run(detection)
+    if not ok:
+        return False, why
+    has_tests = bool(view.get("python_tests")) if detection.get("toolchain") == runners.PYTHON \
+        else bool(view.get("node_tests") or runners.test_files(root, limit=1))
+    if not has_tests:
+        return False, "it has no tests the local repair tier can run to prove a fix"
+    return True, ""
+
+
+def _evidence_checks(view: dict, commands: list[dict]) -> list[dict]:
+    """The brief's rule 5: a packet carries the OUTPUT of the checks its CI
+    names, not their names. Only rows of `project_runners.CHECK_COMMANDS` run,
+    in the throwaway mirror, read-only."""
+    from aletheia import investigation as inv, policy, project_runners as runners
+    root = Path(view["path"]) / view["subdir"] if view.get("subdir") else Path(view["path"])
+    try:
+        wanted = runners.checks_for([c.get("command") or "" for c in commands or ()], where=root)
+    except Exception:  # noqa: BLE001
+        return []
+    out = []
+    for check in wanted:
+        policy.ensure_not_halted()
+        try:
+            row = runners.run_check(root, check)
+        except Exception as exc:  # noqa: BLE001
+            from aletheia import policy as _p
+            if isinstance(exc, _p.Halted):
+                raise
+            continue
+        row["output"] = inv.clean(inv.relativize(row.get("output") or "", root), 2_000)
+        out.append(row)
+    return out
+
+
 def _ci_for(it: dict, target: dict | None) -> dict | None:
     if target and target.get("ci"):
         return {**target["ci"], "branch": target["ci"].get("branch") or target.get("base_ref")}
@@ -724,21 +773,29 @@ def _failure(it: dict, where: dict, now: dt.datetime) -> dict:
                              did=f"looked at {_short(it)} but could not check it out ({why}); queued it with the CI evidence")
     keep = False
     try:
-        if not view["python_tests"]:
+        # WHICH TESTS CAN PROVE A FIX HERE. Until 2026-09-18 this asked only for
+        # Python tests, so every Node project — Barkly, the holdco platform,
+        # most of what he ships — became a packet whose whole reason was "its
+        # checks run under Node (package.json), which the local repair tier does
+        # not run". The tier runs them now; what is left is the honest case
+        # where there is nothing to run at all, and it says which.
+        runnable, why_not = _local_tests_reason(view)
+        if not runnable:
             found = locate(Path(view["path"]), text + " " + " ".join(c["step"] for c in commands),
                            subdir=view["subdir"])
-            kind = ("node_tests" if view["package_json"] else "no_local_tests")
-            reason = ("its checks run under Node (package.json), which the local repair tier does not run"
-                      if view["package_json"] else "it has no tests the local repair tier can run to prove a fix")
+            kind = ("node_tests" if view.get("package_json") else "no_local_tests")
             hypothesis = _hypothesis(text, ci_text, found["code"], found["files"])
-            return _queue_packet(it, kind=kind, target=target, objective=text, reasons=[reason],
+            checks = _evidence_checks(view, commands)
+            return _queue_packet(it, kind=kind, target=target, objective=text, reasons=[why_not],
                                  evidence_text=ci_text, code=found["code"], files=found["files"], ci=ci,
                                  commands=commands, hypothesis=hypothesis, base_sha=view["base_sha"],
+                                 checks=checks,
                                  did=(f"checked out {target['repo'].split('/')[-1]}"
                                       f"{'/' + view['subdir'] if view['subdir'] else ''} at {view['base_sha'][:7]}, read the "
                                       f"failing CI{' and its command' if commands else ''}"
+                                      f"{f', ran {len(checks)} read-only check(s)' if checks else ''}"
                                       f"{', had my own model read the evidence' if hypothesis.get('answered') else ''}, "
-                                      f"and queued it for a stronger model because {reason}"))
+                                      f"and queued it for a stronger model because {why_not}"))
         objective = (text + ("\n" + ci_text if ci_text else ""))[:900]
         run = local_repair.run(view["path"], repo=target["repo"], base_ref=target["base_ref"], subdir=view["subdir"],
                                objective=objective, task_id=_task_id(it), open_pr=_gh_can_publish(),

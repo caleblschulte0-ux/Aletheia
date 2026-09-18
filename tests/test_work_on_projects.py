@@ -235,7 +235,12 @@ class TheRunners(Isolated):
         self.assertEqual(packet["failure"]["command"], "run: npm audit --omit=dev")
         self.assertEqual(packet["ci"]["run_id"], 7)
         self.assertTrue(packet["on_branch"])
-        self.assertIn("Node", packet["evidence_summary"])
+        # It used to say "its checks run under Node ... which the local repair
+        # tier does not run"; the tier runs Node now (C5a), so the rule this
+        # assertion protects is the one that survives: a project with NO tests
+        # she can run to prove a fix does not get a local attempt, and the
+        # packet says why in a sentence.
+        self.assertIn("no tests the local repair tier can run", packet["evidence_summary"])
         self.assertIn("unverified", packet["evidence_summary"])
         queued = inv.waiting_for_frontier("caleb/Money_Machine")
         self.assertEqual([q["packet_id"] for q in queued], [packet["id"]])

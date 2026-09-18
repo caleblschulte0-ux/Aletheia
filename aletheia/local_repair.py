@@ -356,12 +356,43 @@ def _loop(where: Path, source: Path, rec: _Record, *, repo: str, base_ref: str, 
           failing: list[str] | None, objective: str, task_id: str, think: Think, review_think: Think,
           classify_think: Think | None, attempts: int, open_pr: bool, request, subdir: str = "",
           publish_base_sha: str = "") -> dict:
-    # observe
+    # observe. WHAT IS THIS PROJECT? Its own files answer (package.json and its
+    # lockfile, pyproject/setup.cfg, the commands its CI runs), and that answer
+    # decides how it installs, how its suite runs, how ONE test runs and how its
+    # failures are read. Python is unchanged; Node is new.
     policy.ensure_not_halted()
+    detection = inv.toolchain(where, ci_commands=_ci_commands(objective))
+    rec.data["toolchain"] = {k: detection.get(k) for k in ("toolchain", "runner", "package_manager",
+                                                           "lockfile", "why")}
+    runnable, why_not = rc.runner_refusal(detection)
+    if not runnable:
+        rec.step("toolchain", **rec.data["toolchain"], can_run=False, why=why_not)
+        return _escalate(rec, where, repo=repo, base_ref=base_ref, base_sha=base_sha, task_id=task_id,
+                         objective=objective, observed={"failing": [], "output_tail": "", "command": ""},
+                         repro={}, gathered=None,
+                         classification={"verdict": rc.ESCALATE, "kind": "no_local_tests",
+                                         "escalate_kinds": ["no_local_tests"], "reasons": [why_not]},
+                         source=source, think=None, detection=detection)
+    rec.step("toolchain", **rec.data["toolchain"], can_run=True)
     observed = inv.observe(where, failing)
     observed["output_tail"] = inv.relativize(observed["output_tail"], where)
+    setup = observed.get("install") or {}
+    if setup.get("ran"):
+        rec.step("install", manager=setup.get("manager"), ok=setup.get("ok"), seconds=setup.get("seconds"),
+                 added=setup.get("added"), size_mb=setup.get("size_mb"), why=setup.get("reason") or "")
+    if setup.get("refusal") or (setup.get("ran") and not setup.get("ok")):
+        # Honest degradation (his brief's rule 3): say she could not install it,
+        # with the installer's own output, rather than guess at a repair with
+        # no dependencies present.
+        why = str(setup.get("refusal") or setup.get("reason") or "the dependencies could not be installed")
+        return _escalate(rec, where, repo=repo, base_ref=base_ref, base_sha=base_sha, task_id=task_id,
+                         objective=objective, observed=observed, repro={}, gathered=None,
+                         classification={"verdict": rc.ESCALATE, "kind": "dependency_change",
+                                         "escalate_kinds": ["install_failed"],
+                                         "reasons": [f"install_failed: {why}"]},
+                         source=source, think=None, detection=detection)
     rec.step("observe", command=observed["command"], passed=observed["passed"], failing=observed["failing"],
-             test_seconds=observed["seconds"])
+             test_seconds=observed["seconds"], toolchain=detection.get("toolchain"))
     if observed["passed"]:
         out = rec.save("NOTHING_FAILING", note="the tests pass at this commit; there is nothing to repair")
         _journal("event", rec.data["id"], f"local repair: nothing failing in {repo or source.name}")
@@ -376,21 +407,22 @@ def _loop(where: Path, source: Path, rec: _Record, *, repo: str, base_ref: str, 
                          classification={"verdict": rc.ESCALATE, "kind": "unlocated",
                                          "reasons": ["the test run failed but named no failing test "
                                                      "(a collection or import error before any test ran?)"]},
-                         source=source, think=think)
+                         source=source, think=think, detection=detection)
 
     # evidence + reproduce
     repro = inv.reproduce(where, failing_now)
     for row in repro.get("runs") or []:
         row["output_tail"] = inv.relativize(row.get("output_tail", ""), where)
     rec.step("reproduce", reproduced=repro["reproduced"], order_dependent=repro.get("order_dependent"))
-    gathered = inv.gather(where, repo=repo, failing=failing_now, output=observed["output_tail"], hint=objective)
+    gathered = inv.gather(where, repo=repo, failing=failing_now, output=observed["output_tail"], hint=objective,
+                          detection=detection)
     rec.step("evidence", source_files=gathered["source_files"], test_files=gathered["test_files"],
              frames=len(gathered["frames"]), suspect_commits=[s["sha"] for s in gathered["suspect_commits"]],
              history=len(gathered["history"]))
     text = observed["output_tail"] + "\n" + "\n".join(r.get("output_tail", "") for r in repro.get("runs", []))
     failure = {"repo": repo, "text": inv.clean(text, 6_000), "hint": objective, "failing_tests": failing_now,
                "source_files": gathered["source_files"], "test_files": gathered["test_files"],
-               "located": gathered["located"]}
+               "located": gathered["located"], "toolchain": detection.get("toolchain")}
     if not repro["reproduced"]:
         classification = {"verdict": rc.ESCALATE, "kind": "multi_system", "escalate_kinds": ["not_reproduced"],
                           "reasons": ["not_reproduced: no failing test fails on its own (order dependent or flaky)"],
@@ -408,7 +440,7 @@ def _loop(where: Path, source: Path, rec: _Record, *, repo: str, base_ref: str, 
     if classification["verdict"] != rc.BOUNDED:
         return _escalate(rec, where, repo=repo, base_ref=base_ref, base_sha=base_sha, task_id=task_id,
                          objective=objective, observed=observed, repro=repro, gathered=gathered,
-                         classification=classification, source=source, think=think)
+                         classification=classification, source=source, think=think, detection=detection)
 
     # branch
     policy.ensure_not_halted()
@@ -518,7 +550,7 @@ def _loop(where: Path, source: Path, rec: _Record, *, repo: str, base_ref: str, 
                          classification={**classification, "verdict": rc.ESCALATE,
                                          "reasons": (classification.get("reasons") or [])
                                          + ["local attempts did not prove a fix"]},
-                         source=source, attempts=tried, think=think)
+                         source=source, attempts=tried, think=think, detection=detection)
 
     # review
     policy.ensure_not_halted()
@@ -550,7 +582,8 @@ def _loop(where: Path, source: Path, rec: _Record, *, repo: str, base_ref: str, 
                          objective=objective, observed=observed, repro=repro, gathered=gathered,
                          classification={**classification, "verdict": rc.ESCALATE,
                                          "reasons": (classification.get("reasons") or [])
-                                         + ["review_rejected"]}, source=source, attempts=tried, think=think)
+                                         + ["review_rejected"]}, source=source, attempts=tried, think=think,
+                         detection=detection)
 
     # commit on the branch, in the worktree
     policy.ensure_not_halted()
@@ -610,6 +643,44 @@ def _loop(where: Path, source: Path, rec: _Record, *, repo: str, base_ref: str, 
     _journal("action", rec.data["id"], f"locally verified repair ready on branch {branch} in {source.name}")
     _record_work(out, state=inv.waiting_on_him_state(), reason=f"verified repair ready on branch {branch}",
                  nxt="open a pull request from the branch (a PR, never a merge)")
+    return out
+
+
+def _ci_commands(objective: str) -> list[str]:
+    """The commands the project's own CI runs, as the caller wrote them into
+    the objective (`work_runners._ci_text` puts each failing step's `run:`
+    there). DATA, and used for one thing only: matching the NAME of a test
+    runner she already knows, and picking allowlisted read-only checks. Nothing
+    from here is ever executed as a string."""
+    text = str(objective or "")
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    return [ln for ln in lines if re.search(r"\b(?:npm|pnpm|yarn|node|npx|python|pytest|vitest|jest|mocha)\b", ln)][:8]
+
+
+def _evidence_checks(where: Path, objective: str, observed: dict, detection: dict | None) -> list[dict]:
+    """The brief's rule 5, and Claude's own critique of the Barkly packet: it
+    said the CI ran `npm audit` and carried none of its output. So when a
+    failure escalates, the ALLOWLISTED read-only checks its CI names are run
+    here, in the throwaway worktree, and their real output travels in the
+    packet. Only rows of `project_runners.CHECK_COMMANDS` ever run; a workflow's
+    own command string is matched, never executed."""
+    from aletheia import project_runners as runners
+    commands = _ci_commands(objective) + [str(observed.get("command") or "")]
+    try:
+        wanted = runners.checks_for(commands, where=where)
+    except Exception:                                                  # noqa: BLE001
+        return []
+    out: list[dict] = []
+    for check in wanted:
+        policy.ensure_not_halted()
+        try:
+            row = runners.run_check(where, check, env=inv.test_env(where, detection=detection))
+        except Exception as exc:                                       # noqa: BLE001
+            if isinstance(exc, policy.Halted):
+                raise
+            continue
+        row["output"] = inv.clean(inv.relativize(row.get("output") or "", where), 2_000)
+        out.append(row)
     return out
 
 
@@ -769,11 +840,12 @@ def hypothesize(think: Think, gathered: dict, observed: dict) -> dict:
 
 def _escalate(rec: _Record, where: Path, *, repo: str, base_ref: str, base_sha: str, task_id: str,
               objective: str, observed: dict, repro: dict, gathered: dict | None, classification: dict,
-              source: Path, attempts: list[dict] | None = None, think: Think | None = None) -> dict:
+              source: Path, attempts: list[dict] | None = None, think: Think | None = None,
+              detection: dict | None = None) -> dict:
     """Stop, and leave the stronger model everything she found."""
     if gathered is None:
         gathered = inv.gather(where, repo=repo, failing=observed.get("failing") or [],
-                              output=observed.get("output_tail") or "", hint=objective)
+                              output=observed.get("output_tail") or "", hint=objective, detection=detection)
     if think is not None and not classification.get("cause") and gathered.get("located"):
         # NARROW, don't fix: her own model's reading of the evidence, marked
         # unverified in the packet. A model that cannot answer costs nothing.
@@ -787,7 +859,8 @@ def _escalate(rec: _Record, where: Path, *, repo: str, base_ref: str, base_sha: 
     packet = inv.write_packet(inv.build_packet(
         repo=repo, source=str(source), base_ref=base_ref, base_sha=base_sha, task_id=task_id,
         objective=objective or f"Repair the failing tests in {repo or source.name}", observed=observed,
-        repro=repro, gathered=gathered, classification=classification, attempts=attempts))
+        repro=repro, gathered=gathered, classification=classification, attempts=attempts,
+        toolchain=detection, checks=_evidence_checks(where, objective, observed, detection)))
     reason = ("; ".join((classification.get("reasons") or [])[:3]) or classification.get("kind") or "escalated")
     item = inv.queue_for_stronger_model(packet, reason=reason)
     rec.step("escalate", packet=packet["id"], work_item=item["id"], state=item["state"])
@@ -830,17 +903,22 @@ def investigate(source: str | Path, *, repo: str = "", base_ref: str = "HEAD", f
                   task_id=task_id, objective=inv.clean(objective, 600))
     with inv.worktree(source, base_sha, run_id) as top:
         where = _project_dir(top, subdir)
+        detection = inv.toolchain(where, ci_commands=_ci_commands(objective))
+        rec.data["toolchain"] = {k: detection.get(k) for k in ("toolchain", "runner", "package_manager",
+                                                               "lockfile", "why")}
         observed = inv.observe(where, failing)
         observed["output_tail"] = inv.relativize(observed["output_tail"], where)
-        rec.step("observe", passed=observed["passed"], failing=observed["failing"], test_seconds=observed["seconds"])
+        rec.step("observe", passed=observed["passed"], failing=observed["failing"], test_seconds=observed["seconds"],
+                 toolchain=detection.get("toolchain"))
         repro = inv.reproduce(where, observed["failing"])
         rec.step("reproduce", reproduced=repro.get("reproduced"))
         gathered = inv.gather(where, repo=repo, failing=observed["failing"], output=observed["output_tail"],
-                              hint=objective)
+                              hint=objective, detection=detection)
         rec.step("evidence", source_files=gathered["source_files"], test_files=gathered["test_files"])
         failure = {"repo": repo, "text": observed["output_tail"], "hint": objective,
                    "failing_tests": observed["failing"], "source_files": gathered["source_files"],
-                   "test_files": gathered["test_files"], "located": gathered["located"]}
+                   "test_files": gathered["test_files"], "located": gathered["located"],
+                   "toolchain": detection.get("toolchain")}
         classification = rc.classify(failure, think=think, evidence_text=_evidence_text(gathered, observed))
         if why:
             classification = {**classification, "verdict": rc.ESCALATE,
@@ -848,7 +926,8 @@ def investigate(source: str | Path, *, repo: str = "", base_ref: str = "HEAD", f
         rec.step("classify", verdict=classification["verdict"], kind=classification.get("kind"))
         return _escalate(rec, where, repo=repo, base_ref=base_ref, base_sha=base_sha, task_id=task_id,
                          objective=objective, observed=observed, repro=repro, gathered=gathered,
-                         classification={**classification, "verdict": rc.ESCALATE}, source=source, think=think)
+                         classification={**classification, "verdict": rc.ESCALATE}, source=source, think=think,
+                         detection=detection)
 
 
 def charter_target(slug: str, *, plan: dict | None = None, fleet: dict | None = None) -> dict:

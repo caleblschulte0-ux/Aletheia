@@ -52,6 +52,8 @@ ESCALATE_KINDS: tuple[str, ...] = (
     "architecture", "auth", "security", "authority", "migration",
     "sweeping_refactor", "dependency_change", "multi_system", "safety_boundary",
     "protected_path", "unlocated", "too_large", "design_decision",
+    # added with the Node runners, 2026-09-18
+    "build_config", "multi_package", "no_local_tests", "install_failed",
 )
 
 #: Bounds on a local repair. The loop enforces the diff bounds again on the
@@ -79,7 +81,20 @@ ESCALATE_SIGNS: tuple[tuple[str, re.Pattern], ...] = (
     ("architecture", re.compile(r"\b(?:architecture|redesign|re-architect|rewrite the)\b", re.I)),
     ("sweeping_refactor", re.compile(r"\b(?:refactor\w*|rename (?:everywhere|across)|across the codebase)\b", re.I)),
     ("dependency_change", re.compile(r"\b(?:upgrade|downgrade|bump) (?:the )?(?:dependenc\w+|package|library|version)|"
-                                     r"\bpip install\b|\bnpm install\b|\bdependency conflict\b", re.I)),
+                                     r"\bpip install\b|\bnpm install\b|\bdependency conflict\b|"
+                                     # JavaScript: an audit finding is a dependency change by definition,
+                                     # and "anything npm audit wants beyond a patch bump" is his line.
+                                     r"\bnpm audit\b|\baudit fix\b|\bdependabot\b|\bERESOLVE\b|"
+                                     r"\b(?:high|critical|moderate) severity vulnerab\w+|"
+                                     r"\bpeer dep\w*\b|\bpackage-lock\b|\block ?file\b", re.I)),
+    # A bundler or build-config REWRITE is on his escalate list. This matches
+    # the CONFIG FILES and the words of a rewrite, not the mere name of a tool:
+    # a vitest run prints "vite" in its banner, and escalating every Node test
+    # failure for that would be the very gap this tier is closing.
+    ("build_config", re.compile(r"\b(?:webpack|rollup|esbuild|vite|babel|swc|metro|next|craco|tsup|parcel)"
+                                r"\.config\.[cm]?[jt]sx?\b|\btsconfig(?:\.\w+)?\.json\b|\b\.babelrc\b|"
+                                r"\b(?:bundler|transpil\w+|module ?resolution|tree[- ]shak\w+|"
+                                r"webpack config|build config)\b", re.I)),
     ("design_decision", re.compile(r"\b(?:design decision|which behaviou?r|decide whether|ambiguous spec|"
                                    r"product decision)\b", re.I)),
     ("multi_system", re.compile(r"\b(?:race condition|deadlock|intermittent|flaky|heisenbug|"
@@ -92,8 +107,24 @@ DEPENDENCY_FILES = frozenset({
     "yarn.lock", "pnpm-lock.yaml", "go.mod", "go.sum", "cargo.toml", "cargo.lock", "gemfile",
     "gemfile.lock",
 })
+#: Build and test CONFIGURATION, which a local repair never rewrites: a
+#: bundler config is his escalate list, and a jest/vitest config is a way to
+#: make tests stop running, which is the same thing as weakening them.
+BUILD_CONFIG_FILES = re.compile(
+    r"^(?:webpack|rollup|esbuild|vite|vitest|jest|babel|swc|metro|craco|next|nuxt|tsup|parcel|"
+    r"karma|playwright|cypress|tailwind|postcss|eslint|prettier)\.config\.[cm]?[jt]sx?$"
+    r"|^tsconfig(?:\.\w+)?\.json$|^jest\.config\.json$|^\.babelrc(?:\.\w+)?$|^\.swcrc$"
+    r"|^\.eslintrc(?:\.\w+)?$|^\.mocharc\.[\w.]+$|^babel\.config\.[cm]?[jt]s$", re.I)
 #: Directories that hold migrations, whatever the framework calls them.
 MIGRATION_DIRS = ("migrations/", "alembic/", "db/migrate/")
+#: A monorepo's package roots. A repair that spans two of them is a
+#: multi-package change, which is his escalate list.
+WORKSPACE_DIRS = ("packages/", "apps/", "libs/", "services/", "workspaces/")
+#: Installing dependencies is how every project's CI starts. Seeing it in the
+#: CI command a caller quoted is not evidence that THIS failure is a
+#: dependency change, and treating it as such escalated every Node CI failure.
+SETUP_COMMAND = re.compile(r"\b(?:npm|pnpm|yarn)\s+(?:ci|install|i|add --frozen-lockfile)\b"
+                           r"(?:\s+--[\w=.-]+)*", re.I)
 
 #: Kind by evidence, first match wins. Ordered from most to least specific.
 KIND_SIGNS: tuple[tuple[str, re.Pattern], ...] = (
@@ -109,14 +140,43 @@ KIND_SIGNS: tuple[tuple[str, re.Pattern], ...] = (
     ("scheduled_task_failure", re.compile(r"\b(?:scheduled task|cron(?:tab)?|task scheduler|"
                                           r"last run result|nightly job)\b", re.I)),
     ("data_transformation_bug", re.compile(r"\b(?:IndexError|KeyError|TypeError|ValueError|ZeroDivisionError|"
-                                           r"Lists differ|Dicts differ|Tuples differ|off[- ]by[- ]one)\b", re.I)),
-    ("narrow_failing_test", re.compile(r"\bAssertionError\b|\bFAIL:", re.I)),
+                                           r"Lists differ|Dicts differ|Tuples differ|off[- ]by[- ]one|"
+                                           # JavaScript says the same things differently
+                                           r"is not a function|is not iterable|of undefined|of null|"
+                                           r"undefined is not an object|RangeError|"
+                                           r"Cannot read propert(?:y|ies))\b", re.I)),
+    ("narrow_failing_test", re.compile(r"\bAssertionError\b|\bFAIL:|\bexpect\(received\)|"
+                                       r"\bexpected .{0,40} to (?:be|equal|deep equal|contain|match)\b|"
+                                       r"\bAssertionError \[ERR_ASSERTION\]", re.I)),
     ("obvious_traceback", re.compile(r"Traceback \(most recent call last\)", re.I)),
+)
+#: The same ladder for JavaScript, consulted before KIND_SIGNS when the
+#: project is a Node one: its names for the same small bugs.
+JS_KIND_SIGNS: tuple[tuple[str, re.Pattern], ...] = (
+    ("broken_path", re.compile(r"(?:Cannot find module|Failed to resolve import|Cannot find package|"
+                               r"Could not resolve|ERR_MODULE_NOT_FOUND)\s*[:\s]*['\"]\.{1,2}/", re.I)),
+    ("import_api_mismatch", re.compile(r"\b(?:does not provide an export named|is not exported by|"
+                                       r"The requested module|ERR_REQUIRE_ESM|"
+                                       r"Named export .* not found|is not a constructor)\b", re.I)),
+    ("typo", re.compile(r"\b(?:ReferenceError|SyntaxError|Unexpected token|Unexpected identifier|"
+                        r"is not defined)\b", re.I)),
+    ("config_parsing_bug", re.compile(r"\b(?:Unexpected token .{0,12} in JSON|JSON\.parse|"
+                                      r"is not valid JSON|YAMLException|Invalid configuration)\b", re.I)),
+    ("data_transformation_bug", re.compile(r"\b(?:TypeError|RangeError|Cannot read propert(?:y|ies)|"
+                                           r"is not a function|is not iterable|NaN)\b", re.I)),
+    ("narrow_failing_test", re.compile(r"\bAssertionError\b|\bexpect\(received\)|"
+                                       r"\bexpected .{0,60} to (?:be|equal|deep equal|contain|match)\b|"
+                                       r"^\s*(?:not ok \d+|●|×|✕|FAIL)\b", re.I | re.M)),
 )
 UI_SUFFIXES = (".html", ".css", ".jsx", ".tsx", ".vue", ".svelte")
 _MISSING_MODULE = re.compile(r"No module named ['\"]([A-Za-z_][\w.]*)['\"]")
+#: A BARE JavaScript specifier: a package that is not installed, never a file
+#: of his in the wrong place. (A relative one is `broken_path`, above.)
+_MISSING_JS_PACKAGE = re.compile(r"(?:Cannot find module|Cannot find package|Failed to resolve import|"
+                                 r"Could not resolve)\s*[:\s]*['\"](?!\.{1,2}/)(@?[\w.-]+(?:/[\w.-]+)?)['\"]")
 _ABS_PATH = re.compile(r"(?:\b[A-Za-z]:[\\/]|(?<![\w.])/(?=[\w.-]+/))[^\s\"'<>|]*")
-TEST_PATH = re.compile(r"(?:^|/)(?:tests?/|test_[^/]*$|[^/]*_test\.py$|[^/]*\.(?:test|spec)\.[jt]sx?$)", re.I)
+TEST_PATH = re.compile(r"(?:^|/)(?:tests?/|__tests__/|__mocks__/|test_[^/]*$|[^/]*_test\.py$|"
+                       r"[^/]*\.(?:test|spec)\.[cm]?[jt]sx?$|[^/]*_test\.[cm]?[jt]sx?$)", re.I)
 
 
 def is_test_path(path: str) -> bool:
@@ -154,9 +214,29 @@ def boundary_refusals(repo: str, paths: list[str]) -> list[str]:
             out.append(f"protected_path: {norm}")
         elif base in DEPENDENCY_FILES:
             out.append(f"dependency_change: {norm}")
+        elif BUILD_CONFIG_FILES.match(base):
+            out.append(f"build_config: {norm} is build or test configuration, which a local repair never rewrites")
         elif norm.casefold().startswith(MIGRATION_DIRS) or "/migrations/" in norm.casefold():
             out.append(f"migration: {norm}")
+    roots = {p.split("/", 2)[1] for p in (str(x or "").replace("\\", "/").casefold() for x in paths)
+             if p.startswith(WORKSPACE_DIRS) and len(p.split("/")) > 2}
+    if len(roots) > 1:
+        out.append(f"multi_package: the failure spans {len(roots)} packages of a monorepo "
+                   f"({', '.join(sorted(roots)[:3])})")
     return out
+
+
+def runner_refusal(detection: dict | None) -> tuple[bool, str]:
+    """Whether the tier can prove a fix with this project's own tests at all.
+
+    Escalating here is not a defeat: it is the packet saying WHY, in a
+    sentence, instead of Scenario A's "the local repair tier does not run
+    Node"."""
+    from aletheia import project_runners
+    if not detection:
+        return True, ""
+    ok, why = project_runners.can_run(detection)
+    return ok, ("" if ok else f"no_local_tests: {why}")
 
 
 def _test_module(test_id: str) -> str:
@@ -190,10 +270,16 @@ def classify_rules(failure: dict) -> dict:
     # a worktree named after a task, or a project folder called "auth-demo",
     # must not decide the class. The repository-relative implicated paths
     # are scanned instead, because "app/auth.py" is a real signal.
+    toolchain = str((failure.get("toolchain") or {}).get("toolchain")
+                    if isinstance(failure.get("toolchain"), dict) else failure.get("toolchain") or "")
     raw = f"{failure.get('hint') or ''}\n{failure.get('text') or ''}"
     raw = _ABS_PATH.sub(" <path> ", raw)
-    text = raw + "\n" + " ".join(str(p) for p in (failure.get("source_files") or [])
-                                 + (failure.get("test_files") or []))
+    # `npm ci` in a quoted CI step says how the project installs, not that this
+    # failure is a dependency change. Left in `raw` for the missing-package
+    # rules below, taken out of what the escalate WORDS are matched against.
+    scanned = SETUP_COMMAND.sub(" <install step> ", raw)
+    text = scanned + "\n" + " ".join(str(p) for p in (failure.get("source_files") or [])
+                                     + (failure.get("test_files") or []))
     sources = [str(p) for p in failure.get("source_files") or []]
     tests = [str(p) for p in failure.get("test_files") or []]
     failing = [str(t) for t in failure.get("failing_tests") or []]
@@ -220,6 +306,16 @@ def classify_rules(failure: dict) -> dict:
             escalate.append("dependency_change")
             reasons.append(f"dependency_change: the tests need the package {name.split('.')[0]!r}, which is not "
                            "installed here (an environment to set up, not code to repair)")
+    # The same rule in JavaScript, and the distinction that makes the Node tier
+    # worth having: `Cannot find module './util'` is a wrong import path in HIS
+    # code (bounded, and `path_hints` usually says where the file really is);
+    # `Cannot find module 'lodash'` is a package this checkout never had.
+    for name in dict.fromkeys(_MISSING_JS_PACKAGE.findall(raw)):
+        top = name.split("/")[0].casefold()
+        if top not in own and not top.startswith("node:"):
+            escalate.append("dependency_change")
+            reasons.append(f"dependency_change: the tests import the package {name!r}, which is not installed "
+                           "here (an environment to set up, not code to repair)")
     if not failure.get("located"):
         escalate.append("unlocated")
         reasons.append("unlocated: nothing in the evidence points at a file in the repository")
@@ -236,7 +332,8 @@ def classify_rules(failure: dict) -> dict:
         reasons.append(f"multi_system: failures span {len(modules)} test modules")
 
     kind = None
-    for name, pattern in KIND_SIGNS:
+    ladder = (JS_KIND_SIGNS + KIND_SIGNS) if toolchain == "node" else KIND_SIGNS
+    for name, pattern in ladder:
         if pattern.search(text):
             kind = name
             break

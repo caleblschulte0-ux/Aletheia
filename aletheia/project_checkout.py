@@ -36,6 +36,7 @@ import urllib.request
 from pathlib import Path, PurePosixPath
 
 from aletheia import investigation as inv
+from aletheia import project_runners as runners
 
 ACTOR = "aletheia-work"
 MAX_BLOB_KB = 512
@@ -49,6 +50,12 @@ MEDIA = (".mp4", ".mov", ".m4v", ".avi", ".mkv", ".webm", ".wav", ".mp3", ".flac
          ".mp4.part", ".npy", ".npz", ".parquet", ".sqlite", ".db")
 _SAFE_REPO = re.compile(r"[A-Za-z0-9-]+/[A-Za-z0-9._-]+")
 _SAFE_BRANCH = re.compile(r"(?!-)[A-Za-z0-9._/-]{1,200}")
+_JS_TEST = re.compile(r"\.(?:test|spec)\.[cm]?[jt]sx?$", re.I)
+#: What a project needs before anything can be installed or run.
+MANIFEST_MAX_KB = 4_096
+MANIFESTS = frozenset({"package.json", *(row["lockfile"] for row in runners.PACKAGE_MANAGERS),
+                       "pyproject.toml", "setup.cfg", "setup.py", "requirements.txt", "tox.ini",
+                       "pytest.ini", "tsconfig.json"})
 
 
 class CheckoutRefused(RuntimeError):
@@ -142,7 +149,13 @@ def plan(files: list[dict], subdir: str = "") -> dict:
         if not _under(f["path"], subdir):
             continue
         low = f["path"].lower()
-        if low.endswith(MEDIA) or f["size"] > MAX_BLOB_KB * 1024:
+        # A manifest or a lockfile comes across WHATEVER its size: without it
+        # nothing can be installed, and a project that cannot be installed
+        # cannot have a repair proved against it. package-lock.json is often
+        # several hundred KB, which is exactly the cap below.
+        if PurePosixPath(low).name in MANIFESTS and f["size"] <= MANIFEST_MAX_KB * 1024:
+            keep.append(f)
+        elif low.endswith(MEDIA) or f["size"] > MAX_BLOB_KB * 1024:
             skipped.append(f)
         else:
             keep.append(f)
@@ -150,8 +163,17 @@ def plan(files: list[dict], subdir: str = "") -> dict:
     python_tests = [f["path"] for f in keep if f["path"].endswith(".py")
                     and (PurePosixPath(f["path"]).name.startswith("test_") or "/tests/" in "/" + f["path"])]
     node = [f["path"] for f in keep if PurePosixPath(f["path"]).name == "package.json"]
+    node_tests = [f["path"] for f in keep
+                  if _JS_TEST.search(PurePosixPath(f["path"]).name)
+                  or (f["path"].lower().endswith(runners.JS_SUFFIXES)
+                      and re.search(r"(?:^|/)(?:__tests__|tests?)/", "/" + f["path"], re.I))]
+    lockfiles = [f["path"] for f in keep
+                 if PurePosixPath(f["path"]).name in {row["lockfile"] for row in runners.PACKAGE_MANAGERS}]
     return {"keep": [f["path"] for f in keep], "skipped": len(skipped), "bytes": total,
             "python_tests": python_tests[:50], "package_json": node[:5],
+            "node_tests": node_tests[:50], "lockfiles": lockfiles[:5],
+            #: Any tests the local repair tier can actually run to PROVE a fix.
+            "local_tests": (python_tests + node_tests)[:80],
             "fits": total <= MAX_CHECKOUT_MB * 1024 * 1024 and bool(keep)}
 
 
@@ -207,6 +229,8 @@ def checkout(full_name: str, branch: str, *, subdir: str = "", root: Path | None
     return {"path": str(mirror), "scratch": str(scratch), "subdir": str(subdir or "").strip("/"),
             "base_sha": sha, "branch": branch, "repo": full_name, "files": len(chosen["keep"]),
             "python_tests": chosen["python_tests"], "package_json": chosen["package_json"],
+            "node_tests": chosen["node_tests"], "lockfiles": chosen["lockfiles"],
+            "local_tests": chosen["local_tests"],
             "skipped": chosen["skipped"], "seconds": round(time.monotonic() - started, 1)}
 
 
