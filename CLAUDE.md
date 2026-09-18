@@ -224,6 +224,51 @@ the tiers, the approval policies, the capability ids, the session catalog and
 disagree. The spoken groups MOVED into `tools.py`; everything else is still
 its own table, derived from and checked against the descriptor.
 
+## Before you spend a pass on it: is it already true?
+
+The live acceptance pass, 2026-09-18, spent a local pass and a frontier turn on
+a charter step that was COMPLETE at the base commit; only a doc note was stale.
+`aletheia.already_done` asks first, in code: the item's own store before a route
+is chosen, and - inside the route that already has the checkout - whether the
+file the step asks for already says it. Three rules make a skip safe, and all
+three have tests:
+
+- **Deterministic only.** It never asks a model. A model deciding "already
+  done" is how work silently stops happening, and it is unfalsifiable
+  afterwards; every skip names a fact somebody can go and look at.
+- **Unknown means do the work**, the same safety argument as `quick.py`: it may
+  only ever remove a wasted pass, never an answer. The file check needs every
+  distinctive word of the step present AND one adjacent pair of them adjacent
+  there too, because scattered words are a coincidence and a phrase is the thing.
+- **A skip is recorded like anything else**, with the check that produced it and
+  the evidence it read, so "why did nothing happen" has an answer.
+
+## Nothing to press is not nothing to do
+
+The browser loop walked onto the page holding the answer and stopped with
+*"nothing on it moves toward the goal without a guess. Tell me what to press."*
+Nothing moved toward the goal because nothing needed pressing: the goal was a
+QUESTION and every move the loop had was a move that presses something.
+
+`aletheia.page_answer` is the missing move, and it runs BEFORE a target is
+chosen - live, with her own model choosing, she otherwise pressed "Books", then
+"Books to Scrape", then "Classics", and ran out of steps while standing on the
+answer. Deterministic first: a table, a spec list and a definition list all come
+out of `innerText` as one line per row, so a label made of the goal's own words
+is a key/value pair read in code with no model and nothing to hallucinate (the
+label covering the MOST of the goal wins, abbreviations count by prefix only,
+and two equally good labels that disagree are refused rather than picked
+between). Her own model is asked only where there is nothing left to press, and
+only by QUOTING: the quote must be on the page she holds and the answer must be
+inside that quote, or the whole reply is thrown away - an invented answer comes
+with an invented quote, and an invented quote is checkable. A page that does not
+hold the answer gets its own boundary and says so; it never guesses. The answer
+travels with its citation and is what the room hears.
+
+The loop asks only the model IT WAS GIVEN. Reaching for the gateway behind the
+caller's back made a scripted `decide` in the suite pay for a real local call,
+and a suite that takes two minutes a test stops being run.
+
 ## Tasks and goals are durable, verification is real
 
 Real-world work outlives conversations (§27): anything multi-step or
