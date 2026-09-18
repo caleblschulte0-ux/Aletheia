@@ -489,5 +489,40 @@ class TheScreenShowsTheSession(Isolated):
         self.assertTrue(any(s.startswith("Working on Barkly") for s in said))
 
 
+class TheEvidenceContainsTheThingItIsAbout(unittest.TestCase):
+    """Measured live on 2026-09-18 (acceptance A, plan:barkly#3).
+
+    The packet that went to the stronger model carried an import block and an
+    interface from a 2,200-line hook, and neither of the two lines the work
+    item names. A packet whose evidence does not contain the thing it is
+    about makes the frontier model rediscover what she already had.
+    """
+
+    def test_the_lines_that_show_the_behaviour_travel_not_the_import_block(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        lines = ["import { areaUnlocked } from '../game/progression';"]
+        lines += [f"  // filler {n}" for n in range(60)]
+        lines += ["  const canGo = (area: string) => areaUnlocked(area, xp, devRef.current);"]
+        lines += [f"  // more filler {n}" for n in range(400)]
+        lines += ["  const goTo = (loc: LocationId) => { if (!canGo(loc)) return; };"]
+        (root / "useBarkly.ts").write_text("\n".join(lines), encoding="utf-8")
+
+        found = runners.locate(root, "Fix the useBarkly.goTo() dev-flag mismatch "
+                                     "(pass devRef.current to areaUnlocked)")
+        text = "\n".join(slice_["text"] for slice_ in found["code"])
+        self.assertIn("useBarkly.ts", found["files"])
+        self.assertIn("const canGo", text)
+        self.assertIn("const goTo", text)
+
+    def test_an_import_only_line_ranks_below_the_definition(self):
+        # weights: 3 exact, 2 exact-but-import, 1 loose
+        self.assertEqual(runners.best_lines({0: 2, 500: 3}), [500, 0])
+
+    def test_two_lines_from_one_neighbourhood_are_one_piece_of_evidence(self):
+        self.assertEqual(runners.best_lines({10: 3, 12: 3, 90: 3}), [10, 90])
+
+
 if __name__ == "__main__":
     unittest.main()

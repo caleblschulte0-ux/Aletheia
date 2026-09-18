@@ -360,6 +360,38 @@ def _tokens(text: str) -> list[str]:
     return list(dict.fromkeys(found + words))[:14]
 
 
+#: A line that NAMES a symbol without showing what it does.
+_IMPORT_LINE = re.compile(r"\s*(?:from\s|import\s|export\s+\{|#include|@import|"
+                          r"(?:const|let|var)\s+\{?[\w\s,}]*=\s*require\()")
+
+
+def best_lines(hits: dict[int, int], *, keep: int = 6, apart: int = 12) -> list[int]:
+    """The matched lines most likely to SHOW the behaviour, best first.
+
+    Evidence used to be the first six matching lines in FILE ORDER, which is
+    fine in a small file and wrong in a large one. Measured live on
+    2026-09-18 (acceptance A, plan:barkly#3): `useBarkly.ts` is 2,200 lines,
+    the two lines that answer the work item are its guard at 356 and its
+    handler at 1,246, and the packet that went to the stronger model carried
+    lines 79-91 and 197-209 - an import block and an interface. A packet
+    whose evidence does not contain the thing it is about makes the frontier
+    model rediscover what she already had, which is the one thing continuity
+    rule 5 says never to pay for.
+
+    So: a line matching an exact identifier outranks a loose word match, a
+    line that only IMPORTS the name ranks below both, and two lines from the
+    same neighbourhood are one piece of evidence, not two.
+    """
+    chosen: list[int] = []
+    for line in sorted(hits, key=lambda n: (-hits[n], n)):
+        if any(abs(line - other) < apart for other in chosen):
+            continue
+        chosen.append(line)
+        if len(chosen) >= keep:
+            break
+    return chosen
+
+
 def locate(root: Path, text: str, *, subdir: str = "", budget: int = EVIDENCE_CHARS) -> dict:
     """Files and lines in a checkout that the work's own words point at. Reads only."""
     base = Path(root) / subdir if subdir else Path(root)
@@ -378,7 +410,7 @@ def locate(root: Path, text: str, *, subdir: str = "", budget: int = EVIDENCE_CH
         except (OSError, UnicodeDecodeError):
             continue
         score = 0
-        hits = []
+        hits: dict[int, int] = {}
         for token in tokens:
             leaf = token.split("/")[-1].lower()
             if "/" in token and rel.lower().endswith(token.lower()) or (leaf and leaf == path.name.lower()):
@@ -387,11 +419,12 @@ def locate(root: Path, text: str, *, subdir: str = "", budget: int = EVIDENCE_CH
             for n, line in enumerate(content):
                 if (token.split(".")[-1] in line) if exact else (token.lower() in line.lower()):
                     score += 2 if exact else 1
-                    if len(hits) < 6:
-                        hits.append(n)
+                    weight = (3 if exact else 1) - (1 if _IMPORT_LINE.match(line) else 0)
+                    if weight > hits.get(n, 0):
+                        hits[n] = weight
         if score:
             scores[rel] = score
-            lines_hit[rel] = sorted(set(hits))
+            lines_hit[rel] = best_lines(hits)
             texts[rel] = content
     ranked = sorted(scores, key=lambda r: (-scores[r], r))[:6]
     code, used = [], 0
