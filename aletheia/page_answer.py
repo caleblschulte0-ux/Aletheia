@@ -42,7 +42,7 @@ CHROME = frozenset("""
 what whats what's who whose when where which how is are was were does do did
 tell me find out look up check read the a an of for on in at to its it this that
 page site web product item thing please and or from about with
-much many long often price? value
+much many long often
 """.split())
 
 _WORD = re.compile(r"[A-Za-z][A-Za-z0-9'._-]*")
