@@ -575,10 +575,21 @@ def _finished_words(receipt: dict) -> str:
     ev = receipt.get("evidence") or {}
     if kind == "verified":
         return f"{title}: its tests pass, and the live proof is yours to authorize"
+    # A PULL REQUEST IS NOT A BRANCH, and the room only hears this sentence.
+    # Measured live on 2026-09-18 (acceptance A): she drafted handoff/STATUS.md,
+    # opened a real pull request on Money_Machine under his code-work grant, and
+    # said "a draft of handoff/STATUS.md is on a branch for you to read". The
+    # record knew (evidence.pr_url); the only surface he hears did not, so the
+    # one thing that left this machine was the one thing the sentence hid.
+    # The URL stays off the sentence - a link is not sayable - and stays in the
+    # receipt, which is where he clicks it.
+    published = bool(ev.get("pr_url"))
     if kind == "drafted":
-        return f"{title}: a draft of {ev.get('file') or 'it'} is on a branch for you to read"
+        where = "is waiting in a pull request" if published else "is on a branch"
+        return f"{title}: a draft of {ev.get('file') or 'it'} {where} for you to read"
     if kind == "repaired":
-        return f"{title}: a repair its tests prove is on a branch for you to review"
+        where = "is waiting in a pull request" if published else "is on a branch"
+        return f"{title}: a repair its tests prove {where} for you to review"
     if kind == "started":
         return f"{title}: started"
     return f"{title}: done"

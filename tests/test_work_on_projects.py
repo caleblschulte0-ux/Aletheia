@@ -489,6 +489,32 @@ class TheScreenShowsTheSession(Isolated):
         self.assertTrue(any(s.startswith("Working on Barkly") for s in said))
 
 
+class APullRequestIsNotABranch(unittest.TestCase):
+    """Measured live on 2026-09-18 (acceptance A, plan:open-range-promo#1).
+
+    She drafted the file, opened a real pull request on Money_Machine under his
+    code-work grant, and told the room "a draft of handoff/STATUS.md is on a
+    branch for you to read". The one thing that left the machine was the one
+    thing the sentence hid.
+    """
+
+    def test_a_published_draft_says_pull_request_and_a_local_one_says_branch(self):
+        published = {"kind": "drafted", "title": "Open Range demo films: Write a status",
+                     "evidence": {"file": "handoff/STATUS.md", "branch": "thea-work/x",
+                                  "pr_url": "https://github.com/x/y/pull/11"}}
+        local = {"kind": "drafted", "title": "Open Range demo films: Write a status",
+                 "evidence": {"file": "handoff/STATUS.md", "branch": "thea-work/x"}}
+        said = project_work._finished_words(published)
+        self.assertIn("pull request", said)
+        self.assertNotIn("github.com", said)
+        self.assertIn("on a branch", project_work._finished_words(local))
+
+    def test_a_published_repair_says_so_too(self):
+        said = project_work._finished_words(
+            {"kind": "repaired", "title": "Barkly: CI", "evidence": {"pr_url": "https://github.com/x/y/pull/12"}})
+        self.assertIn("pull request", said)
+
+
 class TheEvidenceContainsTheThingItIsAbout(unittest.TestCase):
     """Measured live on 2026-09-18 (acceptance A, plan:barkly#3).
 
