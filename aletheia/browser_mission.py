@@ -285,7 +285,9 @@ def describe(record: dict) -> str:
     boundary = record.get("boundary") or {}
     last = record.get("last_checkpoint") or "nothing yet"
     if state == DONE:
-        return f"Done: {goal}."
+        from aletheia import page_answer
+        said = page_answer.spoken(record.get("result") or {})
+        return f"Done: {goal}. {said}".strip() if said else f"Done: {goal}."
     if boundary.get("say"):
         return f"{goal}: {boundary['say']} (last checkpoint: {last})"
     return f"{goal}: {str(state).lower().replace('_', ' ')} (last checkpoint: {last})"

@@ -120,7 +120,16 @@ def spoken(record: dict) -> str:
     state = record.get("state")
     boundary = record.get("boundary") or {}
     if state == bm.DONE:
-        return f"Done: {record.get('goal', 'that')}. The site confirmed it."
+        # AN ANSWER IS THE POINT OF A READING GOAL, so it is what she says -
+        # with the page it came from. "The site confirmed it" was said after
+        # reading goals too, where nothing was ever submitted to confirm.
+        from aletheia import page_answer
+        said = page_answer.spoken(record.get("result") or {})
+        if said:
+            return said
+        if record.get("submits"):
+            return f"Done: {record.get('goal', 'that')}. The site confirmed it."
+        return f"Done: {record.get('goal', 'that')}."
     if boundary.get("say"):
         return str(boundary["say"])
     return bm.describe(record)
