@@ -167,6 +167,19 @@ class TheLoopFinishesInsteadOfAsking(unittest.TestCase):
         self.assertEqual(rec["result"]["url"], "http://books.toscrape.com/x.html")
         self.assertEqual(rec["result"]["found_by"], "the page's own words")
 
+    def test_it_reads_the_page_it_is_on_before_it_presses_anything(self):
+        """Live 2026-09-18, with her own model choosing: standing ON the page
+        that answered the question, she pressed "Books", then "Books to
+        Scrape", then "Classics", and ran out of steps. The deterministic read
+        costs nothing, so it happens before a target is chosen at all."""
+        import inspect
+        source = inspect.getsource(browser_loop._drive)
+        body = source[source.index("if state == ps.CONTENT:"):]
+        read = body.index("is_a_question")
+        chose = body.index("target = way_forward")
+        self.assertLess(read, chose,
+                        "she chooses somewhere to go before reading the page she is on")
+
     def test_a_page_that_does_not_answer_it_says_that_and_does_not_ask_what_to_press(self):
         said = browser_loop._say_boundary("NO_ANSWER_ON_THE_PAGE", "http://books.toscrape.com/",
                                           page="a page to read",

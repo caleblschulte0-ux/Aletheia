@@ -52,8 +52,8 @@ import time
 from pathlib import Path
 from typing import Any, Callable
 
-from aletheia import (browse, browser_mission as bm, formfill, journal, page_state as ps,
-                      policy, site_skills, stateio, webtask)
+from aletheia import (browse, browser_mission as bm, formfill, journal, page_answer,
+                      page_state as ps, policy, site_skills, stateio, webtask)
 
 ACTOR = "aletheia-browser-loop"
 MAX_STEPS = 30
@@ -1170,6 +1170,21 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
         if state == ps.CONTENT:
             visited = {str(c.get("url") or "").split("#")[0] for c in record.get("checkpoints") or []
                        if c.get("name") == bm.OBSERVED}
+            # READ THE PAGE SHE IS ON BEFORE SHE LEAVES IT. Live 2026-09-18,
+            # with her own model choosing: standing on the product page, asked a
+            # question about it, she pressed "Books", then "Books to Scrape",
+            # then "Classics", and ran out of steps - because every move she had
+            # was a move that presses something and the answer was already on
+            # the screen. This costs NO model call (the deterministic read
+            # only); the model is asked later, and only where there is nothing
+            # left to press.
+            if page_answer.is_a_question(goal):
+                found = _answer_from(goal, obs, decide=None)
+                if found:
+                    _finish_reading(record, obs, judged_by=found["found_by"], found=found)
+                    _note(record, f"the page in front of me answers it: {found['answer'][:80]} "
+                                  f"({found['found_by']})")
+                    return bm.checkpoint(record, bm.FINISHED, url=obs["url"])
             if decide is not None and route and _goal_words_on_the_page(goal, obs) \
                     and obs["url"] not in (record.get("asked_arrived") or []):
                 # THE PAGE THE GOAL NAMED. Asked only where the title already
@@ -1221,7 +1236,6 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
                 # question, the last move is to READ the page rather than ask
                 # him what to press - and if the page does not answer it, say
                 # THAT, which is a different sentence and a truer one.
-                from aletheia import page_answer
                 if page_answer.is_a_question(goal):
                     found = _answer_from(goal, obs, decide=decide)
                     if found:
@@ -1539,7 +1553,6 @@ def _answer_from(goal: str, obs: dict, *, decide) -> dict:
     two minutes a test is worse. The deterministic read needs no model and always
     runs; a caller with a scripted decider can script the reading too by putting
     a `read(system, text)` callable on it."""
-    from aletheia import page_answer
     try:
         if decide is None:
             return page_answer.answer(goal, obs, use_model=False) or {}
