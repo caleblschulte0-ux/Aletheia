@@ -35,12 +35,13 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
 import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
+
+from aletheia import project_runners as runners
 
 ACTOR = "aletheia-investigation"
 TEST_TIMEOUT_S = 300
@@ -61,11 +62,10 @@ WORKTREE_VERBS = frozenset({"worktree", "switch", "add", "commit", "branch", "re
 FORBIDDEN_VERBS = frozenset({"push", "merge", "pull", "fetch", "rebase", "reset", "checkout", "stash",
                              "remote", "config", "clean", "gc", "filter-branch", "update-ref", "tag"})
 
-_SECRET_ENV = re.compile(r"(?:TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|ACCESS_?KEY|PRIVATE_?KEY|CREDENTIAL|"
-                         r"COOKIE|SESSION)", re.I)
+#: One pattern, in `project_runners`, because that module also scrubs the
+#: environment of the package manager and the checks it runs.
+_SECRET_ENV = runners.SECRET_ENV
 _FRAME = re.compile(r'File "([^"]+)", line (\d+), in (\S+)')
-_UNITTEST_FAIL = re.compile(r"^(FAIL|ERROR): (\w+) \(([\w.]+)\)", re.M)
-_PYTEST_FAIL = re.compile(r"^(?:FAILED|ERROR) (\S+?)(?: - |\s*$)", re.M)
 
 
 class InvestigationError(RuntimeError):
@@ -205,6 +205,9 @@ def worktree(source: Path, sha: str, name: str) -> Iterator[Path]:
     try:
         yield where
     finally:
+        for key in [k for k in list(_TOOLCHAIN) + list(_INSTALLED) if k.startswith(str(where.resolve()))]:
+            _TOOLCHAIN.pop(key, None)
+            _INSTALLED.pop(key, None)
         git(["worktree", "remove", "--force", str(where)], source)
         shutil.rmtree(where, ignore_errors=True)
         git(["worktree", "prune"], source)
@@ -233,72 +236,135 @@ def clone_public(full_name: str, branch: str, into: Path) -> Path:
 # ---- running the repository's own tests -----------------------------------------------
 
 def uses_pytest(where: Path) -> bool:
-    if (where / "pytest.ini").is_file() or (where / "conftest.py").is_file():
-        return True
-    for name in ("pyproject.toml", "setup.cfg", "tox.ini"):
-        f = where / name
-        try:
-            if f.is_file() and ("[tool.pytest" in f.read_text(encoding="utf-8", errors="replace")
-                                or "[pytest]" in f.read_text(encoding="utf-8", errors="replace")):
-                return True
-        except OSError:
-            continue
-    return False
+    return runners.uses_pytest(Path(where))
 
 
-def test_command(where: Path, tests: list[str] | None = None) -> list[str]:
-    for t in tests or []:
-        if not re.fullmatch(r"[A-Za-z0-9_./:\[\]-]{1,300}", t) or t.startswith("-"):
-            raise InvestigationError(f"unsafe test id {t!r}")
-    if uses_pytest(where):
-        return [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", *(tests or [])]
-    if tests:
-        return [sys.executable, "-m", "unittest", *tests]
-    start = "tests" if (where / "tests").is_dir() else "."
-    return [sys.executable, "-m", "unittest", "discover", "-s", start, "-t", "."]
+#: What a worktree IS, and whether its dependencies are in place: detected and
+#: installed ONCE per directory, because `run_tests` is called many times per
+#: repair (the suite, each failing test alone, each verification).
+_TOOLCHAIN: dict[str, dict] = {}
+_INSTALLED: dict[str, dict] = {}
 
 
-def test_env(where: Path) -> dict:
+def toolchain(where: Path, *, ci_commands: list[str] | tuple[str, ...] = ()) -> dict:
+    """The project's own answer to what it is (`project_runners.detect`), memoized."""
+    key = str(Path(where).resolve())
+    found = _TOOLCHAIN.get(key)
+    if found is None or (ci_commands and not found.get("runner")):
+        found = runners.detect(where, ci_commands=ci_commands)
+        _TOOLCHAIN[key] = found
+    return found
+
+
+def ensure_dependencies(where: Path, *, detection: dict | None = None) -> dict:
+    """Install the project's dependencies IN THIS WORKTREE, once, from its own
+    lockfile. Never raises: a refusal or a failure comes back as a record with
+    `ok: False` and a sentence, which the loop turns into an honest packet."""
+    key = str(Path(where).resolve())
+    if key in _INSTALLED:
+        return _INSTALLED[key]
+    detection = detection or toolchain(where)
+    record = runners.install(where, detection=detection, guard=_guard_worktree_or_clone)
+    _INSTALLED[key] = record
+    return record
+
+
+def _guard_worktree_or_clone(path: Path) -> Path:
+    """Nothing is ever installed into a checkout of his: only a directory under
+    the throwaway root, which is also where `worktree` and `project_checkout`
+    put everything they make."""
+    from aletheia import self_diagnosis
+    target = self_diagnosis.assert_not_live(Path(path))
+    root = worktrees_root().resolve()
+    if root not in target.parents and target != root:
+        raise self_diagnosis.LiveCheckoutRefused(
+            f"{target} is not under the throwaway root {root}: nothing is ever installed into a checkout of his")
+    return target
+
+
+def forget(where: Path) -> None:
+    """Drop what was memoized about a worktree that no longer exists."""
+    key = str(Path(where).resolve())
+    _TOOLCHAIN.pop(key, None)
+    _INSTALLED.pop(key, None)
+
+
+def test_command(where: Path, tests: list[str] | None = None, *, detection: dict | None = None) -> list[str]:
+    try:
+        return runners.test_command(where, tests, detection=detection or toolchain(where))
+    except runners.RunnerRefused as exc:
+        raise InvestigationError(str(exc)) from None
+
+
+def test_env(where: Path, *, detection: dict | None = None) -> dict:
     """His credentials never reach the repository's code; Aletheia's own
     stores are redirected so a test run cannot write into his state."""
     env = {k: v for k, v in os.environ.items() if not _SECRET_ENV.search(k)}
     scratch = tempfile.mkdtemp(prefix="aletheia-repair-state-")
     env.update(ALETHEIA_PRIVATE_STATE=scratch, ALETHEIA_REHEARSAL="1", ALETHEIA_SEMANTIC_INDEX_OFF="1",
                ALETHEIA_JOURNAL_PATH=str(Path(scratch) / "journal.jsonl"), PYTHONDONTWRITEBYTECODE="1",
-               GIT_TERMINAL_PROMPT="0")
+               GIT_TERMINAL_PROMPT="0",
+               # a runner that paints its output in ANSI colour is a runner
+               # whose failures no parser can read
+               CI="1", NO_COLOR="1", FORCE_COLOR="0", npm_config_update_notifier="false")
     env.pop("PYTHONPATH", None)
     return env
 
 
-def parse_failures(output: str) -> list[str]:
-    found: list[str] = []
-    for _kind, name, where in _UNITTEST_FAIL.findall(output or ""):
-        test_id = where if where.endswith("." + name) else f"{where}.{name}"
-        if test_id not in found:
-            found.append(test_id)
-    for test_id in _PYTEST_FAIL.findall(output or ""):
-        if "::" in test_id and test_id not in found:
-            found.append(test_id)
-    return found
+def parse_failures(output: str, *, detection: dict | None = None,
+                   root: Path | None = None) -> list[str]:
+    return runners.parse_failures(output, detection=detection, root=root)
 
 
-def run_tests(where: Path, tests: list[str] | None = None, *, timeout_s: int = TEST_TIMEOUT_S) -> dict:
+def run_tests(where: Path, tests: list[str] | None = None, *, timeout_s: int = TEST_TIMEOUT_S,
+              detection: dict | None = None) -> dict:
     """Run the repository's tests IN THE WORKTREE. Returns passed, the failing
     ids, the command, seconds and a scrubbed output tail."""
     from aletheia import proc, self_diagnosis
     self_diagnosis.assert_not_live(where)
-    cmd = test_command(where, tests)
+    detection = detection or toolchain(where)
+    setup = ensure_dependencies(where, detection=detection)
+    if setup.get("ran") and not setup.get("ok"):
+        # Honest degradation: no dependencies, so no test result means anything.
+        return {"passed": False, "failing": [], "seconds": setup.get("seconds", 0.0),
+                "command": " ".join(Path(c).name if i == 0 else c
+                                    for i, c in enumerate(setup.get("command") or [])),
+                "install": setup, "toolchain": detection.get("toolchain"),
+                "output_tail": clean(f"dependencies could not be installed: {setup.get('reason')}\n"
+                                     + str(setup.get("output_tail") or ""), MAX_OUTPUT_TAIL)}
+    if setup.get("refusal"):
+        return {"passed": False, "failing": [], "seconds": 0.0, "command": "(no install)",
+                "install": setup, "toolchain": detection.get("toolchain"),
+                "output_tail": clean(f"dependencies were not installed: {setup['refusal']}", MAX_OUTPUT_TAIL)}
+    try:
+        cmd = test_command(where, tests, detection=detection)
+    except InvestigationError as exc:
+        return {"passed": False, "failing": [], "seconds": 0.0, "command": "(no runner)",
+                "install": setup, "toolchain": detection.get("toolchain"),
+                "output_tail": clean(f"its tests cannot be run here: {exc}", MAX_OUTPUT_TAIL)}
     started = time.monotonic()
     flags = 0x00004000 if os.name == "nt" else 0                      # below normal priority
     try:
-        done = proc.run_tree(cmd, timeout_s, cwd=str(where), env=test_env(where), creationflags=flags)
+        done = proc.run_tree(cmd, timeout_s, cwd=str(where), env=test_env(where, detection=detection),
+                             creationflags=flags)
         output = (done.stdout or "") + (done.stderr or "")
         passed = done.returncode == 0
     except subprocess.TimeoutExpired:
         output, passed = f"the tests took longer than {timeout_s} seconds and were stopped", False
-    return {"passed": passed, "failing": parse_failures(output), "seconds": round(time.monotonic() - started, 1),
+    ran = runners.tests_ran(output, detection=detection)
+    if tests and passed and ran == 0:
+        # A NAMED test that matched nothing is not a passing test. vitest
+        # exits zero for "3 skipped", and believing it would turn the loop's
+        # "the failing test passes now" into exactly the lie this tier must
+        # never tell.
+        passed = False
+        output += (f"\n\nAletheia: the runner matched NO test for {', '.join(tests)} and still exited 0. "
+                   "Nothing was proved by this run.")
+    return {"passed": passed, "failing": parse_failures(output, detection=detection, root=where), "ran": ran,
+            "seconds": round(time.monotonic() - started, 1),
             "command": " ".join(Path(c).name if i == 0 else c for i, c in enumerate(cmd)),
-            "output_tail": clean(output, MAX_OUTPUT_TAIL)}
+            "toolchain": detection.get("toolchain"), "runner": detection.get("runner"),
+            "install": setup, "output_tail": clean(output, MAX_OUTPUT_TAIL)}
 
 
 # ---- gathering evidence ------------------------------------------------------------------
@@ -311,21 +377,37 @@ def _rel(where: Path, raw: str) -> str | None:
     except (ValueError, OSError):
         return None
     text = rel.as_posix()
-    return text if text and not text.startswith("..") and (where / text).is_file() else None
+    if not text or text.startswith("..") or not (where / text).is_file():
+        return None
+    # An installed package or a build output is not his code. A vitest frame
+    # points into node_modules/vite/dist as readily as into src/, and letting
+    # that become an implicated file would show a model a bundled dependency
+    # and invite it to edit one.
+    return None if runners.is_vendor_path(text) else text
 
 
-def frames(where: Path, output: str) -> list[dict]:
+def frames(where: Path, output: str, *, detection: dict | None = None) -> list[dict]:
+    """Stack frames that land INSIDE the repository, whatever runner printed
+    them. The shape is the same for every toolchain: {path, line, function}."""
     rows: list[dict] = []
-    for raw, line, func in _FRAME.findall(output or ""):
-        rel = _rel(where, raw)
-        if rel and not any(r["path"] == rel and r["line"] == int(line) for r in rows):
-            rows.append({"path": rel, "line": int(line), "function": func})
+    for row in runners.parse_frames(output, detection=detection or {"toolchain": runners.PYTHON}):
+        rel = _rel(where, row["path"])
+        if rel and not any(r["path"] == rel and r["line"] == row["line"] for r in rows):
+            rows.append({"path": rel, "line": row["line"], "function": row["function"]})
     return rows
 
 
 def test_file_for(where: Path, test_id: str) -> str | None:
     if "::" in test_id:
         return _rel(where, test_id.split("::", 1)[0])
+    # A whole FILE as the id: a suite that failed before any test in it ran (an
+    # import that would not resolve, a syntax error). Without this the dotted
+    # Python branch below turned `test/basket.test.js` into `test/basket/test.py`,
+    # found nothing, and a wrong import path - which is on his OWN list of
+    # bounded repairs - escalated as "unlocated".
+    path, _name = runners.split_js_id(test_id)
+    if path and path == test_id:
+        return _rel(where, path)
     parts = test_id.split(".")
     for cut in range(len(parts), 0, -1):
         candidate = "/".join(parts[:cut]) + ".py"
@@ -336,6 +418,9 @@ def test_file_for(where: Path, test_id: str) -> str | None:
 
 def local_imports(where: Path, path: str) -> list[str]:
     """Files in the repository that `path` imports directly."""
+    other = runners.imports_of(where, path)
+    if other is not None:
+        return other
     try:
         tree = ast.parse((where / path).read_text(encoding="utf-8", errors="replace"))
     except (OSError, SyntaxError, ValueError):
@@ -357,9 +442,9 @@ def local_imports(where: Path, path: str) -> list[str]:
     return out
 
 
-def implicated(where: Path, failing: list[str], output: str) -> dict:
+def implicated(where: Path, failing: list[str], output: str, *, detection: dict | None = None) -> dict:
     from aletheia import repair_classifier
-    rows = frames(where, output)
+    rows = frames(where, output, detection=detection)
     tests: list[str] = []
     for t in failing:
         f = test_file_for(where, t)
@@ -500,6 +585,16 @@ def reduced_case(repro: dict) -> dict:
 
 
 _MISSING = re.compile(r"(?:FileNotFoundError|NotADirectoryError|No such file or directory)[^'\"]*['\"]([^'\"]+)['\"]")
+#: The same question in JavaScript. Only a RELATIVE specifier is a path of
+#: his that may be in the wrong place; a bare one names a package, and where
+#: a package should have come from is the classifier's business, not a hint.
+#: vitest 2.1.9 says `Failed to load url ./utils/pricing.js (resolved id: ...)
+#: in src/basket.js. Does the file exist?` and quotes nothing, so the specifier
+#: is matched quoted OR bare. Without this, the commonest broken-path fix -
+#: "the file is over there" - had no hint and the model had to guess.
+_MISSING_JS_REL = re.compile(r"(?:Cannot find module|Failed to resolve import|Failed to load url|"
+                             r"Cannot find package|Could not resolve)\s*[:\s]*"
+                             r"(?:['\"](\.{1,2}/[^'\"]+)['\"]|(\.{1,2}/[\w./-]+))")
 
 
 def relativize(text: str, where: Path) -> str:
@@ -520,7 +615,12 @@ def path_hints(where: Path, output: str) -> list[dict]:
     code, listed = git(["ls-files"], where)
     tracked = [ln.strip() for ln in listed.splitlines() if ln.strip()] if code == 0 else []
     hints: list[dict] = []
-    for raw in _MISSING.findall(output or ""):
+    wanted_all = list(_MISSING.findall(output or ""))
+    for m in _MISSING_JS_REL.finditer(output or ""):
+        # an import specifier may have no extension; the tracked-name lookup
+        # below matches on the stem for exactly that reason
+        wanted_all.append(m.group(1) or m.group(2))
+    for raw in wanted_all:
         wanted = raw.replace("\\\\", "\\")
         try:
             rel = Path(wanted).resolve().relative_to(where.resolve()).as_posix() if Path(wanted).is_absolute() \
@@ -529,16 +629,25 @@ def path_hints(where: Path, output: str) -> list[dict]:
             rel = Path(wanted).name
         name = Path(rel).name
         same = [t for t in tracked if Path(t).name == name]
-        row = {"asked_for": rel, "exists": (where / rel).exists(), "tracked_with_that_name": same[:5]}
+        if not same and not Path(rel).suffix:
+            # an import specifier with no extension: `./utils/math` is
+            # `utils/math.js`, so the STEM is what identifies the file
+            same = [t for t in tracked if Path(t).stem == name]
+        exists = (where / rel).exists() or (bool(not Path(rel).suffix)
+                                            and any((where / f"{rel}{s}").is_file()
+                                                    for s in runners.JS_SUFFIXES))
+        row = {"asked_for": rel, "exists": exists, "tracked_with_that_name": same[:5]}
         if row not in hints:
             hints.append(row)
     return hints[:3]
 
 
-def gather(where: Path, *, repo: str, failing: list[str], output: str, hint: str = "") -> dict:
-    found = implicated(where, failing, output)
+def gather(where: Path, *, repo: str, failing: list[str], output: str, hint: str = "",
+           detection: dict | None = None) -> dict:
+    found = implicated(where, failing, output, detection=detection)
     paths = found["source_files"] + [t for t in found["test_files"] if t not in found["source_files"]]
-    return {**found,
+    return {**found, "toolchain": (detection or {}).get("toolchain") or "",
+            "runner": (detection or {}).get("runner") or "",
             "path_hints": path_hints(where, output),
             "code": code_excerpts(where, paths, found["frames"]),
             "suspect_commits": suspect_commits(where, found["source_files"] + found["test_files"], found["frames"]),
@@ -564,6 +673,25 @@ def evidence_summary(packet: dict) -> str:
          f"in {packet['crash_site'].get('function')}." if packet.get("crash_site") else ""),
         f"Not a local repair because: {'; '.join((c.get('reasons') or [])[:4]) or c.get('kind') or 'unknown'}.",
     ]
+    tc = packet.get("toolchain") or {}
+    if tc.get("toolchain"):
+        lines.append(f"Toolchain: {tc['toolchain']}"
+                     + (f"/{tc['runner']}" if tc.get("runner") else "")
+                     + (f", installed with {tc['package_manager']} from {tc['lockfile']}"
+                        if tc.get("package_manager") else "") + ".")
+    install = packet.get("install") or {}
+    if install.get("refusal") or (install.get("ran") and not install.get("ok")):
+        lines.append(f"Dependencies were NOT installed: {install.get('refusal') or install.get('reason')}. "
+                     "Nothing below was proved against its real dependencies.")
+    elif install.get("ran") and install.get("ok"):
+        lines.append(f"Dependencies installed with {install.get('manager')} in {install.get('seconds')}s "
+                     f"({install.get('added')} packages, {install.get('size_mb')} MB).")
+    for check in packet.get("local_checks") or []:
+        # the END of the output: `npm audit --json` puts its counts in
+        # `metadata` at the very bottom, and the head of the JSON says nothing
+        lines.append(f"She ran `{check.get('argv') or check.get('command')}`: {check.get('said')}"
+                     + (f" — ...{' '.join(str(check.get('output') or '').split())[-300:]}"
+                        if check.get("output") else "") + ".")
     if packet.get("hypothesis"):
         lines.append(f"Her own model's hypothesis (unverified): {packet['hypothesis']}")
     if packet.get("attempts"):
@@ -585,7 +713,8 @@ def crash_site(frame_rows: list[dict]) -> dict | None:
 
 def build_packet(*, repo: str, source: str, base_ref: str, base_sha: str, task_id: str, objective: str,
                  observed: dict, repro: dict, gathered: dict, classification: dict,
-                 attempts: list[dict] | None = None) -> dict:
+                 attempts: list[dict] | None = None, toolchain: dict | None = None,
+                 checks: list[dict] | None = None) -> dict:
     ident = "packet-" + hashlib.sha256(f"{repo}|{source}|{base_sha}|{task_id}".encode("utf-8")).hexdigest()[:12]
     packet = {
         "version": 1, "id": ident, "created_at": _now(), "repo": repo, "source": source,
@@ -608,6 +737,12 @@ def build_packet(*, repo: str, source: str, base_ref: str, base_sha: str, task_i
                                                                "reasons", "confidence", "by")},
         "hypothesis": classification.get("cause") or "",
         "attempts": attempts or [],
+        "toolchain": {k: (toolchain or {}).get(k) for k in ("toolchain", "runner", "package_manager",
+                                                            "lockfile", "why")} if toolchain else None,
+        "install": {k: (observed.get("install") or {}).get(k)
+                    for k in ("manager", "ok", "ran", "seconds", "added", "size_mb", "reason", "refusal")}
+                   if observed.get("install") else None,
+        "local_checks": list(checks or []),
         "authority": ("none: an investigation packet. Nothing was changed in the repository; "
                       "a stronger model starts from this instead of rediscovering it."),
     }
@@ -734,6 +869,11 @@ def packet_evidence(packet: dict, limit: int = 5_800) -> str:
              packet.get("evidence_summary") or "",
              "Reduced case: " + json.dumps(packet.get("reduced_case") or {}, ensure_ascii=False),
              "Failing test output (tail):\n" + str((packet.get("failure") or {}).get("output_tail") or "")[-1_800:]]
+    for check in (packet.get("local_checks") or [])[:3]:
+        # rule 5, literally: the stronger model gets the OUTPUT of the command
+        # the CI named, not the name of the command.
+        parts.append(f"She ran `{check.get('argv') or check.get('command')}` in a throwaway checkout "
+                     f"(exit {check.get('exit_code')}):\n" + str(check.get("output") or "")[-1_200:])
     if packet.get("attempts"):
         parts.append("Local attempts: " + json.dumps(packet["attempts"][:3], ensure_ascii=False)[:1_200])
     return "\n\n".join(p for p in parts if p)[:limit]

@@ -216,9 +216,22 @@ def restore(where: Path, originals: dict[str, str]) -> None:
         (where / path).write_text(text, encoding="utf-8", newline="")
 
 
-_ASSERTION = re.compile(r"\b(?:assert\w*|self\.assert\w+|expect\(|pytest\.raises|self\.fail)\b")
+_ASSERTION = re.compile(r"\b(?:assert\w*|self\.assert\w+|expect\(|pytest\.raises|self\.fail)\b|"
+                        # JavaScript says the same things differently
+                        r"\b(?:assert\.\w+|chai\.expect|\.should\.|t\.assert\w*|toThrow)\b")
 _WEAKENING = re.compile(r"(?:@(?:unittest\.)?skip|pytest\.mark\.(?:skip|xfail)|\bassert\s+True\b|"
                         r"self\.skipTest|expectedFailure|# ?noqa|except\s*(?:Exception)?\s*:\s*pass)")
+#: The same move in JavaScript: skip or focus a test, silence the checker, or
+#: swallow the error the test was about to see. Matched against the ADDED text
+#: as a whole, because an empty catch spans lines.
+_JS_WEAKENING = re.compile(
+    r"\b(?:x?it|x?describe|x?test|suite|context)\.(?:skip|only|todo|failing)\b"
+    r"|\b(?:xit|xdescribe|xtest)\s*\("
+    r"|@ts-(?:ignore|nocheck|expect-error)"
+    r"|eslint-disable"
+    r"|\bistanbul ignore\b"
+    r"|catch\s*(?:\([^)]*\))?\s*\{\s*(?:/\*[^*]*\*/|//[^\n]*)?\s*\}"
+    r"|\bexpect\([^)]*\)\.(?:toBe|toEqual)\(\s*expect\.anything\(\)\s*\)")
 _SECRET_SHAPES = re.compile(r"(?:-----BEGIN [A-Z ]*PRIVATE KEY-----|\bgh[pousr]_[A-Za-z0-9]{20,}|"
                             r"\bgithub_pat_[A-Za-z0-9_]{20,}|\bAKIA[0-9A-Z]{16}\b|\bsk-[A-Za-z0-9]{20,}|"
                             r"\bxox[baprs]-[A-Za-z0-9-]{10,})")
@@ -248,7 +261,7 @@ def inspect_diff(repo: str, originals: dict[str, str], where: Path) -> dict:
             refusals.append(f"weakened_test: {path} loses {lost} assertion(s)")
         if any(re.match(r"\s*def test", ln) for ln in removed):
             refusals.append(f"weakened_test: {path} deletes a test")
-        if any(_WEAKENING.search(ln) for ln in added):
+        if any(_WEAKENING.search(ln) for ln in added) or _JS_WEAKENING.search("\n".join(added)):
             refusals.append(f"weakened_test: {path} adds a skip, an expected failure or a swallowed error")
         if any(_SECRET_SHAPES.search(ln) or sensitivity.carries_secret(ln) for ln in added):
             refusals.append(f"secret: {path} adds something shaped like a credential")
@@ -334,6 +347,7 @@ def run(source: str | Path, *, repo: str = "", base_ref: str = "HEAD", failing: 
     classify_think = classify_think or think
     try:
         with inv.worktree(source, base_sha, run_id) as top:
+            subdir = _resolve_project_dir(top, subdir, rec)
             return _loop(_project_dir(top, subdir), source, rec, repo=repo, base_ref=base_ref, base_sha=base_sha,
                          failing=failing, objective=objective, task_id=task_id, think=think,
                          review_think=review_think,
@@ -356,12 +370,43 @@ def _loop(where: Path, source: Path, rec: _Record, *, repo: str, base_ref: str, 
           failing: list[str] | None, objective: str, task_id: str, think: Think, review_think: Think,
           classify_think: Think | None, attempts: int, open_pr: bool, request, subdir: str = "",
           publish_base_sha: str = "") -> dict:
-    # observe
+    # observe. WHAT IS THIS PROJECT? Its own files answer (package.json and its
+    # lockfile, pyproject/setup.cfg, the commands its CI runs), and that answer
+    # decides how it installs, how its suite runs, how ONE test runs and how its
+    # failures are read. Python is unchanged; Node is new.
     policy.ensure_not_halted()
+    detection = inv.toolchain(where, ci_commands=_ci_commands(objective))
+    rec.data["toolchain"] = {k: detection.get(k) for k in ("toolchain", "runner", "package_manager",
+                                                           "lockfile", "why")}
+    runnable, why_not = rc.runner_refusal(detection)
+    if not runnable:
+        rec.step("toolchain", **rec.data["toolchain"], can_run=False, cannot_run_because=why_not)
+        return _escalate(rec, where, repo=repo, base_ref=base_ref, base_sha=base_sha, task_id=task_id,
+                         objective=objective, observed={"failing": [], "output_tail": "", "command": ""},
+                         repro={}, gathered=None,
+                         classification={"verdict": rc.ESCALATE, "kind": "no_local_tests",
+                                         "escalate_kinds": ["no_local_tests"], "reasons": [why_not]},
+                         source=source, think=None, detection=detection)
+    rec.step("toolchain", **rec.data["toolchain"], can_run=True)
     observed = inv.observe(where, failing)
     observed["output_tail"] = inv.relativize(observed["output_tail"], where)
+    setup = observed.get("install") or {}
+    if setup.get("ran"):
+        rec.step("install", manager=setup.get("manager"), ok=setup.get("ok"), seconds=setup.get("seconds"),
+                 added=setup.get("added"), size_mb=setup.get("size_mb"), why=setup.get("reason") or "")
+    if setup.get("refusal") or (setup.get("ran") and not setup.get("ok")):
+        # Honest degradation (his brief's rule 3): say she could not install it,
+        # with the installer's own output, rather than guess at a repair with
+        # no dependencies present.
+        why = str(setup.get("refusal") or setup.get("reason") or "the dependencies could not be installed")
+        return _escalate(rec, where, repo=repo, base_ref=base_ref, base_sha=base_sha, task_id=task_id,
+                         objective=objective, observed=observed, repro={}, gathered=None,
+                         classification={"verdict": rc.ESCALATE, "kind": "dependency_change",
+                                         "escalate_kinds": ["install_failed"],
+                                         "reasons": [f"install_failed: {why}"]},
+                         source=source, think=None, detection=detection)
     rec.step("observe", command=observed["command"], passed=observed["passed"], failing=observed["failing"],
-             test_seconds=observed["seconds"])
+             test_seconds=observed["seconds"], toolchain=detection.get("toolchain"))
     if observed["passed"]:
         out = rec.save("NOTHING_FAILING", note="the tests pass at this commit; there is nothing to repair")
         _journal("event", rec.data["id"], f"local repair: nothing failing in {repo or source.name}")
@@ -376,21 +421,22 @@ def _loop(where: Path, source: Path, rec: _Record, *, repo: str, base_ref: str, 
                          classification={"verdict": rc.ESCALATE, "kind": "unlocated",
                                          "reasons": ["the test run failed but named no failing test "
                                                      "(a collection or import error before any test ran?)"]},
-                         source=source, think=think)
+                         source=source, think=think, detection=detection)
 
     # evidence + reproduce
     repro = inv.reproduce(where, failing_now)
     for row in repro.get("runs") or []:
         row["output_tail"] = inv.relativize(row.get("output_tail", ""), where)
     rec.step("reproduce", reproduced=repro["reproduced"], order_dependent=repro.get("order_dependent"))
-    gathered = inv.gather(where, repo=repo, failing=failing_now, output=observed["output_tail"], hint=objective)
+    gathered = inv.gather(where, repo=repo, failing=failing_now, output=observed["output_tail"], hint=objective,
+                          detection=detection)
     rec.step("evidence", source_files=gathered["source_files"], test_files=gathered["test_files"],
              frames=len(gathered["frames"]), suspect_commits=[s["sha"] for s in gathered["suspect_commits"]],
              history=len(gathered["history"]))
     text = observed["output_tail"] + "\n" + "\n".join(r.get("output_tail", "") for r in repro.get("runs", []))
     failure = {"repo": repo, "text": inv.clean(text, 6_000), "hint": objective, "failing_tests": failing_now,
                "source_files": gathered["source_files"], "test_files": gathered["test_files"],
-               "located": gathered["located"]}
+               "located": gathered["located"], "toolchain": detection.get("toolchain")}
     if not repro["reproduced"]:
         classification = {"verdict": rc.ESCALATE, "kind": "multi_system", "escalate_kinds": ["not_reproduced"],
                           "reasons": ["not_reproduced: no failing test fails on its own (order dependent or flaky)"],
@@ -408,7 +454,7 @@ def _loop(where: Path, source: Path, rec: _Record, *, repo: str, base_ref: str, 
     if classification["verdict"] != rc.BOUNDED:
         return _escalate(rec, where, repo=repo, base_ref=base_ref, base_sha=base_sha, task_id=task_id,
                          objective=objective, observed=observed, repro=repro, gathered=gathered,
-                         classification=classification, source=source, think=think)
+                         classification=classification, source=source, think=think, detection=detection)
 
     # branch
     policy.ensure_not_halted()
@@ -518,7 +564,7 @@ def _loop(where: Path, source: Path, rec: _Record, *, repo: str, base_ref: str, 
                          classification={**classification, "verdict": rc.ESCALATE,
                                          "reasons": (classification.get("reasons") or [])
                                          + ["local attempts did not prove a fix"]},
-                         source=source, attempts=tried, think=think)
+                         source=source, attempts=tried, think=think, detection=detection)
 
     # review
     policy.ensure_not_halted()
@@ -550,7 +596,8 @@ def _loop(where: Path, source: Path, rec: _Record, *, repo: str, base_ref: str, 
                          objective=objective, observed=observed, repro=repro, gathered=gathered,
                          classification={**classification, "verdict": rc.ESCALATE,
                                          "reasons": (classification.get("reasons") or [])
-                                         + ["review_rejected"]}, source=source, attempts=tried, think=think)
+                                         + ["review_rejected"]}, source=source, attempts=tried, think=think,
+                         detection=detection)
 
     # commit on the branch, in the worktree
     policy.ensure_not_halted()
@@ -613,6 +660,44 @@ def _loop(where: Path, source: Path, rec: _Record, *, repo: str, base_ref: str, 
     return out
 
 
+def _ci_commands(objective: str) -> list[str]:
+    """The commands the project's own CI runs, as the caller wrote them into
+    the objective (`work_runners._ci_text` puts each failing step's `run:`
+    there). DATA, and used for one thing only: matching the NAME of a test
+    runner she already knows, and picking allowlisted read-only checks. Nothing
+    from here is ever executed as a string."""
+    text = str(objective or "")
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    return [ln for ln in lines if re.search(r"\b(?:npm|pnpm|yarn|node|npx|python|pytest|vitest|jest|mocha)\b", ln)][:8]
+
+
+def _evidence_checks(where: Path, objective: str, observed: dict, detection: dict | None) -> list[dict]:
+    """The brief's rule 5, and Claude's own critique of the Barkly packet: it
+    said the CI ran `npm audit` and carried none of its output. So when a
+    failure escalates, the ALLOWLISTED read-only checks its CI names are run
+    here, in the throwaway worktree, and their real output travels in the
+    packet. Only rows of `project_runners.CHECK_COMMANDS` ever run; a workflow's
+    own command string is matched, never executed."""
+    from aletheia import project_runners as runners
+    commands = _ci_commands(objective) + [str(observed.get("command") or "")]
+    try:
+        wanted = runners.checks_for(commands, where=where)
+    except Exception:                                                  # noqa: BLE001
+        return []
+    out: list[dict] = []
+    for check in wanted:
+        policy.ensure_not_halted()
+        try:
+            row = runners.run_check(where, check, env=inv.test_env(where, detection=detection))
+        except Exception as exc:                                       # noqa: BLE001
+            if isinstance(exc, policy.Halted):
+                raise
+            continue
+        row["output"] = inv.clean(inv.relativize(row.get("output") or "", where), 2_000)
+        out.append(row)
+    return out
+
+
 def _commit(where: Path, message: str, task_id: str, base_sha: str, provider: str,
             failing: list[str]) -> tuple[int, str]:
     """Commit ON THE REPAIR BRANCH, in the worktree. `-c` sets an identity for
@@ -621,6 +706,24 @@ def _commit(where: Path, message: str, task_id: str, base_sha: str, provider: st
                     f"Task: {task_id}\nBase: {base_sha}\nDrafted by: {provider}\n"
                     f"Verified: {', '.join(failing)[:300]} pass alone and the suite has no new failure"],
                    where, identity=("Thea (local repair)", "thea@localhost"))
+
+
+def _resolve_project_dir(top: Path, subdir: str, rec: _Record) -> str:
+    """A charter names a FOLDER, and the folder is not always the project.
+    Barkly's charter path is `barkly` and its package.json is at `barkly/app`,
+    so the named folder answered "nothing names a toolchain" for a project with
+    fifty test files one directory down. The extra hop is folded into `subdir`,
+    so every path the loop records and publishes stays relative to the
+    repository root exactly as before."""
+    from aletheia import project_runners as runners
+    extra, why = runners.find_project_root(_project_dir(top, subdir))
+    if why:
+        rec.data["project_dir_note"] = why
+    if not extra:
+        return subdir
+    deeper = f"{str(subdir).strip('/')}/{extra}".strip("/")
+    rec.data["project_dir"] = deeper
+    return deeper
 
 
 def _project_dir(top: Path, subdir: str) -> Path:
@@ -697,10 +800,12 @@ def _repair_context(where: Path, allowed: list[str], gathered: dict, observed: d
 
 def _failure_lines(output: str, limit: int = 900) -> str:
     """The part of a test run that says what failed: frames and the error,
-    without the ^^^^ markers and the runner's summary lines."""
-    keep = [ln for ln in str(output or "").splitlines()
-            if ln.strip() and not set(ln.strip()) <= set("^~-=") and not ln.startswith(("Ran ", "FAILED ("))]
-    return "\n".join(keep)[-limit:]
+    without the ^^^^ markers, the quoted source gutters and the runner's
+    summary lines. THE LOCAL RUNG HAS TO FIT: measured on his laptop, a draft
+    on qwen3:8b takes 200-300 s against a 300 s ceiling, so what gets cut here
+    is the difference between a repair and a packet."""
+    from aletheia import project_runners as runners
+    return runners.compact_failure(output, limit=limit)
 
 
 def _evidence_text(gathered: dict, observed: dict) -> str:
@@ -769,11 +874,12 @@ def hypothesize(think: Think, gathered: dict, observed: dict) -> dict:
 
 def _escalate(rec: _Record, where: Path, *, repo: str, base_ref: str, base_sha: str, task_id: str,
               objective: str, observed: dict, repro: dict, gathered: dict | None, classification: dict,
-              source: Path, attempts: list[dict] | None = None, think: Think | None = None) -> dict:
+              source: Path, attempts: list[dict] | None = None, think: Think | None = None,
+              detection: dict | None = None) -> dict:
     """Stop, and leave the stronger model everything she found."""
     if gathered is None:
         gathered = inv.gather(where, repo=repo, failing=observed.get("failing") or [],
-                              output=observed.get("output_tail") or "", hint=objective)
+                              output=observed.get("output_tail") or "", hint=objective, detection=detection)
     if think is not None and not classification.get("cause") and gathered.get("located"):
         # NARROW, don't fix: her own model's reading of the evidence, marked
         # unverified in the packet. A model that cannot answer costs nothing.
@@ -787,7 +893,8 @@ def _escalate(rec: _Record, where: Path, *, repo: str, base_ref: str, base_sha: 
     packet = inv.write_packet(inv.build_packet(
         repo=repo, source=str(source), base_ref=base_ref, base_sha=base_sha, task_id=task_id,
         objective=objective or f"Repair the failing tests in {repo or source.name}", observed=observed,
-        repro=repro, gathered=gathered, classification=classification, attempts=attempts))
+        repro=repro, gathered=gathered, classification=classification, attempts=attempts,
+        toolchain=detection, checks=_evidence_checks(where, objective, observed, detection)))
     reason = ("; ".join((classification.get("reasons") or [])[:3]) or classification.get("kind") or "escalated")
     item = inv.queue_for_stronger_model(packet, reason=reason)
     rec.step("escalate", packet=packet["id"], work_item=item["id"], state=item["state"])
@@ -829,18 +936,24 @@ def investigate(source: str | Path, *, repo: str = "", base_ref: str = "HEAD", f
     rec = _Record(id=run_id, repo=repo, source=str(source), base_ref=base_ref, base_sha=base_sha,
                   task_id=task_id, objective=inv.clean(objective, 600))
     with inv.worktree(source, base_sha, run_id) as top:
+        subdir = _resolve_project_dir(top, subdir, rec)
         where = _project_dir(top, subdir)
+        detection = inv.toolchain(where, ci_commands=_ci_commands(objective))
+        rec.data["toolchain"] = {k: detection.get(k) for k in ("toolchain", "runner", "package_manager",
+                                                               "lockfile", "why")}
         observed = inv.observe(where, failing)
         observed["output_tail"] = inv.relativize(observed["output_tail"], where)
-        rec.step("observe", passed=observed["passed"], failing=observed["failing"], test_seconds=observed["seconds"])
+        rec.step("observe", passed=observed["passed"], failing=observed["failing"], test_seconds=observed["seconds"],
+                 toolchain=detection.get("toolchain"))
         repro = inv.reproduce(where, observed["failing"])
         rec.step("reproduce", reproduced=repro.get("reproduced"))
         gathered = inv.gather(where, repo=repo, failing=observed["failing"], output=observed["output_tail"],
-                              hint=objective)
+                              hint=objective, detection=detection)
         rec.step("evidence", source_files=gathered["source_files"], test_files=gathered["test_files"])
         failure = {"repo": repo, "text": observed["output_tail"], "hint": objective,
                    "failing_tests": observed["failing"], "source_files": gathered["source_files"],
-                   "test_files": gathered["test_files"], "located": gathered["located"]}
+                   "test_files": gathered["test_files"], "located": gathered["located"],
+                   "toolchain": detection.get("toolchain")}
         classification = rc.classify(failure, think=think, evidence_text=_evidence_text(gathered, observed))
         if why:
             classification = {**classification, "verdict": rc.ESCALATE,
@@ -848,7 +961,8 @@ def investigate(source: str | Path, *, repo: str = "", base_ref: str = "HEAD", f
         rec.step("classify", verdict=classification["verdict"], kind=classification.get("kind"))
         return _escalate(rec, where, repo=repo, base_ref=base_ref, base_sha=base_sha, task_id=task_id,
                          objective=objective, observed=observed, repro=repro, gathered=gathered,
-                         classification={**classification, "verdict": rc.ESCALATE}, source=source, think=think)
+                         classification={**classification, "verdict": rc.ESCALATE}, source=source, think=think,
+                         detection=detection)
 
 
 def charter_target(slug: str, *, plan: dict | None = None, fleet: dict | None = None) -> dict:
