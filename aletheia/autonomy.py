@@ -539,7 +539,9 @@ def main(argv: list[str] | None = None) -> int:
         try:
             out = undo(args.id)
         except (KeyError, UndoRefused) as exc:
-            print(exc)
+            # A KeyError prints its argument in quotes, which reads as a bug
+            # rather than an answer.
+            print(exc.args[0] if isinstance(exc, KeyError) and exc.args else exc)
             return 1
         print(out["said"])
         return 0
