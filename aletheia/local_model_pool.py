@@ -261,6 +261,11 @@ def auto_json(system_prompt: str, text: str, *, context: dict | None = None,
                 validator=validator, timeout_s=timeout_s,
                 require_enabled=require_enabled, attention=attention,
             )
+        except LocalPoolYielded:
+            # The same on the way back: a yield is "he is talking", and rolling
+            # it into "neither local model could run" tells the caller its work
+            # failed when the work is simply waiting its turn.
+            raise
         except LocalPoolUnavailable as second_failure:
             # BOTH REASONS, not a shrug. "Both local reasoning roles are
             # unavailable" told him nothing and the two halves usually

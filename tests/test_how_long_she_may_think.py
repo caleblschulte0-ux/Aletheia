@@ -223,6 +223,21 @@ class ConversationStillWins(unittest.TestCase):
                 local_model_pool.auto_json("s", "t", preferred_role="deep", allow_failover=True)
         self.assertEqual(tried, ["deep"])
 
+    def test_a_yield_on_the_SECOND_role_is_still_a_yield(self):
+        # It was collapsed into "neither local model could run", which tells the
+        # caller its work failed when the work is only waiting its turn - and on
+        # this laptop the deep role never fits, so the second role is the only
+        # one that ever runs.
+        def run(system, text, *, role, **kwargs):
+            if role == "deep":
+                raise local_model_pool.LocalPoolUnavailable("qwen3.6:27b does not fit")
+            raise local_model_pool.LocalPoolYielded("he started talking")
+
+        with mock.patch.object(local_model_pool, "run_json", side_effect=run):
+            with self.assertRaises(local_model_pool.LocalPoolYielded) as said:
+                local_model_pool.auto_json("s", "t", preferred_role="deep", allow_failover=True)
+        self.assertNotIn("neither local model", str(said.exception))
+
     def test_only_background_carries_a_checkpoint(self):
         seen = {}
 

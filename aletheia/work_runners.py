@@ -307,6 +307,7 @@ def run(it: dict, now: dt.datetime | None = None, *, investigate: bool = False) 
         try:
             out = handler(it, where, now)
         except policy.Halted:
+            _NOTED.reset(token)
             raise
         except Exception as exc:  # noqa: BLE001 - a broken route is a retry, never a crash
             from aletheia import reasoner
