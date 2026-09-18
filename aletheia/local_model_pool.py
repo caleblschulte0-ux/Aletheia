@@ -144,6 +144,10 @@ def _config(role: str, timeout_s: float | None = None,
         profile["model"],
         think=profile["think"] if think_override is None else think_override,
         timeout_s=timeout,
+        # AND HOW LONG SHE STAYS WARM AFTERWARDS. He is about to say another
+        # sentence; a finished background draft has nobody waiting on it.
+        keep_alive=(local_brain.BACKGROUND_KEEP_ALIVE if attention == work_states.BACKGROUND
+                    else local_brain.ATTENDED_KEEP_ALIVE),
     )
 
 

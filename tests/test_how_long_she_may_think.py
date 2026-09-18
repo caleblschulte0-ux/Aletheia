@@ -144,6 +144,41 @@ class NothingGetsTheLongBudgetByDefault(unittest.TestCase):
         self.assertEqual(local_repair.WORK_BUDGET_S, work_states.local_ceiling_s(BACKGROUND))
 
 
+class SheStaysWarmForTheRoomAndNotForADraft(unittest.TestCase):
+    """The same ATTENTION class decides how long she stays LOADED afterwards.
+
+    Measured on this laptop 2026-09-18, qwen3:8b, one tiny call each time:
+    cold 25.0 s, warm 2.4 s, and with the old single "30s" keep-alive the model
+    was gone 45 s later - so every sentence he said more than half a minute
+    after the last one paid a 23 s load that is not thinking at all. With "5m"
+    the same call after the same 45 s took 1.0 s. A finished background draft
+    has nobody waiting on it, so it lets the 5.9 GB go."""
+
+    def configured(self, **kwargs):
+        with mock.patch.dict(os.environ, {"ALETHEIA_LOCAL_AI_KEEP_ALIVE": ""}),                 mock.patch.object(local_model_pool.model_pool_config, "resolve",
+                                  return_value={"model": "qwen3:8b", "think": False}):
+            return local_model_pool._config("fast", **kwargs)
+
+    def payload_keep_alive(self, config):
+        with mock.patch.dict(os.environ, {"ALETHEIA_LOCAL_AI_KEEP_ALIVE": ""}):
+            return local_brain.build_payload("s", "t", {}, config)["keep_alive"]
+
+    def test_conversation_stays_warm(self):
+        self.assertEqual(self.payload_keep_alive(self.configured()),
+                         local_brain.ATTENDED_KEEP_ALIVE)
+
+    def test_a_background_draft_lets_the_memory_go(self):
+        self.assertEqual(self.payload_keep_alive(self.configured(attention=BACKGROUND)),
+                         local_brain.BACKGROUND_KEEP_ALIVE)
+
+    def test_his_machine_still_wins(self):
+        # 16 GB, and his job loop shares it: what the memory can afford is his
+        # to say, and it is not something a caller knows.
+        config = self.configured()
+        with mock.patch.dict(os.environ, {"ALETHEIA_LOCAL_AI_KEEP_ALIVE": "10s"}):
+            self.assertEqual(local_brain.build_payload("s", "t", {}, config)["keep_alive"], "10s")
+
+
 class ConversationStillWins(unittest.TestCase):
     """The lease already puts conversation first. A twenty minute call needs
     more than that: the call ALREADY RUNNING is the one in front of him."""

@@ -25,7 +25,17 @@ DEFAULT_TIMEOUT_S = 45.0
 #: than a slow answer. 1800 s = 30 minutes; it was 300 s, which made his
 #: 2026-09-18 ruling ("like a while") inexpressible.
 MAX_TIMEOUT_S = 1_800.0
-DEFAULT_KEEP_ALIVE = "30s"
+#: How long Ollama keeps the model in memory after a call, by what the work is.
+#: Measured on this laptop 2026-09-18: a cold load of qwen3:8b costs about
+#: 25 s and a warm call about 2.4 s, so with the old single "30s" every
+#: sentence he said more than half a minute after the last one paid the load
+#: again - the largest single cost in her own model's latency, and not a
+#: thinking cost at all. A conversation is about to get another sentence, so it
+#: stays warm; a background draft that has just finished has nobody waiting on
+#: it, so it lets the memory go (his laptop is 16 GB and his job loop shares it).
+ATTENDED_KEEP_ALIVE = "5m"
+BACKGROUND_KEEP_ALIVE = "30s"
+DEFAULT_KEEP_ALIVE = ATTENDED_KEEP_ALIVE
 #: A streamed call looks at `should_yield` no less often than this.
 YIELD_CHECK_S = 0.5
 MAX_RESPONSE_BYTES = 512 * 1024
@@ -59,9 +69,12 @@ class OllamaConfig:
     think: bool = False
     timeout_s: float = DEFAULT_TIMEOUT_S
     base_url: str = DEFAULT_BASE_URL
+    #: "" means the machine-local setting, then DEFAULT_KEEP_ALIVE.
+    keep_alive: str = ""
 
     @classmethod
-    def for_model(cls, model: str, *, think: bool = False, timeout_s: float | None = None):
+    def for_model(cls, model: str, *, think: bool = False, timeout_s: float | None = None,
+                  keep_alive: str = ""):
         raw = os.environ.get("ALETHEIA_LOCAL_AI_TIMEOUT", "").strip()
         default_timeout = timeout_s if timeout_s is not None else DEFAULT_TIMEOUT_S
         if raw:
@@ -80,6 +93,7 @@ class OllamaConfig:
             think=bool(think),
             timeout_s=float(default_timeout),
             base_url=os.environ.get("ALETHEIA_LOCAL_AI_URL", DEFAULT_BASE_URL),
+            keep_alive=str(keep_alive or ""),
         ).validated()
 
     def validated(self):
@@ -165,7 +179,7 @@ def _read_json(response) -> dict[str, Any]:
     return value
 
 
-def _runtime_limits() -> tuple[int, str]:
+def _runtime_limits(want: str = "") -> tuple[int, str]:
     """Keep local inference useful without letting it monopolize the laptop."""
     logical_cpus = max(1, os.cpu_count() or 1)
     default_threads = max(1, logical_cpus // 4)
@@ -182,9 +196,10 @@ def _runtime_limits() -> tuple[int, str]:
     else:
         threads = default_threads
 
-    keep_alive = os.environ.get(
-        "ALETHEIA_LOCAL_AI_KEEP_ALIVE", DEFAULT_KEEP_ALIVE
-    ).strip() or DEFAULT_KEEP_ALIVE
+    # A machine-local setting wins over the caller's class: it is the operator
+    # saying what his memory can afford, which is not something a caller knows.
+    keep_alive = (os.environ.get("ALETHEIA_LOCAL_AI_KEEP_ALIVE", "").strip()
+                  or str(want or "").strip() or DEFAULT_KEEP_ALIVE)
     if len(keep_alive) > 32 or any(ch in keep_alive for ch in "\r\n\x00"):
         raise ValueError("ALETHEIA_LOCAL_AI_KEEP_ALIVE must be a short duration")
     return threads, keep_alive
@@ -212,7 +227,7 @@ def build_payload(system_prompt: str, text: str, context: dict, config: OllamaCo
     if not isinstance(text, str) or not text.strip() or len(text) > MAX_PROMPT_CHARS:
         raise ValueError("local reasoning text must be non-empty and bounded")
     ctx = _context_json(context)
-    threads, keep_alive = _runtime_limits()
+    threads, keep_alive = _runtime_limits(config.keep_alive)
     return {
         "model": config.model,
         "stream": False,
