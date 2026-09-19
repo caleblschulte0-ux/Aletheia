@@ -282,9 +282,9 @@ def refresh(fetch=None, *, now: dt.datetime | None = None) -> dict:
     if totals["unsupported"]:
         notifications.publish(
             "Calendar mirror is incomplete",
-            f"{totals['unsupported']} event(s) use recurrence rules I can't expand "
-            "yet — free-time answers may miss them.",
-            priority="IMPORTANT", source="calendar",
+            f"{totals['unsupported']} repeating events use a rule I can't read "
+            "yet, so an answer about your free time may miss them.",
+            priority="IMPORTANT", source="calendar", about=notifications.NEEDS_YOU,
             dedupe_key="ics-unsupported-rrule")
     write_json_atomic(STATE_PATH, {"last_refresh": _stamp(now), **totals})
     journal.append("event", "calendar:refresh",

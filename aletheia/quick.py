@@ -195,7 +195,21 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what(?:'s| is|s)? running(?: right now)?$"
         r"|^which parts are running$|^what parts (?:of you )?are running$"
         r"|^is anything running$|^what(?:'s| is|s)? on right now$"
-        r"|^are (?:you|u) all running$")),
+        r"|^are (?:you|u) all running$"
+        # THE HEALTH QUESTIONS, which is what this answer really is. Each
+        # of these took a model round trip to be answered worse: "why is
+        # your voice off" came back with an address and a port read out
+        # loud, and a hundred words of hedging, while `running` had the
+        # true answer in twenty milliseconds.
+        r"|^is everything (?:running|working|up|on|alright)$"
+        r"|^(?:is|are) (?:everything|all of you) (?:still )?(?:running|working)$"
+        r"|^are (?:you|u) (?:fully )?(?:up|working|healthy)$"
+        r"|^(?:is|are) (?:you|u) broken$"
+        r"|^(?:what|how)(?:'s| is|s)? your (?:health|status)$"
+        r"|^why (?:is|are) (?:your|the) (?:voice|microphone|mic|ears) off$"
+        r"|^why (?:can'?t|cant) (?:you|u) hear me$"
+        r"|^why (?:aren'?t|arent) (?:you|u) listening$"
+        r"|^(?:is|are) (?:your|the) (?:voice|microphone|mic) (?:on|off)$")),
     # His own details, out of his own profile. She read them off his resume;
     # asking a model to recite them is a round trip to the wrong store.
     # "What code are you running" had no answer, and that is the question

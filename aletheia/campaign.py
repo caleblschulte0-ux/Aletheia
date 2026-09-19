@@ -1752,10 +1752,20 @@ def answer_words(started: dict) -> str:
             "and I'll tell you which ones are ready to approve.")
 
 
-def _notify(title: str, body: str, key: str) -> None:
+def _plainly_said(exc: BaseException) -> str:
+    """A crash as a reason. "TimeoutError" is not why the hunt stopped."""
+    from aletheia import speech
+    return speech.plainly(str(exc)) or type(exc).__name__
+
+
+def _notify(title: str, body: str, key: str,
+            about: str = "") -> None:
     try:
-        from aletheia import notifications
-        notifications.publish(title, body[:900], priority="IMPORTANT", source="apply",
+        from aletheia import notifications, speech
+        notifications.publish(speech.for_the_room(title),
+                              speech.for_the_room(body)[:900],
+                              priority="IMPORTANT", source="apply",
+                              about=about or notifications.NEEDS_YOU,
                               dedupe_key=key)
     except Exception:
         pass
@@ -1846,8 +1856,10 @@ def _main(args, stamp: str) -> int:
                           resume=args.resume, where=args.where)
             except Exception as exc:
                 if args.notify:
-                    _notify("The job applications stopped", str(exc) or type(exc).__name__,
-                            f"campaign-failed:{stamp}")
+                    from aletheia import notifications as _n
+                    _notify("The job applications stopped",
+                            _plainly_said(exc), f"campaign-failed:{stamp}",
+                            about=_n.FAILED)
                 raise
             finally:
                 if args.notify:

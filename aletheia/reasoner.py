@@ -665,7 +665,7 @@ def _codex_rest(until: "dt.datetime", why: str, said: str) -> None:
                 "Codex needs you to sign in again",
                 "Codex is how the job hunt keeps thinking while Claude is out, and its "
                 "ChatGPT sign-in has expired. On the PC, open a terminal and run: codex login",
-                priority="IMPORTANT", source="reasoning",
+                priority="IMPORTANT", source="reasoning", about=notifications.NEEDS_YOU,
                 dedupe_key=f"codex-login:{stamp}")
         except Exception:
             pass
