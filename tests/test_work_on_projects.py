@@ -72,7 +72,9 @@ class HeSaysIt(unittest.TestCase):
 
     def test_questions_and_drops_are_not_orders_to_work(self):
         self.assertEqual(voice.interpret("how are my projects")["command"]["kind"], "projects")
-        self.assertEqual(voice.interpret("stop working on barkly")["command"]["kind"], "project_drop")
+        with mock.patch("aletheia.plans.find_charter",
+                        return_value=({"slug": "barkly"}, "")):
+            self.assertEqual(voice.interpret("stop working on barkly")["command"]["kind"], "project_drop")
         self.assertNotEqual((voice.interpret("keep going")["command"] or {}).get("kind"), "work_projects")
         self.assertEqual(voice.interpret("what did you get done on my projects")["command"]["kind"], "work_report")
 
@@ -376,7 +378,9 @@ class TheSessionDoesNotStopWhileWorkIsExecutable(Isolated):
             began = project_work.start(via="test", words="work on my projects", inline=True, runner=runner)
         record = project_work.load(began["session"]["id"])
         self.assertIn("I can take 4 things right now", began["said"])
-        self.assertIn("Claude and Codex are out", began["said"])
+        self.assertIn("big models can't answer right now", began["said"])
+        self.assertNotIn("Claude", began["said"])
+        self.assertNotIn("Codex", began["said"])
         self.assertEqual(len(record["receipts"]), 4)
         self.assertEqual(record["stopped"]["why"], "nothing_left")
         self.assertEqual(record["stopped"]["executable_left"], [])          # proof: nothing runnable was left

@@ -31,7 +31,7 @@ import zipfile
 from pathlib import Path
 
 from aletheia import speech, voice_quality
-from aletheia.proc import hidden_flags
+from aletheia import proc
 from aletheia import voice
 from aletheia.voice import WAKE_WORDS
 
@@ -233,11 +233,10 @@ def sapi_speak(text: str) -> None:
         "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
         "$s.Rate = 1; $s.Speak([Console]::In.ReadToEnd())"
     )
-    child = subprocess.Popen(
+    child = proc.popen(
         ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
         stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL, text=True,
-        creationflags=hidden_flags(),
     )
 
     def stop() -> None:

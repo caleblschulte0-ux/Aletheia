@@ -269,7 +269,7 @@ class ItIsHonestAboutBeingOffline(unittest.TestCase):
         # As a WORD: `OUTCOME` contains the letters and is not a timezone,
         # and a substring check that cannot tell those apart is a test that
         # goes red for a rename.
-        self.assertNotRegex(ordinary, r"UTC", "he does not live in UTC")
+        self.assertNotRegex(ordinary, r"\bUTC\b", "he does not live in UTC")
 
     def test_times_are_local(self):
         self.assertIn("toLocaleTimeString", read("thea.js"))

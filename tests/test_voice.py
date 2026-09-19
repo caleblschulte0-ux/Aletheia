@@ -336,9 +336,9 @@ class AttentionAnsweredWithoutAModel(unittest.TestCase):
         empty = {"halted": None, "needs_attention": {
             "pending_approvals": [], "waiting_operator": [], "blocked_tasks": [],
             "overdue_replies": [], "unread_notifications": 0}}
-        with mock.patch("aletheia.current_state.snapshot", return_value=empty), \
-             mock.patch("aletheia.core.status_payload",
-                        return_value={"pulse": {"alerts": 0}}):
+        with mock.patch("aletheia.needs_you.items", return_value=[]), \
+             mock.patch("aletheia.presence.snapshot",
+                        return_value={"halted": None, "notifications": []}):
             # "What needs my attention" and "what's waiting on me" are one
             # question with one answer now, so this asserts the RULE -
             # quiet says so plainly - rather than which of the two

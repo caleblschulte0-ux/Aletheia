@@ -330,7 +330,7 @@ class TheBackgroundKickIsPolite(unittest.TestCase):
 
             def __init__(self, args, **kwargs):
                 seen.update(kwargs, args=args)
-        with mock.patch.object(si.subprocess, "Popen", FakePopen), mock.patch.object(si.os, "name", "nt"):
+        with mock.patch.object(si.subprocess, "Popen", FakePopen), mock.patch.object(si, "IS_WINDOWS", True):
             self.assertEqual(si._spawn_build(60), 99)
         self.assertIn("aletheia.semantic_index", seen["args"])
         self.assertTrue(seen["creationflags"] & si.BELOW_NORMAL_PRIORITY_CLASS)

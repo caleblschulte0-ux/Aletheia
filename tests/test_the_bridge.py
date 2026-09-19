@@ -234,8 +234,9 @@ class HerOwnVoiceCase(ClearRest):
              mock.patch.object(reasoner, "local_text", return_value=("The moon.", "ollama:qwen3:8b")):
             out = converse.answer("why are there tides", include_thread=False, read_files=False)
         self.assertIn("The moon.", out["answer"])
-        self.assertIn("from my own model", out["answer"])
-        self.assertIn("Claude's out until", out["answer"])
+        self.assertIn("this answer is mine", out["answer"])
+        self.assertIn("big models are out until", out["answer"])
+        self.assertNotIn("Claude", out["answer"])
         self.assertEqual(out["provider"], "ollama:qwen3:8b")
 
     def test_nothing_at_all_is_still_an_honest_error(self):

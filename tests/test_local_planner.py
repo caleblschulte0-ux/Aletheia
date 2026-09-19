@@ -293,8 +293,9 @@ class ProvenanceCase(unittest.TestCase):
             "compiled_by": local_planner.COMPILED_BY, "summary": "Read the page",
             "steps": [{"n": 1, "status": planner.EXECUTABLE,
                        "command": {"kind": "browse_read"}, "detail": ""}]})
-        self.assertIn("my own model", said)
-        self.assertIn("1 step ready", said)
+        self.assertIn("planned this one myself", said)
+        self.assertIn("Read the page", said)
+        self.assertNotIn("qwen", said.casefold())
 
 
 class TheFallbackOrderCase(unittest.TestCase):
@@ -397,7 +398,9 @@ class TheAskDoesNotEvaporateCase(unittest.TestCase):
         said = intents.spoken({"degraded": "ReasonerUnavailable: nothing could think",
                                "steps": [], "queued_work": "work:abc"})
         self.assertIn("on my list", said)
-        self.assertIn("Claude or Codex is back", said)
+        self.assertIn("big models are back", said)
+        self.assertNotIn("Claude", said)
+        self.assertNotIn("Codex", said)
         self.assertNotIn("work:abc", said, "an id is not a thing he can say back")
 
     def test_the_queued_ask_waits_for_the_condition_it_named(self):

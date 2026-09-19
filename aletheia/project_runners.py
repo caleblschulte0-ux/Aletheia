@@ -52,7 +52,7 @@ import shutil
 import subprocess
 import sys
 import time
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Callable
 
 PYTHON = "python"
@@ -1022,7 +1022,9 @@ def run_check(where: str | Path, check: dict, *, timeout_s: int = CHECK_TIMEOUT_
     except OSError as exc:
         output, code = f"could not run ({type(exc).__name__}: {str(exc)[:120]})", -1
     # `npm.CMD` is how Windows spells it and not how anything should read it
-    tool = Path(argv[0]).stem.casefold()
+    executable = str(argv[0])
+    tool_path = PureWindowsPath(executable) if "\\" in executable else Path(executable)
+    tool = tool_path.stem.casefold()
     return {"command": check.get("name") or tool,
             "argv": " ".join([tool, *argv[1:]]), "exit_code": code, "ran": True,
             "reproduced": code != 0, "seconds": round(time.monotonic() - started, 1),

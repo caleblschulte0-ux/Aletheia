@@ -725,11 +725,12 @@ class TheDayIsSummarised(Isolated):
                                     "value": 50 + i} for i in range(8)])
         notice = job_discovery.announce(now=NOW)
         self.assertEqual(notice["source"], "jobs")
-        lines = notice["body"].splitlines()
-        self.assertTrue(lines[0].startswith("I found 312 openings yesterday"), lines[0])
-        self.assertIn("These nine look unusually good:", lines)
-        self.assertEqual(sum(1 for l in lines if l.startswith("BD Associate at Small")), 4)
-        self.assertEqual(sum(1 for l in lines if l.startswith("Account Manager at Big")), 5)
+        body = notice["body"]
+        self.assertTrue(body.startswith("I found 312 openings yesterday"), body)
+        self.assertIn("These nine look unusually good:", body)
+        standouts = body.split("These nine look unusually good:", 1)[1]
+        self.assertEqual(standouts.count("BD Associate at Small"), 4)
+        self.assertEqual(standouts.count("Account Manager at Big"), 5)
         self.assertIn("order I apply in is unchanged", notice["body"])
         self.assertEqual(job_discovery.announce(now=NOW)["id"], notice["id"], "once a day")
         self.assertEqual(len(notifications.all_notifications()), 1)

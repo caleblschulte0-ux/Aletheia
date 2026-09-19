@@ -43,6 +43,16 @@ def run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, **kwargs)
 
 
+def popen(cmd: list[str], **kwargs) -> subprocess.Popen:
+    """Interruptible background helper, with the same no-window guarantee.
+
+    Use this when the caller must retain the child handle (for example, so
+    room speech can be cut off when the operator talks over it).
+    """
+    kwargs["creationflags"] = hidden_flags(kwargs.get("creationflags", 0))
+    return subprocess.Popen(cmd, **kwargs)
+
+
 def run_tree(cmd: list[str], timeout_s: float, *, input: str | None = None,
              **kwargs) -> subprocess.CompletedProcess:
     """Windowless run with a time limit that takes the WHOLE tree down.

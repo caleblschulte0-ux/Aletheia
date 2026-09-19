@@ -1298,6 +1298,7 @@ def _due(stamp: dict, now: float, interval_s: float) -> bool:
 #: Windows priority and window flags for the background build.
 BELOW_NORMAL_PRIORITY_CLASS = 0x00004000
 CREATE_NEW_PROCESS_GROUP = 0x00000200
+IS_WINDOWS = os.name == "nt"
 
 
 def _spawn_build(budget_s: float) -> int:
@@ -1307,7 +1308,7 @@ def _spawn_build(budget_s: float) -> int:
     log = open(index_dir() / "build.log", "a", encoding="utf-8")
     kwargs: dict = {"cwd": str(REPO_ROOT), "stdin": subprocess.DEVNULL, "stdout": log,
                     "stderr": subprocess.STDOUT}
-    if os.name == "nt":
+    if IS_WINDOWS:
         kwargs["creationflags"] = proc.hidden_flags(BELOW_NORMAL_PRIORITY_CLASS | CREATE_NEW_PROCESS_GROUP)
     try:
         return subprocess.Popen([sys.executable, "-m", "aletheia.semantic_index", "build",

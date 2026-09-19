@@ -124,7 +124,8 @@ class AnswerCase(unittest.TestCase):
 
     def test_waiting_counts_what_is_actually_there(self):
         empty = {"halted": False, "waiting_on_you": [], "notifications": []}
-        with mock.patch("aletheia.presence.snapshot", lambda: empty):
+        with mock.patch("aletheia.presence.snapshot", lambda: empty), \
+             mock.patch("aletheia.needs_you.items", return_value=[]):
             # The rule is that an empty list is SAID, not left as silence
             # or invented around. The exact sentence is rendering.
             said = quick.answer("what's waiting on me")
@@ -171,7 +172,9 @@ class AnswerCase(unittest.TestCase):
         "Working on 2 thing(s): ; " — punctuation with nothing inside it."""
         snap = {"headline": "", "working": [{"what": "rendering the slate"},
                                             {"what": "syncing"}]}
-        with mock.patch("aletheia.presence.snapshot", lambda: snap):
+        with mock.patch("aletheia.presence.snapshot", lambda: snap), \
+             mock.patch("aletheia.current_state.sections",
+                        return_value={"agent": {"state": "IDLE"}}):
             said = quick.answer("what are you doing")
         self.assertIn("rendering the slate", said)
         self.assertNotIn(": ;", said)
