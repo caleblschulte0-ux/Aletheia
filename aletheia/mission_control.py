@@ -90,6 +90,14 @@ SUBJECT_LABELS = {
 _SLUG = re.compile(r"[a-z0-9][a-z0-9-]{0,80}")
 
 
+def _any_case_id():
+    """`speech.ID_TOKEN`, read the way a screen needs it. Imported lazily
+    so this module keeps its cheap import, and compiled once."""
+    from aletheia import speech
+    return re.compile(speech.ID_TOKEN.pattern, re.IGNORECASE)
+
+
+
 # ---- small pure helpers ----------------------------------------------------------
 
 def _parse(stamp: object) -> dt.datetime | None:
@@ -140,6 +148,39 @@ def _plural(n: int, word: str, plural: str | None = None) -> str:
 def _sentence(text: object, limit: int = 220) -> str:
     said = _words(text, limit)
     return (said[:1].upper() + said[1:]) if said else ""
+
+
+_ANY_CASE_ID = None
+
+
+def no_ids(text: object) -> str:
+    """A line about to be READ, with the machine identifiers taken out.
+
+    The journal is written for the journal: `policy` records an approval as
+    "Requested - browser.interact:9f3c1d2e4b5a6c7d8e9f", and the ribbon put
+    that on his screen verbatim, sha and all. `speech.strip_ids` already
+    exists for exactly this and is already the rule for anything spoken —
+    a screen he reads is the same promise. The receipt behind the line
+    still has every identifier on it, one tap away.
+
+    Never raises: a line with its ids still in it beats no line.
+
+    Case-insensitively, which `speech.strip_ids` is not and should not be —
+    it works on a sentence about to be SPOKEN, where nothing has been
+    capitalised yet. A ribbon line has been through `_sentence` first, so
+    `fu-5cec57934c: PENDING` reached the screen as `Fu-5cec57934c: PENDING`
+    and walked straight past a pattern anchored on a lower-case letter. The
+    PATTERN is still speech's, so there is one definition of what an
+    identifier looks like.
+    """
+    try:
+        from aletheia import speech
+        global _ANY_CASE_ID
+        if _ANY_CASE_ID is None:
+            _ANY_CASE_ID = _any_case_id()
+        return speech.tidy(_ANY_CASE_ID.sub("", str(text or "")))
+    except Exception:
+        return str(text or "")
 
 
 # ---- the provider registry ----------------------------------------------------------
@@ -607,6 +648,11 @@ def ribbon(*, journal_entries: Iterable[dict], sessions: Iterable[dict] = (), ex
     items.extend(session_lines(sessions))
     items.extend(i for i in extra if isinstance(i, dict) and i.get("at") and i.get("receipt"))
     items.sort(key=lambda i: str(i.get("at") or ""), reverse=True)
+    # ONE door for every line, whoever wrote it — the journal, a session
+    # receipt or a provider. A digest on his screen is a digest on his
+    # screen no matter which of the three put it there.
+    for item in items:
+        item["said"] = no_ids(item.get("said"))
     return items if limit is None else items[:max(0, int(limit))]
 
 

@@ -290,8 +290,10 @@ main{display:grid;gap:0 26px;max-width:1180px;margin:0 auto}
       <h2>Ask Thea</h2>
       <div id="thread" class="thread" aria-live="polite"></div>
       <form id="askForm" class="compose">
+        <!-- Short on purpose: a placeholder that wraps in a one-row box is
+             a sentence with its second half cut off. -->
         <textarea id="q" rows="1" enterkeyhint="send" autocomplete="off"
-          placeholder="Ask her anything, or tell her to do something"></textarea>
+          placeholder="Ask her anything"></textarea>
         <button type="button" id="micBtn" class="ico" aria-label="Speak to her">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

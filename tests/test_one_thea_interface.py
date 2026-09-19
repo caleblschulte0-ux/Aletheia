@@ -308,7 +308,7 @@ class ItSpeaksHumanAndKeepsTheMachineInTheDrawer(unittest.TestCase):
         self.assertNotIn("open", drawer[:drawer.index(">")])
 
     def test_nothing_needing_him_says_so_rather_than_looking_broken(self):
-        self.assertIn("Nothing needs you.", read("thea-app.js"))
+        self.assertIn("Nothing needs a decision from you.", read("thea-app.js"))
         self.assertIn("Nothing is in flight right now.", read("thea-app.js"))
 
     def test_the_readiness_check_is_a_button_and_never_a_poll(self):

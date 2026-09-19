@@ -35,6 +35,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
+DIGEST = "9f3c1d2e4b5a6c7d8e9f0a1b2c3d4e5f"
 PHONE = {"width": 390, "height": 844}
 DESK = {"width": 1440, "height": 900}
 
@@ -68,8 +69,12 @@ class OnePageCase(unittest.TestCase):
         cls._workspace = os.environ.get("ALETHEIA_WORKSPACE")
         os.environ["ALETHEIA_WORKSPACE"] = str(cls.room / "workspace")
         talk._redirect_repo_stores(cls.room)
+        # A CONTENT-BOUND request, because that is the shape that bites:
+        # `requested_action` is a sha256 and the journal records it
+        # verbatim, so the digest reached the activity list as well as the
+        # approval card.
         policy.request(
-            "ap-1", "run 1 step: note",
+            "ap-1", "browser.interact:" + DIGEST,
             'operator said: "spoken to the wall: thea remember my landlord"',
             "Remember the landlord is Mr Okafor", True,
             capability="task.persist")
@@ -205,6 +210,7 @@ class OnePageCase(unittest.TestCase):
     #: on one of the five surfaces this page replaced.
     FORBIDDEN = (
         "task.persist",          # a capability id
+        DIGEST,                  # a sha256, from the approval AND the journal
         "ap-1",                  # an approval id
         "call-the-plumber",      # a task id (its DESCRIPTION is fine)
         "EXPERIMENTAL", "NEEDS_CONFIGURATION",

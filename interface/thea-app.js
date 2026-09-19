@@ -128,8 +128,13 @@
     // rather than to nothing. The digest is deliberately NOT in this chain
     // — it is a fact about the thing, not a name for it.
     const said = a.label || a.consequence || "She needs your yes on something";
+    // `about` is which ONE — thirty-eight approvals can share a consequence
+    // and still be thirty-eight different decisions. The Core computes it
+    // (voice.approval_about); it is never the headline, because the
+    // headline's job is to say what will happen.
     return '<div class="ask-card">' +
       "<h3>" + T.esc(said) + "</h3>" +
+      (a.about ? "<p>" + T.esc(a.about) + "</p>" : "") +
       (a.consequence && a.consequence !== said ? "<p>" + T.esc(a.consequence) + "</p>" : "") +
       decisionButtons(a.id) +
       '<details class="peek"><summary>What exactly am I saying yes to?</summary>' +
@@ -158,25 +163,37 @@
       '<button class="seen" data-seen="' + T.esc(n.id) + '">Got it</button></div></div>';
   }
 
+  /** Rows he must DECIDE, then rows he should merely SEE. One place, as the
+   *  brief asks, but not one undifferentiated pile: counting 105 unread
+   *  notices as "needing him" alongside 38 irreversible decisions makes the
+   *  number meaningless and teaches him to ignore it. The count in the rail
+   *  is decisions. Returns how many of those there are. */
   function paintNeeds(m, approvals, notices) {
-    const rows = [];
+    const decisions = [];
     for (const a of approvals) {
-      if (!deferred.has(a.id)) rows.push(approvalCard(a));
+      if (!deferred.has(a.id)) decisions.push(approvalCard(a));
     }
     for (const n of (m && m.needs_you) || []) {
-      if (n.kind === "mission") rows.push(missionNeed(n));
+      if (n.kind === "mission") decisions.push(missionNeed(n));
     }
-    for (const n of notices) rows.push(noticeCard(n));
     const open = expanded.has("needs");
-    const shown = open ? rows : rows.slice(0, FIRST_FEW);
-    $("needs").innerHTML = rows.length
-      ? shown.join("") + (rows.length > shown.length
-          ? '<button class="more" data-expand="needs">Show the other ' +
-            (rows.length - shown.length) + "</button>"
-          : (open && rows.length > FIRST_FEW
-              ? '<button class="more" data-expand="needs">Show fewer</button>' : ""))
-      : '<div class="calm">Nothing needs you.</div>';
-    return rows.length;
+    const shown = open ? decisions : decisions.slice(0, FIRST_FEW);
+    const rest = decisions.length - shown.length;
+    const seen = notices.slice(0, open ? 20 : 3);
+    $("needs").innerHTML = (decisions.length
+        ? shown.join("") +
+          (rest ? '<button class="more" data-expand="needs">Show the other ' +
+                  rest + "</button>"
+                : (open && decisions.length > FIRST_FEW
+                    ? '<button class="more" data-expand="needs">Show fewer</button>' : ""))
+        : '<div class="calm">Nothing needs a decision from you.</div>') +
+      (seen.length
+        ? '<h2 style="margin-top:22px">Worth seeing</h2>' + seen.map(noticeCard).join("") +
+          (notices.length > seen.length
+            ? '<button class="more" data-expand="needs">and ' +
+              (notices.length - seen.length) + " more</button>" : "")
+        : "");
+    return decisions.length;
   }
 
   // ---- what she is working on -------------------------------------------
@@ -232,9 +249,19 @@
   // ---- the loop ----------------------------------------------------------
   async function refresh() {
     let m = null, status = null;
+    // A request that HANGS never rejects, so a page that only says
+    // "reconnecting" in its catch sits there showing this morning's state
+    // as though it were now. The clock is the honest signal: if she has not
+    // answered in five seconds, say so.
+    const slow = setTimeout(() => paintWhere("trouble", {
+      head: "Reconnecting…",
+      tail: lastMission ? "last heard from her " + T.ago(lastMission.as_of) : "",
+    }), 5000);
     try {
       [m, status] = await Promise.all([T.api("/api/mission"), T.api("/api/status")]);
+      clearTimeout(slow);
     } catch (err) {
+      clearTimeout(slow);
       failures++;
       if (err.unauthorized) {
         paintWhere("trouble", UNREACHABLE["not-linked"]);
@@ -245,14 +272,18 @@
       paintWhere("trouble", { head: "Reconnecting…",
         tail: lastMission ? "last heard from her " + T.ago(lastMission.as_of) : "" });
       const why = await T.diagnose();
-      paintWhere("trouble", UNREACHABLE[
+      const said = UNREACHABLE[
         why === "no-signal" ? "no-signal"
         : why === "unreachable" ? (T.onHisPC() ? "unreachable-pc" : "unreachable-phone")
-        : "asleep"]);
-      if (lastMission) {
-        $("today").textContent = "Nothing below is current — last heard from her " +
-          T.ago(lastMission.as_of) + ".";
-      }
+        : "asleep"];
+      paintWhere("trouble", said);
+      // The rail is a summary and it ellipsises; the REASON has to be
+      // somewhere it can be read whole, or the half of the sentence that
+      // says whose fault it is gets cut off on a phone.
+      $("banner").textContent = said.head + " — " + said.tail + "." +
+        (lastMission ? " Nothing below is current; last heard from her " +
+          T.ago(lastMission.as_of) + "." : "");
+      $("banner").hidden = false;
       return;
     }
     failures = 0;

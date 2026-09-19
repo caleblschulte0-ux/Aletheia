@@ -26,3 +26,10 @@ vosk
 sounddevice
 pycaw
 comtypes
+
+# The QR code on the Thea page is drawn by interface/qr.js, with no library
+# and no network. This is the INDEPENDENT encoder the test compares every
+# module of every symbol against (tests/test_the_qr_code_scans.py) — a QR
+# that does not scan looks exactly like one that does, so looking at it
+# proves nothing. Nothing at runtime imports it.
+segno>=1.6

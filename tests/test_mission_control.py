@@ -533,5 +533,50 @@ class AHandoffCardCanBeAnswered(unittest.TestCase):
         self.assertNotIn("/api/handoff", js)
 
 
+class ALineHeIsGOINGToReadHasNoDigestInIt(unittest.TestCase):
+    """The journal is written for the journal. `policy` records an approval
+    as "Requested - browser.interact:9f3c1d2e4b5a6c7d8e9f" and the ribbon
+    put that on his screen, sha and all — beside a card whose whole point
+    was that he should never have to read one.
+
+    `speech.strip_ids` was already the rule for anything SPOKEN. A screen he
+    reads is the same promise, and the receipt one tap behind the line still
+    carries every identifier."""
+
+    def rib(self, text, kind="action"):
+        rows = mc.ribbon(journal_entries=[
+            {"ts": ago(1), "kind": kind, "subject": "policy", "text": text}])
+        return rows[0]["said"] if rows else ""
+
+    def test_a_sha_bound_approval_line_loses_the_sha(self):
+        said = self.rib("Requested - browser.interact:9f3c1d2e4b5a6c7d8e9f0a1b")
+        self.assertNotIn("9f3c1d2e", said)
+        self.assertIn("Requested", said)
+
+    def test_a_capitalised_id_goes_too(self):
+        """The line has been through `_sentence` by then, so the id it
+        starts with has already had its first letter capitalised and walks
+        past a pattern anchored on a lower-case letter."""
+        self.assertEqual(self.rib("fu-5cec57934c: PENDING"), "PENDING")
+
+    def test_a_private_state_id_goes_too(self):
+        self.assertNotIn("intent-0a06bbb663",
+                         self.rib("Approved intent-0a06bbb663"))
+
+    def test_the_words_around_it_survive(self):
+        self.assertEqual(self.rib("Created - call the plumber"),
+                         "Created - call the plumber")
+
+    def test_a_provider_line_goes_through_the_same_door(self):
+        """Three writers feed this list; a digest is a digest whichever
+        one put it there."""
+        rows = mc.ribbon(journal_entries=[], extra=[
+            {"at": ago(1), "tone": "info", "what": "Applications",
+             "said": "Sent apply-08781773 to Flexport",
+             "receipt": {"kind": "application", "id": "apply-08781773"}}])
+        self.assertNotIn("08781773", rows[0]["said"])
+        self.assertIn("Flexport", rows[0]["said"])
+
+
 if __name__ == "__main__":
     unittest.main()

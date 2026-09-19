@@ -800,6 +800,14 @@ class Handler(BaseHTTPRequestHandler):
             # `reason` raw and showed `operator said: "x"` above a hex id.
             # Two surfaces disagreeing about the same approval, and the one
             # with the buttons on it had the worse text.
+            #
+            # AND WITH THE LINE THAT TELLS TWO OF THEM APART. Live on his
+            # machine, thirty-eight pending approvals all read "It sends your
+            # application to this employer under your name. There is no
+            # undo." — the right headline, and identical for every one, so
+            # the screen asked for thirty-eight irreversible decisions with
+            # nothing on it to choose between them. `approval_about` is the
+            # sub-line; it is computed here for the same reason the label is.
             from aletheia import voice as _voice
             rows = []
             for approval in policy.all_approvals():
@@ -807,7 +815,11 @@ class Handler(BaseHTTPRequestHandler):
                     label = _voice.approval_label(approval)
                 except Exception:
                     label = ""
-                rows.append({**approval, "label": label})
+                try:
+                    about = _voice.approval_about(approval)
+                except Exception:
+                    about = ""
+                rows.append({**approval, "label": label, "about": about})
             return self._json(rows)
         if url.path == "/api/capabilities":
             return self._json(capabilities.load_registry())

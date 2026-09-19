@@ -43,8 +43,8 @@ through the loop are the same, which is why the contracts come first.
 | **Morning brief** | `aletheia/brief.py` + `brief.yml` → committed digest + rolling issue | BUILT |
 | **Intercom** (voice v0 transport, §6/§66) | `exchange/INTERCOM.md` + `aletheia/intercom.py` + `intercom.yml`: ChatGPT relays operator commands, gated execution, receipts | BUILT — needs operator's ChatGPT Project setup |
 | **Front-door actions** | `aletheia/act.py` (dispatch/issue through registry grants) | BUILT |
-| **Ambient wall** (§88–89) | `interface/index.html` — pure view of the pulse (now incl. plans/tasks/alerts) | BUILT; re-aim at "current focus" model as Core grows |
-| **Command Center** (§90) | `interface/command.html` served by the Core: approvals, live tasks, UNREAD notifications with ACK, command composer over `/api/kinds`, HALT/RESUME | BUILT v1 |
+| **Ambient wall** (§88–89) | `interface/wall.html` — pure view of the pulse (plans/tasks/alerts), the ambient screen behind the product, published to GitHub Pages | BUILT |
+| **The one Thea page** (§90) | `interface/thea.html` + `thea-app.js`, served by the Core at `/` and installed on his phone: what she's doing, ask her, what needs him, what she's done; approvals, HALT/RESUME and the `/api/kinds` composer, the last of them in a drawer. Replaced command.html, console.html, phone.html and mobile.html (2026-09-18) | BUILT v2 |
 | **Core runtime on Windows** (§108–110) | `aletheia/core.py` + `sync.py` + `supervisor.py`: loopback API, wall + Command Center, sync loop executing PC-only kinds, self-updating under the supervisor. Each beat also runs `runtime.tick` (below) | BUILT v1 |
 | **Computer control** (§12–13) | `aletheia/computer.py` + Core `POST /api/computer` (Codex PRs #11–16, Claude-reviewed) | EXPERIMENTAL — awaits the Windows acceptance run |
 | **Browser control** (§14) | `aletheia/browse.py`: read open, interact approval-gated; real-Chromium tests | BUILT v1 |

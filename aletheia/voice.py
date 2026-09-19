@@ -2394,6 +2394,50 @@ _WRAPPERS = re.compile(
     re.I)
 
 
+#: A URL inside a sentence he is deciding about. He does not need the path,
+#: the query or the tracking token in it — he needs to know which site.
+_URL_IN_A_SENTENCE = re.compile(r"https?://([^\s/]+)\S*")
+#: What a sentence is left dangling on when the URL it ended with is removed.
+_DANGLING = {"at", "to", "on", "for", "from", "in", "with", "via"}
+
+
+def approval_about(approval: dict) -> str:
+    """WHICH one — the line that tells two approvals apart. "" when the
+    reason says nothing the label has not already said.
+
+    Live on his machine, 2026-09-19: thirty-eight pending approvals, every
+    one of them reading *"It sends your application to this employer under
+    your name. There is no undo."* That consequence is true, it is the
+    right headline, and it is identical for all thirty-eight — so the
+    screen asked him to make thirty-eight irreversible decisions with
+    nothing on it to tell them apart. The job and the employer were in
+    `reason` the whole time, under a transport wrapper and behind a
+    tracking URL, which is exactly why `approval_label` does not use it.
+
+    So this is the sub-line and never the headline: his words with the
+    wrapper peeled off and ids stripped, a URL reduced to its host and
+    kept only when dropping it would leave the sentence hanging on a
+    preposition. Nothing is invented, nothing is decided, and a reason
+    that only repeats the label returns "" rather than saying it twice.
+    """
+    from aletheia import speech
+    said = speech.tidy(speech.strip_ids(_unwrap(str(approval.get("reason", "")))))
+    if not said:
+        return ""
+    bare = " ".join(_URL_IN_A_SENTENCE.sub(" ", said).split()).rstrip(",;:-— ")
+    words = bare.split()
+    if words and words[-1].lower().strip(",;:-—") not in _DANGLING:
+        said = bare
+    else:
+        said = " ".join(
+            _URL_IN_A_SENTENCE.sub(lambda m: " " + m.group(1), said).split())
+    label = approval_label(approval).lower()
+    meaningful = [w for w in re.findall(r"[a-z0-9]+", said.lower()) if len(w) > 3]
+    if meaningful and all(w in label for w in meaningful):
+        return ""                      # it would say the same thing twice
+    return said[:120]
+
+
 def _unwrap(reason: str) -> str:
     """Peel the transport labels off his actual words."""
     said = str(reason or "").strip()
