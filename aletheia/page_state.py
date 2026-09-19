@@ -171,8 +171,11 @@ def goes_somewhere(target: dict | None) -> bool:
 
 
 def opens_here(target: dict | None) -> bool:
-    """The page's own evidence that this control opens part of ITSELF: a
-    disclosure, a menu, a <summary>. Nothing leaves the machine."""
+    """The page's own evidence that this control opens part of ITSELF.
+
+    `aria-expanded` (present at all, true or false: a collapsed disclosure
+    is still a disclosure) or `aria-haspopup`. Nothing leaves the machine
+    when it is pressed, so it is never a commit."""
     if not isinstance(target, dict):
         return False
     return target.get("expanded") is not None or bool(target.get("haspopup"))
