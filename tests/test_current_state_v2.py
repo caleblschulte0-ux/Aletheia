@@ -360,12 +360,14 @@ class WhatSheReadsOutIsSayable(unittest.TestCase):
         self.assertNotIn("https://", current_state.said_clause("see https://example.com/x now", 90))
 
     def test_repeated_notices_are_said_once_with_a_count(self):
-        from aletheia import presence, quick
+        from aletheia import needs_you, presence, quick
+        # `_job_hunt_needs` is gone: the job hunt is one source of the ONE
+        # needs-you list now, not a second sentence bolted on here.
         notices = [{"title": "Applications ready to approve"}, {"title": "Applications ready to approve"},
                    {"title": "Application sent"}]
         with mock.patch.object(presence, "snapshot",
                                return_value={"waiting_on_you": [], "notifications": notices}), \
-                mock.patch.object(quick, "_job_hunt_needs", return_value=""):
+                mock.patch.object(needs_you, "items", return_value=[]):
             said = quick._waiting()
         self.assertEqual(said.count("Applications ready to approve"), 1)
         self.assertIn("2 times", said)

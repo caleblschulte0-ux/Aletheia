@@ -125,13 +125,23 @@ class AnswerCase(unittest.TestCase):
     def test_waiting_counts_what_is_actually_there(self):
         empty = {"halted": False, "waiting_on_you": [], "notifications": []}
         with mock.patch("aletheia.presence.snapshot", lambda: empty):
-            self.assertEqual(quick.answer("what's waiting on me"),
-                             "Nothing is waiting on you.")
-        loaded = {"halted": False,
-                  "waiting_on_you": [{"label": "send the email to Dana"},
-                                     {"label": "the errand"}],
+            # The rule is that an empty list is SAID, not left as silence
+            # or invented around. The exact sentence is rendering.
+            said = quick.answer("what's waiting on me")
+            self.assertTrue(said.lower().startswith("nothing"), said)
+        # The DECISIONS come from `needs_you`, which reads the approval
+        # store itself; the wall collector's copy of them is not the
+        # source any more, so both go in from their own side.
+        from aletheia import needs_you
+        rows = [needs_you._row(id=n, kind="approval", what=label,
+                               why="I need your yes first",
+                               if_ignored="nothing happens until you say so",
+                               how="say approve")
+                for n, label in (("1", "send the email to Dana"),
+                                 ("2", "the errand"))]
+        loaded = {"halted": False, "waiting_on_you": [],
                   "notifications": [{"title": "trader is down"}]}
-        with mock.patch("aletheia.presence.snapshot", lambda: loaded):
+        with mock.patch("aletheia.presence.snapshot", lambda: loaded),              mock.patch("aletheia.needs_you.items", lambda *a, **k: rows):
             said = quick.answer("anything i need to do")
         # THE THING, NOT THE ROW INDEX. This used to assert "2 waiting on
         # you", which froze a sentence he cannot act on: "the first is" is

@@ -132,15 +132,17 @@ def _applications() -> list[dict]:
     out = []
     for waiting in hunt.get("waiting_on_him") or []:
         questions = list(waiting.get("questions") or [])
-        first = questions[0] if questions else ""
+        first = str(questions[0] or "").strip() if questions else ""
+        who = current_state.said_name(str(waiting.get("company") or ""),
+                                      str(waiting.get("job") or ""))
+        # THE QUESTION IS THE THING. "Brex" is who is asking; what he has
+        # to do is answer "Preferred shift", and a row naming only the
+        # employer makes him go and look it up before he can act.
         out.append(_row(
             id=str(waiting.get("id") or ""),
             kind="application",
-            what=current_state.said_name(str(waiting.get("company") or ""),
-                                         str(waiting.get("job") or "")),
-            why=(str(waiting.get("why") or "")
-                 or (f"the form asks: {first}" if first
-                     else "the form asks something only you can answer")),
+            what=f"{who} asks: {first}" if first else who,
+            why=str(waiting.get("why") or "") or "only you can answer this",
             if_ignored="the application stays unsent",
             since=str(waiting.get("at") or ""),
             how="answer it and I'll finish the form"))

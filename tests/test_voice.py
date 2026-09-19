@@ -335,8 +335,12 @@ class AttentionAnsweredWithoutAModel(unittest.TestCase):
         with mock.patch("aletheia.current_state.snapshot", return_value=empty), \
              mock.patch("aletheia.core.status_payload",
                         return_value={"pulse": {"alerts": 0}}):
-            self.assertIn("Nothing needs your attention",
-                          voice.interpret("Thea, what needs my attention?")["say"])
+            # "What needs my attention" and "what's waiting on me" are one
+            # question with one answer now, so this asserts the RULE -
+            # quiet says so plainly - rather than which of the two
+            # sentences happened to be written first.
+            said = voice.interpret("Thea, what needs my attention?")["say"]
+            self.assertTrue(said.lower().startswith("nothing"), said)
 
 
 class TheWallCollectsTheAnswerItWasPromised(unittest.TestCase):
