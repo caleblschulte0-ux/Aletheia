@@ -326,6 +326,19 @@ branches, hashes or developer terminology in normal use."*
 - **A readiness check is a button, never a poll.** `/api/setup` makes real
   network attempts; a page polling it every two minutes spent his day
   opening and closing his signed-in ChatGPT window.
+- **Honest is not the same as usable, and length is how the difference
+  shows.** Every line on the first version was true and the phone page was
+  seven screens tall, because thirty-eight pending applications rendered as
+  thirty-eight cards with the same first line and three buttons each. So:
+  decisions that share a consequence say the shared half ONCE and then list
+  one row apiece; anything that needs no decision folds behind a line saying
+  how many; every long list shows a handful and offers the rest; a sentence
+  repeated verbatim down a list is printed once. Measured in the render test
+  (`test_a_busy_day_still_fits_in_a_handful_of_screens`): forty decisions and
+  thirty-one notices come to 2.9 phone screens, and it fails over five.
+  **Density is never a bulk control.** Each approval stays bound to its own
+  sha256 and stays its own yes; what got smaller is the screen it takes to
+  answer, not the number of times he answers.
 
 ## Storage & branch discipline
 

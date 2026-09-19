@@ -36,6 +36,8 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 DIGEST = "9f3c1d2e4b5a6c7d8e9f0a1b2c3d4e5f"
+SAME_YES = ("It sends your application to this employer under your name. "
+            "There is no undo.")
 PHONE = {"width": 390, "height": 844}
 DESK = {"width": 1440, "height": 900}
 
@@ -78,8 +80,25 @@ class OnePageCase(unittest.TestCase):
             'operator said: "spoken to the wall: thea remember my landlord"',
             "Remember the landlord is Mr Okafor", True,
             capability="task.persist")
+        # A CROWDED day, because an empty one proves nothing about density.
+        # Live on his machine: thirty-eight pending applications that share
+        # one consequence and differ only in which employer, and a hundred
+        # unread notices behind them.
+        for n in range(40):
+            policy.request(
+                f"apply-{n}-submit", "browser.interact:" + DIGEST[:24] + f"{n:04x}",
+                f"Apply: Account Manager {n} - Employer {n} - "
+                f"https://boards.example.com/jobs/{n}",
+                SAME_YES, False, capability="browser.interact")
         notifications.publish("Reminder", "call the dentist",
                               priority="IMPORTANT")
+        for n in range(30):
+            notifications.publish(
+                f"Application {n} could not be sent",
+                "The submit button would not take a click - it never became "
+                "clickable, on a form that loads an invisible check, which may "
+                "be what held it, and she does not solve those. " * 2,
+                dedupe_key=f"crowd-{n}")
         tasks.create("call-the-plumber", "call the plumber")
         cls.srv = core.make_server(port=0)
         threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
@@ -107,7 +126,15 @@ class OnePageCase(unittest.TestCase):
                 errors = []
                 page.on("pageerror", lambda e: errors.append(str(e)))
                 page.goto(cls.url)
-                page.wait_for_timeout(2500)
+                # WAIT FOR THE LOAD, never for a stopwatch. A fixed 2.5s was
+                # enough for an empty fixture and not for a crowded one, so
+                # the crowded case rendered an empty page and the test that
+                # cares about crowding was the one reading it.
+                page.wait_for_function(
+                    "() => document.getElementById('where').textContent.trim() "
+                    "!== '\\u2026' && document.getElementById('needs').children.length",
+                    timeout=20000)
+                page.wait_for_timeout(400)
                 page.screenshot(path=str(cls.shot_dir / f"thea-{name}.png"),
                                 full_page=True)
                 out[name] = {
@@ -121,6 +148,8 @@ class OnePageCase(unittest.TestCase):
                         "document.documentElement.clientWidth"),
                     "drawer_open": page.evaluate(
                         "() => document.getElementById('drawer').open"),
+                    "tall": page.evaluate(
+                        "() => document.documentElement.scrollHeight"),
                     "taps": page.evaluate(
                         "() => [...document.querySelectorAll('button')]"
                         ".filter(b => b.offsetParent !== null)"
@@ -128,6 +157,11 @@ class OnePageCase(unittest.TestCase):
                         " h: Math.round(b.getBoundingClientRect().height),"
                         " w: Math.round(b.getBoundingClientRect().width)}))"),
                 }
+                # And what is behind the fold, because "folded" must mean
+                # one tap away and not gone.
+                page.click(".fold > summary")
+                page.wait_for_timeout(300)
+                out[name]["opened"] = page.inner_text("#needs")
                 page.close()
             browser.close()
         return out
@@ -179,8 +213,13 @@ class OnePageCase(unittest.TestCase):
     def test_the_other_panels_render(self):
         for name, seen in self.seen.items():
             with self.subTest(name):
-                self.assertIn("call the dentist", seen["body"])
                 self.assertIn("call the plumber", seen["body"])
+                # A notice is behind the fold now, which is where a thing
+                # that needs no decision belongs — one tap, not gone.
+                self.assertIn("could not be sent", seen["opened"])
+                # And when even the fold is truncated it SAYS so, rather
+                # than ending and letting him think that was all of them.
+                self.assertIn("older ones", seen["opened"])
 
     # ---- the approval, which is what the old test was written for --------
     def test_an_approval_says_what_it_will_do(self):
@@ -196,7 +235,7 @@ class OnePageCase(unittest.TestCase):
 
     def test_the_decision_is_offered_in_words_a_person_uses(self):
         needs = self.seen["phone"]["needs"]
-        for word in ("Approve", "Not now", "Say no to this"):
+        for word in ("Approve", "Not now", "No"):
             with self.subTest(word):
                 self.assertIn(word, needs)
 
@@ -243,6 +282,52 @@ class OnePageCase(unittest.TestCase):
         small = [b for b in self.seen["phone"]["taps"]
                  if b["h"] < 32 and b["w"] < 32]
         self.assertEqual(small, [], f"tap targets under 32px: {small}")
+
+    # ---- density: a decision, not a wall ---------------------------------
+    def test_a_busy_day_still_fits_in_a_handful_of_screens(self):
+        """Forty pending decisions and thirty notices used to render as
+        forty cards and a wall of digests — about seven phone screens of
+        page, most of it the same sentence. He opens her to understand four
+        things in ten seconds, and a page he has to scroll for a minute
+        cannot do that however honest every line on it is."""
+        screens = self.seen["phone"]["tall"] / PHONE["height"]
+        self.assertLess(screens, 5.0,
+                        f"the phone page is {screens:.1f} screens tall")
+
+    def test_decisions_that_share_a_yes_say_the_shared_half_once(self):
+        needs = self.seen["phone"]["needs"]
+        self.assertIn("40 are waiting on the same yes", needs)
+        self.assertEqual(needs.count(SAME_YES), 1,
+                         "the shared consequence is said once, above the rows")
+
+    def test_every_one_of_them_is_still_its_own_yes(self):
+        """No bulk control, ever: each approval is bound to its own hash and
+        stays its own decision. What changed is how much screen it takes."""
+        needs = self.seen["phone"]["needs"].lower()
+        for bulk in ("approve all", "approve the rest", "select all",
+                     "approve 40", "approve them"):
+            with self.subTest(bulk):
+                self.assertNotIn(bulk, needs)
+        self.assertGreaterEqual(self.seen["phone"]["needs"].count("Approve"), 2,
+                                "each row still carries its own Approve")
+
+    def test_a_row_names_which_one_it_is(self):
+        self.assertIn("Employer 0", self.seen["phone"]["needs"])
+
+    def test_the_hundred_things_worth_seeing_are_one_folded_line(self):
+        needs = self.seen["phone"]["needs"]
+        self.assertIn("things worth seeing", needs)
+        self.assertNotIn("Application 12 could not be sent", needs,
+                         "a notice is behind the fold until he opens it")
+        self.assertIn("could not be sent", self.seen["phone"]["opened"],
+                      "and it is one tap away, not gone")
+
+    def test_a_model_is_never_named_the_way_a_machine_names_it(self):
+        for name in ("ollama:", "subscription.auto", "gpt-4", "claude-3",
+                     "qwen", "sonnet"):
+            for who, seen in self.seen.items():
+                with self.subTest(name=name, at=who):
+                    self.assertNotIn(name, seen["body"].lower())
 
     def test_this_file_puts_the_stores_back(self):
         """A test about isolation that leaks its own redirection would

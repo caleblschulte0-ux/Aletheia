@@ -36,7 +36,15 @@
   const JOB_CLASS = {
     "NEEDS YOU": "needs", BLOCKED: "stuck", RUNNING: "working",
   };
-  const FIRST_FEW = 5;
+  // How much of a long list is on screen before he asks for the rest. His
+  // standard is that he opens her, understands the four things in ten
+  // seconds, and forgets the machinery — which a page seven screens tall
+  // cannot do, however honest every line on it is.
+  const A_FEW = 3;
+  //: How many decisions are on screen before he asks for the rest — a
+  //: budget for the whole section, not per group, because his pending
+  //: approvals fall into one big group and a long tail of ones and twos.
+  const MOST_ROWS = 5;
   // The one command he will ever type because of this page. It is a single
   // literal so a test can lift it out and check it actually parses: the
   // previous version printed `aletheia.access mint`, which had started
@@ -53,6 +61,9 @@
   // sent, so they are still pending on the Core and will be back.
   const deferred = new Set();
   const expanded = new Set();
+  // Decision rows whose "what exactly?" he has opened, kept across a repaint
+  // so a refresh under his thumb does not close what he is reading.
+  const opened = new Set();
 
   // ---- small helpers ----------------------------------------------------
   const toastEl = $("toast");
@@ -108,47 +119,55 @@
   }
 
   // ---- what needs him ----------------------------------------------------
+  /* One row of choices, and the only one. Yes, leave it, no — each bound to
+   * its own approval id, each going through /api/command exactly as the
+   * Core has always taken it. */
   function decisionButtons(id) {
-    return '<div class="choices">' +
+    return '<div class="acts">' +
       '<button class="yes" data-approve="' + T.esc(id) + '">Approve</button>' +
       '<button class="later" data-later="' + T.esc(id) + '">Not now</button>' +
-      "</div>" +
-      '<button class="refuse" data-deny="' + T.esc(id) + '">Say no to this</button>';
+      '<button class="no" data-deny="' + T.esc(id) + '">No</button>' +
+      "</div>";
   }
 
-  function approvalCard(a) {
-    // WHAT he is being asked, in words. `label` is computed by the Core
-    // (voice.approval_label) and prefers the plan's own summary; `reason` is
-    // a transport wrapper and `requested_action` is a digest for anything
-    // content-bound. A phone that asks you to approve a hash is asking you
-    // to guess — so the digest is still there, one tap down, and never the
-    // headline.
-    // `label` is always something: the Core computes it with
-    // voice.approval_label, which strips ids and falls back to a phrase
-    // rather than to nothing. The digest is deliberately NOT in this chain
-    // — it is a fact about the thing, not a name for it.
+  /* A DECISION AS A ROW, which is what thirty-eight of them have to be.
+   *
+   * Live on his machine there were thirty-eight pending applications, each
+   * rendered as a card with the same first line and three buttons: about
+   * nine thousand pixels of wall where a decision should have been. They
+   * share a consequence and differ only in WHICH one, so the shared half is
+   * said once, above, and each row carries the half that is its own.
+   *
+   * There is deliberately no bulk control. Every one of these is bound to
+   * its own hash and stays its own yes; what changed is how much of the
+   * screen it takes to say no to it. */
+  function decisionRow(a, lead) {
     const said = a.label || a.consequence || "She needs your yes on something";
-    // `about` is which ONE — thirty-eight approvals can share a consequence
-    // and still be thirty-eight different decisions. The Core computes it
-    // (voice.approval_about); it is never the headline, because the
-    // headline's job is to say what will happen.
-    return '<div class="ask-card">' +
-      "<h3>" + T.esc(said) + "</h3>" +
-      (a.about ? "<p>" + T.esc(a.about) + "</p>" : "") +
-      (a.consequence && a.consequence !== said ? "<p>" + T.esc(a.consequence) + "</p>" : "") +
+    const which = a.about || (lead ? "" : said);
+    return '<div class="row-ask">' +
+      '<div class="what">' + T.esc(which || said) + "</div>" +
+      '<div class="meta">' + T.esc(T.clock(a.requested_at || a.created_at)) +
+        ' · <button class="link" data-open="' + T.esc(a.id) + '">what exactly?</button></div>' +
       decisionButtons(a.id) +
-      '<details class="peek"><summary>What exactly am I saying yes to?</summary>' +
-      facts([["It will", a.consequence || said],
-             ["Can it be undone", a.reversible === undefined ? "" : (a.reversible ? "yes" : "no")],
-             ["Asked", T.clock(a.requested_at || a.created_at)],
-             ["Exactly", a.requested_action]]) +
-      "</details></div>";
+      (opened.has(a.id)
+        ? '<div class="peeked">' + facts([
+            ["It will", a.consequence || said],
+            ["Can it be undone", a.reversible === undefined ? ""
+              : (a.reversible ? "yes" : "no")],
+            ["Exactly", a.requested_action]]) + "</div>"
+        : "") +
+      "</div>";
   }
 
+  /* A mission's own blocking need, as a row for the same reason. These
+   * sentences run to two hundred characters ("Stopped at a CAPTCHA on …:
+   * waiting for you. A human check is in the way at …"), so the first two
+   * lines are on screen and the rest is a tap: what he needs to know is
+   * WHICH one and that it is his, and he gets the whole thing by touching
+   * it. */
   function missionNeed(n) {
-    return '<div class="ask-card">' +
-      "<h3>" + T.esc(n.said || n.title) + "</h3>" +
-      (n.title && n.title !== n.said ? "<p>" + T.esc(n.title) + "</p>" : "") +
+    return '<div class="row-ask">' +
+      '<div class="what clamp" data-unclamp>' + T.esc(n.said || n.title) + "</div>" +
       (n.approval ? decisionButtons(n.approval) : "") +
       (n.receipt ? peek("What led to this?", n.receipt.id, n.receipt.kind) : "") +
       "</div>";
@@ -157,10 +176,51 @@
   function noticeCard(n) {
     const heading = n.says || n.title || "";
     const under = n.body && n.body !== heading ? n.body : "";
+    // The body is CLAMPED, not cut: one of these is a digest listing every
+    // question on every form, twelve lines of it, and three of them made
+    // the page longer than everything he can actually act on. Tapping it
+    // opens the whole thing; nothing is hidden, it just is not shouted.
     return '<div class="note"><h3>' + T.esc(heading) + "</h3>" +
-      (under ? "<p>" + T.esc(under) + "</p>" : "") +
+      (under ? '<p class="clamp" data-unclamp>' + T.esc(under) + "</p>" : "") +
       '<div class="row"><span class="when">' + T.esc(T.clock(n.created_at)) + "</span>" +
       '<button class="seen" data-seen="' + T.esc(n.id) + '">Got it</button></div></div>';
+  }
+
+  /** Every decision is a ROW, and rows that share one consequence say the
+   *  shared half once above them.
+   *
+   *  The first try kept a full card for any group smaller than three, which
+   *  looked right on the fixture and was wrong on his machine: his
+   *  thirty-eight pending applications fall into one group of twenty-two
+   *  and a long tail of ones and twos, so most of them came back as cards
+   *  and the page was still eight screens. The BUDGET is what has to be
+   *  bounded, not the shape of each group — so the section shows a handful
+   *  of rows however they are grouped, and the rest is one tap.
+   *
+   *  There is deliberately no bulk control anywhere in here. */
+  function decisionsHTML(approvals) {
+    const groups = new Map();
+    for (const a of approvals) {
+      const key = a.label || a.consequence || "";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(a);
+    }
+    const open = expanded.has("needs");
+    let budget = open ? 60 : MOST_ROWS;
+    const out = [];
+    let hidden = 0;
+    for (const [key, rows] of groups) {
+      const take = rows.slice(0, Math.max(0, budget));
+      hidden += rows.length - take.length;
+      budget -= take.length;
+      if (!take.length) continue;
+      const many = rows.length > 1;
+      out.push('<div class="group">' +
+        (many ? '<p class="lead">' +
+          T.esc(rows.length + " are waiting on the same yes — " + key) + "</p>" : "") +
+        take.map((a) => decisionRow(a, many)).join("") + "</div>");
+    }
+    return { html: out.join(""), hidden };
   }
 
   /** Rows he must DECIDE, then rows he should merely SEE. One place, as the
@@ -169,62 +229,80 @@
    *  number meaningless and teaches him to ignore it. The count in the rail
    *  is decisions. Returns how many of those there are. */
   function paintNeeds(m, approvals, notices) {
-    const decisions = [];
-    for (const a of approvals) {
-      if (!deferred.has(a.id)) decisions.push(approvalCard(a));
-    }
-    for (const n of (m && m.needs_you) || []) {
-      if (n.kind === "mission") decisions.push(missionNeed(n));
-    }
+    const live = approvals.filter((a) => !deferred.has(a.id));
+    const needs = ((m && m.needs_you) || []).filter((n) => n.kind === "mission");
+    const decisions = decisionsHTML(live);
     const open = expanded.has("needs");
-    const shown = open ? decisions : decisions.slice(0, FIRST_FEW);
-    const rest = decisions.length - shown.length;
-    const seen = notices.slice(0, open ? 20 : 3);
-    $("needs").innerHTML = (decisions.length
-        ? shown.join("") +
+    const shownNeeds = open ? needs : needs.slice(0, A_FEW);
+    const rest = decisions.hidden + (needs.length - shownNeeds.length);
+    const count = live.length + needs.length;
+    // Worth seeing is a hundred and five deep and none of it is a decision.
+    // One line, folded, newest first when he opens it.
+    const worth = notices.length
+      ? '<details class="fold"><summary>' +
+        T.esc(notices.length === 1 ? "1 thing worth seeing"
+                                   : notices.length + " things worth seeing") +
+        "</summary>" + notices.slice(0, 25).map(noticeCard).join("") +
+        (notices.length > 25
+          ? '<p class="calm">and ' + (notices.length - 25) + " older ones</p>" : "") +
+        "</details>"
+      : "";
+    $("needs").innerHTML = (count
+        ? decisions.html +
+          (shownNeeds.length
+            ? '<div class="group">' + shownNeeds.map(missionNeed).join("") + "</div>" : "") +
           (rest ? '<button class="more" data-expand="needs">Show the other ' +
                   rest + "</button>"
-                : (open && decisions.length > FIRST_FEW
+                : (open && count > MOST_ROWS
                     ? '<button class="more" data-expand="needs">Show fewer</button>' : ""))
-        : '<div class="calm">Nothing needs a decision from you.</div>') +
-      (seen.length
-        ? '<h2 style="margin-top:22px">Worth seeing</h2>' + seen.map(noticeCard).join("") +
-          (notices.length > seen.length
-            ? '<button class="more" data-expand="needs">and ' +
-              (notices.length - seen.length) + " more</button>" : "")
-        : "");
-    return decisions.length;
+        : '<div class="calm">Nothing needs a decision from you.</div>') + worth;
+    return count;
   }
 
   // ---- what she is working on -------------------------------------------
-  function jobCard(c) {
+  /* `said` is what this list has already said. Nineteen browser goals end
+   * with the identical sentence "It carries on from here when you do your
+   * part; nothing already done is redone." — true once, wallpaper nineteen
+   * times. Only EXACT repeats are dropped, and the first one always shows,
+   * which is how prose works when it is read top to bottom. */
+  function jobCard(c, said) {
     const p = c.progress;
     const bar = p && p.total
-      ? '<div class="bar"><i style="width:' +
-        Math.max(2, Math.round((p.done / p.total) * 100)) + '%"></i></div>' +
-        "<p>" + T.esc(p.done + " of " + p.total + " " + (p.unit || "")) + "</p>"
+      ? '<div class="bar" title="' + T.esc(p.done + " of " + p.total + " " +
+          (p.unit || "")) + '"><i style="width:' +
+        Math.max(2, Math.round((p.done / p.total) * 100)) + '%"></i></div>'
       : "";
     const receipt = (c.receipts || [])[0];
+    const once = (text) => {
+      if (!text || said.has(text)) return "";
+      said.add(text);
+      return text;
+    };
+    // `stuck` already contains `step` ("Waiting on you: " + the step + why),
+    // so printing both says the same thing twice in two type sizes.
+    const step = c.stuck && c.step && c.stuck.indexOf(c.step) >= 0 ? "" : c.step;
     return '<div class="job ' + (JOB_CLASS[c.status] || "") + '">' +
       '<div class="top"><h3>' + T.esc(c.title) + "</h3>" +
       '<span class="tag">' + T.esc(JOB_WORD[c.status] || "") + "</span></div>" +
       (c.goal && c.goal !== c.title ? "<p>" + T.esc(c.goal) + "</p>" : "") +
-      (c.step ? "<p>" + T.esc(c.step) + "</p>" : "") +
-      (c.stuck ? '<p class="why">' + T.esc(c.stuck) + "</p>" : "") +
-      (c.next ? "<p>" + T.esc(c.next) + "</p>" : "") + bar +
+      (step ? "<p>" + T.esc(step) + "</p>" : "") +
+      (c.stuck ? '<p class="why clamp" data-unclamp>' + T.esc(c.stuck) + "</p>" : "") +
+      (once(c.next) ? "<p>" + T.esc(c.next) + "</p>" : "") + bar +
       (receipt && receipt.id ? peek("How did it get here?", receipt.id, receipt.kind) : "") +
       "</div>";
   }
 
   function paintWork(m) {
-    const rows = (m.missions || []).map(jobCard);
+    const all = m.missions || [];
     const open = expanded.has("work");
-    const shown = open ? rows : rows.slice(0, FIRST_FEW);
-    $("work").innerHTML = rows.length
-      ? shown.join("") + (rows.length > shown.length
+    const take = open ? all : all.slice(0, A_FEW);
+    const said = new Set();
+    const rows = take.map((c) => jobCard(c, said));
+    $("work").innerHTML = all.length
+      ? rows.join("") + (all.length > take.length
           ? '<button class="more" data-expand="work">Show the other ' +
-            (rows.length - shown.length) + "</button>"
-          : (open && rows.length > FIRST_FEW
+            (all.length - take.length) + "</button>"
+          : (open && all.length > A_FEW
               ? '<button class="more" data-expand="work">Show fewer</button>' : ""))
       : '<div class="calm">Nothing is in flight right now.</div>';
   }
@@ -233,7 +311,7 @@
   function paintDone(m) {
     const rows = (m.ribbon || []).filter((r) => r && r.said);
     const open = expanded.has("done");
-    const shown = open ? rows.slice(0, 40) : rows.slice(0, 8);
+    const shown = open ? rows.slice(0, 40) : rows.slice(0, A_FEW);
     $("done").innerHTML = rows.length
       ? shown.map((r) =>
           '<div class="li ' + (r.tone === "alert" ? "alert" : "") + '"><em>' +
@@ -444,6 +522,15 @@
       if (lastMission) refresh();
       return;
     }
+    const exact = e.target.closest("[data-open]");
+    if (exact) {
+      const id = exact.dataset.open;
+      if (opened.has(id)) opened.delete(id); else opened.add(id);
+      refresh();
+      return;
+    }
+    const clamped = e.target.closest("[data-unclamp]");
+    if (clamped) { clamped.classList.toggle("clamp"); return; }
     const yes = e.target.closest("[data-approve]");
     const later = e.target.closest("[data-later]");
     const no = e.target.closest("[data-deny]");

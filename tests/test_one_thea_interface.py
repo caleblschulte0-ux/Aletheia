@@ -279,13 +279,13 @@ class ItSpeaksHumanAndKeepsTheMachineInTheDrawer(unittest.TestCase):
         hash is asking you to guess. The digest stays, because it is what he
         is actually approving; it is just never the headline."""
         js = read("thea-app.js")
-        card = js[js.index("function approvalCard"):js.index("function missionNeed")]
-        self.assertIn("a.label", card, "the heading is the collector's sentence")
-        head = card[:card.index("decisionButtons")]
-        self.assertNotIn("requested_action", head.split("const said")[1],
-                         "the digest must not be the headline")
-        self.assertIn("What exactly am I saying yes to?", card)
-        self.assertIn("requested_action", card, "and it is still there, one tap down")
+        row = js[js.index("function decisionRow"):js.index("function missionNeed")]
+        self.assertIn("a.label", row, "the heading is the collector's sentence")
+        head = row[:row.index("decisionButtons")]
+        self.assertNotIn("requested_action", head,
+                         "the digest must not be the line he reads")
+        self.assertIn("what exactly?", row, "and it is one tap down")
+        self.assertIn("requested_action", row, "where it is still shown in full")
 
     def test_the_collectors_state_words_are_translated_not_shouted(self):
         js = read("thea-app.js")
@@ -339,7 +339,7 @@ class TheButtonsSayWhatTheyDo(unittest.TestCase):
 
     def test_refusing_is_its_own_action_and_asks_first(self):
         js = read("thea-app.js")
-        self.assertIn("Say no to this", js)
+        self.assertIn('data-deny="', js)
         self.assertIn('confirm("Say no to this?', js)
         self.assertIn('"Approved" : "Refused"', js,
                       "the toast must match the verb on the button")
@@ -368,9 +368,12 @@ class ItIsBuiltForAThumb(unittest.TestCase):
         self.assertIn("font-size:16px", read("thea.html").replace(" ", ""))
 
     def test_approve_and_deny_are_far_enough_apart_to_not_mis_tap(self):
+        """The row form put them on one line, so the gap between them is the
+        whole of the protection. The render test measures the real
+        rectangles; this holds the intent in the stylesheet."""
         css = read("thea.html").replace(" ", "")
-        self.assertIn("min-height:50px", css)
-        self.assertIn("gap:10px", css)
+        self.assertIn(".row-ask.acts{display:flex;gap:10px", css)
+        self.assertIn("min-height:44px", css)
 
     def test_it_is_one_page_that_reflows_rather_than_two_codebases(self):
         css = read("thea.html")

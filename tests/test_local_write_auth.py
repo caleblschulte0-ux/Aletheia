@@ -95,6 +95,21 @@ class LoopbackWriteCase(unittest.TestCase):
         self.assertEqual(
             self.post({"Authorization": f"Bearer {access.local_secret()}"}), 200)
 
+    def test_the_refusal_is_journaled_in_words_he_can_read(self):
+        """It is an ALERT, so the activity list on his phone keeps it — and
+        it read "a local process attempted POST /api/voice/followup/ack
+        without the local session secret", twice, under "what she's done".
+        The diagnosis belongs in the subject; the sentence is for him."""
+        from aletheia import journal
+        self.assertEqual(self.post(), 401)
+        line = next(e for e in reversed(journal.entries())
+                    if str(e.get("subject", "")).startswith("access:"))
+        self.assertNotIn("/api/", line["text"])
+        self.assertNotIn("POST", line["text"])
+        self.assertIn("without the code it needs", line["text"])
+        # and nothing is lost: the method and the path are still on record
+        self.assertIn("/api/command", line["subject"])
+
     def test_the_served_page_carries_the_secret_so_the_wall_still_works(self):
         with urllib.request.urlopen(self.url("/"), timeout=5) as r:
             html = r.read().decode("utf-8", "replace")

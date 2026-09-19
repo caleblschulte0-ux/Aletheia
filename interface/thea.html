@@ -123,23 +123,49 @@ main{display:grid;gap:0 26px;max-width:1180px;margin:0 auto}
 .hint{margin:8px 2px 0;font-size:13px;color:var(--warm-faint);min-height:1.1em}
 
 /* ---- needs you: the only place amber is allowed --------------------- */
-.ask-card{background:var(--ink-2);border:1px solid var(--amber-deep);
+/* Thirty-eight decisions that share a consequence: the shared half once,
+   then one row each. Amber still marks the group, because every row in it
+   is still a thing only he can answer. */
+.group{background:var(--ink-2);border:1px solid var(--amber-deep);
   border-left:3px solid var(--amber);border-radius:16px;
-  padding:16px 18px;margin-bottom:11px}
-.ask-card h3{margin:0 0 7px;font-size:16.5px;font-weight:600;line-height:1.38;
-  overflow-wrap:anywhere}
-.ask-card p{margin:0 0 6px;font-size:14.5px;line-height:1.5;color:var(--warm-dim);
-  overflow-wrap:anywhere}
-.choices{display:flex;gap:10px;margin-top:14px;align-items:center;flex-wrap:wrap}
-.choices .yes{flex:1;min-width:8rem;min-height:50px;border-radius:13px;
-  background:var(--warm);color:var(--ink);font-weight:650;font-size:15.5px}
-.choices .yes:active{background:#cdc8bf}
-.choices .later{min-height:50px;padding:0 18px;border-radius:13px;
-  border:1px solid var(--line-2);color:var(--warm-dim);font-size:15px}
-.choices .later:active{background:#181a20}
-.refuse{display:block;margin:12px auto 0;font-size:13.5px;color:var(--warm-faint);
-  padding:8px 12px;min-height:34px}
-.refuse:active{color:var(--stop)}
+  padding:14px 16px;margin-bottom:11px}
+.group .lead{margin:0 0 10px;font-size:15px;line-height:1.42;font-weight:550}
+.row-ask{padding:11px 0;border-top:1px solid var(--line)}
+.row-ask:first-of-type{border-top:0;padding-top:2px}
+.row-ask .what{font-size:15px;line-height:1.38;overflow-wrap:anywhere}
+.row-ask .meta{font-size:12.5px;color:var(--warm-faint);margin-top:3px}
+.row-ask .acts{display:flex;gap:10px;align-items:center;margin-top:9px}
+.row-ask .yes{min-height:44px;padding:0 20px;border-radius:11px;
+  background:var(--warm);color:var(--ink);font-weight:650;font-size:15px}
+.row-ask .yes:active{background:#cdc8bf}
+.row-ask .later,.row-ask .no{min-height:44px;padding:0 14px;border-radius:11px;
+  border:1px solid var(--line-2);color:var(--warm-dim);font-size:14.5px}
+/* Refusing must be as findable as deferring: the first version made
+   it the faintest thing on the card, which is a way of discouraging
+   the answer she should least mind hearing. */
+.row-ask .no{color:var(--warm-dim)}
+.row-ask .no:active{color:var(--stop)}
+.row-ask .peeked{margin-top:9px;padding-left:10px;border-left:1px solid var(--line-2)}
+button.link{color:var(--warm-dim);text-decoration:underline;
+  text-underline-offset:3px;font-size:12.5px;padding:4px 0;min-height:28px}
+
+/* A hundred and five things worth seeing, folded into one line. */
+.fold{margin-top:20px;border-top:1px solid var(--line);padding-top:14px}
+.fold > summary{cursor:pointer;list-style:none;font-size:14px;
+  color:var(--warm-dim);padding:10px 0;min-height:44px}
+.fold > summary::-webkit-details-marker{display:none}
+.fold > summary::before{content:"▸ "}
+.fold[open] > summary::before{content:"▾ "}
+.clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;
+  overflow:hidden}
+[data-unclamp]{cursor:pointer}
+.row-ask .what.clamp{-webkit-line-clamp:2}
+.job p.why.clamp{-webkit-line-clamp:2}
+/* A receipt on every activity line is worth about thirty pixels
+   each and is wanted about once a week, so it is a footnote. */
+.lately .peek{margin-top:2px}
+.lately .peek > summary{padding:2px 0;min-height:0;font-size:12px}
+
 .note{background:var(--ink-2);border:1px solid var(--line);border-radius:16px;
   padding:15px 18px;margin-bottom:11px}
 .note h3{margin:0 0 5px;font-size:15.5px;font-weight:550;line-height:1.42;
@@ -170,7 +196,7 @@ main{display:grid;gap:0 26px;max-width:1180px;margin:0 auto}
 
 /* ---- what she finished ---------------------------------------------- */
 .lately{display:flex;flex-direction:column}
-.lately .li{display:flex;gap:12px;align-items:baseline;padding:11px 0;
+.lately .li{display:flex;gap:12px;align-items:baseline;padding:9px 0;
   border-top:1px solid var(--line)}
 .lately .li:first-child{border-top:0}
 .lately em{font-style:normal;font-size:12.5px;color:var(--warm-faint);

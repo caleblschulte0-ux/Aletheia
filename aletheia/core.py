@@ -690,10 +690,15 @@ class Handler(BaseHTTPRequestHandler):
                         or parse_qs(urlparse(self.path).query).get("local", [None])[0])
             if access.local_write_allowed(supplied):
                 return True
+            # The SENTENCE is for him and the diagnosis is in the subject.
+            # Written the other way round, this line — an alert, so the
+            # activity list keeps it — read "a local process attempted POST
+            # /api/voice/followup/ack without the local session secret" on
+            # his phone, twice, under "what she's done".
             journal.append(
-                "alert", "access",
-                f"a local process attempted {self.command} "
-                f"{path} without the local session secret",
+                "alert", f"access:{self.command} {path}",
+                "something on this PC tried to change things without the code "
+                "it needs, so nothing happened",
                 actor="aletheia-access")
             self._json({"error": "unauthorized"}, code=401)
             return False
@@ -710,9 +715,11 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": "unauthorized"}, code=401)
             return False
         if not access.scope_allows(record["scope"], self.command):
-            journal.append("alert", "access",
-                           f"{record['id']} ({record['scope']}) tried "
+            journal.append("alert",
+                           f"access:{record['id']} {record['scope']} "
                            f"{self.command} {path} from {source}",
+                           "a device whose code may only read tried to change "
+                           "something, so nothing happened",
                            actor="aletheia-access")
             self._json({"error": "this token is read-only"}, code=403)
             return False

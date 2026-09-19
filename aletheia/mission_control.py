@@ -54,6 +54,7 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import html
 import json
 import re
 import time
@@ -96,6 +97,23 @@ def _any_case_id():
     from aletheia import speech
     return re.compile(speech.ID_TOKEN.pattern, re.IGNORECASE)
 
+
+#: A model or a routing policy named the way a machine names it —
+#: `ollama:qwen3:8b`, `subscription.auto`, `local.deep`. Both of his rules
+#: hold at once as long as this never reaches a screen: he should not read a
+#: model name in normal use, AND her own answers have to say whose they are.
+#: A sentence saying the answer is HERS — slower, simpler, and hers — is
+#: honest and carries no brand, so WORDS a person would say ("Claude", "my
+#: own model") are deliberately not touched here. This is for identifiers.
+PROVIDER_TOKEN = re.compile(
+    r"\b(?:ollama|openai|anthropic|azure|bedrock|vertex|hf|huggingface)"
+    r"[:/][A-Za-z0-9._:-]+"
+    r"|\b(?:subscription|gateway|policy|local)\.[a-z_]+\b")
+
+#: A URL in a sentence he READS. He cannot click it, and the path, the query
+#: and the tracking id in it cost three lines of his phone to say what the
+#: host already said.
+_URL_IN_A_LINE = re.compile(r"https?://([^\s/]+)\S*")
 
 
 # ---- small pure helpers ----------------------------------------------------------
@@ -178,7 +196,18 @@ def no_ids(text: object) -> str:
         global _ANY_CASE_ID
         if _ANY_CASE_ID is None:
             _ANY_CASE_ID = _any_case_id()
-        return speech.tidy(_ANY_CASE_ID.sub("", str(text or "")))
+        # Stored escaped and rendered escaped shows him the escape: a job
+        # title scraped off a careers page arrives as "Account Manager,
+        # Gov&apos;t" and that is what he read. Unescaping here is a display
+        # fix, not a decision about the text.
+        said = html.unescape(str(text or ""))
+        said = PROVIDER_TOKEN.sub("", said)
+        # A tracking URL is not information. He is reading, not clicking:
+        # "at https://jobs.paloaltonetworks.com/en/job/-/-/47263/9969…?sid=…"
+        # tells him the same thing as "at jobs.paloaltonetworks.com" and
+        # costs three lines of his screen to do it.
+        said = _URL_IN_A_LINE.sub(lambda m: m.group(1), said)
+        return speech.tidy(_ANY_CASE_ID.sub("", said))
     except Exception:
         return str(text or "")
 

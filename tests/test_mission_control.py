@@ -567,6 +567,36 @@ class ALineHeIsGOINGToReadHasNoDigestInIt(unittest.TestCase):
         self.assertEqual(self.rib("Created - call the plumber"),
                          "Created - call the plumber")
 
+    def test_a_model_is_never_named_the_way_a_machine_names_it(self):
+        """Both of his rules hold at once: he does not read a model name in
+        normal use, and her own answers still say whose they are — as long
+        as the sentence says it is HERS rather than naming a vendor and a
+        parameter count."""
+        for machine in ("ollama:qwen3:8b", "subscription.auto", "local.deep"):
+            with self.subTest(machine):
+                self.assertNotIn(machine, self.rib("Answered with " + machine))
+
+    def test_the_word_a_person_would_say_survives(self):
+        """`speech` and `reasoner` say "Claude's out, so this answer is from
+        my own model" on purpose. That is wording, not an identifier, and it
+        is the other half of the same honesty."""
+        said = self.rib("Claude is out, so this answer is from my own model")
+        self.assertIn("my own model", said)
+
+    def test_a_tracking_url_becomes_the_site_it_names(self):
+        """He is reading, not clicking, and the query string is three lines
+        of his phone saying what the host already said."""
+        said = self.rib("A human check is in the way at "
+                        "https://jobs.example.com/en/job/-/-/47263/9969?sid=3e60")
+        self.assertIn("jobs.example.com", said)
+        self.assertNotIn("sid=", said)
+        self.assertNotIn("https", said)
+
+    def test_text_stored_escaped_is_not_rendered_escaped(self):
+        """A job title scraped off a careers page arrives as "Account
+        Manager, Gov&apos;t", and that is exactly what he read."""
+        self.assertIn("Gov't", self.rib("Account Manager, Gov&apos;t needs you"))
+
     def test_a_provider_line_goes_through_the_same_door(self):
         """Three writers feed this list; a digest is a digest whichever
         one put it there."""
