@@ -197,7 +197,13 @@ class WhatTheRoomHears(unittest.TestCase):
         with mock.patch.object(reasoner, "resting_until", return_value=None):
             said = investigate.spoken_answer(self.result(model="ollama:qwen3:8b"))
         self.assertTrue(said.startswith(reasoner.own_model_lead()), said)
-        self.assertIn("from my own model", said)
+        # The RULE: the answer says it is HERS. It used to say "from my
+        # own model", which is the same claim with a brand-shaped noun in
+        # it; his ease-of-use brief says he should not meet a model at all
+        # in normal use, and the disclosure has to survive that.
+        self.assertIn("this answer is mine", said)
+        for brand in ("Claude", "Codex", "ChatGPT", "ollama", "qwen"):
+            self.assertNotIn(brand, said)
 
     def test_a_subscription_answer_carries_no_disclosure(self):
         self.assertNotIn("my own model", investigate.spoken_answer(self.result()))
@@ -206,7 +212,10 @@ class WhatTheRoomHears(unittest.TestCase):
         import datetime as dt
         until = dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=2)
         with mock.patch.object(reasoner, "resting_until", return_value=until):
-            self.assertTrue(reasoner.own_model_lead().startswith("Claude's out until "))
+            lead = reasoner.own_model_lead()
+            self.assertTrue(lead.startswith("The big models are out until "),
+                            lead)
+            self.assertIn("this answer is mine", lead)
         with mock.patch.object(reasoner, "local_text", return_value=("Hi.", "ollama:q")), \
                 mock.patch.object(reasoner, "resting_until", return_value=None):
             said, _ = converse._from_my_own_model("prompt")

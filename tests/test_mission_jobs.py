@@ -255,7 +255,10 @@ class TheProviderHandsTheScreenOneMission(unittest.TestCase):
         card = self.mission(jobs.build({"hunt": hunt, "records": [rec("s1", "SUBMITTED", submitted_at=ago(90))]},
                                        ctx()))
         self.assertEqual(card["status"], "BLOCKED")
-        self.assertIn("Claude is back at 21:40", card["next"])
+        # The RULE: it says WHEN it picks up. The brand went (his brief:
+        # no model names in normal use); the time is the fact.
+        self.assertIn("21:40", card["next"])
+        self.assertNotIn("Claude", card["next"])
         self.assertIn("nobody can think", card["stuck"])
 
     def test_a_loop_that_died_today_is_a_banner_and_a_blocker(self):

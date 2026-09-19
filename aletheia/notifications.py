@@ -86,6 +86,23 @@ def validate(value: dict) -> None:
             raise ValueError(f"notification {key} is required")
 
 
+def _sayable(text: str) -> str:
+    """One line of a notice, fit to be read out — or left exactly as it was.
+
+    Fails OPEN on purpose: `validate` refuses an empty title or body, so a
+    line the door happens to reduce to nothing must keep its original
+    rather than turn a notification into an exception. A slightly ugly
+    notice is a bad day; a notice that was never filed is the thing he
+    needed to know and never heard.
+    """
+    try:
+        from aletheia import speech
+        said = speech.for_the_room(text)
+    except Exception:
+        return str(text or "")
+    return said if said.strip() else str(text or "")
+
+
 def publish(title: str, body: str, *, priority: str = "NORMAL", source: str = "aletheia",
             dedupe_key: str | None = None, related: dict | None = None,
             about: str = "") -> dict:
@@ -95,6 +112,18 @@ def publish(title: str, body: str, *, priority: str = "NORMAL", source: str = "a
     rule 42 callers have to remember is a rule that holds in 41 places.
     """
     priority = loudness(priority, about)
+    # AND EVERY BODY GOES THROUGH THE SPEECH DOOR, for the same reason the
+    # policy does. `speech.notice_line` cleans the HEADING, and every
+    # surface renders the body raw underneath it — so this reached his
+    # phone verbatim: "https://jobs.ashbyhq.com/notion/c1324c38-abc7-4bcf
+    # -9b62-2e1f86d5aa72/application — RuntimeError: ApplyError: the
+    # Submit button would not take a click". A link, a UUID and two class
+    # names in front of the one clause that says what happened.
+    #
+    # Here rather than at each caller, because a rule forty-two callers
+    # have to remember is a rule that holds in forty-one places; and the
+    # ids and the URL are still on `related`, where a page can link them.
+    title, body = _sayable(title), _sayable(body)
     notice_id = _dedupe_id(dedupe_key) if dedupe_key else _dedupe_id(f"{utcnow()}:{title}:{body}")
     path = _path(notice_id)
     if path.exists():

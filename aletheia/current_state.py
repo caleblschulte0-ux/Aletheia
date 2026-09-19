@@ -645,7 +645,7 @@ def agent(now: dt.datetime | None = None, *, hunt: dict | None = None,
         minds = hunt.get("thinking") or {}
         until = (minds.get("claude") or {}).get("resting_until")
         return {"state": "BLOCKED", "mission": "job hunt",
-                "step": "nobody can think: Claude and Codex are out and my own model "
+                "step": "nobody can think: the big models are out and mine "
                         + str((minds.get("local") or {}).get("why") or "cannot run"),
                 "since": until}
     pending = pending_approvals if pending_approvals is not None else \
@@ -885,9 +885,9 @@ def job_hunt_words(hunt: dict | None = None) -> str:
     if claude:
         from aletheia import reasoner
         when = _parse(claude)
-        said += (f" Claude is out until {reasoner.spoken_time(when)}, so it is thinking with "
+        said += (f" {reasoner.big_models_out(when)}, so it is thinking with "
                  + ("my own model." if (minds.get('local') or {}).get('allowed')
-                    else "Codex." if not (minds.get('codex') or {}).get('resting_until')
+                    else "the other one." if not (minds.get('codex') or {}).get('resting_until')
                     else "nobody, until then."))
     return said
 

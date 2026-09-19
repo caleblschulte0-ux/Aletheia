@@ -2256,6 +2256,31 @@ def _how_long_ago(approval: dict) -> str:
     return "a few minutes ago"
 
 
+#: An application approval's id is `<run id>-submit`, and the run id is
+#: `apply-<tag of the url>`. The record beside it knows the employer.
+_APPLICATION_APPROVAL = "-submit"
+
+
+def _application_label(approval: dict) -> str:
+    """"Analyst at Notion", never "Submit an application at <a link>".
+
+    Never raises and never guesses: an unreadable record, or one that
+    knows neither the employer nor the role, falls back to whatever the
+    rest of `approval_label` would have said.
+    """
+    approval_id = str((approval or {}).get("id") or "")
+    if not approval_id.endswith(_APPLICATION_APPROVAL):
+        return ""
+    try:
+        from aletheia import apply_run
+        record = apply_run.load_run(approval_id[:-len(_APPLICATION_APPROVAL)])
+        if not (record.get("company") or record.get("job_title")):
+            return ""
+        return speech.for_the_room(apply_run.describe(record))[:80]
+    except Exception:
+        return ""
+
+
 def approval_label(approval: dict) -> str:
     """What this approval is, in words he would recognise."""
     from aletheia import speech
@@ -2271,6 +2296,18 @@ def approval_label(approval: dict) -> str:
         return speech.tidy(speech.strip_ids(action)) or "the errand"
     if capability == "agent.delegate" or action.startswith("delegate"):
         return "the work order"
+
+    # AN APPLICATION IS NAMED BY THE EMPLOYER AND THE ROLE, always.
+    # Half of them said "Apply: <page title> — <url>" and the other half
+    # "Submit an application at <url>", depending on which path staged
+    # them — so the same list showed him two shapes, and one of them was
+    # a link where a company should be. The employer and the job title
+    # are on the application RECORD, whose id prefixes the approval's,
+    # and `apply_run.describe` is already the one sentence that names an
+    # application the way he would.
+    said = _application_label(approval)
+    if said:
+        return said
 
     # WHAT WILL HAPPEN beats both the reason and a category. The
     # consequence is the plan's own summary of what it will do, which is

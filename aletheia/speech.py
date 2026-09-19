@@ -358,6 +358,27 @@ _TRACE_NAME = re.compile(
     r"|[A-Z][A-Za-z]+\.[a-z_]+)\s*:\s*")
 
 
+def without_trace_names(text: str) -> str:
+    """Class names taken out, but only where a sentence is left behind.
+
+    `plainly`'s guard, applied per match instead of once at the front: a
+    bare KeyError says nothing but the key, so "I couldn't:
+    'generated_at'" is worse than the traceback it came from. The name
+    goes only when what FOLLOWS it can stand on its own.
+    """
+    said = str(text or "")
+
+    def drop(match: re.Match) -> str:
+        # The rest of THIS sentence, with the other trace names already
+        # gone. Splitting on a bare "." counted "Page.goto: at
+        # example.com" as the one word "Page" and kept the name in front
+        # of it; a sentence ends with a full stop and a SPACE.
+        rest = _TRACE_NAME.sub("", _SENTENCE_END.split(said[match.end():])[0])
+        return "" if len(rest.split()) >= 2 else match.group(0)
+
+    return _TRACE_NAME.sub(drop, said)
+
+
 def for_the_room(text: str) -> str:
     """The last door before a sentence is spoken out loud, anywhere.
 
@@ -374,23 +395,7 @@ def for_the_room(text: str) -> str:
     where it was written.
     """
     said = without_machine_codes(unmarkdown(str(text or "")))
-
-    def drop_name(match: re.Match) -> str:
-        """...but only where a sentence is left behind.
-
-        `plainly`'s guard, applied per match instead of once: a bare
-        KeyError says nothing but the key, and "I couldn't:
-        'generated_at'" is worse than the traceback it came from. So the
-        name goes only when what FOLLOWS it can stand on its own.
-        """
-        # The rest of THIS sentence, with the other trace names already
-        # gone. Splitting on a bare "." counted "Page.goto: at
-        # example.com" as the one word "Page" and kept the name in front
-        # of it; a sentence ends with a full stop and a SPACE.
-        rest = _TRACE_NAME.sub("", _SENTENCE_END.split(said[match.end():])[0])
-        return "" if len(rest.split()) >= 2 else match.group(0)
-
-    return tidy(strip_ids(without_links(_TRACE_NAME.sub(drop_name, said))))
+    return tidy(strip_ids(without_links(without_trace_names(said))))
 
 
 def bare_words(text: str) -> set[str]:
@@ -643,7 +648,10 @@ def plainly(detail: str) -> str:
     stripped = _CLASS_PREFIX.sub("", text)
     if stripped != text and len(stripped.split()) < 2:
         stripped = text
-    return tidy(strip_ids(stripped))
+    # ...and the ones that are not at the front. `_CLASS_PREFIX` is
+    # anchored, so "That failed: ReasonerUnavailable: ..." kept its name:
+    # the same rule, one implementation, both paths.
+    return tidy(strip_ids(without_trace_names(stripped)))
 
 
 def shorten(text: str, limit: int = 70) -> str:

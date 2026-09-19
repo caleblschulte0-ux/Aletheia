@@ -544,8 +544,8 @@ def _own_model_line(record: dict) -> str:
     """
     if not record.get("compiled_by"):
         return ""
-    return ("Claude and Codex are out, so I planned this with "
-            f"{record['compiled_by']}. ")
+    from aletheia import reasoner
+    return f"{reasoner.big_models_out()}, so I planned this one myself. "
 
 
 def spoken(record: dict) -> str:
@@ -589,7 +589,9 @@ def spoken(record: dict) -> str:
             # and does not carry one: live on 2026-09-18 the room would have
             # heard "switched off for this run It's on my list", which is one
             # run-on sentence out loud.
-            said = said.rstrip(" .,;") + ". It's on my list, and I'll pick it up when Claude or Codex is back."
+            said = (said.rstrip(" .,;")
+                    + ". It's on my list, and I'll pick it up when the big "
+                      "models are back.")
         return speech.tidy(said)
     if record.get("intent") == "clarify":
         # Through the sieve like everything else she says. A clarifying

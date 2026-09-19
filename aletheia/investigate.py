@@ -304,7 +304,7 @@ def _own_model_lead() -> str:
         from aletheia import reasoner
         return reasoner.own_model_lead()
     except Exception:
-        return "This answer is from my own model. "
+        return "This answer is mine: slower, and simpler. "
 
 
 def spoken_answer(result) -> str:
@@ -329,9 +329,7 @@ def _unavailable_words() -> str:
     """
     try:
         from aletheia import local_model_pool, model_pool_config, reasoner
-        until = reasoner.resting_until()
-        cloud = (f"Claude's out until {reasoner.spoken_time(until)}" if until
-                 else "Claude couldn't answer")
+        cloud = reasoner.big_models_out()
         if not model_pool_config.enabled():
             mine = "my own model is switched off"
         elif not local_model_pool.reachable():

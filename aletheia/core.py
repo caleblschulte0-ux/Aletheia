@@ -635,10 +635,17 @@ class Handler(BaseHTTPRequestHandler):
                         or parse_qs(urlparse(self.path).query).get("local", [None])[0])
             if access.local_write_allowed(supplied):
                 return True
+            # SAID THE WAY HE READS IT. The journal is what "what have you
+            # done" reads out, and this line arrived in it as a diagnostic:
+            # "A local process attempted POST /api/voice/followup/ack
+            # without the local session secret" — twice — in the middle of
+            # a list of things she did. Same signal, his words; the method
+            # and the route stay for whoever is debugging it.
             journal.append(
                 "alert", "access",
-                f"a local process attempted {self.command} "
-                f"{path} without the local session secret",
+                "I turned away something on this computer that asked me to "
+                "act without proving it was you "
+                f"({self.command} {path})",
                 actor="aletheia-access")
             self._json({"error": "unauthorized"}, code=401)
             return False

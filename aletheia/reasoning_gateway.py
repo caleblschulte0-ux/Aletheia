@@ -247,12 +247,26 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
                 turn_id=local.turn_id,
             )
         except local_model_pool.LocalPoolUnavailable as local_exc:
-            # Both causes travel with the refusal. On 2026-09-02 eight
-            # planner calls answered only "unavailable" and the real reason
-            # (the CLI refusing a burst of concurrent calls) was invisible.
+            # BOTH CAUSES ARE STILL RECORDED, and neither is said out loud.
+            # On 2026-09-02 eight planner calls answered only "unavailable"
+            # and the real reason (the CLI refusing a burst of concurrent
+            # calls) was invisible, so both went into the message — and
+            # the message is what the room reads back: "That failed:
+            # ReasonerUnavailable: ... local: ne", cut off mid-word.
+            # A diagnosis belongs in the journal with its type attached;
+            # what he hears is which of his three thinkers are out.
+            try:
+                from aletheia import journal
+                journal.append(
+                    "alert", "reasoning",
+                    f"nobody could think (subscription: {type(cloud_exc).__name__}: "
+                    f"{cloud_exc}; local: {type(local_exc).__name__}: {local_exc})",
+                    actor="aletheia-reasoning")
+            except Exception:
+                pass    # the refusal below matters more than the record of it
             raise reasoner.ReasonerUnavailable(
-                "subscription reasoning and local deep reasoning are unavailable "
-                f"(subscription: {cloud_exc}; local: {local_exc})"
+                "none of my thinkers can answer right now — the subscriptions "
+                "are out and my own model could not run either"
             ) from None
 
 
