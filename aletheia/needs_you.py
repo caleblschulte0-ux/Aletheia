@@ -33,6 +33,7 @@ gates and who may approve what are all exactly as they were.
 from __future__ import annotations
 
 import datetime as dt
+import re
 
 from aletheia import work_states as ws
 
@@ -292,12 +293,91 @@ def _unattended(hours: float, limit: int) -> list[dict]:
     return out
 
 
+# ------------------------------------------------- what would not be asked now
+#: A browser mission's approval id: `<mission id>--g<n>-commit-<digest>`.
+_MISSION_APPROVAL = re.compile(r"^(?P<mission>.+?)--g\d+-commit-[0-9a-f]+$")
+def would_not_ask_now() -> list[dict]:
+    """Which PENDING approvals the loop would no longer raise, and why.
+
+    READ ONLY, and deliberately so. It decides nothing: denying an
+    approval is his, and a tool that cleared its own mistakes would be
+    Aletheia approving her own approvals from the other end. This prints
+    a list so he can deny them on the page in one pass.
+
+    The judgement is the REAL rule — `page_state.control_kind`, the same
+    function the loop asks — fed the evidence the mission wrote down: the
+    button it stopped on, and whether it had put any of his answers into
+    that page. Evidence it did NOT write down (the control's role, its
+    address, its seat in the site's navigation) is assumed absent, which
+    can only ever make this list SHORTER than the truth.
+    """
+    from aletheia import browser_loop, browser_mission, page_state as ps, policy, voice
+    rows = []
+    for approval in _safe(policy.all_approvals, []):
+        if approval.get("state") != "PENDING":
+            continue
+        aid = str(approval.get("id") or "")
+        hit = _MISSION_APPROVAL.match(aid)
+        row = {"id": aid, "what": _safe(lambda a=approval: voice.approval_label(a), aid),
+               "since": str(approval.get("requested_at") or ""), "button": "", "url": "",
+               "still_asked": True, "why": ""}
+        if not hit or str(approval.get("capability") or "") != "web.commit":
+            row["why"] = ("not the browser loop's — this one is staged by the form filler "
+                          "and untouched by the new rule")
+            rows.append(row)
+            continue
+        try:
+            record = browser_mission.load(hit.group("mission"))
+        except Exception:
+            row["why"] = "its mission record cannot be read, so nothing here judges it"
+            rows.append(row)
+            continue
+        gate = record.get("gate") or {}
+        row["button"] = " ".join(str(gate.get("button") or "").split())
+        row["url"] = str(gate.get("url") or record.get("start_url") or "")
+        filled = browser_loop.she_filled_something(record)
+        kind = ps.control_kind(row["button"], role="button", on_form=True, sendable=filled)
+        if kind == ps.COMMIT and not filled:
+            kind = ps.OTHER          # `_gate`'s boundary: a guess is not his to bless
+        row["still_asked"] = kind in (ps.COMMIT, ps.CREATE_ACCOUNT, ps.SPEND)
+        row["kind"] = kind
+        if row["still_asked"]:
+            row["why"] = (f"it still reads as {kind.replace('_', ' ')}"
+                          + (" on a page this run had filled in" if filled else ""))
+        else:
+            row["why"] = ("nothing on that page held his answers, and the button's own words "
+                          "do not commit anything" if not filled else
+                          "the button's own words say it does not send anything")
+        rows.append(row)
+    return rows
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
     ap = argparse.ArgumentParser(description="What needs Caleb, and what she did.")
     ap.add_argument("what", nargs="?", default="needs",
-                    choices=["needs", "activity", "say"])
+                    choices=["needs", "activity", "say", "noise"])
     args = ap.parse_args(argv)
+    if args.what == "noise":
+        rows = would_not_ask_now()
+        drop = [r for r in rows if not r["still_asked"]]
+        keep = [r for r in rows if r["still_asked"]]
+        print(f"{len(rows)} pending; {len(drop)} would no longer be raised.\n")
+        print("WOULD NO LONGER BE ASKED (deny these yourself — I will not):")
+        for r in drop or [{"what": "(none)", "why": "", "id": "", "url": ""}]:
+            print(f"- {r['what']}")
+            if r.get("why"):
+                print(f"    because {r['why']}")
+            if r.get("url"):
+                print(f"    {r['url'][:100]}")
+            if r.get("id"):
+                print(f"    {r['id']}")
+        print("\nSTILL ASKED:")
+        for r in keep:
+            print(f"- {r['what']}")
+            if r.get("why"):
+                print(f"    because {r['why']}")
+        return 0
     if args.what == "say":
         print(spoken())
         return 0
