@@ -55,6 +55,23 @@ class JobApplication(browser_loop.GeneralSkill):
     def nav_words(self, goal: str) -> set[str]:
         return super().nav_words(goal) | {"apply", "application"}
 
+    def subject(self, record: dict) -> str:
+        """"Account Manager II at PNC", from the application record this
+        mission belongs to. Never raises: an unreadable record, or one that
+        knows neither employer nor role, says nothing and the approval
+        keeps the sentence it would have had."""
+        try:
+            from aletheia import apply_run
+            url = str(record.get("start_url") or "")
+            if not url:
+                return ""
+            run = apply_run.load_run(f"apply-{apply_run._tag(url)}")
+            if not (run.get("company") or run.get("job_title")):
+                return ""
+            return " ".join(apply_run.describe(run).split())[:90]
+        except Exception:
+            return ""
+
     def boundary(self, obs: dict) -> dict | None:
         """A posting that says it has closed is a stop, not a page to wander
         from. Live 2026-09-17 a closed UltiPro posting had no Apply, and her

@@ -192,10 +192,16 @@ class StatusTracker:
         return self.codes.get(id(page)) or None
 
 
-def look(page, *, tracker: StatusTracker | None = None, skill=None, site: dict | None = None) -> dict:
+def look(page, *, tracker: StatusTracker | None = None, skill=None, site: dict | None = None,
+         filled_urls=None) -> dict:
     """The page as semantic targets, classified. `_refs` (target id ->
     selector) and `_raw` (the form reader's rows) are internal and are
-    stripped by `for_model` before anything leaves this module."""
+    stripped by `for_model` before anything leaves this module.
+
+    `filled_urls` is the set of page addresses this run has already written
+    his answers into. A page she filled HOLDS something to send even if its
+    widgets will not read their own values back, and that is what decides
+    whether an unknown button is treated as the thing that sends it."""
     seen = webtask.observe(page)
     raw = seen.pop("_raw", None) or []
     targets: list[dict] = []
@@ -265,7 +271,13 @@ def look(page, *, tracker: StatusTracker | None = None, skill=None, site: dict |
         role = "button" if role in ("button", "summary") else role
         add(role, button.get("text") or button.get("question"), button.get("selector", ""),
             question=button.get("question") if role != "button" else None,
-            checked=button.get("checked"))
+            checked=button.get("checked"),
+            # WHAT THE PAGE SAYS THIS CONTROL IS, carried through so
+            # `page_state.control_kind` can tell a header link from a form's
+            # button without a longer word list.
+            type=button.get("type"), href=button.get("href"), nav=button.get("nav"),
+            in_form=button.get("in_form"), expanded=button.get("expanded"),
+            haspopup=button.get("haspopup"))
     for link in seen.get("links") or []:
         add("link", link.get("text"), link.get("selector", ""), href=link.get("href"))
 
@@ -280,7 +292,8 @@ def look(page, *, tracker: StatusTracker | None = None, skill=None, site: dict |
     obs = {"url": seen.get("url", ""), "title": seen.get("title", ""), "text": seen.get("text", ""),
            "status": tracker.status(page) if tracker else None, "targets": targets,
            "still_missing": seen.get("still_missing") or [], "captcha": captcha,
-           "progressbar": progressbar, "_refs": refs, "_raw": raw, "_consent": consent}
+           "progressbar": progressbar, "_refs": refs, "_raw": raw, "_consent": consent,
+           "filled_here": str(seen.get("url", "")) in set(filled_urls or ())}
     understood = ps.classify(obs)
     obs.update({"state": understood["state"], "evidence": understood["evidence"],
                 "controls": understood["controls"]})
@@ -473,6 +486,17 @@ class GeneralSkill:
         means is a job's business, not the loop's."""
         return None
 
+    def subject(self, record: dict) -> str:
+        """WHAT THIS MISSION IS ABOUT, in words he would recognise, or "".
+
+        Sixteen approvals on his page all read "apply for this job" and
+        named no employer and no role, though the mission's own record knew
+        both (2026-09-19). The goal is the loop's sentence; naming the
+        thing behind it is the skill's, the same way `voice` names an
+        application "Analyst at Notion" rather than by its link.
+        """
+        return ""
+
     def plan(self, obs: dict, record: dict, site: dict) -> dict:
         inputs = dict(record.get("inputs") or {})
         refs = obs.get("_refs") or {}
@@ -573,12 +597,27 @@ class GeneralSkill:
 GENERAL = GeneralSkill()
 
 
+def skill_named(name: str):
+    """The skill a STORED mission was run with, by the name on its record.
+
+    `act()` reloads a mission from disk and has no skill in hand, and the
+    approval it can raise should still say which job it is about."""
+    if str(name or "") == "job_application":
+        try:
+            from aletheia import job_skill
+            return job_skill.SKILL
+        except Exception:
+            return GENERAL
+    return GENERAL
+
+
 # ---- choosing a way forward ----------------------------------------------------
 
 def _kind(t: dict, obs: dict) -> str:
     on_form = any(x["role"] in ("textbox", "combobox", "checkbox", "radio", "file", "password")
                   for x in obs.get("targets") or [])
-    return ps.control_kind(t["label"], role=t["role"], on_form=on_form)
+    return ps.control_kind(t["label"], role=t["role"], on_form=on_form, target=t,
+                           sendable=ps.could_send(obs))
 
 
 def controls(obs: dict) -> dict[str, list[dict]]:
@@ -899,7 +938,8 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
         policy.ensure_not_halted()
         if on_step is not None:
             on_step(step, record)
-        obs = look(page, tracker=tracker, skill=skill, site=site)
+        obs = look(page, tracker=tracker, skill=skill, site=site,
+                   filled_urls={url for url, _ in written})
         if _decline_cookies(page, hands, obs, record):
             continue                               # the banner is gone: look again
         state = obs["state"]
@@ -1081,7 +1121,7 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
             press = next((c for kind in (ps.PROGRESS, ps.OTHER, ps.COMMIT) for c in kinds.get(kind, [])
                           if kind != ps.COMMIT or _VERIFY_BUTTON.search(c["label"])), None)
             if press is None:
-                result = _gate(ctx, page, obs, record, goal, route, attached, hold_s=hold_s)
+                result = _gate(ctx, page, obs, record, goal, route, attached, hold_s=hold_s, skill=skill)
                 if result is None:
                     return _stop(record, bm.NEEDS_YOU, "NO_WAY_FORWARD", obs, page=ps.say(obs["state"]))
                 live = _press_live(ctx, page, hands, result, hold_s=hold_s, tracker=tracker,
@@ -1152,7 +1192,7 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
                 continue
             result = None
             if kinds.get(ps.COMMIT) or kinds.get(ps.CREATE_ACCOUNT) or kinds.get(ps.SPEND):
-                result = _gate(ctx, page, obs, record, goal, route, attached, hold_s=hold_s)
+                result = _gate(ctx, page, obs, record, goal, route, attached, hold_s=hold_s, skill=skill)
             if result is not None:
                 live = _press_live(ctx, page, hands, result, hold_s=hold_s, tracker=tracker,
                                    skill=skill, site=site, code_source=code_source)
@@ -1871,6 +1911,23 @@ def final_control(obs: dict, goal: str) -> dict | None:
     return order[0] if order else None
 
 
+#: Route steps that put one of HIS answers onto a page.
+WROTE = ("type", "select", "check", "attach")
+
+
+def she_filled_something(record: dict) -> bool:
+    """Has this mission put any of his answers into any page yet?
+
+    The route is what she wrote, and it survives a resume; a `filled`
+    checkpoint says the same thing from the other side. It is the
+    difference between "the form is ready to send" and "the site had
+    already put something in a box".
+    """
+    if any(step.get("action") in WROTE for step in record.get("route") or []):
+        return True
+    return any(c.get("name") == bm.FILLED for c in record.get("checkpoints") or [])
+
+
 def _search_control(obs: dict, tried: set) -> dict | None:
     """The search box holding his query, when every text answer on the page
     is a search box."""
@@ -1885,7 +1942,7 @@ def _search_control(obs: dict, tried: set) -> dict | None:
 
 
 def _gate(ctx, page, obs: dict, record: dict, goal: str, route: list[dict],
-          attached: list[dict], *, hold_s: float = 0.0) -> dict | None:
+          attached: list[dict], *, hold_s: float = 0.0, skill=None) -> dict | None:
     """The final button: refused (money), refused (a duplicate), a question
     (the page says something is still empty), or ONE hash-bound approval
     through the existing webtask path. Returns the stopped record."""
@@ -1903,6 +1960,18 @@ def _gate(ctx, page, obs: dict, record: dict, goal: str, route: list[dict],
                      say=f"The last step is {target['label'][:60]!r} on a page that shows a charge. "
                          "That spends money, so I stopped and did not press it.")
     kind = _kind(target, obs)
+    if kind == ps.COMMIT and not webtask.computer.committing_label(target["label"]) \
+            and not she_filled_something(record):
+        # AN APPROVAL IS FOR A DECISION HE CAN ACTUALLY MAKE, and "press this
+        # thing I do not understand" is not one. The conservative default
+        # (an unknown button on a page holding answers is the button that
+        # sends them) is kept - but only where the answers are HERS TO SEND.
+        # A page she typed nothing into, whose values the site put there and
+        # whose button says nothing, is a guess, and a guess is not his to
+        # bless. It stops at the boundary that exists for exactly this
+        # (2026-09-19).
+        return _stop(record, bm.NEEDS_YOU, "NO_WAY_FORWARD", obs, page=ps.say(obs["state"]),
+                     step=f"tell me what to press on {obs['url'][:90]}")
     if obs["state"] == ps.REVIEW or not bm.reached(record, bm.REVIEW_REACHED):
         record = bm.checkpoint(record, bm.REVIEW_REACHED, url=obs["url"], button=target["label"])
     ok, why = bm.may_submit_here(record, button=target["label"], url=obs["url"])
@@ -1932,8 +2001,18 @@ def _gate(ctx, page, obs: dict, record: dict, goal: str, route: list[dict],
         # A RETRY HE ASKED FOR carries what the site said last time into the
         # sentence he approves, so the yes is given knowing it.
         record["rejected_before"] = refused
-    asked = goal + (f" (last time the site said: {'; '.join(refused.get('site_said') or [])[:160]})"
-                    if refused and refused.get("site_said") else "")
+    # WHICH JOB, NOT "this job". The approval's sentence is his only view of
+    # what he is saying yes to, and sixteen of them read "apply for this job"
+    # with no employer and no role (2026-09-19). The skill names the subject
+    # from the mission's own record; a skill that cannot says nothing.
+    about = ""
+    try:
+        about = str((skill or GENERAL).subject(record) or "")
+    except Exception:
+        about = ""
+    asked = (f"{goal}: {about}" if about else goal) \
+        + (f" (last time the site said: {'; '.join(refused.get('site_said') or [])[:160]})"
+           if refused and refused.get("site_said") else "")
     out = webtask._await_him(run_id, asked, page, target["label"], selector, list(route),
                              list(attached), commits, start_url=replay)
     webtask_record = {"id": run_id, "goal": goal, "steps": [], "attempt": record.get("attempt", 1),
@@ -2374,7 +2453,8 @@ def act(mid: str, action: dict, *, session=None) -> dict:
         kind = _kind(target, obs) if target["role"] in ps.PRESS_ROLES else "answer"
         selector = obs["_refs"][target["id"]]
         if verb in ("click", "follow") and kind in (ps.COMMIT, ps.CREATE_ACCOUNT, ps.SPEND):
-            stopped = _gate(ctx, page, obs, record, record["goal"], route, attached)
+            stopped = _gate(ctx, page, obs, record, record["goal"], route, attached,
+                            skill=skill_named(record.get("skill")))
             if stopped is None:
                 return {"done": False, "problem": "that control is not the final button of this page's goal",
                         "page": for_model(obs)}

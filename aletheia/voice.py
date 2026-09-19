@@ -2281,6 +2281,44 @@ def _application_label(approval: dict) -> str:
         return ""
 
 
+#: A browser mission's approval id is `<mission id>--g<n>-commit-<digest>`
+#: (`browser_loop._gate`). The mission beside it knows what it is about.
+_MISSION_APPROVAL = re.compile(r"^(?P<mission>.+?)--g\d+-commit-[0-9a-f]+$")
+
+
+def _mission_label(approval: dict) -> str:
+    """"'Create Account' for Account Manager II at PNC", never "apply for
+    this job".
+
+    Sixteen of his thirty-eight pending approvals came from the browser
+    loop on 2026-09-19, and every one of them said "apply for this job"
+    and named no employer and no role — while the mission's own record
+    knew both. `_application_label` does this for the form filler's
+    approvals from the apply record; this does it for the loop's from the
+    mission, which is the other half of the same list.
+
+    Never raises and never guesses: a mission it cannot read, or a skill
+    that cannot name its subject, says nothing and the rest of
+    `approval_label` speaks as before.
+    """
+    hit = _MISSION_APPROVAL.match(str((approval or {}).get("id") or ""))
+    if not hit or str(approval.get("capability") or "") != "web.commit":
+        return ""
+    try:
+        from aletheia import browser_loop, browser_mission
+        record = browser_mission.load(hit.group("mission"))
+        about = browser_loop.skill_named(record.get("skill")).subject(record)
+        if not about:
+            return ""
+        button = " ".join(str((record.get("gate") or {}).get("button") or "").split())
+        # `shorten`, never `said[:80]`: a headline cut mid-word ("...Large Cor")
+        # is the thing CLAUDE.md already names as the wrong way to do this.
+        return speech.shorten(
+            speech.for_the_room(f"press {button!r} for {about}" if button else about), 80)
+    except Exception:
+        return ""
+
+
 def approval_label(approval: dict) -> str:
     """What this approval is, in words he would recognise."""
     from aletheia import speech
@@ -2305,7 +2343,7 @@ def approval_label(approval: dict) -> str:
     # are on the application RECORD, whose id prefixes the approval's,
     # and `apply_run.describe` is already the one sentence that names an
     # application the way he would.
-    said = _application_label(approval)
+    said = _application_label(approval) or _mission_label(approval)
     if said:
         return said
 
