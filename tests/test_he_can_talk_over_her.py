@@ -14,6 +14,7 @@ the "his next sentence is for me" flag is consumed exactly once.
 from __future__ import annotations
 
 import unittest
+from unittest import mock
 
 from aletheia import speech, voice_room
 
@@ -117,6 +118,58 @@ class SheStopsMidAnswer(unittest.TestCase):
 
         voice_room.speak("Done.", chunk=lambda text: None)
         self.assertGreater(voice_room._ignore_audio_until, 0.0)
+
+
+class TheRoomTakesTheSentenceHeCutInWith(unittest.TestCase):
+    """The whole loop, with the real `listen_forever` and a fake mouth.
+
+    The pieces being right separately is not the behaviour. What he
+    experiences is: she is halfway through an answer, he says her name
+    over it, she stops, and the rest of his sentence lands as a command
+    — without him having to say her name a second time to finish a
+    thought he only started in order to stop her.
+    """
+
+    def setUp(self):
+        voice_room._INTERRUPT.clear()
+        voice_room.take_interrupt()
+
+    tearDown = setUp
+
+    def test_his_next_words_are_a_command_without_a_second_wake_word(self):
+        asked, spoken = [], []
+
+        def mouth(line):
+            spoken.append(line)
+            # He starts talking over the first answer.
+            if len(spoken) == 1:
+                voice_room._OUTPUT_ACTIVE.set()
+                try:
+                    voice_room.interrupt_speech()
+                finally:
+                    voice_room._OUTPUT_ACTIVE.clear()
+
+        with mock.patch.object(
+                voice_room, "ask_core",
+                side_effect=lambda t, *a, **k: asked.append(t) or {"say": "ok"}):
+            voice_room.listen_forever(
+                recognizer=iter([(True, "thea what's the weather"),
+                                 (False, "what about tomorrow")]),
+                speaker=mouth)
+        self.assertEqual(asked, ["thea what's the weather",
+                                 "thea what about tomorrow"])
+
+    def test_an_unaddressed_sentence_is_still_ignored_when_she_is_quiet(self):
+        """The interrupt window is the ONLY thing that widens this. Room
+        speech she was not talking over is not for her, as before."""
+        asked = []
+        with mock.patch.object(
+                voice_room, "ask_core",
+                side_effect=lambda t, *a, **k: asked.append(t) or {"say": "ok"}):
+            handled = voice_room.listen_forever(
+                recognizer=iter([(False, "what about tomorrow")]),
+                speaker=lambda line: None)
+        self.assertEqual((handled, asked), (0, []))
 
 
 class NothingTechnicalIsEverSaidOutLoud(unittest.TestCase):

@@ -390,9 +390,12 @@ def _by_design(state: dict, part: dict) -> bool:
 #: something that stopped and nothing about why or what to do, which is
 #: the half of a health view that is actually worth having.
 _WHY_DOWN = {
-    "supervisor": ("nothing is watching the Core, so a crash would stay "
-                   "crashed", "it comes back at your next sign-in, or "
-                   "start me again from the desktop shortcut"),
+    # NOT "start me from the desktop shortcut": an offer is a claim, and
+    # the honest fix here needs nothing from him. Both of these tasks
+    # carry the five-minute watchdog trigger (`autostart.REPEAT_MINUTES`).
+    "supervisor": ("nothing is watching the part that answers you, so a "
+                   "crash would stay crashed",
+                   "the watchdog starts it again within five minutes"),
     "core": ("almost nothing I do works until it is back",
              "the watchdog restarts it within five minutes"),
     "voice": ("I can't hear the room", "turn the microphone on and I'll "
