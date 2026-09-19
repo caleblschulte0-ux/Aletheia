@@ -304,7 +304,10 @@ window.Thea = (() => {
     navigator.serviceWorker.register("/interface/sw.js").catch(() => {});
   }
 
-  return { api, command, ask, collect, ack, getToken, setToken, esc, ago, clock,
+  // What the page uses, and nothing else. `collect`, `ack` and `spokenForm`
+  // are `ask`'s own business; exporting them made three names nobody called,
+  // which is how `speak()` sat here unwired for a whole release.
+  return { api, command, ask, getToken, setToken, esc, ago, clock,
            diagnose, outbox, queueAsk, dropQueued, onHisPC,
-           canListen, listen, speak, spokenForm, unlockSpeech, hush, speaking };
+           canListen, listen, speak, unlockSpeech, hush, speaking };
 })();

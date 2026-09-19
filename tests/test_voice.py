@@ -258,10 +258,14 @@ class VoiceEndpointCase(unittest.TestCase):
         self.assertTrue(res["followup_id"])
 
     def test_voice_pages_carry_the_ears(self):
+        """Both surfaces can be TALKED to. The wall keeps the push-to-talk
+        script; the one Thea page listens through thea.js instead, because
+        that path also works on a phone, where the script's
+        SpeechRecognition does not exist at all."""
         from aletheia.fleet import REPO_ROOT
-        for page in ("index.html", "command.html"):
+        for page, wants in (("wall.html", "voice.js"), ("thea-app.js", "T.listen")):
             html = (REPO_ROOT / "interface" / page).read_text(encoding="utf-8")
-            self.assertIn("voice.js", html, page)
+            self.assertIn(wants, html, page)
 
 
 class HisOwnDetailsAreNotAContactCase(unittest.TestCase):

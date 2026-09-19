@@ -147,7 +147,7 @@ class WallCase(unittest.TestCase):
 
     def setUp(self):
         from aletheia.fleet import REPO_ROOT
-        self.html = (REPO_ROOT / "interface" / "index.html").read_text(encoding="utf-8")
+        self.html = (REPO_ROOT / "interface" / "wall.html").read_text(encoding="utf-8")
 
     def test_the_wall_renders_the_local_block(self):
         self.assertIn('id="presence"', self.html)

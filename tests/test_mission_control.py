@@ -522,13 +522,15 @@ class AHandoffCardCanBeAnswered(unittest.TestCase):
         self.assertIsNone(mc.needs_list([card(needs=[{"said": "x", "blocking": True}])], [])[0]["approval"])
 
     def test_the_page_posts_the_existing_approve_and_deny_commands_and_nothing_new(self):
-        html = (Path(mc.__file__).resolve().parent.parent / "interface" / "command.html").read_text(encoding="utf-8")
-        self.assertIn("decisionButtons(n.approval)", html)
-        self.assertIn('{kind: "approve", id: k.dataset.approval}', html)
-        self.assertIn('{kind: "deny", id: k.dataset.approval', html)
-        # through `post`, which is /api/command - no second approval route
-        self.assertNotIn("/api/approve", html)
-        self.assertNotIn("/api/handoff", html)
+        js = (Path(mc.__file__).resolve().parent.parent / "interface"
+              / "thea-app.js").read_text(encoding="utf-8")
+        self.assertIn("decisionButtons(n.approval)", js)
+        self.assertIn('kind: "approve"', js)
+        self.assertIn('kind: "deny"', js)
+        # through T.command, which is /api/command - no second approval route
+        self.assertIn("T.command(", js)
+        self.assertNotIn("/api/approve", js)
+        self.assertNotIn("/api/handoff", js)
 
 
 if __name__ == "__main__":

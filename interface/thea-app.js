@@ -37,6 +37,12 @@
     "NEEDS YOU": "needs", BLOCKED: "stuck", RUNNING: "working",
   };
   const FIRST_FEW = 5;
+  // The one command he will ever type because of this page. It is a single
+  // literal so a test can lift it out and check it actually parses: the
+  // previous version printed `aletheia.access mint`, which had started
+  // exiting with "the following arguments are required: label", and a dead
+  // end printed in a confident voice is worse than no instruction.
+  const MINT = "python -m aletheia.access mint phone --scope full";
 
   let timer = null;
   let lastMission = null;
@@ -117,7 +123,11 @@
     // content-bound. A phone that asks you to approve a hash is asking you
     // to guess — so the digest is still there, one tap down, and never the
     // headline.
-    const said = a.label || a.consequence || a.requested_action || "Something needs your yes";
+    // `label` is always something: the Core computes it with
+    // voice.approval_label, which strips ids and falls back to a phrase
+    // rather than to nothing. The digest is deliberately NOT in this chain
+    // — it is a fact about the thing, not a name for it.
+    const said = a.label || a.consequence || "She needs your yes on something";
     return '<div class="ask-card">' +
       "<h3>" + T.esc(said) + "</h3>" +
       (a.consequence && a.consequence !== said ? "<p>" + T.esc(a.consequence) + "</p>" : "") +
@@ -597,7 +607,7 @@
       const scan = r.devices
         ? "Scan this with your iPhone camera."
         : "Scan this with your iPhone camera. It will ask for a link code: run  " +
-          "python -m aletheia.access mint phone --scope full  and paste it below first.";
+          MINT + "  and paste it below first.";
       $("installWhy").textContent = r.url
         ? (r.why ? scan + " " + r.why : scan)
         : (r.why || "Tailscale isn't set up on this PC yet, so there is no address to scan.");

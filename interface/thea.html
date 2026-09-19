@@ -46,8 +46,12 @@ body{
 }
 button{border:0;background:none;cursor:pointer;font:inherit;color:inherit}
 a{color:var(--warm);text-decoration:underline;text-underline-offset:3px}
-h2{margin:0 0 12px;font-size:12px;font-weight:600;letter-spacing:.1em;
-   text-transform:uppercase;color:var(--warm-faint)}
+/* Sentence case, not shouted. Small capitals are the HUD register this
+   page is deliberately not in — and the collector's own state vocabulary
+   (NEEDS YOU, ACTING, IDLE) is shouted, so a heading that shouts too makes
+   the two indistinguishable. */
+h2{margin:0 0 12px;font-size:12.5px;font-weight:600;letter-spacing:.07em;
+   color:var(--warm-faint)}
 section{margin-bottom:26px;min-width:0}
 [hidden]{display:none!important}
 
@@ -214,8 +218,8 @@ main{display:grid;gap:0 26px;max-width:1180px;margin:0 auto}
 .drawer[open] > summary::before{content:"▾ "}
 .drawer .inner{padding:0 18px 20px;display:grid;gap:22px}
 @media(min-width:900px){.drawer .inner{grid-template-columns:1fr 1fr}}
-.drawer h3{margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:.1em;
-  text-transform:uppercase;color:var(--warm-faint)}
+.drawer h3{margin:0 0 8px;font-size:12.5px;font-weight:600;letter-spacing:.07em;
+  color:var(--warm-faint)}
 .drawer .block{min-width:0}
 .drawer p, .drawer .mono{font-size:13.5px;line-height:1.5;color:var(--warm-dim);
   margin:0 0 8px;overflow-wrap:anywhere}

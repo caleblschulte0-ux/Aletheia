@@ -71,7 +71,7 @@ class TheWallCase(unittest.TestCase):
         handler = functools.partial(Quiet, directory=str(cls.room))
         cls.srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
         threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
-        cls.url = f"http://127.0.0.1:{cls.srv.server_address[1]}/interface/index.html"
+        cls.url = f"http://127.0.0.1:{cls.srv.server_address[1]}/interface/wall.html"
         cls.body, cls.errors = cls._render()
 
     @classmethod
