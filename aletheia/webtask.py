@@ -299,10 +299,27 @@ OBSERVE_JS = r"""() => {
       : (el.type === 'submit' && document.querySelectorAll(bySubmit).length === 1
           ? bySubmit : path(el));
     if (!selector) continue;
+    // WHAT THE PAGE SAYS THIS CONTROL IS. An <a role=button href="/about-us">
+    // in a site's header is how careers sites draw their navigation, and
+    // without its address and its seat in the <nav> it reads exactly like a
+    // form's submit button - which is how "press 'About Us'" reached him as
+    // an approval (live 2026-09-19, Grainger). `page_state.control_kind`
+    // reads these; none of them can turn a committing label harmless.
+    const btnType = (el.getAttribute('type') || '').toLowerCase();
+    const btnHref = (el.getAttribute('href') || '').trim();
+    const btnChrome = el.closest('nav, header, footer, [role=navigation], [role=menubar],'
+                                + ' [role=banner], [role=contentinfo], [role=search]');
+    const btnOpen = el.getAttribute('aria-expanded');
     // A button drawn as an empty box with its name in aria-label (Workday's
     // "Create Account" is a click-filter div, live 2026-09-17).
     buttons.push({selector, text: ((el.innerText || '').trim() || el.value || el.getAttribute('aria-label')
                                    || el.title || '').trim().slice(0,70),
+                  ...(btnType ? {type: btnType} : {}),
+                  ...(btnHref ? {href: btnHref.slice(0, 200)} : {}),
+                  ...(btnChrome ? {nav: true} : {}),
+                  ...(el.closest('form') ? {in_form: true} : {}),
+                  ...(btnOpen !== null ? {expanded: btnOpen === 'true'} : {}),
+                  ...(el.getAttribute('aria-haspopup') ? {haspopup: true} : {}),
                   ...(el.closest('#onetrust-consent-sdk, #onetrust-pc-sdk, #CybotCookiebotDialog, #usercentrics-root, #truste-consent-track, #didomi-host, .osano-cm-window, .cc-window, [id*="cookie" i], [class*="cookie" i], [aria-label*="cookie" i], [id*="consent-banner" i], [class*="consent-banner" i], [id*="tracking-consent" i], [class*="tracking-consent" i]') ? {consent: true} : {})});
     if (buttons.length > 30) break;
   }

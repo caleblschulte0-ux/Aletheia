@@ -123,7 +123,8 @@ class OnlyHisRefusalsAreSpokenCase(unittest.TestCase):
         said = intents.spoken(self.plan(self.INTERNAL))
         self.assertNotIn("audio.route", said)
         self.assertNotIn("claim ignored", said)
-        self.assertIn("1 step ready", said)
+        self.assertIn("Play music", said)
+        self.assertIn("Nothing happens until you do", said)
 
     def test_a_refusal_that_is_about_HIM_is_always_spoken(self):
         from aletheia import webtask

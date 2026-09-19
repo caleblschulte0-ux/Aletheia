@@ -337,23 +337,37 @@ def _next_occurrence_iso(hhmm: str, *, bare_hour: bool = False,
 
 
 def _status_say() -> str:
+    """"What's going on?", answered the way a person answers it.
+
+    It read the dashboard out loud: **"1 fleet alert. 0 live tasks."**
+    Three things wrong in six words. Nobody says zero of anything — an
+    absent thing is not news, it is the absence of news. "Fleet alert" is
+    a word off a screen he is not looking at. And neither half answers
+    what he asked, which is what is HAPPENING, not how many rows are in
+    two tables.
+
+    So: what she is doing, then what is waiting on him, then the honest
+    "nothing" when that is really the answer. A count survives only where
+    it is the fact ("two tasks running"), never as a tally of nothing.
+    """
+    from aletheia import quick, speech
     from aletheia.core import status_payload  # late import; core imports us too
     s = status_payload()
-    parts = []
     if s["halted"]:
-        parts.append("I am HALTED — nothing acts until you say resume.")
+        return "I'm halted — nothing acts until you say resume."
+    parts = [quick.doing_words()]
+    pending = s["approvals_pending"]
+    if pending and "waiting on you" not in parts[0]:
+        parts.append(f"{speech.count_phrase(len(pending), 'thing')} needs your "
+                     "yes — approve it on your phone or at the keyboard; the "
+                     "routine ones I can take by voice.")
+    live = s["tasks"]["live"]
+    if live:
+        parts.append(f"{speech.count_phrase(live, 'task')} still running.")
     alerts = s["pulse"].get("alerts")
     if alerts:
-        parts.append(f"{alerts} fleet alert{'s' if alerts != 1 else ''}.")
-    live = s["tasks"]["live"]
-    parts.append(f"{live} live task{'s' if live != 1 else ''}.")
-    pending = s["approvals_pending"]
-    if pending:
-        parts.append(f"{len(pending)} approval{'s' if len(pending) != 1 else ''} "
-                     "waiting on you — approve them on your phone; the routine "
-                     "ones I can take by voice.")
-    if not s["halted"] and not alerts and not pending:
-        parts.append("All quiet.")
+        parts.append(f"{speech.count_phrase(alerts, 'thing')} in your "
+                     "repositories needs looking at.")
     return " ".join(parts)
 
 
@@ -364,36 +378,20 @@ def _status_say() -> str:
 # that are already durable local state. Deterministic is also more honest
 # here — it reports what the stores contain, with nothing to invent.
 def _attention_say() -> str:
-    """Read the durable attention queues locally; no model is needed."""
-    from aletheia import current_state
-    from aletheia.core import status_payload  # late import; core imports us too
+    """"What needs my attention" — the SAME answer as "what's waiting on me".
 
-    state = current_state.snapshot()
-    needs = state["needs_attention"]
-    parts = []
-    if state["halted"]:
-        parts.append("I am halted — nothing acts until you say resume.")
-    alerts = status_payload()["pulse"].get("alerts") or 0
-    if alerts:
-        parts.append(f"{alerts} fleet alert{'s' if alerts != 1 else ''}.")
-    for key, singular in (
-        ("pending_approvals", "approval waiting on you"),
-        ("waiting_operator", "task waiting on you"),
-        ("blocked_tasks", "blocked task"),
-        ("overdue_replies", "overdue reply"),
-    ):
-        count = len(needs[key])
-        if count:
-            plural = singular if count == 1 else (
-                singular.replace("approval", "approvals")
-                .replace("task", "tasks")
-                .replace("reply", "replies")
-            )
-            parts.append(f"{count} {plural}.")
-    unread = needs["unread_notifications"]
-    if unread:
-        parts.append(f"{unread} unread notification{'s' if unread != 1 else ''}.")
-    return " ".join(parts) or "Nothing needs your attention right now."
+    These were two questions with two implementations reading two
+    different sets of stores, and they disagreed: this one counted rows
+    ("1 approval waiting on you. 2 blocked tasks. 3 unread
+    notifications.") while the other named the thing. Two answers to one
+    question is how he learns to ask both and trust neither.
+
+    `quick._waiting` reads the one needs-you list, so there is one
+    implementation of "is anything sitting on me" and a row can only be
+    missing from both places or neither.
+    """
+    from aletheia import quick
+    return quick._waiting()
 
 
 # The days a weekly reminder can name, for the deterministic path.
@@ -2258,6 +2256,71 @@ def _how_long_ago(approval: dict) -> str:
     return "a few minutes ago"
 
 
+#: An application approval's id is `<run id>-submit`, and the run id is
+#: `apply-<tag of the url>`. The record beside it knows the employer.
+_APPLICATION_APPROVAL = "-submit"
+
+
+def _application_label(approval: dict) -> str:
+    """"Analyst at Notion", never "Submit an application at <a link>".
+
+    Never raises and never guesses: an unreadable record, or one that
+    knows neither the employer nor the role, falls back to whatever the
+    rest of `approval_label` would have said.
+    """
+    approval_id = str((approval or {}).get("id") or "")
+    if not approval_id.endswith(_APPLICATION_APPROVAL):
+        return ""
+    try:
+        from aletheia import apply_run
+        record = apply_run.load_run(approval_id[:-len(_APPLICATION_APPROVAL)])
+        if not (record.get("company") or record.get("job_title")):
+            return ""
+        return speech.for_the_room(apply_run.describe(record))[:80]
+    except Exception:
+        return ""
+
+
+#: A browser mission's approval id is `<mission id>--g<n>-commit-<digest>`
+#: (`browser_loop._gate`). The mission beside it knows what it is about.
+_MISSION_APPROVAL = re.compile(r"^(?P<mission>.+?)--g\d+-commit-[0-9a-f]+$")
+
+
+def _mission_label(approval: dict) -> str:
+    """"'Create Account' for Account Manager II at PNC", never "apply for
+    this job".
+
+    Sixteen of his thirty-eight pending approvals came from the browser
+    loop on 2026-09-19, and every one of them said "apply for this job"
+    and named no employer and no role — while the mission's own record
+    knew both. `_application_label` does this for the form filler's
+    approvals from the apply record; this does it for the loop's from the
+    mission, which is the other half of the same list.
+
+    Never raises and never guesses: a mission it cannot read, or a skill
+    that cannot name its subject, says nothing and the rest of
+    `approval_label` speaks as before.
+    """
+    hit = _MISSION_APPROVAL.match(str((approval or {}).get("id") or ""))
+    if not hit or str(approval.get("capability") or "") != "web.commit":
+        return ""
+    try:
+        # Importing the job skill is also what registers it, so a mission
+        # that ran with it is findable by the name on its record.
+        from aletheia import browser_loop, browser_mission, job_skill  # noqa: F401
+        record = browser_mission.load(hit.group("mission"))
+        about = browser_loop.skill_named(record.get("skill")).subject(record)
+        if not about:
+            return ""
+        button = " ".join(str((record.get("gate") or {}).get("button") or "").split())
+        # `shorten`, never `said[:80]`: a headline cut mid-word ("...Large Cor")
+        # is the thing CLAUDE.md already names as the wrong way to do this.
+        return speech.shorten(
+            speech.for_the_room(f"press {button!r} for {about}" if button else about), 80)
+    except Exception:
+        return ""
+
+
 def approval_label(approval: dict) -> str:
     """What this approval is, in words he would recognise."""
     from aletheia import speech
@@ -2274,6 +2337,18 @@ def approval_label(approval: dict) -> str:
     if capability == "agent.delegate" or action.startswith("delegate"):
         return "the work order"
 
+    # AN APPLICATION IS NAMED BY THE EMPLOYER AND THE ROLE, always.
+    # Half of them said "Apply: <page title> — <url>" and the other half
+    # "Submit an application at <url>", depending on which path staged
+    # them — so the same list showed him two shapes, and one of them was
+    # a link where a company should be. The employer and the job title
+    # are on the application RECORD, whose id prefixes the approval's,
+    # and `apply_run.describe` is already the one sentence that names an
+    # application the way he would.
+    said = _application_label(approval) or _mission_label(approval)
+    if said:
+        return said
+
     # WHAT WILL HAPPEN beats both the reason and a category. The
     # consequence is the plan's own summary of what it will do, which is
     # the thing he is deciding about; the reason on an intent approval is
@@ -2288,15 +2363,19 @@ def approval_label(approval: dict) -> str:
     # the consequential one was the nameless one.
     said = speech.tidy(speech.strip_ids(str(approval.get("consequence", ""))))
     if said and said.lower() not in ("see the plan", "unknown"):
-        return said[:80]
+        # NOT `said[:80]`. On his screen that read "It presses a button that
+        # says 'Create Account'. That is not something she can un" — cut
+        # mid-word, as the headline of a decision he cannot undo.
+        # `speech.shorten` exists for exactly this and cuts at a space.
+        return speech.shorten(said, 80)
     if capability == "calendar.write" or action.startswith("calendar.write"):
         return "the calendar booking"
     if capability.startswith("intent.execute"):
         return "the plan"
     reason = speech.tidy(speech.strip_ids(_unwrap(str(approval.get("reason", "")))))
     if reason:
-        return reason[:80]
-    return speech.tidy(speech.strip_ids(action))[:60] or "the pending one"
+        return speech.shorten(reason, 80)
+    return speech.shorten(speech.tidy(speech.strip_ids(action)), 60) or "the pending one"
 
 
 # The room microphone is an INPUT device, not an authentication device
@@ -2392,6 +2471,50 @@ _WRAPPERS = re.compile(
     r'^\s*operator said:\s*"?|^\s*(?:spoken to the wall|typed into the '
     r'command center|relayed by chatgpt):\s*|^\s*thea[,: ]\s*|"\s*$',
     re.I)
+
+
+#: A URL inside a sentence he is deciding about. He does not need the path,
+#: the query or the tracking token in it — he needs to know which site.
+_URL_IN_A_SENTENCE = re.compile(r"https?://([^\s/]+)\S*")
+#: What a sentence is left dangling on when the URL it ended with is removed.
+_DANGLING = {"at", "to", "on", "for", "from", "in", "with", "via"}
+
+
+def approval_about(approval: dict) -> str:
+    """WHICH one — the line that tells two approvals apart. "" when the
+    reason says nothing the label has not already said.
+
+    Live on his machine, 2026-09-19: thirty-eight pending approvals, every
+    one of them reading *"It sends your application to this employer under
+    your name. There is no undo."* That consequence is true, it is the
+    right headline, and it is identical for all thirty-eight — so the
+    screen asked him to make thirty-eight irreversible decisions with
+    nothing on it to tell them apart. The job and the employer were in
+    `reason` the whole time, under a transport wrapper and behind a
+    tracking URL, which is exactly why `approval_label` does not use it.
+
+    So this is the sub-line and never the headline: his words with the
+    wrapper peeled off and ids stripped, a URL reduced to its host and
+    kept only when dropping it would leave the sentence hanging on a
+    preposition. Nothing is invented, nothing is decided, and a reason
+    that only repeats the label returns "" rather than saying it twice.
+    """
+    from aletheia import speech
+    said = speech.tidy(speech.strip_ids(_unwrap(str(approval.get("reason", "")))))
+    if not said:
+        return ""
+    bare = " ".join(_URL_IN_A_SENTENCE.sub(" ", said).split()).rstrip(",;:-— ")
+    words = bare.split()
+    if words and words[-1].lower().strip(",;:-—") not in _DANGLING:
+        said = bare
+    else:
+        said = " ".join(
+            _URL_IN_A_SENTENCE.sub(lambda m: " " + m.group(1), said).split())
+    label = approval_label(approval).lower()
+    meaningful = [w for w in re.findall(r"[a-z0-9]+", said.lower()) if len(w) > 3]
+    if meaningful and all(w in label for w in meaningful):
+        return ""                      # it would say the same thing twice
+    return said[:120]
 
 
 def _unwrap(reason: str) -> str:

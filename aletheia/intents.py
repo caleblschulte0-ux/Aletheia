@@ -544,8 +544,8 @@ def _own_model_line(record: dict) -> str:
     """
     if not record.get("compiled_by"):
         return ""
-    return ("Claude and Codex are out, so I planned this with "
-            f"{record['compiled_by']}. ")
+    from aletheia import reasoner
+    return f"{reasoner.big_models_out()}, so I planned this one myself. "
 
 
 def spoken(record: dict) -> str:
@@ -589,7 +589,9 @@ def spoken(record: dict) -> str:
             # and does not carry one: live on 2026-09-18 the room would have
             # heard "switched off for this run It's on my list", which is one
             # run-on sentence out loud.
-            said = said.rstrip(" .,;") + ". It's on my list, and I'll pick it up when Claude or Codex is back."
+            said = (said.rstrip(" .,;")
+                    + ". It's on my list, and I'll pick it up when the big "
+                      "models are back.")
         return speech.tidy(said)
     if record.get("intent") == "clarify":
         # Through the sieve like everything else she says. A clarifying
@@ -659,9 +661,19 @@ def spoken(record: dict) -> str:
         # And no approval id: §145, he approves by saying "approve", and
         # a hex string read out loud is a handle he cannot hold in his
         # head — while the sentence went on to tell him to say it back.
-        ready = speech.count_phrase(len(runnable), "step") + " ready"
+        # NOT A ROW COUNT. "1 step ready — Cancel the task to call the
+        # plumber. Say approve to run it." is three pieces of bookkeeping
+        # around one fact, and the fact arrives second. He is being asked
+        # to authorise something: the sentence has to say what will happen
+        # TO HIM if he says yes, first, in his own words — and the number
+        # of internal steps is not something he can act on. It survives
+        # only where it is really news, which is when there is more than
+        # one of them.
         summary = speech.spoken_prose(str(record.get("summary") or ""))
-        said = f"{ready} — {summary}." if summary else f"{ready}."
+        more = (f" That's {speech.count_phrase(len(runnable), 'step')}."
+                if len(runnable) > 1 else "")
+        said = (f"Here's what I'd do: {summary.rstrip('.')}.{more}" if summary
+                else f"I have {speech.count_phrase(len(runnable), 'step')} ready.")
         labels = [label for bound in record.get("presses") or []
                   for label in bound.get("presses") or []]
         if labels:
@@ -673,8 +685,8 @@ def spoken(record: dict) -> str:
             # A standing grant already covered it, so there is nothing for
             # him to approve — and "say approve to run it" would send him
             # looking for a decision that has already been made.
-            parts.append(said + " Your standing authority covers it, so it "
-                                "runs on the next beat.")
+            parts.append(said + " You already said yes to small things like "
+                                "this, so I'll get on with it.")
         else:
             # ...but voice may approve only the ROUTINE tier (2026-09-03:
             # the room microphone is an input device, not an authentication
@@ -686,9 +698,15 @@ def spoken(record: dict) -> str:
             # it as one took "say approve" away from every caller that
             # does not set it.
             tier = record.get("tier")
-            how = ("Approve it on your phone or at the keyboard to run it."
+            # And say what happens if he does NOTHING, which is the half
+            # of an approval he was never told: "say approve to run it"
+            # describes the yes and leaves the no as something he has to
+            # infer. Nothing is the safe answer here, and it should sound
+            # like one rather than like a thing he has forgotten to do.
+            how = ("Say yes on your phone or at the keyboard and I'll do it. "
+                   "Nothing happens until you do."
                    if tier and tier != intercom.TIER_ROUTINE
-                   else "Say approve to run it.")
+                   else "Say approve and I'll do it. Nothing happens until you do.")
             parts.append(said + " " + how + _why_it_asks(record))
     if gaps_named:
         parts.append(_cannot_yet(gaps_named, record))

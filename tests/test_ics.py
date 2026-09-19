@@ -96,7 +96,7 @@ class TestMirroring(IcsCase):
     def test_unsupported_rrule_raises_a_notification(self):
         self.refresh()
         notes = notifications.all_notifications()
-        self.assertTrue(any("recurrence" in n["body"] for n in notes))
+        self.assertTrue(any("repeating events" in n["body"] for n in notes))
 
     def test_cancelled_upstream_never_mirrors(self):
         self.refresh()

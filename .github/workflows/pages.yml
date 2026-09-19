@@ -5,8 +5,8 @@ name: pages
 # touch repository settings.
 #
 # Published surface is deliberately narrow: the wall + the pulse JSON it
-# reads. The Command Center is NOT published — it is a command surface and
-# belongs only to the loopback-bound local Core.
+# reads. The Thea page is NOT published — it is a command surface and
+# belongs only to the local Core, behind loopback or a minted token.
 
 on:
   workflow_run:
@@ -40,7 +40,7 @@ jobs:
       - name: Assemble the published site (wall + pulse only)
         run: |
           mkdir -p site/interface site/state/pulse
-          cp interface/index.html site/interface/index.html
+          cp interface/wall.html site/interface/index.html
           cp state/pulse/latest.json site/state/pulse/latest.json
           # root redirect so the bare Pages URL lands on the wall
           cat > site/index.html <<'HTML'

@@ -282,7 +282,8 @@ class TheChainCase(Clean):
             ask()
         lines = [c for c in self.journal.call_args_list if "job hunt" in str(c)]
         self.assertEqual(len(lines), 1)
-        self.assertIn("Codex", str(lines[0]))
+        self.assertIn("other subscription", str(lines[0]))
+        self.assertNotIn("Codex", str(lines[0]))
 
     def test_subscription_json_keeps_its_contract(self):
         """Everything else - code included - is still Claude then the browser."""

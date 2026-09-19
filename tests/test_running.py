@@ -48,7 +48,10 @@ class TheHeadlineSaysTheThingCase(unittest.TestCase):
     """He should not have to read a table to learn whether she is on."""
 
     def test_everything_up(self):
-        self.assertEqual(running.headline(state()), "ON. Everything is running.")
+        # The RULE, not the string. It used to read "ON. Everything is
+        # running." — a status board said out loud, where the first word
+        # he hears is a state and not an answer.
+        self.assertEqual(running.headline(state()), "Everything's running.")
 
     def test_a_microphone_he_left_off_is_not_a_missing_part(self):
         """The default state, and it must not read as a fault.
@@ -59,44 +62,48 @@ class TheHeadlineSaysTheThingCase(unittest.TestCase):
         hid behind "ON. Everything is running."
         """
         said = running.headline(state(parts=down("voice"), listening=False))
-        self.assertTrue(said.startswith("ON."), said)
+        self.assertTrue(said.startswith("Everything's running."), said)
         self.assertIn("microphone is off", said)
-        self.assertNotIn("PARTLY", said)
+        self.assertNotIn("except", said)
 
     def test_a_part_that_really_is_missing_still_reads_as_a_fault(self):
         """The exemption is the microphone and nothing else."""
         said = running.headline(state(parts=down("core"), listening=True))
-        self.assertIn("PARTLY ON", said)
-        self.assertIn("core", said)
+        self.assertIn("except", said)
+        # ...and says what being without it COSTS him, which is the half
+        # of "PARTLY ON — running, but core is not" that was missing.
+        self.assertIn("nothing I do works until it is back", said)
 
     def test_closed_and_stopped_is_plainly_off(self):
         said = running.headline(state(closed=True, parts=down("supervisor", "core", "voice")))
-        self.assertTrue(said.startswith("OFF"), said)
+        self.assertIn("closed", said.lower())
+        self.assertIn("nothing of mine is running", said)
 
     def test_closed_while_parts_are_still_winding_down_says_so(self):
         """Closing is not instant — the Core finishes what it is holding.
         Reporting OFF while three processes are alive would be the same
         lie in the other direction."""
         said = running.headline(state(closed=True))
-        self.assertIn("CLOSED", said)
-        self.assertIn("still running", said)
+        self.assertIn("closed", said.lower())
+        self.assertIn("stop within a few seconds", said)
 
     def test_nothing_running_but_not_closed_is_not_hidden(self):
         said = running.headline(state(parts=down("supervisor", "core", "voice")))
-        self.assertIn("OFF", said)
-        self.assertIn("not marked closed", said)
+        self.assertIn("Nothing of mine is running", said)
+        self.assertIn("haven't closed me", said)
 
     def test_halted_is_not_reported_as_off(self):
         """HALT and closed are different things and always have been. A
         halted Aletheia is RUNNING and refusing to act; calling that "off"
         would send him looking for the wrong switch."""
         said = running.headline(state(halted=True))
-        self.assertIn("HALTED", said)
-        self.assertNotIn("OFF", said)
+        self.assertIn("halted", said.lower())
+        self.assertIn("resume", said)
+        self.assertNotIn("nothing of mine is running", said.lower())
 
     def test_one_part_missing_is_not_reported_as_on(self):
         said = running.headline(state(parts=down("voice")))
-        self.assertIn("PARTLY ON", said)
+        self.assertIn("except", said)
         self.assertIn("voice", said)
 
 
@@ -395,18 +402,19 @@ class SheIsRunningOldCodeCase(unittest.TestCase):
         """"ON. Everything is running." is the exact sentence that hid
         this for three days."""
         said = running.headline(state(running_old_code=True))
-        self.assertIn("OLDER CODE", said)
-        self.assertNotIn("Everything is running", said)
+        self.assertIn("older code", said)
+        self.assertIn("Restart me", said)
+        self.assertNotEqual(said, "Everything's running.")
 
     def test_a_healthy_current_core_still_reads_simply(self):
         said = running.headline(state(running_old_code=False))
-        self.assertEqual(said, "ON. Everything is running.")
+        self.assertEqual(said, "Everything's running.")
 
     def test_not_knowing_does_not_raise_the_alarm(self):
         """A warning that fires when she cannot tell would be noise, and
         noise is how a real warning gets ignored."""
         said = running.headline(state(running_old_code=None))
-        self.assertEqual(said, "ON. Everything is running.")
+        self.assertEqual(said, "Everything's running.")
 
     def test_the_words_name_the_file_and_the_fix(self):
         info = {"branch": "main", "commit": "abc1234", "subject": "a change",

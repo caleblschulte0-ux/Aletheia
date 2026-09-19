@@ -522,13 +522,94 @@ class AHandoffCardCanBeAnswered(unittest.TestCase):
         self.assertIsNone(mc.needs_list([card(needs=[{"said": "x", "blocking": True}])], [])[0]["approval"])
 
     def test_the_page_posts_the_existing_approve_and_deny_commands_and_nothing_new(self):
-        html = (Path(mc.__file__).resolve().parent.parent / "interface" / "command.html").read_text(encoding="utf-8")
-        self.assertIn("decisionButtons(n.approval)", html)
-        self.assertIn('{kind: "approve", id: k.dataset.approval}', html)
-        self.assertIn('{kind: "deny", id: k.dataset.approval', html)
-        # through `post`, which is /api/command - no second approval route
-        self.assertNotIn("/api/approve", html)
-        self.assertNotIn("/api/handoff", html)
+        js = (Path(mc.__file__).resolve().parent.parent / "interface"
+              / "thea-app.js").read_text(encoding="utf-8")
+        # The page reads `/api/needs` now, where an approval arrives as a
+        # row carrying its own id — so the buttons are bound to THAT id
+        # and post the same two commands the Core has always taken.
+        self.assertIn("decisionButtons(n.id)", js)
+        self.assertIn('n.kind === "approval"', js)
+        self.assertIn('kind: "approve"', js)
+        self.assertIn('kind: "deny"', js)
+        # through T.command, which is /api/command - no second approval route
+        self.assertIn("T.command(", js)
+        self.assertNotIn("/api/approve", js)
+        self.assertNotIn("/api/handoff", js)
+
+
+class ALineHeIsGOINGToReadHasNoDigestInIt(unittest.TestCase):
+    """The journal is written for the journal. `policy` records an approval
+    as "Requested - browser.interact:9f3c1d2e4b5a6c7d8e9f" and the ribbon
+    put that on his screen, sha and all — beside a card whose whole point
+    was that he should never have to read one.
+
+    `speech.strip_ids` was already the rule for anything SPOKEN. A screen he
+    reads is the same promise, and the receipt one tap behind the line still
+    carries every identifier."""
+
+    def rib(self, text, kind="action"):
+        rows = mc.ribbon(journal_entries=[
+            {"ts": ago(1), "kind": kind, "subject": "policy", "text": text}])
+        return rows[0]["said"] if rows else ""
+
+    def test_a_sha_bound_approval_line_loses_the_sha(self):
+        said = self.rib("Requested - browser.interact:9f3c1d2e4b5a6c7d8e9f0a1b")
+        self.assertNotIn("9f3c1d2e", said)
+        self.assertIn("Requested", said)
+
+    def test_a_capitalised_id_goes_too(self):
+        """The line has been through `_sentence` by then, so the id it
+        starts with has already had its first letter capitalised and walks
+        past a pattern anchored on a lower-case letter."""
+        self.assertEqual(self.rib("fu-5cec57934c: PENDING"), "PENDING")
+
+    def test_a_private_state_id_goes_too(self):
+        self.assertNotIn("intent-0a06bbb663",
+                         self.rib("Approved intent-0a06bbb663"))
+
+    def test_the_words_around_it_survive(self):
+        self.assertEqual(self.rib("Created - call the plumber"),
+                         "Created - call the plumber")
+
+    def test_a_model_is_never_named_the_way_a_machine_names_it(self):
+        """Both of his rules hold at once: he does not read a model name in
+        normal use, and her own answers still say whose they are — as long
+        as the sentence says it is HERS rather than naming a vendor and a
+        parameter count."""
+        for machine in ("ollama:qwen3:8b", "subscription.auto", "local.deep"):
+            with self.subTest(machine):
+                self.assertNotIn(machine, self.rib("Answered with " + machine))
+
+    def test_the_word_a_person_would_say_survives(self):
+        """`speech` and `reasoner` say "Claude's out, so this answer is from
+        my own model" on purpose. That is wording, not an identifier, and it
+        is the other half of the same honesty."""
+        said = self.rib("Claude is out, so this answer is from my own model")
+        self.assertIn("my own model", said)
+
+    def test_a_tracking_url_becomes_the_site_it_names(self):
+        """He is reading, not clicking, and the query string is three lines
+        of his phone saying what the host already said."""
+        said = self.rib("A human check is in the way at "
+                        "https://jobs.example.com/en/job/-/-/47263/9969?sid=3e60")
+        self.assertIn("jobs.example.com", said)
+        self.assertNotIn("sid=", said)
+        self.assertNotIn("https", said)
+
+    def test_text_stored_escaped_is_not_rendered_escaped(self):
+        """A job title scraped off a careers page arrives as "Account
+        Manager, Gov&apos;t", and that is exactly what he read."""
+        self.assertIn("Gov't", self.rib("Account Manager, Gov&apos;t needs you"))
+
+    def test_a_provider_line_goes_through_the_same_door(self):
+        """Three writers feed this list; a digest is a digest whichever
+        one put it there."""
+        rows = mc.ribbon(journal_entries=[], extra=[
+            {"at": ago(1), "tone": "info", "what": "Applications",
+             "said": "Sent apply-08781773 to Flexport",
+             "receipt": {"kind": "application", "id": "apply-08781773"}}])
+        self.assertNotIn("08781773", rows[0]["said"])
+        self.assertIn("Flexport", rows[0]["said"])
 
 
 if __name__ == "__main__":

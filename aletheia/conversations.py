@@ -906,7 +906,8 @@ def _still_open(thread: dict) -> list[dict]:
 def _tell(title: str, body: str, key: str) -> None:
     try:
         from aletheia import notifications
-        notifications.publish(title, body, priority="IMPORTANT", source="conversations", dedupe_key=key)
+        notifications.publish(title, body, priority="IMPORTANT", source="conversations",
+                              about=notifications.CHANGED, dedupe_key=key)
     except Exception:  # noqa: BLE001
         pass
 

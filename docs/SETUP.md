@@ -49,8 +49,10 @@ Linux and Windows test suites remain GitHub CI's job.
 
 After success:
 
-- Wall: http://127.0.0.1:8777/
-- Command Center: http://127.0.0.1:8777/command.html
+- Thea: http://127.0.0.1:8777/
+- The ambient fleet wall: http://127.0.0.1:8777/interface/wall.html
+- On your phone: open the drawer at the bottom of the Thea page and scan
+  the code with the camera
 - Room voice: say a **full command**, e.g. *"Thea, what needs my attention?"*
 
 The Core and room voice are watchdog-backed Windows tasks, so they survive

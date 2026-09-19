@@ -76,8 +76,18 @@ RIBBON_LIMIT = 40
 GATHER_CACHE_S = 5.0
 _GATHERED: dict[str, Any] = {"at": 0.0, "value": None}
 
-#: Journal subjects that are plumbing, not something she did for him.
-NOISE_SUBJECTS = frozenset({"formfill", "workspace:read", "calendar:refresh", "quick", "desktop"})
+def _noise() -> tuple:
+    """Journal subjects that are plumbing, not something she did for him.
+
+    ONE list, in `recollection`, because the same journal is read twice —
+    here for the screen and there for "what have you been doing" out loud
+    — and a subject that is noise in one is noise in the other. Two copies
+    drifted: the spoken answer read out "formfill: read 225 fields" and
+    this one did not.
+    """
+    from aletheia import recollection
+    return (frozenset(recollection.PLUMBING_HEADS),
+            frozenset(recollection.PLUMBING_SUBJECTS))
 
 #: What the ribbon calls each part of her, in words. Providers add theirs.
 SUBJECT_LABELS = {
@@ -140,6 +150,19 @@ def _plural(n: int, word: str, plural: str | None = None) -> str:
 def _sentence(text: object, limit: int = 220) -> str:
     said = _words(text, limit)
     return (said[:1].upper() + said[1:]) if said else ""
+
+
+def no_ids(text: object) -> str:
+    """A ribbon line with the machine taken out of it — `speech.for_reading`.
+
+    The journal is written for the journal: `policy` records an approval as
+    "Requested - browser.interact:9f3c1d2e…", and the ribbon put that on his
+    screen verbatim, sha and all, beside a card whose whole point was that
+    he never has to read one. It is `speech`'s door because the same lines
+    reach him by ear through `needs_you`, and two cleaners drift.
+    """
+    from aletheia import speech
+    return speech.for_reading(text)
 
 
 # ---- the provider registry ----------------------------------------------------------
@@ -589,24 +612,31 @@ def ribbon(*, journal_entries: Iterable[dict], sessions: Iterable[dict] = (), ex
     names = dict(SUBJECT_LABELS)
     names.update(labels or {})
     skip = set(skip_subjects)
+    noise_heads, noise_subjects = _noise()
     items: list[dict] = []
     for entry in journal_entries:
         subject = str(entry.get("subject") or "")
+        head = subject.split(":")[0]
         kind = str(entry.get("kind") or "")
-        if subject in NOISE_SUBJECTS or (subject == "access" and kind != "alert"):
+        if (head in noise_heads or subject in noise_subjects
+                or (subject == "access" and kind != "alert")):
             continue
         if subject in skip and kind != "alert":
             continue
         said = _sentence(entry.get("text") or "")
         if not said or not entry.get("ts"):
             continue
-        head = subject.split(":")[0]
         items.append({"at": entry["ts"], "tone": "alert" if kind == "alert" else "info",
                       "what": names.get(subject) or names.get(head) or (head.capitalize() or "Journal"),
                       "said": said, "receipt": {"kind": "journal", "id": journal_id(entry)}})
     items.extend(session_lines(sessions))
     items.extend(i for i in extra if isinstance(i, dict) and i.get("at") and i.get("receipt"))
     items.sort(key=lambda i: str(i.get("at") or ""), reverse=True)
+    # ONE door for every line, whoever wrote it — the journal, a session
+    # receipt or a provider. A digest on his screen is a digest on his
+    # screen no matter which of the three put it there.
+    for item in items:
+        item["said"] = no_ids(item.get("said"))
     return items if limit is None else items[:max(0, int(limit))]
 
 

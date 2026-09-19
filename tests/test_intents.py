@@ -326,9 +326,13 @@ class IntentCase(unittest.TestCase):
             {"gap": "purchase.execute", "why": "cannot buy"},
             {"manual": "sign it"}]})
         said = intents.spoken(record)
-        self.assertIn("1 step ready", said)
+        # NOT "1 step ready". That froze a row count he cannot act on in
+        # front of the one fact he needs. The rule this protects is the
+        # test's own name: the sentence says what will HAPPEN, and how to
+        # let it happen.
         self.assertIn("file a task", said)
         self.assertIn("Say approve", said)
+        self.assertIn("Nothing happens until you do", said)
         self.assertNotIn(record["approval"], said)
         self.assertNotIn("purchase.execute", said)
         from aletheia import capabilities

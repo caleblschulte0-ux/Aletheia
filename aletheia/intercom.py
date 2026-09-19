@@ -2608,6 +2608,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "notify_operator":
         from aletheia import notifications
         notice = notifications.publish("Reminder", cmd["text"], priority="IMPORTANT",
+                                       about=notifications.NEEDS_YOU,
                                        source="reminder")
         return f"reminder surfaced: {notice['id']}"
     if kind == "watch_email_from":

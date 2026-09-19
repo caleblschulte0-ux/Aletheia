@@ -19,7 +19,7 @@ from pathlib import Path
 
 from aletheia import (act, attention, communications, desktop_notify, events, gaps,
                       handler, intercom, mail, notifications, policy, proactive,
-                      reservations, scheduler, subscriptions, tasks,
+                      reservations, scheduler, speech, subscriptions, tasks,
                       verification)
 from aletheia.pulse import PULSE_DIR
 from aletheia.stateio import private_dir, read_json, write_json_atomic
@@ -27,6 +27,36 @@ from aletheia.stateio import private_dir, read_json, write_json_atomic
 TERMINAL_TASKS = {"COMPLETED", "CANCELLED", "FAILED_TERMINAL"}
 EVENT_CURSOR = private_dir("runtime") / "event-cursor.json"
 PULSE_CURSOR = private_dir("runtime") / "pulse-cursor.json"
+
+
+# ------------------------------------------------- notices he has to read
+# A notification is READ OUT — by `announce` in the room, by the wall, by
+# the phone. Every body in this module used to be written for a log:
+# "https://boards.greenhouse.io/acme/jobs/41 — TimeoutError: Page.goto:
+# net::ERR_CONNECTION_RESET" is a perfectly good line in a file and
+# nothing at all out loud. The diagnosis is still in the journal with the
+# type and the traceback attached; these three say it in English.
+def _plain(text: object) -> str:
+    """A notification body, said the way a person would say it."""
+    return speech.for_the_room(str(text or ""))[:400]
+
+
+def _where(record: dict) -> str:
+    """Who this is with. A URL is not the name of a company."""
+    from urllib.parse import urlparse
+    name = str(record.get("company") or "").strip()
+    if name:
+        return name
+    try:
+        host = urlparse(str(record.get("url") or "")).netloc
+    except ValueError:
+        host = ""
+    return speech.say_url(host) if host else "the site"
+
+
+def _why_not(record: dict, exc: BaseException) -> str:
+    """A failure as a reason, not as a class name and a link."""
+    return _plain(f"{_where(record)} — {speech.plainly(str(exc))}")
 
 
 def _schedule_verification(spec: dict, receipt: dict) -> tuple[str | None, str | None]:
@@ -188,14 +218,14 @@ def evaluate_replies(*, now: dt.datetime | None = None) -> list[dict]:
             notifications.publish(
                 "Reply received", f"Tracked conversation {value['thread_id']} has a reply.",
                 priority="IMPORTANT", source="communications",
-                dedupe_key=f"reply:{value['id']}",
+                about=notifications.CHANGED, dedupe_key=f"reply:{value['id']}",
                 related={"expectation": value["id"]})
         elif new == "OVERDUE":
             notifications.publish(
                 "Reply overdue",
                 f"No tracked reply arrived before the deadline for {value['thread_id']}.",
                 priority="IMPORTANT", source="communications",
-                dedupe_key=f"overdue:{value['id']}",
+                about=notifications.CHANGED, dedupe_key=f"overdue:{value['id']}",
                 related={"expectation": value["id"]})
     return transitions
 
@@ -347,7 +377,7 @@ def _job_reply(event: dict) -> dict | None:
             f"{entry.get('company') or 'An employer'} wants to talk",
             f"{subject} — about {entry.get('job_title') or 'your application'}, "
             f"applied {str(entry.get('at') or '')[:10]}",
-            priority="IMPORTANT", source="apply",
+            priority="IMPORTANT", source="apply", about=notifications.CHANGED,
             dedupe_key=f"job-reply:{event.get('id')}",
             related={"application": entry.get("id"), "event": event.get("id"),
                      "url": url})
@@ -402,9 +432,9 @@ def process_new_events(*, now: dt.datetime | None = None,
                     continue
         for trigger in triggers:
             notifications.publish(
-                "Watched event",
-                f"{trigger['summary']} ({event['kind']}, {event['subject']})",
-                priority="IMPORTANT", source="watchers",
+                "Something you're watching happened",
+                _plain(trigger["summary"]),
+                priority="IMPORTANT", source="watchers", about=notifications.CHANGED,
                 dedupe_key=f"trigger:{trigger['watcher_id']}:{event['id']}",
                 related={"watcher": trigger["watcher_id"], "event": event["id"]})
             actions.append({"event": event["id"], "action": "watcher_notified",
@@ -416,9 +446,8 @@ def process_new_events(*, now: dt.datetime | None = None,
             kind = receipt["proposal"]["kind"]
             priority = receipt["proposal"].get("priority", "NORMAL")
             notifications.publish(
-                "Proactive: " + rule["id"],
-                f"{event['summary']} ({event['kind']}, {event['subject']})",
-                priority=priority, source="proactive",
+                "Worth knowing", _plain(event["summary"]),
+                priority=priority, source="proactive", about=notifications.CHANGED,
                 dedupe_key=f"proactive:{rule['id']}:{event['id']}",
                 related={"rule": rule["id"], "event": event["id"]})
             if kind == "enqueue":
@@ -609,6 +638,7 @@ def surface_due_tasks(*, now: dt.datetime | None = None) -> list[dict]:
                 + f" · task {task['id']}")
         notifications.publish(
             title, body, priority="IMPORTANT", source="tasks",
+            about=notifications.NEEDS_YOU,
             dedupe_key=f"task-due:{task['id']}:{today}",
             related={"task": task["id"]})
         out.append({"task": task["id"], "overdue": overdue})
@@ -658,7 +688,7 @@ def _settle_stuck_submits() -> list[dict]:
             notifications.publish(
                 "Check your email about an application",
                 (record.get("result") or {}).get("note", "")[:400],
-                priority="IMPORTANT", source="apply",
+                priority="IMPORTANT", source="apply", about=notifications.NEEDS_YOU,
                 dedupe_key=f"apply-unconfirmed:{record['id']}",
                 related={"application": record["id"]})
     return settled
@@ -715,7 +745,7 @@ def send_approved_applications() -> list[dict]:
             title, body, key = apply_run.his_ok_notice(record, kind)
             notifications.publish(
                 title, body,
-                priority="IMPORTANT", source="apply",
+                priority="IMPORTANT", source="apply", about=notifications.NEEDS_YOU,
                 dedupe_key=key,
                 related={"application": record["id"]})
             continue
@@ -742,9 +772,9 @@ def send_approved_applications() -> list[dict]:
                     because=f"{claim}: he said send stuff, nonstop")
             except Exception as exc:
                 notifications.publish(
-                    "An application could not be authorized",
-                    f"{record['url']} — {type(exc).__name__}: {exc}"[:400],
-                    priority="IMPORTANT", source="apply",
+                    "An application could not be sent",
+                    _why_not(record, exc),
+                    priority="IMPORTANT", source="apply", about=notifications.FAILED,
                     dedupe_key=f"apply-grant-failed:{record['id']}")
                 continue
         try:
@@ -769,14 +799,14 @@ def send_approved_applications() -> list[dict]:
                 continue            # nothing was pressed; the next beat tries again
             notifications.publish(
                 "An application could not be sent",
-                f"{record['url']} — {type(exc).__name__}: {exc}"[:400],
-                priority="IMPORTANT", source="apply",
+                _why_not(record, exc),
+                priority="IMPORTANT", source="apply", about=notifications.FAILED,
                 dedupe_key=f"apply-failed:{record['id']}")
             continue
         result = done.get("result", {})
         notifications.publish(
-            "Application sent", f"{record['url']} — {result.get('note', '')}"[:400],
-            priority="IMPORTANT", source="apply",
+            "Application sent", _plain(f"{_where(record)} — {result.get('note', '')}"),
+            priority="IMPORTANT", source="apply", about=notifications.ROUTINE,
             dedupe_key=f"apply-sent:{record['id']}",
             related={"application": record["id"]})
         sent.append({"application": record["id"], "url": record["url"],
@@ -827,9 +857,9 @@ def press_approved_web_tasks() -> list[dict]:
         except Exception as exc:
             notifications.publish(
                 "I could not press it",
-                f"{record.get('button', '')} on {record.get('url', '')} — "
-                f"{type(exc).__name__}: {exc}"[:400],
-                priority="IMPORTANT", source="webtask",
+                _plain(f"{record.get('button', 'the button')} at "
+                       f"{_where(record)} — {speech.plainly(str(exc))}"),
+                priority="IMPORTANT", source="webtask", about=notifications.FAILED,
                 dedupe_key=f"webtask-failed:{record['id']}")
             continue
         result = done.get("result", {})
@@ -840,9 +870,11 @@ def press_approved_web_tasks() -> list[dict]:
                  "rejected": "It would not go through"}.get(verdict, "Pressed it")
         notifications.publish(
             f"{title}: {record.get('button', 'it')}",
-            (f"{record.get('goal', '')[:120]} — {result.get('note', '')} "
-             f"{result.get('evidence', '')[:160]}").strip(),
+            _plain(f"{record.get('goal', '')[:120]}. "
+                   f"{result.get('note', '')}"),
             priority="IMPORTANT", source="webtask",
+            about=(notifications.FAILED if verdict == "rejected"
+                   else notifications.FINISHED),
             dedupe_key=f"webtask-pressed:{record['id']}",
             related={"web_task": record["id"]})
         pressed.append({"web_task": record["id"], "button": record.get("button"),
@@ -878,9 +910,9 @@ def run_approved_scripts() -> list[dict]:
         except Exception as exc:
             notifications.publish(
                 "That program would not run",
-                f"{approval.get('reason', '')[:160]} — "
-                f"{type(exc).__name__}: {exc}"[:400],
-                priority="IMPORTANT", source="script",
+                _plain(f"{approval.get('reason', '')[:160]} — "
+                       f"{speech.plainly(str(exc))}"),
+                priority="IMPORTANT", source="script", about=notifications.FAILED,
                 dedupe_key=f"script-failed:{approval['id']}")
             continue
         notifications.publish(

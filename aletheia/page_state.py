@@ -33,6 +33,35 @@ than a page: `control_kind`. The loop only ever presses a control whose
 kind is PROGRESS or NAVIGATE by itself. COMMIT and CREATE_ACCOUNT go to the
 existing hash-bound approval; SPEND is refused outright (webtask's
 MONEY_WORDS, the one permanent rule); SIGN_IN is a boundary.
+
+**Only ask when the press actually commits something** (2026-09-19, and the
+reason this module was touched again). The rule used to be: any button on a
+page that has questions on it is a COMMIT unless its words are on a
+harmless list. That was the safe default when the loop was new and only ever
+met application forms. With the general loop driving real career sites it
+turned the site's own furniture into approvals - his queue that morning held
+six "Create Account", three "Show More Options", two "Search submit", an
+"About Us" and a "Products", every one of them asking him to bless a press
+that sends nothing. Two harms: it spends his attention, and a column of
+near-identical Approve cards teaches him to tap yes without reading, which
+is how a REAL submission gets approved by reflex.
+
+So the conservative default now needs EVIDENCE that a press could send
+something, and the evidence comes from the page rather than a longer word
+list:
+
+    could_send()  are there answers on this page - his values, his ticks -
+                  that a press would put in an envelope? A careers site's
+                  "Search by Keyword" is not one.
+    goes_somewhere()  the control is an anchor with an address, or sits in
+                  the site's navigation: it goes to another page.
+    opens_here()  the page's own aria-expanded / aria-haspopup / <summary>:
+                  it shows more of the page it is already on.
+
+Nothing about this makes a submission easier. Money is still refused first,
+and the committing words (submit, send, confirm, pay, create account) still
+make a COMMIT or a CREATE_ACCOUNT whatever else the page says about the
+control.
 """
 from __future__ import annotations
 
@@ -102,6 +131,81 @@ _FORM_HARMLESS = re.compile(
     r"(?:decline|reject)(?: all)?(?: cookies)?|cookie settings|manage cookies|got it|"
     r"skip to (?:content|main)|menu|x|×|share(?: this(?: job| page)?)?|print(?: this)?(?: job| page)?|copy link|save (?:job|for later)|follow|like|tweet|allow)\s*$", re.I)
 
+#: RUNNING A SITE'S SEARCH IS READING, not sending - the loop already says so
+#: (`browser_loop._search_control`). But the word "submit" inside the NAME of
+#: a search button made it a committing label: live 2026-09-19 "Search submit"
+#: on two HubSpot postings became two approvals to press a magnifying glass.
+_SEARCH_CONTROL = re.compile(
+    r"^\s*(?:search|find|filter)(?:\s+(?:submit|button|icon|again|now|jobs?|"
+    r"results?|keywords?|this site))?\s*$", re.I)
+
+#: A control that shows more of the page it is already on. The page usually
+#: says so itself (aria-expanded), and these are the words it uses when it
+#: does not: "Show More Options" was three of his approvals on 2026-09-19.
+_DISCLOSURE = re.compile(
+    r"^\s*(?:show|hide|view|display)\s+(?:more|less|all|fewer|other|advanced|additional)\b|"
+    r"^\s*(?:more|fewer|less)\s+(?:options|filters|results|details|information|jobs)\s*$|"
+    r"^\s*(?:expand|collapse|toggle|sort(?:\s+by)?|filters?|refine(?:\s+search)?)\b.{0,20}$",
+    re.I)
+
+#: A box that is the site's own search, not a question anybody answered.
+_SEARCH_FIELD = re.compile(r"\bsearch\b|\bkeywords?\b|\bfilter\b", re.I)
+
+
+def goes_somewhere(target: dict | None) -> bool:
+    """The page's own evidence that this control GOES somewhere.
+
+    An address of its own (`<a role=button href="/about-us">About Us</a>` -
+    which is exactly how careers sites draw their header, and why an
+    "About Us" reached him as a web.commit approval), or a seat in the
+    site's navigation, header, footer or search landmark. A fragment,
+    `javascript:` or `mailto:` is not going anywhere.
+    """
+    if not isinstance(target, dict):
+        return False
+    href = " ".join(str(target.get("href") or "").split())
+    if href and not href.startswith("#") \
+            and not href.casefold().startswith(("javascript:", "mailto:", "tel:")):
+        return True
+    return bool(target.get("nav"))
+
+
+def opens_here(target: dict | None) -> bool:
+    """The page's own evidence that this control opens part of ITSELF.
+
+    `aria-expanded` (present at all, true or false: a collapsed disclosure
+    is still a disclosure) or `aria-haspopup`. Nothing leaves the machine
+    when it is pressed, so it is never a commit."""
+    if not isinstance(target, dict):
+        return False
+    return target.get("expanded") is not None or bool(target.get("haspopup"))
+
+
+def could_send(observation: dict) -> bool:
+    """Is there anything on this page that a press could SEND?
+
+    Not "are there boxes": every job posting on a careers site carries the
+    site's search boxes, and a posting is not a form. An answer counts when
+    it HOLDS something - a value, a tick - or when this run already filled
+    this page (`filled_here`, which the loop sets from what it wrote, so a
+    widget that will not read its own value back still counts).
+    """
+    if not isinstance(observation, dict):
+        return False
+    if observation.get("filled_here"):
+        return True
+    for t in answerable(observation):
+        label = f"{t.get('lead') or ''} {t.get('label') or ''} {t.get('question') or ''}"
+        if _SEARCH_FIELD.search(label):
+            continue
+        if t.get("role") in ("checkbox", "radio", "switch", "option"):
+            if t.get("checked"):
+                return True
+            continue
+        if str(t.get("value") or "").strip():
+            return True
+    return False
+
 
 #: An ORDER is spending even when no money word is on the button: "Submit
 #: order", "Complete my order", "Confirm order" (httpbin's pizza form, the
@@ -123,13 +227,22 @@ def shows_a_charge(text: str) -> bool:
     return bool(_CHARGE.search(str(text or "")[:6000]))
 
 
-def control_kind(label: str, *, role: str = "button", on_form: bool = False) -> str:
-    """What pressing this control would DO, from its accessible name.
+def control_kind(label: str, *, role: str = "button", on_form: bool = False,
+                 target: dict | None = None, sendable: bool | None = None) -> str:
+    """What pressing this control would DO, from its name and the page's
+    own evidence about it.
 
     Order is the safety argument: money first (refused whatever else the
     label says), then the account-making and committing words, then the
     harmless ones. A link whose words commit is still a commit - "Cancel my
     membership" is often an <a>.
+
+    `target` is the observation's row for this control, carrying whatever
+    the page said about it (`href`, `type`, `nav`, `expanded`, `haspopup`).
+    `sendable` is `could_send(observation)`: True when the page holds
+    answers a press could send, False when it plainly holds none, and None
+    when nobody looked - which keeps the old `on_form` behaviour for
+    callers that have only a label.
     """
     from aletheia import computer, webtask
     text = " ".join(str(label or "").split())
@@ -139,6 +252,8 @@ def control_kind(label: str, *, role: str = "button", on_form: bool = False) -> 
         return CREATE_ACCOUNT
     if _SIGN_IN.search(text) or _THIRD_PARTY.search(text):
         return SIGN_IN
+    if _SEARCH_CONTROL.search(text):
+        return OTHER                       # running the site's search is reading
     if computer.committing_label(text):
         return COMMIT
     if _BACK.search(text):
@@ -147,7 +262,27 @@ def control_kind(label: str, *, role: str = "button", on_form: bool = False) -> 
         return PROGRESS
     if role == "link":
         return NAVIGATE
-    if on_form and role == "button" and not _FORM_HARMLESS.search(text):
+    if role in ("tab", "menuitem", "option"):
+        return OTHER                       # a widget, never a page's final button
+    # BEYOND HERE THE LABEL SAYS NOTHING EITHER WAY, so the page's own
+    # evidence decides. A submit button is what it says it is even in a
+    # header; everything else that goes somewhere, or opens part of the page
+    # it is on, is not a press he should be asked to bless.
+    says_submit = str((target or {}).get("type") or "").casefold() == "submit"
+    if not says_submit:
+        # A disclosure first: a nav item with a menu under it OPENS, it does
+        # not go ("Language", live 2026-09-19 on a Grainger posting).
+        if opens_here(target) or _DISCLOSURE.search(text):
+            return OTHER
+        if goes_somewhere(target):
+            return NAVIGATE
+    if role == "button" and not _FORM_HARMLESS.search(text) \
+            and (on_form if sendable is None else sendable):
+        # THE CONSERVATIVE DEFAULT, kept: an unknown button on a page that
+        # holds answers is treated as the thing that sends them. "Join the
+        # list", "Let's go", "Count me in" say none of the committing words
+        # and every one of them is a submit button. A false positive costs
+        # one approval; a false negative sends something without asking.
         return COMMIT
     return OTHER
 
@@ -227,10 +362,14 @@ def classify(observation: dict) -> dict:
     answers = answerable(observation)
     typed = [t for t in answers if t.get("role") != "option"]
     on_form = bool(typed)
+    # WHETHER A PRESS COULD SEND ANYTHING is a fact about the PAGE, read once
+    # and handed to every control on it.
+    sendable = could_send(observation)
     controls: dict[str, list[str]] = {}
     for t in targets:
         if t.get("role") in PRESS_ROLES:
-            kind = control_kind(t.get("label", ""), role=t.get("role", "button"), on_form=on_form)
+            kind = control_kind(t.get("label", ""), role=t.get("role", "button"),
+                                on_form=on_form, target=t, sendable=sendable)
             controls.setdefault(kind, []).append(str(t.get("label") or ""))
     evidence: list[str] = []
 

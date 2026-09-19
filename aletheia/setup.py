@@ -235,10 +235,16 @@ def _wall_voice() -> tuple[str, str]:
     script = REPO_ROOT / "interface" / "voice.js"
     if not script.is_file():
         return BROKEN, "interface/voice.js is missing"
-    pages = [p for p in ("index.html", "command.html")
-             if "voice.js" not in (REPO_ROOT / "interface" / p).read_text(encoding="utf-8")]
-    if pages:
-        return BROKEN, f"pages without the ears: {', '.join(pages)}"
+    # Two surfaces, two ways of listening, and each has to keep its own.
+    # The ambient wall carries the push-to-talk script; the one Thea page
+    # listens through `thea.js` (the same one-shot, the same /api/voice) so
+    # that a phone, where the script's SpeechRecognition does not exist at
+    # all, is not handed a second microphone that cannot work.
+    missing = [f"{page} ({wants})" for page, wants in
+               (("wall.html", "voice.js"), ("thea-app.js", "T.listen"))
+               if wants not in (REPO_ROOT / "interface" / page).read_text(encoding="utf-8")]
+    if missing:
+        return BROKEN, f"surfaces without the ears: {', '.join(missing)}"
     return MISSING, ("served and wired; the microphone permission is granted in "
                      "your browser and cannot be checked from here")
 

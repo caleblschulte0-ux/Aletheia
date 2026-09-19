@@ -90,7 +90,8 @@ class MarkingOneDoneCase(unittest.TestCase):
                 self.assertEqual(got["kind"], "intent", said)
 
     def test_a_pronoun_with_no_referent_is_not_guessed_at(self):
-        got = voice.interpret("thea mark it done")["command"]
+        with mock.patch("aletheia.voice._the_only_open_task", return_value=""):
+            got = voice.interpret("thea mark it done")["command"]
         self.assertEqual(got["kind"], "intent")
 
     def test_one_word_of_his_finds_it(self):

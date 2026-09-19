@@ -978,11 +978,8 @@ def chain_think(*, timeout_s: float = LOCAL_TIMEOUT_S,
                 raise ModelReplyUnusable(str(exc)[:200]) from None
             if on_switch is not None:
                 try:
-                    until = reasoner.resting_until()
-                    lead = (f"Claude's out until {reasoner.spoken_time(until)}" if until
-                            else "Claude and ChatGPT can't answer right now")
-                    on_switch(f"{lead}, so I'm thinking this through with my own model. "
-                              "It's slower.")
+                    on_switch(f"{reasoner.big_models_out()}, so I'm thinking "
+                              "this one through myself. It's slower.")
                 except Exception:                                      # noqa: BLE001
                     pass
         if not reasoning_gateway.local_ready():

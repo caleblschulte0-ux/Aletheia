@@ -678,7 +678,11 @@ def path_hints(where: Path, output: str) -> list[dict]:
         # below matches on the stem for exactly that reason
         wanted_all.append(m.group(1) or m.group(2))
     for raw in wanted_all:
-        wanted = raw.replace("\\\\", "\\")
+        # Test output keeps the path spelling of the machine that produced
+        # it.  A Windows failure may be investigated on Linux, where Path
+        # treats backslashes as ordinary filename characters.  Normalize the
+        # spelling before asking pathlib or git about the repository.
+        wanted = raw.replace("\\\\", "\\").replace("\\", "/")
         try:
             rel = Path(wanted).resolve().relative_to(where.resolve()).as_posix() if Path(wanted).is_absolute() \
                 else Path(wanted).as_posix()

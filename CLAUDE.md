@@ -279,15 +279,85 @@ failure (§139). Never report "command executed" as "goal achieved"
 never trust a worker's "done" without evidence when verification is
 possible (§68).
 
-## Interfaces
+## Interfaces: ONE page is the product, and one wall is the weather
 
-The **wall** (`interface/index.html`) is Ambient Aletheia (§88):
-cinematic, one committed dark look, legible across a room, minimal when
-nothing matters, and a PURE view of `state/pulse/latest.json` — smarts
-go in collectors and registries, never the page; status is never
-color-alone. The interactive **Command Center** (§90) is Phase 6 — until
-then the intercom is the command channel. Do not grow controls into the
-wall quietly.
+2026-09-18 there were FIVE HTML surfaces — the wall at `/`, the Command
+Center, a phone front door, a phone console, and a dead "mobile" dashboard
+with a paste-JSON box. Three of them rendered the same approval three
+different ways and two of those were unusable. His brief that day, in his
+words: *"One simple Thea interface. Phone and PC feel like the same
+product. He never sees JSON, internal command names, model names, ids,
+branches, hashes or developer terminology in normal use."*
+
+- **`interface/thea.html` + `thea-app.js` is the product**, at `/` and on
+  his phone, one file and one codebase that reflows. It answers four
+  things in that order — what she's doing, ask her, what needs him, what
+  she's done — and nothing else is above the drawer. Every retired path
+  302s to it (`core.RETIRED_PAGES`), because a home-screen icon outlives a
+  rename. `interface/thea.js` is the only transport: the token, the local
+  secret, the follow-up dance and the offline outbox live there once,
+  because two copies drift and the drift shows up as one surface working
+  and the other quietly not.
+- **The wall (`interface/wall.html`) is Ambient Aletheia** (§88):
+  cinematic, one committed dark look, legible across a room, and a PURE
+  view of `state/pulse/latest.json` — smarts go in collectors and
+  registries, never the page; status is never colour-alone. It is the
+  fleet, with commit shas and workflow names on it, so it is the ambient
+  screen BEHIND the product rather than the thing at `/`, and it is what
+  GitHub Pages publishes. Do not grow controls into it.
+- **No developer words above the drawer.** No capability ids, kind names,
+  model names, run ids, branches, hashes or JSON in normal use; the
+  collectors' own state vocabulary (IDLE, ACTING, NEEDS YOU) is mapped to
+  plain English by the page, which is presentation — the SENTENCE beside
+  it is still the collector's. Where an exact detail genuinely helps (what
+  an approval will really do, the record behind a line) it is one tap
+  away, and the drawer at the bottom is where anything machine-shaped
+  lives.
+- **Offline is three different sentences**, told apart by whether her
+  front door answers at all: no signal, this phone is off the tailnet, her
+  PC is asleep. A typed ask made while she is unreachable is kept on the
+  device and sent when she is back, and SAYS it was kept. His phone has
+  silently dropped off the tailnet before, and "can't reach her" for that
+  sends him to look at a PC that is fine.
+- **A page may show an address; it may never mint a credential.** The QR
+  on his PC (`interface/qr.js`, `core.phone_link`) carries the tailnet URL
+  and the code HE pastes in. Minting stays `python -m aletheia.access
+  mint`, at his own keyboard.
+- **A readiness check is a button, never a poll.** `/api/setup` makes real
+  network attempts; a page polling it every two minutes spent his day
+  opening and closing his signed-in ChatGPT window.
+- **ONE list, computed once.** `/api/needs` (approvals, work blocked on
+  him, applications stopped on a question — deduplicated, each row saying
+  what, why HIM, and what happens if he ignores it) and `/api/health`
+  (`running.snapshot` plus a plain-words headline) are the collector's, and
+  the page renders them rather than assembling its own from three routes.
+  That is what stops the screen and the spoken answer disagreeing about
+  what is waiting. The health line is in the open when something is wrong
+  and absent when nothing is, and `running.all_well` — which `headline`
+  itself asks — decides which, so a quiet strip beside a sentence saying
+  the Core is down is not a state the page can reach.
+- **Granting authority is still not a button, and the reason changed.** The
+  room microphone refuses `standing on` and `conversations grant` because
+  anything in the room could say them. The page is authenticated, so that
+  reason does not apply — but `standing.enable` creates its own approval
+  and decides it, so a control there would be a one-tap grant with no
+  approval object to read first, and it would need a new command kind in
+  the grammar the planner, the agenda and the relay lanes all read. The
+  drawer NAMES both commands, on the PC where the terminal is. It does not
+  run them.
+- **Honest is not the same as usable, and length is how the difference
+  shows.** Every line on the first version was true and the phone page was
+  seven screens tall, because thirty-eight pending applications rendered as
+  thirty-eight cards with the same first line and three buttons each. So:
+  decisions that share a consequence say the shared half ONCE and then list
+  one row apiece; anything that needs no decision folds behind a line saying
+  how many; every long list shows a handful and offers the rest; a sentence
+  repeated verbatim down a list is printed once. Measured in the render test
+  (`test_a_busy_day_still_fits_in_a_handful_of_screens`): forty decisions and
+  thirty-one notices come to 2.9 phone screens, and it fails over five.
+  **Density is never a bulk control.** Each approval stays bound to its own
+  sha256 and stays its own yes; what got smaller is the screen it takes to
+  answer, not the number of times he answers.
 
 ## Storage & branch discipline
 
@@ -655,8 +725,11 @@ not intercom kinds, and the test caught it.
 ## Both interfaces are rendered in the suite now
 
 `tests/test_the_wall_renders_the_pulse.py` and
-`tests/test_the_command_center_renders.py` drive real Chromium against a
-real pulse and a real in-process Core. On a page that is a pure view of
+`tests/test_the_one_page_renders.py` drive real Chromium against a
+real pulse and a real in-process Core — the second one at 390px AND at a
+desk, because "the same product on both" is a claim only a render can
+check, and it asserts no sideways scroll, no developer string and a tap
+target big enough for a thumb. On a page that is a pure view of
 one JSON file, "do the words come out" is the only thing worth asserting
 — and it immediately found the two surfaces DISAGREEING about the same
 approval. The wall renders `voice.approval_label`, which prefers the

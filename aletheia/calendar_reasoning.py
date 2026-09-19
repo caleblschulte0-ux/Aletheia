@@ -474,9 +474,11 @@ def run_deadline(item: dict, now: dt.datetime) -> dict:
     now = _utc(now)
     if now >= due:
         notifications.publish(f"Due now: {title}", f"{title} was due {human(due.isoformat(), now=now)}.",
+                              about=notifications.NEEDS_YOU,
                               priority="IMPORTANT", source="deadlines", dedupe_key=f"deadline-due:{item['id']}")
         return {"state": ws.DONE, "reason": "", "next": "", "payload": {"reminded": True}}
     notifications.publish(f"Coming up: {title}", f"{title} is due {human(due.isoformat(), now=now)}.",
+                          about=notifications.NEEDS_YOU,
                           priority="IMPORTANT", source="deadlines", dedupe_key=f"deadline-soon:{item['id']}")
     return {"state": ws.BLOCKED_EXTERNAL, "reason": "reminded him; waiting for the due time",
             "next": "say it is due when the time comes", "payload": {"reminded": True, "wake_at": payload.get("due")}}

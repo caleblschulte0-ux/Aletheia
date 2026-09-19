@@ -408,8 +408,9 @@ def _next(state: str, *, hunt: dict, loop: dict, say_time: Callable) -> str:
     minds = hunt.get("thinking") or {}
     if hunt.get("blocked"):
         until = _parse((minds.get("claude") or {}).get("resting_until"))
-        return (f"The job hunt picks up when Claude is back at {say_time(until)}." if until
-                else "The job hunt picks up when a model can think again.")
+        return (f"The job hunt picks up at {say_time(until)}, when the big "
+                "models are back." if until
+                else "The job hunt picks up when something can think again.")
     if hunt.get("running"):
         size = lock.get("count") or lock.get("limit")
         if str(lock.get("kind") or "") == "retry":
@@ -472,7 +473,7 @@ def build(reading: dict, ctx: dict) -> dict:
     elif hunt.get("blocked"):
         status = "BLOCKED"
         minds = hunt.get("thinking") or {}
-        blockers.append({"said": "nobody can think: Claude and Codex are out and her own model "
+        blockers.append({"said": "nobody can think: the big models are out and hers "
                                  + str((minds.get("local") or {}).get("why") or "cannot run"),
                          "since": (minds.get("claude") or {}).get("resting_until"), "source": "the minds"})
     elif hunt.get("running") or loop.get("alive"):
