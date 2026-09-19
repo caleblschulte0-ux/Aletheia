@@ -1,10 +1,10 @@
-/* Shared by both phone surfaces: the front door (phone.html) and the
- * console behind it (console.html).
+/* The transport, and the only one.
  *
- * One copy of the transport, the token, and the asking, because the two
- * pages must agree about what "unauthorized" looks like and about the
- * follow-up dance. Two copies of that drift, and the drift shows up as
- * one page working and the other quietly not.
+ * ONE page is the product now (thea.html), on the PC and on the phone, so
+ * this file is no longer "shared by two surfaces" — it is the part of that
+ * page that talks to the Core. It stays its own file because the service
+ * worker caches it, the tests read it, and the page's painting has no
+ * business knowing about bearer tokens.
  *
  * Every URL is relative on purpose: the same files serve correctly on
  * 127.0.0.1, on a tailnet name, and behind a `tailscale cert` hostname,
@@ -14,6 +14,7 @@ window.Thea = (() => {
   "use strict";
 
   const TOKEN_KEY = "thea.token";
+  const OUTBOX_KEY = "thea.outbox";
   let token = "";
   try { token = localStorage.getItem(TOKEN_KEY) || ""; } catch { /* private mode */ }
 
@@ -28,12 +29,12 @@ window.Thea = (() => {
 
   // A one-tap pairing link: ?token=... saves it and is then scrubbed from
   // the address bar/history, so the credential does not sit there in
-  // plaintext after the first open. Added 2026-09-03 alongside the server
-  // now requiring a real token for every remote device (tailscale serve
+  // plaintext after the first open. This is what the QR on his PC encodes,
+  // and it is why getting Thea onto a new phone is a scan and not a
+  // forty-character password typed on glass. Added 2026-09-03 alongside the
+  // server requiring a real token for every remote device (tailscale serve
   // makes a phone request look identical to a local one at the socket
-  // level, so "on the tailnet" stopped being enough on its own). Typing a
-  // 40-character token on a phone keyboard is not a real onboarding step;
-  // a link he opens once is.
+  // level, so "on the tailnet" stopped being enough on its own).
   try {
     const fromLink = new URL(location.href).searchParams.get("token");
     if (fromLink) {
@@ -50,11 +51,13 @@ window.Thea = (() => {
   // it: 127.0.0.1 proves origin, not that Caleb sent it. It travels
   // separately from `token`, which is the real minted credential a phone
   // presents over Tailscale; the two are never the same value and this
-  // page only ever has one of them populated.
+  // page only ever has one of them populated. Its presence is also how the
+  // page knows it is running ON HIS PC rather than on the phone.
   function localSecret() {
     const m = document.querySelector('meta[name="aletheia-local"]');
     return m ? m.content : "";
   }
+  function onHisPC() { return !!localSecret(); }
 
   async function api(path, options = {}) {
     const headers = Object.assign({}, options.headers);
@@ -76,7 +79,7 @@ window.Thea = (() => {
       if (local) headers["X-Aletheia-Local"] = local;
     }
     if (options.body) headers["Content-Type"] = "application/json";
-    const res = await fetch(path, Object.assign({}, options, { headers }));
+    const res = await fetch(path, Object.assign({}, options, { headers, cache: "no-store" }));
     if (res.status === 401) {
       const err = new Error("unauthorized");
       err.unauthorized = true;
@@ -84,6 +87,13 @@ window.Thea = (() => {
     }
     if (!res.ok) throw new Error(path + " → " + res.status);
     return res.json();
+  }
+
+  /* Every decision this page makes goes through /api/command, which is the
+   * intercom's own grammar and gates. There is no second approval path and
+   * no button here that the Core does not already accept. */
+  function command(payload) {
+    return api("/api/command", { method: "POST", body: JSON.stringify(payload) });
   }
 
   const esc = (s) => String(s == null ? "" : s)
@@ -100,15 +110,74 @@ window.Thea = (() => {
     return Math.round(secs / 86400) + "d ago";
   }
 
+  /* Local time, never UTC — he is not in UTC and neither is his day. */
+  function clock(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d)) return "";
+    const today = new Date();
+    const t = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    return d.toDateString() === today.toDateString()
+      ? t : d.toLocaleDateString([], { month: "short", day: "numeric" }) + " " + t;
+  }
+
+  /* ---- WHY it is not answering ------------------------------------------
+   *
+   * "Offline" is three different situations and they want three different
+   * sentences. His phone has silently dropped off the tailnet before, and a
+   * page that says "can't reach her" for that is telling him to go and look
+   * at the PC that is working fine.
+   *
+   *   no signal        the device itself says it has no network
+   *   off the tailnet  the network is up, but even a STATIC file from her
+   *                    machine does not answer — so the phone is not on the
+   *                    tailnet (or serve is down), and her PC is irrelevant
+   *   asleep           static files answer, the API does not: the machine
+   *                    is reachable and Thea is not running on it
+   *
+   * The probe is a static file with a unique query, so no service worker
+   * can answer it from yesterday's cache and call that a connection.
+   */
+  async function diagnose() {
+    if (navigator.onLine === false) return "no-signal";
+    try {
+      const res = await fetch("/interface/manifest.webmanifest?probe=" + Date.now(),
+                              { cache: "no-store" });
+      return res.ok ? "asleep" : "asleep";
+    } catch {
+      return "unreachable";
+    }
+  }
+
+  /* ---- what he typed while she was unreachable ---------------------------
+   *
+   * It is queued on the device and sent when she answers again. Nothing is
+   * ever quietly dropped: an ask that is still queued SAYS it is queued, and
+   * one that could not be sent says that instead. */
+  function outbox() {
+    try { return JSON.parse(localStorage.getItem(OUTBOX_KEY) || "[]"); }
+    catch { return []; }
+  }
+  function saveOutbox(rows) {
+    try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(rows.slice(-20))); }
+    catch { /* private mode: it lives for this session in memory only */ }
+  }
+  function queueAsk(text) {
+    const row = { id: "q" + Date.now() + Math.random().toString(36).slice(2, 6),
+                  text: String(text || "").trim(), at: new Date().toISOString() };
+    saveOutbox(outbox().concat([row]));
+    return row;
+  }
+  function dropQueued(id) { saveOutbox(outbox().filter((r) => r.id !== id)); }
+
   /* A slow ask must not hold the screen: POST /api/voice returns at once
    * with a followup_id and the real sentence lands later. The GET is a
    * pure read, so a dropped response costs a retry rather than the answer;
-   * the ack is sent only after the caller has SHOWN it. */
-  /* The wait has to outlast the Core's worst case, or the phone gives up on
-   * an answer that is about to arrive. A conversational reply is allowed
-   * 180s of thinking on the far side; polling for exactly 180s here meant a
-   * slow answer was abandoned in the last second and only ever seen as a
-   * notification. 300s matches the follow-up store's own TTL. */
+   * the ack is sent only after the caller has SHOWN it.
+   *
+   * The wait has to outlast the Core's worst case, or the phone gives up on
+   * an answer that is about to arrive. 300s matches the follow-up store's
+   * own TTL. */
   const WAIT_MS = 300000;
 
   async function collect(id, onWait) {
@@ -125,7 +194,7 @@ window.Thea = (() => {
       return { id, say: slot.say || (slot.state === "FAILED"
         ? "I could not finish that one." : "That is done.") };
     }
-    return { id: null, say: "Still going — it will land in your notifications." };
+    return { id: null, say: "Still going — it will land in what needs you." };
   }
 
   async function ack(id) {
@@ -137,8 +206,8 @@ window.Thea = (() => {
     } catch { /* it stays collectable; the notification carries it anyway */ }
   }
 
-  /* One ask, start to finish. `show(text, isError)` is called as the answer
-   * develops, so each page can render it in its own shape. */
+  /* One ask, start to finish. `show(text)` is called as the answer
+   * develops, so the page can render it as it likes. */
   async function ask(text, show, onThinking) {
     const said = String(text || "").trim();
     if (!said) return null;
@@ -235,7 +304,7 @@ window.Thea = (() => {
     navigator.serviceWorker.register("/interface/sw.js").catch(() => {});
   }
 
-  return { api, ask, collect, ack, getToken, setToken, esc, ago,
-           canListen, listen, speak, spokenForm, unlockSpeech, hush,
-           speaking };
+  return { api, command, ask, collect, ack, getToken, setToken, esc, ago, clock,
+           diagnose, outbox, queueAsk, dropQueued, onHisPC,
+           canListen, listen, speak, spokenForm, unlockSpeech, hush, speaking };
 })();

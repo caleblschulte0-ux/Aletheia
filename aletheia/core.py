@@ -4,9 +4,10 @@ Runs on the operator's Windows PC (or anywhere Python runs):
 
     python -m aletheia.core            # http://127.0.0.1:8777
 
-One process, stdlib only, serving the internal API every interface uses
-(§110) plus the static interfaces (the wall at `/`, the Command Center at
-`/command.html`). It executes commands through the SAME grammar and
+One process, stdlib only, serving the internal API the interface uses
+(§110) plus the interface itself: ONE page at `/` (interface/thea.html) —
+the same product on his PC and his phone — with the ambient fleet wall at
+`/interface/wall.html` behind it. It executes commands through the SAME grammar and
 gates as the intercom — `intercom.validate_kind_args` →
 `intercom.execute_command` → policy/halt/front-door checks → journal —
 so voice-via-ChatGPT and the local console can never drift apart.
@@ -50,6 +51,7 @@ API:
     GET  /api/schedules     durable schedule definitions
     GET  /api/runtime       last runtime tick summary
     GET  /api/setup         what the operator still has to supply, checked live
+    GET  /api/phone         the tailnet address his phone should open (never a token)
     GET  /api/voice/followup?id=  a slow spoken answer; non-destructive
     POST /api/voice/followup/ack  {"id": …} once the listener has spoken it
     GET  /api/computer/status
@@ -83,6 +85,14 @@ from aletheia.sync import GitSync
 import time
 
 INTERFACE_DIR = REPO_ROOT / "interface"
+#: The one page that is the product, on his PC and on his phone alike.
+THE_PAGE = "/interface/thea.html"
+#: What it replaced. They redirect rather than 404, because an icon he added
+#: to his home screen in September must not stop working in October.
+RETIRED_PAGES = frozenset({
+    "index.html", "command.html", "console.html", "console.js",
+    "phone.html", "talk.js", "mobile.html", "mobile.js",
+})
 ACTOR = "operator-local-core"
 DEFAULT_PORT = 8777
 MAX_BODY_BYTES = 64 * 1024
@@ -133,6 +143,54 @@ def status_payload() -> dict:
         "approvals_pending": [a["id"] for a in policy.all_approvals()
                               if a["state"] == "PENDING"],
     }
+
+
+def linked_devices() -> int:
+    """How many devices could present a credential right now. A COUNT, never
+    a token: they are stored as sha256 and the plaintext exists once, in the
+    terminal where he minted it."""
+    try:
+        return len(access.live_tokens())
+    except Exception:
+        return 0
+
+
+def phone_link() -> dict:
+    """The address his phone should open, or an honest reason there isn't one.
+
+    Read-only, and it mints nothing. Getting Thea onto a phone is: scan the
+    code on this page, open the link, Add to Home Screen — and the page can
+    do that because the ADDRESS is not a secret. The credential still comes
+    from `python -m aletheia.access mint`, at his own keyboard, because
+    handing a page the power to create one would be a new authority and this
+    pass adds none.
+    """
+    devices = linked_devices()
+    try:
+        from aletheia import tailscale
+        state = tailscale.state()
+    except Exception as exc:
+        return {"url": None, "devices": devices,
+                "why": f"Could not ask Tailscale on this PC ({type(exc).__name__})."}
+    if not state.installed:
+        return {"url": None, "devices": devices,
+                "why": "Tailscale isn't installed on this PC, so your phone has no "
+                       "address to open."}
+    if not state.dns_name:
+        return {"url": None, "devices": devices,
+                "why": "Tailscale is installed but this PC has no tailnet name yet "
+                       f"({state.backend or state.detail or 'not signed in'})."}
+    served = False
+    try:
+        from aletheia import tailscale as _ts
+        served = any(f":{DEFAULT_PORT}" in backend
+                     for backend in _ts.serve_proxies().values())
+    except Exception:
+        served = False
+    return {"url": f"https://{state.dns_name}{THE_PAGE}", "devices": devices,
+            "why": "" if served else
+                   "Your phone can see this PC, but nothing is forwarding her to it "
+                   "yet — run  tailscale serve --bg 8777  once on this PC."}
 
 
 def run_command(payload: dict, fleet: dict) -> dict:
@@ -673,6 +731,12 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _redirect(self, where: str) -> None:
+        self.send_response(302)
+        self.send_header("Location", where)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def _static(self, rel: str) -> None:
         target = (INTERFACE_DIR / rel).resolve()
         if not str(target).startswith(str(INTERFACE_DIR.resolve())) or not target.is_file():
@@ -790,6 +854,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(events.list_watchers())
         if url.path == "/api/schedules":
             return self._json(scheduler.all_schedules())
+        if url.path == "/api/phone":
+            return self._json(phone_link())
         if url.path == "/api/setup":
             from aletheia import setup as _setup
             return self._json(_setup.audit())
@@ -819,12 +885,15 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(body)
                 return
             return self.send_error(404)
-        # A service worker may only control paths at or below its own URL,
-        # so /interface/sw.js can claim /interface/* — which is the whole
-        # phone app. Nothing else needs a special route.
-        rel = "index.html" if url.path in ("/", "/interface/", "/interface/index.html") \
-            else url.path.removeprefix("/interface/").lstrip("/")
-        return self._static(rel)
+        # A service worker may only control paths at or below its own URL, so
+        # /interface/sw.js can claim /interface/* — which is the whole app.
+        # ONE page is the product (2026-09-18): the five surfaces it replaced
+        # still answer, with a redirect, because a home-screen icon and a
+        # bookmark outlive a rename.
+        rel = url.path.removeprefix("/interface/").lstrip("/")
+        if url.path in ("/", "/interface/") or rel in RETIRED_PAGES:
+            return self._redirect(THE_PAGE)
+        return self._static(rel or "thea.html")
 
     def _mission(self, url) -> None:
         """Mission control's read-only routes. Reached only through
@@ -1188,7 +1257,7 @@ def main(argv: list[str] | None = None) -> int:
                      daemon=True).start()
     journal.append("event", "core", f"local Core up on {args.host}:{args.port}")
     print(f"Aletheia Core: http://{args.host}:{args.port}  "
-          f"(wall at /, command center at /command.html) — Ctrl+C stops")
+          f"(Thea at /, the fleet wall at /interface/wall.html) — Ctrl+C stops")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -1,13 +1,13 @@
 {
   "name": "Thea",
   "short_name": "Thea",
-  "description": "Talk to Thea. Everything else is one tap behind it.",
-  "start_url": "/interface/phone.html",
+  "description": "Ask Thea, see what she is doing, answer what needs you.",
+  "start_url": "/interface/thea.html",
   "scope": "/interface/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#08090c",
-  "theme_color": "#08090c",
+  "background_color": "#0a0b0e",
+  "theme_color": "#0a0b0e",
   "icons": [
     {
       "src": "/interface/icon.svg",
@@ -20,14 +20,6 @@
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "maskable"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "Everything",
-      "short_name": "Everything",
-      "description": "Approvals, what she is working on, what she has been doing",
-      "url": "/interface/console.html"
     }
   ]
 }
