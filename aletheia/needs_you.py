@@ -311,7 +311,7 @@ def would_not_ask_now() -> list[dict]:
     address, its seat in the site's navigation) is assumed absent, which
     can only ever make this list SHORTER than the truth.
     """
-    from aletheia import browser_loop, browser_mission, page_state as ps, policy, voice
+    from aletheia import browser_loop, browser_mission, computer, page_state as ps, policy, voice
     rows = []
     for approval in _safe(policy.all_approvals, []):
         if approval.get("state") != "PENDING":
@@ -337,8 +337,11 @@ def would_not_ask_now() -> list[dict]:
         row["url"] = str(gate.get("url") or record.get("start_url") or "")
         filled = browser_loop.she_filled_something(record)
         kind = ps.control_kind(row["button"], role="button", on_form=True, sendable=filled)
-        if kind == ps.COMMIT and not filled:
-            kind = ps.OTHER          # `_gate`'s boundary: a guess is not his to bless
+        if kind == ps.COMMIT and not filled and not computer.committing_label(row["button"]):
+            # `_gate`'s own boundary, said the same way: an unknown button on
+            # a page she never filled is NO_WAY_FORWARD, not an approval. A
+            # button whose words DO commit is unaffected, filled or not.
+            kind = ps.OTHER
         row["still_asked"] = kind in (ps.COMMIT, ps.CREATE_ACCOUNT, ps.SPEND)
         row["kind"] = kind
         if row["still_asked"]:

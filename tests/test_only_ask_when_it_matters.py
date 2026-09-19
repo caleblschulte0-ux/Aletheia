@@ -398,6 +398,17 @@ class TheReportOnlyReads(Isolated):
         self.assertEqual(row["button"], "About Us")
         self.assertEqual(policy.load(record["approval"])["state"], "PENDING")
 
+    def test_a_committing_button_is_kept_even_on_a_mission_that_filled_nothing(self):
+        """The report mirrors `_gate`, including which half of the rule
+        applies: an empty route excuses an unknown button, never a Submit."""
+        record = self.gate(filled_application())
+        record["route"] = []
+        record["checkpoints"] = [c for c in record["checkpoints"] if c["name"] != bm.FILLED]
+        bm.save(record)
+        row = next(r for r in needs_you.would_not_ask_now() if r["id"] == record["approval"])
+        self.assertTrue(row["still_asked"])
+        self.assertEqual(row["kind"], ps.COMMIT)
+
 
 if __name__ == "__main__":
     unittest.main()
