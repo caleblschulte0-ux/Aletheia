@@ -410,5 +410,65 @@ class TheReportOnlyReads(Isolated):
         self.assertEqual(row["kind"], ps.COMMIT)
 
 
+# ---- the same page, read by a real browser -------------------------------------
+
+#: The careers-site shape that cost him ten approvals, as HTML: the site's
+#: navigation drawn as <a role=button>, its search form in the header, an
+#: expander on the application, and the application's own Submit.
+CAREERS_PAGE = """<!doctype html><html><body>
+<header>
+  <nav>
+    <a role="button" href="/about-us">About Us</a>
+    <a role="button" href="/products">Products</a>
+    <button aria-haspopup="true">Language</button>
+  </nav>
+  <form role="search"><input name="q" aria-label="Search by Keyword">
+    <button type="submit">Search submit</button></form>
+</header>
+<main><form id="app">
+  <label for="fn">First name</label><input id="fn" name="fn" value="Caleb">
+  <button type="button" aria-expanded="false">Show More Options</button>
+  <button type="submit">Submit Application</button>
+</form></main>
+</body></html>"""
+
+
+class ARealPageSaysWhatItsControlsAre(unittest.TestCase):
+    """The evidence is only worth anything if the page really hands it over.
+
+    Everything above reads a hand-written observation; this drives one
+    headless page through the real `OBSERVE_JS` and `look`, so a JS change
+    that silently stopped carrying `href`, `nav` or `aria-expanded` fails
+    here instead of on his machine at three in the morning.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from tests.test_browser_loop_torture import BROWSER_OK, BROWSER_WHY
+        if not BROWSER_OK:
+            raise unittest.SkipTest(f"browser control absent: {BROWSER_WHY}")
+
+    def test_the_page_hands_over_its_own_evidence_and_the_kinds_follow(self):
+        with browse._Session() as ctx:
+            page = ctx.new_page()
+            page.set_content(CAREERS_PAGE)
+            seen = browser_loop.look(page)
+        rows = {t["label"]: t for t in seen["targets"]}
+        self.assertEqual(rows["About Us"]["href"], "/about-us")
+        self.assertTrue(rows["About Us"]["nav"])
+        self.assertTrue(rows["Language"]["haspopup"])
+        self.assertIs(rows["Show More Options"]["expanded"], False)
+        self.assertEqual(rows["Submit Application"]["type"], "submit")
+        self.assertTrue(rows["Submit Application"]["in_form"])
+        kinds = {label: browser_loop._kind(t, seen) for label, t in rows.items()
+                 if t["role"] in ps.PRESS_ROLES}
+        self.assertEqual(kinds, {"About Us": ps.NAVIGATE, "Products": ps.NAVIGATE,
+                                 "Language": ps.OTHER, "Search submit": ps.OTHER,
+                                 "Show More Options": ps.OTHER,
+                                 "Submit Application": ps.COMMIT})
+        self.assertEqual(browser_loop.final_control(seen, "apply for this job")["label"],
+                         "Submit Application")
+
+
 if __name__ == "__main__":
     unittest.main()
