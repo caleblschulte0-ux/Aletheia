@@ -990,6 +990,17 @@ def needs_from_him_words(hunt: dict | None = None) -> str:
             + "; ".join(named) + more + ".")
 
 
+#: The state word said as a person says it. The screen can afford a label
+#: and a colon — "Stuck: the form wants an account" reads fine in a
+#: column. Out loud a colon is nothing at all, so what he hears is two
+#: fragments jammed together with no verb between them. Same fact, said
+#: in the first person, because it is her answering about herself.
+_AGENT_LEAD = {"ACTING": "I'm working on", "LOOKING": "I'm looking at",
+               "THINKING": "I'm thinking about", "BLOCKED": "I'm stuck on",
+               "NEEDS YOU": "I need you for", "WAITING": "I'm waiting on",
+               "LISTENING": "I'm listening for"}
+
+
 def agent_words(block: dict | None = None) -> str:
     """"What are you doing right now", from the agent block."""
     block = block if block is not None else sections()["agent"]
@@ -997,13 +1008,11 @@ def agent_words(block: dict | None = None) -> str:
     step = str(block.get("step") or "").strip()
     mission = str(block.get("mission") or "").strip()
     if state == "HALTED":
-        return "Halted" + (f" - {step}." if step else ".") + " Nothing runs until you resume me."
+        return ("I'm halted" + (f" — {step}." if step else ".")
+                + " Nothing runs until you resume me.")
     if state == "IDLE":
-        return "Nothing in flight right now."
-    lead = {"ACTING": "Working on", "LOOKING": "Looking:", "THINKING": "Thinking:",
-            "BLOCKED": "Stuck:", "NEEDS YOU": "Waiting on you:", "WAITING": "Waiting:",
-            "LISTENING": "Listening:"}[state]
-    said = f"{lead} {step or mission}".strip()
+        return "Nothing right now — I'm just here."
+    said = f"{_AGENT_LEAD[state]} {step or mission}".strip()
     return said.rstrip(".") + "."
 
 

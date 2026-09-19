@@ -34,7 +34,14 @@ class InterpretCase(unittest.TestCase):
     def test_status_is_answered_not_commanded(self):
         out = voice.interpret("Thea, what's going on?")
         self.assertIsNone(out["command"])
-        self.assertIn("task", out["say"])
+        # It said "1 fleet alert. 0 live tasks." — a dashboard read out
+        # loud. The rule is that the question is ANSWERED here rather than
+        # compiled into a command, and that the answer is a sentence: no
+        # count of nothing, and no word off a screen he is not looking at.
+        said = out["say"]
+        self.assertTrue(said and said[0].isupper() and said.endswith("."), said)
+        self.assertNotIn("0 ", said)
+        self.assertNotIn("fleet alert", said)
 
     def test_read_a_spoken_url(self):
         out = voice.interpret("Thea, read example dot com")

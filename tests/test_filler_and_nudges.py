@@ -169,7 +169,11 @@ class WhyItAsksCase(unittest.TestCase):
         covered = dict(self.ROUTINE, approval_state="APPROVED")
         said = intents.spoken(covered)
         self.assertNotIn("Say approve", said)
-        self.assertIn("standing authority", said)
+        # "Your standing authority covers it, so it runs on the next beat"
+        # was true and was three internal nouns in a row. The rule is that
+        # the sentence says the decision is already made and she is
+        # getting on with it.
+        self.assertIn("already said yes", said)
 
 
 if __name__ == "__main__":

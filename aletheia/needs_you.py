@@ -1,0 +1,293 @@
+"""ONE list of things that genuinely need him, and one list of what she did.
+
+Not a new system. Everything here already existed and was scattered across
+five surfaces that each showed a slice: approvals lived in `policy` and
+were read by the wall; work blocked on him lived in `work_engine` and was
+read by the work session's report; applications stopped on a question
+lived in the campaign records and were read by `current_state`; a mission
+at a boundary lived in `browser_mission`; a handoff lived in `handoffs`.
+
+Each of those is a real store with a real reader, and that was the
+problem: he had to know which of five questions to ask before he could
+find out whether anything needed him. "What's waiting on me" answered
+from one of them and the rest stayed silent, which is worse than a long
+list — a short list that is quietly incomplete teaches him to trust it.
+
+So this module reads them all, gives every row THE SAME SHAPE, and says
+three things about each:
+
+    what        the thing itself, in his words, one sentence
+    why         why it needs HIM and not her
+    if_ignored  what happens if he does nothing, which is the half of
+                every request that never got written down
+
+`if_ignored` is the one that matters. "Say approve to run it" tells him
+what yes does and leaves no as something he has to infer — so a safe,
+reversible, deliberate "not now" feels like a thing he has forgotten. A
+row that says "nothing happens until you do" is a row he can walk past.
+
+Nothing here decides anything, grants anything, or changes any state. It
+is a reader over stores that already exist; the kill switch, the approval
+gates and who may approve what are all exactly as they were.
+"""
+from __future__ import annotations
+
+import datetime as dt
+
+from aletheia import work_states as ws
+
+#: Long enough that nothing real is hidden, short enough to read.
+MAX_ITEMS = 25
+#: One sentence. Anything longer is a paragraph he has to parse before he
+#: can decide, and deciding is the whole point of the list.
+MAX_WORDS_CHARS = 140
+
+
+def _safe(fn, default):
+    """One dead store must never hide the other four.
+
+    This is the list that answers "is anything waiting on me". A source
+    that raises has to cost its own rows and nothing else, or a broken
+    calendar makes an unanswered approval invisible — and the failure
+    mode of THAT is him not knowing he was asked.
+    """
+    try:
+        return fn()
+    except Exception:
+        return default
+
+
+def _said(text: object, limit: int = MAX_WORDS_CHARS) -> str:
+    from aletheia import speech
+    return speech.shorten(speech.tidy(speech.strip_ids(str(text or ""))), limit)
+
+
+def _row(*, id: str, kind: str, what: str, why: str, if_ignored: str,
+         since: str = "", how: str = "") -> dict:
+    """One thing needing him, in the one shape."""
+    return {"id": str(id), "kind": kind, "what": _said(what),
+            "why": _said(why, 120), "if_ignored": _said(if_ignored, 120),
+            "since": str(since or ""), "how": _said(how, 90)}
+
+
+# ---------------------------------------------------------------- sources
+def _approvals() -> list[dict]:
+    from aletheia import intercom, policy, voice
+    out = []
+    for approval in policy.all_approvals():
+        if approval.get("state") != "PENDING":
+            continue
+        tier = str(approval.get("tier") or "")
+        routine = not tier or tier == intercom.TIER_ROUTINE
+        out.append(_row(
+            id=str(approval.get("id") or ""),
+            kind="approval",
+            what=voice.approval_label(approval),
+            why="I need your yes before I do it",
+            if_ignored="nothing happens until you say so",
+            since=str(approval.get("requested_at") or ""),
+            how=("say approve" if routine
+                 else "say yes on your phone or at the keyboard")))
+    return out
+
+
+#: Work states that mean the item is sitting on HIM. BLOCKED_EXTERNAL is
+#: deliberately absent: waiting on the world is not waiting on Caleb, and
+#: a list that cannot tell those apart is a list he learns to skim.
+HIS_STATES = (ws.BLOCKED_USER, ws.BLOCKED_LOGIN)
+
+
+def _work() -> list[dict]:
+    from aletheia import work_engine
+    inventory = work_engine.inventory(probe=False)
+    out = []
+    for item in inventory.get("items") or []:
+        if item.get("state") not in HIS_STATES:
+            continue
+        signing_in = item.get("state") == ws.BLOCKED_LOGIN
+        out.append(_row(
+            id=str(item.get("id") or ""),
+            kind="work",
+            what=item.get("title"),
+            why=(item.get("reason")
+                 or ("it needs you signed in" if signing_in
+                     else "only you can answer this")),
+            # The item's own `next` is written as what happens when he
+            # acts. What he needs here is what happens when he doesn't.
+            if_ignored="it stays where it is until you get to it",
+            since=str(item.get("updated") or ""),
+            how=str(item.get("next") or "")))
+    return out
+
+
+def _applications() -> list[dict]:
+    """Applications stopped on a question only he can answer.
+
+    Twelve of these sat unanswered once while "what do you need from me"
+    said nothing was waiting, because they were in a different store from
+    the one that sentence read.
+    """
+    from aletheia import current_state
+    hunt = current_state.job_hunt()
+    out = []
+    for waiting in hunt.get("waiting_on_him") or []:
+        questions = list(waiting.get("questions") or [])
+        first = questions[0] if questions else ""
+        out.append(_row(
+            id=str(waiting.get("id") or ""),
+            kind="application",
+            what=current_state.said_name(str(waiting.get("company") or ""),
+                                         str(waiting.get("job") or "")),
+            why=(str(waiting.get("why") or "")
+                 or (f"the form asks: {first}" if first
+                     else "the form asks something only you can answer")),
+            if_ignored="the application stays unsent",
+            since=str(waiting.get("at") or ""),
+            how="answer it and I'll finish the form"))
+    return out
+
+
+SOURCES = {"approval": _approvals, "work": _work, "application": _applications}
+
+
+# ------------------------------------------------------------------ list
+def _key(row: dict) -> str:
+    """Two rows about the same thing, seen from two stores, are one row.
+
+    A handoff is a work item AND an approval; an application waiting on a
+    question is a work item AND a campaign record. Showing both is how a
+    list of four real decisions becomes a list of nine.
+    """
+    import re
+    words = re.sub(r"[^a-z0-9 ]", " ", str(row.get("what", "")).casefold())
+    return " ".join(words.split())
+
+
+def items(now: dt.datetime | None = None, *, limit: int = MAX_ITEMS,
+          sources: dict | None = None) -> list[dict]:
+    """Everything genuinely waiting on him: deduplicated, newest first."""
+    del now                     # rows carry their own times; nothing is computed
+    gathered: list[dict] = []
+    for read in (sources or SOURCES).values():
+        gathered.extend(_safe(read, []))
+    seen, out = set(), []
+    for row in sorted(gathered, key=lambda r: str(r.get("since") or ""),
+                      reverse=True):
+        key = _key(row)
+        if not row["what"] or key in seen:
+            continue
+        seen.add(key)
+        out.append(row)
+    return out[:max(1, int(limit))]
+
+
+def spoken(rows: list[dict] | None = None) -> str:
+    """The list, said out loud — the thing first, the count only if real.
+
+    "1 waiting on you — the first is Cancel the task to call the plumber"
+    is a row index read aloud: he cannot act on "the first", there is no
+    second, and the one fact arrives last.
+    """
+    from aletheia import speech
+    rows = items() if rows is None else rows
+    if not rows:
+        return "Nothing needs you right now."
+    first = rows[0]
+    said = f"You need to {first['how'] or 'decide'}: {first['what'].rstrip('.')}."
+    if first["if_ignored"]:
+        said += f" If you leave it, {first['if_ignored'].rstrip('.')}."
+    if len(rows) > 1:
+        said += (" There "
+                 + ("is " if len(rows) == 2 else "are ")
+                 + speech.count_phrase(len(rows) - 1, "other thing")
+                 + " too.")
+    return said
+
+
+# -------------------------------------------------------------- activity
+#: What she finished, what failed, what she did without being asked — from
+#: the receipts that already exist. No new store: the journal has every
+#: action, `work_engine` has every item's end state, and `autonomy` has
+#: the unattended ledger. A fourth copy would be a fourth thing to go
+#: stale.
+ACTIVITY_HOURS = 24.0
+
+
+def activity(*, hours: float = ACTIVITY_HOURS, limit: int = 30) -> list[dict]:
+    """One history view: {"at", "what", "outcome"}, newest first.
+
+    `outcome` is one of "finished", "failed" or "unattended" — the three
+    things he actually asks about ("what did you do", "did anything
+    break", "what did you do without asking me"), each answered from the
+    store that really knows.
+    """
+    rows: list[dict] = []
+    for row in _safe(lambda: _finished_and_failed(hours), []):
+        rows.append(row)
+    for row in _safe(lambda: _unattended(hours, limit), []):
+        rows.append(row)
+    rows.sort(key=lambda r: str(r.get("at") or ""), reverse=True)
+    return rows[:max(1, int(limit))]
+
+
+#: Journal kinds that record something GOING WRONG, and the one that
+#: records something going right again. "repo health red -> green" is a
+#: RECOVERY: filing it under "failed" tells him something broke at the
+#: exact moment it stopped being broken, which is the opposite of the
+#: truth and the kind of thing that makes a history view unreadable.
+_FAILED_KINDS = frozenset({"alert", "error"})
+_RECOVERED_KINDS = frozenset({"recovery"})
+
+
+def _outcome_of(kind: object) -> str:
+    if kind in _FAILED_KINDS:
+        return "failed"
+    return "recovered" if kind in _RECOVERED_KINDS else "finished"
+
+
+def _finished_and_failed(hours: float) -> list[dict]:
+    from aletheia import recollection
+    return [{"at": str(row.get("at") or ""), "what": _said(row.get("what")),
+             "outcome": _outcome_of(row.get("kind"))}
+            for row in recollection.day(hours=hours)]
+
+
+def _unattended(hours: float, limit: int) -> list[dict]:
+    from aletheia import autonomy
+    out = []
+    for row in autonomy.recent(hours=hours, limit=limit):
+        said = str(row.get("said") or "").strip() or f"ran {row.get('tool')}"
+        out.append({"at": str(row.get("at") or ""), "what": _said(said),
+                    "outcome": "unattended",
+                    "outward": bool(_safe(lambda: autonomy.is_outward(row), True))})
+    return out
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+    ap = argparse.ArgumentParser(description="What needs Caleb, and what she did.")
+    ap.add_argument("what", nargs="?", default="needs",
+                    choices=["needs", "activity", "say"])
+    args = ap.parse_args(argv)
+    if args.what == "say":
+        print(spoken())
+        return 0
+    if args.what == "activity":
+        for row in activity():
+            print(f"{row['at']}  {row['outcome']:<10} {row['what']}")
+        return 0
+    rows = items()
+    if not rows:
+        print("Nothing needs you right now.")
+        return 0
+    for row in rows:
+        print(f"- {row['what']}")
+        print(f"    because {row['why']}")
+        print(f"    if you ignore it: {row['if_ignored']}")
+        if row["how"]:
+            print(f"    to answer: {row['how']}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

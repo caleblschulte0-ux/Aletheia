@@ -195,7 +195,13 @@ class TheAgentStateHasAnOrder(Records):
             block = current_state.agent(NOW, hunt={"readable": True}, browsing={"active": True})
         self.assertEqual(block["state"], "HALTED")
         self.assertEqual(block["step"], "stop")
-        self.assertIn("Halted", current_state.agent_words(block))
+        # Case-insensitive: she says "I'm halted" in the first person now,
+        # because it is her answering a question about herself. The rule is
+        # that the word HALTED reaches him, and that the sentence says
+        # nothing runs until he resumes her.
+        said = current_state.agent_words(block)
+        self.assertIn("halted", said.lower())
+        self.assertIn("resume", said.lower())
 
     def test_needs_you_names_what_is_waiting(self):
         block = current_state.agent(
@@ -208,7 +214,11 @@ class TheAgentStateHasAnOrder(Records):
         block = current_state.agent(NOW, hunt={"readable": True, "waiting_on_him": []},
                                     browsing={"active": False})
         self.assertEqual(block["state"], "IDLE")
-        self.assertEqual(current_state.agent_words(block), "Nothing in flight right now.")
+        # The rule is that IDLE says nothing is happening — not the exact
+        # sentence, which was "Nothing in flight right now": a phrase off a
+        # control tower, not something a person says about their day.
+        said = current_state.agent_words(block)
+        self.assertTrue(said.lower().startswith("nothing"), said)
 
     def test_every_state_is_in_the_vocabulary(self):
         for state in ("HALTED", "ACTING", "LOOKING", "THINKING", "BLOCKED", "NEEDS YOU",
