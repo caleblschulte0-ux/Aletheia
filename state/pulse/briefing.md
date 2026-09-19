@@ -1,32 +1,32 @@
 # Fleet briefing
 
-Generated 2026-09-19T15:56:17Z from fleet registry rev 5 via GitHubSource.
+Generated 2026-09-19T20:46:53Z from fleet registry rev 5 via GitHubSource.
 
-## 🔴 `Aletheia` — hub (active)
+## ⚪ `Aletheia` — hub (active)
 
 The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.
 
 Last commit `c8089d98c3d9` at 2026-09-13T15:52:48Z: Apply anywhere: her texts, four more systems, and no more black boxes
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-09-19T15:56:13Z
-- `ci.yml`: failure at 2026-09-19T01:13:07Z
+- `pulse.yml`: in_progress at 2026-09-19T20:46:51Z
+- `ci.yml`: in_progress at 2026-09-19T20:41:03Z
 
-## 🟢 `Shorts-pipeline` — youtube-automation (active)
+## 🔴 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `74f804bc85a4` at 2026-09-19T15:51:24Z: watchdog: chatgpt task verdicts 20260919 [skip ci]
+Last commit `3ec5bdccfb04` at 2026-09-19T20:11:40Z: explainer: update posted log + analytics [skip ci]
 
-Vitals — trending posted: 331 · explainer posted: 259 · third posted: 579 · curiosity posted: 1
+Vitals — trending posted: 331 · explainer posted: 260 · third posted: 579 · curiosity posted: 1
 
 Watched workflows:
-- `daily.yml`: success at 2026-09-19T14:23:13Z
+- `daily.yml`: failure at 2026-09-19T19:57:25Z
 - `exchange_phase_a.yml`: success at 2026-09-19T13:23:25Z
-- `exchange_phase_b.yml`: success at 2026-09-19T11:31:11Z
-- `story_forge.yml`: success at 2026-09-19T09:37:03Z
+- `exchange_phase_b.yml`: success at 2026-09-19T17:20:39Z
+- `story_forge.yml`: success at 2026-09-19T19:24:13Z
 - `third.yml`: success at 2026-09-19T15:02:28Z
-- `explainer.yml`: success at 2026-09-19T10:48:15Z
+- `explainer.yml`: success at 2026-09-19T20:11:46Z
 - `retro.yml`: success at 2026-09-19T04:40:43Z
 - `doctor.yml`: success at 2026-09-19T09:26:57Z
 
