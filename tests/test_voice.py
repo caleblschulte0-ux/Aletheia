@@ -34,7 +34,14 @@ class InterpretCase(unittest.TestCase):
     def test_status_is_answered_not_commanded(self):
         out = voice.interpret("Thea, what's going on?")
         self.assertIsNone(out["command"])
-        self.assertIn("task", out["say"])
+        # It said "1 fleet alert. 0 live tasks." — a dashboard read out
+        # loud. The rule is that the question is ANSWERED here rather than
+        # compiled into a command, and that the answer is a sentence: no
+        # count of nothing, and no word off a screen he is not looking at.
+        said = out["say"]
+        self.assertTrue(said and said[0].isupper() and said.endswith("."), said)
+        self.assertNotIn("0 ", said)
+        self.assertNotIn("fleet alert", said)
 
     def test_read_a_spoken_url(self):
         out = voice.interpret("Thea, read example dot com")
@@ -332,8 +339,12 @@ class AttentionAnsweredWithoutAModel(unittest.TestCase):
         with mock.patch("aletheia.current_state.snapshot", return_value=empty), \
              mock.patch("aletheia.core.status_payload",
                         return_value={"pulse": {"alerts": 0}}):
-            self.assertIn("Nothing needs your attention",
-                          voice.interpret("Thea, what needs my attention?")["say"])
+            # "What needs my attention" and "what's waiting on me" are one
+            # question with one answer now, so this asserts the RULE -
+            # quiet says so plainly - rather than which of the two
+            # sentences happened to be written first.
+            said = voice.interpret("Thea, what needs my attention?")["say"]
+            self.assertTrue(said.lower().startswith("nothing"), said)
 
 
 class TheWallCollectsTheAnswerItWasPromised(unittest.TestCase):

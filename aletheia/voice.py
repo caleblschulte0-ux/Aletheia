@@ -337,23 +337,37 @@ def _next_occurrence_iso(hhmm: str, *, bare_hour: bool = False,
 
 
 def _status_say() -> str:
+    """"What's going on?", answered the way a person answers it.
+
+    It read the dashboard out loud: **"1 fleet alert. 0 live tasks."**
+    Three things wrong in six words. Nobody says zero of anything — an
+    absent thing is not news, it is the absence of news. "Fleet alert" is
+    a word off a screen he is not looking at. And neither half answers
+    what he asked, which is what is HAPPENING, not how many rows are in
+    two tables.
+
+    So: what she is doing, then what is waiting on him, then the honest
+    "nothing" when that is really the answer. A count survives only where
+    it is the fact ("two tasks running"), never as a tally of nothing.
+    """
+    from aletheia import quick, speech
     from aletheia.core import status_payload  # late import; core imports us too
     s = status_payload()
-    parts = []
     if s["halted"]:
-        parts.append("I am HALTED — nothing acts until you say resume.")
+        return "I'm halted — nothing acts until you say resume."
+    parts = [quick.doing_words()]
+    pending = s["approvals_pending"]
+    if pending and "waiting on you" not in parts[0]:
+        parts.append(f"{speech.count_phrase(len(pending), 'thing')} needs your "
+                     "yes — approve it on your phone or at the keyboard; the "
+                     "routine ones I can take by voice.")
+    live = s["tasks"]["live"]
+    if live:
+        parts.append(f"{speech.count_phrase(live, 'task')} still running.")
     alerts = s["pulse"].get("alerts")
     if alerts:
-        parts.append(f"{alerts} fleet alert{'s' if alerts != 1 else ''}.")
-    live = s["tasks"]["live"]
-    parts.append(f"{live} live task{'s' if live != 1 else ''}.")
-    pending = s["approvals_pending"]
-    if pending:
-        parts.append(f"{len(pending)} approval{'s' if len(pending) != 1 else ''} "
-                     "waiting on you — approve them on your phone; the routine "
-                     "ones I can take by voice.")
-    if not s["halted"] and not alerts and not pending:
-        parts.append("All quiet.")
+        parts.append(f"{speech.count_phrase(alerts, 'thing')} in your "
+                     "repositories needs looking at.")
     return " ".join(parts)
 
 
@@ -364,36 +378,20 @@ def _status_say() -> str:
 # that are already durable local state. Deterministic is also more honest
 # here — it reports what the stores contain, with nothing to invent.
 def _attention_say() -> str:
-    """Read the durable attention queues locally; no model is needed."""
-    from aletheia import current_state
-    from aletheia.core import status_payload  # late import; core imports us too
+    """"What needs my attention" — the SAME answer as "what's waiting on me".
 
-    state = current_state.snapshot()
-    needs = state["needs_attention"]
-    parts = []
-    if state["halted"]:
-        parts.append("I am halted — nothing acts until you say resume.")
-    alerts = status_payload()["pulse"].get("alerts") or 0
-    if alerts:
-        parts.append(f"{alerts} fleet alert{'s' if alerts != 1 else ''}.")
-    for key, singular in (
-        ("pending_approvals", "approval waiting on you"),
-        ("waiting_operator", "task waiting on you"),
-        ("blocked_tasks", "blocked task"),
-        ("overdue_replies", "overdue reply"),
-    ):
-        count = len(needs[key])
-        if count:
-            plural = singular if count == 1 else (
-                singular.replace("approval", "approvals")
-                .replace("task", "tasks")
-                .replace("reply", "replies")
-            )
-            parts.append(f"{count} {plural}.")
-    unread = needs["unread_notifications"]
-    if unread:
-        parts.append(f"{unread} unread notification{'s' if unread != 1 else ''}.")
-    return " ".join(parts) or "Nothing needs your attention right now."
+    These were two questions with two implementations reading two
+    different sets of stores, and they disagreed: this one counted rows
+    ("1 approval waiting on you. 2 blocked tasks. 3 unread
+    notifications.") while the other named the thing. Two answers to one
+    question is how he learns to ask both and trust neither.
+
+    `quick._waiting` reads the one needs-you list, so there is one
+    implementation of "is anything sitting on me" and a row can only be
+    missing from both places or neither.
+    """
+    from aletheia import quick
+    return quick._waiting()
 
 
 # The days a weekly reminder can name, for the deterministic path.
@@ -2258,6 +2256,31 @@ def _how_long_ago(approval: dict) -> str:
     return "a few minutes ago"
 
 
+#: An application approval's id is `<run id>-submit`, and the run id is
+#: `apply-<tag of the url>`. The record beside it knows the employer.
+_APPLICATION_APPROVAL = "-submit"
+
+
+def _application_label(approval: dict) -> str:
+    """"Analyst at Notion", never "Submit an application at <a link>".
+
+    Never raises and never guesses: an unreadable record, or one that
+    knows neither the employer nor the role, falls back to whatever the
+    rest of `approval_label` would have said.
+    """
+    approval_id = str((approval or {}).get("id") or "")
+    if not approval_id.endswith(_APPLICATION_APPROVAL):
+        return ""
+    try:
+        from aletheia import apply_run
+        record = apply_run.load_run(approval_id[:-len(_APPLICATION_APPROVAL)])
+        if not (record.get("company") or record.get("job_title")):
+            return ""
+        return speech.for_the_room(apply_run.describe(record))[:80]
+    except Exception:
+        return ""
+
+
 def approval_label(approval: dict) -> str:
     """What this approval is, in words he would recognise."""
     from aletheia import speech
@@ -2273,6 +2296,18 @@ def approval_label(approval: dict) -> str:
         return speech.tidy(speech.strip_ids(action)) or "the errand"
     if capability == "agent.delegate" or action.startswith("delegate"):
         return "the work order"
+
+    # AN APPLICATION IS NAMED BY THE EMPLOYER AND THE ROLE, always.
+    # Half of them said "Apply: <page title> — <url>" and the other half
+    # "Submit an application at <url>", depending on which path staged
+    # them — so the same list showed him two shapes, and one of them was
+    # a link where a company should be. The employer and the job title
+    # are on the application RECORD, whose id prefixes the approval's,
+    # and `apply_run.describe` is already the one sentence that names an
+    # application the way he would.
+    said = _application_label(approval)
+    if said:
+        return said
 
     # WHAT WILL HAPPEN beats both the reason and a category. The
     # consequence is the plan's own summary of what it will do, which is

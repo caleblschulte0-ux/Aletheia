@@ -37,6 +37,20 @@ BACKOFF_START_S = 2.0
 BACKOFF_MAX_S = 60.0
 STABLE_AFTER_S = 600.0  # this long alive resets the crash backoff
 
+# A CRASH LOOP MUST BE HONEST RATHER THAN SILENT. This loop is very good
+# at hiding one: the Core dies, it relaunches, the Core dies, and every
+# word of it goes into a journal file nobody reads. From the outside she
+# looks up — the process really is there — and every answer is "I couldn't
+# reach my Core". He has no way to tell a slow morning from a machine
+# that has been restarting the same broken build for an hour.
+#
+# So: after this many crashes with nothing in between long enough to call
+# stable, she says so, once, in words.
+CRASH_LOOP_AT = 4
+#: How short a life counts towards the loop. Longer than a start-up
+#: failure, far shorter than a working session.
+CRASH_LOOP_ALIVE_S = 60.0
+
 
 def _journal(kind: str, subject: str, text: str) -> None:
     """Journal, but never at the cost of the loop.
@@ -52,6 +66,64 @@ def _journal(kind: str, subject: str, text: str) -> None:
         journal.append(kind, subject, text, actor=ACTOR)
     except Exception:
         pass
+
+
+def _say_crash_loop(code: int, crashes: int) -> None:
+    """Tell him the Core keeps dying. Never at the cost of the loop.
+
+    One notice, deduplicated on the exit code, because a loop that
+    notifies per crash is a second kind of storm. It is IMPORTANT on
+    purpose: this is not routine reversible work, it is the thing that
+    answers him being gone and staying gone.
+    """
+    try:
+        from aletheia import notifications
+        notifications.publish(
+            "I keep restarting and failing",
+            f"The part of me that answers you has died {crashes} times in a "
+            f"row within a minute of starting (exit code {code}). I'm still "
+            "trying. If this doesn't clear, the last thing that changed is "
+            "the place to look.",
+            priority="IMPORTANT", source="supervisor",
+            about=notifications.FAILED,
+            dedupe_key=f"core-crash-loop:{code}")
+    except Exception:
+        pass
+
+
+def repair_registration() -> list[str]:
+    """Put the always-on tasks back, without being asked. Never raises.
+
+    `install` was the only thing that ever checked this, and `install` is
+    something HE runs — so a task that had been disabled, or lost a
+    trigger to a Windows update, stayed broken until the next time he
+    happened to think of it. Nothing about normal operation should
+    require him to remember a command.
+
+    Registering for the current user needs no elevation, so she can
+    simply fix it. Returns what was repaired, for the journal.
+    """
+    if os.name != "nt":
+        return []
+    fixed = []
+    try:
+        problems = autostart.doctor()
+    except Exception:
+        return []
+    for spec in autostart.TASKS.values():
+        if spec.name not in problems:
+            continue
+        try:
+            ok, detail = autostart.install(spec)
+        except Exception as exc:
+            ok, detail = False, f"{type(exc).__name__}: {exc}"
+        _journal("event" if ok else "alert", "supervisor",
+                 (f"repaired the always-on registration for {spec.name!r} "
+                  f"({'; '.join(problems[spec.name])})") if ok else
+                 f"could not repair {spec.name!r}: {detail}")
+        if ok:
+            fixed.append(spec.name)
+    return fixed
 
 
 def core_alive(port: int = DEFAULT_PORT) -> bool:
@@ -106,7 +178,13 @@ def run_forever(core_args: list[str] | None = None, launch=None,
         cmd, cwd=str(REPO_ROOT), env=_child_env()).returncode)
     backoff = BACKOFF_START_S
     runs = 0
+    crashes = 0
     _journal("event", "supervisor", "supervisor up — the Core is now persistent")
+    # ...and while she is up, make sure the thing that brings her back is
+    # still registered the way it has to be. `launch` is only ever passed
+    # by a test, and a test must not shell out to Task Scheduler.
+    if launch is None:
+        repair_registration()
     while max_runs is None or runs < max_runs:
         runs += 1
         started = time.monotonic()
@@ -137,10 +215,15 @@ def run_forever(core_args: list[str] | None = None, launch=None,
             return 0
         if code == RESTART_EXIT_CODE:
             backoff = BACKOFF_START_S  # a self-update is health, not a crash
+            crashes = 0
             _journal("event", "supervisor", "relaunching Core on updated code")
             continue
         if alive_s >= STABLE_AFTER_S:
             backoff = BACKOFF_START_S
+        # A run that lasted a real length of time is a crash, not a loop.
+        crashes = crashes + 1 if alive_s < CRASH_LOOP_ALIVE_S else 1
+        if crashes == CRASH_LOOP_AT:
+            _say_crash_loop(code, crashes)
         _journal("event", "supervisor",
                  f"Core died (exit {code}) after {alive_s:.0f}s — "
                  f"relaunching in {backoff:.0f}s")

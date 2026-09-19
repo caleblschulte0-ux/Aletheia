@@ -71,11 +71,33 @@ class TwoRemindersAreTwoThingsCase(unittest.TestCase):
         self.assertEqual(row["body"], "call the dentist")
 
 
+import contextlib
+
+
+@contextlib.contextmanager
+def _both(*patches):
+    with contextlib.ExitStack() as stack:
+        for patch in patches:
+            stack.enter_context(patch)
+        yield
+
+
 class AskingWhatIsWaitingCase(unittest.TestCase):
     def snap(self, notices, waiting=()):
-        return mock.patch("aletheia.presence.snapshot",
-                          lambda: {"halted": False, "waiting_on_you": list(waiting),
-                                   "notifications": notices})
+        """The notices come from the wall collector; the decisions come
+        from `needs_you`, which reads the approval store itself rather
+        than the wall's copy of it."""
+        from aletheia import needs_you
+        rows = [needs_you._row(id=str(n), kind="approval", what=w["label"],
+                               why="I need your yes first",
+                               if_ignored="nothing happens until you say so",
+                               how="say approve")
+                for n, w in enumerate(waiting)]
+        return _both(
+            mock.patch("aletheia.presence.snapshot",
+                       lambda: {"halted": False, "waiting_on_you": [],
+                                "notifications": notices}),
+            mock.patch("aletheia.needs_you.items", lambda *a, **k: rows))
 
     def test_she_names_them(self):
         with self.snap([{"says": "call the dentist"},

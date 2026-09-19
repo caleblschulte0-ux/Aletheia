@@ -261,6 +261,36 @@ def sentences_not_lines(text: str) -> str:
     return " ".join(finished)
 
 
+#: How much she says between two chances for him to cut in. Long enough
+#: that an ordinary answer is one breath and nothing sounds chopped;
+#: short enough that the longest sentence anybody writes still ends
+#: within a couple of seconds of him opening his mouth.
+BREATH_CHARS = 240
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
+
+
+def breaths(text: str) -> list[str]:
+    """A spoken answer, split where she could stop if he talks over her.
+
+    One item for anything of ordinary length, because a mouth restarted
+    per sentence sounds like a mouth with a stutter. Only a long answer is
+    broken up, and only at a full stop — so the gap he can speak into is
+    a gap a person would have left anyway.
+    """
+    said = " ".join(str(text or "").split())
+    if not said:
+        return []
+    if len(said) <= BREATH_CHARS:
+        return [said]
+    out: list[str] = []
+    for sentence in _SENTENCE_END.split(said):
+        if out and len(out[-1]) + 1 + len(sentence) <= BREATH_CHARS:
+            out[-1] = f"{out[-1]} {sentence}"
+        else:
+            out.append(sentence)
+    return [part for part in out if part]
+
+
 def spoken_prose(text: str) -> str:
     """Model prose, made safe to read out: no markup, no identifiers.
 
@@ -275,6 +305,108 @@ def spoken_prose(text: str) -> str:
     """
     return tidy(strip_ids(say_capabilities(
         sentences_not_lines(unmarkdown(text)))))
+
+
+# ------------------------------------------------------- links and paths
+# "Open http://127.0.0.1:8777/ and click..." was a real spoken answer to
+# "why is your voice off". Out loud that is "aitch tee tee pee colon slash
+# slash one two seven dot zero dot zero dot one colon eight seven seven
+# seven" — twenty syllables of nothing, in the middle of the one sentence
+# that was supposed to help him. The same is true of a Windows path, and
+# for the same reason: it is a handle for a machine, and he is in a room.
+URL = re.compile(r"\b(?:https?://|www\.)[^\s<>\"')\]]+", re.I)
+_LOCAL_CORE = re.compile(r"^https?://(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?", re.I)
+WINDOWS_PATH = re.compile(r"\b[A-Za-z]:\\[^\s,;\"')\]]+")
+POSIX_PATH = re.compile(r"(?<![\w.])/(?:[\w.~-]+/){2,}[\w.~-]*")
+
+
+def say_url(url: str) -> str:
+    """A link, said the way a person refers to it rather than types it."""
+    text = str(url or "").strip().rstrip(".,;:!?)\"'")
+    if _LOCAL_CORE.match(text):
+        return "your Aletheia page"
+    host = re.sub(r"^[a-z]+://", "", text, flags=re.I).split("/")[0]
+    host = host.split("@")[-1].split(":")[0]
+    if host.lower().startswith("www."):
+        host = host[4:]
+    return host or "a link"
+
+
+def say_path(path: str) -> str:
+    """A file path as its file: the folders are for a machine to walk."""
+    name = re.split(r"[\\/]", str(path or "").rstrip("\\/"))[-1]
+    return name or "a file"
+
+
+def without_links(text: str) -> str:
+    """Links and paths turned back into the words a person would use."""
+    said = URL.sub(lambda m: say_url(m.group(0)), str(text or ""))
+    said = WINDOWS_PATH.sub(lambda m: say_path(m.group(0)), said)
+    return POSIX_PATH.sub(lambda m: say_path(m.group(0)), said)
+
+
+#: A name only a stack trace uses, wherever it appears in the sentence.
+#: `without_machine_codes` anchors its version at the START, which is the
+#: right rule for a message that IS a failure — but the room hears these
+#: mid-sentence too: "That failed: TimeoutError: Page.goto: net::ERR..."
+#: came through with both names still in it. Deliberately narrow: an
+#: identifier ending in Error/Exception/Warning/Timeout, or a
+#: `Class.method`, followed by a colon. "Monday: call the dentist" and
+#: "Thea: hello" are neither.
+_TRACE_NAME = re.compile(
+    r"\b(?:[A-Z][A-Za-z0-9]*(?:Error|Exception|Warning|Timeout)"
+    r"|[A-Z][A-Za-z]+\.[a-z_]+)\s*:\s*")
+
+
+def without_trace_names(text: str) -> str:
+    """Class names taken out, but only where a sentence is left behind.
+
+    `plainly`'s guard, applied per match instead of once at the front: a
+    bare KeyError says nothing but the key, so "I couldn't:
+    'generated_at'" is worse than the traceback it came from. The name
+    goes only when what FOLLOWS it can stand on its own.
+    """
+    said = str(text or "")
+
+    def drop(match: re.Match) -> str:
+        # The rest of THIS sentence, with the other trace names already
+        # gone. Splitting on a bare "." counted "Page.goto: at
+        # example.com" as the one word "Page" and kept the name in front
+        # of it; a sentence ends with a full stop and a SPACE.
+        rest = _TRACE_NAME.sub("", _SENTENCE_END.split(said[match.end():])[0])
+        return "" if len(rest.split()) >= 2 else match.group(0)
+
+    return _TRACE_NAME.sub(drop, said)
+
+
+def for_the_room(text: str) -> str:
+    """The last door before a sentence is spoken out loud, anywhere.
+
+    `spoken_prose` is the door for model prose; this is the door for
+    EVERYTHING, including the sentences her own subsystems hand up, and it
+    exists because the failures keep arriving on paths nobody expected:
+    an exception class in a notification body, a traceback quoted into a
+    reply, a URL in a piece of advice. Each of those was fixed at its own
+    source and the next one arrived somewhere else.
+
+    So this is the backstop, not the fix. It removes machine codes,
+    identifiers and links, and it never shortens or rewrites: if a
+    sentence is too long or says the wrong thing, that is still a bug
+    where it was written.
+    """
+    said = without_machine_codes(unmarkdown(str(text or "")))
+    return tidy(strip_ids(without_links(without_trace_names(said))))
+
+
+def bare_words(text: str) -> set[str]:
+    """The words in a sentence, with nothing clinging to them.
+
+    "My name is Thea." holds the word "thea", not the word "thea." — and
+    a comparison that cannot tell those apart is a comparison that always
+    says no.
+    """
+    cleaned = re.sub(r"[^a-z0-9\s]", " ", str(text or "").casefold())
+    return set(cleaned.split())
 
 
 def _times_to_words(text: str, now: dt.datetime | None = None) -> str:
@@ -516,7 +648,10 @@ def plainly(detail: str) -> str:
     stripped = _CLASS_PREFIX.sub("", text)
     if stripped != text and len(stripped.split()) < 2:
         stripped = text
-    return tidy(strip_ids(stripped))
+    # ...and the ones that are not at the front. `_CLASS_PREFIX` is
+    # anchored, so "That failed: ReasonerUnavailable: ..." kept its name:
+    # the same rule, one implementation, both paths.
+    return tidy(strip_ids(without_trace_names(stripped)))
 
 
 def shorten(text: str, limit: int = 70) -> str:

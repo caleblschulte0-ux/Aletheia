@@ -191,7 +191,15 @@ def ask(base: str, sentence: str, secret: str) -> tuple[float, str]:
             time.sleep(POLL_S)
         else:
             said = f"(no answer within {FOLLOWUP_TIMEOUT_S:.0f}s) {said}"
-    return time.monotonic() - started, said
+    # WHAT THE ROOM WOULD HEAR, not what the API returned. The room's
+    # mouth is the last door every spoken sentence goes through
+    # (`voice_room.speak` -> `speech.for_the_room`), so an audit that
+    # printed the raw reply would show him a URL, a hex id or a class
+    # name that the microphone surface never says — inventing a defect
+    # that does not exist, which costs a session, and hiding the real
+    # ones behind it.
+    from aletheia import speech
+    return time.monotonic() - started, speech.for_the_room(said)
 
 
 def main(argv: list[str] | None = None) -> int:

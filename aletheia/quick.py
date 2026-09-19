@@ -195,7 +195,21 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what(?:'s| is|s)? running(?: right now)?$"
         r"|^which parts are running$|^what parts (?:of you )?are running$"
         r"|^is anything running$|^what(?:'s| is|s)? on right now$"
-        r"|^are (?:you|u) all running$")),
+        r"|^are (?:you|u) all running$"
+        # THE HEALTH QUESTIONS, which is what this answer really is. Each
+        # of these took a model round trip to be answered worse: "why is
+        # your voice off" came back with an address and a port read out
+        # loud, and a hundred words of hedging, while `running` had the
+        # true answer in twenty milliseconds.
+        r"|^is everything (?:running|working|up|on|alright)$"
+        r"|^(?:is|are) (?:everything|all of you) (?:still )?(?:running|working)$"
+        r"|^are (?:you|u) (?:fully )?(?:up|working|healthy)$"
+        r"|^(?:is|are) (?:you|u) broken$"
+        r"|^(?:what|how)(?:'s| is|s)? your (?:health|status)$"
+        r"|^why (?:is|are) (?:your|the) (?:voice|microphone|mic|ears) off$"
+        r"|^why (?:can'?t|cant) (?:you|u) hear me$"
+        r"|^why (?:aren'?t|arent) (?:you|u) listening$"
+        r"|^(?:is|are) (?:your|the) (?:voice|microphone|mic) (?:on|off)$")),
     # His own details, out of his own profile. She read them off his resume;
     # asking a model to recite them is a round trip to the wrong store.
     # "What code are you running" had no answer, and that is the question
@@ -307,26 +321,27 @@ def _halted(asks_if_down: bool = True) -> str:
 
 
 def _waiting() -> str:
-    from aletheia import presence, speech
+    """"What’s waiting on me" — read from the ONE list, every time.
+
+    There used to be several answers to this question, each from a
+    different store: the approvals here, the applications from the job
+    hunt, the work items in the session report, the browser missions on
+    the Command Center. A short list that is quietly incomplete is worse
+    than a long one, because it teaches him it is complete.
+
+    `needs_you` is that one list. Unread notices are still added here,
+    and deliberately after it: a notice TELLS him something, and a
+    decision ASKS him for something, and the asking comes first.
+    """
+    from aletheia import needs_you, presence, speech
     now = presence.snapshot()
     if now.get("halted"):
         return _halted() + " Nothing runs until you resume me."
-    waiting = list(now.get("waiting_on_you") or [])
+    rows = needs_you.items()
     notices = list(now.get("notifications") or [])
-    # THE JOB HUNT IS THE THING MOST OFTEN WAITING ON HIM, and it was not
-    # here: twelve applications stopped on questions only he can answer,
-    # and "what do you need from me" said nothing was waiting.
-    hunt = _job_hunt_needs()
-    if not waiting and not notices:
-        return hunt or "Nothing is waiting on you."
-    parts = [hunt.rstrip(".")] if hunt else []
-    if waiting:
-        first = waiting[0]
-        # `presence` calls it `label` and it is already a sentence a person
-        # wrote — asking for `reason` here got "something" every time.
-        what = str(first.get("label") or first.get("reason") or "one of them")
-        parts.append(f"{len(waiting)} waiting on you — the first is "
-                     + speech.shorten(what, 90))
+    if not rows and not notices:
+        return "Nothing needs you right now."
+    parts = [needs_you.spoken(rows).rstrip(".")] if rows else []
     if notices:
         # SAY WHAT THEY ARE. A reminder fired correctly, on time, and the
         # answer to "what's waiting on me" was "1 thing I wanted to tell
@@ -353,15 +368,6 @@ def _waiting() -> str:
     return ". ".join(parts) + "."
 
 
-def _job_hunt_needs() -> str:
-    """What the job hunt needs from him, or nothing. Never raises."""
-    try:
-        from aletheia import current_state
-        return current_state.needs_from_him_words()
-    except Exception:
-        return ""
-
-
 def _job_hunt() -> str | None:
     """How the applications went today, counted from the records."""
     try:
@@ -380,7 +386,21 @@ def _wrong() -> str | None:
         return None
 
 
-def _doing() -> str:
+def doing_words() -> str:
+    """"What are you doing?" — one breath, and true.
+
+    It used to fall through to the WALL'S HEADLINE, which is written for
+    a screen he is standing in front of rather than a question he asked
+    out loud. "All quiet" was a real answer to "what are you doing": a
+    correct summary of the dashboard, and an answer to a different
+    question. Worse, the headline leads with what is WAITING, so she
+    answered "what are you doing" by telling him what HE had to do.
+
+    The order is what happened, what it means, what happens next: what
+    she is doing this second, then — only when she is doing nothing —
+    what is sitting waiting, so "nothing" is never the whole answer when
+    something is in fact pending.
+    """
     from aletheia import presence, speech
     # HER OWN STATE FIRST. The agent block knows she is pressing Submit at
     # jobs.lever.co or stuck because nobody can think; `presence` knows
@@ -395,18 +415,27 @@ def _doing() -> str:
     except Exception:
         pass
     now = presence.snapshot()
-    headline = str(now.get("headline") or "").strip()
-    if headline:
-        return headline
+    if now.get("halted"):
+        return "Nothing — I'm halted. Nothing runs until you say resume."
     working = list(now.get("working") or [])
     if working:
         # `presence` names this field `what`. Guessing `description` here
         # produced "Working on 2 thing(s): ; " — punctuation with nothing
         # in it, which is exactly the confident nonsense this module is
         # supposed to be too careful to say.
-        return "Working on " + speech.and_list(
+        return "I'm working on " + speech.and_list(
             [str(w.get("what") or "")[:60] for w in working[:3]]) + "."
-    return "Nothing in flight right now."
+    waiting = list(now.get("waiting_on_you") or [])
+    if waiting:
+        first = speech.shorten(str(waiting[0].get("label") or "one of them"), 80)
+        rest = (f" — that one and {speech.count_phrase(len(waiting) - 1, 'other')}"
+                if len(waiting) > 1 else "")
+        return f"Nothing right now. I'm waiting on you to say yes to {first}{rest}."
+    return "Nothing right now — I'm just here."
+
+
+#: The old private name, kept because several call sites say it.
+_doing = doing_words
 
 
 def _on_day(days_ago: int) -> list[dict]:
@@ -437,13 +466,26 @@ def _shortened(line: str) -> str:
 
 
 def _listed(rows: list[dict], when: str) -> str:
+    """What she did, said the way somebody tells you what they did.
+
+    It was a count and a header: "1 thing today. Most recent: Did it:
+    Check what is running right now." Three separate pieces of machine —
+    a tally nobody asked for, a column heading, and a journal line with
+    its own prefix still attached — wrapped round one real fact.
+
+    The count earns its place only when there is more than one thing and
+    more than she is about to name.
+    """
     from aletheia import speech
     # Each line is already a finished sentence; joining them with "; "
     # after a full stop gives "call the dentist.; email dana."
     lines = [_shortened(str(r.get("what") or "").strip().rstrip("."))
              for r in rows[-3:]]
-    return (f"{speech.count_phrase(len(rows), 'thing')} {when}. Most recent: "
-            + "; ".join(lines))
+    said = "; ".join(line for line in lines if line)
+    if len(rows) <= len(lines):
+        return f"{when.capitalize()}: {said}."
+    more = speech.count_phrase(len(rows) - len(lines), "other thing")
+    return f"{when.capitalize()}: {said} — and {more}."
 
 
 def _today() -> str:

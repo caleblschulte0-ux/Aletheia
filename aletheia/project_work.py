@@ -420,8 +420,12 @@ def opening_words(snap: dict) -> str:
         return "I'm halted, so I won't start work until you say resume."
     lead = ""
     if not (snap.get("frontier") or {}).get("ok"):
-        lead = ("Claude and Codex are out, so I'm working with my own model. " if (snap.get("local") or {}).get("ok")
-                else "Claude, Codex and my own model are all out, so I'll do what needs no model. ")
+        from aletheia import reasoner
+        out = reasoner.big_models_out()
+        lead = (f"{out}, so I'm doing this one myself. "
+                if (snap.get("local") or {}).get("ok")
+                else f"{out} and I can't think either, so I'll do what needs "
+                     "no thinking. ")
     run_now = [c for c in can if c.get("mode") == "run"]
     look = [c for c in can if c.get("mode") == "investigate"]
     if can:

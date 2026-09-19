@@ -349,10 +349,13 @@ def _surface_failures(failures: list[dict]) -> None:
             continue  # same failure as last beat: already said
         _FAILURES_SEEN[producer] = error
         try:
+            from aletheia import speech
             notifications.publish(
-                f"{producer} is failing",
-                f"Every beat since it started: {error}. Nothing else has stopped.",
-                priority="IMPORTANT", source="runtime",
+                "Part of me keeps failing",
+                speech.for_the_room(
+                    f"{producer} has failed every beat since it started: "
+                    f"{speech.plainly(error)}. Everything else is still running."),
+                priority="IMPORTANT", source="runtime", about=notifications.FAILED,
                 dedupe_key=f"runtime-failure:{producer}:{error[:60]}")
         except Exception:
             pass  # the journal line above is the record
@@ -690,15 +693,20 @@ class Handler(BaseHTTPRequestHandler):
                         or parse_qs(urlparse(self.path).query).get("local", [None])[0])
             if access.local_write_allowed(supplied):
                 return True
-            # The SENTENCE is for him and the diagnosis is in the subject.
-            # Written the other way round, this line — an alert, so the
-            # activity list keeps it — read "a local process attempted POST
-            # /api/voice/followup/ack without the local session secret" on
-            # his phone, twice, under "what she's done".
+            # SAID THE WAY HE READS IT, AND FILED THE WAY IT IS DEBUGGED.
+            # The journal is what "what have you done" reads out and what the
+            # activity list on his phone renders, and this arrived in both as
+            # a diagnostic: "A local process attempted POST
+            # /api/voice/followup/ack without the local session secret",
+            # twice, among the things she did. Two waves found it the same
+            # afternoon and fixed different halves: the sentence is the voice
+            # wave's, and the method and route moved into the SUBJECT, which
+            # nothing renders — so it is still there for whoever is debugging
+            # and never on his screen.
             journal.append(
                 "alert", f"access:{self.command} {path}",
-                "something on this PC tried to change things without the code "
-                "it needs, so nothing happened",
+                "I turned away something on this computer that asked me to "
+                "act without proving it was you",
                 actor="aletheia-access")
             self._json({"error": "unauthorized"}, code=401)
             return False
@@ -849,6 +857,25 @@ class Handler(BaseHTTPRequestHandler):
                                for k, (req, opt) in intercom.KIND_ARGS.items()})
         if url.path == "/api/state":
             return self._json(current_state.snapshot())
+        if url.path == "/api/needs":
+            # THE ONE "NEEDS YOU" LIST, computed here so every surface
+            # shows the same rows in the same order — the wall, the
+            # phone and the room. Smarts belong in the collector and
+            # never in the page (§88), which is the same reason
+            # `voice.approval_label` is computed by the API.
+            from aletheia import needs_you as _needs
+            return self._json({"needs": _needs.items(),
+                               "says": _needs.spoken(),
+                               "activity": _needs.activity()})
+        if url.path == "/api/health":
+            # "Is she all right?" in words, for the page to render as-is.
+            # `include_tasks=False` skips the 0.6s scheduled-task query;
+            # `?tasks=1` asks for the full picture.
+            from aletheia import running as _running
+            want_tasks = parse_qs(url.query).get("tasks", ["0"])[0] == "1"
+            state = _running.snapshot(include_tasks=want_tasks)
+            state["says"] = _running.headline(state)
+            return self._json(state)
         if url.path.startswith("/api/mission"):
             return self._mission(url)
         if url.path == "/api/notifications":

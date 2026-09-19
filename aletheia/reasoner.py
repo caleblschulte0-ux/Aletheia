@@ -179,19 +179,35 @@ def spoken_time(when: "dt.datetime") -> str:
     return clock if local.date() == today else f"{local.strftime('%A')} {clock}"
 
 
+def big_models_out(until: "dt.datetime | None" = None) -> str:
+    """"The big models are out until 4:40 pm" — the disclosure, no brand.
+
+    Two rules that looked opposed and are not. His ease-of-use brief:
+    he should never see a model name, a brand or an id in normal use.
+    CLAUDE.md: an answer he trusts as a frontier model's and is not is
+    the failure he cannot detect, so her own answers must say they are
+    hers. Operator ruling, relayed 2026-09-19: keep the disclosure, drop
+    the brand — the provider names stay in the receipts under the drawer,
+    where the detail belongs and where nobody is reading them aloud.
+
+    ONE implementation, because eight places said this in eight wordings
+    and every one of them named a company.
+    """
+    until = resting_until() if until is None else until
+    when = f" until {spoken_time(until)}" if until else ""
+    return (f"The big models are out{when}" if when
+            else "The big models can't answer right now")
+
+
 def own_model_lead() -> str:
     """The first words of any answer her own model wrote, ending in a space.
 
     ONE implementation, for conversation and for her tool sessions alike: an
-    answer he trusts as Claude's and is not is the failure he cannot detect,
-    and two copies of this sentence would drift the day one is reworded.
+    answer he trusts as a frontier model's and is not is the failure he
+    cannot detect, and two copies of this sentence would drift the day one
+    is reworded.
     """
-    until = resting_until()
-    if until:
-        return (f"Claude's out until {spoken_time(until)}, so this answer is "
-                "from my own model. ")
-    return ("Claude and ChatGPT can't answer right now, so this answer is from my "
-            "own model. ")
+    return f"{big_models_out()}, so this answer is mine: slower, and simpler. "
 
 
 def _rest(until: "dt.datetime", said: str) -> None:
@@ -665,7 +681,7 @@ def _codex_rest(until: "dt.datetime", why: str, said: str) -> None:
                 "Codex needs you to sign in again",
                 "Codex is how the job hunt keeps thinking while Claude is out, and its "
                 "ChatGPT sign-in has expired. On the PC, open a terminal and run: codex login",
-                priority="IMPORTANT", source="reasoning",
+                priority="IMPORTANT", source="reasoning", about=notifications.NEEDS_YOU,
                 dedupe_key=f"codex-login:{stamp}")
         except Exception:
             pass
@@ -958,9 +974,8 @@ def _say_switch(kind: str, claude_until: "dt.datetime | None") -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({"key": key, "at": stateio.utcnow()}) + "\n",
                         encoding="utf-8")
-        lead = (f"Claude is out until {spoken_time(claude_until)}" if claude_until
-                else "Claude could not answer")
-        whose = ("Codex on his ChatGPT subscription" if kind == "codex"
+        lead = big_models_out(claude_until)
+        whose = ("his other subscription" if kind == "codex"
                  else "my own model, and anything it alone approves waits for his OK")
         journal.append("event", "reasoning", f"{lead}, so the job hunt is thinking with {whose}",
                        actor=_WORK_ACTOR)

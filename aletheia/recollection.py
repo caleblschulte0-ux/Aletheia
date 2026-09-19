@@ -189,6 +189,13 @@ SUBJECT_KINDS = {"memory": "remember", "task": "task_new"}
 # prefix, which is why this is a list rather than a rule.
 SPEAKS_FOR_ITSELF = ("planner", "intent", "scheduling", "applications")
 
+#: A line that labels itself. "Did it:" is how the planner marks a finished
+#: plan on a SCREEN, where the label is doing work. Read back in answer to
+#: "what did you do today" it is a label on a label: "1 thing today. Most
+#: recent: Did it: Check what is running right now." The whole list is
+#: things she did; saying so once per line is the machine talking.
+_SELF_LABEL = re.compile(r"^(?:did it|did|done)\s*[:—–-]\s*", re.I)
+
 
 def _row(entry: dict) -> dict:
     """One journal line as something she could say out loud.
@@ -216,6 +223,7 @@ def _row(entry: dict) -> dict:
         said = speech.tidy(speech.strip_ids(text))
         what = (said if not subject or head in SPEAKS_FOR_ITSELF
                 else f"{subject}: {said}")
+    what = _SELF_LABEL.sub("", what).strip() or what
     return {"at": _local(entry.get("ts", "")),
             "kind": entry.get("kind", ""),
             "who": entry.get("actor", ""),

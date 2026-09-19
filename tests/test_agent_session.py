@@ -531,7 +531,11 @@ class TheLiveChain(unittest.TestCase):
         self.assertEqual(second[1], "ollama:qwen3:8b")
         self.assertEqual(cloud.call_count, 1)                 # sticky for the session
         self.assertEqual(len(switched), 1)
-        self.assertIn("my own model", switched[0])
+        # She still says the thinking became HERS — that disclosure is the
+        # point of the line. It no longer says it with a brand-shaped noun.
+        self.assertIn("myself", switched[0])
+        for brand in ("Claude", "Codex", "ChatGPT"):
+            self.assertNotIn(brand, switched[0])
 
     def test_a_late_call_is_capped_at_what_is_left_but_never_below_the_floor(self):
         from aletheia import reasoner

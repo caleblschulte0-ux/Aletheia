@@ -302,7 +302,7 @@
     },
     {
       "id": "voice.wake",
-      "description": "Room voice: local wake word ('Thea'), spoken requests into the same Core",
+      "description": "Room voice: say 'Thea' and talk to her out loud, and speak over her to stop her mid-sentence and say the next thing",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "medium",
@@ -661,7 +661,7 @@
     },
     {
       "id": "notification.center",
-      "description": "Private notifications that know what you have already seen, and never show you the same thing twice",
+      "description": "Private notifications that know what you have already seen, never show you the same thing twice, and stay quiet for routine reversible work - you hear about something finishing, failing, changing or needing you",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "low",
