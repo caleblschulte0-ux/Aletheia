@@ -84,10 +84,11 @@ def _approvals() -> list[dict]:
             kind="approval",
             what=voice.approval_label(approval),
             why="I need your yes before I do it",
-            if_ignored="nothing happens until you say so",
+            if_ignored="nothing happens",
             since=str(approval.get("requested_at") or ""),
-            how=("say approve" if routine
-                 else "say yes on your phone or at the keyboard")))
+            how=("say approve and I'll do it" if routine
+                 else "say yes on your phone or at the keyboard and I'll "
+                      "do it")))
     return out
 
 
@@ -195,14 +196,17 @@ def spoken(rows: list[dict] | None = None) -> str:
     if not rows:
         return "Nothing needs you right now."
     first = rows[0]
-    said = f"You need to {first['how'] or 'decide'}: {first['what'].rstrip('.')}."
+    # NAMING ONE OF SEVERAL HAS TO SAY SO. "3 things need you: thing 0."
+    # reads as though thing 0 were the whole list.
+    said = (f"One thing needs you: {first['what'].rstrip('.')}."
+            if len(rows) == 1 else
+            f"{speech.count_phrase(len(rows), 'thing')} need you. First: "
+            f"{first['what'].rstrip('.')}.")
+    if first["how"]:
+        how = first["how"].rstrip(".")
+        said += f" {how[0].upper()}{how[1:]}."
     if first["if_ignored"]:
-        said += f" If you leave it, {first['if_ignored'].rstrip('.')}."
-    if len(rows) > 1:
-        said += (" There "
-                 + ("is " if len(rows) == 2 else "are ")
-                 + speech.count_phrase(len(rows) - 1, "other thing")
-                 + " too.")
+        said += f" If you don't, {first['if_ignored'].rstrip('.')}."
     return said
 
 

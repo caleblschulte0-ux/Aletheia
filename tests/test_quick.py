@@ -149,7 +149,9 @@ class AnswerCase(unittest.TestCase):
         # protects is that BOTH waiting items are accounted for and the
         # first one is named.
         self.assertIn("send the email to Dana", said)
-        self.assertIn("1 other", said)
+        # BOTH are accounted for: naming one of several has to say so, or
+        # "3 things need you: thing 0" reads as the whole list.
+        self.assertIn("2 things need you", said)
         self.assertNotIn("..", said)
         # Spoken out loud, so "1 thing(s)" is not acceptable output.
         self.assertNotIn("(s)", said)

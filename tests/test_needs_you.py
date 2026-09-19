@@ -102,13 +102,13 @@ class SaidOutLoud(unittest.TestCase):
         one = [needs_you._row(id="1", kind="approval",
                               what="cancel the task to call the plumber",
                               why="I need your yes first",
-                              if_ignored="nothing happens until you say so",
+                              if_ignored="nothing happens",
                               how="say approve")]
         said = needs_you.spoken(one)
         self.assertNotIn("the first is", said)
         self.assertNotIn("1 waiting", said)
         self.assertIn("call the plumber", said)
-        self.assertIn("say approve", said)
+        self.assertIn("Say approve", said)
         self.assertIn("nothing happens", said.lower())
 
     def test_more_than_one_is_counted_because_then_the_count_is_news(self):
@@ -116,7 +116,7 @@ class SaidOutLoud(unittest.TestCase):
                                why="x", if_ignored="y", how="say approve")
                 for n in range(3)]
         said = needs_you.spoken(rows)
-        self.assertIn("2 other things", said)
+        self.assertIn("3 things need you", said)
 
     def test_nothing_is_a_sentence_not_an_empty_answer(self):
         self.assertEqual(needs_you.spoken([]), "Nothing needs you right now.")
