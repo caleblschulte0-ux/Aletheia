@@ -2323,15 +2323,19 @@ def approval_label(approval: dict) -> str:
     # the consequential one was the nameless one.
     said = speech.tidy(speech.strip_ids(str(approval.get("consequence", ""))))
     if said and said.lower() not in ("see the plan", "unknown"):
-        return said[:80]
+        # NOT `said[:80]`. On his screen that read "It presses a button that
+        # says 'Create Account'. That is not something she can un" — cut
+        # mid-word, as the headline of a decision he cannot undo.
+        # `speech.shorten` exists for exactly this and cuts at a space.
+        return speech.shorten(said, 80)
     if capability == "calendar.write" or action.startswith("calendar.write"):
         return "the calendar booking"
     if capability.startswith("intent.execute"):
         return "the plan"
     reason = speech.tidy(speech.strip_ids(_unwrap(str(approval.get("reason", "")))))
     if reason:
-        return reason[:80]
-    return speech.tidy(speech.strip_ids(action))[:60] or "the pending one"
+        return speech.shorten(reason, 80)
+    return speech.shorten(speech.tidy(speech.strip_ids(action)), 60) or "the pending one"
 
 
 # The room microphone is an INPUT device, not an authentication device

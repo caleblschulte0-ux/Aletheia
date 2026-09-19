@@ -864,8 +864,19 @@ class Handler(BaseHTTPRequestHandler):
             # never in the page (§88), which is the same reason
             # `voice.approval_label` is computed by the API.
             from aletheia import needs_you as _needs
-            return self._json({"needs": _needs.items(),
-                               "says": _needs.spoken(),
+            # A CAP THAT LIES ABOUT THE COUNT is the failure this list was
+            # built to avoid: with forty-one things waiting, the default
+            # twenty-five made the page say "show the other 20" and the
+            # spoken line say "25 things need you". One read, the true
+            # total, and `spoken` counts the same rows the page renders.
+            try:
+                asked = int(parse_qs(url.query).get("limit", [""])[0])
+            except ValueError:
+                asked = _needs.MAX_ITEMS
+            rows = _needs.items(limit=200)
+            return self._json({"needs": rows[:max(1, min(asked, 200))],
+                               "total": len(rows),
+                               "says": _needs.spoken(rows),
                                "activity": _needs.activity()})
         if url.path == "/api/health":
             # "Is she all right?" in words, for the page to render as-is.
@@ -875,6 +886,11 @@ class Handler(BaseHTTPRequestHandler):
             want_tasks = parse_qs(url.query).get("tasks", ["0"])[0] == "1"
             state = _running.snapshot(include_tasks=want_tasks)
             state["says"] = _running.headline(state)
+            # `well` is what the page hides itself on, and it comes from
+            # `running` rather than from the page re-deriving it: a health
+            # strip that stays quiet while the sentence says the Core is
+            # down would be worse than having none.
+            state["well"] = _running.all_well(state)
             return self._json(state)
         if url.path.startswith("/api/mission"):
             return self._mission(url)

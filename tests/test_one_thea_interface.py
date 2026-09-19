@@ -266,26 +266,43 @@ class ItIsHonestAboutBeingOffline(unittest.TestCase):
         ordinary = re.sub(r"/\*.*?\*/", "", ordinary, flags=re.S)
         ordinary = re.sub(r"^\s*//.*$", "", ordinary, flags=re.M)
         self.assertNotIn("heartbeat_age", ordinary)
-        self.assertNotIn("UTC", ordinary, "he does not live in UTC")
+        # As a WORD: `OUTCOME` contains the letters and is not a timezone,
+        # and a substring check that cannot tell those apart is a test that
+        # goes red for a rename.
+        self.assertNotRegex(ordinary, r"UTC", "he does not live in UTC")
 
     def test_times_are_local(self):
         self.assertIn("toLocaleTimeString", read("thea.js"))
 
 
 class ItSpeaksHumanAndKeepsTheMachineInTheDrawer(unittest.TestCase):
-    def test_an_approval_asks_in_WORDS_and_the_digest_is_one_tap_down(self):
+    def test_an_approval_asks_in_WORDS_and_never_in_a_digest(self):
         """`requested_action` is a digest for anything content-bound —
         "browser.interact:9f3c…" — and a phone that asks you to approve a
-        hash is asking you to guess. The digest stays, because it is what he
-        is actually approving; it is just never the headline."""
+        hash is asking you to guess.
+
+        This used to assert `a.label`, which was one implementation of the
+        rule: the page read `/api/approvals` and picked the field itself.
+        It reads `/api/needs` now, where every row has already been through
+        `voice.approval_label` and `speech.for_reading`, so the rule holds
+        harder — there is no field on the row that COULD be a digest — and
+        the exact thing is still one tap down."""
         js = read("thea-app.js")
-        row = js[js.index("function decisionRow"):js.index("function missionNeed")]
-        self.assertIn("a.label", row, "the heading is the collector's sentence")
-        head = row[:row.index("decisionButtons")]
-        self.assertNotIn("requested_action", head,
-                         "the digest must not be the line he reads")
-        self.assertIn("what exactly?", row, "and it is one tap down")
-        self.assertIn("requested_action", row, "where it is still shown in full")
+        row = js[js.index("function decisionRow"):js.index("function noticeCard")]
+        self.assertIn("n.what", row, "the line is the collector's sentence")
+        self.assertIn("n.which", row, "and which one of them it is")
+        self.assertNotIn("requested_action", row)
+        self.assertNotIn("consequence", row)
+        self.assertIn("what exactly?", row, "the detail is one tap down")
+        for detail in ("n.why", "n.if_ignored", "n.how"):
+            self.assertIn(detail, row, detail)
+
+    def test_the_page_never_assembles_the_needs_list_itself(self):
+        """One list, computed once, so the screen and the spoken answer
+        cannot disagree about what is waiting on him."""
+        js = read("thea-app.js")
+        self.assertIn('"/api/needs', js)
+        self.assertNotIn("/api/approvals", js)
 
     def test_the_collectors_state_words_are_translated_not_shouted(self):
         js = read("thea-app.js")
@@ -308,8 +325,13 @@ class ItSpeaksHumanAndKeepsTheMachineInTheDrawer(unittest.TestCase):
         self.assertNotIn("open", drawer[:drawer.index(">")])
 
     def test_nothing_needing_him_says_so_rather_than_looking_broken(self):
-        self.assertIn("Nothing needs a decision from you.", read("thea-app.js"))
-        self.assertIn("Nothing is in flight right now.", read("thea-app.js"))
+        js = read("thea-app.js")
+        # The empty sentence is the COLLECTOR's ("Nothing needs you right
+        # now."), the same one she says out loud, with the page's own words
+        # only as the fallback for a read that failed.
+        self.assertIn("needs.says", js)
+        self.assertIn("Nothing needs you right now.", js)
+        self.assertIn("Nothing is in flight right now.", js)
 
     def test_the_readiness_check_is_a_button_and_never_a_poll(self):
         """A page polling /api/setup every two minutes spent his day opening
@@ -324,6 +346,127 @@ class ItSpeaksHumanAndKeepsTheMachineInTheDrawer(unittest.TestCase):
         self.assertIn("visibilitychange", js)
         self.assertIn("document.hidden", js)
         self.assertIn("clearInterval", js)
+
+
+class ACutSentenceMustNotSayTheOppositeThing(unittest.TestCase):
+    """Found by rendering the page against his real state. The headline of
+    an irreversible decision read:
+
+        It presses a button that says 'Create Account'. That is not
+        something she can
+
+    `approval_label` cut at eighty characters with a slice, so the word the
+    whole sentence turned on — "undo" — was the word that fell off, and the
+    fragment left behind reads as its opposite."""
+
+    def test_the_label_is_cut_at_a_boundary_not_at_a_character(self):
+        from aletheia import voice
+        said = voice.approval_label({"consequence": (
+            "It presses a button that says 'Create Account'. That is not "
+            "something she can undo.")})
+        self.assertFalse(said.endswith("can"), said)
+        self.assertTrue(said.endswith("."), said)
+
+    def test_a_whole_sentence_beats_a_fragment(self):
+        from aletheia import speech
+        said = speech.shorten("It presses a button that says 'Create "
+                              "Account'. That is not something she can "
+                              "undo.", 80)
+        self.assertEqual(said, "It presses a button that says 'Create Account'.")
+
+    def test_but_never_at_the_cost_of_the_answer(self):
+        """A short opening sentence must not swallow the thing he asked
+        for: the boundary is only taken when it is most of the way to the
+        limit."""
+        from aletheia import speech
+        said = speech.shorten("Yes. The plumber is booked for Tuesday at "
+                              "nine in the morning and he knows about the "
+                              "leak under the sink.", 80)
+        self.assertIn("Tuesday", said)
+
+
+class GrantingAuthorityIsNotAButton(unittest.TestCase):
+    """The room microphone refuses these because anything in the room could
+    say them. This page IS authenticated, so the reason has to be a
+    different one — and it is: `standing.enable` creates its own approval
+    and decides it, so a control here would be a one-tap grant with no
+    approval object to read first, a shape nothing else on this page has.
+    The drawer NAMES the commands, on the PC where the terminal is; it does
+    not run them."""
+
+    def test_the_page_grants_nothing(self):
+        js = read("thea-app.js") + read("thea.js")
+        for verb in ("standing", "authority", "grant"):
+            self.assertNotIn('kind: "' + verb, js, verb)
+        self.assertNotIn("/api/authority", js)
+        self.assertNotIn("/api/standing", js)
+
+    def test_the_drawer_tells_him_where_to_type_them(self):
+        html = read("thea.html")
+        drawer = html[html.index('class="drawer"'):]
+        self.assertIn("aletheia.standing on", drawer)
+        self.assertIn("aletheia.conversations grant", drawer)
+
+    def test_both_of_those_commands_are_real(self):
+        """A dead end printed in a confident voice is worse than no
+        instruction."""
+        import importlib
+        for module, argv in (("aletheia.standing", ["on"]),
+                             ("aletheia.conversations", ["grant", "--help"])):
+            with self.subTest(module):
+                self.assertTrue(hasattr(importlib.import_module(module), "main"))
+
+    def test_the_grammar_still_refuses_to_compile_one(self):
+        """Adding a control here must never have added a command kind: the
+        planner, the agenda and the relay lanes all read that grammar."""
+        from aletheia import intercom
+        for kind in intercom.KIND_ARGS:
+            with self.subTest(kind):
+                self.assertNotIn("standing", kind)
+                self.assertNotEqual(kind, "grant")
+
+
+class TheHealthViewIsThereOnlyWhenItIsNeeded(unittest.TestCase):
+    """Outcome 6 asks for "a simple health view when something is broken" —
+    which means both halves: in the open without opening a drawer when
+    something is wrong, and not on the page at all when nothing is."""
+
+    def test_the_page_hides_it_on_the_cores_own_answer(self):
+        js = read("thea-app.js")
+        self.assertIn('api("/api/health")', js)
+        self.assertIn("h.well", js)
+        self.assertIn('$("health").hidden', js)
+
+    def test_the_sentence_and_the_strip_cannot_disagree(self):
+        """`headline` and `all_well` share `_every_expected_part_is_up`, so
+        a quiet strip beside a sentence saying the Core is down is not a
+        state this can reach."""
+        from aletheia import running
+        parts = [{"part": "core", "up": True, "what": ""},
+                 {"part": "supervisor", "up": True, "what": ""},
+                 {"part": "voice", "up": False, "what": ""}]
+        well = {"parts": parts, "listening": False, "closed": False,
+                "halted": False, "running_old_code": False}
+        self.assertTrue(running.all_well(well))
+        self.assertEqual(running.headline(well).split(".")[0],
+                         "Everything's running")
+        broken = dict(well, parts=[dict(p, up=p["part"] != "core") for p in parts])
+        self.assertFalse(running.all_well(broken))
+        self.assertIn("except", running.headline(broken))
+
+    def test_old_code_is_something_to_look_at(self):
+        """Three days of stale code once hid behind a line that read like
+        good news."""
+        from aletheia import running
+        state = {"parts": [{"part": "core", "up": True, "what": ""}],
+                 "listening": True, "closed": False, "halted": False,
+                 "running_old_code": True}
+        self.assertFalse(running.all_well(state))
+
+    def test_it_never_pays_for_the_slow_half(self):
+        """`?tasks=1` is a 0.6s scheduled-task query. A strip that polls
+        every fifteen seconds must not ask for it."""
+        self.assertNotIn("/api/health?tasks=1", read("thea-app.js"))
 
 
 class TheButtonsSayWhatTheyDo(unittest.TestCase):

@@ -58,16 +58,32 @@ def _safe(fn, default):
 
 
 def _said(text: object, limit: int = MAX_WORDS_CHARS) -> str:
+    """Through the one reading door, then cut at a word boundary.
+
+    It used to strip ids and stop there, so the activity list arrived as
+    "formfill: read 35 fields on https://boards.greenhouse.io/embed/job_app
+    ?for=dropbox&token=8675308002" — a tracking URL on his phone, and three
+    lines of it. `speech.for_reading` is what the screen's own ribbon uses,
+    and one list read two ways must be cleaned one way.
+    """
     from aletheia import speech
-    return speech.shorten(speech.tidy(speech.strip_ids(str(text or ""))), limit)
+    return speech.shorten(speech.for_reading(text), limit)
 
 
 def _row(*, id: str, kind: str, what: str, why: str, if_ignored: str,
-         since: str = "", how: str = "") -> dict:
-    """One thing needing him, in the one shape."""
+         since: str = "", how: str = "", which: str = "") -> dict:
+    """One thing needing him, in the one shape.
+
+    `which` is the half that tells two otherwise identical rows apart, and
+    it is empty for almost everything. It exists because thirty-eight
+    pending applications on his machine share one `what` — "It sends your
+    application to this employer under your name. There is no undo." —
+    which is true of every one of them and names none of them.
+    """
     return {"id": str(id), "kind": kind, "what": _said(what),
             "why": _said(why, 120), "if_ignored": _said(if_ignored, 120),
-            "since": str(since or ""), "how": _said(how, 90)}
+            "since": str(since or ""), "how": _said(how, 90),
+            "which": _said(which, 120)}
 
 
 # ---------------------------------------------------------------- sources
@@ -85,6 +101,7 @@ def _approvals() -> list[dict]:
             what=voice.approval_label(approval),
             why="I need your yes before I do it",
             if_ignored="nothing happens",
+            which=voice.approval_about(approval),
             since=str(approval.get("requested_at") or ""),
             how=("say approve and I'll do it" if routine
                  else "say yes on your phone or at the keyboard and I'll "
@@ -160,10 +177,16 @@ def _key(row: dict) -> str:
     A handoff is a work item AND an approval; an application waiting on a
     question is a work item AND a campaign record. Showing both is how a
     list of four real decisions becomes a list of nine.
+
+    `which` is part of the key, and has to be: on his machine thirty-eight
+    pending applications share one `what`, so keying on the sentence alone
+    collapsed thirty-eight separate irreversible decisions into one row.
+    A list that is quietly incomplete is worse than a long one — it is the
+    exact failure this module's own docstring warns about.
     """
     import re
-    words = re.sub(r"[^a-z0-9 ]", " ", str(row.get("what", "")).casefold())
-    return " ".join(words.split())
+    said = str(row.get("what", "")) + " " + str(row.get("which", ""))
+    return " ".join(re.sub(r"[^a-z0-9 ]", " ", said.casefold()).split())
 
 
 def items(now: dt.datetime | None = None, *, limit: int = MAX_ITEMS,

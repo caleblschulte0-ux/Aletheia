@@ -270,7 +270,18 @@ HER_DOING = ("action", "decision", "recovery", "note", "task", "plan")
 # once "note" counted as work, "what did you do today?" started listing
 # her own previous replies back at him — including the text of the answer
 # to the question before this one.
-NOT_DOING_SUBJECTS = ("converse",)
+#
+# PLUMBING is not doing either. "formfill: read 225 fields on
+# jobs.lever.co" is a step inside filling a form, not a thing she did for
+# him, and three in a row is what "what have you been doing" answered with
+# on his phone. `mission_control` kept its own copy of this list to render
+# the same journal readably and the two drifted — it hid `formfill` and the
+# spoken answer did not. One list, two shapes, because a head is always
+# plumbing while `workspace` is only plumbing when it READ something.
+PLUMBING_HEADS = ("formfill", "quick", "desktop")
+PLUMBING_SUBJECTS = ("workspace:read", "calendar:refresh")
+
+NOT_DOING_SUBJECTS = ("converse",) + PLUMBING_HEADS
 
 # Exact subjects that record what she SAID rather than what she did.
 # `core.run_command` journals "<outcome> — <detail>", and for an `intent`
@@ -286,7 +297,8 @@ SAID_NOT_DID = ("core:intent", "core:screen_ask", "core:brief",
                 # saying both — "Added a task: call the plumber; Added a
                 # task: t1". Same for memory, whose own line reads
                 # "Noted: landlord is Mr Okafor".
-                "core:task_new", "core:task_status", "core:remember")
+                "core:task_new", "core:task_status",
+                "core:remember") + PLUMBING_SUBJECTS
 
 
 def _something_she_did(entry: dict) -> bool:

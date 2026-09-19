@@ -54,7 +54,6 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
-import html
 import json
 import re
 import time
@@ -77,8 +76,18 @@ RIBBON_LIMIT = 40
 GATHER_CACHE_S = 5.0
 _GATHERED: dict[str, Any] = {"at": 0.0, "value": None}
 
-#: Journal subjects that are plumbing, not something she did for him.
-NOISE_SUBJECTS = frozenset({"formfill", "workspace:read", "calendar:refresh", "quick", "desktop"})
+def _noise() -> tuple:
+    """Journal subjects that are plumbing, not something she did for him.
+
+    ONE list, in `recollection`, because the same journal is read twice —
+    here for the screen and there for "what have you been doing" out loud
+    — and a subject that is noise in one is noise in the other. Two copies
+    drifted: the spoken answer read out "formfill: read 225 fields" and
+    this one did not.
+    """
+    from aletheia import recollection
+    return (frozenset(recollection.PLUMBING_HEADS),
+            frozenset(recollection.PLUMBING_SUBJECTS))
 
 #: What the ribbon calls each part of her, in words. Providers add theirs.
 SUBJECT_LABELS = {
@@ -89,31 +98,6 @@ SUBJECT_LABELS = {
 }
 
 _SLUG = re.compile(r"[a-z0-9][a-z0-9-]{0,80}")
-
-
-def _any_case_id():
-    """`speech.ID_TOKEN`, read the way a screen needs it. Imported lazily
-    so this module keeps its cheap import, and compiled once."""
-    from aletheia import speech
-    return re.compile(speech.ID_TOKEN.pattern, re.IGNORECASE)
-
-
-#: A model or a routing policy named the way a machine names it —
-#: `ollama:qwen3:8b`, `subscription.auto`, `local.deep`. Both of his rules
-#: hold at once as long as this never reaches a screen: he should not read a
-#: model name in normal use, AND her own answers have to say whose they are.
-#: A sentence saying the answer is HERS — slower, simpler, and hers — is
-#: honest and carries no brand, so WORDS a person would say ("Claude", "my
-#: own model") are deliberately not touched here. This is for identifiers.
-PROVIDER_TOKEN = re.compile(
-    r"\b(?:ollama|openai|anthropic|azure|bedrock|vertex|hf|huggingface)"
-    r"[:/][A-Za-z0-9._:-]+"
-    r"|\b(?:subscription|gateway|policy|local)\.[a-z_]+\b")
-
-#: A URL in a sentence he READS. He cannot click it, and the path, the query
-#: and the tracking id in it cost three lines of his phone to say what the
-#: host already said.
-_URL_IN_A_LINE = re.compile(r"https?://([^\s/]+)\S*")
 
 
 # ---- small pure helpers ----------------------------------------------------------
@@ -168,48 +152,17 @@ def _sentence(text: object, limit: int = 220) -> str:
     return (said[:1].upper() + said[1:]) if said else ""
 
 
-_ANY_CASE_ID = None
-
-
 def no_ids(text: object) -> str:
-    """A line about to be READ, with the machine identifiers taken out.
+    """A ribbon line with the machine taken out of it — `speech.for_reading`.
 
     The journal is written for the journal: `policy` records an approval as
-    "Requested - browser.interact:9f3c1d2e4b5a6c7d8e9f", and the ribbon put
-    that on his screen verbatim, sha and all. `speech.strip_ids` already
-    exists for exactly this and is already the rule for anything spoken —
-    a screen he reads is the same promise. The receipt behind the line
-    still has every identifier on it, one tap away.
-
-    Never raises: a line with its ids still in it beats no line.
-
-    Case-insensitively, which `speech.strip_ids` is not and should not be —
-    it works on a sentence about to be SPOKEN, where nothing has been
-    capitalised yet. A ribbon line has been through `_sentence` first, so
-    `fu-5cec57934c: PENDING` reached the screen as `Fu-5cec57934c: PENDING`
-    and walked straight past a pattern anchored on a lower-case letter. The
-    PATTERN is still speech's, so there is one definition of what an
-    identifier looks like.
+    "Requested - browser.interact:9f3c1d2e…", and the ribbon put that on his
+    screen verbatim, sha and all, beside a card whose whole point was that
+    he never has to read one. It is `speech`'s door because the same lines
+    reach him by ear through `needs_you`, and two cleaners drift.
     """
-    try:
-        from aletheia import speech
-        global _ANY_CASE_ID
-        if _ANY_CASE_ID is None:
-            _ANY_CASE_ID = _any_case_id()
-        # Stored escaped and rendered escaped shows him the escape: a job
-        # title scraped off a careers page arrives as "Account Manager,
-        # Gov&apos;t" and that is what he read. Unescaping here is a display
-        # fix, not a decision about the text.
-        said = html.unescape(str(text or ""))
-        said = PROVIDER_TOKEN.sub("", said)
-        # A tracking URL is not information. He is reading, not clicking:
-        # "at https://jobs.paloaltonetworks.com/en/job/-/-/47263/9969…?sid=…"
-        # tells him the same thing as "at jobs.paloaltonetworks.com" and
-        # costs three lines of his screen to do it.
-        said = _URL_IN_A_LINE.sub(lambda m: m.group(1), said)
-        return speech.tidy(_ANY_CASE_ID.sub("", said))
-    except Exception:
-        return str(text or "")
+    from aletheia import speech
+    return speech.for_reading(text)
 
 
 # ---- the provider registry ----------------------------------------------------------
@@ -659,18 +612,20 @@ def ribbon(*, journal_entries: Iterable[dict], sessions: Iterable[dict] = (), ex
     names = dict(SUBJECT_LABELS)
     names.update(labels or {})
     skip = set(skip_subjects)
+    noise_heads, noise_subjects = _noise()
     items: list[dict] = []
     for entry in journal_entries:
         subject = str(entry.get("subject") or "")
+        head = subject.split(":")[0]
         kind = str(entry.get("kind") or "")
-        if subject in NOISE_SUBJECTS or (subject == "access" and kind != "alert"):
+        if (head in noise_heads or subject in noise_subjects
+                or (subject == "access" and kind != "alert")):
             continue
         if subject in skip and kind != "alert":
             continue
         said = _sentence(entry.get("text") or "")
         if not said or not entry.get("ts"):
             continue
-        head = subject.split(":")[0]
         items.append({"at": entry["ts"], "tone": "alert" if kind == "alert" else "info",
                       "what": names.get(subject) or names.get(head) or (head.capitalize() or "Journal"),
                       "said": said, "receipt": {"kind": "journal", "id": journal_id(entry)}})

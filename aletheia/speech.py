@@ -37,6 +37,7 @@ genuinely the only handle he has, and then it is said as a short tail
 from __future__ import annotations
 
 import datetime as dt
+import html
 import re
 
 # state/private ids: mail-a1e1957d0f, intent-0a06bbb663, errand-…, remind-…
@@ -654,6 +655,56 @@ def plainly(detail: str) -> str:
     return tidy(strip_ids(without_trace_names(stripped)))
 
 
+#: A model or a routing policy named the way a machine names it —
+#: `ollama:qwen3:8b`, `subscription.auto`, `local.deep`. Both of his rules
+#: hold at once as long as this never reaches a screen or a room: he should
+#: not meet a model name in normal use, AND her own answers have to say
+#: whose they are. "The big models are out, so this answer is mine: slower,
+#: and simpler" is honest and carries no brand — so the WORDS a person says
+#: are deliberately untouched. This is only for identifiers.
+PROVIDER_TOKEN = re.compile(
+    r"\b(?:ollama|openai|anthropic|azure|bedrock|vertex|hf|huggingface)"
+    r"[:/][A-Za-z0-9._:-]+"
+    r"|\b(?:subscription|gateway|policy|local)\.[a-z_]+\b")
+
+#: A URL in a sentence he READS. He cannot click it, and the path, the
+#: query and the tracking id in it cost three lines of his phone to say
+#: what the host already said.
+URL_IN_A_LINE = re.compile(r"https?://([^\s/]+)\S*")
+
+_ANY_CASE_ID = None
+
+
+def for_reading(text: object) -> str:
+    """A line about to be READ or SAID, with the machine taken out of it.
+
+    One door, because two stores feed the same screen and the same spoken
+    answer: `mission_control.ribbon` narrates the journal and
+    `needs_you.activity` narrates the receipts, and a digest is a digest
+    whichever one put it there. It does four mechanical things and no
+    judgement — unescapes text that was stored escaped ("Account Manager,
+    Gov&apos;t" is what he read), drops provider identifiers, reduces a URL
+    to its host, and removes state ids.
+
+    Case-insensitively for the ids, which `strip_ids` is not and should not
+    be: it works on a sentence nothing has capitalised yet, and a line that
+    has been through a sentence-caser arrives as "Fu-5cec57934c: PENDING"
+    and walks straight past a pattern anchored on a lower-case letter.
+
+    Never raises: a line with its ids still in it beats no line.
+    """
+    global _ANY_CASE_ID
+    try:
+        if _ANY_CASE_ID is None:
+            _ANY_CASE_ID = re.compile(ID_TOKEN.pattern, re.IGNORECASE)
+        said = html.unescape(str(text or ""))
+        said = PROVIDER_TOKEN.sub("", said)
+        said = URL_IN_A_LINE.sub(lambda m: m.group(1), said)
+        return tidy(_ANY_CASE_ID.sub("", said))
+    except Exception:
+        return str(text or "")
+
+
 def shorten(text: str, limit: int = 70) -> str:
     """Cut to `limit` characters at a WORD boundary, never mid-word.
 
@@ -665,6 +716,15 @@ def shorten(text: str, limit: int = 70) -> str:
     if len(words) <= limit:
         return words
     cut = words[:limit].rsplit(" ", 1)[0].rstrip(" ,;:-")
+    # A WHOLE SENTENCE THAT SAYS LESS BEATS A FRAGMENT THAT SAYS SOMETHING
+    # ELSE. Live on his phone, as the headline of a decision he cannot take
+    # back: "It presses a button that says 'Create Account'. That is not
+    # something she can" — the cut removed "undo." and inverted the
+    # sentence. Only taken when the sentence ends most of the way to the
+    # limit, so this never throws away the answer to keep a tidy first line.
+    end = max(cut.rfind(". "), cut.rfind("? "), cut.rfind("! "))
+    if end >= limit * 0.55:
+        return cut[:end + 1]
     # A single word longer than the limit has no boundary to cut at;
     # better a slightly long word than a mangled one.
     return cut or words.split(" ")[0]

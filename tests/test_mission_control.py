@@ -524,7 +524,11 @@ class AHandoffCardCanBeAnswered(unittest.TestCase):
     def test_the_page_posts_the_existing_approve_and_deny_commands_and_nothing_new(self):
         js = (Path(mc.__file__).resolve().parent.parent / "interface"
               / "thea-app.js").read_text(encoding="utf-8")
-        self.assertIn("decisionButtons(n.approval)", js)
+        # The page reads `/api/needs` now, where an approval arrives as a
+        # row carrying its own id — so the buttons are bound to THAT id
+        # and post the same two commands the Core has always taken.
+        self.assertIn("decisionButtons(n.id)", js)
+        self.assertIn('n.kind === "approval"', js)
         self.assertIn('kind: "approve"', js)
         self.assertIn('kind: "deny"', js)
         # through T.command, which is /api/command - no second approval route

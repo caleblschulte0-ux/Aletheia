@@ -94,6 +94,9 @@ main{display:grid;gap:0 26px;max-width:1180px;margin:0 auto}
 .now .doing{margin:0;font-size:19px;line-height:1.38;letter-spacing:-.01em}
 .now .next{margin:8px 0 0;font-size:14.5px;line-height:1.5;color:var(--warm-dim)}
 .now .today{margin:10px 0 0;font-size:13px;color:var(--warm-faint)}
+.now .health{margin:12px 0 0;padding:11px 13px;border-radius:12px;
+  background:var(--amber-deep);border:1px solid rgba(216,178,95,.38);
+  color:#f2dca6;font-size:14px;line-height:1.5}
 .now .banner{margin:14px 0 0;padding:12px 14px;border-radius:12px;
   background:#1a1011;border:1px solid #4a2523;color:#f0c0bc;
   font-size:14px;line-height:1.5}
@@ -204,6 +207,7 @@ button.link{color:var(--warm-dim);text-decoration:underline;
 .lately span{flex:1;min-width:0;font-size:14.5px;color:var(--warm-dim);
   line-height:1.45;overflow-wrap:anywhere}
 .lately .li.alert span{color:#f0c0bc}
+.lately .note{font-style:normal;color:var(--warm-faint);font-size:12.5px}
 .calm{color:var(--warm-faint);font-size:14.5px;padding:6px 2px}
 
 /* a receipt, one tap away, in the words the collector wrote */
@@ -308,6 +312,11 @@ button.link{color:var(--warm-dim);text-decoration:underline;
         <p id="doing" class="doing">Reading her state…</p>
         <p id="next" class="next"></p>
         <p id="today" class="today"></p>
+        <!-- The health view outcome 6 asks for: one sentence, in the open
+             when something is wrong and not there at all when nothing is.
+             The Core decides which (`running.all_well`), so this line and
+             the sentence she speaks cannot disagree. -->
+        <p id="health" class="health" hidden></p>
         <div id="banner" class="banner" role="alert" hidden></div>
       </div>
     </section>
@@ -387,6 +396,17 @@ button.link{color:var(--warm-dim);text-decoration:underline;
       <h3 style="margin-top:22px">Her microphone</h3>
       <p id="micState">Off unless you turn it on.</p>
       <button id="roomMic" class="act">Turn her microphone on</button>
+
+      <h3 style="margin-top:22px">Only your keyboard can grant these</h3>
+      <p>Two permissions are deliberately not buttons: standing authority over
+         routine work, and permission to answer a conversation in your name.
+         Each one widens what she may do without asking, and a grant that can
+         be given by tapping is a grant something else can give. Type them
+         here, on this PC:</p>
+      <p class="mono">python -m aletheia.standing on</p>
+      <p class="mono">python -m aletheia.conversations grant "&lt;your own words&gt;"</p>
+      <p>To see what she may already do without asking, ask her: what can you
+         do without asking me?</p>
 
       <h3 style="margin-top:22px">Still to set up</h3>
       <p id="setupState">Not checked — checking talks to the outside world, so it

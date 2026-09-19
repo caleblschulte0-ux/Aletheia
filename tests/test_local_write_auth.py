@@ -106,7 +106,10 @@ class LoopbackWriteCase(unittest.TestCase):
                     if str(e.get("subject", "")).startswith("access:"))
         self.assertNotIn("/api/", line["text"])
         self.assertNotIn("POST", line["text"])
-        self.assertIn("without the code it needs", line["text"])
+        # the RULE, not the wording: it reads as a sentence about her
+        # turning something away, and the machine half is not in it
+        self.assertNotIn(":", line["text"])
+        self.assertGreater(len(line["text"].split()), 8)
         # and nothing is lost: the method and the path are still on record
         self.assertIn("/api/command", line["subject"])
 

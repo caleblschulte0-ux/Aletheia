@@ -326,6 +326,25 @@ branches, hashes or developer terminology in normal use."*
 - **A readiness check is a button, never a poll.** `/api/setup` makes real
   network attempts; a page polling it every two minutes spent his day
   opening and closing his signed-in ChatGPT window.
+- **ONE list, computed once.** `/api/needs` (approvals, work blocked on
+  him, applications stopped on a question — deduplicated, each row saying
+  what, why HIM, and what happens if he ignores it) and `/api/health`
+  (`running.snapshot` plus a plain-words headline) are the collector's, and
+  the page renders them rather than assembling its own from three routes.
+  That is what stops the screen and the spoken answer disagreeing about
+  what is waiting. The health line is in the open when something is wrong
+  and absent when nothing is, and `running.all_well` — which `headline`
+  itself asks — decides which, so a quiet strip beside a sentence saying
+  the Core is down is not a state the page can reach.
+- **Granting authority is still not a button, and the reason changed.** The
+  room microphone refuses `standing on` and `conversations grant` because
+  anything in the room could say them. The page is authenticated, so that
+  reason does not apply — but `standing.enable` creates its own approval
+  and decides it, so a control there would be a one-tap grant with no
+  approval object to read first, and it would need a new command kind in
+  the grammar the planner, the agenda and the relay lanes all read. The
+  drawer NAMES both commands, on the PC where the terminal is. It does not
+  run them.
 - **Honest is not the same as usable, and length is how the difference
   shows.** Every line on the first version was true and the phone page was
   seven screens tall, because thirty-eight pending applications rendered as

@@ -100,6 +100,12 @@ class OnePageCase(unittest.TestCase):
                 "be what held it, and she does not solve those. " * 2,
                 dedupe_key=f"crowd-{n}")
         tasks.create("call-the-plumber", "call the plumber")
+        # A line that names the machine, so the assertion about provider
+        # strings is exercised rather than merely true of an empty page.
+        from aletheia import journal
+        journal.append("action", "session",
+                       "Answered with ollama:qwen3:8b on subscription.auto, "
+                       "from https://boards.example.com/jobs/7?token=abc123")
         cls.srv = core.make_server(port=0)
         threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
         cls.url = f"http://127.0.0.1:{cls.srv.server_address[1]}/"
@@ -312,7 +318,19 @@ class OnePageCase(unittest.TestCase):
                                 "each row still carries its own Approve")
 
     def test_a_row_names_which_one_it_is(self):
-        self.assertIn("Employer 0", self.seen["phone"]["needs"])
+        """Forty rows sharing one consequence have to differ somewhere, or
+        he is being asked for forty irreversible yeses with nothing on the
+        screen to choose between them."""
+        import re
+        named = re.findall(r"Employer \d+", self.seen["phone"]["needs"])
+        self.assertGreaterEqual(len(set(named)), 3)
+
+    def test_a_decision_unlike_the_others_is_not_buried_under_them(self):
+        """One row of every distinct kind before any kind gets a second:
+        the landlord approval is the only non-application waiting, and
+        spending the budget group by group hid it behind twenty-five."""
+        self.assertIn("Remember the landlord is Mr Okafor",
+                      self.seen["phone"]["needs"])
 
     def test_the_hundred_things_worth_seeing_are_one_folded_line(self):
         needs = self.seen["phone"]["needs"]

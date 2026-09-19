@@ -302,7 +302,7 @@
     },
     {
       "id": "voice.wake",
-      "description": "Room voice: say 'Thea' and talk to her out loud, and speak over her to stop her mid-sentence and say the next thing",
+      "description": "Room voice: say 'Thea' and talk to me out loud, and speak over me to stop me mid-sentence and say the next thing",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "medium",

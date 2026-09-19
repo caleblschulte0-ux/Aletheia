@@ -141,35 +141,21 @@
    * There is deliberately no bulk control. Every one of these is bound to
    * its own hash and stays its own yes; what changed is how much of the
    * screen it takes to say no to it. */
-  function decisionRow(a, lead) {
-    const said = a.label || a.consequence || "She needs your yes on something";
-    const which = a.about || (lead ? "" : said);
+  function decisionRow(n, lead) {
+    const which = n.which || (lead ? "" : n.what);
+    const decidable = n.kind === "approval";
     return '<div class="row-ask">' +
-      '<div class="what">' + T.esc(which || said) + "</div>" +
-      '<div class="meta">' + T.esc(T.clock(a.requested_at || a.created_at)) +
-        ' · <button class="link" data-open="' + T.esc(a.id) + '">what exactly?</button></div>' +
-      decisionButtons(a.id) +
-      (opened.has(a.id)
+      '<div class="what clamp" data-unclamp>' + T.esc(which || n.what) + "</div>" +
+      '<div class="meta">' + T.esc(T.clock(n.since)) +
+        ' · <button class="link" data-open="' + T.esc(n.id) + '">what exactly?</button></div>' +
+      (decidable ? decisionButtons(n.id) : "") +
+      (opened.has(n.id)
         ? '<div class="peeked">' + facts([
-            ["It will", a.consequence || said],
-            ["Can it be undone", a.reversible === undefined ? ""
-              : (a.reversible ? "yes" : "no")],
-            ["Exactly", a.requested_action]]) + "</div>"
+            ["It will", n.what],
+            ["Why you", n.why],
+            ["If you leave it", n.if_ignored],
+            ["To answer", n.how]]) + "</div>"
         : "") +
-      "</div>";
-  }
-
-  /* A mission's own blocking need, as a row for the same reason. These
-   * sentences run to two hundred characters ("Stopped at a CAPTCHA on …:
-   * waiting for you. A human check is in the way at …"), so the first two
-   * lines are on screen and the rest is a tap: what he needs to know is
-   * WHICH one and that it is his, and he gets the whole thing by touching
-   * it. */
-  function missionNeed(n) {
-    return '<div class="row-ask">' +
-      '<div class="what clamp" data-unclamp>' + T.esc(n.said || n.title) + "</div>" +
-      (n.approval ? decisionButtons(n.approval) : "") +
-      (n.receipt ? peek("What led to this?", n.receipt.id, n.receipt.kind) : "") +
       "</div>";
   }
 
@@ -198,27 +184,42 @@
    *  of rows however they are grouped, and the rest is one tap.
    *
    *  There is deliberately no bulk control anywhere in here. */
-  function decisionsHTML(approvals) {
+  function decisionsHTML(rows) {
     const groups = new Map();
-    for (const a of approvals) {
-      const key = a.label || a.consequence || "";
+    for (const n of rows) {
+      const key = n.what || "";
       if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(a);
+      groups.get(key).push(n);
     }
     const open = expanded.has("needs");
-    let budget = open ? 60 : MOST_ROWS;
+    let budget = open ? 200 : MOST_ROWS;
+    // EVERY DISTINCT DECISION GETS A ROW BEFORE ANY GETS A SECOND. Spending
+    // the budget group by group buried the one thing that was not an
+    // application under twenty-five that were: a screen that shows five of
+    // one kind and hides the only other kind is a worse summary than a
+    // screen showing one of each.
+    const take = new Map();
+    for (const [key, rows] of groups) {
+      if (budget <= 0) break;
+      take.set(key, 1);
+      budget -= 1;
+    }
+    for (const [key, rows] of groups) {
+      if (budget <= 0) break;
+      const room = Math.min(rows.length - (take.get(key) || 0), budget);
+      if (room > 0) { take.set(key, (take.get(key) || 0) + room); budget -= room; }
+    }
     const out = [];
     let hidden = 0;
     for (const [key, rows] of groups) {
-      const take = rows.slice(0, Math.max(0, budget));
-      hidden += rows.length - take.length;
-      budget -= take.length;
-      if (!take.length) continue;
+      const shown = rows.slice(0, take.get(key) || 0);
+      hidden += rows.length - shown.length;
+      if (!shown.length) continue;
       const many = rows.length > 1;
       out.push('<div class="group">' +
         (many ? '<p class="lead">' +
           T.esc(rows.length + " are waiting on the same yes — " + key) + "</p>" : "") +
-        take.map((a) => decisionRow(a, many)).join("") + "</div>");
+        shown.map((n) => decisionRow(n, many)).join("") + "</div>");
     }
     return { html: out.join(""), hidden };
   }
@@ -228,16 +229,12 @@
    *  notices as "needing him" alongside 38 irreversible decisions makes the
    *  number meaningless and teaches him to ignore it. The count in the rail
    *  is decisions. Returns how many of those there are. */
-  function paintNeeds(m, approvals, notices) {
-    const live = approvals.filter((a) => !deferred.has(a.id));
-    const needs = ((m && m.needs_you) || []).filter((n) => n.kind === "mission");
-    const decisions = decisionsHTML(live);
+  function paintNeeds(needs, notices) {
+    const rows = (needs.needs || []).filter((n) => !deferred.has(n.id));
+    const decisions = decisionsHTML(rows);
     const open = expanded.has("needs");
-    const shownNeeds = open ? needs : needs.slice(0, A_FEW);
-    const rest = decisions.hidden + (needs.length - shownNeeds.length);
-    const count = live.length + needs.length;
-    // Worth seeing is a hundred and five deep and none of it is a decision.
-    // One line, folded, newest first when he opens it.
+    // Worth seeing is a hundred deep and none of it is a decision. One
+    // line, folded, newest first when he opens it.
     const worth = notices.length
       ? '<details class="fold"><summary>' +
         T.esc(notices.length === 1 ? "1 thing worth seeing"
@@ -247,16 +244,16 @@
           ? '<p class="calm">and ' + (notices.length - 25) + " older ones</p>" : "") +
         "</details>"
       : "";
-    $("needs").innerHTML = (count
+    $("needs").innerHTML = (rows.length
         ? decisions.html +
-          (shownNeeds.length
-            ? '<div class="group">' + shownNeeds.map(missionNeed).join("") + "</div>" : "") +
-          (rest ? '<button class="more" data-expand="needs">Show the other ' +
-                  rest + "</button>"
-                : (open && count > MOST_ROWS
-                    ? '<button class="more" data-expand="needs">Show fewer</button>' : ""))
-        : '<div class="calm">Nothing needs a decision from you.</div>') + worth;
-    return count;
+          (decisions.hidden
+            ? '<button class="more" data-expand="needs">Show the other ' +
+              decisions.hidden + "</button>"
+            : (open && rows.length > MOST_ROWS
+                ? '<button class="more" data-expand="needs">Show fewer</button>' : ""))
+        : '<div class="calm">' + T.esc(needs.says || "Nothing needs you right now.") +
+          "</div>") + worth;
+    return rows.length;
   }
 
   // ---- what she is working on -------------------------------------------
@@ -308,20 +305,47 @@
   }
 
   // ---- what she has done -------------------------------------------------
-  function paintDone(m) {
-    const rows = (m.ribbon || []).filter((r) => r && r.said);
+  //: The outcome word, said the way a person says it. `outward` is not a
+  //: tone — it is the fact that something left this machine, and it leads.
+  const OUTCOME = { finished: "", failed: "went wrong", recovered: "working again",
+                    unattended: "without asking you" };
+
+  function paintDone(rows) {
     const open = expanded.has("done");
     const shown = open ? rows.slice(0, 40) : rows.slice(0, A_FEW);
     $("done").innerHTML = rows.length
-      ? shown.map((r) =>
-          '<div class="li ' + (r.tone === "alert" ? "alert" : "") + '"><em>' +
-          T.esc(T.clock(r.at)) + "</em><span>" + T.esc(r.said) +
-          (r.receipt && r.receipt.id ? peek("the record", r.receipt.id, r.receipt.kind) : "") +
-          "</span></div>").join("") +
+      ? shown.map((r) => {
+          const note = r.outward ? "reached someone else"
+            : (OUTCOME[r.outcome] || "");
+          // `at` arrives already said ("Sat 08:24") from `recollection`;
+          // `T.clock` is for the ISO stamps everything else carries.
+          return '<div class="li ' + (r.outcome === "failed" ? "alert" : "") +
+            '"><em>' + T.esc(T.clock(r.at) || r.at) + "</em><span>" + T.esc(r.what) +
+            (note ? ' <i class="note">' + T.esc(note) + "</i>" : "") +
+            "</span></div>";
+        }).join("") +
         (rows.length > shown.length
           ? '<button class="more" data-expand="done">Show more</button>'
           : (open ? '<button class="more" data-expand="done">Show fewer</button>' : ""))
       : '<div class="calm">Nothing recorded yet today.</div>';
+  }
+
+  /* The health view outcome 6 asks for: ONE sentence, in the open when
+   * something is wrong and absent when nothing is. `well` comes from
+   * `running.all_well`, which `headline` itself asks, so a quiet strip and
+   * a sentence saying the Core is down cannot both be true. The scheduled
+   * task query is the slow half and this never asks for it. */
+  let healthAt = 0;
+  async function paintHealth() {
+    if (Date.now() - healthAt < 60000) return;
+    healthAt = Date.now();
+    try {
+      const h = await T.api("/api/health");
+      $("health").textContent = h.well ? "" : (h.says || "");
+      $("health").hidden = !!h.well || !h.says;
+    } catch {
+      $("health").hidden = true;   // the rail already says she is unreachable
+    }
   }
 
   // ---- the loop ----------------------------------------------------------
@@ -374,19 +398,24 @@
       ? "Nothing is running. She will not take new work until you start her again."
       : "Ends anything running and refuses new work until you start her again.";
 
-    let approvals = [], notices = [];
-    try { approvals = (await T.api("/api/approvals")).filter((a) => a.state === "PENDING"); }
+    // ONE needs list and ONE history, computed by the Core, so this page
+    // and the sentence she speaks out loud cannot disagree about what is
+    // waiting or what she did. The page used to assemble both itself from
+    // three routes, which is two chances to differ.
+    let needs = { needs: [], activity: [], says: "" }, notices = [];
+    try { needs = await T.api("/api/needs?limit=200"); }
     catch { /* the rest of the page is still true */ }
     try { notices = await T.api("/api/notifications?state=UNREAD"); }
     catch { /* likewise */ }
+    paintHealth();
 
-    const needs = paintNeeds(m, approvals, notices);
+    const count = paintNeeds(needs, notices);
     paintWork(m);
-    paintDone(m);
-    paintWhere(haltedNow ? "trouble" : needs ? "needs" : "here", {
+    paintDone(needs.activity || []);
+    paintWhere(haltedNow ? "trouble" : count ? "needs" : "here", {
       head: haltedNow ? "Stopped" : word || "Here",
       tail: haltedNow ? ((status.halted && status.halted.reason) || "")
-        : needs ? needs + (needs === 1 ? " thing needs you" : " things need you") : "",
+        : count ? count + (count === 1 ? " thing needs you" : " things need you") : "",
     });
     paintDrawer(m, status);
     flushOutbox();

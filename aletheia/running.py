@@ -403,6 +403,29 @@ _WHY_DOWN = {
 }
 
 
+def _every_expected_part_is_up(state: dict) -> bool:
+    """Every part that is not down BY HIS CHOICE is running."""
+    up = [p for p in state["parts"] if p["up"]]
+    expected = [p for p in state["parts"] if not _by_design(state, p)]
+    return bool(up) and len([p for p in up if not _by_design(state, p)]) == len(expected)
+
+
+def all_well(state: dict) -> bool:
+    """Is there anything here he should be LOOKING at?
+
+    The one Thea page shows the health line only when this is False and
+    hides it otherwise, so this and `headline` must not be able to
+    disagree — a page that says nothing while the sentence says the Core
+    is down is worse than no health view. They share `_every_expected_part_is_up`
+    for that reason. Old code counts as not-well: "restart me to pick it
+    up" is something to do, and three days of stale code once hid behind
+    a line that read like good news.
+    """
+    return bool(not state.get("closed") and not state.get("halted")
+                and _every_expected_part_is_up(state)
+                and not state.get("running_old_code"))
+
+
 def why_not(part: dict) -> str:
     """One clause: what being without this part costs him."""
     why, _fix = _WHY_DOWN.get(part["part"], (part.get("what") or "", ""))
@@ -442,7 +465,7 @@ def headline(state: dict) -> str:
         return ("I'm running but halted"
                 + (f", because {because}" if because else "")
                 + ". I won't act on anything until you say resume.")
-    if len([p for p in up if not _by_design(state, p)]) == len(expected):
+    if _every_expected_part_is_up(state):
         if state.get("running_old_code"):
             return ("Everything's running, but on older code than you have "
                     "checked out. Restart me to pick it up.")
