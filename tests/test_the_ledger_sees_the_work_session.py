@@ -39,6 +39,14 @@ class LedgerCase(unittest.TestCase):
                                         return_value=__import__("pathlib").Path(self.dir) / "unattended")
         self.ledger.start()
         self.addCleanup(self.ledger.stop)
+        # The rows are written by production code with the REAL clock, and read
+        # back with NOW. CLAUDE.md: "if one side of a comparison moves, both
+        # sides move" - after 17:00 UTC the writes land in tomorrow's day file
+        # and the reader, looking back from NOW, never sees them. Freeze the
+        # ledger's own clock so the test asks the same day it answers.
+        clock = mock.patch.object(autonomy, "_now", lambda now=None: (now or NOW))
+        clock.start()
+        self.addCleanup(clock.stop)
 
     def a_pull_request(self, **kw):
         return autonomy.record(tool="code_worker.open_repair_pr",
