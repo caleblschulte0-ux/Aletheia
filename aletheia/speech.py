@@ -345,6 +345,19 @@ def without_links(text: str) -> str:
     return POSIX_PATH.sub(lambda m: say_path(m.group(0)), said)
 
 
+#: A name only a stack trace uses, wherever it appears in the sentence.
+#: `without_machine_codes` anchors its version at the START, which is the
+#: right rule for a message that IS a failure — but the room hears these
+#: mid-sentence too: "That failed: TimeoutError: Page.goto: net::ERR..."
+#: came through with both names still in it. Deliberately narrow: an
+#: identifier ending in Error/Exception/Warning/Timeout, or a
+#: `Class.method`, followed by a colon. "Monday: call the dentist" and
+#: "Thea: hello" are neither.
+_TRACE_NAME = re.compile(
+    r"\b(?:[A-Z][A-Za-z0-9]*(?:Error|Exception|Warning|Timeout)"
+    r"|[A-Z][A-Za-z]+\.[a-z_]+)\s*:\s*")
+
+
 def for_the_room(text: str) -> str:
     """The last door before a sentence is spoken out loud, anywhere.
 
@@ -360,8 +373,24 @@ def for_the_room(text: str) -> str:
     sentence is too long or says the wrong thing, that is still a bug
     where it was written.
     """
-    return tidy(strip_ids(without_links(without_machine_codes(
-        unmarkdown(str(text or ""))))))
+    said = without_machine_codes(unmarkdown(str(text or "")))
+
+    def drop_name(match: re.Match) -> str:
+        """...but only where a sentence is left behind.
+
+        `plainly`'s guard, applied per match instead of once: a bare
+        KeyError says nothing but the key, and "I couldn't:
+        'generated_at'" is worse than the traceback it came from. So the
+        name goes only when what FOLLOWS it can stand on its own.
+        """
+        # The rest of THIS sentence, with the other trace names already
+        # gone. Splitting on a bare "." counted "Page.goto: at
+        # example.com" as the one word "Page" and kept the name in front
+        # of it; a sentence ends with a full stop and a SPACE.
+        rest = _TRACE_NAME.sub("", _SENTENCE_END.split(said[match.end():])[0])
+        return "" if len(rest.split()) >= 2 else match.group(0)
+
+    return tidy(strip_ids(without_links(_TRACE_NAME.sub(drop_name, said))))
 
 
 def bare_words(text: str) -> set[str]:

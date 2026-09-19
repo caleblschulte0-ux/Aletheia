@@ -191,6 +191,31 @@ class NothingTechnicalIsEverSaidOutLoud(unittest.TestCase):
         voice_room.speak("That failed: KeyError: intent-7aed1b5dcd is gone.",
                          chunk=said.append)
         self.assertNotIn("intent-7aed1b5dcd", " ".join(said))
+        self.assertNotIn("KeyError", " ".join(said))
+
+    def test_a_class_name_mid_sentence_goes_too(self):
+        """`without_machine_codes` anchors its version at the START, which
+        is right for a message that IS a failure. The room hears them in
+        the middle: "That failed: TimeoutError: Page.goto: net::ERR..."
+        arrived with both names still in it."""
+        said = speech.for_the_room(
+            "That failed: TimeoutError: Page.goto: net::ERR_CONNECTION_RESET "
+            "at https://example.com/")
+        self.assertNotIn("TimeoutError", said)
+        self.assertNotIn("Page.goto", said)
+        self.assertNotIn("net::", said)
+
+    def test_a_bare_key_keeps_its_class_because_the_key_alone_says_nothing(self):
+        """`plainly`'s guard, and it is the reason this is per-match: "I
+        couldn't: 'generated_at'" is worse than the traceback it came
+        from."""
+        self.assertIn("KeyError", speech.for_the_room(
+            "I couldn't: KeyError: 'generated_at'"))
+
+    def test_an_ordinary_colon_is_not_a_traceback(self):
+        for plain in ("Monday: call the dentist.", "Thea: hello.",
+                      "Due now: renew the passport."):
+            self.assertEqual(speech.for_the_room(plain), plain)
 
     def test_a_windows_path_is_said_as_its_file(self):
         self.assertEqual(speech.say_path(r"C:\Users\caleb\Documents\notes.md"),
