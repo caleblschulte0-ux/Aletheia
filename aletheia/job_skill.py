@@ -185,4 +185,6 @@ class JobApplication(browser_loop.GeneralSkill):
         return base
 
 
-SKILL = JobApplication()
+#: Registered so a stored mission's `skill` name finds it again
+#: (`browser_loop.skill_named`) without the loop knowing what a job is.
+SKILL = browser_loop.register(JobApplication())

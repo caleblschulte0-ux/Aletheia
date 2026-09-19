@@ -2305,7 +2305,9 @@ def _mission_label(approval: dict) -> str:
     if not hit or str(approval.get("capability") or "") != "web.commit":
         return ""
     try:
-        from aletheia import browser_loop, browser_mission
+        # Importing the job skill is also what registers it, so a mission
+        # that ran with it is findable by the name on its record.
+        from aletheia import browser_loop, browser_mission, job_skill  # noqa: F401
         record = browser_mission.load(hit.group("mission"))
         about = browser_loop.skill_named(record.get("skill")).subject(record)
         if not about:

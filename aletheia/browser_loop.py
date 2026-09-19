@@ -597,18 +597,23 @@ class GeneralSkill:
 GENERAL = GeneralSkill()
 
 
-def skill_named(name: str):
-    """The skill a STORED mission was run with, by the name on its record.
+#: Every skill that has been imported, by its own name. A STORED mission
+#: records the name it ran with and nothing else, and `act()` reloads one
+#: from disk with no skill in hand - so a skill registers itself rather than
+#: this module knowing what kinds of skill exist. Nothing in here may know
+#: what a job is (tests/test_browser_loop_units).
+SKILLS: dict[str, object] = {}
 
-    `act()` reloads a mission from disk and has no skill in hand, and the
-    approval it can raise should still say which job it is about."""
-    if str(name or "") == "job_application":
-        try:
-            from aletheia import job_skill
-            return job_skill.SKILL
-        except Exception:
-            return GENERAL
-    return GENERAL
+
+def register(skill):
+    """A skill says its own name once, on import, and is findable by it."""
+    SKILLS[str(getattr(skill, "name", "") or "")] = skill
+    return skill
+
+
+def skill_named(name: str):
+    """The skill a stored mission was run with, or the general one."""
+    return SKILLS.get(str(name or "")) or GENERAL
 
 
 # ---- choosing a way forward ----------------------------------------------------

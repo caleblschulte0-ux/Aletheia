@@ -23,7 +23,7 @@ from pathlib import Path
 from unittest import mock
 
 from aletheia import (browse, browser_loop, browser_mission as bm, journal, needs_you,
-                      page_state as ps, policy, stateio, webtask)
+                      page_state as ps, policy, webtask)
 
 
 class FakePage:
@@ -355,10 +355,13 @@ class AnApprovalSaysWhichJob(Isolated):
         so the label reads the mission beside them."""
         from aletheia import voice
         record = self.gate(filled_application())
-        record["skill"] = "job_application"
+        record["skill"] = "named-for-the-test"
         bm.save(record)
-        with mock.patch.object(browser_loop, "skill_named", return_value=self.NamedSkill()):
-            said = voice.approval_label(policy.load(record["approval"]))
+        named = self.NamedSkill()
+        named.name = "named-for-the-test"
+        browser_loop.register(named)
+        self.addCleanup(browser_loop.SKILLS.pop, "named-for-the-test", None)
+        said = voice.approval_label(policy.load(record["approval"]))
         self.assertIn("Account Manager, Manufacturing", said)
         self.assertIn("Submit Application", said)
 
