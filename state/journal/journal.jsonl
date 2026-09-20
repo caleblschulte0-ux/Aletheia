@@ -168,3 +168,6 @@
 {"ts": "2026-09-19T20:47:03Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:aletheia", "text": "health red -> unknown"}
 {"ts": "2026-09-19T20:47:03Z", "kind": "alert", "actor": "aletheia", "subject": "repo:shorts_pipeline", "text": "health green -> red"}
 {"ts": "2026-09-19T20:47:04Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue updated — Shorts-pipeline"}
+{"ts": "2026-09-20T04:59:10Z", "kind": "event", "actor": "aletheia", "subject": "repo:aletheia", "text": "health unknown -> green"}
+{"ts": "2026-09-20T04:59:10Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:shorts_pipeline", "text": "health red -> green"}
+{"ts": "2026-09-20T04:59:11Z", "kind": "recovery", "actor": "aletheia", "subject": "sentinel", "text": "fleet recovered — alert issue closed"}
