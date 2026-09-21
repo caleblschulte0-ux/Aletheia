@@ -718,7 +718,18 @@ def spoken(record: dict) -> str:
                    else "Say approve and I'll do it. Nothing happens until you do.")
             parts.append(said + " " + how + _why_it_asks(record))
     if gaps_named:
-        parts.append(_cannot_yet(gaps_named, record))
+        # WHAT SHE CANNOT DO COMES FIRST. "Here's what I'd do: text your
+        # sister that you're late. Say yes and I'll do it. I can't send a
+        # text message yet." offered and refused the same thing in one
+        # breath, and the offer arrived first. A plan whose point is the
+        # gap is not a plan he should be asked to approve first; the gap
+        # leads, and whatever is runnable is offered as the part that is.
+        cannot = _cannot_yet(gaps_named, record)
+        if parts:
+            parts.insert(0, cannot)
+            parts[1] = "What I can do: " + parts[1][0].lower() + parts[1][1:]
+        else:
+            parts.append(cannot)
     if manual:
         parts.append(f"{speech.count_phrase(len(manual), 'step')} only you can do.")
     if refused:
@@ -811,10 +822,14 @@ def _why_it_asks(record: dict) -> str:
         pass
     if not _due_to_mention("standing", NUDGE_EVERY_S):
         return ""
-    # No backticks. This is spoken, and a backtick is either silence or
-    # the word "backtick"; the command is still exact without them.
-    return (" I ask about small local things like this until you run "
-            "python -m aletheia.standing on, once.")
+    # NO COMMAND IN THE SENTENCE. "until you run python -m aletheia.standing
+    # on, once" reached his phone and the room as her reply. The command
+    # is exact and it lives where commands live: the drawer at the bottom
+    # of the Thea page names it, on the PC, under "Only your keyboard can
+    # grant these". The sentence says where; the drawer says what.
+    return (" I ask about small local things like this until you give me "
+            "standing permission for them - it's at the bottom of the Thea "
+            "page on the PC, under what only your keyboard can grant.")
 
 
 # How often a standing nudge may be repeated. It is one sentence and the

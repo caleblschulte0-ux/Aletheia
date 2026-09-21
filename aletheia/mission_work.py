@@ -19,7 +19,7 @@ approves or checkpoints anything (`work_engine.summary` probes nothing).
 """
 from __future__ import annotations
 
-from aletheia.mission_control import Provider, _words, mission_card
+from aletheia.mission_control import Provider, _plural, _words, mission_card
 
 TYPE = "work"
 CARD_ID = "work:inventory"
@@ -120,12 +120,23 @@ def _inventory(s: dict) -> dict:
                  "since": b.get("not_before"), "source": b.get("id")}
                 for b in (s.get("blocked") or [])[:MAX_BLOCKERS]] if not run else []
     ready = s.get("executable_now") or []
+    if run and not blocked:
+        # NO CARD FOR THE INVENTORY ITSELF when nothing is stuck. On his
+        # phone this read "Work inventory - Everything unfinished across
+        # her queues, read as one - can run now: call the plumber - the
+        # next executable item", directly above the card for "call the
+        # plumber". A queue that can run is the cards it contains.
+        return {"signals": [{"what": "work", "ok": True, "said": s.get("said") or ""}],
+                "details": {CARD_ID: {"type": TYPE, "counts": s.get("counts") or {},
+                                      "executable_now": ready, "blocked": [],
+                                      "executable_total": run, "blocked_total": 0}}}
+    first_blocked = (s.get("blocked") or [{}])[0]
     card = mission_card(
-        id=CARD_ID, type=TYPE, title="Work inventory", status=status,
-        goal="Everything unfinished across her queues, read as one",
-        step=(f"can run now: {_words(ready[0].get('title'), 120)}" if ready else ""),
-        next=("the next executable item" if run else
-              (s.get("blocked") or [{}])[0].get("next") or "whatever clears first"),
+        id=CARD_ID, type=TYPE, title="Waiting work" if not run else "Queued work", status=status,
+        goal=(f"{_plural(blocked, 'thing')} can't move yet"
+              + (f" and {_plural(run, 'thing')} can" if run else "")),
+        step=(f"Next up: {_words(ready[0].get('title'), 120)}" if ready else ""),
+        next=(first_blocked.get("next") or "whatever clears first") if not run else "",
         blockers=blockers,
         counts=[{"label": k.replace("_", " ").lower(), "value": v} for k, v in (s.get("counts") or {}).items()],
         updated=s.get("as_of"), detail=True, source="state/private/work")

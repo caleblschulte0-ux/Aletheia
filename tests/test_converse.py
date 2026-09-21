@@ -74,7 +74,10 @@ class SheActuallyAnswers(ConverseCase):
             raise RuntimeError("no CLI")
         with self.assertRaises(converse.ConverseError) as caught:
             converse.answer("hello", think=dead)
-        self.assertIn("could not reach", str(caught.exception))
+        said = str(caught.exception)
+        self.assertIn("can't think just now", said)
+        self.assertIn("still works", said)
+        self.assertNotIn("no CLI", said)          # the log line is not the reply
 
 
 class SheKnowsWhatSheHasBeenDoing(ConverseCase):
@@ -336,16 +339,24 @@ class AnAnswerGetsLongerThanAnInterpretation(ConverseCase):
         self.assertEqual(seen.get("timeout_s"), converse.TIMEOUT_S)
         self.assertGreater(converse.TIMEOUT_S, 90.0)
 
-    def test_an_unreachable_model_carries_the_REASON_not_a_type_name(self):
-        """"Claude CLI is not on PATH" tells him what to do. The old message
-        printed only the exception class and dropped the useful sentence."""
+    def test_an_unreachable_model_tells_him_what_to_do_and_logs_the_reason(self):
+        """The old message printed only the exception class; the one after
+        it read the whole diagnosis out on his phone ("subscription
+        reasoning and local deep reasoning are unavailable (subscription:
+        neither Claude nor ...)"). The sentence says what he can DO; the
+        reason, verbatim, goes to the journal where a diagnosis belongs."""
         def dead(*a, **k):
             raise RuntimeError("Claude CLI is not on PATH")
         with self.assertRaises(converse.ConverseError) as caught:
             converse.answer("hello", think=dead)
         said = str(caught.exception)
-        self.assertIn("Claude CLI is not on PATH", said)
-        self.assertIn("Sign the Claude CLI in", said)
+        self.assertIn("Signing in to Claude on the PC", said)
+        self.assertNotIn("PATH", said)
+        self.assertNotIn("RuntimeError", said)
+        from aletheia import journal
+        alerts = [e for e in journal.entries() if e.get("subject") == "converse"
+                  and e.get("kind") == "alert"]
+        self.assertTrue(any("Claude CLI is not on PATH" in str(e.get("text")) for e in alerts))
 
 
 class SheKnowsWhatHeToldHerToRemember(ConverseCase):

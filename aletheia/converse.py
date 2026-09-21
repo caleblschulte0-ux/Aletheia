@@ -262,6 +262,18 @@ def _remember_turn(question: str, answer: str,
         stateio.write_json_atomic(THREAD_PATH, {"turns": _trim(turns)})
 
 
+def nobody_can_think_words(why: str = "") -> str:
+    """What she says when no model at all can answer: Claude, the ChatGPT
+    browser and her own model. One sentence a person would say, with the
+    one thing he can do about it where there is one."""
+    why = str(why or "")
+    said = ("I can't think just now: Claude and ChatGPT are both out and my own "
+            "model isn't running, so I can't answer that one.")
+    if "PATH" in why or "CLI" in why:
+        said += " Signing in to Claude on the PC fixes it."
+    return said + " Everything that doesn't need thinking still works."
+
+
 def remember_exchange(said: str, reply: str) -> None:
     """Record a turn that did NOT go through this module. Never raises.
 
@@ -833,11 +845,17 @@ def answer(question: str, *, think=None, include_thread: bool = True,
             # him a class exists. Found while hardening this path: the old
             # message printed only the type and dropped the one useful sentence.
             why = str(exc).strip() or type(exc).__name__
-            raise ConverseError(f"I could not reach a model to answer that: {why}."
-                                + (" Sign the Claude CLI in on this machine and "
-                                   "ask again." if "PATH" in why or "CLI" in why
-                                   else "")
-                                + " Everything else still works.") from None
+            # THE DIAGNOSIS GOES IN THE LOG; THE ROOM HEARS ENGLISH. This
+            # used to read the exception out - "subscription reasoning and
+            # local deep reasoning are unavailable (subscription: neither
+            # Claude nor ..." - a log line, on his phone, as her answer.
+            try:
+                journal.append("alert", "converse",
+                               f"nobody could think for {prompt[:80]!r}: {why[:300]}",
+                               actor="aletheia-converse")
+            except Exception:  # noqa: BLE001
+                pass
+            raise ConverseError(nobody_can_think_words(why)) from None
         said, provider = local
     said = str(said or "").strip()[:MAX_ANSWER_CHARS]
     if not said:

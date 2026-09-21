@@ -526,10 +526,11 @@ def header(agent: dict, *, now: dt.datetime, core: dict, missions: Iterable[dict
         if said:
             more = needs_total - 1
             nxt = said.rstrip(". ") + (f" (and {more} more)" if more > 0 else "") + "."
-        elif approvals:
-            nxt = f"{_plural(int(approvals), 'approval')} waiting for your yes or no."
         else:
-            nxt = "Open what is waiting on you below."
+            # Not the count again: "Waiting on you: 41 approvals. Next: 41
+            # approvals waiting for your yes or no." said one thing twice
+            # in two type sizes. What happens next is what his answer does.
+            nxt = "Say yes or no to each one below. Nothing happens until you do."
     elif state == "BLOCKED":
         stuck = next((m for m in missions if m.get("status") == "BLOCKED"), None)
         nxt = (stuck.get("next") or stuck.get("stuck") or "") if stuck else ""
