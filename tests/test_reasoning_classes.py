@@ -53,6 +53,9 @@ ALLOWED = {
         ("standard", "essays: her own model last in the same deliberate chain"),
     ("job_fit", "judge", "work_json_with_provider"):
         ("standard", "job hunt chain with a stricter local prompt; local-only verdicts wait for his OK"),
+    ("pursuit", "_gateway_think.think", "codex_json"):
+        ("standard", "the pursuit is the job hunt: gateway first, then the same Codex rung while Claude rests, "
+                     "then her own model only with memory for it"),
     # -- conversation discloses which mouth spoke
     ("converse", "_from_my_own_model", "local_text"):
         ("standard", "conversation's disclosed local rung: the answer says it is her own model's"),
