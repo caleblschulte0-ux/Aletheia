@@ -1408,6 +1408,18 @@
       "notes": "Built 2026-09-17 (continuity wave C4a) for the addendum to docs/CONTINUITY_BRIEF.md. Nothing in code names a platform or a kind of project: observation sources are chosen by what they can read, and a public API is described as data in config/observation_sources.json. Pages are read over plain HTTP within robots.txt and site terms, a few requests per study. Nothing it runs is new authority: a change is a thea-study branch or a pull request through code_worker.open_repair_pr (never in a rehearsal, never the default branch, never a merge), code work beyond a bounded edit is a packet for a stronger model, anything outward is a handoff, money is refused. EXPERIMENTAL until a real study of his has been carried from his sentence to a measured verdict on his machine."
     },
     {
+      "id": "opportunity.pursue",
+      "description": "Carry each opportunity as its own live situation: hold the evidence, reason job by job about what, if anything, would most increase your chance of serious consideration, gather more when it would change the answer, and act through the doors that already exist - a page read, a document in the workspace, a note that waits for your yes, the application form - or leave it alone",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "aletheia.apply_forever.pursue_once on every turn of the job hunt (aletheia.pursuit_applications.sync opens one per live application, aletheia.pursuit.tick reasons about the ones due); aletheia.runtime._heard_back hands an employer's reply to it; python -m aletheia.pursuit list|show|tick|outcome",
+      "module": "aletheia.pursuit",
+      "verification": "tests/test_pursuit.py: a move with no reason or no cited evidence is dropped, a kind she has no tool for becomes a suggestion he hears, a note is a draft bound to its own approval and nothing is sent, effort is the model's decision under a daily ceiling, nothing is fixed after an application goes in; tests/test_pursuit_applications.py: an application becomes an opportunity with its evidence and a reply reaches it; tests/test_studies.py: no domain word in aletheia.pursuit",
+      "notes": "Built 2026-09-21 against docs/PURSUIT_BRIEF.md. No workflow, no tiers, no default next step: the reasoner chooses among a catalog of general moves per opportunity, or chooses none, and must cite the evidence each move rests on. Adds no authority: an email or text is a draft through mail.draft / messages.draft with its own approval; a form goes through apply_run.stage under his existing rules; a page read and a workspace file are reversible and recorded in the autonomy ledger; money is refused where it always was. EXPERIMENTAL until a real opportunity of his has been carried from application to a recorded outcome on his machine."
+    },
+    {
       "id": "charter.next",
       "description": "Say which charter step is next and, for every charter passed over, why - so a loop that decides nothing stops doing it silently",
       "provider": "aletheia.local",
