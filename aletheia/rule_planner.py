@@ -163,6 +163,42 @@ def _recall(m, request):
     return ({"about": about}, f"Tell you what I know about {about}") if about else None
 
 
+#: "my sister", "my landlord's number": people; a company: organizations;
+#: "I", "my name/birthday/address": identity; the rest is a preference.
+_PEOPLE = re.compile(r"\b(?:sister|brother|mom|mum|mother|dad|father|wife|husband|partner|girlfriend|"
+                     r"boyfriend|son|daughter|kid|friend|landlord|landlady|boss|manager|doctor|dentist|"
+                     r"neighbou?r|cousin|aunt|uncle|grandma|grandpa|roommate|coworker|colleague|"
+                     r"accountant|lawyer|barber|vet|plumber|mechanic)\b", re.I)
+_ORGS = re.compile(r"\b(?:company|employer|bank|gym|school|church|clinic|dealership|insurer|"
+                   r"insurance|provider|landlord company|work)\b", re.I)
+_IDENTITY = re.compile(r"^(?:my )?(?:name|birthday|birth date|date of birth|address|home address|"
+                       r"postcode|zip(?: code)?|phone(?: number)?|number|email(?: address)?|"
+                       r"blood type|height|weight|shoe size|size|allergies|allergy)$", re.I)
+
+
+def _remember(m, request):
+    """"remember my landlord is Dana Whitfield" - the most ordinary thing
+    an assistant is told, compiled with no model. The key is what he
+    called it, without "my"; the value keeps his capitals."""
+    key = _clean(m.group("key")).lower()
+    value = _clean(m.group("value"))
+    for lead in ("my ", "the ", "that my ", "that the ", "that "):
+        if key.startswith(lead):
+            key = key[len(lead):]
+    key = re.sub(r"'s (?:name|number|phone|email|address|birthday)$", "", key).strip()
+    if not key or not value or len(key) > 60 or len(value) > 200:
+        return None
+    if _IDENTITY.match(key):
+        domain = "identity"
+    elif _PEOPLE.search(key):
+        domain = "people"
+    elif _ORGS.search(key):
+        domain = "organizations"
+    else:
+        domain = "preferences"
+    return {"domain": domain, "key": key, "value": value}, f"Remember your {key}: {value}"
+
+
 def _file_find(m, request):
     query = _clean(m.group("what"))
     return ({"query": query}, f"Find {query} in your files") if query else None
@@ -186,6 +222,43 @@ def _travel(m, request):
 def _subscription_cancel(m, request):
     which = _clean(m.group("what"))
     return ({"subscription": which}, f"Cancel your {which} subscription") if which else None
+
+
+def _read_resume(m, request):
+    """His resume, wherever it is - and when there is none, the SENTENCE
+    that says so. The shape was matched and the fill returned None, so
+    "read me my resume" with no resume on the PC was kept for a model to
+    plan, which is a worse answer than the one she already had."""
+    from aletheia import applications
+    try:
+        path = applications.find_resume("")
+    except Exception:  # noqa: BLE001 - its message is written for a log, in the third person
+        path = ""
+    if not path:
+        return {"say": ("I can't find a resume on this PC. I looked in Documents, Downloads, Desktop "
+                        "and my own workspace. Drop a copy in Documents and I'll read it.")}
+    return {"path": str(path), "anywhere": True}, "Read your resume"
+
+
+def _message(m, request):
+    """"Text my sister I'm running late": a draft and an approval, never a
+    send. An unknown recipient is the answer, not an approval that fails
+    after he says yes - `messages.draft` refuses a number it does not
+    have, so the same check runs here, before anything is offered."""
+    from aletheia import messages
+    who = _clean(m.group("who"))
+    body = _clean(m.group("body"))
+    if not who or not body:
+        return None
+    number, name = messages.resolve_number(who)
+    if number is None:
+        return {"say": f"I don't have a phone number for {name or who}. Tell me the number once and I'll remember it."}
+    return {"to": who, "body": body}, f"Text {name or who}: {body}"
+
+
+#: The kind a rule returns when the sentence's answer is already known:
+#: no step, one thing to say. Never in the grammar, never executed.
+ANSWER = "answer"
 
 
 def _no_args(said: str):
@@ -237,6 +310,10 @@ RULES: tuple[tuple[str, str, Callable], ...] = (
      "web_task", lambda m, r: _web_task(m, r) and ({**_web_task(m, r)[0], "goal": _clean(r)}, f"Do this on the web: {_clean(r)}")),
     (r"(?:add|save)\s+(?P<what>[a-z][a-z .'-]{1,59}?)\s+(?:as a contact|to (?:my )?contacts)(?:[,:]?\s*(?:number|phone|email|at)?\s*(?P<detail>\S+))?",
      "contact_add", _contact_add),
+    (r"remember(?: that)? (?P<key>(?:my |the )?[a-z][a-z' -]{1,50}?) (?:is|are|was|=|is called|is named) (?P<value>.+)",
+     "remember", _remember),
+    (r"(?:remember|save|note|keep in mind)(?: that)? (?P<key>my [a-z][a-z' -]{1,50}?)(?:'s (?:name|number|phone|email|address|birthday))? (?:is|are|was) (?P<value>.+)",
+     "remember", _remember),
     (r"what do (?:you|u) (?:know|remember) about (?P<what>.+)|what did i tell (?:you|u) about (?P<what2>.+)",
      "recall", lambda m, r: _recall(type("M", (), {"group": lambda self, k: (m.group("what") or m.group("what2"))})(), r)),
     (r"(?:find|locate|look for|where(?:'s| is))\s+(?:my |the )?(?P<what>.+?)\s*(?:file|document|pdf|spreadsheet|doc)\b.*",
@@ -251,9 +328,10 @@ RULES: tuple[tuple[str, str, Callable], ...] = (
     (r"(?:check|read|any|got any|are there any|is there any|do i have (?:any )?)\s*(?:my |the )?(?:new |unread )?"
      r"(?:emails?|e-?mails?|mail|inbox|messages)(?: for me| today)?",
      "email_check", _no_args("Check your email")),
-    (r"read (?:me )?(?:my )?(?:resume|cv|résumé)(?: to me| out| out loud)?", "file_read",
-     lambda m, r: (lambda path: ({"path": path, "anywhere": True}, "Read your resume") if path else None)(
-         __import__("aletheia.applications", fromlist=["find_resume"]).find_resume(""))),
+    (r"read (?:me )?(?:my )?(?:resume|cv|résumé)(?: to me| out| out loud)?", "file_read", _read_resume),
+    (r"(?:text|message|sms|send a (?:text|message) to) (?P<who>my [a-z]+|[a-z]+(?: (?!that\b|saying\b|and\b|to\b|i\b|i'm\b|im\b|we\b|please\b)[a-z]+)?|[\d() +-]{7,20})"
+     r"(?:,? (?:that|saying|and say|and tell (?:him|her|them)(?: that)?|to say) |: |, | )(?P<body>.+)",
+     "message_send", _message),
     (r"how (?:long|far)(?: is it| does it take| would it take| will it take| away is it)?\s+(?:to (?:get |drive |walk )?to|from here to)\s+(?P<what>.+)"
      r"|how far (?:is|away is|to) (?:it to )?(?P<what2>.+)",
      "travel_time", lambda m, r: _travel(type("M", (), {"group": lambda self, k: (m.group("what") or m.group("what2"))})(), r)),
@@ -300,6 +378,11 @@ def match(request: str) -> tuple[str, dict, str] | None:
             filled = None
         if not filled:
             continue
+        if isinstance(filled, dict) and set(filled) == {"say"}:
+            said = " ".join(str(filled["say"] or "").split())
+            if said:
+                return ANSWER, {"say": said}, said
+            continue
         args, summary = filled
         if kind == "__list__":
             kind = args.pop("__kind__")
@@ -318,9 +401,20 @@ def compile(request: str, *, now: str | None = None) -> dict | None:
     if not found:
         return None
     kind, args, summary = found
+    if kind == ANSWER:
+        return {"intent": "answer", "summary": summary[:200], "steps": [],
+                "spoken": summary, "required_capabilities": [], "confidence": CONFIDENCE}
     return {"intent": "plan", "summary": summary[:200],
             "steps": [{"kind": kind, **args}],
             "required_capabilities": [], "confidence": CONFIDENCE}
+
+
+def certain_answer(request: str) -> str | None:
+    """The sentence a rule already has for this ask, or None. What
+    `quick` is to questions about her stores, this is to instructions
+    whose answer is settled by a fact on disk: no resume, no number."""
+    found = match(request)
+    return found[1]["say"] if found and found[0] == ANSWER else None
 
 
 def kinds_named() -> set[str]:

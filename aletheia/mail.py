@@ -117,9 +117,12 @@ def available() -> tuple[bool, str]:
         # before it is set up, and it used to answer with an absolute
         # filesystem path and "see aletheia/mail.py" — a note to whoever
         # wrote this, read out loud to the person who did not.
-        return False, ("mail isn't set up yet. Set ALETHEIA_MAIL_ADDRESS and "
-                       "ALETHEIA_MAIL_PASSWORD to your address and an app "
-                       "password, and it will work from the next command.")
+        # The two variable names are the useful half on the setup page
+        # and letters out loud, so they are written once, in brackets,
+        # and `speech.without_machine_codes` takes them out for the room.
+        return False, ("mail isn't set up yet. It needs your email address and an "
+                       "app password once, on the PC (ALETHEIA_MAIL_ADDRESS and "
+                       "ALETHEIA_MAIL_PASSWORD), and it works from the next ask.")
     return True, f"configured for {c['address']}"
 
 

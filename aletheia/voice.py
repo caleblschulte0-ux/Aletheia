@@ -113,6 +113,20 @@ def _one_address(t: str) -> str | None:
     return "https://" + t
 
 
+_AMOUNT_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
+                 "eight": 8, "nine": 9, "ten": 10, "fifteen": 15, "twenty": 20, "thirty": 30,
+                 "forty": 40, "forty five": 45, "sixty": 60, "an": 1, "a": 1, "half an": 0.5}
+
+
+def _spoken_amount(raw: str) -> float | None:
+    """"ten", "10", "an", "half an" - the number a timer or a reminder was
+    given, or None when it is not one."""
+    raw = " ".join(str(raw or "").lower().split())
+    if raw.isdigit():
+        return float(raw)
+    return _AMOUNT_WORDS.get(raw)
+
+
 def _is_bare_hour(text: str) -> bool:
     """Did he give an hour with no am/pm — "at 3" rather than "at 3 pm"?
 
@@ -1214,10 +1228,7 @@ def _interpret(transcript: str) -> dict:
         import datetime as dt
         raw = m.group(1) or m.group(3) or m.group(5)
         unit = m.group(2) or m.group(4) or m.group(6)
-        words = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
-                 "eight": 8, "nine": 9, "ten": 10, "fifteen": 15, "twenty": 20, "thirty": 30,
-                 "forty": 40, "forty five": 45, "sixty": 60, "an": 1, "a": 1, "half an": 0.5}
-        amount = float(raw) if raw.isdigit() else words.get(raw)
+        amount = _spoken_amount(raw)
         if amount:
             seconds = amount * (3600 if unit.startswith("hour") else 1 if unit.startswith("sec") else 60)
             at = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=seconds)).isoformat()
@@ -1225,7 +1236,11 @@ def _interpret(transcript: str) -> dict:
             said = f"{raw if not raw.isdigit() else int(amount)}-{one}"
             return {"command": {"kind": "remind_at", "at": at, "text": f"your {said} timer is up"},
                     "say": None}
-    m = re.match(r"remind me (?:at ([\w: ]+?)|in (\d+) (minutes?|hours?)) (?:to|that) (.+)", low)
+    # "remind me in TWENTY minutes to check the oven": the amount is a
+    # word as often as a digit out loud, and only the digit form was read
+    # - the word form fell through to a planner that, with no model, kept
+    # it for later. Same words table as the timer above.
+    m = re.match(r"remind me (?:at ([\w: ]+?)|in (\w+(?: an)?) (minutes?|mins?|hours?)) (?:to|that) (.+)", low)
     if m:
         if m.group(1):
             hhmm = _spoken_time(m.group(1))
@@ -1234,11 +1249,13 @@ def _interpret(transcript: str) -> dict:
             at = _next_occurrence_iso(hhmm, bare_hour=_is_bare_hour(m.group(1)))
         else:
             import datetime as dt
-            amount = int(m.group(2))
-            delta = dt.timedelta(minutes=amount) if m.group(3).startswith("minute") \
-                else dt.timedelta(hours=amount)
+            amount = _spoken_amount(m.group(2))
+            if not amount:
+                return _to_the_planner(text)
+            delta = dt.timedelta(hours=amount) if m.group(3).startswith("hour") \
+                else dt.timedelta(minutes=amount)
             at = (dt.datetime.now(dt.timezone.utc) + delta).isoformat()
-        return {"command": {"kind": "remind_at", "at": at, "text": m.group(4).strip()},
+        return {"command": {"kind": "remind_at", "at": at, "text": _as_he_said(text, m.group(4).strip())},
                 "say": None}
 
     # THE OTHER WORD ORDER, which is the commoner one. Every pattern

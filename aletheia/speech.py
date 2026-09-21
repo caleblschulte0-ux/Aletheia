@@ -614,7 +614,12 @@ _CLASS_PREFIX = re.compile(r"^[A-Z][A-Za-z0-9_]{2,}:\s+")
 #: Machine codes worth writing down and never worth saying. Chromium's
 #: net:: codes have different fixes and belong in the log; in a room they
 #: are gibberish. Written once in brackets where raised, removed here.
-_MACHINE_CODE = re.compile(r"\s*\((?:net::)?ERR_[A-Z_]+\)|\bnet::ERR_[A-Z_]+\b")
+#: ...and a bracketed run of SHOUTING_NAMES - the environment variables a
+#: setup line names for the screen: "(ALETHEIA_MAIL_ADDRESS and
+#: ALETHEIA_MAIL_PASSWORD)". On the setup page they are the useful half;
+#: in the room they are letters.
+_MACHINE_CODE = re.compile(r"\s*\((?:net::)?ERR_[A-Z_]+\)|\bnet::ERR_[A-Z_]+\b"
+                           r"|\s*\((?:[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+(?:\s*(?:,|and|or)\s*)?)+\)")
 
 #: Playwright appends its own trace after the reason.
 _CALL_LOG = re.compile(r"\s*Call log:.*$", re.DOTALL)

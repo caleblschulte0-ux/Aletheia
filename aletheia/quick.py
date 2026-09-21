@@ -260,7 +260,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?: for)? (?P<day>today|tomorrow|this week|next week)$"
         r"|^what (?:do i have|have i got|is there|am i doing) (?:on )?(?P<day2>today|tomorrow|this week|next week)$"
         r"|^(?:my |the )?(?:calendar|schedule|agenda) (?:for )?(?P<day3>today|tomorrow|this week|next week)$"
-        r"|^what(?:'s| is|s)? (?P<day4>today|tomorrow)(?:'s| like)?(?: looking like| look like)?$")),
+        r"|^what(?:'s| is|s)? (?P<day4>today|tomorrow)(?:'s| like)?(?: looking like| look like)?$"
+        r"|^(?:what(?:'s| is|s)? (?:on|happening|coming up)|anything (?:on|happening|coming up)|what have i got on"
+        r"|what(?:'s| is|s)? (?:my|the) (?:week|day) (?:looking like|look like))"
+        r"(?: for)? (?P<day5>today|tomorrow|this week|next week)$"
+        r"|^what(?:'s| is|s)? (?:my|the) (?P<day6>week) (?:looking like|look like)$")),
     ("alerts", re.compile(
         r"^(?:are there |is there )?any(?:thing)? (?:alerts|broken|wrong|failing)$"
         r"|^any alerts$|^is anything broken$|^anything broken$"
@@ -347,8 +351,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # what this lane is for — and it means the most ordinary question
     # anybody asks never touches a model.
     ("weather", re.compile(
-        r"^(?:what(?:'s| is|s)? (?:the )?weather"
-        r"|how(?:'s| is) the weather|what(?:'s| is|s)? it like outside)"
+        r"^(?:what(?:'s| is|s)? (?:the )?weather(?: like| looking like| doing| going to be like)?(?: out(?:side)?)?"
+        r"|how(?:'s| is) the weather(?: looking)?(?: out(?:side)?)?|what(?:'s| is|s)? it like out(?:side)?"
+        r"|how(?:'s| is) it (?:looking )?out(?:side)?|is it (?:nice|cold|hot|warm) out(?:side)?)"
         r"(?: (?P<weather>today|tonight|tomorrow|this (?:morning|afternoon|evening)"
         r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$"
         r"|^(?:is|will) it (?:going to )?(?:rain|snow) (?P<weather2>today|tonight|tomorrow)$"
@@ -385,7 +390,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:convert |what(?:'s| is|s)? )?(?P<n>[\d.,]+) (?P<from>miles?|km|kilometers?|kilometres?|pounds?|lbs?|"
         r"kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c)"
         r" (?:to|in|into) (?P<to>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|"
-        r"meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c)$")),
+        r"meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c)$"
+        # THE OTHER WORD ORDER: "how many miles is 10 km", "how many pounds in 5 kg"
+        r"|^how many (?P<to2>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c) (?:is|are|in|make|equals?|to) (?P<n2>[\d.,]+|a|an|one) ?(?P<from2>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c)$")),
     ("mine", re.compile(
         r"^what(?:'s| is|s)? my (?P<mine>email(?: address)?|phone(?: number)?"
         r"|number|city|town|name|first name|last name|full name)$"
@@ -438,7 +445,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "free", "free2", "free3",
                                            "down", "down2", "weather",
                                            "weather2", "weather3",
-                                           "day", "day2", "day3", "day4")
+                                           "day", "day2", "day3", "day4", "day5", "day6")
                      if captured.get(k)), "")
         return name, rest
     return None
@@ -927,6 +934,7 @@ def _cannot() -> str | None:
 
 
 def _agenda(day: str = "today") -> str | None:
+    day = "this week" if day == "week" else day
     """"What's on my calendar today?" - the day's events from the calendar
     mirror, on his clock. An empty day still proves the calendar."""
     import datetime as dt
@@ -1049,7 +1057,8 @@ def _math(text: str) -> str | None:
                  "centimeter": ("cm", 0.01), "centimeters": ("cm", 0.01),
                  "pound": ("lb", 0.45359237), "pounds": ("lb", 0.45359237), "lb": ("lb", 0.45359237),
                  "lbs": ("lb", 0.45359237), "kg": ("kg", 1.0), "kilogram": ("kg", 1.0), "kilograms": ("kg", 1.0)}
-        n, src, dst = num(g["n"]), g["from"].lower(), g["to"].lower()
+        n = num({"a": "1", "an": "1", "one": "1"}.get(str(g.get("n") or g.get("n2")).lower(), g.get("n") or g.get("n2")))
+        src, dst = (g.get("from") or g.get("from2")).lower(), (g.get("to") or g.get("to2")).lower()
         if src in ("fahrenheit", "f") and dst in ("celsius", "c"):
             return f"{said(round((n - 32) * 5 / 9, 1))} degrees Celsius."
         if src in ("celsius", "c") and dst in ("fahrenheit", "f"):
@@ -1059,7 +1068,14 @@ def _math(text: str) -> str | None:
             if (units[src][0] in length) != (units[dst][0] in length):
                 return None
             value = n * units[src][1] / units[dst][1]
-            return f"{said(round(value, 2))} {units[dst][0]}."
+            # SAID, not printed: "6.21 mi" is "six point two one em eye" out
+            # loud. The unit is a word, singular when it is one of them.
+            spoken = {"mi": "mile", "km": "kilometer", "ft": "foot", "m": "meter", "in": "inch",
+                      "cm": "centimeter", "lb": "pound", "kg": "kilogram"}[units[dst][0]]
+            plural = {"foot": "feet", "inch": "inches"}.get(spoken, spoken + "s")
+            shown = round(value, 2)
+            lead = "About " if abs(shown - value) > 1e-9 else ""
+            return f"{lead}{said(shown)} {spoken if shown == 1 else plural}."
     except (ValueError, ZeroDivisionError):
         return None
     return None
@@ -1273,8 +1289,18 @@ def _weather(when: str = "") -> str | None:
     try:
         from aletheia import weather
         return weather.spoken(when)
-    except Exception:
-        return None                 # she does not know; the planner may try
+    except Exception as exc:
+        # She LOOKED and could not: no postcode on file, the service down,
+        # somewhere the service does not cover. Each of those messages
+        # says what would fix it, and swallowing it sent the question to
+        # a planner that, with no model, kept it for later - a worse
+        # answer than the one she already had. Anything else is a bug and
+        # stays None so the planner may try.
+        try:
+            from aletheia.weather import WeatherUnavailable
+        except Exception:
+            return None
+        return str(exc) if isinstance(exc, WeatherUnavailable) and str(exc) else None
 
 
 def _greeting() -> str | None:

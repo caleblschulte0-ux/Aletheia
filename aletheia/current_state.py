@@ -173,10 +173,16 @@ def thinking(now: dt.datetime | None = None) -> dict:
     claude = _safe(lambda: reasoner.resting_until(now), None)
     codex = _safe(lambda: reasoner.codex_resting(now), None)
     local_ok, local_why = _safe(reasoner.local_allowed, (False, "could not be checked"))
+    # INSTALLED is not WORKING, but NOT INSTALLED is certainly not working:
+    # with no Claude CLI on the PATH and no Codex, "thinking with the big
+    # models" was a lie told from the rest markers alone (both None, so
+    # "not resting", so "available"). A cheap, no-network check.
+    claude_here = bool(_safe(reasoner.cli_path, None))
+    codex_here = bool(_safe(reasoner.codex_path, None))
     out = {
-        "claude": {"resting_until": _stamp(claude) if claude else None},
-        "codex": ({"resting_until": _stamp(codex[0]), "why": codex[1]} if codex
-                  else {"resting_until": None}),
+        "claude": {"resting_until": _stamp(claude) if claude else None, "installed": claude_here},
+        "codex": ({"resting_until": _stamp(codex[0]), "why": codex[1], "installed": codex_here} if codex
+                  else {"resting_until": None, "installed": codex_here}),
         "local": {"allowed": bool(local_ok), "why": str(local_why)},
     }
     # WHAT HER OWN MODEL IS DOING, and how it has been doing: the call
@@ -205,7 +211,12 @@ def brains_words(minds: dict | None = None) -> str:
     busy = local.get("busy") or None
     claude_until = (minds.get("claude") or {}).get("resting_until")
     codex_until = (minds.get("codex") or {}).get("resting_until")
-    frontier = claude_until is None or codex_until is None
+    # A mind counts as able when it is here AND not resting. `installed`
+    # missing (an older snapshot) reads as here, so nothing goes quieter
+    # than it was.
+    claude_able = claude_until is None and (minds.get("claude") or {}).get("installed", True)
+    codex_able = codex_until is None and (minds.get("codex") or {}).get("installed", True)
+    frontier = bool(claude_able or codex_able)
     typical = recent.get("typical_s")
     pace = f", usually {speech.about_seconds(typical)} an answer" if typical else ""
     today = recent.get("today_ok") or 0
@@ -218,6 +229,8 @@ def brains_words(minds: dict | None = None) -> str:
         return said + tally
     until = _parse(claude_until) if claude_until else None
     out = reasoner.big_models_out(until) if until else reasoner.big_models_out()
+    if not (minds.get("claude") or {}).get("installed", True) and not claude_until:
+        out = "The big models aren't signed in on this PC"
     if local.get("allowed"):
         said = f"{out}, so I'm thinking with my own model: slower{pace}."
         if busy:

@@ -134,15 +134,22 @@ def _answer_by_rules(request: str, fleet: dict | None) -> str | None:
     no rule owns it, or it could not run; never raises.
     """
     try:
-        from aletheia import intercom, reasoner, rule_planner
+        from aletheia import act, intercom, reasoner, rule_planner
         found = rule_planner.match(request)
         if not found:
             return None
         kind, args, _summary = found
+        if kind == rule_planner.ANSWER:
+            return speech.spoken_prose(str(args.get("say") or "")).strip() or None
         if intercom.tier(kind) != intercom.TIER_READ:
             return None
-        said = intercom.execute_command({"kind": kind, **args}, fleet or {"repos": {}},
-                                        quote=request)
+        try:
+            said = intercom.execute_command({"kind": kind, **args}, fleet or {"repos": {}},
+                                            quote=request)
+        except act.Refused as refused:
+            # "I don't know where the airport is. Tell me the address once
+            # and I'll remember it." is the answer, not a failure to think.
+            said = str(refused)
         said = speech.spoken_prose(str(said or "")).strip()
         if not said:
             return None
@@ -161,6 +168,18 @@ def _speak_answer(record: dict, request: str, fleet: dict | None = None) -> dict
     failed: KeyError: ..." survived on the path nobody had fixed.
     """
     from aletheia import converse
+    # SETTLED BY A FACT ON DISK, so no model is asked and none could do
+    # better: "read me my resume" with no resume, "text my sister" with no
+    # number for her. Her own model, asked instead, would have answered
+    # about a resume it had never seen.
+    try:
+        from aletheia import rule_planner
+        certain = rule_planner.certain_answer(request)
+    except Exception:  # noqa: BLE001
+        certain = None
+    if certain:
+        record["spoken"] = speech.spoken_prose(certain)
+        return record
     try:
         # Through the same sieve as everything else she says. `converse`
         # reads her stores, so its answers carry the ids in them: "there

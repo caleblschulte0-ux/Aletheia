@@ -31,7 +31,7 @@ class TheRulesHoldToTheGrammar(unittest.TestCase):
             self.assertIsNone(rule_planner.match(said), said)
 
     def test_what_no_rule_owns_is_none_not_a_guess(self):
-        for said in ("text my sister that I'm late", "what's the weather in denver",
+        for said in ("figure out why the garage door keeps sticking", "what's the weather in denver",
                      "why did the palantir one fail", "make me rich", "hmm",
                      "the thing we talked about", "buy a monitor"):
             with self.subTest(said=said):
@@ -140,9 +140,9 @@ class TheRungIsWiredIntoThePlanner(unittest.TestCase):
         def model(request, **kw):
             asked.append(request)
             return ({"intent": "plan", "summary": "Text your sister", "steps": [], "confidence": 0.5}, "qwen", [])
-        plan = planner.compile("text my sister that I'm late", fleet=self.FLEET, registry=self.REGISTRY,
+        plan = planner.compile("figure out why the garage door keeps sticking", fleet=self.FLEET, registry=self.REGISTRY,
                                provider=self.nobody(), local=model)
-        self.assertEqual(asked, ["text my sister that I'm late"])
+        self.assertEqual(asked, ["figure out why the garage door keeps sticking"])
         self.assertEqual(plan.compiled_by, local_planner.COMPILED_BY)
 
     def test_the_money_door_is_asked_before_the_rules(self):

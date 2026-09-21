@@ -430,7 +430,7 @@ def _compile_locally(request: str, context: dict | None, now: str | None,
     except Exception:  # noqa: BLE001
         ruled = None
     if ruled is not None:
-        return ruled, rule_planner.PROVIDER, [str(ruled["steps"][0]["kind"])]
+        return ruled, rule_planner.PROVIDER, [str(step["kind"]) for step in ruled["steps"]]
     try:
         propose = local or local_planner.propose
         output, model_name, kinds = propose(request, context=context, now=now)

@@ -2690,6 +2690,15 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             if value is not None:
                 found.append(f"{domain}: {value}")
         if not found:
+            # He says "what's my landlord's name"; it is stored under
+            # "landlord". Exact key first, then the loose match `forget`
+            # already uses, on key and value.
+            loose = " ".join(str(about).split())
+            loose = re.sub(r"'s (?:name|number|phone|email|address|birthday)$", "", loose,
+                           flags=re.I).strip()
+            for one, key, value in _remembered_matching(loose, cmd.get("domain"))[:4]:
+                found.append(f"{one}: {key} is {value}")
+        if not found:
             return f"I don't have anything remembered about {about!r}."
         return "; ".join(found[:4])
     if kind == "brief":

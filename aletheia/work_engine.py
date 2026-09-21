@@ -149,7 +149,9 @@ def add(title: str, *, requires=(), kind: str = "", payload: dict | None = None,
     # ..." was read out as what she did today. The line says what a person
     # would say; the id and the state are on the record.
     because = {"BLOCKED_MODEL": "until a model is back"}.get(str(state), "")
-    _journal("task", wid, f"kept for later{', ' + because if because else ''}: {record['title']}")
+    asked = str((payload or {}).get("request") or "").strip() if isinstance(payload, dict) else ""
+    what = f"\u201c{asked[:120]}\u201d" if asked else str(record["title"])
+    _journal("task", "work", f"kept {what} for later{', ' + because if because else ''}")
     return record
 
 

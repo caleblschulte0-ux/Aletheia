@@ -43,12 +43,14 @@ class ATimerIsAOneShotAlertCase(TimersCase):
     def test_the_unit_is_singular_because_it_is_an_adjective(self):
         """"Your 10 minutes timer is up" is not English, and this is read
         out loud."""
+        # Hyphenated, because "10-minute" is one adjective and the
+        # voice reads "10 minute timer" with a pause in the wrong place.
         self.assertEqual(self.command("set a timer for 10 minutes")["text"],
-                         "your 10 minute timer is up")
+                         "your 10-minute timer is up")
         self.assertEqual(self.command("set a timer for 1 minute")["text"],
-                         "your 1 minute timer is up")
+                         "your 1-minute timer is up")
         self.assertEqual(self.command("set a timer for 30 seconds")["text"],
-                         "your 30 second timer is up")
+                         "your 30-second timer is up")
 
     def test_a_reason_he_gives_is_what_she_says(self):
         got = self.command("set a timer for 5 minutes to check the oven")

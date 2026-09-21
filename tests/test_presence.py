@@ -101,8 +101,10 @@ class SnapshotCase(unittest.TestCase):
                  [r for r in rows if state is None or r["state"] == state])), \
              mock.patch.object(errands, "all_errands", return_value=[]):
             working = presence._working()
-        self.assertEqual(working, [{"what": "plan needs verification",
-                                    "detail": "water the garden"}])
+        # The row says which plan and that it is not waiting on him: an
+        # interrupted plan is hers to check, so it counts as real work.
+        self.assertEqual(working, [{"what": "checking a plan that was interrupted: water the garden",
+                                    "detail": "water the garden", "pending": False}])
 
 
 class PulseBlockCase(unittest.TestCase):

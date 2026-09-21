@@ -187,7 +187,7 @@ SUBJECT_KINDS = {"memory": "remember", "task": "task_new"}
 # the subject gives "planner: Did it: Remember the landlord's name" — a
 # label on something that did not need one. `repo:aletheia` DOES need its
 # prefix, which is why this is a list rather than a rule.
-SPEAKS_FOR_ITSELF = ("planner", "intent", "scheduling", "applications")
+SPEAKS_FOR_ITSELF = ("planner", "intent", "scheduling", "applications", "work")
 
 #: A line that labels itself. "Did it:" is how the planner marks a finished
 #: plan on a SCREEN, where the label is doing work. Read back in answer to
