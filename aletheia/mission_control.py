@@ -463,7 +463,7 @@ def needs_list(missions: Iterable[dict], approvals: Iterable[dict]) -> list[dict
 
 def header(agent: dict, *, now: dt.datetime, core: dict, missions: Iterable[dict] = (),
            approvals: int = 0, signals: Iterable[dict] = (), today: dict | None = None,
-           say_time: Callable | None = None) -> dict:
+           say_time: Callable | None = None, brains: str = "") -> dict:
     """"What is Thea doing right now?" - the state word, doing, next, stale.
 
     `agent` is `current_state.agent`'s block; `core` is {"heartbeat_age_s",
@@ -560,6 +560,8 @@ def header(agent: dict, *, now: dt.datetime, core: dict, missions: Iterable[dict
     done, problems = int(today.get("done") or 0), int(today.get("problems") or 0)
     return {"state": state, "doing": doing, "next": nxt, "since": agent.get("since"),
             "mission": mission, "stale": not core_ok, "banner": banner,
+            # Who is thinking, and how that is going (current_state.brains_words).
+            "brains": _words(brains, 240),
             "signals": [{k: v for k, v in s.items() if k != "banner"} for s in all_signals],
             "needs_you": needs_total, "needs_you_parts": {"approvals": int(approvals or 0), "missions": mission_needs},
             "today": {"done": done, "problems": problems,
@@ -790,7 +792,8 @@ def gather(now: dt.datetime | None = None, *, fresh: bool = False,
         "as_of": _stamp(now),
         "header": attempt("the header", lambda: header(
             agent, now=now, core=core, missions=missions, approvals=len(unclaimed), signals=signals,
-            today=today, say_time=say_time),
+            today=today, say_time=say_time,
+            brains=str((derived.get("brains") or {}).get("said") or "")),
             {"state": "IDLE", "doing": "Her state could not be read.", "next": "", "stale": True,
              "banner": "The header could not be built from her state.", "signals": [], "needs_you": 0}),
         "missions": missions,

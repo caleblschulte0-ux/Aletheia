@@ -152,7 +152,21 @@ def _wants(now: float) -> list[dict]:
         return rows
     for path in paths:
         record = _read(path)
-        fresh = record is not None and now - float(record.get("at") or 0) < WANT_FRESH_S \
+        if record is None:
+            # Unreadable is not stale: a marker being written this instant
+            # must not be deleted by the reader. Only one old by the clock
+            # on the file is litter.
+            try:
+                old = now - path.stat().st_mtime > WANT_FRESH_S
+            except OSError:
+                old = False
+            if old:
+                try:
+                    path.unlink()
+                except OSError:
+                    pass
+            continue
+        fresh = now - float(record.get("at") or 0) < WANT_FRESH_S \
             and _alive(record.get("pid")) is not False
         if fresh:
             rows.append(record)
@@ -221,9 +235,15 @@ def hold(*, what: str = "", hold_s: float = DEFAULT_HOLD_S, max_wait_s: float | 
     started = time.monotonic()
     want = directory / f"want-{os.getpid()}-{token}.json"
     if who == CONVERSATION:
+        # ATOMIC. A background call polls `_wants` every half second and
+        # deleted any marker it could not parse - so a marker it read
+        # half-written was gone for good, and the conversation waited its
+        # whole limit with nobody knowing. Seen on a loaded CI runner
+        # (2026-09-21); on his PC the draft and the room are different
+        # processes and the same race is one poll away.
         try:
-            want.write_text(json.dumps({"pid": os.getpid(), "at": time.time(), "what": what[:120]}),
-                            encoding="utf-8")
+            from aletheia import stateio
+            stateio.write_json_atomic(want, {"pid": os.getpid(), "at": time.time(), "what": what[:120]})
         except OSError:
             pass
     held = False

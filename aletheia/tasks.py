@@ -114,6 +114,16 @@ def due(*, now: "dt.datetime | None" = None, within_hours: float = 24.0
     return out
 
 
+def is_his(task: dict) -> bool:
+    """A task HE put on his list, as opposed to a build ticket of hers.
+
+    "What are my tasks" read out "Teach program_compose.fill_args to fill a
+    reversible writer's required..." - a gap ticket the registry filed for
+    Claude. His list is the tasks with no capability requirement and no
+    assigned worker: the ones a person keeps."""
+    return not task.get("required_capabilities") and not task.get("assigned_worker")
+
+
 def create(tid: str, description: str, goal: str | None = None,
            dependencies: list[str] | None = None,
            required_capabilities: list[str] | None = None,

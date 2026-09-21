@@ -13,6 +13,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m aletheia.local_ai")
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("status")
+    sub.add_parser("ensure", help="start Ollama if it is stopped and fetch the model if it is missing")
     sub.add_parser("training")
     sub.add_parser("models")
     sub.add_parser("smoke")
@@ -52,6 +53,9 @@ def main(argv: list[str] | None = None) -> int:
         value = scorecard.explain(args.task_type)
     elif args.cmd == "status":
         value = reasoning_gateway.status()
+    elif args.cmd == "ensure":
+        value = local_model_pool.ensure()
+        exit_code = 0 if value.get("ok") else 1
     elif args.cmd == "training":
         value = training_data.stats()
     elif args.cmd == "models":

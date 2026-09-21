@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Any
 
-from aletheia import local_brain, model_pool_config, training_data, work_states
+from aletheia import local_brain, model_pool_config, stateio, training_data, work_states
 
 FAST_TIMEOUT_S = 12.0
 DEEP_TIMEOUT_S = 45.0
@@ -202,13 +202,31 @@ def run_json(system_prompt: str, text: str, *, context: dict | None = None,
             with local_lease.hold(what=f"{role} {config.model}", hold_s=float(config.timeout_s or 0) + 30.0,
                                   purpose_name=local_lease.WORK if background else None):
                 started = time.perf_counter()
-                proposal = local_brain.infer_json(system_prompt, text, context=ctx, config=config,
-                                                  should_yield=should_yield)
-        except local_lease.LeaseBusy as busy:
-            raise LocalPoolUnavailable(f"her own model is busy: {busy}") from None
+                # SEEN WHILE IT RUNS. The mark is what "what are you doing"
+                # and the page read; the progress line is what the room hears
+                # and the ask box shows, once, when he is waiting on it.
+                _mark_busy(role, config.model, text, attention)
+                if not background:
+                    try:
+                        from aletheia import followups, speech
+                        typical = recent().get("typical_s")
+                        followups.report("Thinking with my own model, which is slower"
+                                         + (f", usually {speech.about_seconds(typical)}" if typical else "")
+                                         + ".")
+                    except Exception:  # noqa: BLE001
+                        pass
+                try:
+                    proposal = local_brain.infer_json(system_prompt, text, context=ctx, config=config,
+                                                      should_yield=should_yield)
+                finally:
+                    _clear_busy()
+        except local_lease.LeaseBusy as lease_busy:
+            raise LocalPoolUnavailable(f"her own model is busy: {lease_busy}") from None
         output = validator(proposal) if validator else proposal
     except Exception as exc:
         elapsed = round((time.perf_counter() - started) * 1000)
+        if config is not None:
+            _remember_run(role, elapsed, False, text)
         if config is not None:
             training_data.record_turn(
                 provider="ollama", model=config.model, role=role, text=text, context=ctx,
@@ -229,6 +247,7 @@ def run_json(system_prompt: str, text: str, *, context: dict | None = None,
             raise LocalPoolUnavailable(f"local {role} role failed ({type(exc).__name__})") from None
         raise
     elapsed = round((time.perf_counter() - started) * 1000)
+    _remember_run(role, elapsed, True, text)
     turn_id = training_data.record_turn(
         provider="ollama", model=config.model, role=role, text=text, context=ctx,
         request_payload=payload, result=output, status="validated", duration_ms=elapsed,
@@ -324,9 +343,253 @@ def forget_reachability() -> None:
     _REACH.update({"at": 0.0, "ok": False})
 
 
+# ---- what her own model is doing, and how long it takes ---------------------------
+#
+# His words, 2026-09-21: he needs "a better way for me to see it's working
+# and what it's doing ... mainly when it's just the local model up so I can
+# make sure it's working since it is a lot slower." So every local call
+# leaves a mark while it runs (what, since when, which role) and a line in a
+# small ring when it ends (how long, whether it answered). `current_state`
+# reads both; the page, the room and "what are you doing" say them.
+
+BUSY_STALE_S = 40 * 60.0
+RECENT_KEEP = 40
+
+
+def _busy_path():
+    return stateio.private_dir("local-ai") / "busy.json"
+
+
+def _recent_path():
+    return stateio.private_dir("local-ai") / "recent.json"
+
+
+def _mark_busy(role: str, model: str, what: str, attention: str) -> None:
+    import os
+    try:
+        stateio.write_json_atomic(_busy_path(), {
+            "started_at": stateio.utcnow(), "role": role, "model": model,
+            "what": " ".join(str(what or "").split())[:160], "attention": attention,
+            "pid": os.getpid()})
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _clear_busy() -> None:
+    try:
+        _busy_path().unlink()
+    except OSError:
+        pass
+
+
+def busy() -> dict | None:
+    """The local call running right now, or None. A mark older than
+    BUSY_STALE_S is a crash's leftovers, not a call, and reads as None."""
+    import datetime as dt
+    try:
+        value = stateio.read_json(_busy_path())
+        started = dt.datetime.fromisoformat(str(value["started_at"]).replace("Z", "+00:00"))
+    except Exception:  # noqa: BLE001
+        return None
+    age = (dt.datetime.now(dt.timezone.utc) - started).total_seconds()
+    if age < 0 or age > BUSY_STALE_S:
+        return None
+    return {**value, "elapsed_s": round(age)}
+
+
+def _remember_run(role: str, elapsed_ms: int, ok: bool, what: str = "") -> None:
+    try:
+        rows = []
+        try:
+            rows = list(stateio.read_json(_recent_path()).get("runs") or [])
+        except Exception:  # noqa: BLE001
+            rows = []
+        rows.append({"at": stateio.utcnow(), "role": role, "s": round(elapsed_ms / 1000.0, 1),
+                     "ok": bool(ok), "what": " ".join(str(what or "").split())[:80]})
+        stateio.write_json_atomic(_recent_path(), {"runs": rows[-RECENT_KEEP:]})
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def recent(*, now=None) -> dict:
+    """How her own model has been doing: answers today, the last one, and
+    how long one typically takes (the median of the ones that answered)."""
+    import datetime as dt
+    now = now or dt.datetime.now(dt.timezone.utc)
+    try:
+        rows = list(stateio.read_json(_recent_path()).get("runs") or [])
+    except Exception:  # noqa: BLE001
+        rows = []
+    floor = now.strftime("%Y-%m-%dT00:00:00Z")
+    today = [r for r in rows if str(r.get("at") or "") >= floor]
+    answered = [float(r["s"]) for r in rows if r.get("ok") and r.get("s") is not None]
+    answered.sort()
+    typical = answered[len(answered) // 2] if answered else None
+    last = rows[-1] if rows else None
+    return {"today": len(today), "today_ok": sum(1 for r in today if r.get("ok")),
+            "typical_s": typical, "last_s": (float(last["s"]) if last and last.get("s") is not None else None),
+            "last_ok": (bool(last.get("ok")) if last else None), "last_at": (last or {}).get("at"),
+            "known": len(answered)}
+
+
+# ---- the rung that never runs out has to actually be there ------------------
+#
+# His words, 2026-09-10: "something that technically will always be able to
+# fix something. That'll never run out." Measured 2026-09-21: the local rung
+# had never carried a request on his PC, and nothing in the repo STARTED
+# Ollama or PULLED the model - activation reported "model not pulled" and
+# stopped, and the bring-up turned local AI off for good on that report. So
+# the pool repairs itself: Ollama not answering is started; the configured
+# model not on disk is pulled, in the background, once. Rate-limited, never
+# raising, and every action journaled, because a self-repair that loops is
+# a new way to fill his screen with windows.
+
+HEAL_EVERY_S = 600.0
+SERVE_WAIT_S = 8.0
+
+
+def _heal_path():
+    return stateio.private_dir("local-ai") / "heal.json"
+
+
+def _heal_state() -> dict:
+    try:
+        return stateio.read_json(_heal_path())
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _remember_heal(**changes) -> None:
+    try:
+        state = _heal_state()
+        state.update(changes)
+        stateio.write_json_atomic(_heal_path(), state)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def ollama_binary() -> str | None:
+    """Where Ollama is, or None. PATH first; the Windows installer's default
+    second, because a Scheduled Task's PATH is not his terminal's."""
+    import os
+    import shutil
+    found = shutil.which("ollama")
+    if found:
+        return found
+    if os.name == "nt":
+        for base in (os.environ.get("LOCALAPPDATA", ""), os.environ.get("ProgramFiles", "")):
+            for tail in (r"Programs\Ollama\ollama.exe", r"Ollama\ollama.exe"):
+                path = os.path.join(base, tail) if base else ""
+                if path and os.path.isfile(path):
+                    return path
+    return None
+
+
+def _spawn_detached(args: list[str]) -> int:
+    """A helper that outlives this call and shows no window."""
+    import os
+    import subprocess
+    from aletheia import proc
+    kwargs: dict = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL,
+                    "stderr": subprocess.DEVNULL}
+    if os.name == "nt":
+        kwargs["creationflags"] = proc.hidden_flags(0x00000008 | 0x00000200)
+    else:
+        kwargs["start_new_session"] = True
+    return subprocess.Popen(args, **kwargs).pid
+
+
+def ensure(*, now: float | None = None, spawner=None, binary=None,
+           probe=None) -> dict[str, Any]:
+    """Make her own model reachable, or say exactly why it is not. Never raises.
+
+    - switched off -> nothing, and says so;
+    - Ollama not answering -> start it (once per HEAL_EVERY_S) and wait a
+      few seconds for it;
+    - answering, required model not on disk -> pull it in the background
+      (once; a pull already running is left to run);
+    - answering with the model -> ok.
+    """
+    import time
+    from aletheia import journal, proc
+    now = time.monotonic() if now is None else now
+    out: dict[str, Any] = {"enabled": model_pool_config.enabled()}
+    if not out["enabled"]:
+        out["why"] = "local AI is switched off"
+        return out
+    exe = binary if binary is not None else ollama_binary()
+    state = _heal_state()
+    wall = time.time()
+    forget_reachability()
+    if not reachable(probe=probe):
+        out["reachable"] = False
+        if not exe:
+            out["why"] = "Ollama is not installed on this machine"
+            return out
+        last = float(state.get("served_at") or 0)
+        if wall - last < HEAL_EVERY_S:
+            out["why"] = "Ollama was started recently and is not answering yet"
+            return out
+        try:
+            pid = (spawner or _spawn_detached)([exe, "serve"])
+        except Exception as exc:  # noqa: BLE001
+            out["why"] = f"could not start Ollama ({type(exc).__name__})"
+            return out
+        _remember_heal(served_at=wall, serve_pid=pid)
+        journal.append("action", "local-ai", "started Ollama, which was not running",
+                       actor="aletheia-local-ai")
+        out["started"] = True
+        deadline = time.monotonic() + SERVE_WAIT_S
+        while time.monotonic() < deadline:
+            forget_reachability()
+            if reachable(probe=probe):
+                break
+            time.sleep(0.5)
+        forget_reachability()
+        out["reachable"] = reachable(probe=probe)
+        if not out["reachable"]:
+            out["why"] = "Ollama was started and is not answering yet"
+            return out
+    out["reachable"] = True
+    wanted = model_pool_config.resolve("fast")["model"]
+    try:
+        observed = local_brain.status(_config("fast", timeout_s=4.0))
+    except Exception as exc:  # noqa: BLE001
+        out["why"] = f"could not list the models ({type(exc).__name__})"
+        return out
+    if observed.get("model_available"):
+        out["model"] = wanted
+        out["ok"] = True
+        return out
+    pull = state.get("pull") or {}
+    if pull.get("model") == wanted and proc.pid_alive(pull.get("pid")) is not False \
+            and wall - float(pull.get("started_at") or 0) < 6 * 3600:
+        out["pulling"] = wanted
+        out["why"] = f"still downloading {wanted}"
+        return out
+    if not exe:
+        out["why"] = f"{wanted} is not on this machine and Ollama's own command is not here to fetch it"
+        return out
+    try:
+        pid = (spawner or _spawn_detached)([exe, "pull", wanted])
+    except Exception as exc:  # noqa: BLE001
+        out["why"] = f"could not start the download of {wanted} ({type(exc).__name__})"
+        return out
+    _remember_heal(pull={"model": wanted, "pid": pid, "started_at": wall})
+    journal.append("action", "local-ai", f"downloading my own model, {wanted}, which was not on this machine",
+                   actor="aletheia-local-ai")
+    out["pulling"] = wanted
+    out["started_pull"] = True
+    out["why"] = f"downloading {wanted}; a few minutes on a good connection"
+    return out
+
+
 def smoke() -> dict[str, Any]:
     """Prove the required fast route responds and both configured tags exist."""
-    results = {}
+    # Repair first, so activation on the bring-up starts what is stopped and
+    # fetches what is missing rather than reporting it and giving up.
+    healed = ensure()
+    results: dict[str, Any] = {}
     for role in ("fast", "deep"):
         # Tag discovery is a service diagnostic, not inference. In particular,
         # do not cold-load the optional deep fallback merely to activate the
@@ -365,6 +628,7 @@ def smoke() -> dict[str, Any]:
     })
     return {
         "ok": True,
+        "healed": healed,
         "required_response_role": "fast",
         "roles": results,
     }

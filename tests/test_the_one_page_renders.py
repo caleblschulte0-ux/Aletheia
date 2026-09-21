@@ -154,6 +154,7 @@ class OnePageCase(unittest.TestCase):
                         "document.documentElement.clientWidth"),
                     "drawer_open": page.evaluate(
                         "() => document.getElementById('drawer').open"),
+                    "brains": page.inner_text("#brains"),
                     "health_boxes": page.evaluate(
                         "() => ['banner', 'health'].filter(id => {"
                         " const el = document.getElementById(id);"
@@ -284,6 +285,13 @@ class OnePageCase(unittest.TestCase):
                 self.assertNotIn(shouted, body, shouted)
 
     # ---- it fits a phone --------------------------------------------------
+    def test_who_is_thinking_is_on_the_page(self):
+        """The line he asked for: which mind is answering, and how her own
+        model is doing, so a slow answer looks like work and not a hang."""
+        for who, seen in self.seen.items():
+            with self.subTest(at=who):
+                self.assertIn("my own model", seen["brains"].lower())
+
     def test_one_health_sentence_never_two(self):
         """The fixture has no supervisor AND a missing heartbeat: two
         collectors with something to say about the same fact. He reads one

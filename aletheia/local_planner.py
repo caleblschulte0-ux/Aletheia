@@ -80,6 +80,8 @@ SHORTLIST_MAX = 7
 MAX_STEPS = 3
 #: Marker on a plan compiled here. `intents` reads it; so does the receipt.
 COMPILED_BY = "my own model"
+#: Set on a plan that RULES compiled, with no model at all (aletheia.rule_planner).
+COMPILED_BY_RULES = "rules, with no model"
 
 # ---- shortlisting ---------------------------------------------------------
 #

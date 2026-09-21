@@ -66,6 +66,38 @@ adding architecture. The architecture build is finished
 
 ## Where it stands (kept honest, newest first)
 
+- **2026-09-21 — a hundred and seven sentences with every model off.**
+  His words: *"I just want to be able to talk at it and no matter what I
+  say it will get stuff done."* Two probes through the real voice door in
+  a sandbox with the Claude CLI hidden from the PATH, no Codex and no
+  Ollama - the worst day the PC can have. Every sentence that came back
+  "I can't think" or "kept for later" was a defect in something already
+  built, and each got a fix and a test (`tests/test_seventy_sentences.py`):
+  a reminder that only took a digit, a wake-up set for six in the
+  evening, an errand read as a file search, a question read as "I did
+  it", her own build tasks read out as his list, a fact she could not
+  store without a model, a refusal swallowed into a shrug, a weather
+  question dropped for a planner, unit conversions in the other word
+  order, the week, greetings, thanks, "why are you slow", "I'm home",
+  "goodnight". And a rule may now ANSWER outright when a fact on disk
+  settles the ask - no resume, no number for his sister - so nothing is
+  kept for a model that could not do better. Run it yourself:
+  `python -m aletheia.talk --sandbox` with the model binaries off the
+  PATH, and read what the room would hear.
+
+- **2026-09-21 — the rung that never runs out.** His words: *"it's to the
+  point I can say whatever I want and it will do stuff even when no
+  frontier models are available."* Three rungs now: the frontier; her own
+  model, shown a shortlist; and, under both, `aletheia/rule_planner.py`,
+  which compiles a sentence a rule owns whole from its words in a
+  millisecond with no model at all, through every gate a model's plan goes
+  through, and says it took the sentence literally. Rules run BEFORE her
+  model, so a plain sentence never waits on Ollama. And her own model
+  repairs itself (`local_model_pool.ensure`): Ollama stopped is started, a
+  missing model is fetched in the background, once, from activation and
+  from every beat of the Core. What no rule owns and no model can plan is
+  still kept and re-planned when a model is back; it is never guessed at.
+
 - **2026-09-21 — step 2 begun, from the page and the probe, not the
   source.** The one page was rendered at a phone's width and a desk's and
   she was asked five ordinary things with every model down. Seven

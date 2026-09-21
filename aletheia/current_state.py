@@ -173,14 +173,82 @@ def thinking(now: dt.datetime | None = None) -> dict:
     claude = _safe(lambda: reasoner.resting_until(now), None)
     codex = _safe(lambda: reasoner.codex_resting(now), None)
     local_ok, local_why = _safe(reasoner.local_allowed, (False, "could not be checked"))
+    # INSTALLED is not WORKING, but NOT INSTALLED is certainly not working:
+    # with no Claude CLI on the PATH and no Codex, "thinking with the big
+    # models" was a lie told from the rest markers alone (both None, so
+    # "not resting", so "available"). A cheap, no-network check.
+    claude_here = bool(_safe(reasoner.cli_path, None))
+    codex_here = bool(_safe(reasoner.codex_path, None))
     out = {
-        "claude": {"resting_until": _stamp(claude) if claude else None},
-        "codex": ({"resting_until": _stamp(codex[0]), "why": codex[1]} if codex
-                  else {"resting_until": None}),
+        "claude": {"resting_until": _stamp(claude) if claude else None, "installed": claude_here},
+        "codex": ({"resting_until": _stamp(codex[0]), "why": codex[1], "installed": codex_here} if codex
+                  else {"resting_until": None, "installed": codex_here}),
         "local": {"allowed": bool(local_ok), "why": str(local_why)},
     }
+    # WHAT HER OWN MODEL IS DOING, and how it has been doing: the call
+    # running now (what, how long so far) and the ring of recent ones
+    # (answers today, typical time). This is what lets him SEE it working
+    # when it is the only mind left and everything takes a minute.
+    try:
+        from aletheia import local_model_pool
+        out["local"]["busy"] = local_model_pool.busy()
+        out["local"]["recent"] = local_model_pool.recent(now=now)
+    except Exception:  # noqa: BLE001
+        out["local"]["busy"] = None
+        out["local"]["recent"] = {}
     out["anyone"] = claude is None or codex is None or bool(local_ok)
     return out
+
+
+def brains_words(minds: dict | None = None) -> str:
+    """One sentence about who is thinking: the big models, or her own,
+    slower, and how that has been going. On the page under "Right now"
+    and in "what are you doing" when nothing else is happening."""
+    from aletheia import reasoner, speech
+    minds = minds if minds is not None else thinking()
+    local = minds.get("local") or {}
+    recent = local.get("recent") or {}
+    busy = local.get("busy") or None
+    claude_until = (minds.get("claude") or {}).get("resting_until")
+    codex_until = (minds.get("codex") or {}).get("resting_until")
+    # A mind counts as able when it is here AND not resting. `installed`
+    # missing (an older snapshot) reads as here, so nothing goes quieter
+    # than it was.
+    claude_able = claude_until is None and (minds.get("claude") or {}).get("installed", True)
+    codex_able = codex_until is None and (minds.get("codex") or {}).get("installed", True)
+    frontier = bool(claude_able or codex_able)
+    typical = recent.get("typical_s")
+    pace = f", usually {speech.about_seconds(typical)} an answer" if typical else ""
+    today = recent.get("today_ok") or 0
+    tally = f" {speech.count_phrase(int(today), 'answer')} from it today." if today else ""
+    if frontier:
+        if local.get("allowed"):
+            said = "Thinking with the big models; my own model is ready as backup" + pace + "."
+        else:
+            return "Thinking with the big models. My own model is " + _local_state_words(local) + "."
+        return said + tally
+    until = _parse(claude_until) if claude_until else None
+    out = reasoner.big_models_out(until) if until else reasoner.big_models_out()
+    if not (minds.get("claude") or {}).get("installed", True) and not claude_until:
+        out = "The big models aren't signed in on this PC"
+    if local.get("allowed"):
+        said = f"{out}, so I'm thinking with my own model: slower{pace}."
+        if busy:
+            said += (f" Working on “{speech.shorten(str(busy.get('what') or ''), 60)}” now, "
+                     f"{speech.count_phrase(int(busy.get('elapsed_s') or 0), 'second')} in.")
+        return said + tally
+    return f"{out}, and my own model is {_local_state_words(local)}. Nobody can think until one is back."
+
+
+def _local_state_words(local: dict) -> str:
+    why = str(local.get("why") or "")
+    if "switched off" in why:
+        return "switched off"
+    if "not running" in why:
+        return "not running; I start it myself and try again every few minutes"
+    if "memory" in why:
+        return "waiting for memory to free up"
+    return why or "not available"
 
 
 def job_hunt(now: dt.datetime | None = None) -> dict:
@@ -632,6 +700,16 @@ def agent(now: dt.datetime | None = None, *, hunt: dict | None = None,
                         (f" - {browsing['stage']}" if browsing.get("stage") else "")
                         + (f" at {browsing['site']}" if browsing.get("site") else ""),
                 "since": browsing.get("since")}
+    busy = _safe(lambda: (hunt.get("thinking") or {}).get("local", {}).get("busy"), None) \
+        or _safe(lambda: __import__("aletheia.local_model_pool", fromlist=["busy"]).busy(), None)
+    if busy:
+        from aletheia import speech
+        typical = ((hunt.get("thinking") or {}).get("local", {}).get("recent") or {}).get("typical_s")
+        return {"state": "THINKING", "mission": "thinking with my own model",
+                "step": (f"thinking with my own model about “{speech.shorten(str(busy.get('what') or ''), 70)}”"
+                         f" - {speech.count_phrase(int(busy.get('elapsed_s') or 0), 'second')} so far"
+                         + (f", usually {speech.about_seconds(typical)}" if typical else "")),
+                "since": busy.get("started_at")}
     if _safe(followups.pending_count, 0):
         return {"state": "THINKING", "mission": "answering you", "step": "a reply is on its way",
                 "since": None}
@@ -757,6 +835,9 @@ def sections(now: dt.datetime | None = None, *, fresh: bool = False) -> dict:
                                {"readable": False, "note": "the conversations could not be read"}),
         "unattended": _safe(lambda: unattended(now),
                             {"readable": False, "note": "the unattended ledger could not be read"}),
+        "brains": _safe(lambda: {"minds": hunt.get("thinking") or thinking(now),
+                                 "said": brains_words(hunt.get("thinking") or thinking(now))},
+                        {"minds": {}, "said": ""}),
     }
     _SECTIONS.update({"at": clock, "value": json.loads(json.dumps(value, default=str))})
     return json.loads(json.dumps(value, default=str))

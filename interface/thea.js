@@ -188,7 +188,7 @@ window.Thea = (() => {
       try { slot = await api("/api/voice/followup?id=" + encodeURIComponent(id)); }
       catch { continue; }
       if (slot.state === "PENDING") {
-        if (onWait) onWait(Math.round((Date.now() - started) / 1000));
+        if (onWait) onWait(Math.round((Date.now() - started) / 1000), slot.progress || []);
         continue;
       }
       return { id, say: slot.say || (slot.state === "FAILED"

@@ -126,6 +126,7 @@
     $("doing").textContent = h.doing || "";
     $("next").textContent = h.next ? "Next: " + h.next : "";
     $("today").textContent = (h.today && h.today.said) || "";
+    $("brains").textContent = h.brains || "";
     bannerText = h.banner || "";
     paintBanner();
     return word;
@@ -476,9 +477,16 @@
     $("hint").textContent = "thinking…";
     try {
       let last = "";
+      // The hint says WHO is thinking when she says so ("Thinking with my
+      // own model, which is slower, usually about a minute") and counts
+      // the seconds, so a slow answer looks like work rather than a hang.
       await T.ask(said, (t) => { last = t; reply.textContent = t; },
-                  (secs) => { $("hint").textContent = secs > 20
-                    ? "thinking · " + secs + "s" : "thinking…"; });
+                  (secs, lines) => {
+                    const line = (lines && lines.length) ? lines[lines.length - 1] : "";
+                    $("hint").textContent = line
+                      ? line.replace(/\.$/, "") + " · " + secs + "s"
+                      : (secs > 20 ? "thinking · " + secs + "s" : "thinking…");
+                  });
       $("hint").textContent = "";
       if (spoken || speakBack) T.speak(last);
       refresh();

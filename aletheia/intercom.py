@@ -1073,9 +1073,11 @@ OPEN_TASK_STATES = ("QUEUED", "READY", "RUNNING", "BLOCKED",
 
 
 def _open_tasks() -> list[dict]:
+    """HIS open tasks. Her own build tickets (gap work filed for a worker)
+    are not on his list, whatever store they share (`tasks.is_his`)."""
     from aletheia import tasks as tasks_mod
     return [t for t in tasks_mod.all_tasks()
-            if str(t.get("status", "")).upper() in OPEN_TASK_STATES]
+            if str(t.get("status", "")).upper() in OPEN_TASK_STATES and tasks_mod.is_his(t)]
 
 
 def _tasks_answer(which: str = "") -> str:
@@ -2687,6 +2689,15 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 value = None
             if value is not None:
                 found.append(f"{domain}: {value}")
+        if not found:
+            # He says "what's my landlord's name"; it is stored under
+            # "landlord". Exact key first, then the loose match `forget`
+            # already uses, on key and value.
+            loose = " ".join(str(about).split())
+            loose = re.sub(r"'s (?:name|number|phone|email|address|birthday)$", "", loose,
+                           flags=re.I).strip()
+            for one, key, value in _remembered_matching(loose, cmd.get("domain"))[:4]:
+                found.append(f"{one}: {key} is {value}")
         if not found:
             return f"I don't have anything remembered about {about!r}."
         return "; ".join(found[:4])
