@@ -351,6 +351,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:can|could) (?:you|u) (?P<what>.{3,120})$"
         r"|^(?:are|r) (?:you|u) able to (?P<what2>.{3,120})$"
         r"|^do (?:you|u) know how to (?P<what3>.{3,120})$")),
+    # The friction ledger, read out: what he has had to do himself.
+    ("friction", re.compile(
+        r"^what (?:have|did) i (?:had|have) to do (?:myself|on my own|by hand|for you)(?: lately| this (?:week|month))?$"
+        r"|^what (?:have|did) (?:you|u) (?:been asking|asked) me(?: lately| for| about)?(?: this (?:week|month))?$"
+        r"|^how (?:much|often) (?:have|did) i (?:had|have) to (?:babysit|fix|restart|help) (?:you|u)(?: lately)?$"
+        r"|^(?:what(?:'s| is|s)? (?:been )?(?:annoying|friction|the friction)|(?:the )?friction ledger|"
+        r"how annoying (?:have|were) (?:you|u) been)(?: lately| this (?:week|month))?$"
+        r"|^how many times (?:have|did) i (?:have|had) to (?:step in|fix (?:you|things|something)|"
+        r"restart (?:you|u)|repeat myself)(?: lately)?$")),
     # THE GROUNDED STATUS FAMILY, last so an exact pattern above wins.
     # Found live 2026-09-14 from his phone: "give me a status update on how
     # applying to jobs is going" went to the PLANNER, and with Claude and
@@ -1064,6 +1073,15 @@ def _greeting() -> str | None:
         return None
 
 
+def _friction() -> str | None:
+    """What he has had to do himself, from the friction ledger."""
+    try:
+        from aletheia import friction
+        return friction.spoken()
+    except Exception:
+        return None
+
+
 def status_of(text: str) -> tuple[str, str] | None:
     """(shape, subject) for a status question, or None. The shape is one of
     going / still / count / count_total / last_when / last_what / blocking /
@@ -1156,6 +1174,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "weather": lambda rest: _weather(rest),
            "greeting": lambda rest: _greeting(),
            "home": lambda rest: _home(),
+           "friction": lambda rest: _friction(),
            "status_of": _status_of}
 
 

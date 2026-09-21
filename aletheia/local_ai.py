@@ -127,6 +127,13 @@ def main(argv: list[str] | None = None) -> int:
                 "error": f"{type(exc).__name__}: {exc}",
             }
             exit_code = 1
+            if args.cmd == "activate":
+                try:
+                    from aletheia import friction
+                    friction.record("sysadmin", "local AI did not answer its smoke test",
+                                    source="activate")
+                except Exception:  # noqa: BLE001
+                    pass
     else:
         value = {
             "feedback_id": training_data.record_feedback(

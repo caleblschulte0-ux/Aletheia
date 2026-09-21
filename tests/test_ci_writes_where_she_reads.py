@@ -51,6 +51,14 @@ def _workflows():
 
 
 class CiWritesWhereSheReadsCase(unittest.TestCase):
+    def test_the_pulse_reads_the_hub_where_she_runs(self):
+        """The hub's own row of the pulse read `main`, so "how is Aletheia
+        doing" named a commit from eight days before while `live` moved
+        every day. The pulse reads the hub on the branch the Core runs."""
+        import json
+        fleet = json.loads((REPO_ROOT / "config" / "fleet.json").read_text(encoding="utf-8"))
+        self.assertEqual(fleet["repos"]["aletheia"]["default_branch"], DEPLOY_BRANCH)
+
     def test_there_are_workflows_to_check(self):
         """A glob that silently matches nothing passes every test below."""
         self.assertGreaterEqual(len(_workflows()), 5)

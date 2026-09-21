@@ -1080,6 +1080,26 @@ forms staged nothing: the chosen resume PDF did not read, and with the
   `heard_about`, which is true of one job and a lie on the next. The
   journal records the QUESTION, never his answer.
 
+## Done means several normal days without him as sysadmin
+
+`docs/SEAMLESS_BRIEF.md` (2026-09-21) changed the definition of done. A
+green suite is evidence, not done. A capability that works when phrased
+one way and not another is not built. Anything he had to do that a normal
+person should not — run a command, restart her, repeat himself, answer a
+question she could have settled — goes in the friction ledger
+(`python -m aletheia.friction`) and is a defect in something already
+built, never a thing he learns to do. Do not rebuild: connect, fix,
+simplify and delete before adding architecture.
+
+Two of its mechanisms are easy to undo by accident. Every `scripts/*.ps1`
+is pure ASCII, because Windows PowerShell 5.1 reads a BOM-less file as
+the ANSI code page and an em dash became a closing quote that broke the
+bring-up on his PC while CI, parsing under pwsh, stayed green — the CI
+step runs under 5.1 now and the test fails on the first non-ASCII byte.
+And the bring-up proves what it can before it stops anything (Git,
+Python, the fetched update, a `continuity` snapshot of his private
+state) and holds the checkout to that snapshot before it says UP.
+
 ## The standing assignment
 
 Every session acts on the playbook rather than re-describing it (§156):

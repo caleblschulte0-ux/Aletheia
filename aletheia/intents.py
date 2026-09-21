@@ -389,6 +389,15 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
             # it through converse turned "Which sister — Ana or Mia?" into a
             # paragraph about ambiguity, which is worse in every way. Only a
             # question he asked gets answered here.
+            #
+            # And it is COUNTED: every question handed back to him is a
+            # question she might have settled from her own stores, and
+            # "she keeps asking me things" is only sayable from a ledger.
+            try:
+                from aletheia import friction
+                friction.record("question", plan.summary, asked=request, source="planner")
+            except Exception:  # noqa: BLE001
+                pass
             return record
         _speak_answer(record, request)
         return record

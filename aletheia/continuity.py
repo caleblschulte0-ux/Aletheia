@@ -127,6 +127,11 @@ def main(argv: list[str] | None = None) -> int:
     print("THE UPDATE LOST SOMETHING:")
     for line in lost:
         print(f"  - {line}")
+        try:
+            from aletheia import friction
+            friction.record("lost", line, source="bring-up")
+        except Exception:  # noqa: BLE001
+            pass
     return 2
 
 
