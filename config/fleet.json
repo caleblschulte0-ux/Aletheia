@@ -8,7 +8,7 @@
       "role": "hub",
       "status": "active",
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
-      "default_branch": "main",
+      "default_branch": "live",
       "agents": [
         {
           "name": "interactive Claude session",
