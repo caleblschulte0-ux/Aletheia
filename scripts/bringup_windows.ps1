@@ -254,6 +254,13 @@ if ($LASTEXITCODE -ne 0) {
   # She was killed at the top of this script. Whatever went wrong, he gets
   # his Aletheia back before he gets the error.
   $failure = $_
+  # Counted: a bring-up he had to watch fail is a defect, whatever the cause.
+  if ($script:PyExe -and (Test-Path (Join-Path $dest "aletheia\friction.py"))) {
+    try {
+      Push-Location $dest
+      & $script:PyExe @script:PyFlags -m aletheia.friction record sysadmin ("bring-up failed: " + "$failure") --source bring-up | Out-Null
+    } catch {} finally { Pop-Location }
+  }
   if (Restore-AletheiaCore) {
     Write-Host "  Bring-up failed, but the Core is back up on http://127.0.0.1:8777/" -ForegroundColor Yellow
   } else {

@@ -1031,6 +1031,11 @@ def _interpret(transcript: str) -> dict:
                     r"(?: please| for me| now)*", low):
         if _job_hunt_is_the_context():
             return {"command": {"kind": "apply_campaign", "count": 5}, "say": None}
+        try:
+            from aletheia import friction
+            friction.record("question", "what 'keep going' meant", asked=transcript, source="voice")
+        except Exception:  # noqa: BLE001
+            pass
         return {"command": None,
                 "say": "Keep going with what? Say the thing - the job hunt, a project, or "
                        "a task - and I'll pick it back up."}
