@@ -124,7 +124,34 @@ def _say_the_plan(plan) -> None:
         pass        # narration must never be able to break the work
 
 
-def _speak_answer(record: dict, request: str) -> dict:
+def _answer_by_rules(request: str, fleet: dict | None) -> str | None:
+    """A question a READ-ONLY rule owns, answered from the store with no model.
+
+    "What do you know about my landlord" is a question, so it went to
+    conversation, which needs a model - and with none it said "I can't
+    think just now" while `recall` was a file read away. Only read-tier
+    kinds: a rule may not start anything from inside an answer. None when
+    no rule owns it, or it could not run; never raises.
+    """
+    try:
+        from aletheia import intercom, reasoner, rule_planner
+        found = rule_planner.match(request)
+        if not found:
+            return None
+        kind, args, _summary = found
+        if intercom.tier(kind) != intercom.TIER_READ:
+            return None
+        said = intercom.execute_command({"kind": kind, **args}, fleet or {"repos": {}},
+                                        quote=request)
+        said = speech.spoken_prose(str(said or "")).strip()
+        if not said:
+            return None
+        return f"{reasoner.big_models_out()}, so I looked that up myself. {said}"
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _speak_answer(record: dict, request: str, fleet: dict | None = None) -> dict:
     """Answer a question out loud, and never raise.
 
     ONE implementation for both roads to an answer — the short one that
@@ -162,8 +189,13 @@ def _speak_answer(record: dict, request: str) -> dict:
     except converse.ConverseError as exc:
         # Its message already names the real reason and the fix ("Claude
         # CLI is not on PATH"). Rewriting that into a class name is how an
-        # actionable failure becomes a shrug.
-        record["spoken"] = str(exc)
+        # actionable failure becomes a shrug. But a question a read-only
+        # RULE owns is answered from the store first: nobody thinking is
+        # not a reason to keep a file read from him.
+        ruled = _answer_by_rules(request, fleet)
+        record["spoken"] = ruled if ruled else str(exc)
+        if ruled:
+            record["compiled_by"] = "rules, with no model"
     except Exception as exc:
         # An unreachable model must not turn into silence: say which half
         # failed, because "she said nothing" and "she could not think" are
@@ -298,7 +330,7 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
                   "summary": request[:200], "intent": "answer",
                   "read_only": True, "asked_directly": True, "steps": [],
                   "proposed_at": stateio.utcnow()}
-        _speak_answer(record, request)
+        _speak_answer(record, request, fleet)
         journal.append("event", "intent",
                        f"answered without planning: {request[:120]}", actor=ACTOR)
         return record
@@ -399,7 +431,7 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
             except Exception:  # noqa: BLE001
                 pass
             return record
-        _speak_answer(record, request)
+        _speak_answer(record, request, fleet)
         return record
     # NOTHING IS QUEUED FOR A PLAN THAT ASKS TO SPEND. `spoken()` already
     # answers with the refusal, but without this an approval object was
@@ -553,7 +585,11 @@ def _own_model_line(record: dict) -> str:
     """
     if not record.get("compiled_by"):
         return ""
-    from aletheia import reasoner
+    from aletheia import local_planner, reasoner
+    if record.get("compiled_by") == local_planner.COMPILED_BY_RULES:
+        # No model at all: the words of the sentence were enough. Said so,
+        # because a plan from rules is exactly as literal as it sounds.
+        return f"{reasoner.big_models_out()}, so I took this one literally, with no model. "
     return f"{reasoner.big_models_out()}, so I planned this one myself. "
 
 

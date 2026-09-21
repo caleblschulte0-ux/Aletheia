@@ -419,6 +419,18 @@ def _compile_locally(request: str, context: dict | None, now: str | None,
                  "steps": [{"kind": "web_task", "goal": request[:400]}],
                  "required_capabilities": [], "confidence": 0.0},
                 "aletheia.local-planner.refused", [])
+    # RULES BEFORE HER MODEL. A sentence a rule owns whole is compiled in a
+    # millisecond and needs no Ollama; her model takes 30-160 s on his
+    # laptop and may not be running at all. Rules only ever REMOVE that
+    # wait: a sentence no rule owns goes to the model as before, and a
+    # rule can reach nothing the model could not (aletheia.rule_planner).
+    try:
+        from aletheia import rule_planner
+        ruled = rule_planner.compile(request, now=now)
+    except Exception:  # noqa: BLE001
+        ruled = None
+    if ruled is not None:
+        return ruled, rule_planner.PROVIDER, [str(ruled["steps"][0]["kind"])]
     try:
         propose = local or local_planner.propose
         output, model_name, kinds = propose(request, context=context, now=now)
@@ -503,7 +515,8 @@ def compile(request: str, fleet: dict | None = None, context: dict | None = None
         locally = _compile_locally(request, context, now, local)
         if isinstance(locally, tuple):
             output, provider_id, shortlisted = locally
-            compiled_by = local_planner.COMPILED_BY
+            compiled_by = (local_planner.COMPILED_BY_RULES
+                           if provider_id == "aletheia.rules" else local_planner.COMPILED_BY)
             degraded = None
         else:
             # BOTH RUNGS, not just the one that was switched off. Measured

@@ -66,6 +66,19 @@ adding architecture. The architecture build is finished
 
 ## Where it stands (kept honest, newest first)
 
+- **2026-09-21 — the rung that never runs out.** His words: *"it's to the
+  point I can say whatever I want and it will do stuff even when no
+  frontier models are available."* Three rungs now: the frontier; her own
+  model, shown a shortlist; and, under both, `aletheia/rule_planner.py`,
+  which compiles a sentence a rule owns whole from its words in a
+  millisecond with no model at all, through every gate a model's plan goes
+  through, and says it took the sentence literally. Rules run BEFORE her
+  model, so a plain sentence never waits on Ollama. And her own model
+  repairs itself (`local_model_pool.ensure`): Ollama stopped is started, a
+  missing model is fetched in the background, once, from activation and
+  from every beat of the Core. What no rule owns and no model can plan is
+  still kept and re-planned when a model is back; it is never guessed at.
+
 - **2026-09-21 — step 2 begun, from the page and the probe, not the
   source.** The one page was rendered at a phone's width and a desk's and
   she was asked five ordinary things with every model down. Seven

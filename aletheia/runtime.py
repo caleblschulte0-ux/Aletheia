@@ -925,6 +925,11 @@ def run_approved_scripts() -> list[dict]:
     return done
 
 
+def _heal_local_ai() -> dict:
+    from aletheia import local_model_pool
+    return local_model_pool.ensure()
+
+
 def tick(fleet: dict, *, now: dt.datetime | None = None,
          registry: dict | None = None, request=None,
          budget_s: float = TICK_BUDGET_S) -> dict:
@@ -1040,8 +1045,14 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     subscriptions_settled = guarded(
         "subscriptions", lambda: [s["id"] for s in subscriptions.reconcile()])
     delivered = guarded("desktop", desktop_notify.deliver_pending)
+    # Her own model stays reachable without him: Ollama stopped is started,
+    # a missing model is fetched, once, in the background (the rung that
+    # never runs out has to be there). Rate-limited inside; a reachable pool
+    # costs one cached probe.
+    local_ai_heal = guarded("local_ai", _heal_local_ai)
     return {
         "failures": failures,
+        "local_ai": local_ai_heal,
         "skipped": skipped,
         "schedules": schedules,
         "mail_events": mail_events,

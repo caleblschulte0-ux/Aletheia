@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Any
 
-from aletheia import local_brain, model_pool_config, training_data, work_states
+from aletheia import local_brain, model_pool_config, stateio, training_data, work_states
 
 FAST_TIMEOUT_S = 12.0
 DEEP_TIMEOUT_S = 45.0
@@ -324,9 +324,164 @@ def forget_reachability() -> None:
     _REACH.update({"at": 0.0, "ok": False})
 
 
+# ---- the rung that never runs out has to actually be there ------------------
+#
+# His words, 2026-09-10: "something that technically will always be able to
+# fix something. That'll never run out." Measured 2026-09-21: the local rung
+# had never carried a request on his PC, and nothing in the repo STARTED
+# Ollama or PULLED the model - activation reported "model not pulled" and
+# stopped, and the bring-up turned local AI off for good on that report. So
+# the pool repairs itself: Ollama not answering is started; the configured
+# model not on disk is pulled, in the background, once. Rate-limited, never
+# raising, and every action journaled, because a self-repair that loops is
+# a new way to fill his screen with windows.
+
+HEAL_EVERY_S = 600.0
+SERVE_WAIT_S = 8.0
+
+
+def _heal_path():
+    return stateio.private_dir("local-ai") / "heal.json"
+
+
+def _heal_state() -> dict:
+    try:
+        return stateio.read_json(_heal_path())
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _remember_heal(**changes) -> None:
+    try:
+        state = _heal_state()
+        state.update(changes)
+        stateio.write_json_atomic(_heal_path(), state)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def ollama_binary() -> str | None:
+    """Where Ollama is, or None. PATH first; the Windows installer's default
+    second, because a Scheduled Task's PATH is not his terminal's."""
+    import os
+    import shutil
+    found = shutil.which("ollama")
+    if found:
+        return found
+    if os.name == "nt":
+        for base in (os.environ.get("LOCALAPPDATA", ""), os.environ.get("ProgramFiles", "")):
+            for tail in (r"Programs\Ollama\ollama.exe", r"Ollama\ollama.exe"):
+                path = os.path.join(base, tail) if base else ""
+                if path and os.path.isfile(path):
+                    return path
+    return None
+
+
+def _spawn_detached(args: list[str]) -> int:
+    """A helper that outlives this call and shows no window."""
+    import os
+    import subprocess
+    from aletheia import proc
+    kwargs: dict = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL,
+                    "stderr": subprocess.DEVNULL}
+    if os.name == "nt":
+        kwargs["creationflags"] = proc.hidden_flags(0x00000008 | 0x00000200)
+    else:
+        kwargs["start_new_session"] = True
+    return subprocess.Popen(args, **kwargs).pid
+
+
+def ensure(*, now: float | None = None, spawner=None, binary=None,
+           probe=None) -> dict[str, Any]:
+    """Make her own model reachable, or say exactly why it is not. Never raises.
+
+    - switched off -> nothing, and says so;
+    - Ollama not answering -> start it (once per HEAL_EVERY_S) and wait a
+      few seconds for it;
+    - answering, required model not on disk -> pull it in the background
+      (once; a pull already running is left to run);
+    - answering with the model -> ok.
+    """
+    import time
+    from aletheia import journal, proc
+    now = time.monotonic() if now is None else now
+    out: dict[str, Any] = {"enabled": model_pool_config.enabled()}
+    if not out["enabled"]:
+        out["why"] = "local AI is switched off"
+        return out
+    exe = binary if binary is not None else ollama_binary()
+    state = _heal_state()
+    wall = time.time()
+    forget_reachability()
+    if not reachable(probe=probe):
+        out["reachable"] = False
+        if not exe:
+            out["why"] = "Ollama is not installed on this machine"
+            return out
+        last = float(state.get("served_at") or 0)
+        if wall - last < HEAL_EVERY_S:
+            out["why"] = "Ollama was started recently and is not answering yet"
+            return out
+        try:
+            pid = (spawner or _spawn_detached)([exe, "serve"])
+        except Exception as exc:  # noqa: BLE001
+            out["why"] = f"could not start Ollama ({type(exc).__name__})"
+            return out
+        _remember_heal(served_at=wall, serve_pid=pid)
+        journal.append("action", "local-ai", "started Ollama, which was not running",
+                       actor="aletheia-local-ai")
+        out["started"] = True
+        deadline = time.monotonic() + SERVE_WAIT_S
+        while time.monotonic() < deadline:
+            forget_reachability()
+            if reachable(probe=probe):
+                break
+            time.sleep(0.5)
+        forget_reachability()
+        out["reachable"] = reachable(probe=probe)
+        if not out["reachable"]:
+            out["why"] = "Ollama was started and is not answering yet"
+            return out
+    out["reachable"] = True
+    wanted = model_pool_config.resolve("fast")["model"]
+    try:
+        observed = local_brain.status(_config("fast", timeout_s=4.0))
+    except Exception as exc:  # noqa: BLE001
+        out["why"] = f"could not list the models ({type(exc).__name__})"
+        return out
+    if observed.get("model_available"):
+        out["model"] = wanted
+        out["ok"] = True
+        return out
+    pull = state.get("pull") or {}
+    if pull.get("model") == wanted and proc.pid_alive(pull.get("pid")) is not False \
+            and wall - float(pull.get("started_at") or 0) < 6 * 3600:
+        out["pulling"] = wanted
+        out["why"] = f"still downloading {wanted}"
+        return out
+    if not exe:
+        out["why"] = f"{wanted} is not on this machine and Ollama's own command is not here to fetch it"
+        return out
+    try:
+        pid = (spawner or _spawn_detached)([exe, "pull", wanted])
+    except Exception as exc:  # noqa: BLE001
+        out["why"] = f"could not start the download of {wanted} ({type(exc).__name__})"
+        return out
+    _remember_heal(pull={"model": wanted, "pid": pid, "started_at": wall})
+    journal.append("action", "local-ai", f"downloading my own model, {wanted}, which was not on this machine",
+                   actor="aletheia-local-ai")
+    out["pulling"] = wanted
+    out["started_pull"] = True
+    out["why"] = f"downloading {wanted}; a few minutes on a good connection"
+    return out
+
+
 def smoke() -> dict[str, Any]:
     """Prove the required fast route responds and both configured tags exist."""
-    results = {}
+    # Repair first, so activation on the bring-up starts what is stopped and
+    # fetches what is missing rather than reporting it and giving up.
+    healed = ensure()
+    results: dict[str, Any] = {}
     for role in ("fast", "deep"):
         # Tag discovery is a service diagnostic, not inference. In particular,
         # do not cold-load the optional deep fallback merely to activate the
@@ -365,6 +520,7 @@ def smoke() -> dict[str, Any]:
     })
     return {
         "ok": True,
+        "healed": healed,
         "required_response_role": "fast",
         "roles": results,
     }
