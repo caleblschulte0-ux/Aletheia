@@ -257,9 +257,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # HIS DAY, from the calendar mirror she already holds.
     ("agenda", re.compile(
         r"^what(?:'s| is|s)? on (?:my |the )?(?:calendar|schedule|agenda|plate)"
-        r"(?: for)? (?P<day>today|tomorrow)$"
-        r"|^what (?:do i have|have i got|is there|am i doing) (?:on )?(?P<day2>today|tomorrow)$"
-        r"|^(?:my |the )?(?:calendar|schedule|agenda) (?:for )?(?P<day3>today|tomorrow)$"
+        r"(?: for)? (?P<day>today|tomorrow|this week|next week)$"
+        r"|^what (?:do i have|have i got|is there|am i doing) (?:on )?(?P<day2>today|tomorrow|this week|next week)$"
+        r"|^(?:my |the )?(?:calendar|schedule|agenda) (?:for )?(?P<day3>today|tomorrow|this week|next week)$"
         r"|^what(?:'s| is|s)? (?P<day4>today|tomorrow)(?:'s| like)?(?: looking like| look like)?$")),
     ("alerts", re.compile(
         r"^(?:are there |is there )?any(?:thing)? (?:alerts|broken|wrong|failing)$"
@@ -358,6 +358,34 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^good (?:morning|afternoon|evening)$"
         r"|^how (?:are|r) (?:you|u)(?: doing| today)?$"
         r"|^how (?:you|u) doing$|^how goes it$")),
+    # Coming and going. "I'm home" and "goodnight" went to the PLANNER and,
+    # with nothing thinking, came back "I could not plan that".
+    ("arrival", re.compile(
+        r"^(?:i'?m|im|i am) (?:home|back|here|in)(?: now)?$|^(?:just )?got (?:home|back|in)$")),
+    ("farewell", re.compile(
+        r"^(?P<night>good ?night|night night|sleep well|i'?m going to (?:bed|sleep))$"
+        r"|^(?:i'?m|im|i am) (?:leaving|heading out|going out|off|out)(?: now)?$"
+        r"|^(?:see (?:you|ya)(?: later)?|bye|goodbye|later|talk later|catch you later)$")),
+    # Replies from employers, from the application records.
+    ("replies", re.compile(
+        r"^(?:did|have) i (?:get|got|gotten|receive|received|hear) (?:any |anything )?(?:replies|responses|"
+        r"back|any(?:thing)? back)(?: yet| today| from anyone)?$"
+        r"|^any (?:replies|responses|word|news)(?: from (?:employers|anyone|the jobs))?(?: yet| today)?$"
+        r"|^(?:has|did) anyone (?:replied|reply|written back|write back|got back|get back)(?: to me)?(?: yet)?$")),
+    # Why she is slow is a question about who is thinking.
+    ("slow", re.compile(
+        r"^why (?:are|r) (?:you|u) (?:so |being )?slow(?: today| right now)?$"
+        r"|^why (?:is|does) (?:this|it|everything) (?:take|taking) so long$"
+        r"|^what(?:'s| is) taking so long$|^who(?:'s| is) (?:thinking|answering)(?: right now)?$"
+        r"|^(?:are|r) (?:you|u) (?:using|on) (?:your own|the local) (?:model|brain)$")),
+    # Sums he would otherwise wait a minute for.
+    ("math", re.compile(
+        r"^what(?:'s| is|s)? (?P<pct>[\d.]+) ?(?:%|percent) of (?P<of>[\d.,]+)$"
+        r"|^what(?:'s| is|s)? (?P<a>[\d.,]+) (?P<op>plus|minus|times|divided by|over|x|\+|-|\*|/) (?P<b>[\d.,]+)$"
+        r"|^(?:convert |what(?:'s| is|s)? )?(?P<n>[\d.,]+) (?P<from>miles?|km|kilometers?|kilometres?|pounds?|lbs?|"
+        r"kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c)"
+        r" (?:to|in|into) (?P<to>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|"
+        r"meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c)$")),
     ("mine", re.compile(
         r"^what(?:'s| is|s)? my (?P<mine>email(?: address)?|phone(?: number)?"
         r"|number|city|town|name|first name|last name|full name)$"
@@ -403,6 +431,8 @@ def match(question: str) -> tuple[str, str] | None:
             continue
         captured = found.groupdict()
         if name == "status_of":
+            return name, text
+        if name in ("math", "farewell"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
                                            "free", "free2", "free3",
@@ -529,13 +559,22 @@ def doing_words() -> str:
     if now.get("halted"):
         return "Nothing — I'm halted. Nothing runs until you say resume."
     working = list(now.get("working") or [])
-    if working:
+    running = [w for w in working if not w.get("pending")]
+    pending = [w for w in working if w.get("pending")]
+    if running:
         # `presence` names this field `what`. Guessing `description` here
         # produced "Working on 2 thing(s): ; " — punctuation with nothing
         # in it, which is exactly the confident nonsense this module is
         # supposed to be too careful to say.
-        return "I'm working on " + speech.and_list(
-            [str(w.get("what") or "")[:60] for w in working[:3]]) + "."
+        said = "I'm working on " + speech.and_list(
+            [str(w.get("what") or "")[:60] for w in running[:3]]) + "."
+        if pending:
+            said += f" {speech.count_phrase(len(pending), 'plan')} waiting on your yes."
+        return said
+    if pending:
+        first = speech.shorten(str(pending[0].get("detail") or "one of them"), 70)
+        rest = (f", and {speech.count_phrase(len(pending) - 1, 'other')}" if len(pending) > 1 else "")
+        return f"Nothing running. I'm waiting on you to say yes to {first}{rest}."
     waiting = list(now.get("waiting_on_you") or [])
     if waiting:
         first = speech.shorten(str(waiting[0].get("label") or "one of them"), 80)
@@ -751,7 +790,7 @@ def _tasks() -> str:
     from aletheia import speech, tasks
     rows = tasks.all_tasks()
     live = [t for t in rows
-            if str(t.get("status") or "").upper() not in _TASK_CLOSED]
+            if str(t.get("status") or "").upper() not in _TASK_CLOSED and tasks.is_his(t)]
     if not live:
         return "Nothing open on your task list."
     index = {t.get("id"): t for t in rows}
@@ -895,7 +934,14 @@ def _agenda(day: str = "today") -> str | None:
     try:
         tz = localtime.operator_tz()
         now = dt.datetime.now(tz)
-        want = now.date() + dt.timedelta(days=1 if str(day).strip() == "tomorrow" else 0)
+        day = str(day).strip()
+        if day == "this week":
+            first, last = now.date(), now.date() + dt.timedelta(days=6)
+        elif day == "next week":
+            first = now.date() + dt.timedelta(days=7 - now.weekday())
+            last = first + dt.timedelta(days=6)
+        else:
+            first = last = now.date() + dt.timedelta(days=1 if day == "tomorrow" else 0)
         rows = []
         for event in calendar.all_events():
             if event.get("status") == "CANCELLED":
@@ -904,18 +950,119 @@ def _agenda(day: str = "today") -> str | None:
                 start = calendar.parse_time(event["start"]).astimezone(tz)
             except (KeyError, ValueError, TypeError):
                 continue
-            if start.date() == want:
+            if first <= start.date() <= last:
                 rows.append((start, str(event.get("title") or "something")[:80]))
     except Exception:
         return None                  # no calendar mirror: the model may know more
-    label = "Today" if want == now.date() else "Tomorrow"
+    label = ("Today" if first == last == now.date() else "Tomorrow" if first == last
+             else "This week" if day == "this week" else "Next week")
     if not rows:
         return f"Nothing on your calendar {label.lower()}."
     rows.sort(key=lambda r: r[0])
-    said = [f"{title} at {start.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower()}"
+    many_days = first != last
+    said = [(f"{title} {start.strftime('%A')} at " if many_days else f"{title} at ")
+            + start.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower()
             for start, title in rows[:6]]
     return (f"{label}: " + speech.and_list(said)
             + (f", and {len(rows) - 6} more" if len(rows) > 6 else "") + ".")
+
+
+def _replies() -> str | None:
+    """Replies from employers today, from the application records."""
+    try:
+        from aletheia import current_state, speech
+        hunt = current_state.job_hunt()
+    except Exception:
+        return None
+    if not hunt.get("readable"):
+        return "I can't read my application records right now, so I can't say."
+    rows = list(hunt.get("replies") or [])
+    if not rows:
+        return "No replies from employers today."
+    named = [f"{current_state.said_name(r.get('company', ''), r.get('job', ''))}"
+             + (f" ({r['outcome']})" if r.get("outcome") else "") for r in rows[:4]]
+    return (f"{speech.count_phrase(len(rows), 'reply', 'replies')} today: "
+            + speech.and_list(named) + ".")
+
+
+def _slow() -> str | None:
+    """Why she is slow: who is thinking, and how that has been going."""
+    try:
+        from aletheia import current_state
+        return current_state.brains_words()
+    except Exception:
+        return None
+
+
+def _arrival() -> str:
+    from aletheia import speech
+    try:
+        from aletheia import needs_you
+        rows = needs_you.items()
+    except Exception:
+        rows = []
+    if rows:
+        return f"Welcome back. {speech.count_phrase(len(rows), 'thing')} waiting on you."
+    return "Welcome back. Nothing's waiting on you."
+
+
+def _farewell(text: str) -> str:
+    low = str(text or "").lower()
+    if any(w in low for w in ("night", "sleep", "bed")):
+        return "Goodnight. I'll keep going quietly."
+    return "See you. I'll keep at it while you're out."
+
+
+def _math(text: str) -> str | None:
+    """Percent of, the four operations, and a few unit conversions."""
+    import re as _re
+    found = next((p.match(_tidy(text)) for n, p in PATTERNS if n == "math"), None)
+    if not found:
+        return None
+    g = {k: v for k, v in found.groupdict().items() if v}
+
+    def num(s: str) -> float:
+        return float(str(s).replace(",", ""))
+
+    def said(v: float) -> str:
+        return f"{v:.10g}" if abs(v - round(v)) > 1e-9 else f"{int(round(v)):,}"
+    try:
+        if "pct" in g:
+            return f"{said(num(g['pct']) * num(g['of']) / 100)}."
+        if "op" in g:
+            a, b = num(g["a"]), num(g["b"])
+            op = g["op"]
+            if op in ("plus", "+"):
+                return f"{said(a + b)}."
+            if op in ("minus", "-"):
+                return f"{said(a - b)}."
+            if op in ("times", "x", "*"):
+                return f"{said(a * b)}."
+            if b == 0:
+                return "You can't divide by zero."
+            return f"{said(a / b)}."
+        units = {"mile": ("mi", 1609.344), "miles": ("mi", 1609.344), "km": ("km", 1000.0),
+                 "kilometer": ("km", 1000.0), "kilometers": ("km", 1000.0), "kilometre": ("km", 1000.0),
+                 "kilometres": ("km", 1000.0), "feet": ("ft", 0.3048), "foot": ("ft", 0.3048), "ft": ("ft", 0.3048),
+                 "meter": ("m", 1.0), "meters": ("m", 1.0), "metre": ("m", 1.0), "metres": ("m", 1.0),
+                 "inch": ("in", 0.0254), "inches": ("in", 0.0254), "cm": ("cm", 0.01),
+                 "centimeter": ("cm", 0.01), "centimeters": ("cm", 0.01),
+                 "pound": ("lb", 0.45359237), "pounds": ("lb", 0.45359237), "lb": ("lb", 0.45359237),
+                 "lbs": ("lb", 0.45359237), "kg": ("kg", 1.0), "kilogram": ("kg", 1.0), "kilograms": ("kg", 1.0)}
+        n, src, dst = num(g["n"]), g["from"].lower(), g["to"].lower()
+        if src in ("fahrenheit", "f") and dst in ("celsius", "c"):
+            return f"{said(round((n - 32) * 5 / 9, 1))} degrees Celsius."
+        if src in ("celsius", "c") and dst in ("fahrenheit", "f"):
+            return f"{said(round(n * 9 / 5 + 32, 1))} degrees Fahrenheit."
+        if src in units and dst in units:
+            length = {"mi", "km", "ft", "m", "in", "cm"}
+            if (units[src][0] in length) != (units[dst][0] in length):
+                return None
+            value = n * units[src][1] / units[dst][1]
+            return f"{said(round(value, 2))} {units[dst][0]}."
+    except (ValueError, ZeroDivisionError):
+        return None
+    return None
 
 
 def _how_many() -> str | None:
@@ -1268,6 +1415,11 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "greeting": lambda rest: _greeting(),
            "home": lambda rest: _home(),
            "friction": lambda rest: _friction(),
+           "replies": lambda rest: _replies(),
+           "slow": lambda rest: _slow(),
+           "arrival": lambda rest: _arrival(),
+           "farewell": _farewell,
+           "math": _math,
            "status_of": _status_of}
 
 

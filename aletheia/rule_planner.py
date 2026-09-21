@@ -206,19 +206,30 @@ RULES: tuple[tuple[str, str, Callable], ...] = (
      "task_new", _task_new),
     (r"(?:mark|tick|check)(?: off)?\s+(?P<what>.+?)\s+(?:as )?(?:done|complete|completed|finished)",
      "task_done", _task_done),
-    (r"(?:i(?:'ve| have)? )?(?:did|finished|completed|done with|took care of)\s+(?:the )?(?P<what>.+?)(?: task)?",
+    # "I did X" needs the "I": "did I get any replies" is a question, and
+    # it was marked done as a task called "i get any replies".
+    (r"(?:i(?:'ve| have)? (?:did|finished|completed|done with|took care of)|done with|finished)"
+     r"\s+(?:the )?(?P<what>(?!i |you |we |it |they )[^?]+?)(?: task| thing)?",
      "task_done", _task_done),
     (r"(?:add|put)\s+(?P<what>.+?)\s+(?:to|on)\s+(?:my |the )?(?:shopping )?list", "shopping_add", _shopping_add),
     (r"(?:take|remove|cross|delete|strike)\s+(?P<what>.+?)\s+(?:off|from)\s+(?:my |the )?(?:shopping )?list",
      "shopping_off", _shopping_off),
-    (r"(?P<what>play|put on|start)(?: some| the| my)? music", "music", _music),
+    (r"(?P<what>play|put on|start)(?: some| the| my)? music|(?P<what2>play)(?: me)? (?:something|anything)(?: \w+)?|"
+     r"put (?:some |the )?music on", "music",
+     lambda m, r: _music(type("M", (), {"group": lambda self, k: (m.group("what") or m.group("what2") or "play")})(), r)),
+    (r"(?:turn (?:the music |it |the song )?off|turn off the (?:music|song)|stop the (?:music|song)|kill the music)",
+     "music", lambda m, r: ({"action": "pause"}, "Pause the music") if "pause" in __import__("aletheia.music", fromlist=["KEYS"]).KEYS else None),
     (r"(?P<what>pause|stop|skip|next|previous|back|go back)(?: the| this)? (?:music|song|track)", "music", _music),
     (r"(?P<what>next|skip|previous|pause) (?:song|track)|(?P<what2>next|skip) it", "music",
      lambda m, r: _music(type("M", (), {"group": lambda self, k: (m.group("what") or m.group("what2"))})(), r)),
     (r"(?:read|read me|open|show me|pull up|check|look at)\s+(?P<what>https?://\S+|[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|org|net|io|co|co\.uk|gov|edu|dev|app|ai)(?:/\S*)?)"
      r"(?: and (?:tell me|read me|say) what (?:it says|is on it|it is))?", "browse_read", _browse_read),
-    (r"(?:open|go to|pull up|bring up|launch)\s+(?P<what>[a-z0-9][a-z0-9 .'-]{1,39}?)(?: in (?:the |my )?browser| for me)?",
+    (r"open (?:the |my )?(?:folder|file|document|directory)s? (?:with|containing|for|of|that has) (?:my |the )?(?P<what>.+)",
+     "file_find", _file_find),
+    (r"(?:open|go to|pull up|bring up|launch)\s+(?P<what>(?!the folder|the file|my folder|my file)[a-z0-9][a-z0-9 .'-]{1,39}?)(?: in (?:the |my )?browser| for me)?",
      "web_task", _open_site),
+    (r"find (?:me |us )?(?:a |an |some )?(?P<what>.+?) (?:near me|nearby|near here|around here|in town|close by)",
+     "web_task", lambda m, r: ({"goal": f"find {_clean(m.group('what'))} near him"}, f"Look up {_clean(m.group('what'))} near you")),
     (r"(?:go|get) (?:online|on the (?:web|internet)) and (?P<what>.+)", "web_task", _web_task),
     (r"(?:on the (?:web|internet)|online),? (?P<what>.+)", "web_task", _web_task),
     (r"(?:sign me up for|sign up for|register (?:me )?(?:for|on)|create (?:me )?an account (?:on|at|with)|log ?in to|fill (?:in|out)|"
@@ -237,10 +248,15 @@ RULES: tuple[tuple[str, str, Callable], ...] = (
      "screenshot", _no_args("Take a screenshot")),
     (r"(?:watch|look out|keep an eye out|wait) for (?:an? )?(?:email|e-?mail|mail|message) from (?P<what>.+)",
      "watch_email_from", _watch_email),
-    (r"(?:check|read|any|is there any|do i have (?:any )?(?:new )?)\s*(?:my |the )?(?:email|e-?mail|mail|inbox)(?: for me)?",
+    (r"(?:check|read|any|got any|are there any|is there any|do i have (?:any )?)\s*(?:my |the )?(?:new |unread )?"
+     r"(?:emails?|e-?mails?|mail|inbox|messages)(?: for me| today)?",
      "email_check", _no_args("Check your email")),
-    (r"how (?:long|far)(?: is it| does it take| would it take| will it take)?\s+(?:to (?:get |drive |walk )?to|from here to)\s+(?P<what>.+)",
-     "travel_time", _travel),
+    (r"read (?:me )?(?:my )?(?:resume|cv|résumé)(?: to me| out| out loud)?", "file_read",
+     lambda m, r: (lambda path: ({"path": path, "anywhere": True}, "Read your resume") if path else None)(
+         __import__("aletheia.applications", fromlist=["find_resume"]).find_resume(""))),
+    (r"how (?:long|far)(?: is it| does it take| would it take| will it take| away is it)?\s+(?:to (?:get |drive |walk )?to|from here to)\s+(?P<what>.+)"
+     r"|how far (?:is|away is|to) (?:it to )?(?P<what2>.+)",
+     "travel_time", lambda m, r: _travel(type("M", (), {"group": lambda self, k: (m.group("what") or m.group("what2"))})(), r)),
     (r"cancel (?:my |the )?(?P<what>.+?)\s+(?:subscription|membership|plan)", "subscription_cancel", _subscription_cancel),
     (r"(?:what(?:'s| are| is)|show me|list|read me|read out|what(?:'s| is) on)\s+(?:my |the |your )?(?P<what>reminders?|tasks|task list|to-?do list|todo list|shopping list|applications|subscriptions|contacts|watches|projects|agents|missions|studies)",
      "__list__", _read_list),
@@ -248,6 +264,12 @@ RULES: tuple[tuple[str, str, Callable], ...] = (
      "tasks", _no_args("Read you your tasks")),
     (r"(?:what(?:'s| is|s)? )?(?:the |my )?(?:morning |daily )?brief(?:ing)?(?: for today| today)?|give me the brief(?:ing)?",
      "brief", _no_args("Read you the brief")),
+    # LAST: "what's my wifi password" is a thing he told her to remember.
+    # The profile fields ("what's my email") and every list are matched
+    # above this and in `quick`, so what reaches here is a remembered fact.
+    (r"what(?:'s| is|s) my (?P<what>(?!email|phone|number|name|city|town|address|calendar|schedule|"
+     r"agenda|list|tasks|reminders|balance)[a-z][a-z0-9 '-]{2,40}?)(?: again)?",
+     "recall", _recall),
 )
 
 _COMPILED = tuple((re.compile(_FILLER + "(?:" + pattern + ")" + _TAIL, re.I), kind, fill)

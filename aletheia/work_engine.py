@@ -145,7 +145,11 @@ def add(title: str, *, requires=(), kind: str = "", payload: dict | None = None,
     _history(record, f"filed as {state}", now)
     store["items"][wid] = record
     save_store(store)
-    _journal("task", wid, f"work filed ({state}): {record['title']}")
+    # SAYABLE. "work:3b9a238cf21e: work filed (BLOCKED_MODEL): Plan and do:
+    # ..." was read out as what she did today. The line says what a person
+    # would say; the id and the state are on the record.
+    because = {"BLOCKED_MODEL": "until a model is back"}.get(str(state), "")
+    _journal("task", wid, f"kept for later{', ' + because if because else ''}: {record['title']}")
     return record
 
 

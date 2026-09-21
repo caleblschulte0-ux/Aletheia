@@ -146,12 +146,17 @@ def _working() -> list[dict]:
     by_state: dict = {}
     for record in _safe(intents.all_intents, []):
         by_state.setdefault(record.get("state"), []).append(record)
-    for state, what in ((intents.PROPOSED, "plan waiting on you"),
-                        (intents.RUNNING, "plan running"),
-                        (intents.INTERRUPTED, "plan needs verification")):
+    # A plan WAITING ON HIM is not something she is working on, and three
+    # of them read out as "I'm working on plan waiting on you, plan waiting
+    # on you and plan waiting on you". The `what` names the plan; the
+    # `pending` flag lets a reader count them apart from real work.
+    for state, what, pending in ((intents.PROPOSED, "waiting on your yes", True),
+                                 (intents.RUNNING, "running a plan", False),
+                                 (intents.INTERRUPTED, "checking a plan that was interrupted", False)):
         for record in by_state.get(state, []):
-            out.append({"what": what,
-                        "detail": str(record.get("summary", ""))[:80]})
+            summary = str(record.get("summary", ""))[:80]
+            out.append({"what": (f"{what}: {summary}" if summary else what),
+                        "detail": summary, "pending": pending})
             if len(out) >= MAX_ITEMS:
                 return out
     for record in _safe(lambda: errands.all_errands(), []):

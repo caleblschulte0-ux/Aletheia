@@ -367,7 +367,7 @@ def _status_say() -> str:
     alerts = s["pulse"].get("alerts")
     if alerts:
         parts.append(f"{speech.count_phrase(alerts, 'thing')} in your "
-                     "repositories needs looking at.")
+                     f"repositories {'needs' if int(alerts) == 1 else 'need'} looking at.")
     return " ".join(parts)
 
 
@@ -480,6 +480,9 @@ def _not_a_file(said: str) -> bool:
     if not low:
         return True
     if low in _NOT_A_FILE:
+        return True
+    # "Find ME a plumber near me": a person or a service, never a file.
+    if re.match(r"(?:me|us) (?:a|an|some)\b", low) or re.search(r"\b(?:near me|nearby|around here|in town)\b", low):
         return True
     # "Where are you with Barkly", "where are we on the promo video": a
     # question about how far some work has got, never a lost file.
@@ -1183,6 +1186,45 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "remind_daily", "time": hhmm,
                                 "text": m.group(2).strip()}, "say": None}
         return _to_the_planner(text)
+    # "WAKE ME UP AT 6" and "SET A TIMER FOR TEN MINUTES" are reminders in
+    # other clothes; both went to the planner. A timer is a reminder from
+    # now; an alarm is a reminder at a clock time.
+    m = re.fullmatch(r"(?:wake me(?: up)?|get me up|set an alarm(?: for)?) (?:at )?([\w: ]+?)"
+                     r"(?: (tomorrow|today))?", low)
+    if m and _spoken_time(m.group(1)):
+        # A WAKE-UP IS A MORNING. "Wake me up at 6" is six in the morning,
+        # whatever the clock says now, and "tomorrow" means tomorrow even
+        # when six this morning has passed - _next_occurrence_iso's
+        # afternoon reading would have set it for 18:00.
+        import datetime as dt
+        from aletheia import localtime
+        hour, minute = map(int, _spoken_time(m.group(1)).split(":"))
+        if _is_bare_hour(m.group(1)) and 1 <= hour <= 11:
+            pass                                    # already a morning hour
+        tz = localtime.operator_tz()
+        now = dt.datetime.now(tz)
+        when = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if m.group(2) == "tomorrow" or when <= now:
+            when += dt.timedelta(days=1)
+        return {"command": {"kind": "remind_at", "at": when.isoformat(), "text": "wake up"}, "say": None}
+    m = re.fullmatch(r"(?:set|start) (?:a |me a )?timer(?: for)? (\w+) (minutes?|mins?|hours?|seconds?)"
+                     r"|timer(?: for)? (\w+) (minutes?|mins?|hours?|seconds?)"
+                     r"|remind me in (\w+) (minutes?|mins?|hours?)", low)
+    if m:
+        import datetime as dt
+        raw = m.group(1) or m.group(3) or m.group(5)
+        unit = m.group(2) or m.group(4) or m.group(6)
+        words = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
+                 "eight": 8, "nine": 9, "ten": 10, "fifteen": 15, "twenty": 20, "thirty": 30,
+                 "forty": 40, "forty five": 45, "sixty": 60, "an": 1, "a": 1, "half an": 0.5}
+        amount = float(raw) if raw.isdigit() else words.get(raw)
+        if amount:
+            seconds = amount * (3600 if unit.startswith("hour") else 1 if unit.startswith("sec") else 60)
+            at = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=seconds)).isoformat()
+            one = unit.rstrip("s") if unit != "mins" else "minute"
+            said = f"{raw if not raw.isdigit() else int(amount)}-{one}"
+            return {"command": {"kind": "remind_at", "at": at, "text": f"your {said} timer is up"},
+                    "say": None}
     m = re.match(r"remind me (?:at ([\w: ]+?)|in (\d+) (minutes?|hours?)) (?:to|that) (.+)", low)
     if m:
         if m.group(1):

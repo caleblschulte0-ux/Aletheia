@@ -1073,9 +1073,11 @@ OPEN_TASK_STATES = ("QUEUED", "READY", "RUNNING", "BLOCKED",
 
 
 def _open_tasks() -> list[dict]:
+    """HIS open tasks. Her own build tickets (gap work filed for a worker)
+    are not on his list, whatever store they share (`tasks.is_his`)."""
     from aletheia import tasks as tasks_mod
     return [t for t in tasks_mod.all_tasks()
-            if str(t.get("status", "")).upper() in OPEN_TASK_STATES]
+            if str(t.get("status", "")).upper() in OPEN_TASK_STATES and tasks_mod.is_his(t)]
 
 
 def _tasks_answer(which: str = "") -> str:
