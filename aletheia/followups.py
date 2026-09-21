@@ -126,7 +126,10 @@ def _publish_terminal(record: dict) -> str | None:
              else "Aletheia could not finish a reply")
     try:
         notice = notifications.publish(
-            title, record["say"], priority="IMPORTANT", source="aletheia.followups",
+            title, record["say"], priority="IMPORTANT",
+            about=(notifications.FINISHED if record["state"] == READY
+                   else notifications.FAILED),
+            source="aletheia.followups",
             dedupe_key=f"followup:{record['id']}",
             related={"followup_id": record["id"]})
         return notice["id"]

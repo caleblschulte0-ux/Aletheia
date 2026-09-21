@@ -124,17 +124,36 @@ class AnswerCase(unittest.TestCase):
 
     def test_waiting_counts_what_is_actually_there(self):
         empty = {"halted": False, "waiting_on_you": [], "notifications": []}
-        with mock.patch("aletheia.presence.snapshot", lambda: empty):
-            self.assertEqual(quick.answer("what's waiting on me"),
-                             "Nothing is waiting on you.")
-        loaded = {"halted": False,
-                  "waiting_on_you": [{"label": "send the email to Dana"},
-                                     {"label": "the errand"}],
+        with mock.patch("aletheia.presence.snapshot", lambda: empty), \
+             mock.patch("aletheia.needs_you.items", return_value=[]):
+            # The rule is that an empty list is SAID, not left as silence
+            # or invented around. The exact sentence is rendering.
+            said = quick.answer("what's waiting on me")
+            self.assertTrue(said.lower().startswith("nothing"), said)
+        # The DECISIONS come from `needs_you`, which reads the approval
+        # store itself; the wall collector's copy of them is not the
+        # source any more, so both go in from their own side.
+        from aletheia import needs_you
+        rows = [needs_you._row(id=n, kind="approval", what=label,
+                               why="I need your yes first",
+                               if_ignored="nothing happens until you say so",
+                               how="say approve")
+                for n, label in (("1", "send the email to Dana"),
+                                 ("2", "the errand"))]
+        loaded = {"halted": False, "waiting_on_you": [],
                   "notifications": [{"title": "trader is down"}]}
-        with mock.patch("aletheia.presence.snapshot", lambda: loaded):
+        with mock.patch("aletheia.presence.snapshot", lambda: loaded),              mock.patch("aletheia.needs_you.items", lambda *a, **k: rows):
             said = quick.answer("anything i need to do")
-        self.assertIn("2 waiting on you", said)
+        # THE THING, NOT THE ROW INDEX. This used to assert "2 waiting on
+        # you", which froze a sentence he cannot act on: "the first is" is
+        # a position in a list, and the one fact arrived last. The rule it
+        # protects is that BOTH waiting items are accounted for and the
+        # first one is named.
         self.assertIn("send the email to Dana", said)
+        # BOTH are accounted for: naming one of several has to say so, or
+        # "3 things need you: thing 0" reads as the whole list.
+        self.assertIn("2 things need you", said)
+        self.assertNotIn("..", said)
         # Spoken out loud, so "1 thing(s)" is not acceptable output.
         self.assertNotIn("(s)", said)
 
@@ -153,7 +172,9 @@ class AnswerCase(unittest.TestCase):
         "Working on 2 thing(s): ; " — punctuation with nothing inside it."""
         snap = {"headline": "", "working": [{"what": "rendering the slate"},
                                             {"what": "syncing"}]}
-        with mock.patch("aletheia.presence.snapshot", lambda: snap):
+        with mock.patch("aletheia.presence.snapshot", lambda: snap), \
+             mock.patch("aletheia.current_state.sections",
+                        return_value={"agent": {"state": "IDLE"}}):
             said = quick.answer("what are you doing")
         self.assertIn("rendering the slate", said)
         self.assertNotIn(": ;", said)
@@ -169,7 +190,11 @@ class AnswerCase(unittest.TestCase):
         with mock.patch("aletheia.recollection.on_date", lambda *a, **k: rows):
             said = quick.answer("what did you do today")
         self.assertIn("pushed receipts", said)
-        self.assertIn("2 things today", said)
+        self.assertIn("answered on the spot", said)
+        # Not "2 things today. Most recent: ...". The rule is that she
+        # says WHAT she did; a tally in front of two items he is about to
+        # hear anyway is a column heading read out loud.
+        self.assertTrue(said.lower().startswith("today"), said)
         self.assertNotIn("(s)", said)
         with mock.patch("aletheia.recollection.on_date", lambda *a, **k: []):
             self.assertEqual(quick.answer("what did you do today"),
@@ -186,7 +211,8 @@ class AnswerCase(unittest.TestCase):
         with mock.patch("aletheia.recollection.on_date", on_date):
             said = quick.answer("what did you do yesterday")
             quick.answer("what did you do today")
-        self.assertIn("1 thing yesterday", said)
+        self.assertIn("pushed receipts", said)
+        self.assertTrue(said.lower().startswith("yesterday"), said)
         self.assertEqual(len(seen), 2)
         self.assertNotEqual(seen[0], seen[1])
         with mock.patch("aletheia.recollection.on_date", lambda *a, **k: []):

@@ -1,6 +1,6 @@
 # Aletheia Windows bootstrap compatibility entrypoint.
 #
-#   irm https://raw.githubusercontent.com/caleblschulte0-ux/Aletheia/main/scripts/bootstrap.ps1 | iex
+#   irm https://raw.githubusercontent.com/caleblschulte0-ux/Aletheia/live/scripts/bootstrap.ps1 | iex
 #
 # The old bootstrap made the operator's PC run the entire 1,200+ development
 # test suite before it would start the Core. That was both slow and incorrect:
@@ -14,6 +14,6 @@
 # grants unattended ChatGPT browser reasoning.
 
 $ErrorActionPreference = "Stop"
-$bringup = "https://raw.githubusercontent.com/caleblschulte0-ux/Aletheia/main/scripts/bringup_windows.ps1"
+$bringup = "https://raw.githubusercontent.com/caleblschulte0-ux/Aletheia/live/scripts/bringup_windows.ps1"
 Write-Host "`n  ALETHEIA bootstrap -> safe Windows bring-up" -ForegroundColor Cyan
 Invoke-RestMethod $bringup | Invoke-Expression

@@ -53,7 +53,10 @@ FIELDS: dict[str, dict] = {
                        "means": "first name"},
     "last_name":      {"asks": ("last name", "surname", "family name"),
                        "means": "last name"},
-    "preferred_name": {"asks": ("preferred name", "nickname", "goes by"),
+    # "Preferred First Name*" (Datadog) is not "preferred name" as words, so
+    # "first name" won it - and an empty required box handed the form back.
+    "preferred_name": {"asks": ("preferred name", "preferred first name", "nickname",
+                                "goes by"),
                        "means": "what he likes to be called"},
     "email":          {"asks": ("email", "e-mail", "email address"),
                        "means": "email address"},
@@ -72,7 +75,12 @@ FIELDS: dict[str, dict] = {
     "street":         {"asks": ("street", "address line 1", "address1",
                                 "street address", "address"),
                        "means": "street address"},
-    "city":           {"asks": ("city", "town", "locality"), "means": "city"},
+    # "Current location" (Spotify, a typeahead that offers "Hartford, South
+    # Dakota") asked for where he lives in words none of these matched.
+    "city":           {"asks": ("city", "town", "locality", "current location",
+                                "where are you located", "where are you currently located",
+                                "where are you based", "where do you live"),
+                       "means": "city"},
     "state":          {"asks": ("state", "province", "region"),
                        "means": "state or province"},
     "postal_code":    {"asks": ("zip", "postal", "postcode", "zip code"),
@@ -128,18 +136,57 @@ FIELDS: dict[str, dict] = {
     "willing_to_relocate": {"asks": ("relocate", "relocation", "willing to move",
                                      "open to relocation"),
                             "means": "whether he will relocate"},
+    # The KIND of work he is looking for, in his words. No `asks`: no form
+    # question is answered from these. They steer which jobs she hunts for
+    # (`campaign.roles_for`) and which she lets through (`job_fit`), because
+    # a resume says what he HAS done and not what he wants to do next. His
+    # words, 2026-09-13, after a night of sales applications off a sales-
+    # shaped resume: "definitely don't wanna do sales. Definitely no cold
+    # calling."
+    "work_wanted":     {"asks": (), "means": "the kinds of work he wants"},
+    "work_not_wanted": {"asks": (), "means": "the kinds of work he will not do"},
+    # 2026-09-13, his words: "I'm at least eighteen." Coinbase stopped a real
+    # application on "Are you at least 18 years of age?" with nothing on file
+    # to say so, and a model told never to invent a fact rightly left it.
+    "over_18":        {"asks": ("at least 18", "18 years of age", "18 years or older",
+                                "over the age of 18", "over 18", "age of 18",
+                                "eighteen years", "legal working age",
+                                # Epic: "Are you 18 years old or older?"
+                                "18 years old", "years old or older"),
+                       "means": "whether he is at least 18"},
     "notice_period":  {"asks": ("notice period", "start date", "available to start",
                                 "earliest start"),
                        "means": "when he could start"},
+    # "What are your salary EXPECTATIONS?" is not "salary expectation" as
+    # words, so LeafLink's box never reached the answer he had given.
     "desired_pay":    {"asks": ("desired salary", "salary expectation",
-                                "expected compensation", "pay expectation"),
+                                # Epic: "What annual base pay are you seeking?"
+                                "base pay", "pay are you seeking", "salary are you seeking",
+                                "salary expectations", "expected salary",
+                                "salary requirement", "salary requirements",
+                                "expected compensation", "compensation expectation",
+                                "compensation expectations", "target compensation",
+                                "desired compensation", "compensation range",
+                                "pay expectation", "pay expectations"),
                        "means": "what he wants to be paid",
                        "sensitive": True},
     "pronouns":       {"asks": ("pronouns",), "means": "his pronouns"},
+    # True of ONE job, never stored - `formfill.heard_about_answer` says it
+    # from where she found that job. Affirm asked "How did you first LEARN
+    # about Affirm as an employer?" and Samsara "Where have you LEARNED about
+    # Samsara?", and neither matched a phrase here.
     "heard_about":    {"asks": ("how did you hear", "where did you hear",
                                 "how did you find", "referral source",
-                                "hear about this"),
+                                "hear about this", "hear about us",
+                                # Palantir: "Please tell us how you HEARD about
+                                # this opportunity." - "hear" is not "heard".
+                                "how you heard", "heard about this", "heard about us",
+                                "learn about", "learned about", "first learn",
+                                "find out about", "find this job", "find this role",
+                                "source of application"),
                        "means": "how he heard about the job"},
+    "ai_tools":       {"asks": ("ai tool", "ai tools", "llm", "large language model"),
+                       "means": "the AI tools he uses"},
     "twitter":        {"asks": ("twitter", "x profile", "x.com"),
                        "means": "his Twitter"},
     # Protected characteristics. Filled ONLY from what he said himself

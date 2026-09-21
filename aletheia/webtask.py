@@ -64,7 +64,12 @@ ACTOR = "aletheia-webtask"
 # resume from — the browser context closes with the run.
 MAX_STEPS = 24
 MAX_TEXT = 4_000
-MAX_LINKS = 40
+# A LIST PAGE'S CONTENT IS LINKS, and a sidebar eats the first forty: live
+# 2026-09-17 a shop's fifty category links hid every book on the page, so the
+# general loop could not see the one it was sent for. The model-facing prompt
+# of the older loop keeps its own smaller cut (MODEL_LINKS).
+MAX_LINKS = 120
+MODEL_LINKS = 40
 MAX_FIELDS = 45
 MAX_HIS_FILES = 40             # of his own documents she will offer to attach
 # What she may UPLOAD. Narrower than what she may read, on purpose: a
@@ -206,6 +211,10 @@ class WebTaskError(RuntimeError):
     pass
 
 
+class PressNeverReached(WebTaskError):
+    """The replay failed BEFORE the approved click: proof nothing was sent."""
+
+
 def runs_dir():
     return stateio.private_dir("webtasks")
 
@@ -282,11 +291,36 @@ OBSERVE_JS = r"""() => {
     // semantic one, and only then a positional path. The press replays
     // the route on a freshly loaded page, so `form > div:nth-of-type(2)`
     // is a last resort, not a first choice.
+    // ...and only when it names ONE element. Live 2026-09-16 Wikipedia has
+    // several submit buttons, `button[type="submit"]` matched a hidden one
+    // first, and the click waited twenty seconds on nothing.
+    const bySubmit = `${el.tagName.toLowerCase()}[type="submit"]`;
     const selector = (el.id || el.name) ? sel(el)
-      : (el.type === 'submit' ? `${el.tagName.toLowerCase()}[type="submit"]`
-                              : path(el));
+      : (el.type === 'submit' && document.querySelectorAll(bySubmit).length === 1
+          ? bySubmit : path(el));
     if (!selector) continue;
-    buttons.push({selector, text: (el.innerText || el.value || '').trim().slice(0,70)});
+    // WHAT THE PAGE SAYS THIS CONTROL IS. An <a role=button href="/about-us">
+    // in a site's header is how careers sites draw their navigation, and
+    // without its address and its seat in the <nav> it reads exactly like a
+    // form's submit button - which is how "press 'About Us'" reached him as
+    // an approval (live 2026-09-19, Grainger). `page_state.control_kind`
+    // reads these; none of them can turn a committing label harmless.
+    const btnType = (el.getAttribute('type') || '').toLowerCase();
+    const btnHref = (el.getAttribute('href') || '').trim();
+    const btnChrome = el.closest('nav, header, footer, [role=navigation], [role=menubar],'
+                                + ' [role=banner], [role=contentinfo], [role=search]');
+    const btnOpen = el.getAttribute('aria-expanded');
+    // A button drawn as an empty box with its name in aria-label (Workday's
+    // "Create Account" is a click-filter div, live 2026-09-17).
+    buttons.push({selector, text: ((el.innerText || '').trim() || el.value || el.getAttribute('aria-label')
+                                   || el.title || '').trim().slice(0,70),
+                  ...(btnType ? {type: btnType} : {}),
+                  ...(btnHref ? {href: btnHref.slice(0, 200)} : {}),
+                  ...(btnChrome ? {nav: true} : {}),
+                  ...(el.closest('form') ? {in_form: true} : {}),
+                  ...(btnOpen !== null ? {expanded: btnOpen === 'true'} : {}),
+                  ...(el.getAttribute('aria-haspopup') ? {haspopup: true} : {}),
+                  ...(el.closest('#onetrust-consent-sdk, #onetrust-pc-sdk, #CybotCookiebotDialog, #usercentrics-root, #truste-consent-track, #didomi-host, .osano-cm-window, .cc-window, [id*="cookie" i], [class*="cookie" i], [aria-label*="cookie" i], [id*="consent-banner" i], [class*="consent-banner" i], [id*="tracking-consent" i], [class*="tracking-consent" i]') ? {consent: true} : {})});
     if (buttons.length > 30) break;
   }
   // The ARIA widgets: an answer she can click, and the question it answers.
@@ -319,9 +353,15 @@ OBSERVE_JS = r"""() => {
     // goto loses whatever the click itself would have done.
     const raw = a.getAttribute('href') || '';
     const one = sel(a) || (raw ? `a[href="${raw.replace(/"/g, '\\"')}"]` : null);
-    links.push({href: a.href, text: text.slice(0, 70),
+    // A LIST CUTS ITS OWN TITLES ("The Death of Humanity: ..."); the whole
+    // thing is in the title attribute, and that is what the goal names.
+    const full = (a.getAttribute('title') || '').trim();
+    const said = (full.length > text.length && text.replace(/\W+$/, '')
+                  && full.toLowerCase().startsWith(text.replace(/[.…\s]+$/, '').toLowerCase()))
+                 ? full : text;
+    links.push({href: a.href, text: said.slice(0, 90),
                 ...(one ? {selector: one} : {})});
-    if (links.length > 60) break;
+    if (links.length > 140) break;
   }
   return {title: document.title, url: location.href,
           text: (document.body ? document.body.innerText : '').slice(0, 6000),
@@ -563,10 +603,18 @@ def observe(page) -> dict:
     fields = read_forms(page)
     trimmed = []
     for field in fields[:MAX_FIELDS]:
+        if formfill.is_anti_bot(field) or formfill.is_unseen_text_box(field) or field.get("consent"):
+            # Not offered to the model as something to fill: a CAPTCHA's token
+            # box is not a question, and she does not pass the check for him.
+            continue
         row = {"selector": field["selector"], "type": field.get("type"),
                "label": (field.get("question") or field.get("label")
                          or field.get("name") or "")[:120],
-               "value": (field.get("value") or "")[:60],
+               # A PASSWORD'S VALUE NEVER LEAVES THE PAGE: not to a model, not to a
+               # record. Live 2026-09-17 the vault password she had just typed was
+               # in the observation a model would be shown. Only that it is set.
+               "value": ("(set)" if field.get("value") else "") if field.get("type") == "password"
+                        else (field.get("value") or "")[:60],
                "required": bool(field.get("required"))}
         if field.get("type") in ("checkbox", "radio"):
             row["checked"] = bool(field.get("checked"))
@@ -636,6 +684,7 @@ def _decide(goal: str, page_state: dict, history: list[dict], think,
     # popped by the loop. Nothing underscored ever reaches the model — a
     # forgotten pop would silently spend the whole prompt budget.
     page_state = {k: v for k, v in page_state.items() if not k.startswith("_")}
+    page_state["links"] = (page_state.get("links") or [])[:MODEL_LINKS]
     prompt = json.dumps({
         "goal": goal,
         "facts_about_him": _facts(goal)["about_him"],
@@ -1264,12 +1313,41 @@ def walk(ctx, page, hands, route: list[dict], attachments: dict) -> object:
             settle(page)
         elif action == "new_tab":
             continue                        # handled by the click before it
+        elif action == "enter":
+            # Enter in a box: a site search the general loop ran.
+            before = _open_pages(ctx)
+            target, css = _resolve(page, selector)
+            try:
+                target.press(css, "Enter", timeout=5_000)
+            except Exception:
+                # A search app that swapped the box out after typing (live,
+                # Wikipedia): the focus is still in it, so Enter goes to the page.
+                page.keyboard.press("Enter")
+            try:
+                page.wait_for_load_state("domcontentloaded")
+            except Exception:
+                pass
+            moved = follow_new_tab(ctx, page, before)
+            settle(moved)
+            if moved is not page:
+                page, hands.page = moved, moved
         elif action == "select":
             hands.select_option(selector, label=step["value"])
+        elif action == "choose":
+            # A choice made in a search-as-you-type menu: the same pick again.
+            if not formfill.pick_option(page, selector, str(step.get("value", ""))):
+                raise WebTaskError(f"could not choose {str(step.get('value'))[:40]!r} again")
         elif action == "check":
             hands.check(selector)
         elif action == "uncheck":
             hands.uncheck(selector)
+        elif action == "secret":
+            # A PASSWORD IS REPLAYED FROM THE VAULT, never from the route. The
+            # route is JSON in private state and its digest is what he
+            # approves; the plaintext lives only in `secret_store` (the rule
+            # `signup` exists to keep), so the step names the alias.
+            from aletheia import secret_store
+            hands.fill(selector, secret_store.get(str(step.get("alias") or "")))
         elif action == "click":
             for sel, path in attachments.items():
                 try:
@@ -1368,6 +1446,17 @@ def commit(run_id: str, *, presser=None) -> dict:
         raise WebTaskError(
             f"approval {record['approval']} was given for a different route "
             "than the one on file — nothing was pressed")
+    if record.get("mission"):
+        # A GENERAL BROWSER MISSION'S BUTTON. The mission's invariant is asked
+        # BEFORE the approval is consumed - a second press with no proof the
+        # first failed is refused here whichever path pressed it (this
+        # command, or the Core's beat) - and submit_clicked is on disk before
+        # the click, so a crash mid-press can never read as "not pressed".
+        from aletheia import browser_loop, browser_mission
+        try:
+            browser_loop.before_press(record)
+        except browser_mission.DuplicateSubmission as exc:
+            raise WebTaskError(f"{exc} - nothing was pressed") from None
     _claim(record)
     record["state"] = "COMMITTING"
     record["committed_at"] = stateio.utcnow()
@@ -1378,7 +1467,13 @@ def commit(run_id: str, *, presser=None) -> dict:
         record.update({"state": "FAILED",
                        "failure": f"{type(exc).__name__}: {exc}"[:300]})
         stateio.write_json_atomic(_record_path(run_id), record)
+        if record.get("mission"):
+            from aletheia import browser_loop
+            browser_loop.after_press(record, None, error=exc)
         raise
+    if record.get("mission"):
+        from aletheia import browser_loop
+        result = browser_loop.after_press(record, result)
     # PRESSED is not ACCEPTED. A site that hands the form back has refused
     # it, and calling that COMMITTED is the same lie as reporting "command
     # executed" as "goal achieved" (§30). Its own state, so a second press
@@ -1492,41 +1587,166 @@ def _press(record: dict) -> dict:
     with browse._Session() as ctx:
         page = ctx.new_page()
         hands = _Hands(page)
-        page.goto(record.get("replay_from") or record["url"],
-                  wait_until="domcontentloaded")
-        settle(page)
-        page = walk(ctx, page, hands, record.get("typed", []), attachments)
+        try:
+            page.goto(record.get("replay_from") or record["url"],
+                      wait_until="domcontentloaded")
+            settle(page)
+            page = walk(ctx, page, hands, record.get("typed", []), attachments)
+            target, css = _resolve(page, record["button_selector"])
+            waiter = getattr(target, "wait_for_selector", None)
+            if waiter is not None:
+                waiter(css, state="attached")
+        except Exception as exc:
+            # THE BUTTON WAS NEVER PRESSED. Everything above happens before the
+            # one click that sends anything, so a failure here is PROOF nothing
+            # was submitted - the one kind of failure after which trying again
+            # cannot make a duplicate (a site whose code expired, a page that
+            # moved). Said as its own type so the caller can tell.
+            raise PressNeverReached(
+                f"the route could not be replayed up to the button, so it was never "
+                f"pressed ({type(exc).__name__}: {str(exc)[:160]})") from exc
+        before_text = _body_text(page)
         hands.click(record["button_selector"])
         page.wait_for_load_state("domcontentloaded")
-        # The receipt of an EMBEDDED form is inside the frame; the parent
-        # page still says "Application form below" and reads like nothing
-        # happened. The evidence has to be what the form itself now says.
-        parts = [page.inner_text("body") or ""]
-        for frame in _frames(page)[1:]:
-            try:
-                parts.append(frame.inner_text("body") or "")
-            except Exception:
-                continue
-        body = "\n".join(t for t in parts if t.strip())[:2000]
-        # DID IT WORK? A press is an action; whether the site accepted it is
-        # a different question, and the only honest source is what the page
-        # says next. She pressed Submit on a form whose phone number the
-        # site refused, got "there was a problem with your application"
-        # back, and reported it as done.
-        still_there = bool(formfill.blocking(page)) or bool(
-            [f for f in formfill.read_all(page)
-             if f.get("type") not in ("hidden", "submit", "button")])
-        outcome = browse.read_outcome(body, did=record.get("button", ""),
-                                      form_still_there=still_there)
-        shot = runs_dir() / f"{record['id']}-after.png"
-        try:
-            page.screenshot(path=str(shot), full_page=True)
-        except Exception:
-            shot = ""
-        out = {"url": page.url, "title": page.title(), "evidence": body[:600],
-               "screenshot": str(shot), **outcome}
+        # A page that answers by SCRIPT navigates after the load event: live
+        # 2026-09-17 (Formy) the evidence was read from the form a moment
+        # before /thanks arrived - and a form "still there" read as REJECTED,
+        # which is the one verdict that permits a second press. Wait for the
+        # answer to arrive, then read.
+        wait_for_answer(page, record.get("url") or "", before_text)
+        out = read_after_press(page, record)
+        if record.get("mission"):
+            # A site that wants a code before it accepts (Greenhouse's security
+            # code) is finished in THIS browser, where the code page lives.
+            from aletheia import browser_loop
+            out, page = browser_loop.finish_verification(ctx, page, hands, record, out)
         page.close()
     return out
+
+
+ANSWER_WAIT_S = 6.0
+
+
+def _safe_url(page) -> str:
+    try:
+        return str(page.url or "")
+    except Exception:
+        return ""
+
+
+def _body_text(page) -> str:
+    try:
+        return page.inner_text("body") or ""
+    except Exception:
+        return ""
+
+
+def wait_for_answer(page, url_before: str, text_before: str, *, wait_s: float = ANSWER_WAIT_S) -> None:
+    """After a press, give the page up to `wait_s` to CHANGE (a new address or
+    different text) before anything is read from it; then let it settle."""
+    import time as _time
+    deadline = _time.monotonic() + max(0.0, float(wait_s))
+    while _time.monotonic() < deadline:
+        try:
+            if (url_before and page.url.split("#")[0] != str(url_before).split("#")[0])                     or _body_text(page) != text_before:
+                break
+            page.wait_for_timeout(250)
+        except Exception:
+            break
+    settle(page)
+
+
+def read_after_press(page, record: dict) -> dict:
+    """What the page says after the approved press: the verdict, the
+    evidence, and - when the site handed it back - the site's OWN error
+    words, so a retry starts from what it said instead of pressing the same
+    thing again. Shared by the replayed press and a press inside a mission's
+    live session, so the two cannot disagree about what a refusal looks like."""
+    # The receipt of an EMBEDDED form is inside the frame; the parent
+    # page still says "Application form below" and reads like nothing
+    # happened. The evidence has to be what the form itself now says.
+    parts = [page.inner_text("body") or ""]
+    for frame in _frames(page)[1:]:
+        try:
+            parts.append(frame.inner_text("body") or "")
+        except Exception:
+            continue
+    body = "\n".join(t for t in parts if t.strip())[:2000]
+    # DID IT WORK? A press is an action; whether the site accepted it is
+    # a different question, and the only honest source is what the page
+    # says next. She pressed Submit on a form whose phone number the
+    # site refused, got "there was a problem with your application"
+    # back, and reported it as done.
+    still_there = bool(formfill.blocking(page)) or bool(
+        [f for f in formfill.read_all(page)
+         if f.get("type") not in ("hidden", "submit", "button")])
+    outcome = browse.read_outcome(body, did=record.get("button", ""),
+                                  form_still_there=still_there)
+    said = site_errors(page) if outcome.get("verdict") != "confirmed" else []
+    shot = runs_dir() / f"{record['id']}-after.png"
+    try:
+        page.screenshot(path=str(shot), full_page=True)
+    except Exception:
+        shot = ""
+    return {"url": page.url, "title": page.title(), "evidence": body[:600],
+            "screenshot": str(shot), **({"site_errors": said} if said else {}), **outcome}
+
+
+SITE_ERRORS_JS = r"""() => {
+  const seen = (el) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el);
+    return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none'; };
+  const out = [];
+  const add = (t) => { t = (t || '').replace(/\s+/g, ' ').trim();
+    if (t && t.length <= 240 && !out.includes(t)) out.push(t); };
+  for (const el of document.querySelectorAll(
+      '[role=alert], [aria-live=assertive], .error, .errors, .error-message, .field-error, '
+      + '.invalid-feedback, .form-error, .validation-error, .help-block.error, [class*="error" i]')) {
+    if (seen(el) && !el.querySelector('input, select, textarea')) add(el.innerText);
+    if (out.length >= 12) break;
+  }
+  const labelOf = (el) => {
+    if (el.labels && el.labels.length) return el.labels[0].innerText;
+    return el.getAttribute('aria-label') || el.name || el.id || '';
+  };
+  for (const el of document.querySelectorAll('input, select, textarea')) {
+    if (el.type === 'hidden' || !seen(el)) continue;
+    const bad = el.getAttribute('aria-invalid') === 'true' || (el.willValidate && !el.checkValidity());
+    if (!bad) continue;
+    const by = (el.getAttribute('aria-describedby') || '').split(/\s+/)
+      .map(id => document.getElementById(id)).filter(Boolean).map(n => n.innerText).join(' ');
+    add(`${labelOf(el).trim()}: ${(by || el.validationMessage || 'marked invalid').trim()}`);
+    if (out.length >= 16) break;
+  }
+  return out;
+}"""
+#: Sentences a refusal is written in, when the site marks nothing up.
+_REFUSAL_SENTENCE = re.compile(
+    r"[^.\n]{0,120}\b(?:is (?:required|invalid|not valid)|must be|please (?:enter|provide|correct|fix)|"
+    r"there was a problem|could not be (?:submitted|processed)|invalid|error)\b[^.\n]{0,120}", re.I)
+
+
+def site_errors(page) -> list[str]:
+    """The site's own words for what is wrong, read off the page as it is
+    now: alerts, error messages, and every field it marked invalid with its
+    message. Frames included. Falls back to refusal-shaped sentences in the
+    text. Never raises; [] when the page says nothing."""
+    said: list[str] = []
+    for target in [page, *_frames(page)[1:]]:
+        try:
+            said += [str(x) for x in (target.evaluate(SITE_ERRORS_JS) or [])]
+        except Exception:
+            continue
+    if not said:
+        try:
+            text = page.inner_text("body") or ""
+        except Exception:
+            text = ""
+        said = [" ".join(m.group(0).split()) for m in _REFUSAL_SENTENCE.finditer(text[:6000])][:6]
+    out: list[str] = []
+    for line in said:
+        if line and line not in out:
+            out.append(line[:240])
+    return out[:12]
 
 
 def spoken(record: dict) -> str:

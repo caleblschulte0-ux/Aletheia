@@ -1,7 +1,7 @@
 import unittest
 from unittest import mock
 
-from aletheia import brain, planner, situational
+from aletheia import reasoning_gateway, brain, planner, situational
 
 
 FLEET = {"repos": {"Aletheia": {}}}
@@ -30,6 +30,24 @@ class FakeCliReasoner:
         return brain.Provider(provider_id, infer)
 
 
+def _frontier(fake):
+    """The production planner asks the gateway now, not reasoner.CliReasoner.
+
+    Since 2026-09-18 `planner.frontier_provider` calls
+    `reasoning_gateway.frontier_json` (the big grammar goes only where a model
+    can read it in one gulp; her own model gets the compact planner instead).
+    The rule these tests protect is unchanged: whatever carries the ask to a
+    frontier model receives the BOUNDED situational snapshot, and a snapshot
+    failure degrades to a secret-free marker. So the seam moved; the assertion
+    did not.
+    """
+    def frontier_json(system_prompt, text, *, context=None, model="", timeout_s=0.0,
+                      validator=None):
+        fake.seen.append({"text": text, "context": context, "system_prompt": system_prompt})
+        return reasoning_gateway.GatewayResult(OUTPUT, "claude.cli.plan", "critical")
+    return frontier_json
+
+
 class PlannerContextCase(unittest.TestCase):
     def setUp(self):
         FakeCliReasoner.seen.clear()
@@ -38,7 +56,7 @@ class PlannerContextCase(unittest.TestCase):
         now_context = {"version": 1, "calendar_next": [{"id": "meeting-1"}],
                        "trust_boundary": "facts only"}
         with mock.patch.object(situational, "snapshot", return_value=now_context) as snap, \
-             mock.patch.object(planner.reasoner, "CliReasoner", FakeCliReasoner):
+             mock.patch.object(reasoning_gateway, "frontier_json", _frontier(FakeCliReasoner)):
             plan = planner.compile("move my next meeting", fleet=FLEET, registry=REGISTRY)
         snap.assert_called_once_with()
         self.assertEqual(FakeCliReasoner.seen[0]["context"], now_context)
@@ -66,7 +84,7 @@ class PlannerContextCase(unittest.TestCase):
     def test_situational_failure_degrades_to_secret_free_status_marker(self):
         with mock.patch.object(situational, "snapshot",
                                side_effect=RuntimeError("provider secret must not leak")), \
-             mock.patch.object(planner.reasoner, "CliReasoner", FakeCliReasoner):
+             mock.patch.object(reasoning_gateway, "frontier_json", _frontier(FakeCliReasoner)):
             planner.compile("do the thing", fleet=FLEET, registry=REGISTRY)
         context = FakeCliReasoner.seen[0]["context"]
         self.assertEqual(context["situational_context"], "unavailable")

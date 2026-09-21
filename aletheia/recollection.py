@@ -189,6 +189,13 @@ SUBJECT_KINDS = {"memory": "remember", "task": "task_new"}
 # prefix, which is why this is a list rather than a rule.
 SPEAKS_FOR_ITSELF = ("planner", "intent", "scheduling", "applications")
 
+#: A line that labels itself. "Did it:" is how the planner marks a finished
+#: plan on a SCREEN, where the label is doing work. Read back in answer to
+#: "what did you do today" it is a label on a label: "1 thing today. Most
+#: recent: Did it: Check what is running right now." The whole list is
+#: things she did; saying so once per line is the machine talking.
+_SELF_LABEL = re.compile(r"^(?:did it|did|done)\s*[:—–-]\s*", re.I)
+
 
 def _row(entry: dict) -> dict:
     """One journal line as something she could say out loud.
@@ -216,6 +223,7 @@ def _row(entry: dict) -> dict:
         said = speech.tidy(speech.strip_ids(text))
         what = (said if not subject or head in SPEAKS_FOR_ITSELF
                 else f"{subject}: {said}")
+    what = _SELF_LABEL.sub("", what).strip() or what
     return {"at": _local(entry.get("ts", "")),
             "kind": entry.get("kind", ""),
             "who": entry.get("actor", ""),
@@ -262,7 +270,18 @@ HER_DOING = ("action", "decision", "recovery", "note", "task", "plan")
 # once "note" counted as work, "what did you do today?" started listing
 # her own previous replies back at him — including the text of the answer
 # to the question before this one.
-NOT_DOING_SUBJECTS = ("converse",)
+#
+# PLUMBING is not doing either. "formfill: read 225 fields on
+# jobs.lever.co" is a step inside filling a form, not a thing she did for
+# him, and three in a row is what "what have you been doing" answered with
+# on his phone. `mission_control` kept its own copy of this list to render
+# the same journal readably and the two drifted — it hid `formfill` and the
+# spoken answer did not. One list, two shapes, because a head is always
+# plumbing while `workspace` is only plumbing when it READ something.
+PLUMBING_HEADS = ("formfill", "quick", "desktop")
+PLUMBING_SUBJECTS = ("workspace:read", "calendar:refresh")
+
+NOT_DOING_SUBJECTS = ("converse",) + PLUMBING_HEADS
 
 # Exact subjects that record what she SAID rather than what she did.
 # `core.run_command` journals "<outcome> — <detail>", and for an `intent`
@@ -278,7 +297,8 @@ SAID_NOT_DID = ("core:intent", "core:screen_ask", "core:brief",
                 # saying both — "Added a task: call the plumber; Added a
                 # task: t1". Same for memory, whose own line reads
                 # "Noted: landlord is Mr Okafor".
-                "core:task_new", "core:task_status", "core:remember")
+                "core:task_new", "core:task_status",
+                "core:remember") + PLUMBING_SUBJECTS
 
 
 def _something_she_did(entry: dict) -> bool:

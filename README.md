@@ -31,11 +31,12 @@ are documented in `docs/LOCAL_AI.md`.
   "is she up, and is the registration one she can survive inside?", and
   an outage she comes back from is journaled with its duration instead of
   passing in silence.
-- **The local Core + Command Center** — the wall at `/`, the interactive
-  Command Center at `/command.html` (live task queue, approvals with
-  approve/deny buttons, HALT/RESUME kill switch, the command composer),
-  and the internal API every interface shares. Loopback by default;
-  reaching it from a phone needs a minted token AND a TLS certificate
+- **The local Core and ONE Thea page** — `/` is the product, on his PC and
+  his iPhone alike: what she's doing, ask her, what needs him, what she's
+  done, with approvals, the kill switch and the command composer where they
+  belong (the first three in the open, the last in a drawer). The ambient
+  fleet wall lives at `/interface/wall.html`. Loopback by default; reaching
+  it from a phone needs a minted token AND a TLS certificate
   (`python -m aletheia.access mint`), and refuses without either.
 - **Say anything.** An ask that fits no command slot is no longer
   journaled and forgotten: `aletheia.planner` compiles it into steps

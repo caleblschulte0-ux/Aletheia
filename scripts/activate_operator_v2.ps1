@@ -1,6 +1,6 @@
 # Aletheia full operator-mode activation for Windows (v2 hotfix).
 # Safe entrypoint:
-#   irm https://raw.githubusercontent.com/caleblschulte0-ux/Aletheia/main/scripts/activate_operator_v2.ps1 | iex
+#   irm https://raw.githubusercontent.com/caleblschulte0-ux/Aletheia/live/scripts/activate_operator_v2.ps1 | iex
 #
 # This version deliberately never binds a parameter named $Args. PowerShell
 # reserves $args as an automatic variable; the original activation helper used

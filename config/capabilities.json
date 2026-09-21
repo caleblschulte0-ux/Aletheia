@@ -1,5 +1,5 @@
 {
-  "revision": 116,
+  "revision": 117,
   "providers": [
     {
       "id": "aletheia.local",
@@ -35,6 +35,13 @@
       "kind": "subscription_client",
       "authentication": "the operator's Claude subscription via the CLI's own login; no API key",
       "notes": "Reached only through aletheia.reasoner, which bounds it: no tools, one turn, no session persistence, a timeout, a neutral working directory, and brain.validate_output on everything it returns."
+    },
+    {
+      "id": "codex.cli",
+      "description": "OpenAI's Codex CLI installed on the operator's PC, signed in with his ChatGPT subscription; run headless in a read-only sandbox",
+      "kind": "subscription_client",
+      "authentication": "the operator's ChatGPT subscription via `codex login`; no API key, and API-key variables are stripped from its environment",
+      "notes": "Reached only through aletheia.reasoner.codex_json: an empty working root, --sandbox read-only, --ephemeral, --ignore-user-config (none of his plugins), an output schema, a tree-killing timeout, and no console window."
     },
     {
       "id": "home_assistant",
@@ -151,6 +158,50 @@
       "module": "aletheia.journal"
     },
     {
+      "id": "memory.semantic",
+      "description": "Find related history by meaning - my code, docs, journal, past sessions, browser missions, applications, employers, notifications and commit messages - and say whether an answer is a fact from my records, history found by search, or a guess",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "AgentSession tool memory.recall (aletheia.memory_tools); python -m aletheia.semantic_index build|recall|status; the Core's semantic-index thread starts background builds",
+      "module": "aletheia.semantic_index",
+      "notes": "Wave 3b. SQLite FTS5 BM25 always; all-minilm embeddings through Ollama when it is running, filled under a time budget. Lexical fallback says so. Secrets: allowlisted sources only, sensitivity.scrub on every chunk, never the secret store. EXPERIMENTAL until the Core has kept a live index current on his PC."
+    },
+    {
+      "id": "self.diagnose",
+      "description": "Work out why something I tried failed or stopped: the record, similar past failures and fixes, the code that raised it - a wall outside the code or a bug in it, with the evidence and how sure I am",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "AgentSession tool self.diagnose (aletheia.memory_tools); python -m aletheia.self_diagnosis diagnose",
+      "module": "aletheia.self_diagnosis",
+      "notes": "Wave 3b. Rules classify with no model; a local model may refine only inside the gathered evidence; an optional stronger reviewer through reasoning_gateway is stored beside, never over. EXPERIMENTAL: exercised once against real records from a cloud-off session, not yet from the running Core."
+    },
+    {
+      "id": "repo.propose_patch",
+      "description": "Propose a fix to my own code as a private record - diagnosis, diff, suggested tests - that applies nothing",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "AgentSession tool repo.propose_patch (aletheia.memory_tools; a record, so a session may run it); python -m aletheia.self_diagnosis propose",
+      "module": "aletheia.self_diagnosis",
+      "notes": "Non-authoritative by construction: the brief's propose step. A proposal changes no code and is never branched, pushed or merged by being written."
+    },
+    {
+      "id": "repo.try_patch",
+      "description": "Try a proposed fix on a local branch in a throwaway copy of my code and run only the named tests there - never the running copy, never a push, never a merge",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "AgentSession tool repo.try_patch (aletheia.memory_tools; always handed off); python -m aletheia.self_diagnosis try",
+      "module": "aletheia.self_diagnosis",
+      "notes": "It executes code (the named tests), so it waits for him. self_diagnosis.assert_not_live refuses any worktree inside the checkout she runs from. Merging Aletheia's own code stays with him (project_merge refuses it)."
+    },
+    {
       "id": "goal.plan",
       "description": "Goals as tracked data: open plans, steps with states, journaled lifecycle",
       "provider": "aletheia.local",
@@ -251,7 +302,7 @@
     },
     {
       "id": "voice.wake",
-      "description": "Room voice: local wake word ('Thea'), spoken requests into the same Core",
+      "description": "Room voice: say 'Thea' and talk to me out loud, and speak over me to stop me mid-sentence and say the next thing",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "medium",
@@ -280,10 +331,47 @@
       "status": "AVAILABLE",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "aletheia.mail.send_approved â€” the Core delivers every APPROVED draft each sync tick; drafts come from voice ('Thea, email X that ...'), the intercom kind email_draft, or the Command Center",
+      "caller": "intercom kind 'thread_send' and aletheia.conversations.send_approved (a conversation message he approved, hash-bound, sent once); aletheia.mail.send_approved â€” the Core delivers every APPROVED draft each sync tick; drafts come from voice ('Thea, email X that ...'), the intercom kind email_draft, or the Command Center",
       "verification": "live end to end on the operator's PC 2026-08-26: draft mail-a1e1957d0f -> operator_always approval decided with the operator's own word ('Approved', quoted in the decision) -> SMTP delivery -> exactly-once .sent receipt -> the message verified PRESENT in the inbox by independent IMAP read. Plus tests/test_mail.py (15) on the content-bound approval discipline.",
       "notes": "Credentials in ~/.aletheia/mail.json (app password, revocable). Every send remains operator_always, bound to the sha256 of the exact draft.",
       "module": "aletheia.mail"
+    },
+    {
+      "id": "email.followup",
+      "description": "Send a follow-up on a conversation you already approved a message on - re-asking only what you approved asking",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "grant_requires_scope": true,
+      "caller": "aletheia.conversations.followup via intercom kind 'thread_followup' and the Core beat (aletheia.runtime.tick -> conversations.reconcile); the authority decision is aletheia.conversation_authority.decide and the send is aletheia.conversations.send_approved",
+      "module": "aletheia.conversations",
+      "notes": "Registered 2026-09-16 for continuity brief IV.15 / III.10 (usable outbound communication, consequence-based authority). email.send is UNCHANGED (operator_always, never grantable); this is a narrower capability for one kind of message: a follow-up on a thread where he already approved a message to the same recipient, whose body re-asks only the questions he approved asking. Every follow-up still asks him - unless he created a SCOPED standing grant in his own words at a keyboard or trusted device (python -m aletheia.conversations grant \"...\"), which names the conversation or recipient, the purpose (followup), what it may disclose (phone/email at most), a message count (1-5) and a window (1-30 days), is signed to this machine, and is spent only through policy.request(scope=...). grant_requires_scope: an unscoped grant (standing on, assistant grant) never covers it. Anything that commits him, mentions money or discloses a sensitive detail is routed to email.send instead, whatever grant exists. EXPERIMENTAL: proven in a rehearsal against a fake mail transport only; no follow-up has been sent on a live account. What promotes it: one supervised live follow-up he watches go out under a grant he created.",
+      "verification": "tests/test_conversations.py and tests/test_conversation_authority.py: hash-bound approval sent once; grant scope, count and window; a model-, session-, relay-, voice- or email-authored grant refused; a forged or widened grant file refused by its machine binding; commitment/money/sensitive content always asks; rehearsal never sends"
+    },
+    {
+      "id": "conversation.thread",
+      "description": "Carry a conversation with someone: draft, identify the recipient, send under the right rule, wait for and understand the reply, decide the next step, follow up",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "intercom kinds 'thread_draft' and 'thread_status'; aletheia.conversation_tools (thread.draft, thread.status, thread.send, thread.followup for AgentSession); aletheia.runtime.tick -> conversations.reconcile each Core beat; python -m aletheia.conversations",
+      "module": "aletheia.conversations",
+      "notes": "Built 2026-09-16 (continuity brief IV.15). General, not mission-specific: a durable thread record (state/private/conversations) with recipient provenance (contact, prior thread, given address, or a web-found public contact with its page and quote), messages hash-bound to their approvals, open questions, the reply expectation (wait_adapter over communications.expect_reply, which mail.poll_events resolves), replies read as untrusted data (reply_understanding: rules plus the routine reasoning class, local first), and the next action. Drafting, reading and bookkeeping never ask; sending always goes through email.send or email.followup. Mapped onto the work vocabulary as a work_engine source. EXPERIMENTAL: the whole exchange has run in a rehearsal with fake mail and calendar providers, including with the frontier off and her own model reading the replies; nothing has been sent on his real account.",
+      "verification": "tests/test_conversations.py (thread workflow, rehearsal never sending, voice routing, tools, provider), tests/test_reply_understanding.py (classification, extraction, injection stays data)"
+    },
+    {
+      "id": "calendar.hold",
+      "description": "Find free time around travel, pencil in a tentative hold on the calendar, propose and confirm times, and wake deadlines before they are due",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "low",
+      "approval_policy": "none",
+      "caller": "intercom kinds 'calendar_find_free', 'calendar_hold' and 'calendar_propose'; aletheia.conversation_tools (calendar.find_free, calendar.propose, calendar.hold); aletheia.conversations (accepting and confirming times); python -m aletheia.calendar_reasoning",
+      "module": "aletheia.calendar_reasoning",
+      "notes": "Built 2026-09-16 (continuity brief IV.16). A hold is a TENTATIVE event in her local calendar model - private and reversible, so it asks nobody. Conflicts include travel buffers when both events have a location. Windows and sentences are in HIS timezone with the reference time passed in. Confirming a hold onto a LIVE calendar keeps calendar.write's rule unchanged: a write plan hash-bound to the exact event, operator_always, executed once after approval (calendar_reasoning.execute_approved_writes). Deadlines become work_engine items of kind 'deadline' that wake before they are due. EXPERIMENTAL: proven against InMemoryCalendarProvider only.",
+      "verification": "tests/test_calendar_reasoning.py: travel-buffer conflicts, timezone windows and rendering, free-slot proposal, holds, confirm-to-write-plan approval, deadline wake"
     },
     {
       "id": "calendar.read",
@@ -370,7 +458,7 @@
     },
     {
       "id": "core.serve",
-      "description": "The local Core V0: persistent service on your PC â€” internal API (/api/*), the wall at /, Command Center at /command.html; loopback-only until authentication exists",
+      "description": "The local Core V0: persistent service on your PC â€” the internal API every surface shares, the one Thea page it serves at the root, and the ambient fleet wall behind it; loopback unauthenticated, anything remote needs a minted token and TLS",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "medium",
@@ -433,7 +521,7 @@
       "status": "NEEDS_CONFIGURATION",
       "risk_class": "low",
       "approval_policy": "none",
-      "caller": "interface/voice.js (Web Speech API in the operator's browser) -> POST /api/voice -> voice.interpret -> the same run_command gates as every channel; interface/phone.js on the phone (same /api/voice path)",
+      "caller": "interface/voice.js (Web Speech API, the ambient wall) and interface/thea-app.js via thea.js (the one Thea page, PC and phone alike) -> POST /api/voice -> voice.interpret -> the same run_command gates as every channel",
       "verification": "tests/test_voice.py: 15 tests â€” wake word, halt/resume, spoken URLs ('example dot com'), approve refuses to guess between two pending, unrecognized speech becomes a journaled note (never a guessed action), endpoint round trip on a live Core",
       "notes": "NEEDS_CONFIGURATION until the Core runs on the PC and the operator clicks the mic indicator once (browser permission). Ears/mouth are the browser's own (Chrome/Edge); the interpreter is deterministic on purpose - unmatched speech is journaled and said so, never guessed (Â§104). ChatGPT Voice remains the away-from-home channel. 2026-08-26: the PC's mic endpoint was found MUTED in Windows — the likely cause of the wall mic's silent failure; unmuted, and voice_room --check now reports mute honestly.",
       "module": "aletheia.voice"
@@ -445,7 +533,7 @@
       "status": "AVAILABLE",
       "risk_class": "read",
       "approval_policy": "none",
-      "caller": "aletheia.browse CLI (read/shot); intercom kinds browse_read/browse_shot via the Core's sync loop; the Command Center's /api/command",
+      "caller": "aletheia.browse CLI (read/shot); intercom kinds browse_read/browse_shot via the Core's sync loop; the Command Center's /api/command; tool browser.observe (aletheia.browser_tools: one page as semantic targets and a page state, run inside agent_session as a read)",
       "verification": "12 hermetic tests in tests/test_browse.py drive a real Chromium against a loopback fixture site",
       "notes": "requires the optional playwright dependency; browse.available() reports honestly and callers degrade rather than crash",
       "module": "aletheia.browse"
@@ -573,7 +661,7 @@
     },
     {
       "id": "notification.center",
-      "description": "Private notifications that know what you have already seen, and never show you the same thing twice",
+      "description": "Private notifications that know what you have already seen, never show you the same thing twice, and stay quiet for routine reversible work - you hear about something finishing, failing, changing or needing you",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "low",
@@ -1089,7 +1177,7 @@
       "status": "AVAILABLE",
       "risk_class": "read",
       "approval_policy": "none",
-      "caller": "aletheia.core.core_tick writes it into state/pulse/latest.json every beat; interface/index.html renders it above the fleet map",
+      "caller": "aletheia.core.core_tick writes it into state/pulse/latest.json every beat; interface/wall.html renders it above the fleet map, and interface/thea.html reads the same state through /api/mission",
       "module": "aletheia.presence",
       "notes": "§88 asks the wall for current focus, next appointment, agents working and alerts; it rendered six repositories instead, three of them empty stubs at equal weight (§89). Approvals waiting on him appeared nowhere. It also had one data source - a six-hourly cloud cron - and was measured 10.5 hours stale. This block is local, written every beat, and carries its OWN timestamp: the wall shows two ages because there really are two, and letting a fresh local read refresh the fleet stamp would be §107 exactly.",
       "verification": "tests/test_presence.py: the fleet stamp is never touched by a local write; one broken source cannot blank the wall; duplicate notification titles are shown once"
@@ -1284,6 +1372,42 @@
       "verification": "tests/test_projects_are_carried.py: the contract, next_for skipping his steps and unmet needs, charters skipped by the orchestrator, activity read from the charter's own branch with bot commits ignored, credit only from a merge into that branch, the one-thing order and snooze, replies done/keep/drop and a non-answer changing nothing"
     },
     {
+      "id": "mission.long",
+      "description": "Carry a long mission you state in your own words - drafted into measurable outcomes, workstreams, tasks, recurring activities and decisions, confirmed by you, then worked for weeks through the work engine, with every wait (a reply, a date, your decision, a model) held durably with its reason, wake condition, follow-up and timeout",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "medium",
+      "approval_policy": "none",
+      "caller": "intercom kinds 'mission_new', 'mission_add', 'mission_confirm', 'missions' and 'mission_activity' (voice, phone, Command Center; a recurring activity's schedule through aletheia.scheduler); aletheia.work_engine.SOURCES['programs'] and SOURCE_RUNNERS on the Core's beat (runtime.tick); aletheia.waits.reconcile inside work_engine.reconcile; the mission.status and mission.waiting session tools (aletheia.program_tools); aletheia.mission_programs on the mission screen; current_state section programs",
+      "module": "aletheia.programs",
+      "verification": "tests/test_programs.py and tests/test_waits.py: drafts are inert until his yes and her own actors are refused, shaping validated with scripted models and no domain categories in code, tasks composed from the catalog by capability with gaps classified, reads run and world steps hand off to his approval, waits wake on a fake clock and fake replies and events with follow-up and timeout meaning, state survives a restart, the engine runs mission tasks and keeps blocked ones checkpointed, and the provider and session tools read it back",
+      "notes": "Built 2026-09-16 for continuity brief Part IV (items 11-14) as general infrastructure: nothing in code names what a mission is about. EXPERIMENTAL until a real mission of his has been drafted, confirmed and carried across at least one real wait on his machine; Scenario E ran it in a throwaway sandbox with rehearsal outbound only. Outbound messages and calendar reasoning stay with their own layers; a mission step that reaches anyone is a handoff he approves."
+    },
+    {
+      "id": "work.projects",
+      "description": "Work on your projects when you say so - even with Claude and Codex out: run what can run now within existing authority, investigate harder work into evidence packets for a stronger model, and report what was done, what waits and on whom",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "medium",
+      "approval_policy": "none",
+      "caller": "intercom kinds 'work_projects' and 'work_report' (voice, phone, Command Center: \"work on my projects\", \"what did you get done on my projects\"); python -m aletheia.project_work start|status|preview; aletheia.work_engine.SOURCE_RUNNERS['tasks'|'plans'|'charter_ci'] -> aletheia.work_runners on the Core's beat (light routes) and inside a session (heavy routes); the work.receipts and work.inventory session tools (aletheia.work_tools); aletheia.mission_work's work-session card and ribbon lines; current_state section work_session",
+      "module": "aletheia.project_work",
+      "verification": "tests/test_work_on_projects.py: phrasings route to the command, runners run reads and hand world steps off, charter steps go to local repair / a packet / the cloud builder by rule, red CI on a charter branch becomes an item, one piece of work in two stores is one item, the local-model lease orders processes, and the report never says she can't work while anything is executable",
+      "notes": "Built 2026-09-17 (continuity wave C3b) for the final target of docs/CONTINUITY_BRIEF.md. Nothing it runs is new authority: pull requests go through code_worker.open_repair_pr with its grant and refusals, Aletheia and schwab-trader never merge autonomously, world-touching steps are handoffs, money is refused, and a rehearsal opens no pull request. EXPERIMENTAL until a real session on his machine has carried real work end to end; Scenario A ran it on a sandboxed copy of his state with the frontier switched off."
+    },
+    {
+      "id": "study.improve",
+      "description": "Study what does better than one of your projects - pages, feeds, public repositories or APIs, and your own project read the same way - measure the differences with evidence for each, propose ranked changes you accept, reject or reshape, carry an accepted one through the existing safe paths with its baseline read first, and measure it again later for your keep, revert or iterate",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "medium",
+      "approval_policy": "none",
+      "caller": "intercom kinds 'study_new', 'studies', 'study_decide' and 'study_confirm' (voice, phone, Command Center: \"study X, Y and Z and improve my project\", \"how's the study going\", \"what did you find\", \"accept the first one\", \"keep it\"); aletheia.work_engine.SOURCES['studies'] and SOURCE_RUNNERS['studies'] -> aletheia.study_run on the Core's beat; aletheia.waits.HANDLERS['studies'] for measurement windows and his decisions; the study.status and study.evidence session tools (aletheia.study_tools); aletheia.mission_studies on the mission screen; current_state section studies; aletheia.semantic_index source studies",
+      "module": "aletheia.studies",
+      "verification": "tests/test_studies.py: the study model and its gates (only his words accept, keep or revert; her own actors refused), no domain words or category lists in the new modules, provenance on every observation, uncited claims dropped, injected page text stays data, hypothesis shape validation, baseline read before any change, measurement woken by a fake clock, keep/revert/iterate, the provider, the session tools and voice routing; scripts/rehearse_study.py ran two unrelated domains in a sandbox with rehearsal on",
+      "notes": "Built 2026-09-17 (continuity wave C4a) for the addendum to docs/CONTINUITY_BRIEF.md. Nothing in code names a platform or a kind of project: observation sources are chosen by what they can read, and a public API is described as data in config/observation_sources.json. Pages are read over plain HTTP within robots.txt and site terms, a few requests per study. Nothing it runs is new authority: a change is a thea-study branch or a pull request through code_worker.open_repair_pr (never in a rehearsal, never the default branch, never a merge), code work beyond a bounded edit is a packet for a stronger model, anything outward is a handoff, money is refused. EXPERIMENTAL until a real study of his has been carried from his sentence to a measured verdict on his machine."
+    },
+    {
       "id": "charter.next",
       "description": "Say which charter step is next and, for every charter passed over, why - so a loop that decides nothing stops doing it silently",
       "provider": "aletheia.local",
@@ -1302,7 +1426,7 @@
       "status": "AVAILABLE",
       "risk_class": "medium",
       "approval_policy": "none",
-      "caller": "aletheia.reasoner via aletheia.local_model_pool; policy in aletheia.reasoning_gateway; aletheia.reasoner.local_text for conversation (aletheia.converse) when both subscriptions are out; aletheia.charters.draft through the standard policy; python -m aletheia.local_ai to provision",
+      "caller": "aletheia.reasoner via aletheia.local_model_pool; policy in aletheia.reasoning_gateway; aletheia.reasoner.local_text for conversation (aletheia.converse) when both subscriptions are out; aletheia.charters.draft through the standard policy; aletheia.reasoner.work_json as the LAST rung of the job hunt (after Claude and Codex, only with 6 GB of memory free, fast role; a job only it judged realistic waits for his OK, and it never drafts essays); python -m aletheia.local_ai to provision",
       "module": "aletheia.local_brain",
       "notes": "THE BRIDGE, 2026-09-10. His words: \"the whole point of building this LLM on my own was the bridge ... something that'll never run out even if it's not the best\" - and the only things he wants changing his repositories are Claude and the best of ChatGPT. What was found: the standard policy's local fallback asked ONLY the deep role, qwen3.6:27b, which needs ~19 GB on this 16 GB laptop - 31 recorded attempts, 31 failures - so the bridge had never carried one request; conversation had no local rung at all; and a spent Claude window ('You've hit your session limit · resets 4:40pm (UTC)') read as 'Claude CLI exited 1' and was asked again on every call. Now: reasoner remembers the reset and does not ask Claude until it passes (ClaudeResting, a ReasonerUnavailable); the standard fallback tries deep and then whatever FITS (qwen3:8b); conversation answers from her own model and says so ('Claude's out until 4:40 PM, so this answer is from my own model'); charter drafts may be written locally and are marked drafted_by. Critical work - code proposals and merge reviews - still never falls to a local model. Measured on this laptop: a charter draft from qwen3:8b took 100 s warm and 188 s cold, and its only flaw (needs counted from zero) is forgiven by charters._forgive_shape. ENABLED on his PC since 2026-09-08 (model-pool.json: enabled=true, shadow=true; qwen3:8b fast, qwen3.6:27b deep) and answering. Until then this said NEEDS_CONFIGURATION, and asking her what she could NOT do told him he had no local models at all while they were running - a capability denied to his face, which is worse than one merely missing. The invariant that matters more than the plumbing is unchanged: a local model must never become the authority for a critical decision merely because Claude is out. The gateway's policy tiers enforce that - critical work degrades honestly instead of silently dropping to a smaller model - and the scorecard now decides promotion on measured agreement AND latency, so being available is not the same as being trusted.",
       "verification": "Live on the PC 2026-09-08: the background student answered through the real gateway and agreed with the subscription on every compared pair (agreement 1.0), at ~21s median against the subscription's ~6s - accurate, and too slow to be given authority, which is exactly what the scorecard's latency gate is for. tests/test_local_ai_integration.py: the critical tier never downgrades to a local answer (the local pool is asserted NOT CALLED when the subscriptions are down, so it fails instead of quietly answering); a remote Ollama endpoint is refused; a failed activation leaves local routing disabled."
@@ -1318,6 +1442,18 @@
       "module": "aletheia.browser_reasoner",
       "notes": "Gated on an OPERATOR LEASE that unattended contexts must never inherit: every always-on entry point drops the lease from its own environment - the Core, the supervisor (which also strips it from every child environment), the project loop and the voice room. His ruling 2026-09-08, that he should not have to turn on ChatGPT or Claude, is why an ATTENDED request now satisfies that lease on its own: the ladder falls through from the Claude CLI to this without him switching anything on, while a scheduled tick still cannot reach his account. The lease had been asking which PROCESS was running, and every always-on process answers no - including the Core and the voice room, which are also where he TALKS to her, so his own questions were being refused by a guard written against background loops.",
       "verification": "Live on the PC 2026-09-09: asked for the capital of Iceland through the real browser session on his subscription and it answered in 12.2s with no API key. INSTALLED is not WORKING, and its own readiness string said login was verified only on first use - so it was verified. tests/test_attended_fallback.py holds the boundary: an unattended process still may not use his account, and an AST walk over every module proves nothing outside the HTTP request path can reach the attended door. tests/test_browser_reasoner_windows_mode.py: the always-on entry points are enumerated from the SCHEDULED TASK REGISTRY rather than a hand-written list."
+    },
+    {
+      "id": "reason.codex",
+      "description": "Your ChatGPT subscription through OpenAI's own Codex CLI, headless and read-only, so the job hunt keeps thinking while Claude is out - no API key, no window",
+      "provider": "codex.cli",
+      "status": "EXPERIMENTAL",
+      "risk_class": "medium",
+      "approval_policy": "none",
+      "caller": "aletheia.reasoner.work_json (Claude CLI -> Codex -> her own model) for the job hunt only: campaign.learn_more, campaign.roles_for, campaign._any_model_answers (answer_from_facts) and job_fit.judge; campaign._any_model_writes asks Codex for essays after the subscriptions and never her own model; apply_forever asks reasoner.codex_available before waiting out a Claude rest. Code proposals and merge reviews never reach it (tests/test_the_bridge.py).",
+      "module": "aletheia.reasoner",
+      "notes": "Built 2026-09-13 on his words: \"make it so that tomorrow when I hit my Claude limit it still is applying for jobs.\" The hunt's fallback was the ChatGPT BROWSER, which an always-on process can never open (the lease is dropped so no window lands on his screen), so while Claude rested the hunt waited (PR #106). EXPERIMENTAL, not AVAILABLE: codex-cli 0.137.0-alpha.4 is installed and `codex login status` says 'Logged in using ChatGPT', but on the day it was built its refresh token had EXPIRED and `codex exec` refused every ask ('Your access token could not be refreshed because your refresh token has expired') - so no request has ever been answered through this path. An expired sign-in is remembered for 30 minutes and he is notified ONCE to run `codex login`; a spent usage window is remembered until the reset it names. Promote only after a live answer on his PC.",
+      "verification": "tests/test_apply_past_the_claude_limit.py (all stubbed, no real Codex call): the argv is read-only, ephemeral, ignores his config and carries an output schema, is windowless and strips API-key variables; an expired sign-in is recognized, remembered and notified once; the chain goes Claude -> Codex -> local only with 6 GB free; a job only her own model judged waits for his OK instead of the standing grant; apply_forever waits only when no rung can think."
     },
     {
       "id": "followup.deliver",
@@ -1468,13 +1604,10 @@
       "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "none",
-      "caller": "the Core serves interface/phone.html (talk) and interface/console.html (everything) under /interface/; reachable over the operator's tailnet",
+      "caller": "the Core serves interface/thea.html under /interface/ (and redirects / and every retired path to it); reachable over the operator's tailnet",
       "module": "aletheia.core",
-      "notes": "TWO SURFACES, because they are two different moments: walking and wanting to say a thing, versus sitting down and wanting to see everything. A page that serves both serves neither, so phone.html is a state rail, one big talk button and her answer - nothing else - and console.html behind it carries approvals, the running mission, tiles and recent activity. Each reaches the other in one tap, and the front door's badge only appears when something actually needs him, so the second tap is always earned. Neither duplicates the other: only the front door asks, only the console decides. Transport, token and the follow-up dance live once in thea.js, because two copies drift and the drift shows up as one page working and the other quietly not. The big button does something real on a browser with no SpeechRecognition - iOS Safari has none - by focusing the text field instead of sitting dead in the middle of the screen. Replaces interface/mobile.html, a five-tab dashboard with a 'paste JSON arguments' box and a banner saying remote access did not exist, which stopped being true when he set up Tailscale. Installable: a manifest with a shortcut straight to the console, a maskable vector icon, and a service worker that caches the SHELL but never an API response - a phone showing yesterday's approvals as pending is worse than one showing nothing. Every URL is relative so it behaves the same on loopback, a tailnet name and a `tailscale cert` hostname; off-loopback it carries an aletheia.access bearer token kept on the device. The security boundary is untouched: make_server still refuses to bind off-loopback without a token AND a certificate. EXPERIMENTAL until he has opened it on his phone.",
-      "verification": "Live 2026-09-03 from the operator's iPhone over Tailscale: phone.html and console.html load, the minted token pairs from a one-tap link (?token=, then scrubbed from the address bar), /api/voice answers ('what's going on?' -> '2 fleet alerts. 3 live tasks.'; 'what is the capital of France?' -> thinking -> follow-up READY 'Paris.'), and the token's last_used advanced from his device. Verified again 2026-09-04 before first real use. tests/test_phone_interface.py (29)."
-    },
-    {
-      "id": "converse.answer",
+      "notes": "ONE PAGE, because five surfaces were four too many. Until 2026-09-18 this was phone.html (a talk-only front door) and console.html (everything behind it), beside a Command Center and a wall on the PC and a dead mobile.html with a paste-JSON box; three of them rendered the same approval three different ways and two of those were unusable. interface/thea.html is the product now, the same file on his PC and his iPhone, one column or two. It answers four things and nothing else above the drawer: what she is doing, ask her, what needs him, what she has done. No capability ids, kind names, model names, run ids, branches, hashes or JSON in normal use - an approval leads with voice.approval_label and is told apart by voice.approval_about, and the digest, the exact record and the command box are in a drawer that starts shut. Transport, token, the follow-up dance and the offline outbox live once in thea.js. Offline is three sentences, not one: no signal, this phone is off the tailnet, her PC is asleep - told apart by whether her front door answers at all, and an ask typed while she is unreachable is kept on the device and sent when she is back. Installable: a manifest, a maskable vector icon, and a service worker that caches the SHELL but never an API response and never answers a connection probe from cache. Getting it onto a phone is a scan: interface/qr.js draws the tailnet address (core.phone_link, which reads Tailscale and never returns a token) with the link code he pastes in, so the first open is already signed in. Every URL is relative so it behaves the same on loopback, a tailnet name and a `tailscale cert` hostname. The security boundary is untouched: make_server still refuses to bind off-loopback without a token AND a certificate, and the page mints nothing.",
+      "verification": "Live 2026-09-03 from the operator's iPhone over Tailscale: the minted token pairs from a one-tap link (?token=, then scrubbed from the address bar), /api/voice answers, and the token's last_used advanced from his device. Rendered 2026-09-19 at 390px and at a desk against a Core reading his real state: no sideways scroll, no developer string, the four things answerable in ten seconds. Stopping the Core mid-session gave 'Not running - Thea isn't running on this PC' on loopback and 'Can't reach her - this phone may have dropped off Tailscale' with the local secret removed, and a typed ask was kept rather than lost. tests/test_one_thea_interface.py (64), tests/test_the_one_page_renders.py (17), tests/test_the_qr_code_scans.py (4, every module of 160 symbols against segno).",
       "description": "Answer a question in conversation, reading any file you name in it — the second half of me, alongside the half that executes",
       "provider": "claude.cli",
       "status": "AVAILABLE",
@@ -1628,7 +1761,7 @@
       "caller": "intercom kind 'apply_campaign' (voice and phone); python -m aletheia.campaign run|questions|answer",
       "module": "aletheia.campaign",
       "verification": "Live on his PC 2026-09-10 against real employer forms: it read the resume that reads, learned his details from it, followed postings to their real application forms, filled them, and staged applications — Flexport (Greenhouse) came out AWAITING_YOU with the resume visibly attached. It STAGES; the sending is application.submit, which stays EXPERIMENTAL until a real employer's form has actually been submitted (a real submit has never been run, and these forms carry g-recaptcha). Promoted 2026-09-11 because EXPERIMENTAL made the planner call it a gap: 'apply to 5 jobs for me' compiled to writing packets instead, with a GAP saying no capability follows a posting to its form — which this had done the night before.",
-      "notes": "END TO END, 2026-09-10. His words: 'tonight when I ask this to apply to jobs for me it needs to be able to do it end to end' and 'everything should be fluid ... apply to jobs based off of [the resume]'. A live run that afternoon against two real Stripe applications staged NOTHING: it picked a resume PDF the stdlib reader could not decode, and with the .docx both forms still stopped on twelve required questions each, because the profile held only name, email and phone. Now: the first resume that READS is used; a model teaches the profile what the resume plainly says (title, employer, school, degree - never the sensitive fields); no role is required, the roles come from the resume; openings come from the configured boards plus any Greenhouse or Lever board a web search finds; the form's required questions his facts settle are answered from them and shown in the confirmation (protected and legal ones still never); it keeps going until N are READY; and it runs in its own process (campaign.start) and notifies him, with apply_answer for what is left. One approval per application is unchanged - his own spec. His words: 'if I say apply to ten jobs with this resume I provided you, I need to be able to do that'. Every piece existed and none were joined. THE TWO STEPS NOBODY WAS DOING: a posting is a description with an Apply link on it, so it follows that link to the page that actually takes the application; and ten applications ask the same three or four unanswerable things, so the questions are gathered across all of them, keyed on what they ASK rather than on a selector, answered once, and applied everywhere. Nothing is sent: each application ends as its own approval bound to its own page and its own filled values, and the Approve button already on his phone is the confirm. Proved end to end against a local three-job board: one call found the PDF resume in Downloads, learned nine facts from it, followed three Apply links, filled three forms, collected five questions once, and after five answers submitted three real applications with the resume file attached."
+      "notes": "END TO END, 2026-09-10. His words: 'tonight when I ask this to apply to jobs for me it needs to be able to do it end to end' and 'everything should be fluid ... apply to jobs based off of [the resume]'. A live run that afternoon against two real Stripe applications staged NOTHING: it picked a resume PDF the stdlib reader could not decode, and with the .docx both forms still stopped on twelve required questions each, because the profile held only name, email and phone. Now: the first resume that READS is used; a model teaches the profile what the resume plainly says (title, employer, school, degree - never the sensitive fields); no role is required, the roles come from the resume; openings come from the configured boards plus every board she has learned on any system she can list (Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee - learned from a web search, an employer's careers page or an Apply link she walked, since 2026-09-13); the form's required questions his facts settle are answered from them and shown in the confirmation (protected and legal ones still never); it keeps going until N are READY; and it runs in its own process (campaign.start) and notifies him, with apply_answer for what is left. One approval per application is unchanged - his own spec. His words: 'if I say apply to ten jobs with this resume I provided you, I need to be able to do that'. Every piece existed and none were joined. THE TWO STEPS NOBODY WAS DOING: a posting is a description with an Apply link on it, so it follows that link to the page that actually takes the application; and ten applications ask the same three or four unanswerable things, so the questions are gathered across all of them, keyed on what they ASK rather than on a selector, answered once, and applied everywhere. Nothing is sent: each application ends as its own approval bound to its own page and its own filled values, and the Approve button already on his phone is the confirm. Proved end to end against a local three-job board: one call found the PDF resume in Downloads, learned nine facts from it, followed three Apply links, filled three forms, collected five questions once, and after five answers submitted three real applications with the resume file attached."
     },
     {
       "id": "jobs.search",
@@ -1642,13 +1775,25 @@
       "notes": "The campaign was proved against a job board I wrote myself, and on the real internet it found NOTHING: research.find_sources drives a headless browser at a search engine, and a search engine answers a headless browser with a challenge page. Zero openings, everything downstream theatre. That is the difference between a demo and a thing that works. Greenhouse and Lever publish their boards as public JSON with no key and host the real application form at a public URL with no login - which is what makes them the right source rather than merely a working one, because a posting she can find but not apply to is a link he could have found himself. 24 company boards in config/job_boards.json (data he can add to), ~4,300 live openings measured 2026-09-03. A board that did not answer is reported FAILED per board: 'no jobs matched' and 'the network refused me' are different answers. 2026-09-13: the systems she can reach are a TABLE (jobs.ATS) rather than two hardcoded regexes and two hardcoded URL shapes, and the search hosts are derived from it, so adding one is a row instead of an edit in three places - which is how 'she only applies on Greenhouse' happened. The entry requirement is a PUBLIC application form: a system that wants an account is reached through account.create, which is a different path with a different gate. More hosts also means more searches a campaign, and the engines answer the later ones with a challenge page, so a refusal stops the sweep rather than hammering it and whatever earlier sites found is kept."
     },
     {
+      "id": "jobs.web_search",
+      "description": "Job postings anywhere on the web - employers' own careers pages and any applicant-tracking system (Workday, iCIMS, Taleo, SuccessFactors, Greenhouse, Lever and the rest) - found by the web search built into your Claude or ChatGPT subscription, and kept only when the page itself holds up",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.jobs.search_many (discover=True, run by aletheia.campaign.run) via jobs._web_search_openings; python -m aletheia.web_search_jobs <role>...",
+      "module": "aletheia.web_search_jobs",
+      "verification": "Live on his PC 2026-09-14 03:2xZ, one search through the Claude CLI (haiku, WebSearch only, 177 s) for his profile's roles, on a scratch copy of private state: 15 postings named, 4 held up (Abaka AI, AppLovin and Braze on Greenhouse; HubSpot on its own careers site), 11 dropped as redirected to '?error=true' - and Greenhouse's own API returned 404 for all 11 and 200 with the same title for the three Greenhouse survivors, so no false drop and no false keep. The Codex rung is unit-tested only: its ChatGPT login answered 401 that night. Not yet run inside a real campaign batch.",
+      "notes": "His words, 2026-09-13 night: 'keep applying to jobs everywhere across the Internet, not just on Greenhouse' and 'Search the fucking Internet high and low everywhere.' Plain web search is dead from his PC (DuckDuckGo answers job queries with HTTP 202 challenges, Bing RSS with dictionary pages), so the search runs through the tools inside his subscriptions, by their official CLIs, no API key: Claude Code with `--tools WebSearch --allowedTools WebSearch --permission-mode dontAsk --strict-mcp-config` (its init event lists exactly [\"WebSearch\"] and no MCP servers), then Codex `exec --sandbox read-only --ephemeral --ignore-user-config --ignore-rules -c web_search=\"live\"` with API-key variables stripped (Codex's `--search` flag is TUI-only). Claude is skipped while reasoner.resting_until() is set; Codex is skipped while reasoner.codex_available() says no, sharing the job hunt's remembered Codex rest (an expired sign-in tells him once to run codex login). At most 3 searches a batch and 9 a day, each answer cached 24h per query, and a cursor rotates where each search looks. NOTHING THE MODEL SAYS IS BELIEVED: every URL is loaded over HTTP and dropped with a reason when it 404s, redirects away, is a listing or careers home page, declares several JobPostings, is closed or past validThrough, sits behind a bot check, is abroad, is an aggregator, or its title (the page's own when it declares one) fails jobs._score. Survivors share the third slot with the web search and employers' own sites, so the boards keep two in three. Workday/iCIMS-style finds carry needs_account for the account path. Boards it reveals are reported, not learned (jobs._learn_boards has no public door)."
+    },
+    {
       "id": "web.task",
       "description": "Any request that means 'go do this on a website' — look at the page, do one step, look again, using your profile and your own files, stopping at one confirmation before anything commits",
       "provider": "aletheia.local",
       "status": "EXPERIMENTAL",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "intercom kinds 'web_task', 'web_task_answer' and 'web_task_retry' (voice, phone, any compiled plan); aletheia.runtime.tick each Core beat (press_approved_web_tasks); python -m aletheia.webtask run|carry-on|commit|retry|waiting",
+      "caller": "intercom kinds 'web_task', 'web_task_answer' and 'web_task_retry' (voice, phone, any compiled plan); aletheia.runtime.tick each Core beat (press_approved_web_tasks, which also presses a general browser mission's approved button through the mission's duplicate-submit hooks); python -m aletheia.webtask run|carry-on|commit|retry|waiting; the goal-agnostic loop aletheia.browser_loop.pursue (tools browser.pursue, browser.act and browser.code in aletheia.browser_tools, which agent_session only ever hands off; python -m aletheia.browser_loop observe|missions|show). The general loop is proven on local fixtures only, not yet on a live site",
       "module": "aletheia.webtask",
       "notes": "His correction and the reason this exists: 'this applying to jobs thing is an example - it's an example of something where you need to access a document on my computer, do multiple steps on a browser'. Hand-built verticals were the defect: apply_run drives a job application and nothing else, and the next request needing six clicks would have wanted another module. HYBRID BY DESIGN: formfill maps a form to his profile deterministically in milliseconds - 15 of 23 fields on a live Stripe application, every time - and the model is used only for judgment (which button, which page, what does this question mean). Asking the model to do the typing instead spent three turns rephrasing one essay. THREE REFUSALS make it safe on a live site: a typed value must come from his profile or his own sentence, checked in CODE (a model asked to fill a form will produce a plausible phone number without hesitating); the first button that submits/sends/confirms/deletes ends the run and becomes ONE approval carrying that page, that button and everything typed to get there; and anything that spends money stops with no approval offered at all. Proved end to end: one English sentence filled a form from his profile, attached his resume off his disk, answered three judgment questions from his own words, stopped at Submit, and after he approved, the server on the other end received every field and the file. WHAT A REAL SITE ACTUALLY IS, and each of these was a live failure before it was a feature: a form is often three PAGES, so the route — every value and every navigation click — is the unit, the approval binds to where the route starts, and the press walks the whole thing again (the first version re-opened the last page and typed page one's fields into it, leaving two thirds of an application on the site and no way to finish it). A form is often inside an IFRAME (Greenhouse and Lever both ship one), so every frame is read and every selector says which frame it belongs to, resolved by which frame actually holds the element rather than by position; reading only the top document, she stood on a careers page and said 'I don't see any form fields'. 'Apply' is usually a LINK that opens a NEW TAB, so any element that exists can be clicked and the tab that opens is followed. A SIGN-IN wall stops the run before she types anything and names the one command that fixes it for good (`python -m aletheia.browse login <url>`, whose session the persistent profile keeps) — she stores no passwords. A HUMAN CHECK is named and never attempted. And one yes presses one button once: the approval id carries the route's digest so a changed route cannot inherit an old yes, and the press is consumed in the journal so re-running the same goal cannot silently apply twice. A modern form is made of DIVS: the 'Yes' you click is a <div role=radio>, the city you pick is an <li role=option>, and neither has an id, a name, or the word button anywhere near it. Every ARIA widget is now reported as an answer she can click, with the QUESTION it answers, and reached by a css path when it has no identity of its own — she could see the box to type a city into and not one of the four cities, so a required hidden value stayed empty and the form silently refused. A question the profile marks NEVER_AUTOFILL is refused as a click exactly as it is refused as a typed value: gender, race, veteran status, disability, a felony declaration are his to answer. AND THE LOOP CLOSES: `runtime.press_approved_web_tasks` presses what he approved on the next beat. Before that the capability ended in a question nobody could answer — she stopped at the button, said 'confirm it and I will press it', and the only thing on earth that could press it was a command line. PRESSED IS NOT ACCEPTED. She pressed Submit on a form whose phone number the site did not like, got 'there was a problem with your application' back, and reported it as done — 'command executed' as 'goal achieved', the one thing §30 names outright. browse.read_outcome is now the single reading of what a page says next (confirmed / rejected / unconfirmed, a form still on screen counting as a refusal), used by this and by application.submit so they cannot drift; a refused press gets its own REJECTED state and the beat says 'it would not go through'. AND A REFUSAL IS NOT A DEAD END: webtask.retry reads what the site said, puts it in front of the model, and brings him a NEW approval — safe precisely because a refusal means nothing was accepted. Three defects stood between her and that: the gate refused '5125550134' because his profile says '(512) 555-0134' (the same fact, punctuated the way the site asked for it, is his), the guard against a model rephrasing its own essay also blocked every correction (two writes per field now, not one), and the deterministic pass put his punctuated number straight back on the next round (what she knows fills blanks; it does not argue with a decision made later in the same run). A run that changes nothing three rounds running stops and asks instead of spending the budget in a circle. And she waits for the page to actually BE there: domcontentloaded fires before a React app has rendered, every ATS is one, and the signal is FIELDS rather than 'something is on screen' — a cookie banner satisfies the second one on its own. ENDING SOMETHING IS AS IRREVERSIBLE AS STARTING IT. The shared committing-word list (computer.COMMITTING_PATTERN, one pattern for the desktop hands and the browser both) only had words for CREATING an obligation — send, submit, pay, delete — so 'Cancel my membership' was a button she would have pressed on her own, and 'cancel my Planet Fitness membership' is one of the exact things he asks for. Cancelling, closing, deactivating, terminating, unsubscribing, opting out, and the binding ones (book, reserve, RSVP, accept an offer or terms) all wait for him now. The bare word 'Cancel' does NOT: it is the safe button in every dialog ever drawn, and 'Accept all' is a cookie banner on every page on the internet — stopping there would make her useless without making him safer. SHE DOES NOT ASK THE SAME THING TWICE. The two ways a run stops short — 'I ran out of steps' and 'only you can answer this' — ended identically: the page closed with the run and everything already typed went with it, so answering meant watching the whole form be filled again from the top and the same three questions asked again. Every real application has a question no profile can answer (a salary, a start date, how you heard about them), so that was the normal path, not an edge case. The route is written down on EVERY ending now, and webtask.carry_on replays it — every value and every navigation click — types his answers, and continues into the same loop. His answers widen the value gate, because that gate exists to stop a model inventing a fact about him, not to stop him supplying one. It is not a bypass: the same loop, the same button, the same one confirmation. A page that has moved on under her says so instead of crashing. Two more, both about not losing work. A CRASH IN THE MIDDLE is no longer a total loss: the record was written once, at the end, and the Core restarts itself on every code update and its supervisor restarts it on a crash — so a restart mid-run threw away eleven filled fields and two pages of navigation, with the only evidence a browser that was gone. It checkpoints before each model call now (the slow part), and a leftover RUNNING record can be carried on while a live one is left alone. And the two halves of her stopped disagreeing about his files: 'summarise the lease on my desktop' worked while 'attach the lease on my desktop' came back as 'that is not one of your files'. She offers what he keeps in the folders a person actually uses — and only documents, because what she may UPLOAD is narrower than what she may read: uploading sends it to somebody else. The approval now names the file it is sending, which is the part he most needs to see before he says yes."
     },
@@ -1717,6 +1862,42 @@
       "module": "aletheia.gvoice",
       "verification": "tests/test_gvoice.py: every real SMS code shape is read where the email extractor caught one of six, a year or a price is refused, a signed-out page says NOT SIGNED IN rather than reporting no messages, a code older than ten minutes or one she cannot date is refused, and an AST walk holds that she reads and never replies",
       "notes": "Built 2026-09-13. The signup number is a Google Voice line, and half of what she signs up for sends its code by TEXT - so an account got as far as 'we sent you a code' and stopped, with the code in a tab he would have to read himself. Read through the authorized Chrome profile browse already uses, because Google Voice has no public API for a personal account and there are no API keys anywhere. UNPROVEN against the real voice.google.com: the parsing is written from the page's visible text and Google changes that without notice, so a run that finds nothing reports 'nothing readable' rather than 'no messages'. Codes are refused when older than ten minutes, the lesson from 2026-09-12 on the mail path, where an hour-old code was typed in and the form's refusal read like a broken form rather than a stale code. She reads and never sends: replying as him is a different capability with a different risk."
+    },
+    {
+      "id": "repo.read",
+      "description": "Read my own code to answer a question about myself - list files, search, read a file, find where a function or class is defined, the working state, a diff and the recent commits",
+      "provider": "aletheia.local",
+      "status": "AVAILABLE",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "AgentSession tools repo.list, repo.search, repo.read, repo.symbol, repo.status, repo.diff and repo.log (aletheia.repo_tools); reached whenever a question about why something in my own code behaves as it does goes to a session (aletheia.investigate)",
+      "module": "aletheia.repo_tools",
+      "verification": "Live on his PC 2026-09-18: a sandboxed agent session answered a question about her own code by requesting repo.search and repo.read, and the receipts name both. The entry was missing until then, although the seven tools had real callers - tests/test_the_descriptors_are_the_source.py fails now if a descriptor names a capability the registry does not hold.",
+      "notes": "Reads only, inside the repository, through aletheia.repo_tools' own path guard. It writes nothing: proposing a patch is repo.propose_patch and trying one is repo.try_patch, and both are separate entries with their own rules."
+    },
+    {
+      "id": "autonomy.unattended",
+      "description": "Tell you everything I did WITHOUT asking you - every reversible, local action I took on my own, newest first, with the one command that takes each of them back and how much of my daily allowance is left",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "python -m aletheia.autonomy list|undo|budget; the AgentSession tool autonomy.unattended (aletheia.state_tools), which is how \"what did you do without asking me\" is answered (aletheia.investigate); current_state section 'unattended' and the same block on the Command Center (aletheia.mission_control)",
+      "module": "aletheia.autonomy",
+      "verification": "Live on his PC 2026-09-18 in a sandboxed private state: a work session and an agent session did reversible things unattended, the ledger listed them with their undo, and one was undone and stayed undone.",
+      "notes": "The ledger and the undo for docs/CONTINUITY_BRIEF.md Part III item 10. It grants nothing: aletheia.tools decides what is reversible, and this only counts it, bounds it per session and per day, and reverses it. It refuses to undo anything outward and anything of yours - a decision, an approval - and no flag here reaches spending or the kill switch. EXPERIMENTAL until a week of real sessions has run against it."
+    },
+    {
+      "id": "careers.read",
+      "description": "Find a company's own careers page and read the jobs off it, for the employers who never bought an applicant-tracking system - which is most of them",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.campaign._careers_page_openings, when the boards and the web search came up short of the target count; python -m aletheia.careers read/find",
+      "module": "aletheia.careers",
+      "verification": "tests/test_the_net_is_wider_than_big_tech.py: a page about working somewhere is not a page to apply on, 'no current openings' is an answer rather than a failure, an unreadable page is neither, a relative link becomes a real address, an ATS link is handed back to jobs.job_from_url rather than reimplemented, a mailto is dropped rather than faked into something the form path can use, an aggregator's page about the company is not the company's page, and an AST walk holds that it reads and never presses",
+      "notes": "Built 2026-09-13 from his words: 'there are companies all over the country that only have [jobs] on their website. Like, I've never heard of that I probably would like to work at.' jobs.ATS reaches six applicant-tracking systems - thousands of employers, but every one of them an employer who bought an ATS. UNPROVEN against a real careers page: company sites are far more varied than any ATS and the first real sweep is where that shows. Asked LAST and bounded by CAREERS_PAGES_PER_RUN, because a board is one API call for all its jobs and a careers page is a page read per company. Applying by email is NOT built: a mailto row is dropped rather than passed to a stager that cannot use it."
     }
   ]
 }

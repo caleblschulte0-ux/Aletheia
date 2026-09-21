@@ -127,7 +127,7 @@ def all_approvals() -> list[dict]:
 
 def request(aid: str, requested_action: str, reason: str, consequence: str,
             reversible: bool, task: str | None = None,
-            capability: str | None = None) -> dict:
+            capability: str | None = None, scope: dict | None = None) -> dict:
     """Ask the operator — unless he has already said yes to this class of thing.
 
     `capability` is what turns a standing grant from a record into a
@@ -144,6 +144,10 @@ def request(aid: str, requested_action: str, reason: str, consequence: str,
     (§56 L4). Passing `capability` on those calls is still worth doing: it
     puts the capability id in the approval record, which is what an audit
     later actually wants to read.
+
+    `scope` is the caller's context for this one action (thread, recipient,
+    purpose, disclosures, commitment, money). Only a SCOPED grant that covers
+    it can be spent, and only here (`authority.scope_allows`).
     """
     if _path(aid).exists():
         return load(aid)  # idempotent — an open request is not re-asked
@@ -160,7 +164,7 @@ def request(aid: str, requested_action: str, reason: str, consequence: str,
     if capability:
         from aletheia import authority  # local: authority reads policy
         try:
-            granted = authority.satisfy(capability, aid)
+            granted = authority.satisfy(capability, aid, scope=scope)
         except Exception:
             granted = None  # a broken grant store authorizes nothing
     if granted:

@@ -99,6 +99,13 @@ def enabled() -> bool:
     return bool(settings()["enabled"])
 
 
+def environment_forbids() -> bool:
+    """True when the environment says local AI is off, whatever is saved
+    (short of a saved False, which is off anyway)."""
+    value = os.environ.get(ENV_ENABLED)
+    return value is not None and not _bool(value, SETTING_DEFAULTS["enabled"])
+
+
 def shadow_enabled() -> bool:
     return bool(settings()["shadow"])
 

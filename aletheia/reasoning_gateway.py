@@ -13,15 +13,18 @@ Policies:
 from __future__ import annotations
 
 import math
+import os
 import time
 from dataclasses import dataclass
 from typing import Callable, Any
 
 from aletheia import (
     brain, local_model_pool, model_pool_config, reasoner, training_data,
+    work_states,
 )
 
-POLICIES = {"routine", "standard", "critical"}
+# The classes are the shared vocabulary (aletheia.work_states), not restated here.
+POLICIES = set(work_states.REASONING_CLASSES)
 ROUTINE_TOTAL_TIMEOUT_S = 45.0
 ROUTINE_LOCAL_TIMEOUT_S = 15.0
 # 180, not 90 (2026-09-04): a planner call carries a 15 KB grammar and a
@@ -38,6 +41,41 @@ STANDARD_TOTAL_TIMEOUT_S = 180.0
 # the subscription fails FAST (a limit, an auth error), which is the case
 # it exists for.
 STANDARD_SUBSCRIPTION_SLICE_S = STANDARD_TOTAL_TIMEOUT_S - ROUTINE_LOCAL_TIMEOUT_S
+# CODE WORK waits longer, and only when it says so (`work_budget_s`). A
+# bounded repair drafted by qwen3:8b on his CPU-only laptop took 190 s for a
+# one-function fix (measured 2026-09-16, model cold, another worker sharing
+# the machine) - past the 180 s standard ceiling, so the local tier the brief
+# asks for could never answer. Conversation keeps the 180 s ceiling above.
+MAX_WORK_BUDGET_S = 600.0
+# HOW LONG DEPENDS ON WHAT THE WORK IS, not on one number for the machine.
+# His ruling, 2026-09-18, asked how long her own model should get: *"I don't
+# know, like a while."* A while is two numbers, because one Ollama queue serves
+# both a sentence he is standing there waiting for and a repair draft nobody is
+# looking at: a Node repair DRAFT measured 217-270 s with the queue free and
+# died at the old 300 s ceiling whenever the live Core was also talking to him.
+# The ceilings themselves are `work_states.LOCAL_CEILING_S` (300 s attended,
+# 1200 s background) so the conversation path can read the same number; the
+# budgets below are this gateway's own.
+ATTENDED = work_states.ATTENDED
+BACKGROUND = work_states.BACKGROUND
+# A background caller may spend the whole 20 minutes on the model and still
+# have a moment to validate; attended work keeps the 600 s it had.
+MAX_BACKGROUND_BUDGET_S = work_states.LOCAL_CEILING_S[BACKGROUND] + 60.0
+# What a single local call may take, by class. Nothing gets the long one
+# without asking for it by name (`attention=BACKGROUND`).
+LOCAL_MAX_TIMEOUT_S = work_states.LOCAL_CEILING_S[ATTENDED]
+
+
+def local_ceiling_s(attention: str = ATTENDED) -> float:
+    """How long ONE call to her own model may take for this class of work."""
+    return work_states.local_ceiling_s(attention)
+
+
+def work_budget_ceiling_s(attention: str = ATTENDED) -> float:
+    """The most a caller may claim with `work_budget_s`, by class of work."""
+    if attention not in work_states.ATTENTION:
+        raise ValueError(f"attention must be one of {sorted(work_states.ATTENTION)}")
+    return MAX_BACKGROUND_BUDGET_S if attention == BACKGROUND else MAX_WORK_BUDGET_S
 
 
 @dataclass(frozen=True)
@@ -69,9 +107,26 @@ def _checked(validator: Callable[[dict], dict] | None):
 def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
                 policy: str = "standard", model: str = reasoner.INTERPRET_MODEL,
                 timeout_s: float = reasoner.TIMEOUT_S,
-                validator: Callable[[dict], dict] | None = None) -> GatewayResult:
+                validator: Callable[[dict], dict] | None = None,
+                local_timeout_s: float | None = None,
+                max_context_bytes: int = reasoner.MAX_CONTEXT_BYTES,
+                work_budget_s: float | None = None,
+                attention: str = ATTENDED) -> GatewayResult:
+    """`local_timeout_s` bounds a routine local attempt. `max_context_bytes`
+    is the reasoner's own per-call bound (the code worker shows whole files;
+    everyone else keeps 8 KB). `work_budget_s` lets long-running code work
+    (never a conversation) replace the 180 s standard/critical ceiling, up to
+    `work_budget_ceiling_s(attention)`.
+
+    `attention` says WHAT THE WORK IS: ATTENDED (the default - he is waiting on
+    it) or BACKGROUND (a draft, a review, a reading nobody is sitting in front
+    of). It is the only thing that buys her own model the long ceiling, and it
+    is never inherited: a caller that does not say BACKGROUND gets the 300 s
+    conversation has always had, however large a budget it asked for."""
     if policy not in POLICIES:
         raise ValueError(f"policy must be one of {sorted(POLICIES)}")
+    if attention not in work_states.ATTENTION:
+        raise ValueError(f"attention must be one of {sorted(work_states.ATTENTION)}")
     checked = _checked(validator)
     ctx = context or {}
     if not isinstance(ctx, dict):
@@ -79,15 +134,20 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
     # Preserve the reasoner's existing whole-context contract for every route.
     # In particular, routine local-first requests must not get a larger input
     # budget than subscription requests or attempt a provider before degrading.
-    reasoner.validate_input(system_prompt, text, ctx)
+    limit = reasoner._bounded_context_limit(max_context_bytes)
+    reasoner.validate_input(system_prompt, text, ctx, max_context_bytes=limit)
     requested_budget = float(timeout_s)
     if not math.isfinite(requested_budget) or requested_budget < 0.5:
         raise ValueError("reasoning timeout must be finite and at least 0.5 seconds")
     started = time.monotonic()
-    total_budget = min(
-        requested_budget,
-        ROUTINE_TOTAL_TIMEOUT_S if policy == "routine" else STANDARD_TOTAL_TIMEOUT_S,
-    )
+    ceiling = ROUTINE_TOTAL_TIMEOUT_S if policy == "routine" else STANDARD_TOTAL_TIMEOUT_S
+    if work_budget_s is not None and policy != "routine":
+        work = float(work_budget_s)
+        cap = work_budget_ceiling_s(attention)
+        if not math.isfinite(work) or not 0.5 <= work <= cap:
+            raise ValueError(f"work budget must be 0.5..{cap:.0f} seconds")
+        ceiling = work
+    total_budget = min(requested_budget, ceiling)
 
     def remaining() -> float:
         return max(0.0, total_budget - (time.monotonic() - started))
@@ -106,7 +166,8 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
                 local = local_model_pool.auto_json(
                     system_prompt, text, context=ctx, validator=checked,
                     allow_failover=False,
-                    timeout_s=min(ROUTINE_LOCAL_TIMEOUT_S, max(0.5, remaining())),
+                    timeout_s=min(_local_slice(local_timeout_s), max(0.5, remaining())),
+                    attention=attention,
                 )
                 return GatewayResult(
                     local.output, f"ollama:{local.model}", policy,
@@ -118,9 +179,9 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
             raise reasoner.ReasonerUnavailable(
                 "I ran out of thinking time before an answer came back")
         try:
-            output = reasoner.subscription_json(
+            output = _subscription_json(
                 system_prompt, text, context=ctx, model=model,
-                timeout_s=remaining(), validator=checked,
+                timeout_s=remaining(), validator=checked, max_context_bytes=limit,
             )
             return GatewayResult(
                 output, "subscription.auto", policy,
@@ -136,9 +197,9 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
             ) from None
 
     if policy == "critical":
-        output = reasoner.subscription_json(
+        output = _subscription_json(
             system_prompt, text, context=ctx, model=model,
-            timeout_s=remaining(), validator=checked,
+            timeout_s=remaining(), validator=checked, max_context_bytes=limit,
         )
         return GatewayResult(output, "subscription.auto", policy)
 
@@ -150,9 +211,9 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
             subscription_budget = min(
                 subscription_budget, STANDARD_SUBSCRIPTION_SLICE_S,
             )
-        output = reasoner.subscription_json(
+        output = _subscription_json(
             system_prompt, text, context=ctx, model=model,
-            timeout_s=subscription_budget, validator=checked,
+            timeout_s=subscription_budget, validator=checked, max_context_bytes=limit,
         )
         return GatewayResult(output, "subscription.auto", policy)
     except reasoner.ReasonerUnavailable as cloud_exc:
@@ -176,7 +237,8 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
                 system_prompt, text, context=ctx, validator=checked,
                 preferred_role="deep",
                 allow_failover=True,
-                timeout_s=max(0.5, remaining()),
+                timeout_s=min(local_ceiling_s(attention), max(0.5, remaining())),
+                attention=attention,
             )
             return GatewayResult(
                 local.output, f"ollama:{local.model}", policy,
@@ -185,13 +247,155 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
                 turn_id=local.turn_id,
             )
         except local_model_pool.LocalPoolUnavailable as local_exc:
-            # Both causes travel with the refusal. On 2026-09-02 eight
-            # planner calls answered only "unavailable" and the real reason
-            # (the CLI refusing a burst of concurrent calls) was invisible.
+            # BOTH CAUSES ARE STILL RECORDED, and neither is said out loud.
+            # On 2026-09-02 eight planner calls answered only "unavailable"
+            # and the real reason (the CLI refusing a burst of concurrent
+            # calls) was invisible, so both went into the message — and
+            # the message is what the room reads back: "That failed:
+            # ReasonerUnavailable: ... local: ne", cut off mid-word.
+            # A diagnosis belongs in the journal with its type attached;
+            # what he hears is which of his three thinkers are out.
+            try:
+                from aletheia import journal
+                journal.append(
+                    "alert", "reasoning",
+                    f"nobody could think (subscription: {type(cloud_exc).__name__}: "
+                    f"{cloud_exc}; local: {type(local_exc).__name__}: {local_exc})",
+                    actor="aletheia-reasoning")
+            except Exception:
+                pass    # the refusal below matters more than the record of it
             raise reasoner.ReasonerUnavailable(
-                "subscription reasoning and local deep reasoning are unavailable "
-                f"(subscription: {cloud_exc}; local: {local_exc})"
+                "none of my thinkers can answer right now — the subscriptions "
+                "are out and my own model could not run either"
             ) from None
+
+
+# ---- continuity: frontier off, and the two rungs by name --------------------------
+#
+# His 2026-09-16 brief: a subsystem asks for a CLASS of reasoning, not a company.
+# Callers that keep their own chain (a sticky agent session) still reach the
+# companies only through here, so there is one place that knows who they are and
+# one switch that can say "pretend they are all out" (acceptance test A).
+
+FRONTIER_OFF_ENV = "ALETHEIA_FRONTIER_OFF"
+
+
+def frontier_off() -> bool:
+    """True when this process is simulating Claude/Codex/ChatGPT unavailable.
+
+    Only ever REMOVES ability: it cannot make anything run that would not."""
+    return str(os.environ.get(FRONTIER_OFF_ENV, "")).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _local_slice(requested: float | None) -> float:
+    if requested is None:
+        return ROUTINE_LOCAL_TIMEOUT_S
+    value = float(requested)
+    if not math.isfinite(value):
+        return ROUTINE_LOCAL_TIMEOUT_S
+    return max(0.5, min(value, ROUTINE_TOTAL_TIMEOUT_S))
+
+
+def _subscription_json(system_prompt: str, text: str, **kwargs) -> dict:
+    if frontier_off():
+        raise reasoner.ReasonerUnavailable(
+            "the frontier models are switched off for this run")
+    return reasoner.subscription_json(system_prompt, text, **kwargs)
+
+
+def frontier_json(system_prompt: str, text: str, *, context: dict | None = None,
+                  model: str = reasoner.INTERPRET_MODEL,
+                  timeout_s: float = reasoner.TIMEOUT_S,
+                  validator: Callable[[dict], dict] | None = None) -> GatewayResult:
+    """One frontier answer with the provider named (Claude, then the ChatGPT
+    browser). For a caller that holds its own fallback (an agent session that
+    stops asking once they are out). Raises ReasonerUnavailable."""
+    if frontier_off():
+        raise reasoner.ReasonerUnavailable(
+            "the frontier models are switched off for this run")
+    value, provider = reasoner._subscription_json_with_provider(
+        system_prompt, text, context=context, model=model,
+        timeout_s=timeout_s, validator=validator)
+    return GatewayResult(value, provider, "critical")
+
+
+def frontier_available() -> bool:
+    """Could a frontier model plausibly answer now, WITHOUT asking one: not
+    switched off and Claude not known to be resting. Cheap and optimistic."""
+    if frontier_off():
+        return False
+    try:
+        return reasoner.resting_until() is None
+    except Exception:
+        return True
+
+
+def frontier_status(now=None) -> dict:
+    """Which frontier worker could answer, WITHOUT asking one (no round trip):
+    {"ok", "why", "wake", "resets_at"}. The companies are named here so a
+    requirement check never has to know them."""
+    if frontier_off():
+        return {"ok": False, "why": "the frontier models are switched off for this run",
+                "wake": "when the frontier models are switched back on", "resets_at": None}
+    reasons, soonest = [], None
+    claude_cli = reasoner.cli_path()
+    claude_until = reasoner.resting_until(now)
+    if claude_cli and claude_until is None:
+        return {"ok": True, "why": "Claude CLI present with no limit on record", "wake": "", "resets_at": None}
+    if claude_until is not None:
+        reasons.append(f"Claude is resting until {claude_until.strftime('%Y-%m-%dT%H:%M:%SZ')}")
+        soonest = claude_until
+    elif not claude_cli:
+        reasons.append("the Claude CLI is not installed")
+    codex_cli = reasoner.codex_path()
+    codex = reasoner.codex_resting(now)
+    if codex_cli and codex is None:
+        return {"ok": True, "why": "Codex CLI present with no limit on record"
+                + (f" ({reasons[0]})" if reasons else ""), "wake": "", "resets_at": None}
+    if codex is not None:
+        reasons.append(f"Codex is resting until {codex[0].strftime('%Y-%m-%dT%H:%M:%SZ')}")
+        soonest = codex[0] if soonest is None else min(soonest, codex[0])
+    elif not codex_cli:
+        reasons.append("the Codex CLI is not installed")
+    return {"ok": False, "why": "; ".join(reasons) or "no frontier model is reachable",
+            "wake": ("when Claude's or Codex's limit resets" if soonest is not None
+                     else "when a frontier CLI is installed and signed in"),
+            "resets_at": soonest}
+
+
+def local_ready() -> bool:
+    """Her own model is switched on AND answering (cached probe)."""
+    return bool(model_pool_config.enabled() and local_model_pool.reachable())
+
+
+def local_json(system_prompt: str, text: str, *, context: dict | None = None,
+               role: str = "fast", validator: Callable[[dict], dict] | None = None,
+               timeout_s: float | None = None,
+               think_override: bool | None = None,
+               attention: str = ATTENDED) -> GatewayResult:
+    """One answer from her own model in a named role. Raises
+    local_model_pool.LocalPoolUnavailable, whose words say why. `attention`
+    chooses the per-call ceiling exactly as in `reason_json`."""
+    run = local_model_pool.run_json(system_prompt, text, context=context, role=role,
+                                    validator=validator, timeout_s=timeout_s,
+                                    think_override=think_override, attention=attention)
+    return GatewayResult(run.output, f"ollama:{run.model}", "routine",
+                         run.role, run.model, turn_id=run.turn_id)
+
+
+def thinker(policy: str, **fixed) -> Callable[..., dict]:
+    """A drop-in for the old `reasoner.subscription_json(system, text, *,
+    context, model, timeout_s, validator)` seam that asks for a CLASS."""
+    if policy not in POLICIES:
+        raise ValueError(f"policy must be one of {sorted(POLICIES)}")
+
+    def think(system_prompt: str, text: str, **kwargs) -> dict:
+        merged = {**fixed, **kwargs}
+        allowed = {k: merged[k] for k in ("context", "model", "timeout_s", "validator",
+                                          "local_timeout_s") if k in merged}
+        return reason_json(system_prompt, text, policy=policy, **allowed).output
+    think.policy = policy  # type: ignore[attr-defined]
+    return think
 
 
 @dataclass(frozen=True)
@@ -220,6 +424,7 @@ def status() -> dict[str, Any]:
         local = {"error": f"{type(exc).__name__}: {exc}"}
     return {
         "policies": sorted(POLICIES),
+        "frontier_off": frontier_off(),
         "subscriptions": {"available": sub_ok, "detail": sub_detail},
         "local": local,
         "training": training_data.stats(),

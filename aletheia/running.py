@@ -36,6 +36,8 @@ import subprocess
 import sys
 from aletheia import proc
 
+from aletheia.proc import hidden_flags
+
 # Each part, as (key, what it is, how to recognise its process).
 PARTS = (
     ("supervisor", "keeps the Core alive and repairs it", "aletheia.supervisor"),
@@ -59,7 +61,7 @@ def _powershell(script: str) -> str:
     try:
         done = proc.run(
             ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
-            capture_output=True, text=True, timeout=25)
+            capture_output=True, text=True, timeout=25, creationflags=hidden_flags())
         return done.stdout or ""
     except Exception:
         return ""
@@ -152,7 +154,7 @@ def tasks() -> dict[str, str]:
         try:
             done = proc.run(
                 ["schtasks.exe", "/query", "/TN", name, "/FO", "CSV", "/NH"],
-                capture_output=True, text=True, timeout=20)
+                capture_output=True, text=True, timeout=20, creationflags=hidden_flags())
         except Exception:
             continue
         if done.returncode != 0 or not (done.stdout or "").strip():
@@ -256,8 +258,9 @@ def version() -> dict:
 
     def git(*args):
         try:
-            done = proc.run(["git", *args], capture_output=True,
-                                  text=True, cwd=str(REPO_ROOT), timeout=15)
+            done = subprocess.run(["git", *args], capture_output=True,
+                                  text=True, cwd=str(REPO_ROOT), timeout=15,
+                                  creationflags=hidden_flags())
             return done.stdout.strip() if done.returncode == 0 else ""
         except Exception:
             return ""
@@ -382,32 +385,116 @@ def _by_design(state: dict, part: dict) -> bool:
     return part["part"] == "voice" and not state.get("listening", False)
 
 
+#: Why a part is down, and what would change it — in words, not in
+#: settings. "PARTLY ON — running, but voice is not" tells him the name of
+#: something that stopped and nothing about why or what to do, which is
+#: the half of a health view that is actually worth having.
+_WHY_DOWN = {
+    # NOT "start me from the desktop shortcut": an offer is a claim, and
+    # the honest fix here needs nothing from him. Both of these tasks
+    # carry the five-minute watchdog trigger (`autostart.REPEAT_MINUTES`).
+    "supervisor": ("nothing is watching the part that answers you, so a "
+                   "crash would stay crashed",
+                   "the watchdog starts it again within five minutes"),
+    "core": ("almost nothing I do works until it is back",
+             "the watchdog restarts it within five minutes"),
+    "voice": ("I can't hear the room", "turn the microphone on and I'll "
+              "start listening"),
+}
+
+
+def _every_expected_part_is_up(state: dict) -> bool:
+    """Every part that is not down BY HIS CHOICE is running."""
+    up = [p for p in state["parts"] if p["up"]]
+    expected = [p for p in state["parts"] if not _by_design(state, p)]
+    return bool(up) and len([p for p in up if not _by_design(state, p)]) == len(expected)
+
+
+def all_well(state: dict) -> bool:
+    """Is there anything here he should be LOOKING at?
+
+    The one Thea page shows the health line only when this is False and
+    hides it otherwise, so this and `headline` must not be able to
+    disagree — a page that says nothing while the sentence says the Core
+    is down is worse than no health view. They share `_every_expected_part_is_up`
+    for that reason. Old code counts as not-well: "restart me to pick it
+    up" is something to do, and three days of stale code once hid behind
+    a line that read like good news.
+    """
+    return bool(not state.get("closed") and not state.get("halted")
+                and _every_expected_part_is_up(state)
+                and not state.get("running_old_code"))
+
+
+def why_not(part: dict) -> str:
+    """One clause: what being without this part costs him."""
+    why, _fix = _WHY_DOWN.get(part["part"], (part.get("what") or "", ""))
+    return why
+
+
 def headline(state: dict) -> str:
-    """One line he can act on, before any of the detail."""
+    """One line he can act on, in the words a person would use.
+
+    It used to be a status board read out loud — "ON. Everything is
+    running, and the microphone is off.", "PARTLY ON — running, but voice
+    is not." Every one of those leads with a state word that means
+    nothing said aloud, and the one that names a missing part names it
+    and stops, with no why and nothing to do about it.
+
+    His standard for this view is two sentences: "everything is running",
+    or "my voice is off BECAUSE X". So every unhappy answer carries its
+    because, and its what-next where there is one.
+    """
     up = [p for p in state["parts"] if p["up"]]
     # A microphone he deliberately left closed is not a missing part, and
     # calling it one every time would teach him to ignore this line —
     # which is exactly how three days of stale code hid behind it.
     expected = [p for p in state["parts"] if not _by_design(state, p)]
     if state["closed"]:
+        because = state.get("closed_reason") or ""
+        said = "I'm closed" + (f", because {because}" if because else "")
         if up:
-            return (f"CLOSED — but {len(up)} part(s) are still running. "
-                    "They stop within a few seconds.")
-        return "OFF. She is closed and nothing is running."
+            return f"{said}. The last few pieces stop within a few seconds."
+        return f"{said}, so nothing of mine is running. Open me and I'll start."
     if not up:
-        return "OFF. Nothing is running (and she is not marked closed)."
+        return ("Nothing of mine is running, and you haven't closed me — "
+                "so something went wrong. The watchdog tries again every "
+                "five minutes.")
     if state["halted"]:
-        return (f"ON but HALTED — {len(up)} of {len(state['parts'])} parts "
-                "running, refusing to act.")
-    if len([p for p in up if not _by_design(state, p)]) == len(expected):
+        because = state.get("halt_reason") or ""
+        return ("I'm running but halted"
+                + (f", because {because}" if because else "")
+                + ". I won't act on anything until you say resume.")
+    if _every_expected_part_is_up(state):
         if state.get("running_old_code"):
-            return ("ON, but running OLDER CODE than is checked out — "
-                    "restart her to pick it up.")
+            return ("Everything's running, but on older code than you have "
+                    "checked out. Restart me to pick it up.")
         if not state.get("listening", False):
-            return "ON. Everything is running, and the microphone is off."
-        return "ON. Everything is running."
-    missing = ", ".join(p["part"] for p in expected if not p["up"])
-    return f"PARTLY ON — running, but {missing} is not."
+            return ("Everything's running. My microphone is off, which is "
+                    "how you set it — turn it on when you want me listening.")
+        return "Everything's running."
+    down = [p for p in expected if not p["up"]]
+    first = down[0]
+    why, fix = _WHY_DOWN.get(first["part"], (first.get("what") or "", ""))
+    said = "Everything's running except " + _and_list(
+        [_PART_WORDS.get(p["part"], p["part"]) for p in down]) + "."
+    if why:
+        said += f" That means {why}."
+    # NOT `.capitalize()`: it lowercases everything after the first
+    # letter, so "turn the microphone on and I'll start listening"
+    # came out as "...and i'll start listening."
+    return said + (f" {fix[0].upper()}{fix[1:]}." if fix else "")
+
+
+#: The part, named the way he would name it rather than by its module.
+_PART_WORDS = {"supervisor": "the thing that keeps me alive",
+               "core": "the part that answers you",
+               "voice": "my voice"}
+
+
+def _and_list(items: list[str]) -> str:
+    from aletheia import speech
+    return speech.and_list(items)
 
 
 def render(state: dict) -> str:

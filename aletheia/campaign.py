@@ -63,6 +63,7 @@ you work from" - went back to him. So now:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as dt
 import json
 import os
@@ -72,8 +73,9 @@ import sys
 from pathlib import Path
 from urllib.parse import urljoin
 
-from aletheia import (applications, apply_run, browse, doctext, formfill,
-                      journal, jobs, policy, profile, speech, stateio, workspace)
+from aletheia import (applications, apply_run, browse, doctext, formfill, job_fit,
+                      job_value, journal, jobs, policy, proc, profile, speech, stateio,
+                      workspace)
 
 ACTOR = "aletheia-campaign"
 
@@ -103,8 +105,12 @@ _FILLER = frozenset("a an the one to you your yes no is are do does did be have 
 RUN_DIR = stateio.private_dir("campaign")
 LOCK_PATH = RUN_DIR / "running.json"
 LOG_PATH = RUN_DIR / "last-run.log"
-# A lock older than this is a run that died without cleaning up after itself.
+# A lock older than this is a run that died without cleaning up after itself,
+# or one that is hung (its process is stopped).
 STALE_LOCK = dt.timedelta(hours=3)
+# How long one batch may keep trying openings before it reports what it has.
+# Well inside STALE_LOCK, so a healthy batch is never mistaken for a hung one.
+MAX_RUN = dt.timedelta(minutes=90)
 US_STATES = frozenset(
     "AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO "
     "MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY DC".split())
@@ -121,10 +127,13 @@ APPLY_WORDS = ("apply for this job", "apply now", "apply to this job",
                "apply here", "submit application", "start application",
                "apply")
 
-APPLY_LINKS_JS = r"""() => Array.from(document.querySelectorAll('a[href]'))
-  .map(a => ({href: a.href, text: (a.innerText || '').trim().slice(0, 80)}))
-  .filter(a => a.href && !a.href.startsWith('javascript:'))
-  .slice(0, 200)"""
+APPLY_LINKS_JS = r"""() => Array.from(document.querySelectorAll('iframe[src]'))
+  .map(f => ({href: f.src, text: 'apply (form embedded on this page)', embedded: true}))
+  .filter(f => /greenhouse|lever\.co|ashbyhq|workable|smartrecruiters|recruitee|job_app|apply/i.test(f.href))
+  .concat(Array.from(document.querySelectorAll('a[href]'))
+    .map(a => ({href: a.href, text: (a.innerText || a.getAttribute('aria-label') || '').trim().slice(0, 80)}))
+    .filter(a => a.href && !a.href.startsWith('javascript:'))
+    .slice(0, 200))"""
 
 
 class CampaignError(RuntimeError):
@@ -138,15 +147,48 @@ def _application_url(url: str, opener=None) -> tuple[str, list[dict]]:
     following that link, so "apply to ten jobs" met ten pages with no form
     on them and gave up on all ten.
     """
+    from aletheia import company_sites
     open_page = opener or _open
     fields, links = open_page(url)
-    if _is_application_form(fields):
-        return url, fields
+    # An Apply button that leads to an applicant-tracking system is where the
+    # application is, whatever else the posting page has on it. Live
+    # 2026-09-13 two Palo Alto Networks postings (a Radancy careers site)
+    # were staged from the page's JOB-ALERT signup - Email, Confirm Email,
+    # Category, Location - and failed at Submit, while "Apply Now" went to
+    # Workday. An account system is returned unopened: `stage` names the
+    # account wall (NEEDS_ACCOUNT) instead of pretending a form.
+    host = company_sites.host_of(url)
     for word in APPLY_WORDS:
         for link in links:
+            if link.get("embedded") or word not in (link.get("text") or "").casefold():
+                continue
+            target = urljoin(url, link.get("href") or "")
+            if company_sites.host_of(target) == host or not target.startswith(("http://", "https://")):
+                continue
+            if company_sites.needs_account(target):
+                return target, []
+    if _is_application_form(fields):
+        return url, fields
+    # A company careers page very often carries the form in an <iframe> from
+    # its applicant-tracking system. The frame's own address IS the form.
+    for link in links:
+        if link.get("embedded"):
+            target = urljoin(url, link["href"])
+            fields, _ = open_page(target)
+            if _is_application_form(fields):
+                return target, fields
+    for word in APPLY_WORDS:
+        for link in links:
+            if link.get("embedded"):
+                continue
             if word in (link.get("text") or "").casefold():
                 target = urljoin(url, link["href"])
                 if target.rstrip("/") == url.rstrip("/"):
+                    continue
+                # "Apply by email" is not a form, and an Apply button that
+                # hands off to Indeed or LinkedIn is a login she does not use.
+                if not target.startswith(("http://", "https://")) or \
+                        company_sites.is_aggregator(target):
                     continue
                 fields, _ = open_page(target)
                 if _is_application_form(fields):
@@ -163,6 +205,12 @@ def _is_application_form(fields: list[dict]) -> bool:
     if len(usable) < 3:
         return False
     hay = " ".join(_haystack(f) for f in usable)
+    # A job-alert or talent-network signup is not an application, however
+    # many boxes it has. One predicate, shared with `apply_run.stage`: this
+    # check used to be its own, and "First Name" defeated it (Spectrum,
+    # 2026-09-13).
+    if formfill.is_signup_list(fields):
+        return False
     return ("email" in hay or "name" in hay) and "resume" in hay or len(usable) >= 6
 
 
@@ -175,9 +223,16 @@ def _open(url: str) -> tuple[list[dict], list[dict]]:
     ok, why = browse.available()
     if not ok:
         raise CampaignError(f"she cannot open job pages: {why}")
+    from aletheia import company_sites
     with browse._Session() as ctx:
         page = ctx.new_page()
         page.goto(url, wait_until="domcontentloaded")
+        # A bot check is not "no form". Live 2026-09-13 jobs.uber.com answered
+        # with Cloudflare's "Just a moment..." and was reported as a page with
+        # no application on it. She does not get past those; she says so.
+        if company_sites._BOT_CHECK.search(f"<title>{page.title()}"):
+            page.close()
+            raise CampaignError("the employer's site puts a bot check in front of its jobs")
         fields = page.evaluate(formfill.READ_FORM_JS)
         links = page.evaluate(APPLY_LINKS_JS)
         page.close()
@@ -205,7 +260,10 @@ def open_questions() -> list[dict]:
             # A phone widget's search box and a captcha are not questions,
             # and live they made up a third of what he would have been read.
             if (question.get("type") == "search"
-                    or "recaptcha" in question["label"].casefold()):
+                    or "recaptcha" in question["label"].casefold()
+                    # hCaptcha's token box, from records staged before plan
+                    # stopped asking it (Palantir, 2026-09-14).
+                    or formfill.is_anti_bot(question)):
                 continue
             key = _question_key(question)
             held = seen.setdefault(key, {"label": question["label"],
@@ -270,6 +328,34 @@ LEARN_BRIEF = (
     "key the resume does not state. Never guess.")
 
 
+#: What Codex holds its answer to. Strict schemas require every key, so a key
+#: the resume does not state comes back null and the validator drops it.
+LEARN_SCHEMA = {"type": "object", "additionalProperties": False,
+                "required": list(LEARNABLE),
+                "properties": {key: {"type": ["string", "null"]} for key in LEARNABLE}}
+ROLES_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["roles"],
+                "properties": {"roles": {"type": "array", "items": {"type": "string"}}}}
+ANSWERS_SCHEMA = {
+    "type": "object", "additionalProperties": False, "required": ["answers"],
+    "properties": {"answers": {"type": "array", "items": {
+        "type": "object", "additionalProperties": False, "required": ["selector", "answer"],
+        "properties": {"selector": {"type": "string"},
+                       "answer": {"anyOf": [{"type": "string"},
+                                            {"type": "array", "items": {"type": "string"}}]}}}}}}
+ESSAY_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["answer"],
+                "properties": {"answer": {"type": "string"}}}
+
+
+def _job_hunt_thinker(schema: dict):
+    """The job hunt's chain (Claude, Codex, her own model), holding Codex to
+    `schema`. Injected thinkers in tests are called exactly as before."""
+    from aletheia import reasoner
+
+    def think(system_prompt, text, **kwargs):
+        return reasoner.work_json(system_prompt, text, schema=schema, **kwargs)
+    return think
+
+
 def _learn_validator(value: dict) -> dict:
     if not isinstance(value, dict):
         raise ValueError("expected one object")
@@ -297,8 +383,7 @@ def learn_more(text: str, *, think=None) -> dict:
     if think is not False:
         try:
             if think is None:
-                from aletheia import reasoner
-                think = reasoner.subscription_json
+                think = _job_hunt_thinker(LEARN_SCHEMA)
             found = dict(think(LEARN_BRIEF, str(text)[:8000], validator=_learn_validator) or {})
         except Exception:
             found = {}
@@ -314,12 +399,28 @@ def learn_more(text: str, *, think=None) -> dict:
     return written
 
 
+# His words, 2026-09-13: "we're gonna have it shoot high and shoot low. But
+# it should be realistic." A RANGE in his own line of work - the night
+# before, the roles drifted into Business Analyst, Operations Analyst and
+# Commercial Finance Associate, and the jobs followed them into accounting
+# and HR.
+#
+# And the KIND of work is his to say, not the resume's. 2026-09-13, after
+# every one of those roles came back as sales off a sales-shaped resume:
+# "definitely don't wanna do sales. Definitely no cold calling."
 ROLES_BRIEF = (
-    "From this resume, name the job titles this person is a realistic candidate "
-    "for right now: titles an employer would actually post, not skills. "
-    "Stay at the level the resume supports today: the most recent title's level, "
-    "or one step up at most. Never Senior, Lead, Principal, Director or Head for "
-    "someone with only a few years in that field. Return "
+    "From this resume and what he has said about the work he wants, name the job "
+    "titles this person is a realistic candidate for right now: titles an employer "
+    "would actually post, not skills. "
+    "What he said is given as he_wants and he_will_not_do. When he has said it, it "
+    "decides the KIND of work: every title is work he wants, never a title whose "
+    "day-to-day is something he will not do, and the resume only decides the level "
+    "and what he can honestly claim. When he has said nothing, use the line of work "
+    "the resume shows. "
+    "Give a realistic RANGE: mostly the most recent title's level, one a step up "
+    "(one step up at most) and one a step below. "
+    "Never a job managing a team of people, and never Senior, Lead, Principal, "
+    "Director or Head for someone with only a few years in that field. Return "
     'ONE JSON object: {"roles": [up to 5 short job titles, most fitting first]}.')
 
 
@@ -338,17 +439,26 @@ def _roles_validator(value: dict) -> dict:
 
 
 def roles_for(text: str, *, think=None) -> list[str]:
-    """What this resume is for - read off the resume, never a list in code."""
+    """What this resume is for, in the kind of work he wants - never a list in code."""
+    known = profile.known()
+    wanted, unwanted = job_fit.preferences(known)
     try:
         if think is False:
             raise ValueError("no model")
         if think is None:
-            from aletheia import reasoner
-            think = reasoner.subscription_json
-        return think(ROLES_BRIEF, str(text)[:8000], validator=_roles_validator)["roles"]
+            think = _job_hunt_thinker(ROLES_SCHEMA)
+        roles = think(ROLES_BRIEF, str(text)[:8000], validator=_roles_validator,
+                      context={"he_wants": wanted or "(he has not said)",
+                               "he_will_not_do": unwanted or "(he has not said)"})["roles"]
+        # A model that names a kind of work he refused anyway does not get to
+        # send her hunting for it.
+        kept = [r for r in roles if not job_fit.unwanted_reason(r, "", known)]
+        if kept:
+            return kept
+        raise ValueError("every role was work he will not do")
     except Exception:
         title = profile.known().get("current_title")
-        if title:
+        if title and not job_fit.unwanted_reason(str(title), "", known):
             return [str(title)]
         raise CampaignError("she could not tell from the resume what jobs it is for; "
                             "say the kind of job") from None
@@ -364,6 +474,10 @@ Rules:
   * "Do you have any personal or familial relationship with an employee of this company?" — No, unless the resume names that company.
   * "Are you willing to ..." / "Do you agree to work ..." — answer from what he has already said about relocating, remote work and travel.
   * "When can you start?" — two weeks from today unless the facts say otherwise.
+  * "Do you live in, or plan to relocate to, <a named place>?", "I'm willing and able to commute to <a named place>", "Are you open to working in the office in <a city>?" — from willing_to_relocate: if he will relocate, the answer is the choice that says he will relocate or commute (yes), never the one claiming he already lives there.
+  * "Do you reside in the <named city> area?" — compare it with his city and state: Hartford, South Dakota is not Denver, so No.
+  * "Are you at least 18?" — from over_18.
+  * "Which AI tools or LLMs do you use?" — from ai_tools, when it is in the facts.
   A question left blank stops the whole application and reaches him instead, which is the thing he most asked not to happen. Leave one out only when you would be INVENTING the answer.
 - A question that only applies IF something is true, when that thing is false, is answered "N/A" or left out - never answered as though it were true. "If you are not authorized to work here, what sponsorship would you need?" when he IS authorized is N/A. "If you heard about us through a referral, name the employee" when nobody referred him is N/A. Naming a sponsorship or an employee there would be a false statement on an application.
 - Never invent a number, an employer, a school, a certification, a language or a tool that the resume does not show. A wrong fact on an application is worse than a blank one; a missing obvious answer is worse than both.
@@ -392,9 +506,10 @@ def _answers_validator(questions: dict):
             answer = row.get("answer")
             if question is None or answer in (None, "", []):
                 continue
-            if formfill.is_never_autofill({"label": question.get("label", "")}):
-                continue
             choices = question.get("choices") or []
+            if formfill.is_never_autofill({"label": question.get("label", ""),
+                                           "choices": choices}):
+                continue
             if choices:
                 wanted = answer if isinstance(answer, list) else [answer]
                 picked = [c for c in choices
@@ -437,7 +552,8 @@ def answer_from_facts(record: dict, resume_text: str, *, think=None) -> dict:
     questions = {q["selector"]: q for q in (record.get("questions") or [])
                  if q.get("selector")
                  and q.get("type") not in ("search", "textarea", "file")
-                 and not formfill.is_never_autofill({"label": q.get("label", "")})}
+                 and not formfill.is_never_autofill({"label": q.get("label", ""),
+                                                     "choices": q.get("choices") or []})}
     # Bounded, because a form that offers a 39-language list and an 81-entry
     # country picker will otherwise spend the whole context on menus.
     # Required first, so if anything is dropped it is the optional tail.
@@ -446,26 +562,248 @@ def answer_from_facts(record: dict, resume_text: str, *, think=None) -> dict:
                          key=lambda kv: (not kv[1].get("required"),
                                          len(kv[1].get("choices") or [])))
         questions = dict(ordered[:MAX_QUESTIONS_ASKED])
+    # What needs no model goes first, and whatever it settles is not asked of
+    # one: a form read while Claude is out still gets these, and they cost
+    # none of his usage.
+    sure = obvious_answers(record, resume_text)
+    questions = {s: q for s, q in questions.items() if s not in sure}
     if not questions or think is False:
-        return {}
+        return dict(sure)
+    facts = dict(profile.known())
     context = {
         "job": record.get("job_title") or record.get("url"),
         "found_this_job_on": record.get("found_on") or "",
-        "facts": dict(profile.known()),
+        "facts": facts,
+        # Bounded, never cut blindly: his school and "Other - School Not
+        # Listed" survive a 3,302-entry university list.
         "questions": [{"selector": s, "label": q.get("label"),
-                       "choices": (q.get("choices") or [])[:80]}
+                       "choices": formfill.bounded_choices(q.get("choices") or [], known=facts)}
                       for s, q in questions.items()],
     }
     try:
         if think is None:
-            from aletheia import reasoner
-            think = reasoner.subscription_json
+            think = _any_model_answers
         result = think(ANSWER_BRIEF, str(resume_text)[:6000], context=context,
                        validator=_answers_validator(questions),
                        max_context_bytes=48 * 1024)
     except Exception:
+        return dict(sure)
+    answered = dict((result or {}).get("answers") or {})
+    answered.update(sure)
+    return answered
+
+
+#: "Active Security Clearance(s)*" (SpaceX).
+_CLEARANCE_QUESTION = re.compile(r"\bsecurity clearance|\bclearances?\b|\bclearance\(s\)", re.I)
+_NO_CLEARANCE = re.compile(r"\bnever held\b|\bno (?:active )?clearance\b|^none\b|\bdo not (?:have|hold)\b"
+                           r"|\bnot applicable\b", re.I)
+_ESSENTIAL_FUNCTIONS = re.compile(r"\bessential functions\b", re.I)
+#: "Have you ever been employed by, applied to, or are you currently employed
+#: by Navan...?"
+_EMPLOYED_OR_APPLIED = re.compile(
+    r"\b(?:employed by|an employee of|worked (?:at|for)|applied (?:to|for|with)|previously applied)\b", re.I)
+#: "In what cities are you available to work?" (Datadog).
+_WHICH_CITIES = re.compile(
+    r"\b(?:cities|locations|offices)\b[^?]{0,40}\b(?:available|willing|able|open)\b"
+    r"|\bavailable to work in\b", re.I)
+
+
+def _yes(value) -> bool:
+    return str(value or "").strip().casefold() in ("yes", "y", "true", "1")
+
+
+#: "Do you accept the listed salary range for this position?" (Samsara).
+_ACCEPTS_PAY_RANGE = re.compile(
+    r"\b(?:accept|comfortable with|agree (?:to|with)|okay with|ok with|aligns? with|work for you)\b"
+    r"[^?]{0,60}\b(?:salary|pay|compensation|wage)\s+(?:range|band)s?\b"
+    r"|\b(?:salary|pay|compensation)\s+(?:range|band)\b[^?]{0,60}\b(?:acceptable|work for you|align)",
+    re.I)
+_PAY_RANGE = re.compile(
+    r"\$\s?(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)\s*([kK])?\s*(?:USD\s*)?(?:-|–|—|to)\s*"
+    r"\$?\s?(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)\s*([kK])?")
+
+
+def listed_pay_ranges(text: str) -> list[tuple[float, float]]:
+    """The annual pay ranges a posting lists: "$106,802.50 – $161,550 USD".
+
+    Greenhouse escapes its postings twice, so Samsara's text still reads
+    "$106,802.50 &mdash; $161,550" after `jobs.posting_text`."""
+    import html
+    out = []
+    for low, low_k, high, high_k in _PAY_RANGE.findall(html.unescape(str(text or ""))):
+        a = float(low.replace(",", "")) * (1000 if low_k else 1)
+        b = float(high.replace(",", "")) * (1000 if high_k else 1)
+        if 10_000 <= a <= b:        # an hourly rate or a signing bonus is not a salary
+            out.append((a, b))
+    return out
+
+
+def pay_range_answer(record: dict, known: dict, *, describe=None) -> str:
+    """"Yes" or "No" to "do you accept the listed range", from HIS minimum, or "".
+
+    His pay is on file in his own words ("$100,000 minimum for a nationwide or
+    remote role; $95,000 minimum ... Sioux Falls"), and the posting lists its
+    range. Yes when every listed range reaches every minimum he gave; No only
+    when every range tops out below all of them; anything between, or no range
+    to read, stays his.
+    """
+    minimums = [a for a in formfill._amounts(known.get("desired_pay")) if a >= 1000]
+    if not minimums:
+        return ""
+    try:
+        text = (describe or jobs.posting_text)(
+            {k: record.get(k, "") for k in ("url", "posting")})
+    except Exception:
+        text = ""
+    ranges = listed_pay_ranges(text)
+    if not ranges:
+        return ""
+    tops = [high for _low, high in ranges]
+    if min(tops) >= max(minimums):
+        return "Yes"
+    if max(tops) < min(minimums):
+        return "No"
+    return ""
+
+
+def _obvious(label: str, choices: list[str], known: dict, resume: str, record: dict,
+             sent: dict, describe=None) -> str | None:
+    """The answer to one question when his facts settle it with no model, or None."""
+    def pick(value):
+        return formfill._best_option(value, choices, known) if choices else value
+
+    # He answered this exact question once, on another form.
+    told = profile.answer_for(label)
+    if told:
+        chosen = pick(told)
+        if chosen:
+            return chosen
+    # British spelling: Datadog asks whether he is "legally authorised".
+    low = label.casefold().replace("authoris", "authoriz")
+    if (formfill._AUTHORIZED_TO_WORK.search(low) and not formfill._WANTS_SPONSORSHIP.search(low)
+            and not re.match(r"^[^a-z0-9]*if\b", low) and _yes(known.get("work_authorization"))):
+        chosen = pick("Yes")
+        if chosen:
+            return chosen
+    if _ESSENTIAL_FUNCTIONS.search(low):
+        chosen = pick("Yes")
+        if chosen:
+            return chosen
+    if _CLEARANCE_QUESTION.search(low) and not re.search(r"\bclearance\b", resume, re.I):
+        if not choices:
+            return "None"
+        hits = [c for c in choices if _NO_CLEARANCE.search(c.strip())
+                and not re.search(r"\b(?:wish|disclose|expired)\b", c, re.I)]
+        if len(hits) == 1:
+            return hits[0]
+    company = str(record.get("company") or "").strip()
+    # "Spectrum employee" over Yes / No asks the same thing in two words.
+    short_form = bool(company) and re.match(
+        r"^(?:are you (?:a |an )?)?(?:current |former |previous )?" + re.escape(company.casefold())
+        + r"\s+employee\??$", low)
+    if company and (_EMPLOYED_OR_APPLIED.search(low) or short_form) \
+            and apply_run.names_the_employer(label, company):
+        worked = bool(resume) and apply_run.names_the_employer(resume, company)
+        applied = False
+        if re.search(r"\bappl(?:y|ied)\b", low):
+            here = str(record.get("url") or "").strip()
+            applied = any(url != here and apply_run.names_the_employer(
+                              str(entry.get("company") or ""), company)
+                          for url, entry in sent.items() if isinstance(entry, dict))
+        chosen = pick("Yes" if (worked or applied) else "No")
+        if chosen:
+            return chosen
+    if choices and _WHICH_CITIES.search(low):
+        place = " ".join(str(record.get(k) or "") for k in ("job_title", "location")).casefold()
+        if _yes(known.get("willing_to_relocate")):
+            named = [c for c in choices
+                     if re.search(r"(?<![a-z])" + re.escape(c.strip().casefold()) + r"(?![a-z])", place)]
+            if len(named) == 1:
+                return named[0]
+        home = formfill._best_option(known.get("city"), choices, known) if known.get("city") else None
+        if home:
+            return home
+    if choices and _ACCEPTS_PAY_RANGE.search(low):
+        said = pay_range_answer(record, known, describe=describe)
+        chosen = pick(said) if said else None
+        if chosen:
+            return chosen
+    # "Please tell us how you heard about this opportunity." She found it, so
+    # she knows: Palantir's list says "Palantir Website" for its own careers
+    # page. Left to a model shown no options, it came back "Palantir's careers
+    # page", which is not one of them.
+    found_on = str(record.get("found_on") or "")
+    if found_on and formfill.match_field({"label": label}) == "heard_about":
+        said = formfill.heard_about_answer(found_on, choices, company=company)
+        if said:
+            return said
+    return formfill.voluntary_decline(label, choices)
+
+
+def obvious_answers(record: dict, resume_text: str = "", *, known: dict | None = None,
+                    sent: dict | None = None, describe=None) -> dict:
+    """The form's questions his facts settle with no model at all, by selector.
+
+    His words, 2026-09-13: "it should be able to answer some of these without
+    me." Seventeen applications were waiting on him, and several asked what
+    was already on file or plainly true: whether he holds a security clearance
+    (his resume shows none), whether he can perform the essential functions
+    of the role, whether he has worked at or applied to Navan (his resume and
+    sent ledger say no), which of Datadog's cities he is available in (the
+    job's own city: he will relocate), a Yes his authorization answers - and
+    three questions he had just answered once. Each answer is one of the
+    form's own options, passes the same validator the model's do, and never
+    touches a protected or legal question.
+    """
+    questions = {q["selector"]: q for q in (record.get("questions") or [])
+                 if q.get("selector")
+                 and q.get("type") not in ("search", "textarea", "file")
+                 and not formfill.is_never_autofill({"label": q.get("label", ""),
+                                                     "choices": q.get("choices") or []})}
+    if not questions:
         return {}
-    return dict((result or {}).get("answers") or {})
+    known = profile.known() if known is None else known
+    if sent is None:
+        try:
+            sent = apply_run.already_sent()
+        except Exception:
+            sent = {}
+    rows = []
+    for selector, question in questions.items():
+        label = formfill._clean_label(question.get("label"))
+        choices = [str(c) for c in (question.get("choices") or []) if str(c).strip()]
+        answer = _obvious(label, choices, known, str(resume_text or ""), record, sent,
+                          describe=describe)
+        if answer not in (None, ""):
+            rows.append({"selector": selector, "answer": answer})
+    return _answers_validator(questions)({"answers": rows})["answers"]
+
+
+def _any_model_answers(system_prompt: str, text: str, *, context: dict,
+                       validator, max_context_bytes: int) -> dict:
+    """The form's questions, answered by whichever model can think — Claude,
+    then Codex on his ChatGPT subscription, then her own.
+
+    Live 2026-09-13 about a third of the stuck applications carried NO
+    answers from the facts at all (`answered_for_you` absent): Claude was out
+    of session, `subscription_json` raised, this returned {} and "Have you
+    ever worked at Gusto?" went to him. Everything any rung says passes the
+    same validator — its choice must be one of the form's own options and
+    protected questions are dropped — so the rung that never runs out cannot
+    put anything new on a form. Her own model runs only with the memory to
+    (`reasoner.local_allowed`).
+    """
+    from aletheia import reasoner
+    # Inside the reasoner's bounds: a budget it refuses would be a crash here,
+    # not a smaller context.
+    budget = max(reasoner.MAX_CONTEXT_BYTES,
+                 min(int(max_context_bytes), reasoner.MAX_CONTEXT_BYTES_CEILING))
+    try:
+        return reasoner.work_json(system_prompt, text, context=context, validator=validator,
+                                  schema=ANSWERS_SCHEMA, timeout_s=300.0,
+                                  max_context_bytes=budget)
+    except reasoner.ReasonerUnavailable:
+        return {}
 
 
 # ---- the run ---------------------------------------------------------------------
@@ -485,6 +823,41 @@ def _seniority_to_leave_out(known: dict) -> frozenset:
         years = 99.0
     early = bool(words & EARLY_TITLE_WORDS) or years < 3
     return jobs.SENIOR_TITLE_WORDS if early else frozenset()
+
+
+def captcha_later(pages: list[dict], risky: set | None = None) -> list[dict]:
+    """Between EQUAL openings, a form not known to be held by a CAPTCHA goes first.
+
+    Only between equals - a run of openings the search scored the same - so a
+    better match is never passed over for this, and a system is never closed:
+    Lever's invisible hCaptcha may or may not block the click, and the next
+    real attempt's `click_evidence` is what settles it. `risky` defaults to
+    what the records have measured (`apply_run.captcha_risky_providers`).
+    """
+    pages = list(pages or [])
+    if risky is None:
+        try:
+            risky = apply_run.captcha_risky_providers()
+        except Exception:
+            risky = set()
+    if not risky:
+        return pages
+
+    def held(page: dict) -> bool:
+        provider = page.get("provider") or ""
+        if not provider:
+            matched = jobs.job_from_url(str(page.get("url") or ""))
+            provider = matched[0].provider if matched else ""
+        return provider in risky
+
+    out, run = [], []
+    for page in pages + [None]:
+        if run and (page is None or page.get("score") != run[0].get("score")):
+            out.extend(sorted(run, key=held))       # stable: order kept otherwise
+            run = []
+        if page is not None:
+            run.append(page)
+    return out
 
 
 def _keep_the_job(record: dict, page: dict, **extra_fields) -> dict:
@@ -512,10 +885,87 @@ def _keep_the_job(record: dict, page: dict, **extra_fields) -> dict:
         return record
 
 
+def _record_discovery(pages: list[dict]) -> None:
+    """Today's discovery summary: what was found, what is realistic by value,
+    and the outliers by company, title and why. Never raises."""
+    try:
+        from aletheia import job_discovery
+        rows = [{"company": p.get("company", ""), "title": job_fit.bare_title(p.get("title", ""), p.get("company", "")),
+                 "why": job_value.why(p), "value": p.get("value"), "url": p.get("url", "")}
+                for p in pages]
+        queues = [p.get("queue") for p in pages]
+        job_discovery.record(
+            discovered=len(pages), qualified=sum(1 for q in queues if q),
+            outliers=[r for r, q in zip(rows, queues) if q == "outlier"],
+            best=[r for r, q in zip(rows, queues) if q == "best-fit"][:10])
+        summary = job_discovery.today()
+        if summary:
+            journal.append("note", "jobs", job_discovery.spoken(summary), actor=ACTOR)
+        # Yesterday's whole day, once, where he sees it.
+        job_discovery.announce()
+    except Exception:
+        pass
+
+
+#: How many companies' own websites one run may read. A board is one API
+#: call for every job it has; a careers page is a page read per company,
+#: so this is the difference between a search and an evening.
+CAREERS_PAGES_PER_RUN = 6
+
+
+def _careers_page_openings(hits: dict, roles: list[str], want: int, *,
+                           reader=None, http=None) -> list[dict]:
+    """Openings from companies' own websites, when the boards came up short.
+
+    The employers asked are the ones already in hand — the boards she knows
+    and whatever the web search named. That is deliberate: inventing
+    company names to look up would be a guess, and a guess here costs a
+    page read and returns somebody else's business.
+    """
+    if want <= 0:
+        return []
+    from aletheia import careers
+    employers, seen = [], set()
+    for job in (hits or {}).get("matches", []):
+        name = " ".join(str(job.get("company") or "").split())
+        key = name.casefold()
+        if name and key not in seen:
+            seen.add(key)
+            employers.append(name)
+    out: list[dict] = []
+    for name in employers[:CAREERS_PAGES_PER_RUN]:
+        if len(out) >= want:
+            break
+        try:
+            found = careers.find_careers_page(name, http=http, reader=reader)
+        except Exception:
+            continue
+        if found.get("state") != "ok":
+            continue
+        for job in careers.as_openings(found["openings"], company=name):
+            out.append({"url": job["apply_url"],
+                        "title": f"{job['title']} — {name}",
+                        "posting": job["posting_url"], "company": name,
+                        # The honest answer to "how did you hear about this
+                        # job", which blocked most forms live.
+                        "found_on": "the company's own careers page",
+                        "direct": True})
+            if len(out) >= want:
+                break
+    return out
+
+
 def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         finder=None, reader=None, opener=None, stager=None, writer=None,
-        json_think=None, searcher=None, draft_essays_too: bool = True) -> dict:
-    """Make `count` applications ready with `resume`. Stages them all; sends nothing."""
+        json_think=None, searcher=None, draft_essays_too: bool = True,
+        fit_think=None, describer=None,
+        careers_reader=None, careers_http=None) -> dict:
+    """Make `count` applications ready with `resume`. Stages them all; sends nothing.
+
+    `fit_think` judges whether each job is realistic (False: rules only);
+    `describer(page)` returns a posting's text. Both default to the real
+    thing only on a real board search, never under a test's own finder.
+    """
     policy.ensure_not_halted()
     role = " ".join(str(role or "").split())
     count = max(1, min(int(count), MAX_JOBS))
@@ -548,9 +998,22 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
                             # Where she found it is a FACT, and "how did you hear
                             # about this job" asks exactly that. It blocked most
                             # forms live.
-                            "found_on": ("a web search" if j.get("found_by")
-                                         else "the company's own careers page"),
-                            "direct": True} for j in found["matches"]]
+                            "found_on": j.get("found_on") or (
+                                "a web search" if j.get("found_by")
+                                else "the company's own careers page"),
+                            # An employer's own posting page is walked to its
+                            # Apply link; an applicant-tracking form is the form.
+                            "direct": bool(j.get("direct", True)),
+                            "needs_account": bool(j.get("needs_account")),
+                            "provider": j.get("provider", ""),
+                            "score": j.get("score", 0),
+                            # The facts `job_value` scores from, where a source
+                            # carried them (a JobPosting's pay and date, a
+                            # link nobody has verified yet).
+                            **{k: j[k] for k in ("location", "salary", "salary_unit", "posted",
+                                                 "description", "employment_type", "unverified",
+                                                 "found_by", "extracted_by") if j.get(k)}}
+                           for j in found["matches"]]
 
         hits, pages = _openings(roles)
         if not pages and role:
@@ -573,11 +1036,33 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
             if fallback and [r.casefold() for r in fallback] != [r.casefold() for r in roles]:
                 ignored_role, roles = role, fallback
                 hits, pages = _openings(roles)
+        # THE COMPANIES THAT ARE NOT ON AN APPLICANT-TRACKING SYSTEM. His
+        # words, 2026-09-13: "there are companies all over the country that
+        # only have [jobs] on their website ... I've never heard of that I
+        # probably would like to work at." Six ATSs reach thousands of
+        # employers and every one of them is an employer who bought an ATS;
+        # the manufacturer in town has a careers page and nothing else.
+        #
+        # Asked LAST and only when the boards came up short, because it
+        # costs a page read per company where a board costs one API call
+        # for all of them. Bounded by CAREERS_PAGES_PER_RUN so a campaign
+        # cannot spend its whole evening reading websites.
+        #
+        # Only on a REAL search, or when a caller hands it a reader of its
+        # own: under a test's `searcher` it read real company websites
+        # (PR #107's CI failed on acmetool.com, a real page) - a suite
+        # that answers differently on a train.
+        if len(pages) < want and (searcher is None or careers_reader is not None
+                                  or careers_http is not None):
+            pages += _careers_page_openings(
+                hits, roles, want - len(pages),
+                reader=careers_reader, http=careers_http)
         if not pages:
             tried = f"{ignored_role!r} or " if ignored_role else ""
             raise CampaignError(
                 f"no openings matched {tried}{', '.join(roles)} across "
-                f"{hits.get('searched', 0)} boards or a web search.")
+                f"{hits.get('searched', 0)} boards, a web search, or the "
+                f"companies' own careers pages.")
     else:
         reader = reader or applications.research.read_sources
         candidates = finder(f"{roles[0]} job openings{(' ' + where) if where else ''}",
@@ -588,45 +1073,174 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         pages = [{"url": p["url"], "title": p.get("title", ""),
                   "posting": p["url"], "direct": False} for p in found]
 
+    pages = captcha_later(pages)
+    real_search = finder is None and searcher is None
+    judge_with = (fit_think if fit_think is not None
+                  else (None if real_search and json_think is None else False))
+    describe = describer or (jobs.posting_text if real_search else None)
+    known_now = profile.known()
+    early = bool(_seniority_to_leave_out(known_now))
+    # VALUE ORDER, not title-overlap order: pay against his floor and the
+    # place's cost of living, geography, the employer, recency, ease, and every
+    # rule he cannot be talked out of - with the reasons written on each page
+    # (`why_she_liked_it`). Outliers rank up. Stable, so between equals the
+    # CAPTCHA ordering above holds.
+    #
+    # Only when he has let discovery choose (`job_discovery.lets_discovery_choose`):
+    # the live applications loop sends from this order, so until then every page
+    # is still SCORED - the reasons kept on the record, the day summarised - and
+    # tried in the order it came. Reading posting text for the ranking is part
+    # of choosing, so it waits on the same switch.
+    try:
+        from aletheia import job_discovery
+        choose = job_discovery.lets_discovery_choose()
+    except Exception:
+        choose = False
+    ranked = job_value.rank(pages, known=known_now, resume_text=text,
+                            describe=describe if (real_search and choose) else None,
+                            taken=apply_run.role_taken)
+    if choose:
+        pages = ranked
+    _record_discovery(ranked)
     staged, needs_you, failed = [], [], []
+    passed_over, duplicates, later, needs_account = [], [], [], []
     tried: dict[str, int] = {}
     attempts = 0
+    give_up_at = dt.datetime.now(dt.timezone.utc) + MAX_RUN
+    roles_seen: set[str] = set()
+    judged = 0
     for page in pages:
         # READY is what he asked for. A form still waiting on him is kept
         # and reported, and does not count toward the number.
         if len(staged) >= count:
             break
+        if dt.datetime.now(dt.timezone.utc) >= give_up_at:
+            break                        # the next batch picks up where this left off
         company = " ".join(str(page.get("company") or "").casefold().split())
         if company and tried.get(company, 0) >= PER_COMPANY:
             continue
         if attempts >= want:
             break
+        # ONE ROLE, ONE APPLICATION, before a form is ever opened. A role
+        # posted to three locations is three urls and one job: live
+        # 2026-09-13 Brex's "People Business Partner, GTM" was filled in
+        # three times in seventeen minutes, and Impact.com's "Business
+        # Development Representative, Inbound" was filled in again eighteen
+        # minutes after it had been sent.
+        title = str(page.get("title") or "")
+        if page.get("company") and title:
+            key = apply_run.role_key(page["company"], title)
+            held = key in roles_seen or apply_run.role_taken(page["company"], title,
+                                                            page.get("url", ""))
+            if held:
+                duplicates.append({"url": page["url"], "title": title,
+                                   "why": "the same job is already applied for or waiting"})
+                continue
+            roles_seen.add(key)
+        # A job already closed as not realistic stays closed. Live 2026-09-13
+        # Dutchie "Account Manager, SMB" and impact.com "Creator Solutions
+        # Account Manager" were closed, found again by the next batch at the
+        # SAME url, rebuilt by `stage` and sent. A closure is reopened only
+        # when he has said what work he wants since, and only by a model.
+        closed = apply_run.closed_unfit(page.get("company", ""), title, page.get("url", ""))
+        if closed and str(closed.get("closed_at") or "") >= job_fit.preferences_changed_at():
+            passed_over.append({"url": page["url"], "title": title,
+                                "why": closed.get("closed_because") or "closed as not realistic"})
+            continue
+        # And only a job he could realistically get. Bounded, so a long list
+        # of openings never turns into an hour of model calls - and a job the
+        # bound kept from a model is left for a later batch, never staged as
+        # though a model had said yes.
+        think = judge_with if (judge_with is False or judged < want * 2) else False
+        if think is False and judge_with is not False:
+            later.append({"url": page["url"], "title": title})
+            continue
+        fit = job_fit.verdict(page, text, known_now, think=think, describe=describe,
+                              early=early)
+        if think is not False:
+            judged += 1
+        if not fit["realistic"]:
+            passed_over.append({"url": page["url"], "title": title, "why": fit["why"]})
+            continue
+        if judge_with is not False and not job_fit.by_a_model(fit):
+            later.append({"url": page["url"], "title": title})   # nobody could read it
+            continue
+        if closed and not job_fit.by_a_model(fit):
+            passed_over.append({"url": page["url"], "title": title,
+                                "why": closed.get("closed_because") or "closed as not realistic"})
+            continue
+        # WHICH ENGINE. The general browser loop only when he switched it on
+        # (`apply_run engine on`) AND the site has no specialised adapter;
+        # otherwise exactly the path below, unchanged.
+        loop = stager is None and apply_run.uses_loop(page["url"], page.get("provider", ""))
+        if page.get("needs_account") and not loop:
+            # Workday, iCIMS and the like want an account before an
+            # application. Accounts are `signup`'s, behind its own gate, so
+            # the job is named for him and no form is opened here.
+            needs_account.append({"url": page["url"], "title": title,
+                                  "company": page.get("company", ""),
+                                  "why": "the employer's site wants an account first"})
+            continue
         attempts += 1
         if company:
             tried[company] = tried.get(company, 0) + 1
         policy.ensure_not_halted()
-        if page.get("direct"):
+        if loop:
+            note = f"Apply: {page.get('title') or role or 'job'} — {page.get('posting') or page['url']}"
+            try:
+                record = apply_run.stage_via_loop(page["url"], resume=resume_path, note=note,
+                                                  found_on=page.get("found_on", ""))
+            except Exception as exc:
+                failed.append({"url": page["url"], "why": f"{type(exc).__name__}: {exc}"[:160]})
+                continue
+            form_url = page["url"]
+        elif page.get("direct"):
             # An ATS apply link IS the form; there is no posting page to
             # walk through, and pretending otherwise costs a page load per
             # job for nothing.
             form_url = page["url"]
-        else:
+        if not loop and not page.get("direct"):
             try:
                 form_url, _fields = _application_url(page["url"], opener=opener)
             except Exception as exc:
                 failed.append({"url": page["url"],
                                "why": f"{type(exc).__name__}: {exc}"[:160]})
                 continue
-        if not form_url:
+        if not loop and not form_url:
             failed.append({"url": page["url"], "why": "no application form found on it"})
             continue
+        if not loop and not page.get("direct"):
+            # An employer's page whose Apply led to a public applicant-tracking
+            # form has told her its board: the next batch reads it whole.
+            jobs.learn_board_urls([{"url": form_url, "company": page.get("company", "")}],
+                                  source="employer page")
         note = f"Apply: {page.get('title') or role or 'job'} — {page.get('posting') or page['url']}"
-        try:
-            record = stage(form_url, resume=resume_path, note=note)
-        except Exception as exc:
-            failed.append({"url": form_url, "why": f"{type(exc).__name__}: {exc}"[:160]})
+        if closed and str(closed.get("url") or "").strip() in (page["url"], form_url):
+            apply_run.reopen(closed["id"], "he said what work he wants after it was closed; "
+                                           f"judged again: {fit.get('why') or 'realistic'}")
+        if not loop:
+            try:
+                # Where she found it travels with the form: "how did you hear
+                # about this job" is answered from it on the first read.
+                record = stage(form_url, resume=resume_path, note=note,
+                               **_where_found(stage, page.get("found_on", "")))
+            except Exception as exc:
+                failed.append({"url": form_url, "why": f"{type(exc).__name__}: {exc}"[:160]})
+                continue
+        record = _keep_the_job(record, page, fit=fit, employment=fit.get("employment", ""),
+                               value=page.get("value"), queue=page.get("queue"),
+                               why_she_liked_it=page.get("why_she_liked_it"),
+                               why_not=page.get("why_not"))
+        # The form's own questions can say what the posting did not: "the
+        # largest ACV deal you have personally closed" is a closing job.
+        unfit = job_fit.quick_reason(record) if record.get("state") == "NEEDS_YOU" else ""
+        if unfit:
+            try:
+                apply_run.close(record["id"], f"not realistic: {unfit}")
+            except Exception:
+                pass
+            passed_over.append({"url": page["url"], "title": title, "why": unfit})
             continue
-        record = _keep_the_job(record, page)
         if record["state"] == "NEEDS_YOU":
             # What his facts settle is answered from them; long answers are
             # written from his resume. Both show up in the confirmation.
@@ -635,25 +1249,41 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
                 extra.update(draft_essays(record, text, think=writer))
             if extra:
                 try:
-                    record = stage(form_url, resume=resume_path, extra=extra, note=note)
+                    if record.get("engine") == apply_run.ENGINE_LOOP:
+                        record = apply_run.stage_via_loop(record["url"], resume=resume_path,
+                                                          extra=extra, note=note)
+                    else:
+                        record = stage(form_url, resume=resume_path, extra=extra, note=note)
                     record = _keep_the_job(record, page, answered_for_you=len(extra))
                 except Exception:
                     pass
+        if record["state"] == "NEEDS_ACCOUNT":
+            # An account wall is not a READY application: counting it as
+            # one would end a batch with nothing he can approve.
+            needs_account.append(record)
+            continue
         (needs_you if record["state"] == "NEEDS_YOU" else staged).append(record)
 
     journal.append("action", "campaign",
                    f"{len(staged)} ready, {len(needs_you)} waiting on answers, "
-                   f"{len(failed)} could not be reached — for {', '.join(roles)!r}; "
+                   f"{len(failed)} could not be reached, "
+                   f"{len(needs_account)} on sites that want an account — for {', '.join(roles)!r}; "
+                   f"passed over {len(passed_over)} as not realistic and "
+                   f"{len(duplicates)} already applied for or waiting; "
+                   f"left {len(later)} unjudged for a later batch; "
                    "nothing submitted", actor=ACTOR)
     return {"role": role, "roles": roles, "resume": resume_path, "learned": sorted(learned),
             "ready": staged, "blocked": needs_you, "failed": failed,
+            "needs_account": needs_account,
+            "passed_over": passed_over, "duplicates": duplicates, "later": later,
             "ignored_role": ignored_role,
             "questions": open_questions(), "submitted": 0}
 
 
 ESSAY_BRIEF = (
     "Answer this question on a job application, in the applicant's own "
-    "voice, using ONLY what his resume below actually says. Two to four "
+    "voice, using ONLY what his resume below actually says and HIS FACTS "
+    "below. Two to four "
     "sentences, concrete, no filler, no 'I am passionate about'. Name real "
     "things he built.\n"
     # 2026-09-12, his ruling on the "why do you want to join X" questions:
@@ -682,10 +1312,43 @@ ESSAY_BRIEF = (
     "closest real thing he did. NEVER write that he has no experience, zero "
     "years, or has not done something. Never claim a language, a "
     "certification or a named tool his resume does not show.\n"
-    "For anything else his resume does not support, reply with exactly "
-    "CANNOT WRITE and nothing else — a made-up answer on a job "
-    "application is worse than a blank one.\n\nTHE JOB: {job}\n\n"
+    # 2026-09-14: "Please describe your academic or research background in the
+    # sciences", "your experience working with frontend or developer teams" and
+    # "prior experience supporting Renaissance DnA" all came back CANNOT WRITE
+    # and waited on him - for an answer he cannot give either, since he does not
+    # have that background. His ruling is that AI writes these. So the honest
+    # answer is written: what he DOES bring, never the thing he does not.
+    "A question about a background, a field, a product or an experience his "
+    "resume does not show is STILL ANSWERED, honestly: say in one plain clause "
+    "what his background actually is instead (for example, a business degree and "
+    "partner operations rather than the sciences), then say concretely what he "
+    "does bring that is relevant, from the resume. Never claim the thing he does "
+    "not have, never pretend to it, and do not apologise for it.\n"
+    "A question about how he uses AI tools or LLMs is answered from HIS FACTS: "
+    "name the tools he uses and say he uses them in his work. Do NOT say what he "
+    "uses them for - no task, project, result or workflow - unless the resume "
+    "itself says it; say instead what real work on the resume shows he is good "
+    "at, as a separate sentence that does not claim the tools did it.\n"
+    "Reply with exactly CANNOT WRITE and nothing else ONLY when the question asks "
+    "him to state a specific figure, date or name that is nowhere below (the "
+    "dollar value of a deal he closed, a quota he hit, a named reference) — a "
+    "made-up figure on a job application is worse than a blank one.\n\n"
+    "HIS FACTS: {facts}\n\nTHE JOB: {job}\n\n"
     "THE QUESTION: {question}")
+
+#: What the essay writer may say about him beyond the resume: his own answers,
+#: none of them sensitive.
+ESSAY_FACTS = ("ai_tools", "current_title", "current_employer", "degree", "field_of_study",
+               "school")
+
+
+def _essay_facts() -> str:
+    try:
+        known = profile.known()
+    except Exception:
+        return "(none)"
+    said = "; ".join(f"{k}: {known[k]}" for k in ESSAY_FACTS if str(known.get(k) or "").strip())
+    return said or "(none)"
 
 MAX_DRAFTS_PER_JOB = 4
 
@@ -703,10 +1366,12 @@ def _any_model_writes(system_prompt: str, text: str, *,
     something like that. I would ask AI to write that anyway. So just have
     AI write it off the bat. It does not need to check-in with me."*
 
-    So it walks the same ladder the rest of her walks, her own model
-    included — the rung that never runs out. Only when nothing at all can
-    think does the question go back to him, and then it is because there
-    was no model on the machine, not because one of them was busy.
+    So it walks every model that can write: Claude, the ChatGPT browser when
+    he is there, Codex on his ChatGPT subscription when he is not, and her
+    own model last. His ruling is that an essay is AI's to write and does not
+    come back to him, and it holds past Claude's limit too - the brief still
+    confines every draft to what his resume says, whoever writes it. Only
+    when nothing at all can write does the question stay his.
     """
     from aletheia import reasoner
     # `draft_essays` passes timeout_s, and a helper that does not accept it
@@ -720,7 +1385,21 @@ def _any_model_writes(system_prompt: str, text: str, *,
             return said
     except Exception:
         pass
-    said, _provider = reasoner.local_text(system_prompt, text, timeout_s=timeout_s)
+
+    def one_answer(value: dict) -> dict:
+        said = value.get("answer") if isinstance(value, dict) else None
+        if not isinstance(said, str) or not said.strip():
+            raise ValueError("no answer")
+        return {"answer": said}
+    try:
+        return reasoner.codex_json(
+            system_prompt + '\n\nReply with ONE JSON object: {"answer": "<the whole answer>"}',
+            text, schema=ESSAY_SCHEMA, validator=one_answer,
+            timeout_s=timeout_s)["answer"]
+    except Exception:
+        pass
+    said, _provider = reasoner.local_text(system_prompt, text,
+                                          timeout_s=min(float(timeout_s), 300.0))
     return said
 
 
@@ -733,12 +1412,14 @@ def draft_essays(record: dict, resume_text: str, *, think=None) -> dict:
     every draft is visible in the confirmation, because a drafted answer he
     has not read is exactly the thing this whole system refuses to send.
 
-    CANNOT WRITE is a real outcome. A question his resume does not support
-    comes back to him blank rather than filled with something plausible.
+    CANNOT WRITE is still a real outcome, and a narrow one since 2026-09-14: a
+    figure or a name that is nowhere on file comes back blank. A background he
+    does not have is answered with the one he does.
     """
     if think is False:
         return {}
     think = think or _any_model_writes
+    facts = _essay_facts()
     drafted = {}
     for question in record.get("questions") or []:
         if len(drafted) >= MAX_DRAFTS_PER_JOB:
@@ -746,8 +1427,13 @@ def draft_essays(record: dict, resume_text: str, *, think=None) -> dict:
         if (question.get("type") != "textarea" or question.get("choices")
                 or not question.get("selector")):
             continue
+        if formfill.is_anti_bot(question):
+            # hCaptcha's token box is a textarea too. Live 2026-09-14 a model
+            # wrote Palantir an essay for `h-captcha-response`, keyed to be typed
+            # straight into it on the next stage.
+            continue
         prompt = ESSAY_BRIEF.format(job=record.get("job_title") or record["url"],
-                                    question=question["label"])
+                                    question=question["label"], facts=facts)
         try:
             said = think(prompt, resume_text[:8000], timeout_s=120.0)
             if isinstance(said, tuple):
@@ -808,6 +1494,15 @@ def answer_all(answers: dict, *, resume: str = "", stager=None) -> dict:
 
     restaged, still_blocked = [], []
     for record in list(apply_run.all_runs("NEEDS_YOU")):
+        # An answer must not finish a job that was never realistic: close
+        # it instead, so it stops asking him things and can never be sent.
+        unfit = job_fit.quick_reason(record)
+        if unfit:
+            try:
+                apply_run.close(record["id"], f"not realistic: {unfit}")
+            except Exception:
+                pass
+            continue
         extra = dict(facts)
         extra.update(per_run.get(record["id"], {}))
         try:
@@ -852,20 +1547,151 @@ def answer_one(question: str, answer: str, *, stager=None) -> dict:
     return out
 
 
+def _where_found(stage, found_on: str) -> dict:
+    """`found_on=` for a stager that takes it, nothing for one that does not.
+
+    The real `apply_run.stage` does; a stand-in written before it did would
+    raise TypeError, be caught as a failed form, and turn a whole run into
+    "could not be reached"."""
+    import inspect
+    try:
+        params = inspect.signature(stage).parameters.values()
+    except (TypeError, ValueError):
+        return {}
+    takes = any(p.name == "found_on" or p.kind is inspect.Parameter.VAR_KEYWORD for p in params)
+    return {"found_on": found_on} if takes and found_on else {}
+
+
+def retry_waiting(*, resume: str = "", stager=None, json_think=None, writer=None,
+                  limit: int = 60, fit_think=None, describer=None) -> dict:
+    """Every application waiting on him, read again with what she knows NOW.
+
+    Nothing did this. A record went to NEEDS_YOU with the facts and the code
+    of that moment and stayed there: 2026-09-13 his desired pay had been on
+    file since 02:53 while three applications staged before it still waited
+    on "what is your expected compensation", and every fix to how questions
+    are read reached only forms read after it. `answer_all` re-staged them,
+    but only when he answered something — which is the thing he is away for.
+
+    Stages only. Sending is still the grant's or his, on the Core's beat, and
+    a job already sent is refused by `stage` itself.
+    """
+    policy.ensure_not_halted()
+    stage = stager or apply_run.stage
+    try:
+        resume_path, text = read_resume(resume)
+    except CampaignError:
+        resume_path, text = resume, ""
+    ready, blocked, failed, closed, left = [], [], [], [], []
+    # A waiting application is judged against what he wants NOW before it is
+    # filled in again. Live 2026-09-13 this re-staged Nitra "Account Manager
+    # (NitraMart)", staged hours before his preferences, with no model ever
+    # having read it - and the grant sent it.
+    judge_with = (fit_think if fit_think is not None
+                  else (None if stager is None and json_think is None else False))
+    describe = describer or (jobs.posting_text if judge_with is not False else None)
+    known = profile.known()
+    early = bool(_seniority_to_leave_out(known))
+    for record in list(apply_run.all_runs("NEEDS_YOU"))[:max(0, int(limit))]:
+        policy.ensure_not_halted()
+        url = record.get("url") or ""
+        if judge_with is not False and not job_fit.fit_is_current(record.get("fit")):
+            job = {k: record.get(k, "") for k in ("company", "job_title", "url", "posting")}
+            fit = job_fit.verdict(job, text, known, think=judge_with, describe=describe,
+                                  early=early)
+            if not fit["realistic"]:
+                try:
+                    apply_run.close(record["id"], f"not realistic: {fit['why']}")
+                except Exception:
+                    pass
+                closed.append({"url": url, "why": fit["why"]})
+                continue
+            if not job_fit.by_a_model(fit):
+                left.append({"url": url})         # nobody could judge it; next time
+                continue
+            try:
+                apply_run.remember(record["id"], fit=fit, employment=fit.get("employment", ""))
+            except Exception:
+                pass
+        # A fit a model gave before the form showed its questions is not the
+        # last word: Acceleration Partners was judged "inbound-closing work" and
+        # then asked for the largest deal he had personally closed.
+        unfit = job_fit.quick_reason(record)
+        if unfit:
+            try:
+                apply_run.close(record["id"], f"not realistic: {unfit}")
+            except Exception:
+                pass
+            closed.append({"url": url, "why": unfit})
+            continue
+        used = record.get("resume") or resume_path
+        found_on = record.get("found_on") or ""
+        where = _where_found(stage, found_on)
+        try:
+            fresh = stage(url, resume=used, **where)
+            if fresh.get("state") == "NEEDS_YOU" and text:
+                extra = answer_from_facts(fresh, text, think=json_think)
+                extra.update(draft_essays(fresh, text, think=writer))
+                if extra:
+                    fresh = stage(url, resume=used, extra=extra, **where)
+        except Exception as exc:
+            failed.append({"url": url, "why": f"{type(exc).__name__}: {exc}"[:160]})
+            continue
+        (blocked if fresh.get("state") == "NEEDS_YOU" else ready).append(fresh)
+    journal.append("action", "campaign",
+                   f"read {speech.count_phrase(len(ready) + len(blocked), 'waiting application')} "
+                   f"again: {len(ready)} ready, {len(blocked)} still waiting on him, "
+                   f"{len(failed)} could not be read, {len(closed)} closed as not realistic, "
+                   f"{len(left)} left unjudged; nothing submitted", actor=ACTOR)
+    return {"ready": ready, "blocked": blocked, "failed": failed,
+            "closed": closed, "left": left,
+            "questions": open_questions(), "submitted": 0, "roles": [], "role": ""}
+
+
 # ---- in its own process ----------------------------------------------------------
 
 def running(now: dt.datetime | None = None) -> dict | None:
-    """The campaign already under way, if one is."""
+    """The campaign already under way, if one is.
+
+    Decided by whether its PROCESS is alive, not by the clock alone. Live
+    2026-09-13 a batch ran longer than the three-hour STALE_LOCK, so the
+    job-hunt loop decided it had died and started a second one beside it;
+    when the first finished it deleted the second one's lock, and a third
+    started. Three campaigns and the Core's submits queued on one browser
+    all night, which is what filled his screen with console windows.
+    """
     try:
         value = json.loads(LOCK_PATH.read_text(encoding="utf-8"))
         started = dt.datetime.fromisoformat(str(value.get("started_at")).replace("Z", "+00:00"))
     except (OSError, ValueError, AttributeError):
         return None
     now = now or dt.datetime.now(dt.timezone.utc)
-    return value if now - started < STALE_LOCK else None
+    pid = value.get("pid")
+    alive = proc.pid_alive(pid, needle="aletheia.campaign") if pid else None
+    if alive is False:
+        return None                      # it died, or the pid is somebody else's now
+    if now - started < STALE_LOCK:
+        return value
+    if alive is True:
+        # Alive and far past its own time limit (MAX_RUN): hung. Stopped,
+        # rather than left holding the lock for good or run beside.
+        proc.kill_tree(pid)
+        journal.append("alert", "campaign",
+                       f"a job-hunt batch had been running since {value.get('started_at')}, "
+                       "far past its time limit, so it was stopped", actor=ACTOR)
+    return None
 
 
-def _release() -> None:
+def _release(owner: int | None = None) -> None:
+    """Remove the run lock — only ours, when `owner` says whose we are."""
+    if owner is not None:
+        try:
+            holder = json.loads(LOCK_PATH.read_text(encoding="utf-8")).get("pid")
+        except (OSError, ValueError, AttributeError):
+            holder = None
+        if holder not in (None, owner) and \
+                proc.pid_alive(holder, needle="aletheia.campaign") is not False:
+            return                       # another campaign's, and it is running
     try:
         LOCK_PATH.unlink()
     except OSError:
@@ -937,6 +1763,25 @@ def start_answer(question: str, answer: str, *, spawner=None) -> dict:
     return _launch(args, {"kind": "answer", "question": str(question)[:200]}, spawner)
 
 
+def start_retry(limit: int = 60, spawner=None) -> dict:
+    """Read every waiting application again, in its own process.
+
+    `retry` was only ever run by a person, and run from an outside session
+    it was killed for memory. Launched here it is hers: under the same lock
+    as a batch, so the two can never run over each other, and the lock is
+    released when it finishes (`retry --notify`).
+    """
+    limit = max(1, int(limit))
+    args = [sys.executable, "-m", "aletheia.campaign", "retry", "--limit", str(limit),
+            "--notify"]
+    out = _launch(args, {"kind": "retry", "limit": limit}, spawner)
+    if out.get("started"):
+        journal.append("action", "campaign",
+                       f"started reading up to {speech.count_phrase(limit, 'waiting application')} "
+                       "again with what she knows now", actor=ACTOR)
+    return out
+
+
 def _resume_said(path: str) -> str:
     """"Caleb_Schulte_Resume.pdf, saved today": enough to know it is the right one."""
     if not path:
@@ -978,10 +1823,20 @@ def answer_words(started: dict) -> str:
             "and I'll tell you which ones are ready to approve.")
 
 
-def _notify(title: str, body: str, key: str) -> None:
+def _plainly_said(exc: BaseException) -> str:
+    """A crash as a reason. "TimeoutError" is not why the hunt stopped."""
+    from aletheia import speech
+    return speech.plainly(str(exc)) or type(exc).__name__
+
+
+def _notify(title: str, body: str, key: str,
+            about: str = "") -> None:
     try:
-        from aletheia import notifications
-        notifications.publish(title, body[:900], priority="IMPORTANT", source="apply",
+        from aletheia import notifications, speech
+        notifications.publish(speech.for_the_room(title),
+                              speech.for_the_room(body)[:900],
+                              priority="IMPORTANT", source="apply",
+                              about=about or notifications.NEEDS_YOU,
                               dedupe_key=key)
     except Exception:
         pass
@@ -1012,6 +1867,9 @@ def spoken(out: dict) -> str:
                     f"{'s' if len(needed) != 1 else ''} from you first")
     if failed:
         said.append(f"{failed} I could not reach a form on")
+    accounts = len(out.get("needs_account", []))
+    if accounts:
+        said.append(f"{accounts} on employer sites that want an account before an application")
     used = f" I used {_resume_said(out['resume'])}." if out.get("resume") else ""
     # She never widens a search in silence. If what she heard matched nothing
     # and she went by the resume instead, that is the first thing she says -
@@ -1038,6 +1896,11 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--notify", action="store_true",
                        help="tell him when it is done, and release the run lock")
     sub.add_parser("questions")
+    p_retry = sub.add_parser("retry", help="read every waiting application again with "
+                                           "what she knows now; sends nothing")
+    p_retry.add_argument("--limit", type=int, default=60)
+    p_retry.add_argument("--notify", action="store_true",
+                         help="tell him what became ready, and release the run lock")
     p_ans = sub.add_parser("answer")
     p_ans.add_argument("pairs", nargs="+", metavar="QUESTION=ANSWER")
     p_one = sub.add_parser("answer-one")
@@ -1046,6 +1909,17 @@ def main(argv: list[str] | None = None) -> int:
     p_one.add_argument("--notify", action="store_true")
     args = ap.parse_args(argv)
     stamp = stateio.utcnow()
+    # A BATCH HOLDS THE PC AWAKE, and only a batch. In a real incident the
+    # laptop slept on battery mid-hunt and she was silent for 22 hours.
+    # Released the moment the batch ends; `questions` only reads.
+    from aletheia import power
+    awake = (power.keep_awake(f"campaign {args.cmd}") if args.cmd != "questions"
+             else contextlib.nullcontext())
+    with awake:
+        return _main(args, stamp)
+
+
+def _main(args, stamp: str) -> int:
     try:
         if args.cmd == "run":
             try:
@@ -1053,12 +1927,14 @@ def main(argv: list[str] | None = None) -> int:
                           resume=args.resume, where=args.where)
             except Exception as exc:
                 if args.notify:
-                    _notify("The job applications stopped", str(exc) or type(exc).__name__,
-                            f"campaign-failed:{stamp}")
+                    from aletheia import notifications as _n
+                    _notify("The job applications stopped",
+                            _plainly_said(exc), f"campaign-failed:{stamp}",
+                            about=_n.FAILED)
                 raise
             finally:
                 if args.notify:
-                    _release()
+                    _release(owner=os.getpid())
             if args.notify:
                 title, body = _summary(out)
                 _notify(title, body, f"campaign:{stamp}")
@@ -1071,7 +1947,7 @@ def main(argv: list[str] | None = None) -> int:
                 out = answer_one(args.question, args.answer)
             finally:
                 if args.notify:
-                    _release()
+                    _release(owner=os.getpid())
             if out.get("matched") is None:
                 body = ("None of the waiting applications asks that. They are waiting on: "
                         + "; ".join(q["label"] for q in out["questions"][:6] if q.get("required"))
@@ -1082,6 +1958,20 @@ def main(argv: list[str] | None = None) -> int:
             if args.notify:
                 _notify(title, body, f"campaign-answer:{stamp}")
             print(body)
+        elif args.cmd == "retry":
+            try:
+                out = retry_waiting(limit=args.limit)
+            finally:
+                if args.notify:
+                    _release(owner=os.getpid())
+            if args.notify and out.get("ready"):
+                # Only when something became ready: this runs every hour, and
+                # "still waiting on you" every hour is noise, not news.
+                title, body = _summary(out)
+                _notify(title, body, f"campaign-retry:{stamp}")
+            print(spoken(out))
+            for row in out["failed"]:
+                print(f"  (could not read {row['url']}: {row['why']})", file=sys.stderr)
         elif args.cmd == "questions":
             for q in open_questions():
                 print(f"{'*' if q['required'] else ' '} {q['label']}  "

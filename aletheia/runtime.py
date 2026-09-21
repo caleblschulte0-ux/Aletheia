@@ -19,7 +19,7 @@ from pathlib import Path
 
 from aletheia import (act, attention, communications, desktop_notify, events, gaps,
                       handler, intercom, mail, notifications, policy, proactive,
-                      reservations, scheduler, subscriptions, tasks,
+                      reservations, scheduler, speech, subscriptions, tasks,
                       verification)
 from aletheia.pulse import PULSE_DIR
 from aletheia.stateio import private_dir, read_json, write_json_atomic
@@ -27,6 +27,36 @@ from aletheia.stateio import private_dir, read_json, write_json_atomic
 TERMINAL_TASKS = {"COMPLETED", "CANCELLED", "FAILED_TERMINAL"}
 EVENT_CURSOR = private_dir("runtime") / "event-cursor.json"
 PULSE_CURSOR = private_dir("runtime") / "pulse-cursor.json"
+
+
+# ------------------------------------------------- notices he has to read
+# A notification is READ OUT — by `announce` in the room, by the wall, by
+# the phone. Every body in this module used to be written for a log:
+# "https://boards.greenhouse.io/acme/jobs/41 — TimeoutError: Page.goto:
+# net::ERR_CONNECTION_RESET" is a perfectly good line in a file and
+# nothing at all out loud. The diagnosis is still in the journal with the
+# type and the traceback attached; these three say it in English.
+def _plain(text: object) -> str:
+    """A notification body, said the way a person would say it."""
+    return speech.for_the_room(str(text or ""))[:400]
+
+
+def _where(record: dict) -> str:
+    """Who this is with. A URL is not the name of a company."""
+    from urllib.parse import urlparse
+    name = str(record.get("company") or "").strip()
+    if name:
+        return name
+    try:
+        host = urlparse(str(record.get("url") or "")).netloc
+    except ValueError:
+        host = ""
+    return speech.say_url(host) if host else "the site"
+
+
+def _why_not(record: dict, exc: BaseException) -> str:
+    """A failure as a reason, not as a class name and a link."""
+    return _plain(f"{_where(record)} — {speech.plainly(str(exc))}")
 
 
 def _schedule_verification(spec: dict, receipt: dict) -> tuple[str | None, str | None]:
@@ -188,14 +218,14 @@ def evaluate_replies(*, now: dt.datetime | None = None) -> list[dict]:
             notifications.publish(
                 "Reply received", f"Tracked conversation {value['thread_id']} has a reply.",
                 priority="IMPORTANT", source="communications",
-                dedupe_key=f"reply:{value['id']}",
+                about=notifications.CHANGED, dedupe_key=f"reply:{value['id']}",
                 related={"expectation": value["id"]})
         elif new == "OVERDUE":
             notifications.publish(
                 "Reply overdue",
                 f"No tracked reply arrived before the deadline for {value['thread_id']}.",
                 priority="IMPORTANT", source="communications",
-                dedupe_key=f"overdue:{value['id']}",
+                about=notifications.CHANGED, dedupe_key=f"overdue:{value['id']}",
                 related={"expectation": value["id"]})
     return transitions
 
@@ -347,7 +377,7 @@ def _job_reply(event: dict) -> dict | None:
             f"{entry.get('company') or 'An employer'} wants to talk",
             f"{subject} — about {entry.get('job_title') or 'your application'}, "
             f"applied {str(entry.get('at') or '')[:10]}",
-            priority="IMPORTANT", source="apply",
+            priority="IMPORTANT", source="apply", about=notifications.CHANGED,
             dedupe_key=f"job-reply:{event.get('id')}",
             related={"application": entry.get("id"), "event": event.get("id"),
                      "url": url})
@@ -402,9 +432,9 @@ def process_new_events(*, now: dt.datetime | None = None,
                     continue
         for trigger in triggers:
             notifications.publish(
-                "Watched event",
-                f"{trigger['summary']} ({event['kind']}, {event['subject']})",
-                priority="IMPORTANT", source="watchers",
+                "Something you're watching happened",
+                _plain(trigger["summary"]),
+                priority="IMPORTANT", source="watchers", about=notifications.CHANGED,
                 dedupe_key=f"trigger:{trigger['watcher_id']}:{event['id']}",
                 related={"watcher": trigger["watcher_id"], "event": event["id"]})
             actions.append({"event": event["id"], "action": "watcher_notified",
@@ -416,9 +446,8 @@ def process_new_events(*, now: dt.datetime | None = None,
             kind = receipt["proposal"]["kind"]
             priority = receipt["proposal"].get("priority", "NORMAL")
             notifications.publish(
-                "Proactive: " + rule["id"],
-                f"{event['summary']} ({event['kind']}, {event['subject']})",
-                priority=priority, source="proactive",
+                "Worth knowing", _plain(event["summary"]),
+                priority=priority, source="proactive", about=notifications.CHANGED,
                 dedupe_key=f"proactive:{rule['id']}:{event['id']}",
                 related={"rule": rule["id"], "event": event["id"]})
             if kind == "enqueue":
@@ -458,6 +487,63 @@ def _run_approved_intents(fleet: dict) -> list[dict]:
     return intents.run_approved(fleet)
 
 
+def _run_approved_handoffs() -> list[dict]:
+    """Requests her sessions handed to him, run once he approved them.
+
+    Off the beat's thread: an approved `browser.pursue` can take minutes on
+    somebody's website, and the beat also stamps the heartbeat. Cheap when
+    nothing is waiting, which is almost always."""
+    from aletheia import handoffs
+    waiting = handoffs.all_handoffs(handoffs.AWAITING) + handoffs.all_handoffs(handoffs.RUNNING)
+    if not waiting:
+        return []
+    return [{"handoffs": len(waiting), "started": handoffs.start_approved()}]
+
+
+def _working_now() -> bool:
+    """Is something she started actually running: a keep-awake hold, a
+    campaign batch, a browser goal mid-flight, an approved request."""
+    from aletheia import power
+    if power.holds():
+        return True
+    try:
+        from aletheia import current_state
+        now = dt.datetime.now(dt.timezone.utc)
+        lock = current_state.campaign_lock(now)
+        if lock and lock.get("running"):
+            return True
+        return bool(current_state.browser_missions(now).get("active"))
+    except Exception:
+        return False
+
+
+def _reconcile_work() -> list[dict]:
+    from aletheia import work_engine
+    # probe=False: a beat must not launch a browser to learn whether one works;
+    # the browser requirement reads its last live result instead.
+    result = work_engine.reconcile(probe=False)
+    # A work session ("work on my projects") whose process died with time left is
+    # carried on here (rule 7); a live one is left alone.
+    resumed = None
+    try:
+        from aletheia import project_work
+        resumed = project_work.resume_orphaned()
+    except Exception:  # noqa: BLE001 - the beat's other work is unaffected
+        resumed = None
+    if not (result["checkpointed"] or result["woke"] or result["ran"] or result.get("waits") or resumed):
+        return []
+    return [{"checkpointed": result["checkpointed"], "woke": result["woke"], "ran": result["ran"],
+             "waits": result.get("waits") or [],
+             **({"resumed_session": (resumed.get("session") or {}).get("id")} if resumed else {})}]
+
+
+def _watch_power() -> list[dict]:
+    """Tell him once when the PC is on battery while she works, or low."""
+    from aletheia import power
+    seen = power.watch(working=_working_now())
+    return [{"power": seen["status"].get("said"), "told": seen["told"]}] if seen.get("told") else []
+
+
 def _run_authorized_errands() -> list[dict]:
     from aletheia import errands  # local: pulls in the browser stack
     return errands.run_authorized()
@@ -466,6 +552,19 @@ def _run_authorized_errands() -> list[dict]:
 def _reconcile_scheduling(now: dt.datetime) -> list[dict]:
     from aletheia import scheduling
     return scheduling.reconcile(now=now)
+
+
+def _reconcile_conversations(now: dt.datetime) -> list[dict]:
+    """Conversations she carries (aletheia.conversations): send what he approved
+    (or a grant of his covers), read replies as untrusted data, act on them, draft
+    follow-ups that came due, and write calendar holds he approved. Cheap when
+    there are none."""
+    from aletheia import conversations
+    if not conversations.all_threads():
+        return []
+    result = conversations.reconcile(now=now)
+    moved = {k: v for k, v in result.items() if v}
+    return [moved] if moved else []
 
 
 def _observe_room() -> list[dict]:
@@ -539,25 +638,60 @@ def surface_due_tasks(*, now: dt.datetime | None = None) -> list[dict]:
                 + f" · task {task['id']}")
         notifications.publish(
             title, body, priority="IMPORTANT", source="tasks",
+            about=notifications.NEEDS_YOU,
             dedupe_key=f"task-due:{task['id']}:{today}",
             related={"task": task["id"]})
         out.append({"task": task["id"], "overdue": overdue})
     return out
 
 
-def _submit_in_its_own_process(run_id: str, runner=None) -> dict:
+#: Longer than the browser lock's wait plus a whole submit. It was 900 s —
+#: exactly the lock's wait — so a submit queued behind another session was
+#: killed the moment it would have got the browser, left at SUBMITTING, and
+#: its Chrome left holding the profile (live 2026-09-13, Amtech and Carta).
+SUBMIT_TIMEOUT_S = 1800.0
+
+
+def _submit_in_its_own_process(run_id: str, runner=None,
+                               timeout_s: float | None = None) -> dict:
     """`apply_run submit <id>`, out of reach of this process's event loop."""
     import subprocess
     import sys as _sys
-    from aletheia import apply_run
-    run = runner or subprocess.run
-    done = run([_sys.executable, "-m", "aletheia.apply_run", "submit", run_id],
-               capture_output=True, text=True, timeout=900)
+    from aletheia import apply_run, proc
+    from aletheia import power
+    timeout_s = SUBMIT_TIMEOUT_S if timeout_s is None else timeout_s
+    args = [_sys.executable, "-m", "aletheia.apply_run", "submit", run_id]
+    try:
+        # The PC must not sleep under a press that is waiting on a browser.
+        with power.keep_awake(f"sending application {run_id}"):
+            if runner is not None:
+                done = runner(args, capture_output=True, text=True, timeout=timeout_s)
+            else:
+                done = proc.run_tree(args, timeout_s)
+    except subprocess.TimeoutExpired:
+        apply_run.settle_interrupted(
+            run_id, f"the submit took longer than {int(timeout_s // 60)} minutes and was stopped")
+        raise RuntimeError("the submit took too long and was stopped")
     if getattr(done, "returncode", 1) != 0:
         raise RuntimeError(
             (getattr(done, "stderr", "") or "the submit process failed"
              ).strip().splitlines()[-1][:200])
     return apply_run.load_run(run_id)
+
+
+def _settle_stuck_submits() -> list[dict]:
+    """Submits that died or hung, settled and said — never left at SUBMITTING."""
+    from aletheia import apply_run
+    settled = apply_run.reconcile_stuck_submits()
+    for record in settled:
+        if record.get("state") == "SUBMITTED":
+            notifications.publish(
+                "Check your email about an application",
+                (record.get("result") or {}).get("note", "")[:400],
+                priority="IMPORTANT", source="apply", about=notifications.NEEDS_YOU,
+                dedupe_key=f"apply-unconfirmed:{record['id']}",
+                related={"application": record["id"]})
+    return settled
 
 
 def send_approved_applications() -> list[dict]:
@@ -591,10 +725,30 @@ def send_approved_applications() -> list[dict]:
     from aletheia import apply_run, authority
     sent = []
     for record in apply_run.all_runs("AWAITING_YOU"):
+        if record.get("engine") == apply_run.ENGINE_LOOP:
+            # Filled by the general browser loop: its press is its browser
+            # mission's own approval (press_approved_web_tasks), never this
+            # path and never on the standing grant.
+            continue
         try:
             approval = policy.load(record["approval"])
         except Exception:
             approval = {}
+        # NOT A FULL-TIME JOB, NOT ON THE GRANT - asked of EVERY record, not only
+        # the ones whose approval is still open. `stage` spends the grant when
+        # a form is filled, so live 2026-09-13 Bluevine's "(part-time)" job
+        # reached this loop already APPROVED by the grant and went out unseen.
+        # Only his own yes sends it; he is told why it is waiting.
+        kind = apply_run.waits_for_his_ok(record)
+        if kind:
+            # Part-time work, or a job only her own model judged realistic.
+            title, body, key = apply_run.his_ok_notice(record, kind)
+            notifications.publish(
+                title, body,
+                priority="IMPORTANT", source="apply", about=notifications.NEEDS_YOU,
+                dedupe_key=key,
+                related={"application": record["id"]})
+            continue
         if approval.get("state") != "APPROVED":
             # His standing grant. The action id names THIS application, so
             # the receipt says what the use was spent on — a probe with a
@@ -618,9 +772,9 @@ def send_approved_applications() -> list[dict]:
                     because=f"{claim}: he said send stuff, nonstop")
             except Exception as exc:
                 notifications.publish(
-                    "An application could not be authorized",
-                    f"{record['url']} — {type(exc).__name__}: {exc}"[:400],
-                    priority="IMPORTANT", source="apply",
+                    "An application could not be sent",
+                    _why_not(record, exc),
+                    priority="IMPORTANT", source="apply", about=notifications.FAILED,
                     dedupe_key=f"apply-grant-failed:{record['id']}")
                 continue
         try:
@@ -637,21 +791,39 @@ def send_approved_applications() -> list[dict]:
             # process for exactly this reason since it was written.
             done = _submit_in_its_own_process(record["id"])
         except Exception as exc:
+            try:
+                back = apply_run.load_run(record["id"]).get("state") == "AWAITING_YOU"
+            except Exception:
+                back = False
+            if back:
+                continue            # nothing was pressed; the next beat tries again
             notifications.publish(
                 "An application could not be sent",
-                f"{record['url']} — {type(exc).__name__}: {exc}"[:400],
-                priority="IMPORTANT", source="apply",
+                _why_not(record, exc),
+                priority="IMPORTANT", source="apply", about=notifications.FAILED,
                 dedupe_key=f"apply-failed:{record['id']}")
             continue
         result = done.get("result", {})
         notifications.publish(
-            "Application sent", f"{record['url']} — {result.get('note', '')}"[:400],
-            priority="IMPORTANT", source="apply",
+            "Application sent", _plain(f"{_where(record)} — {result.get('note', '')}"),
+            priority="IMPORTANT", source="apply", about=notifications.ROUTINE,
             dedupe_key=f"apply-sent:{record['id']}",
             related={"application": record["id"]})
         sent.append({"application": record["id"], "url": record["url"],
                      "verdict": result.get("verdict")})
     return sent
+
+
+def _held_live(record: dict) -> bool:
+    import datetime as _dt
+    until = str(record.get("held_live_until") or "")
+    if not until:
+        return False
+    try:
+        when = _dt.datetime.fromisoformat(until.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return when > _dt.datetime.now(_dt.timezone.utc)
 
 
 def press_approved_web_tasks() -> list[dict]:
@@ -669,6 +841,11 @@ def press_approved_web_tasks() -> list[dict]:
     from aletheia import webtask
     pressed = []
     for record in webtask.all_runs(webtask.COMMIT):
+        if _held_live(record):
+            # A browser mission is still holding its live session open for this
+            # yes, and presses it there (an expiring code survives). If that
+            # process dies the hold lapses and this beat presses by replay.
+            continue
         try:
             approval = policy.load(record["approval"])
         except Exception:
@@ -680,9 +857,9 @@ def press_approved_web_tasks() -> list[dict]:
         except Exception as exc:
             notifications.publish(
                 "I could not press it",
-                f"{record.get('button', '')} on {record.get('url', '')} — "
-                f"{type(exc).__name__}: {exc}"[:400],
-                priority="IMPORTANT", source="webtask",
+                _plain(f"{record.get('button', 'the button')} at "
+                       f"{_where(record)} — {speech.plainly(str(exc))}"),
+                priority="IMPORTANT", source="webtask", about=notifications.FAILED,
                 dedupe_key=f"webtask-failed:{record['id']}")
             continue
         result = done.get("result", {})
@@ -693,14 +870,20 @@ def press_approved_web_tasks() -> list[dict]:
                  "rejected": "It would not go through"}.get(verdict, "Pressed it")
         notifications.publish(
             f"{title}: {record.get('button', 'it')}",
-            (f"{record.get('goal', '')[:120]} — {result.get('note', '')} "
-             f"{result.get('evidence', '')[:160]}").strip(),
+            _plain(f"{record.get('goal', '')[:120]}. "
+                   f"{result.get('note', '')}"),
             priority="IMPORTANT", source="webtask",
+            about=(notifications.FAILED if verdict == "rejected"
+                   else notifications.FINISHED),
             dedupe_key=f"webtask-pressed:{record['id']}",
             related={"web_task": record["id"]})
         pressed.append({"web_task": record["id"], "button": record.get("button"),
                         "verdict": verdict,
                         "url": result.get("url", record.get("url"))})
+    if any(row.get("web_task", "").startswith("bm-apply-for-this-job") for row in pressed):
+        # An application the general loop filled: its record follows its mission.
+        from aletheia import apply_run
+        apply_run.sync_loop_applications()
     return pressed
 
 
@@ -727,9 +910,9 @@ def run_approved_scripts() -> list[dict]:
         except Exception as exc:
             notifications.publish(
                 "That program would not run",
-                f"{approval.get('reason', '')[:160]} — "
-                f"{type(exc).__name__}: {exc}"[:400],
-                priority="IMPORTANT", source="script",
+                _plain(f"{approval.get('reason', '')[:160]} — "
+                       f"{speech.plainly(str(exc))}"),
+                priority="IMPORTANT", source="script", about=notifications.FAILED,
                 dedupe_key=f"script-failed:{approval['id']}")
             continue
         notifications.publish(
@@ -806,6 +989,14 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # Errands he authorized: the last mile into the world, run here rather
     # than inside the sentence that asked for it.
     authorized_errands = guarded("errands", _run_authorized_errands)
+    # What her sessions handed to him and he approved: exactly that request,
+    # once, through every gate again (aletheia.handoffs).
+    approved_handoffs = guarded("handoffs", _run_approved_handoffs)
+    # Everything unfinished, read as one non-blocking queue (aletheia.work_engine):
+    # blocked items are checkpointed with why and when, cleared ones wake, and
+    # its own gap items take their next action. Inside the beat, never a second loop.
+    work = guarded("work", _reconcile_work)
+    power_watch = guarded("power", _watch_power)
     room_devices = guarded("room", _observe_room)
     # Meetings arranging themselves across days (Phase 15): offers that have
     # really been delivered start waiting for a reply, accepted slots ask for
@@ -813,6 +1004,7 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     meetings_progress = guarded(
         "scheduling", lambda: _reconcile_scheduling(now))
     calendar_updates = guarded("calendar", lambda: _refresh_calendar(now))
+    conversations_progress = guarded("conversations", lambda: _reconcile_conversations(now))
     # LAST: everything above may create notifications. Attention never executes
     # them; it only classifies READY vs DEFERRED and escalates eligible priority.
     attention_records = guarded("attention", lambda: attention.reconcile(now=now))
@@ -832,6 +1024,7 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # existing Approve button is the confirm — there is no second UI to
     # build and no second thing to remember. Nothing is sent that is not
     # APPROVED, and each is sent exactly once.
+    stuck_submits = guarded("stuck_submits", _settle_stuck_submits)
     applications_sent = guarded("applications", send_approved_applications)
     web_tasks_pressed = guarded("web_tasks", press_approved_web_tasks)
     # A subscription is CANCELLED when the merchant says so, not when we
@@ -858,6 +1051,9 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
         "events_processed": events_processed,
         "capability_gaps": capability_gaps,
         "approved_intents": approved_intents,
+        "approved_handoffs": approved_handoffs,
+        "work": work,
+        "power": power_watch,
         "web_tasks_pressed": web_tasks_pressed,
         "subscriptions_settled": subscriptions_settled,
         "bookings_settled": bookings_settled,
@@ -867,6 +1063,7 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
         "room_devices": room_devices,
         "meetings": meetings_progress,
         "calendar": calendar_updates,
+        "conversations": conversations_progress,
         "handle_requests": handle_requests,
         "attention": attention_records,
         "due_tasks": due_tasks,

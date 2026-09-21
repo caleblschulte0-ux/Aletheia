@@ -6,13 +6,12 @@
  * approvals as though they were pending is worse than a phone showing
  * nothing, and this whole system is built on not doing that.
  */
-const SHELL = "thea-shell-v4";   // bumped: the shell gained a voice
+const SHELL = "thea-shell-v5";   // bumped: five surfaces became one page
 const FILES = [
-  "/interface/phone.html",     // the front door
-  "/interface/console.html",   // everything, one tap behind it
+  "/interface/thea.html",      // the page, and the whole product
   "/interface/thea.js",
-  "/interface/talk.js",
-  "/interface/console.js",
+  "/interface/thea-app.js",
+  "/interface/qr.js",
   "/interface/icon.svg",
   "/interface/mark.svg",
   "/interface/manifest.webmanifest",
@@ -34,6 +33,12 @@ self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
   // Network first so a deployed change is picked up, cache as the fallback
   // that makes the icon open instantly on a cold tailnet.
+  //
+  // The fallback to the app shell is for NAVIGATIONS ONLY. It used to answer
+  // any failed GET with the page's HTML, which meant the page's own
+  // "can I reach her machine at all?" probe got a cheerful 200 full of HTML
+  // from yesterday and concluded the tailnet was fine. A diagnosis that
+  // cannot fail is not a diagnosis.
   e.respondWith(
     fetch(e.request)
       .then((res) => {
@@ -41,6 +46,10 @@ self.addEventListener("fetch", (e) => {
         caches.open(SHELL).then((c) => c.put(e.request, copy)).catch(() => {});
         return res;
       })
-      .catch(() => caches.match(e.request).then((hit) => hit || caches.match("/interface/phone.html")))
+      .catch(() => caches.match(e.request).then((hit) => {
+        if (hit) return hit;
+        if (e.request.mode === "navigate") return caches.match("/interface/thea.html");
+        return Promise.reject(new Error("offline"));
+      }))
   );
 });

@@ -31,7 +31,8 @@ import subprocess
 import sys
 import time
 
-from aletheia import journal, proc
+from aletheia import journal
+from aletheia.proc import hidden_flags
 
 ACTOR = "music"
 
@@ -61,11 +62,11 @@ class MusicUnavailable(RuntimeError):
 def player_running() -> bool:
     """Is a Spotify process alive? Never raises."""
     try:
-        out = proc.run(
+        out = subprocess.run(
             ["powershell", "-NoProfile", "-Command",
              f"(Get-Process -Name {SPOTIFY_PROCESS} "
              "-ErrorAction SilentlyContinue | Measure-Object).Count"],
-            capture_output=True, text=True, timeout=15)
+            capture_output=True, text=True, timeout=15, creationflags=hidden_flags())
         return (out.stdout or "0").strip().splitlines()[-1].strip() not in ("", "0")
     except Exception:
         return False
@@ -78,6 +79,7 @@ def open_player() -> tuple[bool, str]:
     if sys.platform != "win32":
         return False, "this only works on his Windows machine"
     try:
+        # proc: visible-by-design — Spotify is the window he asked for.
         subprocess.Popen(
             ["explorer.exe", f"shell:AppsFolder\\{SPOTIFY_AUMID}"],
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,

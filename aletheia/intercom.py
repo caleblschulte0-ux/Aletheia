@@ -66,6 +66,28 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "project_new":   ({"idea"}, set()),
     "project_step":  ({"project", "text"}, set()),
     "project_drop":  ({"project"}, set()),
+    # His LONG missions, by saying so (aletheia.programs): an objective that
+    # runs for weeks, drafted by a model into outcomes, workstreams and tasks,
+    # and inert until his own "confirm". `mission_activity` is what a recurring
+    # activity's schedule fires; nothing he says means it.
+    "mission_new":      ({"objective"}, set()),
+    "mission_add":      ({"text"}, {"mission"}),
+    "mission_confirm":  (set(), {"mission"}),
+    "missions":         (set(), {"which", "about"}),
+    "mission_activity": ({"mission", "activity"}, set()),
+    # "Work on my projects." (aletheia.project_work): a bounded work session over
+    # every queue - what can run now runs, what cannot is investigated or waits
+    # with its reason. `work_report` is how he asks what came of it.
+    "work_projects":    (set(), {"minutes"}),
+    "work_report":      (set(), {"about"}),
+    # "Study these and improve my project." (aletheia.studies): research ->
+    # comparison -> evidence-backed changes he decides on -> execution through
+    # the existing safe paths -> measurement. `study_decide` and
+    # `study_confirm` are HIS words only (PLANNER_FORBIDDEN).
+    "study_new":        ({"words"}, {"project", "path"}),
+    "studies":          (set(), {"which", "about"}),
+    "study_decide":     ({"choice"}, {"which", "study", "words"}),
+    "study_confirm":    (set(), {"study"}),
     "task_new":      ({"id", "description"}, {"goal", "worker", "deadline"}),
     "task_status":   ({"id", "state"}, {"note"}),
     # She could CREATE a task by voice and change its status, and had no
@@ -186,6 +208,18 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # demand ledger, in his own words. Same shape as email_draft: it
     # writes a draft and an approval and sends nothing.
     "message_send":  ({"to", "body"}, set()),
+    # A CONVERSATION, not a one-off message (continuity brief IV.15,
+    # aletheia.conversations): the thread keeps the recipient, what was asked,
+    # the reply and the follow-up date, so "did they reply" has an answer.
+    # Drafting sends nothing; the send waits for his yes (or a grant he gave).
+    "thread_draft":  ({"to"}, {"about", "body", "subject"}),
+    "thread_status": (set(), {"which"}),
+    "thread_send":   ({"thread"}, set()),
+    "thread_followup": ({"thread"}, set()),
+    # His calendar as agency (IV.16, aletheia.calendar_reasoning).
+    "calendar_find_free": ({"when"}, {"minutes", "location", "purpose", "part"}),
+    "calendar_hold": ({"title", "start"}, {"end", "minutes", "location", "thread"}),
+    "calendar_propose": ({"thread"}, {"when", "minutes", "location"}),
     # Word and Excel. The suffix picks the format; `content` is blocks
     # for a .docx and rows for a .xlsx.
     "doc_make":      ({"path", "content"}, {"sheet_name", "why"}),
@@ -307,6 +341,49 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # generated from KIND_ARGS and these together, so the model learns the
 # shape of a step list from the registry rather than from a guess.
 KIND_NOTES: dict[str, str] = {
+    "mission_new": (
+        "Start a LONG mission from his words - something that takes weeks or months and "
+        "spans several parts of his life (\"help me change X over the next six months\"). "
+        "objective is his sentence. She drafts outcomes, workstreams and questions for him; "
+        "nothing runs until he confirms."),
+    "mission_add": (
+        "Something he adds to his long mission: an answer to its questions, a choice for "
+        "one of its decisions, or a change. text is his words; mission names which one "
+        "when he has several."),
+    "mission_confirm": (
+        "His yes to a drafted long mission (or a drafted change to one). Only when he "
+        "plainly says to start or confirm it."),
+    "missions": (
+        "How his long missions are going: outcomes, what is running, what is waiting "
+        "and why, and the decisions that are his. about=waiting lists only what is "
+        "waiting and what wakes it; which names one mission."),
+    "mission_activity": (
+        "Fired by a long mission's recurring schedule to start this occurrence of its "
+        "activity. Never compiled from something he says."),
+    "work_projects": (
+        "He asks her to work on his projects now (\"work on my projects\", \"keep working on my "
+        "stuff\", \"what can you get done right now\"). She runs a bounded work session: whatever "
+        "can run now within her authority runs, harder work is investigated and queued for a "
+        "stronger model, and what waits says why. minutes bounds it (default 25)."),
+    "work_report": (
+        "What her work session did: finished, investigated, handed to him, what waits and on "
+        "whom. Read only."),
+    "study_new": (
+        "He asks her to study things that do better than a project of his and improve it (\"study "
+        "X, Y and Z and improve my <project>\"). words is his whole sentence; project names the "
+        "project when the sentence does not; path is its folder when he gives one. She reads them "
+        "and his project the same way, measures the differences and proposes changes he decides on."),
+    "studies": (
+        "How a study is going, what it found and what it proposes to change (\"how's the study "
+        "going\", \"what did you find\", \"what should we change\"). about is found, change or "
+        "empty. Read only."),
+    "study_decide": (
+        "HIS decision on a study's proposal or measured change: choice is accept, reject, reshape, "
+        "keep, revert or iterate; which names it (\"the first one\", \"2\"); words are his reshape "
+        "words. Never compiled by the planner."),
+    "study_confirm": (
+        "His yes to comparables she found by searching, before she reads them. Never compiled by "
+        "the planner."),
     "screen_record": (
         "Start recording ONE window to an MP4 on this PC - never the whole desktop, never "
         "uploaded. window is its title or a unique part of it (computer_observe lists them); "
@@ -475,6 +552,37 @@ KIND_NOTES: dict[str, str] = {
         "request is the ask in plain words. She writes a small Python program "
         "(standard library only, no network, no subprocess, workspace files only) "
         "and runs it. Use this ONLY when no other kind does the job."),
+    "thread_draft": (
+        'Start a CONVERSATION by email and draft its first message: "email the landlord about the '
+        'listing", "write to the clinic asking if they take my insurance". to is who (a contact, a name '
+        'she has written to before, or an address); about is what it is about in his words; body only '
+        'when he dictated the exact words. She keeps the thread: the reply, the questions still open and '
+        'when to follow up. It SENDS NOTHING - the message waits for his approval.'),
+    "thread_status": (
+        'Did they reply, and what happens next, read from the conversation she keeps: "did the landlord '
+        'reply", "any word from the recruiter", "did they get back to me". which is who or what it was '
+        'about; omit it (or "they") for the most recent conversation.'),
+    "thread_send": (
+        'Send the message on a conversation that he has ALREADY approved, now rather than on the next '
+        'beat. thread is who or what it is about. It never approves anything.'),
+    "thread_followup": (
+        'Follow up on a conversation that has gone quiet: "follow up with the landlord", "nudge the '
+        'recruiter". She re-asks only what was already asked; it waits for his approval unless he gave '
+        'standing permission for follow-ups on that conversation.'),
+    "calendar_find_free": (
+        'When he is free across a stretch of days, around what is already on his calendar (with travel '
+        'time when places are known): "when am I free next week for a tour", "what does Thursday look '
+        'like". when is today, tomorrow, a weekday, this week, next week, this weekend or a date; minutes '
+        'is how long; location where it is; part morning/afternoon/evening.'),
+    "calendar_hold": (
+        'Pencil something into HIS calendar as tentative, in her own calendar model (nothing is sent, '
+        'nothing goes onto a live calendar): "hold Friday at 10 for the tour". start is ISO-8601 in his '
+        'timezone; end or minutes; location; thread links it to a conversation. It refuses when it '
+        'clashes and says with what.'),
+    "calendar_propose": (
+        'Offer times to the other person in a conversation: "suggest some times to the landlord next '
+        'week". thread is who it is with; when the stretch of days; minutes; location. It drafts the '
+        'reply with free times and waits for his approval, because offering his hours commits him.'),
     "email_read": (
         "which is a sender name/address or a subject fragment; it must match exactly "
         "one UNREAD message (otherwise she asks which). Use email_check first to see "
@@ -496,9 +604,18 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                "doc_make",
                # what he asks about his projects queues in private state on the PC
                "project_new", "project_step", "project_drop",
+               # his long missions live in private state on the PC
+               "mission_new", "mission_add", "mission_confirm", "missions", "mission_activity",
+               # a work session checks projects out, runs tests and asks her own model: this PC
+               "work_projects", "work_report",
+               # a study reads his project folder and keeps its evidence in private state here
+               "study_new", "studies", "study_decide", "study_confirm",
                # Phone Link is paired to his iPhone on THIS machine;
                # Actions cannot text anybody.
                "message_send", "music",
+               # her conversations and his calendar model are private state on the PC
+               "thread_draft", "thread_status", "thread_send", "thread_followup",
+               "calendar_find_free", "calendar_hold", "calendar_propose",
                # research only READS pages, but it reads them with the
                # operator's browser, so it belongs to the PC runner
                "research",
@@ -557,6 +674,12 @@ READ_ONLY_KINDS = frozenset({
     "jobs", "tasks", "reminders", "shopping_list", "applications",
     "contacts", "watches",
     "projects", "car", "recall", "travel_time", "browse_read", "browse_shot",
+    # how his long missions stand and what they wait on changes nothing
+    "missions",
+    # what a work session did is read from its receipts
+    "work_report",
+    # what a study found and proposes is read from its record
+    "studies",
     # reads public pages and writes a document; commits him to nothing
     "research",
     # looking at his own files commits him to nothing
@@ -571,6 +694,8 @@ READ_ONLY_KINDS = frozenset({
     # reading what a media file IS changes nothing
     "media_probe",
     "email_check", "email_read", "screen_ask", "authority_status", "setup_status",
+    # Reading her own conversation records and his free time changes nothing.
+    "thread_status", "calendar_find_free",
 })
 
 
@@ -586,6 +711,20 @@ ROUTINE_KINDS = frozenset({
     # Queuing what he said about his projects: one private local file, and
     # nothing new starts from it until he says yes to the draft it becomes.
     "project_new", "project_step", "project_drop",
+    # A long mission is the same shape: his words queue a private draft, his
+    # confirm makes it active, and every step that reaches anyone still asks
+    # him through its own approval. A schedule starting an activity's
+    # occurrence only adds a task to that private record.
+    "mission_new", "mission_add", "mission_confirm", "mission_activity",
+    # Starting a work session on his say-so. It grants nothing: each item it runs
+    # goes through the gates that item already has (the broker, handoffs, the
+    # repair tier's branch-and-PR rule, rehearsal), and nothing world-touching
+    # happens without its own approval.
+    "work_projects",
+    # A study reads public pages politely and his own project, and proposes; his
+    # decision on a proposal is recorded here, and an accepted change runs only
+    # through paths that already have their gates (a branch, a packet, a handoff).
+    "study_new", "study_decide", "study_confirm",
     # Disabling a reminder is reversible by saying the opposite, which is
     # the whole test for this tier — the schedule is disabled, never
     # deleted, so "actually put that back" is one command.
@@ -628,6 +767,12 @@ ROUTINE_KINDS = frozenset({
     # Composing is a file_write whose text she writes instead of pastes:
     # same directory, same version history, same undo. Nothing wider.
     "compose",
+    # A conversation's DRAFT, a follow-up draft, a time proposal draft and a
+    # tentative hold in her own calendar model: private, reversible, reaching
+    # nobody. Every one of them that would SEND waits on its own hash-bound
+    # approval (email.send / email.followup), so this tier authorizes writing
+    # it down and nothing past that.
+    "thread_draft", "thread_followup", "calendar_hold", "calendar_propose",
     # Deleting and moving keep a version FIRST, so both are undoable. A
     # delete that cannot lose anything is a shelf, not a shredder.
     "file_delete", "file_move",
@@ -771,6 +916,10 @@ PLANNER_FORBIDDEN = frozenset({
     # screenshot carries whatever happened to be on screen, and unlike
     # window text it cannot be redacted on the way out.
     "eyes_on",
+    # A study's proposal is accepted, kept or reverted on HIS words, and the
+    # comparables she found are read on his yes: a compiler that turns "sure,
+    # whatever" into an acceptance decides for him.
+    "study_decide", "study_confirm",
 })
 
 
@@ -1219,8 +1368,16 @@ def _applications_answer() -> str:
     """"What have I applied to" — from the application records."""
     from aletheia import apply_run, speech
     rows = apply_run.all_runs()
+    # What today's looking FOUND, beside what was sent - the discovery summary
+    # has a writer in the campaign and this is where he hears it.
+    try:
+        from aletheia import job_discovery
+        found_today = job_discovery.today()
+        found_line = job_discovery.spoken(found_today) if found_today else ""
+    except Exception:
+        found_line = ""
     if not rows:
-        return "You haven't applied to anything through me yet."
+        return " ".join(x for x in ("You haven't applied to anything through me yet.", found_line) if x)
     sent = [r for r in rows if r.get("state") == "SUBMITTED"]
     waiting = [r for r in rows if r.get("state") != "SUBMITTED"]
 
@@ -1248,7 +1405,7 @@ def _applications_answer() -> str:
     when = _day_words(newest.get("submitted_at") or newest.get("staged_at"))
     if when:
         parts.append(f"The most recent was {apply_run.describe(newest)[:60]} {when}")
-    return ". ".join(parts) + "."
+    return ". ".join(parts) + "." + (f" {found_line}" if found_line else "")
 
 
 def _day_words(stamp: object) -> str:
@@ -1630,6 +1787,49 @@ def _weekday_words(days: list[int]) -> str:
     return speech.and_list([WEEKDAY_NAMES[d].capitalize() for d in days])
 
 
+def _mission_command(kind: str, cmd: dict, quote: str) -> str:
+    """His long missions (aletheia.programs), said and answered in sentences."""
+    from aletheia import programs
+    via = ACTOR
+    words = " ".join(str(quote or "").split())[:300]
+    if kind == "missions":
+        if str(cmd.get("about") or "").strip().lower() == "waiting":
+            return programs.spoken_waiting(cmd.get("which", ""))
+        return programs.spoken_status(cmd.get("which", ""))
+    if kind == "mission_activity":
+        made = programs.activity_due(cmd["mission"], cmd["activity"])
+        return (f"started this round of {made['title']}" if made.get("made")
+                else f"nothing to start: {made.get('why')}")
+    if kind == "mission_new":
+        record = programs.propose(cmd["objective"], via=via)
+        return (f"Got it. I'll shape that into a mission - the outcomes, the workstreams and the "
+                f"questions only you can answer - and bring the draft back before anything starts.")
+    found = programs.find(cmd.get("mission", ""))
+    if found is None:
+        return "You don't have a long mission yet. Say start a mission, and what it is for."
+    if kind == "mission_confirm":
+        try:
+            record = programs.confirm(found["id"], words=words or "confirm", via=via)
+        except programs.ProgramError as exc:
+            return f"Nothing to confirm: {exc}."
+        live = sum(1 for t in record.get("tasks") or [] if t.get("state") == "READY")
+        return (f"{record['title']} is on. {live} task{'s' if live != 1 else ''} can start now; "
+                "anything that reaches another person still asks you first.")
+    said = programs.add_words(found["id"], cmd["text"], via=via)
+    became = said.get("became")
+    if became == "decision":
+        return f"Noted: {said['choice']}."
+    if became == "answer":
+        left = said.get("remaining", 0)
+        return ("Thanks. " + (f"{left} more question{'s' if left != 1 else ''} before the draft is ready."
+                              if left else "I'll redraft the mission with your answers."))
+    if became == "retry":
+        return f"Trying {said['task']} again."
+    if became == "revision":
+        return f"I'll draft that change to {found['title']} and check it with you before it takes effect."
+    return f"Added to the draft of {found['title']}; I'll fold it in."
+
+
 def _projects_answer() -> str:
     """Every kind of project he has, in one sentence.
 
@@ -1727,6 +1927,22 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         charters.ask("drop", project=found["slug"], via=ACTOR)
         return (f"Dropping {found['title']}. The builder will leave it alone "
                 "within half an hour.")
+    if kind in ("mission_new", "mission_add", "mission_confirm", "missions", "mission_activity"):
+        return _mission_command(kind, cmd, quote)
+    if kind == "work_projects":
+        from aletheia import project_work
+        minutes = None
+        try:
+            minutes = float(cmd["minutes"]) if cmd.get("minutes") not in (None, "") else None
+        except (TypeError, ValueError):
+            minutes = None
+        return project_work.start(via=ACTOR, words=quote, minutes=minutes)["said"]
+    if kind == "work_report":
+        from aletheia import project_work
+        return project_work.spoken_status(str(cmd.get("about") or ""))
+    if kind in ("study_new", "studies", "study_decide", "study_confirm"):
+        from aletheia import study_run
+        return study_run.command(kind, cmd, quote=quote, via=ACTOR)
     if kind == "tasks":
         return _tasks_answer(cmd.get("which", ""))
     if kind == "task_done":
@@ -1875,10 +2091,13 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 + (f" — {cmd['why'][:120]}" if cmd.get("why") else ""))
 
     if kind == "web_task":
-        from aletheia import webtask
-        record = webtask.run(cmd["goal"], start_url=cmd.get("url", ""),
-                             budget=int(cmd.get("budget", 16)))
-        return webtask.spoken(record)
+        # THE GENERAL LOOP when there is a page to start from
+        # (`browser_route.engine_for`); the older loop for a search or a
+        # download. Same gates either way: spending refused, one hash-bound
+        # approval at the committing button, every stop in the demand ledger.
+        from aletheia import browser_route
+        return browser_route.run(cmd["goal"], url=cmd.get("url", ""),
+                                 budget=int(cmd.get("budget", 16)))
     if kind == "subscription_cancel":
         from aletheia import subscriptions, webtask
         if cmd.get("url"):
@@ -1891,8 +2110,14 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         except Exception:
             return f"{row['merchant']}: {row.get('cancel_state', 'started')}"
     if kind == "web_task_answer":
-        from aletheia import webtask
+        from aletheia import browser_route, webtask
         run_id = cmd.get("run_id") or ""
+        mission = browser_route.waiting_mission(run_id)
+        if mission is not None:
+            given = cmd.get("answers") or {}
+            if not isinstance(given, dict):
+                return "answers must be a mapping of question to answer"
+            return browser_route.answer(mission, given)
         if not run_id:
             waiting = [r for r in webtask.all_runs()
                        if r.get("state") in webtask.PICKABLE]
@@ -1906,7 +2131,10 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "web_task_retry":
         # The site refused it. "Try that again" now means something: she
         # reads what it said, fixes it, and brings him a NEW confirmation.
-        from aletheia import webtask
+        from aletheia import browser_route, webtask
+        mission = browser_route.rejected_mission(cmd.get("run_id") or "")
+        if mission is not None:
+            return browser_route.retry(mission)
         if cmd.get("run_id"):
             record = webtask.retry(cmd["run_id"])
         else:
@@ -2062,6 +2290,84 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                        requested_via=f"intercom: {quote[:80]}")
         return (f"draft to {d['to_name']} ready — {d['subject']!r}. "
                 f"Approval {d['id']} is pending; approving it sends the email.")
+    if kind == "thread_draft":
+        from aletheia import conversations
+        if not (str(cmd.get("about") or "").strip() or str(cmd.get("body") or "").strip()):
+            raise act.Refused("say what the email should be about")
+        thread = conversations.start(cmd["to"], about=cmd.get("about") or "", body=cmd.get("body"),
+                                     subject=cmd.get("subject"), via=f"intercom: {quote[:80]}")
+        return conversations.spoken(thread)
+    if kind == "thread_status":
+        from aletheia import conversations
+        return conversations.status_words(cmd.get("which") or "")
+    if kind == "thread_send":
+        from aletheia import conversations
+        try:
+            thread = conversations.resolve_thread(cmd["thread"])
+        except LookupError as exc:
+            raise act.Refused(str(exc)) from None
+        done = conversations.send_approved(only_thread=thread["id"])
+        sent = [r for r in done if r.get("outcome") == "sent"]
+        if sent:
+            return f"Sent the email to {conversations._name(thread)}."
+        waiting = next((r.get("detail") for r in done if r.get("detail")), "")
+        return (f"Nothing went to {conversations._name(thread)}: "
+                + (waiting or "no message there has your approval yet") + ".")
+    if kind == "thread_followup":
+        from aletheia import conversations
+        try:
+            thread = conversations.resolve_thread(cmd["thread"])
+            return conversations.spoken(conversations.followup(thread["id"]))
+        except (LookupError, conversations.ConversationError) as exc:
+            raise act.Refused(str(exc)) from None
+    if kind == "calendar_find_free":
+        from aletheia import calendar_reasoning
+        try:
+            first, last = calendar_reasoning.window(cmd["when"])
+        except ValueError as exc:
+            raise act.Refused(str(exc)) from None
+        minutes = int(cmd.get("minutes") or 60)
+        slots = calendar_reasoning.find_free(first, last, minutes=minutes, location=cmd.get("location") or None,
+                                             part=cmd.get("part") or None)
+        said = calendar_reasoning.free_words(slots, first=first, last=last, purpose=cmd.get("purpose") or "")
+        held = [h for h in calendar_reasoning.upcoming_holds()
+                if first.isoformat() <= h["start"][:10] <= last.isoformat()]
+        if held:
+            said += " Pencilled in already: " + speech.and_list(
+                [f"{h['title']} {calendar_reasoning.human(h['start'])}" for h in held[:3]]) + "."
+        return said
+    if kind == "calendar_hold":
+        from aletheia import calendar_reasoning
+        import datetime as _dt
+        try:
+            start = _dt.datetime.fromisoformat(str(cmd["start"]).replace("Z", "+00:00"))
+        except ValueError:
+            raise act.Refused(f"I couldn't read {cmd['start']!r} as a time") from None
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=localtime.operator_tz())
+        if cmd.get("end"):
+            end = _dt.datetime.fromisoformat(str(cmd["end"]).replace("Z", "+00:00"))
+            end = end if end.tzinfo else end.replace(tzinfo=localtime.operator_tz())
+        else:
+            end = start + _dt.timedelta(minutes=int(cmd.get("minutes") or 60))
+        held = calendar_reasoning.hold(cmd["title"], start.isoformat(), end.isoformat(),
+                                       location=cmd.get("location") or None, thread_id=cmd.get("thread") or "")
+        if not held.get("event"):
+            raise act.Refused(f"I didn't pencil that in: {held.get('why')}")
+        return (f"Pencilled in {held['event']['title']} {calendar_reasoning.human(held['event']['start'])}, "
+                "tentative, on your calendar here only.")
+    if kind == "calendar_propose":
+        from aletheia import conversations
+        try:
+            thread = conversations.resolve_thread(cmd["thread"])
+            after = conversations.propose_times(thread["id"], when=cmd.get("when") or "next week",
+                                                minutes=int(cmd["minutes"]) if cmd.get("minutes") else None,
+                                                location=cmd.get("location") or None)
+        except (LookupError, ValueError) as exc:
+            raise act.Refused(str(exc)) from None
+        times = speech.or_list([s["human"] for s in after["scheduling"]["slots"]])
+        return (f"I drafted a reply to {conversations._name(after)} offering {times}. "
+                "It's waiting for your okay.")
     if kind == "music":
         from aletheia import music
         return music.control(cmd["action"])
@@ -2302,6 +2608,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "notify_operator":
         from aletheia import notifications
         notice = notifications.publish("Reminder", cmd["text"], priority="IMPORTANT",
+                                       about=notifications.NEEDS_YOU,
                                        source="reminder")
         return f"reminder surfaced: {notice['id']}"
     if kind == "watch_email_from":

@@ -231,6 +231,27 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
                 "read_only": True, "refused_spending": True, "steps": [],
                 "proposed_at": stateio.utcnow()}
 
+    # A QUESTION ABOUT HER WORK IS LOOKED INTO, NOT RECITED.
+    #
+    # "Why didn't the Palantir one send" was answered by `converse` from a
+    # context somebody built by hand, which holds none of the record, the
+    # journal line or the boundary name the answer is made of. An
+    # AgentSession reads what it needs with her tools, under the broker, and
+    # says how it knows. AFTER `quick` (a stored answer stays a file read) and
+    # AFTER the money door; only QUESTIONS reach it, so an instruction still
+    # goes to the planner. `investigate.propose` returns None for anything
+    # it is not for, and for a session that could not put an answer
+    # together, so this can only add an answer and never remove one.
+    try:
+        from aletheia import investigate
+        looked = investigate.propose(request, quote=quote)
+    except Exception as exc:                                   # noqa: BLE001
+        looked = None
+        journal.append("event", "intent", "could not look into a question with my tools "
+                       f"({type(exc).__name__}); answering it the usual way", actor=ACTOR)
+    if looked is not None:
+        return looked
+
     # A FAST NO IS BETTER THAN A SLOW ONE, and it was slow.
     #
     # "Set a timer for ten minutes" took a planner round trip — 25-80
@@ -327,6 +348,10 @@ def propose(request: str, quote: str = "", fleet: dict | None = None,
         "approval": approval_id,
         "provider": plan.provider,
         "degraded": plan.degraded,
+        # WHICH RUNG COMPILED IT, on the receipt and in the sentence.
+        "compiled_by": plan.compiled_by,
+        "shortlist": list(plan.shortlist),
+        "queued_work": plan.queued,
         "steps": [{"n": s.n, "status": s.status, "detail": s.detail,
                    "command": s.command, "capability": s.capability}
                   for s in plan.steps],
@@ -493,6 +518,36 @@ def _hands_refused(hands: dict) -> str:
             + " Nothing is queued; tell me what to change and I'll plan it again.")
 
 
+def _degraded_line(detail: str) -> str:
+    """Why nothing could be planned, as a sentence rather than a log line.
+
+    The gateway's refusal carries BOTH causes on purpose, for the log. Read
+    out loud it is a paragraph of machine text that gets cut mid-clause, and
+    the only thing he needs is which rung was missing.
+    """
+    text = " ".join(str(detail or "").split())
+    low = text.lower()
+    if "unavailable" in low and "local" in low and ("subscription" in low or "frontier" in low):
+        off = "switched off for this run" in low
+        return ("the frontier models are switched off for this run, and my own model could not answer either"
+                if off else "nothing could think just now - neither the stronger models nor my own")
+    return speech.shorten(speech.plainly(text), 150)
+
+
+def _own_model_line(record: dict) -> str:
+    """HER OWN ANSWERS SAY THEY ARE HERS (CLAUDE.md).
+
+    `converse` already leads with "Claude's out ... so this answer is from my
+    own model". A PLAN compiled on the same rung needs the same disclosure for
+    the same reason: an answer he trusts as Claude's and is not is the failure
+    he cannot detect - and this one ends in "say approve to run it".
+    """
+    if not record.get("compiled_by"):
+        return ""
+    from aletheia import reasoner
+    return f"{reasoner.big_models_out()}, so I planned this one myself. "
+
+
 def spoken(record: dict) -> str:
     """What Thea says back. Short, honest about what is and is not happening."""
     # A real answer, when the ask was a QUESTION, beats every summary below.
@@ -514,7 +569,30 @@ def spoken(record: dict) -> str:
     manual = [s for s in steps if s.get("status") == planner.MANUAL]
     refused = [s for s in steps if s.get("status") == planner.REFUSED]
     if record.get("degraded") and not runnable:
-        return f"I could not plan that: {record['degraded'][:160]}"
+        # THE ROOM HEARS THIS ONE TOO. Measured live on 2026-09-18 (acceptance
+        # D): asked for an ordinary browser task with the frontier models off,
+        # she said "I could not plan that: ReasonerUnavailable: subscription
+        # reasoning and local deep reasoning are unavailable (subscription:
+        # neither Claude nor the ChatGPT browser could answer just now" - a log
+        # line with a class name on the front, cut off mid-word at 160
+        # characters. `plainly` and `shorten` already existed for exactly this
+        # and this branch was the one place that reached neither. The full
+        # diagnosis stays in the record, where it belongs.
+        said = "I could not plan that: " + _degraded_line(record["degraded"])
+        # AND IT IS NOT LOST (continuity rule 3). Asked on 2026-09-18 what
+        # was queued she said "I don't have a list of them queued, though,
+        # so you'd have to ask me again once Claude or Codex is back."
+        # There is a list now, so the sentence says so - and says it
+        # without the identifier, which is not a thing he can say back.
+        if record.get("queued_work"):
+            # A FULL STOP, because the clause before it came from `shorten`
+            # and does not carry one: live on 2026-09-18 the room would have
+            # heard "switched off for this run It's on my list", which is one
+            # run-on sentence out loud.
+            said = (said.rstrip(" .,;")
+                    + ". It's on my list, and I'll pick it up when the big "
+                      "models are back.")
+        return speech.tidy(said)
     if record.get("intent") == "clarify":
         # Through the sieve like everything else she says. A clarifying
         # question is model prose about her own state, so it carries the
@@ -583,9 +661,19 @@ def spoken(record: dict) -> str:
         # And no approval id: §145, he approves by saying "approve", and
         # a hex string read out loud is a handle he cannot hold in his
         # head — while the sentence went on to tell him to say it back.
-        ready = speech.count_phrase(len(runnable), "step") + " ready"
+        # NOT A ROW COUNT. "1 step ready — Cancel the task to call the
+        # plumber. Say approve to run it." is three pieces of bookkeeping
+        # around one fact, and the fact arrives second. He is being asked
+        # to authorise something: the sentence has to say what will happen
+        # TO HIM if he says yes, first, in his own words — and the number
+        # of internal steps is not something he can act on. It survives
+        # only where it is really news, which is when there is more than
+        # one of them.
         summary = speech.spoken_prose(str(record.get("summary") or ""))
-        said = f"{ready} — {summary}." if summary else f"{ready}."
+        more = (f" That's {speech.count_phrase(len(runnable), 'step')}."
+                if len(runnable) > 1 else "")
+        said = (f"Here's what I'd do: {summary.rstrip('.')}.{more}" if summary
+                else f"I have {speech.count_phrase(len(runnable), 'step')} ready.")
         labels = [label for bound in record.get("presses") or []
                   for label in bound.get("presses") or []]
         if labels:
@@ -597,8 +685,8 @@ def spoken(record: dict) -> str:
             # A standing grant already covered it, so there is nothing for
             # him to approve — and "say approve to run it" would send him
             # looking for a decision that has already been made.
-            parts.append(said + " Your standing authority covers it, so it "
-                                "runs on the next beat.")
+            parts.append(said + " You already said yes to small things like "
+                                "this, so I'll get on with it.")
         else:
             # ...but voice may approve only the ROUTINE tier (2026-09-03:
             # the room microphone is an input device, not an authentication
@@ -610,9 +698,15 @@ def spoken(record: dict) -> str:
             # it as one took "say approve" away from every caller that
             # does not set it.
             tier = record.get("tier")
-            how = ("Approve it on your phone or at the keyboard to run it."
+            # And say what happens if he does NOTHING, which is the half
+            # of an approval he was never told: "say approve to run it"
+            # describes the yes and leaves the no as something he has to
+            # infer. Nothing is the safe answer here, and it should sound
+            # like one rather than like a thing he has forgotten to do.
+            how = ("Say yes on your phone or at the keyboard and I'll do it. "
+                   "Nothing happens until you do."
                    if tier and tier != intercom.TIER_ROUTINE
-                   else "Say approve to run it.")
+                   else "Say approve and I'll do it. Nothing happens until you do.")
             parts.append(said + " " + how + _why_it_asks(record))
     if gaps_named:
         parts.append(_cannot_yet(gaps_named, record))
@@ -633,7 +727,7 @@ def spoken(record: dict) -> str:
             # Nothing else to say, so the dropped step IS the answer —
             # but in his words, not the validator's.
             parts.append("I couldn't make sense of part of that — say it again?")
-    return " ".join(parts) or "Nothing to do."
+    return _own_model_line(record) + (" ".join(parts) or "Nothing to do.")
 
 
 # A question ABOUT money is not an instruction to spend it.

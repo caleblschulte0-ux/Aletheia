@@ -148,6 +148,127 @@ froze the stale literal instead of asserting the contract. See
 `docs/ROADMAP.md` Phase 7 and the journal. That is what this rule looks
 like working: permission given, work done, review real, defects caught.
 
+## Consequence, not "read vs write" — and everything unattended is undoable
+
+His continuity brief, Part III item 10, built 2026-09-18 (wave C4b), in his
+words: *"Move from 'reads autonomous, writes ask Caleb' toward
+consequence-based authority: temporary local workspaces, fixing a project in a
+branch, drafts, tasks, internal project state, rescheduling its own queued
+work, notes, running tests, preparing PRs and other reversible actions may run
+under standing or bounded authority. Money, binding commitments, destructive
+operations, outward communications and authority changes keep their approval
+rules. Do not weaken existing safety."*
+
+So every descriptor carries the CONSEQUENCE of doing it (`aletheia.tools`),
+derived from what it already said — the tier, the stores it changes, the
+switch and container sets, the destructive and open-world flags — with
+`CONSEQUENCE_OF` for the handful derivation gets wrong. Three values:
+
+    reversible_local      a scratch worktree, a branch, a draft, a note in a
+                          store of hers, a task, internal project state, a
+                          test run, her own queue rescheduled
+    reversible_visible    reaches HIM and nobody else: a notification, a
+                          journal line, a reminder, a hold in her own calendar
+    outward               reaches somebody else or cannot be taken back
+
+**Consequence is not permission, and both have to say yes.** `approval` still
+says who must authorise it, it is checked FIRST, and a registry entry always
+wins: `repo.try_patch` is reversible and still waits for him because he said
+so. `tools.runs_unattended` is the conjunction, and it is the only thing that
+makes a writer run inside a session.
+
+Four things bound it, and none of them is a flag:
+
+- **A budget** (`aletheia.autonomy`): per session and per day. Reversible is
+  not free — a loop that drafts the same note four hundred times costs him a
+  day. Past the cap the action stops being unattended and becomes a handoff.
+- **The kill switch before EVERY action**, not once per session: a session
+  outlives the moment he says stop, and it fails closed.
+- **An undo, recorded at the time**: the branch name and the throwaway copy,
+  the file path, the task id, the memory key. `python -m aletheia.autonomy
+  undo <id>`. Where there is no undo it SAYS so (the journal is append-only)
+  rather than saying nothing. She undoes her own reversible actions and
+  nothing else: an outward action and a decision of his are both refused by
+  name.
+- **Honesty surfaces**: `current_state` and the Command Center carry the
+  list, the work session's report ends with it, and "what did you do without
+  asking me" reaches a session that reads the ledger
+  (`autonomy.unattended`). It names three — an identifier is not a thing he
+  can say back, so the id lives on the screen and not in the sentence.
+
+  **And the ledger holds what she did, not only the harmless half of it.**
+  Live, 2026-09-18: `autonomy list` said "Nothing in the last 48 hours" while
+  a work session had run two test suites, made three mirror checkouts, drafted
+  a document and opened a real pull request on his repository. Only the branch
+  had ever had a line, so the answer was a flat lie and the missing half held
+  the act he would have wanted to hear about first. `work_runners._note*`
+  records every route's own acts now, and an OUTWARD one (a pull request,
+  anything reaching somebody else) is recorded too — which is only safe
+  because four things are true at once: it is marked outward on the row
+  (`autonomy.is_outward`, failing CLOSED on anything unrecognised), the
+  sentence says it FIRST and never says it stayed on this machine, `undo`
+  refuses it by name as before, and `autonomy.counts` leaves it out of the
+  unattended budget, because recording something must never change what is
+  permitted.
+
+Unchanged, and no flag reaches any of it: spending is REFUSED rather than
+handed off; sending, publishing, deleting for good, creating an account, a
+live calendar write, a pull request, his decisions and authority itself are
+outward and still become approvals; she cannot approve her own requests,
+create or widen a grant, or lift her own halt.
+
+The descriptors are also the source the rest is checked against
+(`tests/test_the_descriptors_are_the_source.py`, brief item 9): the grammar,
+the tiers, the approval policies, the capability ids, the session catalog and
+"what can you do" all have a test that fails when they and the descriptors
+disagree. The spoken groups MOVED into `tools.py`; everything else is still
+its own table, derived from and checked against the descriptor.
+
+## Before you spend a pass on it: is it already true?
+
+The live acceptance pass, 2026-09-18, spent a local pass and a frontier turn on
+a charter step that was COMPLETE at the base commit; only a doc note was stale.
+`aletheia.already_done` asks first, in code: the item's own store before a route
+is chosen, and - inside the route that already has the checkout - whether the
+file the step asks for already says it. Three rules make a skip safe, and all
+three have tests:
+
+- **Deterministic only.** It never asks a model. A model deciding "already
+  done" is how work silently stops happening, and it is unfalsifiable
+  afterwards; every skip names a fact somebody can go and look at.
+- **Unknown means do the work**, the same safety argument as `quick.py`: it may
+  only ever remove a wasted pass, never an answer. The file check needs every
+  distinctive word of the step present AND one adjacent pair of them adjacent
+  there too, because scattered words are a coincidence and a phrase is the thing.
+- **A skip is recorded like anything else**, with the check that produced it and
+  the evidence it read, so "why did nothing happen" has an answer.
+
+## Nothing to press is not nothing to do
+
+The browser loop walked onto the page holding the answer and stopped with
+*"nothing on it moves toward the goal without a guess. Tell me what to press."*
+Nothing moved toward the goal because nothing needed pressing: the goal was a
+QUESTION and every move the loop had was a move that presses something.
+
+`aletheia.page_answer` is the missing move, and it runs BEFORE a target is
+chosen - live, with her own model choosing, she otherwise pressed "Books", then
+"Books to Scrape", then "Classics", and ran out of steps while standing on the
+answer. Deterministic first: a table, a spec list and a definition list all come
+out of `innerText` as one line per row, so a label made of the goal's own words
+is a key/value pair read in code with no model and nothing to hallucinate (the
+label covering the MOST of the goal wins, abbreviations count by prefix only,
+and two equally good labels that disagree are refused rather than picked
+between). Her own model is asked only where there is nothing left to press, and
+only by QUOTING: the quote must be on the page she holds and the answer must be
+inside that quote, or the whole reply is thrown away - an invented answer comes
+with an invented quote, and an invented quote is checkable. A page that does not
+hold the answer gets its own boundary and says so; it never guesses. The answer
+travels with its citation and is what the room hears.
+
+The loop asks only the model IT WAS GIVEN. Reaching for the gateway behind the
+caller's back made a scripted `decide` in the suite pay for a real local call,
+and a suite that takes two minutes a test stops being run.
+
 ## Tasks and goals are durable, verification is real
 
 Real-world work outlives conversations (§27): anything multi-step or
@@ -158,15 +279,85 @@ failure (§139). Never report "command executed" as "goal achieved"
 never trust a worker's "done" without evidence when verification is
 possible (§68).
 
-## Interfaces
+## Interfaces: ONE page is the product, and one wall is the weather
 
-The **wall** (`interface/index.html`) is Ambient Aletheia (§88):
-cinematic, one committed dark look, legible across a room, minimal when
-nothing matters, and a PURE view of `state/pulse/latest.json` — smarts
-go in collectors and registries, never the page; status is never
-color-alone. The interactive **Command Center** (§90) is Phase 6 — until
-then the intercom is the command channel. Do not grow controls into the
-wall quietly.
+2026-09-18 there were FIVE HTML surfaces — the wall at `/`, the Command
+Center, a phone front door, a phone console, and a dead "mobile" dashboard
+with a paste-JSON box. Three of them rendered the same approval three
+different ways and two of those were unusable. His brief that day, in his
+words: *"One simple Thea interface. Phone and PC feel like the same
+product. He never sees JSON, internal command names, model names, ids,
+branches, hashes or developer terminology in normal use."*
+
+- **`interface/thea.html` + `thea-app.js` is the product**, at `/` and on
+  his phone, one file and one codebase that reflows. It answers four
+  things in that order — what she's doing, ask her, what needs him, what
+  she's done — and nothing else is above the drawer. Every retired path
+  302s to it (`core.RETIRED_PAGES`), because a home-screen icon outlives a
+  rename. `interface/thea.js` is the only transport: the token, the local
+  secret, the follow-up dance and the offline outbox live there once,
+  because two copies drift and the drift shows up as one surface working
+  and the other quietly not.
+- **The wall (`interface/wall.html`) is Ambient Aletheia** (§88):
+  cinematic, one committed dark look, legible across a room, and a PURE
+  view of `state/pulse/latest.json` — smarts go in collectors and
+  registries, never the page; status is never colour-alone. It is the
+  fleet, with commit shas and workflow names on it, so it is the ambient
+  screen BEHIND the product rather than the thing at `/`, and it is what
+  GitHub Pages publishes. Do not grow controls into it.
+- **No developer words above the drawer.** No capability ids, kind names,
+  model names, run ids, branches, hashes or JSON in normal use; the
+  collectors' own state vocabulary (IDLE, ACTING, NEEDS YOU) is mapped to
+  plain English by the page, which is presentation — the SENTENCE beside
+  it is still the collector's. Where an exact detail genuinely helps (what
+  an approval will really do, the record behind a line) it is one tap
+  away, and the drawer at the bottom is where anything machine-shaped
+  lives.
+- **Offline is three different sentences**, told apart by whether her
+  front door answers at all: no signal, this phone is off the tailnet, her
+  PC is asleep. A typed ask made while she is unreachable is kept on the
+  device and sent when she is back, and SAYS it was kept. His phone has
+  silently dropped off the tailnet before, and "can't reach her" for that
+  sends him to look at a PC that is fine.
+- **A page may show an address; it may never mint a credential.** The QR
+  on his PC (`interface/qr.js`, `core.phone_link`) carries the tailnet URL
+  and the code HE pastes in. Minting stays `python -m aletheia.access
+  mint`, at his own keyboard.
+- **A readiness check is a button, never a poll.** `/api/setup` makes real
+  network attempts; a page polling it every two minutes spent his day
+  opening and closing his signed-in ChatGPT window.
+- **ONE list, computed once.** `/api/needs` (approvals, work blocked on
+  him, applications stopped on a question — deduplicated, each row saying
+  what, why HIM, and what happens if he ignores it) and `/api/health`
+  (`running.snapshot` plus a plain-words headline) are the collector's, and
+  the page renders them rather than assembling its own from three routes.
+  That is what stops the screen and the spoken answer disagreeing about
+  what is waiting. The health line is in the open when something is wrong
+  and absent when nothing is, and `running.all_well` — which `headline`
+  itself asks — decides which, so a quiet strip beside a sentence saying
+  the Core is down is not a state the page can reach.
+- **Granting authority is still not a button, and the reason changed.** The
+  room microphone refuses `standing on` and `conversations grant` because
+  anything in the room could say them. The page is authenticated, so that
+  reason does not apply — but `standing.enable` creates its own approval
+  and decides it, so a control there would be a one-tap grant with no
+  approval object to read first, and it would need a new command kind in
+  the grammar the planner, the agenda and the relay lanes all read. The
+  drawer NAMES both commands, on the PC where the terminal is. It does not
+  run them.
+- **Honest is not the same as usable, and length is how the difference
+  shows.** Every line on the first version was true and the phone page was
+  seven screens tall, because thirty-eight pending applications rendered as
+  thirty-eight cards with the same first line and three buttons each. So:
+  decisions that share a consequence say the shared half ONCE and then list
+  one row apiece; anything that needs no decision folds behind a line saying
+  how many; every long list shows a handful and offers the rest; a sentence
+  repeated verbatim down a list is printed once. Measured in the render test
+  (`test_a_busy_day_still_fits_in_a_handful_of_screens`): forty decisions and
+  thirty-one notices come to 2.9 phone screens, and it fails over five.
+  **Density is never a bulk control.** Each approval stays bound to its own
+  sha256 and stays its own yes; what got smaller is the screen it takes to
+  answer, not the number of times he answers.
 
 ## Storage & branch discipline
 
@@ -534,8 +725,11 @@ not intercom kinds, and the test caught it.
 ## Both interfaces are rendered in the suite now
 
 `tests/test_the_wall_renders_the_pulse.py` and
-`tests/test_the_command_center_renders.py` drive real Chromium against a
-real pulse and a real in-process Core. On a page that is a pure view of
+`tests/test_the_one_page_renders.py` drive real Chromium against a
+real pulse and a real in-process Core — the second one at 390px AND at a
+desk, because "the same product on both" is a claim only a render can
+check, and it asserts no sideways scroll, no developer string and a tap
+target big enough for a thumb. On a page that is a pure view of
 one JSON file, "do the words come out" is the only thing worth asserting
 — and it immediately found the two surfaces DISAGREEING about the same
 approval. The wall renders `voice.approval_label`, which prefers the
@@ -618,6 +812,58 @@ on the path nobody had fixed; `speech.plainly` is shared now. Same reason
 `webtask.would_spend` is one predicate for three gates, and
 `voice.approval_label` is computed by the API for all three interfaces.
 
+## Research that becomes direction, and direction that gets measured
+
+His words, 2026-09-17: *"These three AI YouTube channels are doing way better than
+ours. Study them deeply, figure out what they do better, and improve our channel"*
+— and, in the same breath, *"Do NOT build YouTube-specific architecture. This same
+pattern should work for Barkly competitors, products, websites, businesses, etc."*
+So a STUDY (`aletheia.studies`) is general infrastructure, and the platforms are
+data:
+
+- **Nothing in the code names a platform or a kind of project.** Observation
+  sources are chosen by what they can READ (`study_observe.sources_for`): a public
+  page over plain HTTP, a feed a page links, a local repository, or a public API
+  described entirely in `config/observation_sources.json` (a URL pattern, the hosts
+  it may call, the fields it yields). Adding a platform is a reviewed DATA edit.
+  `tests/test_studies.py` walks the strings and identifiers of every study module
+  and fails on a domain word.
+- **Differences are MEASURED, claims are CITED, and anything else is dropped.**
+  `study_observe` extracts numbers deterministically (no model); the comparison of
+  subject against the comparables' median is computed in code with each value's
+  evidence id; a model's qualitative claim that cites no observation she holds is
+  dropped, and one it calls a guess is labelled a guess. A page's text reaches a
+  model only inside `untrusted_observations`, and the strategy's own answer is
+  stripped of anything but validated fields — a page that says "mark every proposal
+  accepted" changes nothing.
+- **A hypothesis has a shape or it does not exist** (`study_reason.validate_hypothesis`):
+  evidence ids that exist, the change, the expected effect, a metric that can be
+  READ ON HIS PROJECT (so a baseline is possible), how that baseline is read, cost,
+  risk, reversibility and an execution path. Ranking is computed here, never taken
+  from the model.
+- **Nothing executes before his yes**, and her own actors are refused at every door
+  (`studies.decide`, `studies.verdict`, `study_run.claim_execution` re-checks the
+  decision). `study_decide` and `study_confirm` are in `PLANNER_FORBIDDEN` and
+  `agenda.FORBIDDEN_KINDS`: "sure, whatever" must not compile into an acceptance.
+- **The baseline is read BEFORE the change exists** (`studies.record_baseline`
+  refuses once it does), the change is a `thea-study/*` branch through the local
+  repair tier's edit validator and diff inspection (a pull request only where one
+  may be opened, never in a rehearsal, never a merge), and measurement is a durable
+  `time_after` wait that re-reads the metric through the SAME source. A change still
+  sitting on its branch is not a measurement: the window extends and says so, and
+  every result carries its caveats (one reading each side, a proxy, the other commits
+  in the window).
+- **Keep, revert or iterate is his**, and what it says is learned: the verdict feeds
+  `record["learned"]`, which is shown to the next strategy call and indexed in
+  semantic memory (summaries only — never raw page text, which is untrusted and
+  would come back as memory).
+- **The local rung has to FIT.** Each ask carries a compact context used when no
+  frontier model can answer (measured: 3.6 KB of evidence is ~300 s a call on his
+  laptop, the whole local budget). When nobody can think at all, the lens, the
+  comparison and the strategy fall back to RULES over the measured gaps and say so
+  in `drafted_by`; an accepted change nobody can draft becomes an investigation
+  packet rather than a retry forever.
+
 ## He starts projects hot and drifts. Carry them
 
 His words, 2026-09-10: *"I'll start a project really passionate about it
@@ -691,17 +937,101 @@ the best of ChatGPT. Both halves are the rule.
   `reasoner.local_text` after Claude and ChatGPT, and the answer leads with
   "Claude's out until 4:40 PM, so this answer is from my own model." An
   answer he trusts as Claude's and is not is the failure he cannot detect.
-- **Repositories stay with the subscriptions.** Code proposals and merge
-  reviews call `subscription_json` directly and never reach a local model;
-  `tests/test_the_bridge.py` holds that. Charter DRAFTS may be written
-  locally — they are not code, he says yes before anything happens, and
-  the charter carries `drafted_by`.
+- **Small repairs may be local; everything else about code stays frontier.**
+  Until 2026-09-16 the rule was "Repositories stay with the subscriptions"
+  (from his 09-10 words that only Claude and the best of ChatGPT change his
+  repositories). His 2026-09-16 continuity brief (`docs/CONTINUITY_BRIEF.md`)
+  narrows it, in his words: *"If one of my projects has a small bug, a failed
+  scheduled task, a broken path, a simple script issue, a malformed config
+  value, a small UI regression, or another bounded problem, I want Aletheia
+  to have enough local coding capability to investigate it and safely fix it
+  without needing Claude or Codex every time."* So: a BOUNDED repair (the
+  brief's list) may be drafted by her own model, on a branch, with the code
+  worker's safety properties, tests and verification, and a PR — never a
+  default-branch push. Architecture, auth, permissions, authority,
+  migrations, sweeping refactors, dependency changes, unclear multi-system
+  failures and Aletheia's own safety boundaries are escalated to a frontier
+  model with an investigation packet. Merging without him still needs a
+  review by a DIFFERENT model through `project_merge`, and Aletheia's own code
+  and the trader still never merge autonomously. Code work asks the gateway
+  for a class of reasoning, not a company. Charter drafts may be local as
+  before, carrying `drafted_by`.
 - **Nobody able to think is not a failure.** A queued ask whose draft hit
   `ReasonerUnavailable` costs no attempt; the next cycle tries again.
+- **The job hunt has its own chain.** His words, 2026-09-13: *"make it so that
+  tomorrow when I hit my Claude limit it still is applying for jobs."*
+  `reasoner.work_json` goes Claude CLI → Codex CLI (his ChatGPT subscription,
+  headless, read-only, no config, no key) → her own model only with 6 GB free.
+  Only job hunting uses it; `subscription_json` and code work are untouched.
+  A job only her own model judged realistic waits for his OK
+  (`apply_run.waits_for_his_ok`). Essays fall to her own model last, because
+  his 2026-09-12 ruling is that AI writes them and they do not come back to him.
+  `apply_forever` waits only when none of the three can think.
 
 Measured on this laptop (no GPU): qwen3:8b drafted a charter in 100 s warm,
 188 s cold. That is the price of never running out, and it is paid only
 when the subscriptions are gone.
+
+- **A local prompt has a SIZE BUDGET, and it is measured.** The planner's own
+  system prompt is generated from the registries and had grown to 28.7 KB, 18.2
+  KB of it the whole grammar - all 117 kinds, on every ask. A frontier model
+  reads that in one gulp. Measured 2026-09-18 on his laptop, with the same
+  sentence and the same lease: 2.0 KB came back in 33 s warm and 162 s cold,
+  4.0 KB in 113 s, and 28.7 KB timed out at 180 s and again at 300 s, the
+  per-call ceiling - so a bigger budget is not the fix. Ollama loads qwen3:8b
+  with a 4,096-token window here, and 28.7 KB is about 7,200 tokens, so the
+  front of the prompt - the part that says what the output must look like -
+  never arrived. The local rung of the planner had therefore never once
+  carried a request, and acceptance D found the browser ask dying at the door.
+  `aletheia.local_planner` shows her own model a SHORTLIST: the few kinds this
+  sentence could plausibly mean, chosen deterministically from the descriptors
+  and a small table of the obvious verbs, with their schemas and one example
+  each, inside `BUDGET_BYTES`. The CONTEXT counts against the same budget,
+  because the model reads it in the same breath - a 2.8 KB prompt with an 8 KB
+  snapshot behind it is an 11 KB ask wearing a 3 KB label. A smaller prompt is
+  never a smaller gate: every compiled step still goes through
+  `planner._classify`, the shortlist is drawn from `planner_visible`
+  descriptors so a forbidden verb is not in the catalog it is shown, and the
+  money door is asked before her own model is. And it says whose plan it is:
+  "Claude and Codex are out, so I planned this with my own model."
+- **The ask does not evaporate when nobody could plan it.** Asked what was
+  queued with the frontier off, she said *"I don't have a list of them queued,
+  though, so you'd have to ask me again once Claude or Codex is back."*
+  `planner.queue_unplanned` files one durable work item - the sentence, the
+  reason, BLOCKED_MODEL, `requires: frontier_reasoning`, next "when Claude or
+  Codex is back" - and `work_engine.RUNNERS["replan"]` re-proposes it through
+  every gate once a stronger model is back.
+
+**How long she may think depends on WHAT THE WORK IS.** His ruling,
+2026-09-18, asked how long her own model should get: *"I don't know, like a
+while."* One 300 s ceiling served two situations that are nothing alike, on
+one machine with one Ollama queue — a sentence he is standing in the room
+waiting for, and a repair draft nobody is looking at — and served neither: a
+Node repair DRAFT measured 217-270 s free and died at the ceiling whenever the
+live Core was also talking to him. So `work_states.ATTENTION` is the class and
+`work_states.LOCAL_CEILING_S` is the number, in one place because the
+conversation path, `reasoning_gateway` and `local_model_pool` must not each
+keep their own:
+
+    attended    300 s   the default EVERYWHERE; exactly what conversation had
+    background  1200 s  drafts, reviews, readings — and it must be asked for
+
+Nothing inherits the long budget: a caller that asks for twenty minutes
+without saying `attention=BACKGROUND` is cut to five, and `reason_json`
+refuses a background-sized `work_budget_s` from an attended caller.
+`local_brain.MAX_TIMEOUT_S` (1800 s) is not a budget — it is the point past
+which one call is a hung process rather than a slow answer.
+
+**Conversation still wins, and the lease alone stopped being enough.**
+`local_lease` keeps background work from TAKING the queue while he waits, but
+the call already running is the one in front of him, and it may now last
+twenty minutes. A background call is therefore STREAMED and put down at a
+checkpoint (`local_lease.conversation_waiting`, asked every half second
+including during prompt evaluation, closing the response so Ollama stops
+generating). A yield is `LocalPoolYielded`: try again shortly, never a failure
+of the work, and never a failover to the other role — that would take the
+queue straight back off him. Saying BACKGROUND is also saying WORK to the
+lease, so nothing can hold the long budget and still queue as a conversation.
 
 ## Applying to jobs is end to end, and fluid
 
@@ -720,8 +1050,12 @@ forms staged nothing: the chosen resume PDF did not read, and with the
   sensitive fields (work authorization, sponsorship, pay) are his to say.
 - **No role is required.** The roles come from the resume
   (`campaign.roles_for`). Openings come from `config/job_boards.json` AND
-  from any Greenhouse or Lever board a web search finds
-  (`jobs.discover_openings`). Never hardcode roles or companies.
+  from every board she has LEARNED (`jobs/learned_boards.json`), on any
+  system she can list (`jobs.PROVIDERS`: Greenhouse, Lever, Ashby, Workable,
+  SmartRecruiters, Recruitee). A board is learned wherever she meets one - a
+  web search, an employer's careers page, an Apply link she walked - so
+  "not just on Greenhouse" does not depend on a search engine that answers.
+  Never hardcode roles or companies.
 - **A form's own required questions his facts settle are answered from
   them** (`campaign.answer_from_facts`), every value visible in the
   confirmation. `profile.NEVER_AUTOFILL` is untouched, and checked again

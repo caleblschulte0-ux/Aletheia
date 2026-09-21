@@ -85,7 +85,26 @@ def _spoken_url(tail: str) -> str | None:
     t = re.sub(r"\s+slash\s+", "/", t)
     if "." not in t:
         return None
-    t = t.replace(" ", "")
+    # AN ADDRESS FOLLOWED BY AN OBJECTIVE IS NOT AN ADDRESS. Everything below
+    # joins the whole tail into one string, because that is how "example dot
+    # com" is said out loud - and that made "go to https://books.toscrape.com
+    # and tell me the title of the first book" into
+    # `https://books.toscrape.comandtellmethetitleofthefirstbook`, which she
+    # tried to load and reported back as "the address did not resolve"
+    # (measured live, acceptance D, 2026-09-18). A goal attached to a page is
+    # a web task; letting the planner have it is the whole point of returning
+    # None here. The joining still happens when the FIRST word is not already
+    # an address, so a spoken host ("my site dot com") is unchanged.
+    first, _, rest = t.partition(" ")
+    if rest.strip() and _one_address(first):
+        return None
+    return _one_address(t.replace(" ", ""))
+
+
+def _one_address(t: str) -> str | None:
+    """One token that is already an address, or None. No joining, no guessing."""
+    if not t or "." not in t:
+        return None
     if t.startswith(("http://", "https://")):
         return t
     host = t.split("/", 1)[0].split(":", 1)[0].split("?", 1)[0]
@@ -318,23 +337,37 @@ def _next_occurrence_iso(hhmm: str, *, bare_hour: bool = False,
 
 
 def _status_say() -> str:
+    """"What's going on?", answered the way a person answers it.
+
+    It read the dashboard out loud: **"1 fleet alert. 0 live tasks."**
+    Three things wrong in six words. Nobody says zero of anything — an
+    absent thing is not news, it is the absence of news. "Fleet alert" is
+    a word off a screen he is not looking at. And neither half answers
+    what he asked, which is what is HAPPENING, not how many rows are in
+    two tables.
+
+    So: what she is doing, then what is waiting on him, then the honest
+    "nothing" when that is really the answer. A count survives only where
+    it is the fact ("two tasks running"), never as a tally of nothing.
+    """
+    from aletheia import quick, speech
     from aletheia.core import status_payload  # late import; core imports us too
     s = status_payload()
-    parts = []
     if s["halted"]:
-        parts.append("I am HALTED — nothing acts until you say resume.")
+        return "I'm halted — nothing acts until you say resume."
+    parts = [quick.doing_words()]
+    pending = s["approvals_pending"]
+    if pending and "waiting on you" not in parts[0]:
+        parts.append(f"{speech.count_phrase(len(pending), 'thing')} needs your "
+                     "yes — approve it on your phone or at the keyboard; the "
+                     "routine ones I can take by voice.")
+    live = s["tasks"]["live"]
+    if live:
+        parts.append(f"{speech.count_phrase(live, 'task')} still running.")
     alerts = s["pulse"].get("alerts")
     if alerts:
-        parts.append(f"{alerts} fleet alert{'s' if alerts != 1 else ''}.")
-    live = s["tasks"]["live"]
-    parts.append(f"{live} live task{'s' if live != 1 else ''}.")
-    pending = s["approvals_pending"]
-    if pending:
-        parts.append(f"{len(pending)} approval{'s' if len(pending) != 1 else ''} "
-                     "waiting on you — approve them on your phone; the routine "
-                     "ones I can take by voice.")
-    if not s["halted"] and not alerts and not pending:
-        parts.append("All quiet.")
+        parts.append(f"{speech.count_phrase(alerts, 'thing')} in your "
+                     "repositories needs looking at.")
     return " ".join(parts)
 
 
@@ -345,36 +378,20 @@ def _status_say() -> str:
 # that are already durable local state. Deterministic is also more honest
 # here — it reports what the stores contain, with nothing to invent.
 def _attention_say() -> str:
-    """Read the durable attention queues locally; no model is needed."""
-    from aletheia import current_state
-    from aletheia.core import status_payload  # late import; core imports us too
+    """"What needs my attention" — the SAME answer as "what's waiting on me".
 
-    state = current_state.snapshot()
-    needs = state["needs_attention"]
-    parts = []
-    if state["halted"]:
-        parts.append("I am halted — nothing acts until you say resume.")
-    alerts = status_payload()["pulse"].get("alerts") or 0
-    if alerts:
-        parts.append(f"{alerts} fleet alert{'s' if alerts != 1 else ''}.")
-    for key, singular in (
-        ("pending_approvals", "approval waiting on you"),
-        ("waiting_operator", "task waiting on you"),
-        ("blocked_tasks", "blocked task"),
-        ("overdue_replies", "overdue reply"),
-    ):
-        count = len(needs[key])
-        if count:
-            plural = singular if count == 1 else (
-                singular.replace("approval", "approvals")
-                .replace("task", "tasks")
-                .replace("reply", "replies")
-            )
-            parts.append(f"{count} {plural}.")
-    unread = needs["unread_notifications"]
-    if unread:
-        parts.append(f"{unread} unread notification{'s' if unread != 1 else ''}.")
-    return " ".join(parts) or "Nothing needs your attention right now."
+    These were two questions with two implementations reading two
+    different sets of stores, and they disagreed: this one counted rows
+    ("1 approval waiting on you. 2 blocked tasks. 3 unread
+    notifications.") while the other named the thing. Two answers to one
+    question is how he learns to ask both and trust neither.
+
+    `quick._waiting` reads the one needs-you list, so there is one
+    implementation of "is anything sitting on me" and a row can only be
+    missing from both places or neither.
+    """
+    from aletheia import quick
+    return quick._waiting()
 
 
 # The days a weekly reminder can name, for the deterministic path.
@@ -463,6 +480,10 @@ def _not_a_file(said: str) -> bool:
     if not low:
         return True
     if low in _NOT_A_FILE:
+        return True
+    # "Where are you with Barkly", "where are we on the promo video": a
+    # question about how far some work has got, never a lost file.
+    if re.match(r"(?:you|u|we|things|it) (?:at )?(?:with|on)\b|(?:you|u|we) at\b", low):
         return True
     # "any unread emails", "my next meeting" — the store word anywhere in
     # a short phrase is enough, because none of those are filenames.
@@ -746,6 +767,55 @@ def interpret(transcript: str) -> dict:
     return _his_capitals(strip_wake_word(transcript), _interpret(transcript))
 
 
+def _a_study_is_open() -> bool:
+    """A study's own words ("accept the first one", "what did you find") mean a study only
+    when one is open; otherwise they belong to whatever else he might mean."""
+    try:
+        from aletheia import studies
+        return any(s.get("state") == studies.OPEN for s in studies.all_studies())
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _a_study_waits_for_a_verdict() -> bool:
+    try:
+        from aletheia import studies
+        return any(h.get("state") == studies.VERDICT for s in studies.all_studies() if s.get("state") == studies.OPEN
+                   for h in s.get("hypotheses") or [])
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _job_hunt_is_the_context() -> bool:
+    """Was the job hunt the last thing she did or talked about? True when a
+    batch ran, or an application was staged, in the last few hours, or the
+    last turn of the conversation was about it. Never raises."""
+    import datetime as dt
+    try:
+        from aletheia import current_state
+        hunt = current_state.job_hunt()
+        if hunt.get("running"):
+            return True
+        lock = hunt.get("campaign") or {}
+        started = lock.get("started_at")
+        if started:
+            when = dt.datetime.fromisoformat(str(started).replace("Z", "+00:00"))
+            if dt.datetime.now(dt.timezone.utc) - when < dt.timedelta(hours=6):
+                return True
+        today = hunt.get("today") or {}
+        if any(today.get(k) for k in ("discovered", "sent", "blocked", "ready")):
+            return True
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        from aletheia import converse
+        text = " ".join(f"{t.get('he_asked', '')} {t.get('she_answered', '')}"
+                        for t in converse.recent(2) if isinstance(t, dict)).casefold()
+        return bool(re.search(r"\b(apply|applying|applications?|job hunt|job search|jobs)\b", text))
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def _interpret(transcript: str) -> dict:
     text = strip_wake_word(transcript)
     low = _without_preamble(text.lower().strip().rstrip(".?!"))
@@ -914,6 +984,56 @@ def _interpret(transcript: str) -> dict:
         if "remote" in (m.group(2) or "").split():
             command["where"] = "remote"
         return {"command": command, "say": None}
+    # THE SENTENCE HAD TO CONTAIN "APPLY ... JOBS" OR IT WENT TO THE PLANNER.
+    # "Start applying", "keep going with the job search", "get back to
+    # applying", "find me more jobs and apply" - his ordinary ways of
+    # saying the one thing she is most often asked to do - each cost a
+    # frontier round trip, and on 2026-09-19 with the frontier out cost
+    # him the whole ask. The phrasing of a sentence must not gate a
+    # capability she has (the seamless brief, section 1). No count: the
+    # campaign's own default. "Keep going" on its own is only this when
+    # the job hunt is what she was last doing (`_job_hunt_is_the_context`);
+    # otherwise it asks, because a wrong guess opens real employer pages.
+    if re.fullmatch(
+            r"(?:(?:can you|could you|please|go|hey|just|ok|okay|now|go ahead and|let'?s) )*"
+            r"(?:(?:start|keep|continue|resume|restart|get back to|go back to|carry on|carry on with|"
+            r"get on with|get going with|get going on|go on with|crack on with|stay on|"
+            r"go and start|start on|begin|get|set|kick off|fire up|spin up) )?"
+            r"(?:(?:applying|apply)(?: (?:to|for) (?:(?:some |more |a few |new |remote |local |"
+            r"the |other )*(?:jobs|work|positions|places|companies|openings)))?"
+            r"|(?:the |my |our )?(?:job (?:hunt|search|hunting|applications?)|applications?|"
+            r"job stuff|hunt|hunting)(?: going| running| up| moving| rolling| back up| up again)?"
+            r"|(?:sending|send)(?: out)? (?:some |more |the |a few )?applications"
+            # Finding is only this when applying is said too: "look for
+            # jobs" on its own is a search, and a search does not fill forms.
+            r"|(?:finding|find|look for|looking for|search for|searching for)(?: me)? "
+            r"(?:some |more |a few |new |some more |remote )*(?:jobs|openings|positions|work)"
+            r" (?:and|then) (?:apply|apply to them|apply for them|send applications|start applying)"
+            r"|(?:go|get) (?:apply|applying)(?: (?:to|for) (?:some |more |a few |remote )*jobs)?"
+            r"|(?:get|go) back to (?:the )?(?:jobs|job hunt|applications|applying)"
+            r"|going with the (?:job (?:hunt|search)|applications))"
+            r"(?: for me| please| now| again| today| tonight| this (?:morning|afternoon|evening)"
+            r"| while i'?m (?:gone|out|away|asleep)| some more| a bit more)*", low) \
+            and re.search(r"\b(apply|applying|job|jobs|hunt|application|applications|openings|"
+                          r"positions|work)\b", low):
+        command = {"kind": "apply_campaign", "count": 5}
+        if "remote" in low.split():
+            command["where"] = "remote"
+        return {"command": command, "say": None}
+    # "KEEP GOING" / "CONTINUE" with nothing named: the job hunt when that
+    # is what she was last doing; otherwise ask, out loud, rather than
+    # guess at something that opens real employer pages.
+    if re.fullmatch(r"(?:(?:can you|could you|please|go|hey|just|ok|okay|now) )*"
+                    r"(?:keep going|keep at it|carry on|continue|keep it up|keep on|go on|"
+                    r"keep working|keep going with (?:that|it)|carry on with (?:that|it)|"
+                    r"continue (?:that|with that|with it)|more of (?:that|the same)|"
+                    r"do (?:that|it) again|again|another (?:batch|round))"
+                    r"(?: please| for me| now)*", low):
+        if _job_hunt_is_the_context():
+            return {"command": {"kind": "apply_campaign", "count": 5}, "say": None}
+        return {"command": None,
+                "say": "Keep going with what? Say the thing - the job hunt, a project, or "
+                       "a task - and I'll pick it back up."}
     # WHAT AN EMPLOYER DID about one he sent. Narrow on purpose: "I heard
     # back from Dana" is not about a job, and a pattern that swallows too
     # much answers a different question than the one he asked.
@@ -1280,6 +1400,39 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:clear|dismiss|acknowledge) (?:my |the )?notifications?", low):
         return {"command": {"kind": "notify_clear"}, "say": None}
 
+    # A STANDING PERMISSION TO SEND IN HIS NAME is not taken off the air, for the
+    # same reason standing authority is not: a television could say it. It is
+    # typed (aletheia.conversation_authority.grant_from_words).
+    if (re.search(r"(?:you can|you may|go ahead and|feel free to|you have my permission to)\b.*"
+                  r"follow[- ]?up.*without (?:asking|checking)", low)):
+        return {"command": None,
+                "say": ("I won't take permission to send emails in your name by voice - anything in the room "
+                        "could say it. Type it: python -m aletheia.conversations grant \"" + text.strip() + "\"")}
+
+    # "Did they reply", "did the landlord get back to me", "any word from the
+    # recruiter": read from the conversation she keeps, not guessed.
+    m = re.fullmatch(r"(?:did|has|have) (.+?) (?:replied|reply|respond|responded|(?:gotten|got|get) back(?: to (?:me|us))?|"
+                     r"written back|write back|answered|answer)(?: yet)?(?: to (?:me|us|my email))?"
+                     r"(?: about .+)?", low)
+    if not m:
+        m = re.fullmatch(r"any (?:reply|replies|response|word|answer) (?:from|back from) (.+?)(?: yet)?", low)
+    if m and not re.search(r"\bapplication\b", low):
+        which = m.group(1).strip()
+        which = "" if which in ("they", "them", "anyone", "anybody") else which
+        return {"command": {"kind": "thread_status", **({"which": which} if which else {})}, "say": None}
+
+    # "When am I free next week for a tour": a stretch of days and a purpose,
+    # around his calendar. The single-day form below stays free_time.
+    m = re.fullmatch(r"(?:when am i free|when are we free|when could i (?:fit in|do|schedule)(?: a| an)?|"
+                     r"what times? (?:am i|are we) free|when do i have time)\s+"
+                     r"(this week|next week|this weekend|the next few days|next few days|next two weeks)"
+                     r"(?:\s+for (?:a |an |the )?(.+?))?", low)
+    if m:
+        command = {"kind": "calendar_find_free", "when": m.group(1).replace("the ", "")}
+        if m.group(2):
+            command["purpose"] = m.group(2).strip()
+        return {"command": command, "say": None}
+
     # free time. "Am I free tomorrow afternoon" is how a person asks this
     # and it matched none of these, so it fell through to the planner: six
     # and a half seconds, and the word "afternoon" thrown away on the way.
@@ -1309,8 +1462,13 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "contact_add", "name": m.group(1).strip(),
                             "email": m.group(2).strip()}, "say": None}
 
-    # "what do you still need from me?"
-    if re.fullmatch(r"(?:what do you (?:still )?need(?: from me)?|"
+    # "what do you still need from me?" - SETUP. Not the bare "what do you
+    # need from me": that is the brief's fourth question, about what is
+    # waiting on him (approvals, applications stopped on his answers), and
+    # `quick` answers it in a file read. Said out loud it was sent here
+    # instead, to a twenty-second live setup audit, while typing the same
+    # sentence got the answer he meant - two doors, two answers.
+    if re.fullmatch(r"(?:what do you still need(?: from me)?|"
                     r"what'?s left(?: to set up)?|am i done|"
                     r"what'?s still missing|setup status)", low):
         return {"command": {"kind": "setup_status"}, "say": None}
@@ -1460,6 +1618,103 @@ def _interpret(transcript: str) -> dict:
                     r"how many miles (?:are )?on (?:my|the) car|"
                     r"what(?:'s| is|s)? the mileage(?: on (?:my|the) car)?)", low):
         return {"command": {"kind": "car"}, "say": None}
+
+    # HIS LONG MISSIONS, BY SAYING SO (aletheia.programs). An objective that
+    # runs for weeks is a sentence; so is adding to it, confirming its draft,
+    # and asking what it waits on. The draft is a model's; the yes is his, and
+    # it is only ever this layer that reads "confirm my mission" as that yes -
+    # the words that start it are matched here, never compiled.
+    m = re.fullmatch(r"(?:(?:i want to |let's |lets |please )?(?:start|begin|create|make|open) )"
+                     r"(?:a |my |the )?(?:new )?(?:(?:long|big|long-term|long term) )?mission"
+                     r"(?: called| about| for| to)?[:,]? (.{3,})", low)
+    if m and not re.fullmatch(r"(?:draft|now|again|please)", m.group(1).strip()):
+        return {"command": {"kind": "mission_new", "objective": _as_he_said(transcript, m.group(1))},
+                "say": None}
+    if re.fullmatch(r"(?:yes[,]? )?(?:confirm|activate|launch|go ahead with|start) (?:the |my )?"
+                    r"(?:(?:long|big|new) )?mission(?: draft| now)?(?:[,]? please)?", low):
+        return {"command": {"kind": "mission_confirm"}, "say": None}
+    m = re.fullmatch(r"(?:add (?:this )?to|for|on|about|update) (?:my|the) (?:(?:long|big) )?mission[:,]? (.{2,})"
+                     r"|(?:my|the) (?:(?:long|big) )?mission[:,] (.{2,})", low)
+    if m:
+        return {"command": {"kind": "mission_add", "text": _as_he_said(transcript, m.group(1) or m.group(2))},
+                "say": None}
+    if re.fullmatch(r"what (?:are|r) we (?:still )?waiting (?:on|for)(?: now)?"
+                    r"|what(?:'s| is|s) (?:my |the )?(?:(?:long|big) )?mission (?:still )?waiting (?:on|for)"
+                    r"|what (?:are|is) (?:my |the )?(?:(?:long|big) )?missions? (?:still )?waiting (?:on|for)", low):
+        return {"command": {"kind": "missions", "about": "waiting"}, "say": None}
+    if re.fullmatch(r"how(?:'s| is|s) (?:my |the )?(?:(?:long|big) )?mission(?: going| coming along| doing)?"
+                    r"|how are my (?:(?:long|big) )?missions(?: going)?"
+                    r"|(?:my |the )?(?:(?:long|big) )?missions?(?: status)?|mission status|where(?:'s| is) my mission at", low):
+        return {"command": {"kind": "missions"}, "say": None}
+
+    # "STUDY THESE AND IMPROVE MY PROJECT." (aletheia.studies) - research that turns
+    # into changes he decides on, then measurement. An ORDER to study AND improve
+    # something of his: a question about a study ("how's the study going") starts
+    # with a question word and is matched below, never here.
+    if (not re.match(r"(?:how|what|why|when|where|which|who|is|are|did|does|do|can you tell)\b", low)
+            and re.search(r"\b(?:stud(?:y|ied)|research|analy[sz]e|dig into|look (?:in)?to|learn from)\b", low)
+            and re.search(r"\b(?:improve|do(?:ing)? (?:way |much |a lot )?better|make (?:it|ours|mine|my \w+|our \w+) better|"
+                          r"better than (?:ours|mine|my|our))\b", low)
+            and re.search(r"\b(?:my|our|ours|mine)\b", low)):
+        return {"command": {"kind": "study_new", "words": _as_he_said(text, low)}, "say": None}
+    m = re.fullmatch(r"(accept|reject|reshape|decline|turn down) (?:the |proposal |change |idea |hypothesis |number )?"
+                     r"(first|second|third|fourth|fifth|top|last|\d)(?: one| idea| proposal| change| hypothesis)?"
+                     r"(?:[:,]? (?:so that |to |and |but )?(.{3,}))?", low)
+    if m and _a_study_is_open():
+        choice = {"decline": "reject", "turn down": "reject"}.get(m.group(1), m.group(1))
+        cmd = {"kind": "study_decide", "choice": choice, "which": m.group(2)}
+        if m.group(3):
+            cmd["words"] = _as_he_said(text, m.group(3))
+        return {"command": cmd, "say": None}
+    m = re.fullmatch(r"(keep|revert|undo|roll back|iterate on) (?:the |that |this )?(?:study |measured )?change"
+                     r"(?: (?:from|in) the study)?|(iterate on|keep|revert) (?:it|that)(?: then)?", low)
+    if m and _a_study_waits_for_a_verdict():
+        verb = m.group(1) or m.group(2)
+        choice = {"undo": "revert", "roll back": "revert", "iterate on": "iterate"}.get(verb, verb)
+        return {"command": {"kind": "study_decide", "choice": choice}, "say": None}
+    if re.fullmatch(r"(?:yes[,]? |ok(?:ay)?[,]? |sure[,]? )?(?:go ahead and )?(?:study|read) (?:them|those)(?: (?:too|then|now))?"
+                    r"|confirm (?:the |those )?comparables", low) and _a_study_is_open():
+        return {"command": {"kind": "study_confirm"}, "say": None}
+    if re.fullmatch(r"how(?:'s| is|s) (?:the |my |our |your )?(?:study|research study)(?: (?:going|coming along|doing))?"
+                    r"|(?:the |my )?study(?: status| update)"
+                    r"|where (?:are we|is it) (?:with|on) the study", low):
+        return {"command": {"kind": "studies"}, "say": None}
+    if re.fullmatch(r"what did (?:you|the study|your study) (?:find|learn|measure)(?: out)?(?: (?:in|from|about) (?:the study|them|it))?"
+                    r"|what(?:'s| is|s| are) (?:the )?(?:study'?s? )?findings", low) and _a_study_is_open():
+        return {"command": {"kind": "studies", "about": "found"}, "say": None}
+    if re.fullmatch(r"what should (?:we|i|you) change(?: (?:about|in|on) (?:it|my \w+|our \w+|the project))?"
+                    r"|what (?:changes|proposals) (?:do you have|are there|did you come up with)"
+                    r"|what do you (?:propose|suggest) (?:we |i )?change", low) and _a_study_is_open():
+        return {"command": {"kind": "studies", "about": "change"}, "say": None}
+
+    # "WORK ON MY PROJECTS." (aletheia.project_work) - the continuity brief's final
+    # target, said the ways he says it. An ORDER to work, never a question about
+    # the projects ("how are my projects" stays below). "Stop working on X" is a
+    # drop, so only "keep/start/go" forms and the bare order are matched here.
+    if re.fullmatch(r"(?:(?:can|could|would|will) (?:you|u) |i (?:want|need) (?:you )?to |let'?s |go |now |just )?"
+                    r"(?:(?:go |get |start |keep |continue |carry on |get back to )(?:on )?)?"
+                    r"(?:work(?:ing)?|crack(?:ing)?|mak(?:e|ing) progress|push(?:ing)?|grind(?:ing)?) on "
+                    r"(?:all )?(?:my|our|the|his) (?:projects?|stuff|things|work|repos|code)"
+                    r"(?: (?:for (?:a (?:while|bit)|me|now|(?:the next )?(?:an? )?(?:hour|half(?: an)? hour|\d+ minutes?))|"
+                    r"now|today|tonight|"
+                    r"while i'?m (?:gone|away|out)|please))*"
+                    r"|(?:(?:can|could) (?:you|u) )?(?:get|do) some work done(?: on (?:my|our|the) (?:projects?|stuff))?"
+                    r"(?: (?:for me|now|please))*"
+                    r"|what (?:can|could) (?:you|u) get done(?: (?:right now|now|today|for me|without claude))*"
+                    r"|(?:go |get )?(?:be )?productive(?: on (?:my|the) projects?)?"
+                    r"|keep (?:going|working) on (?:my|the|our) (?:projects?|stuff|work)", low):
+        minutes = None
+        found = re.search(r"for (?:the next )?(an hour|half an hour|hour|half hour|(\d+) minutes?)", low)
+        if found:
+            minutes = int(found.group(2)) if found.group(2) else (30 if "half" in found.group(1) else 60)
+        return {"command": {"kind": "work_projects", **({"minutes": minutes} if minutes else {})}, "say": None}
+    if re.fullmatch(r"what (?:did|have) (?:you|u) (?:get|got|gotten|finish|finished|do|done) (?:done )?"
+                    r"(?:on|with|for) (?:my|the|our) (?:projects?|stuff|work)(?: (?:today|so far|just now))?"
+                    r"|how(?:'s| is|s| did) (?:the |your |my )?work(?:ing)? session (?:go(?:ing)?|doing)"
+                    r"|how(?:'s| is|s) the work (?:on my projects )?going"
+                    r"|what came of (?:the |your )?work(?:ing)? session"
+                    r"|(?:give me )?(?:the |a )?work (?:session )?report", low):
+        return {"command": {"kind": "work_report"}, "say": None}
 
     if re.fullmatch(r"(?:my projects?|what projects are (?:open|active)|"
                     r"what am i working on|"
@@ -1770,6 +2025,19 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "email_draft", "to": m.group(1).strip(),
                             "body": m.group(2).strip()}, "say": None}
 
+    # "Email the landlord about the listing": a CONVERSATION she carries - the
+    # draft, the reply, the follow-up - rather than one message and forget.
+    m = re.match(r"(?:e?mail|write to|reach out to|contact)\s+(.+?)\s+(?:about|regarding|asking about|to ask about)"
+                 r"\s+(.+)", low)
+    if m and not re.search(r"\b(?:remind|reminder)\b", low):
+        return {"command": {"kind": "thread_draft", "to": m.group(1).strip(),
+                            "about": m.group(2).strip()}, "say": None}
+
+    # "Follow up with the landlord."
+    m = re.fullmatch(r"(?:follow up|nudge|chase up|check in)(?: with| on)? (.+?)(?: for me)?", low)
+    if m and not re.search(r"\b(?:remind|task|application)\b", low):
+        return {"command": {"kind": "thread_followup", "thread": m.group(1).strip()}, "say": None}
+
     # BEFORE the browse pattern: "look into X" and "look at example.com" both
     # start with "look", and the browse branch would swallow the first, then
     # complain it heard no web address.
@@ -2068,6 +2336,71 @@ def _how_long_ago(approval: dict) -> str:
     return "a few minutes ago"
 
 
+#: An application approval's id is `<run id>-submit`, and the run id is
+#: `apply-<tag of the url>`. The record beside it knows the employer.
+_APPLICATION_APPROVAL = "-submit"
+
+
+def _application_label(approval: dict) -> str:
+    """"Analyst at Notion", never "Submit an application at <a link>".
+
+    Never raises and never guesses: an unreadable record, or one that
+    knows neither the employer nor the role, falls back to whatever the
+    rest of `approval_label` would have said.
+    """
+    approval_id = str((approval or {}).get("id") or "")
+    if not approval_id.endswith(_APPLICATION_APPROVAL):
+        return ""
+    try:
+        from aletheia import apply_run
+        record = apply_run.load_run(approval_id[:-len(_APPLICATION_APPROVAL)])
+        if not (record.get("company") or record.get("job_title")):
+            return ""
+        return speech.for_the_room(apply_run.describe(record))[:80]
+    except Exception:
+        return ""
+
+
+#: A browser mission's approval id is `<mission id>--g<n>-commit-<digest>`
+#: (`browser_loop._gate`). The mission beside it knows what it is about.
+_MISSION_APPROVAL = re.compile(r"^(?P<mission>.+?)--g\d+-commit-[0-9a-f]+$")
+
+
+def _mission_label(approval: dict) -> str:
+    """"'Create Account' for Account Manager II at PNC", never "apply for
+    this job".
+
+    Sixteen of his thirty-eight pending approvals came from the browser
+    loop on 2026-09-19, and every one of them said "apply for this job"
+    and named no employer and no role — while the mission's own record
+    knew both. `_application_label` does this for the form filler's
+    approvals from the apply record; this does it for the loop's from the
+    mission, which is the other half of the same list.
+
+    Never raises and never guesses: a mission it cannot read, or a skill
+    that cannot name its subject, says nothing and the rest of
+    `approval_label` speaks as before.
+    """
+    hit = _MISSION_APPROVAL.match(str((approval or {}).get("id") or ""))
+    if not hit or str(approval.get("capability") or "") != "web.commit":
+        return ""
+    try:
+        # Importing the job skill is also what registers it, so a mission
+        # that ran with it is findable by the name on its record.
+        from aletheia import browser_loop, browser_mission, job_skill  # noqa: F401
+        record = browser_mission.load(hit.group("mission"))
+        about = browser_loop.skill_named(record.get("skill")).subject(record)
+        if not about:
+            return ""
+        button = " ".join(str((record.get("gate") or {}).get("button") or "").split())
+        # `shorten`, never `said[:80]`: a headline cut mid-word ("...Large Cor")
+        # is the thing CLAUDE.md already names as the wrong way to do this.
+        return speech.shorten(
+            speech.for_the_room(f"press {button!r} for {about}" if button else about), 80)
+    except Exception:
+        return ""
+
+
 def approval_label(approval: dict) -> str:
     """What this approval is, in words he would recognise."""
     from aletheia import speech
@@ -2084,6 +2417,18 @@ def approval_label(approval: dict) -> str:
     if capability == "agent.delegate" or action.startswith("delegate"):
         return "the work order"
 
+    # AN APPLICATION IS NAMED BY THE EMPLOYER AND THE ROLE, always.
+    # Half of them said "Apply: <page title> — <url>" and the other half
+    # "Submit an application at <url>", depending on which path staged
+    # them — so the same list showed him two shapes, and one of them was
+    # a link where a company should be. The employer and the job title
+    # are on the application RECORD, whose id prefixes the approval's,
+    # and `apply_run.describe` is already the one sentence that names an
+    # application the way he would.
+    said = _application_label(approval) or _mission_label(approval)
+    if said:
+        return said
+
     # WHAT WILL HAPPEN beats both the reason and a category. The
     # consequence is the plan's own summary of what it will do, which is
     # the thing he is deciding about; the reason on an intent approval is
@@ -2098,15 +2443,19 @@ def approval_label(approval: dict) -> str:
     # the consequential one was the nameless one.
     said = speech.tidy(speech.strip_ids(str(approval.get("consequence", ""))))
     if said and said.lower() not in ("see the plan", "unknown"):
-        return said[:80]
+        # NOT `said[:80]`. On his screen that read "It presses a button that
+        # says 'Create Account'. That is not something she can un" — cut
+        # mid-word, as the headline of a decision he cannot undo.
+        # `speech.shorten` exists for exactly this and cuts at a space.
+        return speech.shorten(said, 80)
     if capability == "calendar.write" or action.startswith("calendar.write"):
         return "the calendar booking"
     if capability.startswith("intent.execute"):
         return "the plan"
     reason = speech.tidy(speech.strip_ids(_unwrap(str(approval.get("reason", "")))))
     if reason:
-        return reason[:80]
-    return speech.tidy(speech.strip_ids(action))[:60] or "the pending one"
+        return speech.shorten(reason, 80)
+    return speech.shorten(speech.tidy(speech.strip_ids(action)), 60) or "the pending one"
 
 
 # The room microphone is an INPUT device, not an authentication device
@@ -2202,6 +2551,50 @@ _WRAPPERS = re.compile(
     r'^\s*operator said:\s*"?|^\s*(?:spoken to the wall|typed into the '
     r'command center|relayed by chatgpt):\s*|^\s*thea[,: ]\s*|"\s*$',
     re.I)
+
+
+#: A URL inside a sentence he is deciding about. He does not need the path,
+#: the query or the tracking token in it — he needs to know which site.
+_URL_IN_A_SENTENCE = re.compile(r"https?://([^\s/]+)\S*")
+#: What a sentence is left dangling on when the URL it ended with is removed.
+_DANGLING = {"at", "to", "on", "for", "from", "in", "with", "via"}
+
+
+def approval_about(approval: dict) -> str:
+    """WHICH one — the line that tells two approvals apart. "" when the
+    reason says nothing the label has not already said.
+
+    Live on his machine, 2026-09-19: thirty-eight pending approvals, every
+    one of them reading *"It sends your application to this employer under
+    your name. There is no undo."* That consequence is true, it is the
+    right headline, and it is identical for all thirty-eight — so the
+    screen asked him to make thirty-eight irreversible decisions with
+    nothing on it to tell them apart. The job and the employer were in
+    `reason` the whole time, under a transport wrapper and behind a
+    tracking URL, which is exactly why `approval_label` does not use it.
+
+    So this is the sub-line and never the headline: his words with the
+    wrapper peeled off and ids stripped, a URL reduced to its host and
+    kept only when dropping it would leave the sentence hanging on a
+    preposition. Nothing is invented, nothing is decided, and a reason
+    that only repeats the label returns "" rather than saying it twice.
+    """
+    from aletheia import speech
+    said = speech.tidy(speech.strip_ids(_unwrap(str(approval.get("reason", "")))))
+    if not said:
+        return ""
+    bare = " ".join(_URL_IN_A_SENTENCE.sub(" ", said).split()).rstrip(",;:-— ")
+    words = bare.split()
+    if words and words[-1].lower().strip(",;:-—") not in _DANGLING:
+        said = bare
+    else:
+        said = " ".join(
+            _URL_IN_A_SENTENCE.sub(lambda m: " " + m.group(1), said).split())
+    label = approval_label(approval).lower()
+    meaningful = [w for w in re.findall(r"[a-z0-9]+", said.lower()) if len(w) > 3]
+    if meaningful and all(w in label for w in meaningful):
+        return ""                      # it would say the same thing twice
+    return said[:120]
 
 
 def _unwrap(reason: str) -> str:

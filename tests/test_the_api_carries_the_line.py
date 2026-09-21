@@ -93,7 +93,7 @@ class TheEndpointRendersItCase(unittest.TestCase):
 
     def test_the_page_never_has_to_know_about_categories(self):
         """The point: no surface reimplements this."""
-        with open(core.__file__.replace("core.py", "../interface/mobile.js"),
+        with open(core.__file__.replace("core.py", "../interface/thea-app.js"),
                   encoding="utf-8") as handle:
             page = handle.read()
         self.assertIn("n.says", page)

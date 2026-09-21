@@ -51,6 +51,15 @@ GOAL_STEP_OWNERS = {"thea", "caleb"}
 GOAL_PROJECT_RISKS = {"low", "high"}
 
 
+# The continuity vocabulary (work states, requirements, gap outcomes) lives in
+# its own dependency-free module so every queue can import it; it is part of
+# this vocabulary all the same.
+from aletheia.work_states import (  # noqa: E402,F401
+    WORK_STATES, WORK_TERMINAL, WORK_WAITING, REQUIREMENTS, GAP_OUTCOMES,
+    REASONING_CLASSES, ATTENTION, ATTENDED, BACKGROUND,
+)
+
+
 # ---- validator machinery ----------------------------------------------------
 
 def _check(obj: dict, name: str, required: dict, optional: dict) -> list[str]:
@@ -90,6 +99,10 @@ def validate_capability(c: dict) -> list[str]:
         # the importable module that performs this capability. Declaring it
         # makes NOT_BUILT falsifiable: see tests/test_contracts.py.
         "module": str,
+        # A standing grant over this capability must name a SCOPE (a thread or
+        # a recipient, the purposes it covers, what it may disclose), and a
+        # grant without one authorizes nothing. `aletheia.authority` enforces it.
+        "grant_requires_scope": bool,
     })
 
 

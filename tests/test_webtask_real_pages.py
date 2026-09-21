@@ -179,10 +179,14 @@ document.getElementById('resume').addEventListener('change', (e) => {
   setTimeout(() => { document.getElementById('shown').innerText = name; }, 800);
 });
 </script>"""
-# The same form with an upload that never finishes.
+# The same form with an upload that never finishes: the progress bar Flexport
+# showed, still at zero. A box that holds the file with nothing at work is a
+# form that took it (Lever never prints the name), so the stuck case has to
+# look stuck.
 UPLOAD_STUCK = """<form method="POST" action="/submit">
 <label for="fn">First name *</label><input id="fn" name="first_name" required>
 <label for="resume">Resume/CV *</label><input type="file" id="resume" accept=".pdf">
+<div class="upload-progress" role="progressbar" aria-valuenow="0">Uploading</div>
 <button type="submit">Submit application</button></form>"""
 
 
@@ -441,7 +445,8 @@ class TheResumeIsOnTheFormBeforeAnythingHappens(RealPageCase):
         staged = Path(self.tmp.name) / "applications"
         staged.mkdir(exist_ok=True)
         with mock.patch.object(apply_run, "staged_dir", lambda: staged), \
-             mock.patch.object(apply_run, "UPLOAD_SETTLE_MS", 2500):
+             mock.patch.object(apply_run, "UPLOAD_SETTLE_MS", 2500), \
+             mock.patch.object(apply_run, "UPLOAD_WORKING_MS", 2500):
             return apply_run.stage(self.base + path, resume=str(resume))
 
     def test_it_waits_for_the_page_to_take_the_file(self):

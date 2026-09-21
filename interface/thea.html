@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0a0b0e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Thea">
+<link rel="manifest" href="/interface/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/interface/icon.svg">
+<title>Thea</title>
+<style>
+/* THEA — one page, one product, the same on his PC and his iPhone.
+ *
+ * It replaces five surfaces that each did part of the job: the fleet wall,
+ * the Command Center, a phone front door, a phone console, and a dead
+ * "mobile" dashboard with a paste-JSON box. A person does not want five
+ * apps; he wants to ask her something, see what she is doing, answer what
+ * genuinely needs him, and see what she finished.
+ *
+ * So this page answers exactly those four things, in that order, and the
+ * layout is the only thing that changes between a phone and a desk — one
+ * column or two, same page, same code, same words.
+ *
+ * The look is the warm one the phone had: ink, ivory, and one amber that
+ * means "this needs you" and nothing else. No HUD, no letter-spaced
+ * capitals, no status told by colour alone.
+ */
+:root{
+  --ink:#0a0b0e; --ink-2:#101217; --ink-3:#15181f; --line:#1e2027; --line-2:#2b2e36;
+  --warm:#f0ece4; --warm-dim:#9a958c; --warm-faint:#5d5a55;
+  --amber:#d8b25f; --amber-deep:#3a2f14; --alive:#7fc79a; --stop:#e0736d;
+  --safe-t:env(safe-area-inset-top,0px);
+  --safe-b:env(safe-area-inset-bottom,0px);
+  color-scheme:dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+html,body{margin:0;background:var(--ink);color:var(--warm)}
+body{
+  font:400 16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+  min-height:100dvh;overflow-x:hidden;overscroll-behavior-y:none;
+  padding:0 16px calc(var(--safe-b) + 24px);
+}
+button{border:0;background:none;cursor:pointer;font:inherit;color:inherit}
+a{color:var(--warm);text-decoration:underline;text-underline-offset:3px}
+/* Sentence case, not shouted. Small capitals are the HUD register this
+   page is deliberately not in — and the collector's own state vocabulary
+   (NEEDS YOU, ACTING, IDLE) is shouted, so a heading that shouts too makes
+   the two indistinguishable. */
+h2{margin:0 0 12px;font-size:12.5px;font-weight:600;letter-spacing:.07em;
+   color:var(--warm-faint)}
+section{margin-bottom:26px;min-width:0}
+[hidden]{display:none!important}
+
+/* ---- the rail: who, and whether she is there ------------------------- */
+.rail{
+  position:sticky;top:0;z-index:20;background:rgba(10,11,14,.94);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  display:flex;align-items:center;gap:10px;
+  padding:calc(var(--safe-t) + 12px) 0 12px;margin-bottom:18px;
+  border-bottom:1px solid var(--line);
+}
+.rail .mark{width:26px;height:26px;flex:none}
+.rail .mark .stroke{fill:none;stroke:var(--warm);stroke-width:26;
+  stroke-linecap:round;opacity:.8}
+.rail .mark .held{stroke:var(--amber);opacity:.7}
+.rail .name{font-size:17px;font-weight:600;letter-spacing:-.01em;flex:none}
+.rail .where{
+  flex:1;min-width:0;font-size:14px;color:var(--warm-dim);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.rail .where b{color:var(--warm);font-weight:600}
+.rail .where.trouble b{color:var(--stop)}
+.rail .where.waiting b{color:var(--amber)}
+.ico{width:44px;height:44px;flex:none;border-radius:50%;display:grid;
+  place-items:center;color:var(--warm-faint)}
+.ico:active{background:var(--ink-2)}
+.ico svg{width:20px;height:20px}
+.ico.on{color:var(--amber)}
+.ico .wave{display:none}
+.ico.on .wave{display:block}
+.ico .muted{display:block}
+.ico.on .muted{display:none}
+
+main{display:grid;gap:0 26px;max-width:1180px;margin:0 auto}
+.lane{min-width:0}
+
+/* ---- what she is doing, in one sentence ------------------------------ */
+.now{background:var(--ink-2);border:1px solid var(--line);border-radius:18px;
+  padding:18px 20px}
+.now .doing{margin:0;font-size:19px;line-height:1.38;letter-spacing:-.01em}
+.now .next{margin:8px 0 0;font-size:14.5px;line-height:1.5;color:var(--warm-dim)}
+.now .today{margin:10px 0 0;font-size:13px;color:var(--warm-faint)}
+.now .health{margin:12px 0 0;padding:11px 13px;border-radius:12px;
+  background:var(--amber-deep);border:1px solid rgba(216,178,95,.38);
+  color:#f2dca6;font-size:14px;line-height:1.5}
+.now .banner{margin:14px 0 0;padding:12px 14px;border-radius:12px;
+  background:#1a1011;border:1px solid #4a2523;color:#f0c0bc;
+  font-size:14px;line-height:1.5}
+
+/* ---- asking her ------------------------------------------------------ */
+.thread{display:flex;flex-direction:column;gap:12px;margin-bottom:14px;
+  max-height:46vh;overflow-y:auto}
+.thread:empty{display:none}
+.turn{font-size:15.5px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.turn.you{color:var(--warm-dim);font-size:14.5px}
+.turn.you::before{content:"You  ";color:var(--warm-faint);font-size:12.5px}
+.turn.her::before{content:"Thea  ";color:var(--amber);font-size:12.5px}
+.turn.queued{color:var(--warm-faint)}
+.compose{display:flex;align-items:flex-end;gap:8px;
+  border:1px solid var(--line-2);border-radius:16px;background:var(--ink-2);
+  padding:6px 6px 6px 14px;transition:border-color .2s}
+.compose:focus-within{border-color:#3a3e48}
+.compose textarea{
+  flex:1;min-width:0;border:0;background:none;outline:none;resize:none;
+  color:var(--warm);font:inherit;font-size:16px;  /* 16px or iOS zooms on focus */
+  padding:11px 0;max-height:7em;line-height:1.45;
+}
+.compose textarea::placeholder{color:var(--warm-faint)}
+.compose .ico{width:44px;height:44px}
+.compose .send{color:var(--warm-dim)}
+.compose .send:disabled{opacity:.3}
+.hint{margin:8px 2px 0;font-size:13px;color:var(--warm-faint);min-height:1.1em}
+
+/* ---- needs you: the only place amber is allowed --------------------- */
+/* Thirty-eight decisions that share a consequence: the shared half once,
+   then one row each. Amber still marks the group, because every row in it
+   is still a thing only he can answer. */
+.group{background:var(--ink-2);border:1px solid var(--amber-deep);
+  border-left:3px solid var(--amber);border-radius:16px;
+  padding:14px 16px;margin-bottom:11px}
+.group .lead{margin:0 0 10px;font-size:15px;line-height:1.42;font-weight:550}
+.row-ask{padding:11px 0;border-top:1px solid var(--line)}
+.row-ask:first-of-type{border-top:0;padding-top:2px}
+.row-ask .what{font-size:15px;line-height:1.38;overflow-wrap:anywhere}
+.row-ask .meta{font-size:12.5px;color:var(--warm-faint);margin-top:3px}
+.row-ask .acts{display:flex;gap:10px;align-items:center;margin-top:9px}
+.row-ask .yes{min-height:44px;padding:0 20px;border-radius:11px;
+  background:var(--warm);color:var(--ink);font-weight:650;font-size:15px}
+.row-ask .yes:active{background:#cdc8bf}
+.row-ask .later,.row-ask .no{min-height:44px;padding:0 14px;border-radius:11px;
+  border:1px solid var(--line-2);color:var(--warm-dim);font-size:14.5px}
+/* Refusing must be as findable as deferring: the first version made
+   it the faintest thing on the card, which is a way of discouraging
+   the answer she should least mind hearing. */
+.row-ask .no{color:var(--warm-dim)}
+.row-ask .no:active{color:var(--stop)}
+.row-ask .peeked{margin-top:9px;padding-left:10px;border-left:1px solid var(--line-2)}
+button.link{color:var(--warm-dim);text-decoration:underline;
+  text-underline-offset:3px;font-size:12.5px;padding:4px 0;min-height:28px}
+
+/* A hundred and five things worth seeing, folded into one line. */
+.fold{margin-top:20px;border-top:1px solid var(--line);padding-top:14px}
+.fold > summary{cursor:pointer;list-style:none;font-size:14px;
+  color:var(--warm-dim);padding:10px 0;min-height:44px}
+.fold > summary::-webkit-details-marker{display:none}
+.fold > summary::before{content:"▸ "}
+.fold[open] > summary::before{content:"▾ "}
+.clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;
+  overflow:hidden}
+[data-unclamp]{cursor:pointer}
+.row-ask .what.clamp{-webkit-line-clamp:2}
+.job p.why.clamp{-webkit-line-clamp:2}
+/* A receipt on every activity line is worth about thirty pixels
+   each and is wanted about once a week, so it is a footnote. */
+.lately .peek{margin-top:2px}
+.lately .peek > summary{padding:2px 0;min-height:0;font-size:12px}
+
+.note{background:var(--ink-2);border:1px solid var(--line);border-radius:16px;
+  padding:15px 18px;margin-bottom:11px}
+.note h3{margin:0 0 5px;font-size:15.5px;font-weight:550;line-height:1.42;
+  overflow-wrap:anywhere}
+.note p{margin:0;font-size:14px;line-height:1.5;color:var(--warm-dim);
+  overflow-wrap:anywhere}
+.note .row{display:flex;align-items:center;justify-content:space-between;
+  gap:12px;margin-top:12px;flex-wrap:wrap}
+.note .when{font-size:12.5px;color:var(--warm-faint)}
+.note .seen{font-size:14px;color:var(--warm-dim);padding:10px 14px;min-height:44px;
+  border-radius:11px;border:1px solid var(--line-2)}
+.more{font-size:14px;color:var(--warm-dim);padding:10px 2px;min-height:44px}
+
+/* ---- what she is working on ----------------------------------------- */
+.job{background:var(--ink-2);border:1px solid var(--line);border-radius:16px;
+  padding:15px 18px;margin-bottom:11px}
+.job .top{display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+.job h3{margin:0;font-size:16px;font-weight:550;line-height:1.4;overflow-wrap:anywhere}
+.job .tag{flex:none;font-size:12.5px;color:var(--warm-faint)}
+.job.needs .tag{color:var(--amber)}
+.job.stuck .tag{color:var(--stop)}
+.job.working .tag{color:var(--alive)}
+.job p{margin:7px 0 0;font-size:14px;line-height:1.5;color:var(--warm-dim);
+  overflow-wrap:anywhere}
+.job p.why{color:#f0c0bc}
+.bar{height:4px;border-radius:99px;background:#1a1c22;overflow:hidden;margin-top:12px}
+.bar i{display:block;height:100%;background:var(--amber);border-radius:99px}
+
+/* ---- what she finished ---------------------------------------------- */
+.lately{display:flex;flex-direction:column}
+.lately .li{display:flex;gap:12px;align-items:baseline;padding:9px 0;
+  border-top:1px solid var(--line)}
+.lately .li:first-child{border-top:0}
+.lately em{font-style:normal;font-size:12.5px;color:var(--warm-faint);
+  flex:none;min-width:58px}
+.lately span{flex:1;min-width:0;font-size:14.5px;color:var(--warm-dim);
+  line-height:1.45;overflow-wrap:anywhere}
+.lately .li.alert span{color:#f0c0bc}
+.lately .note{font-style:normal;color:var(--warm-faint);font-size:12.5px}
+.calm{color:var(--warm-faint);font-size:14.5px;padding:6px 2px}
+
+/* a receipt, one tap away, in the words the collector wrote */
+.peek{margin-top:10px}
+.peek > summary{cursor:pointer;font-size:13.5px;color:var(--warm-faint);
+  list-style:none;padding:6px 0;min-height:32px}
+.peek > summary::-webkit-details-marker{display:none}
+.peek > summary::before{content:"▸ "}
+.peek[open] > summary::before{content:"▾ "}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;font-size:13.5px;
+  line-height:1.45;margin-top:4px}
+.facts dt{color:var(--warm-faint)}
+.facts dd{margin:0;overflow-wrap:anywhere}
+.raw{margin-top:10px}
+.raw > summary{cursor:pointer;font-size:12.5px;color:var(--warm-faint);padding:4px 0}
+.raw pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;
+  white-space:pre-wrap;overflow-wrap:anywhere;max-height:18rem;overflow:auto;
+  color:var(--warm-dim);background:var(--ink);border-radius:10px;padding:10px}
+
+/* ---- the off switch, alone, in its own register ---------------------- */
+.emergency{max-width:1180px;margin:10px auto 0;padding-top:24px;
+  border-top:1px solid var(--line)}
+.halt{width:100%;min-height:52px;border-radius:14px;
+  border:1px solid #4a2523;background:#1a1011;color:var(--stop);
+  font-size:15.5px;font-weight:600}
+.halt:active{background:#241416}
+.halt.resume{border-color:#22402f;background:#101a15;color:var(--alive)}
+.emergency p{margin:10px 2px 0;font-size:12.5px;color:var(--warm-faint);
+  text-align:center;line-height:1.5}
+
+/* ---- the drawer: everything developer-shaped lives here -------------- */
+.drawer{max-width:1180px;margin:22px auto 0;border:1px solid var(--line);
+  border-radius:16px;background:var(--ink-2)}
+.drawer > summary{cursor:pointer;color:var(--warm-faint);font-size:13.5px;
+  padding:16px 18px;list-style:none;min-height:48px}
+.drawer > summary::-webkit-details-marker{display:none}
+.drawer > summary::before{content:"▸ "}
+.drawer[open] > summary::before{content:"▾ "}
+.drawer .inner{padding:0 18px 20px;display:grid;gap:22px}
+@media(min-width:900px){.drawer .inner{grid-template-columns:1fr 1fr}}
+.drawer h3{margin:0 0 8px;font-size:12.5px;font-weight:600;letter-spacing:.07em;
+  color:var(--warm-faint)}
+.drawer .block{min-width:0}
+.drawer p, .drawer .mono{font-size:13.5px;line-height:1.5;color:var(--warm-dim);
+  margin:0 0 8px;overflow-wrap:anywhere}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+.drawer label{display:block;font-size:12px;color:var(--warm-faint);margin:10px 0 4px}
+.drawer input,.drawer select{width:100%;min-height:44px;border:1px solid var(--line-2);
+  background:var(--ink);color:var(--warm);border-radius:11px;padding:10px 12px;
+  font:inherit;font-size:16px}
+.act{margin-top:10px;padding:12px 16px;min-height:44px;border-radius:11px;
+  border:1px solid var(--line-2);color:var(--warm);font-size:14.5px}
+.act:active{background:#181a20}
+.qr{margin-top:12px;width:min(230px,70vw);background:var(--warm);
+  border-radius:12px;padding:8px}
+.qr svg{display:block;width:100%;height:auto}
+.receipts{display:flex;flex-direction:column-reverse;gap:6px;max-height:16rem;
+  overflow-y:auto;font-size:13px;color:var(--warm-dim)}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(var(--safe-b) + 22px);z-index:40;
+  background:var(--warm);color:var(--ink);font-size:14.5px;font-weight:600;
+  padding:12px 20px;border-radius:99px;box-shadow:0 10px 34px rgba(0,0,0,.5);
+  opacity:0;pointer-events:none;transition:opacity .18s;max-width:90vw}
+.toast.show{opacity:1}
+
+@media(min-width:900px){
+  body{padding:0 26px calc(var(--safe-b) + 28px)}
+  main{grid-template-columns:minmax(0,1.04fr) minmax(0,.96fr)}
+  .rail{padding-top:16px}
+  .now .doing{font-size:21px}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<div class="rail">
+  <svg class="mark" viewBox="0 0 512 512" aria-hidden="true">
+    <path class="stroke" d="M158 372 L240 176"/>
+    <path class="stroke" d="M354 372 L272 176"/>
+    <path class="stroke held" d="M196 296 L316 296"/>
+  </svg>
+  <span class="name">Thea</span>
+  <span id="where" class="where">…</span>
+  <button id="voiceBtn" class="ico" aria-label="Read answers aloud" aria-pressed="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z"/>
+      <path class="wave" d="M16 9.2a4 4 0 010 5.6"/>
+      <path class="wave" d="M18.6 6.6a7.6 7.6 0 010 10.8"/>
+      <path class="muted" d="M16.5 9.5l5 5M21.5 9.5l-5 5"/>
+    </svg>
+  </button>
+</div>
+
+<main>
+  <div class="lane">
+    <section>
+      <h2>Right now</h2>
+      <div class="now">
+        <p id="doing" class="doing">Reading her state…</p>
+        <p id="next" class="next"></p>
+        <p id="today" class="today"></p>
+        <!-- The health view outcome 6 asks for: one sentence, in the open
+             when something is wrong and not there at all when nothing is.
+             The Core decides which (`running.all_well`), so this line and
+             the sentence she speaks cannot disagree. -->
+        <p id="health" class="health" hidden></p>
+        <div id="banner" class="banner" role="alert" hidden></div>
+      </div>
+    </section>
+
+    <section id="askSec">
+      <h2>Ask Thea</h2>
+      <div id="thread" class="thread" aria-live="polite"></div>
+      <form id="askForm" class="compose">
+        <!-- Short on purpose: a placeholder that wraps in a one-row box is
+             a sentence with its second half cut off. -->
+        <textarea id="q" rows="1" enterkeyhint="send" autocomplete="off"
+          placeholder="Ask her anything"></textarea>
+        <button type="button" id="micBtn" class="ico" aria-label="Speak to her">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="9" y="3" width="6" height="11" rx="3"/>
+            <path d="M5 11a7 7 0 0014 0M12 18v3"/>
+          </svg>
+        </button>
+        <button type="submit" id="send" class="ico send" aria-label="Send">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 19V5M6 11l6-6 6 6"/>
+          </svg>
+        </button>
+      </form>
+      <p id="hint" class="hint"></p>
+    </section>
+
+    <section id="needsSec">
+      <h2>Needs you</h2>
+      <div id="needs"></div>
+    </section>
+  </div>
+
+  <div class="lane">
+    <section id="workSec">
+      <h2>What she's doing</h2>
+      <div id="work"></div>
+    </section>
+
+    <section id="doneSec">
+      <h2>What she's done</h2>
+      <div id="done" class="lately"></div>
+    </section>
+  </div>
+</main>
+
+<div class="emergency">
+  <button id="haltBtn" class="halt">Stop everything</button>
+  <p id="haltNote">Ends anything running and refuses new work until you start her again.</p>
+</div>
+
+<details class="drawer" id="drawer">
+  <summary>Under the hood — the machine's own words</summary>
+  <div class="inner">
+    <div class="block">
+      <h3>This device</h3>
+      <p id="linkState">…</p>
+      <label for="linkCode">Link code (leave it empty to unlink this device)</label>
+      <input id="linkCode" autocomplete="off" spellcheck="false"
+             placeholder="paste the code from your PC">
+      <button id="tokenBtn" class="act">Save it</button>
+      <p id="connDetail" style="margin-top:12px"></p>
+
+      <div id="installBlock" hidden>
+        <h3 style="margin-top:22px">Put Thea on your iPhone</h3>
+        <p id="installWhy">…</p>
+        <label for="pairCode">Paste a link code to build a one-tap link (optional)</label>
+        <input id="pairCode" placeholder="the code python -m aletheia.access mint phone --scope full printed"
+               autocomplete="off" spellcheck="false">
+        <div id="qr" class="qr" hidden></div>
+        <p id="installUrl" class="mono"></p>
+        <p>Point the camera at it, open the link, then Share &rsaquo; Add to Home Screen.</p>
+      </div>
+
+      <h3 style="margin-top:22px">Her microphone</h3>
+      <p id="micState">Off unless you turn it on.</p>
+      <button id="roomMic" class="act">Turn her microphone on</button>
+
+      <h3 style="margin-top:22px">Only your keyboard can grant these</h3>
+      <p>Two permissions are deliberately not buttons: standing authority over
+         routine work, and permission to answer a conversation in your name.
+         Each one widens what she may do without asking, and a grant that can
+         be given by tapping is a grant something else can give. Type them
+         here, on this PC:</p>
+      <p class="mono">python -m aletheia.standing on</p>
+      <p class="mono">python -m aletheia.conversations grant "&lt;your own words&gt;"</p>
+      <p>To see what she may already do without asking, ask her: what can you
+         do without asking me?</p>
+
+      <h3 style="margin-top:22px">Still to set up</h3>
+      <p id="setupState">Not checked — checking talks to the outside world, so it
+         only happens when you ask.</p>
+      <button id="setupBtn" class="act">Check what's missing</button>
+    </div>
+
+    <div class="block">
+      <h3>Exact command</h3>
+      <form id="cmdForm">
+        <label for="kind">kind</label>
+        <select id="kind"></select>
+        <div id="args"></div>
+        <button type="submit" class="act">Run it</button>
+      </form>
+      <div id="receipts" class="receipts" style="margin-top:14px"></div>
+
+      <h3 style="margin-top:22px">Code this Core is running</h3>
+      <p id="codeLine" class="mono">—</p>
+
+      <h3 style="margin-top:22px">Raw</h3>
+      <p><a href="/api/mission">/api/mission</a> · <a href="/api/status">/api/status</a>
+         · <a href="/api/state">/api/state</a> · <a href="/interface/wall.html">the fleet wall</a></p>
+    </div>
+  </div>
+</details>
+
+<div id="toast" class="toast"></div>
+<script src="/interface/thea.js"></script>
+<script src="/interface/qr.js"></script>
+<script src="/interface/thea-app.js"></script>
+</body>
+</html>

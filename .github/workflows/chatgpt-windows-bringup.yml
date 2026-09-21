@@ -25,18 +25,30 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Parse operator PowerShell entrypoints
-        shell: pwsh
+      # WINDOWS POWERSHELL 5.1, from disk, every script. The operator's PC
+      # runs `powershell`, not `pwsh`: 5.1 reads a BOM-less file as the ANSI
+      # code page, so an em dash (E2 80 94) became a closing quote and the
+      # bring-up failed to PARSE on his machine while this step, run under
+      # pwsh, stayed green. The scripts are held to pure ASCII by
+      # tests/test_windows_bringup_script.py; this is the live proof.
+      - name: Parse every operator PowerShell script with Windows PowerShell 5.1
+        shell: powershell
         run: |
           $failed = $false
-          foreach ($path in @("scripts/bootstrap.ps1", "scripts/bringup_windows.ps1", "scripts/voice_repair.ps1")) {
+          foreach ($file in Get-ChildItem -Path scripts -Filter *.ps1) {
             $tokens = $null
             $errors = $null
-            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path), [ref]$tokens, [ref]$errors) | Out-Null
+            [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$tokens, [ref]$errors) | Out-Null
             if ($errors.Count -gt 0) {
               $failed = $true
-              Write-Error "$path parse errors: $($errors -join '; ')"
+              Write-Host "::error file=scripts/$($file.Name)::parse errors: $($errors -join '; ')"
+            } else {
+              Write-Host "parsed scripts/$($file.Name) with $($PSVersionTable.PSVersion)"
             }
+          }
+          if ($PSVersionTable.PSVersion.Major -ne 5) {
+            Write-Host "::error::this step must run under Windows PowerShell 5.1, the operator's shell"
+            $failed = $true
           }
           if ($failed) { exit 1 }
 

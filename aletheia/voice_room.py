@@ -31,7 +31,7 @@ import zipfile
 from pathlib import Path
 
 from aletheia import speech, voice_quality
-from aletheia.proc import run as proc_run
+from aletheia import proc
 from aletheia import voice
 from aletheia.voice import WAKE_WORDS
 
@@ -57,6 +57,11 @@ WAKE_CONFIDENCE_MIN = 0.70
 FOLLOWUP_WAIT_S = 105.0
 FOLLOWUP_POLL_S = 1.0
 FOLLOWUP_FAILURE = "I couldn't finish that answer. Please ask me again."
+#: The room stopped WAITING; she did not stop WORKING. With the subscriptions
+#: out, her own model can take minutes, the follow-up is still running, and its
+#: answer lands as a notification - so "I couldn't finish" would be untrue.
+FOLLOWUP_STILL_WORKING = ("This is taking me longer than I can wait for here. I'm still "
+                          "working on it, and the answer will be in your notifications.")
 BARE_WAKE_WINDOW_S = 8.0
 OUTPUT_TAIL_S = 0.55
 REPEAT_FAILURE_WINDOW_S = 20.0
@@ -98,38 +103,235 @@ _output_generation = 0
 _ignore_audio_until = 0.0
 
 
+# ------------------------------------------------------------- barge-in
+# HE CAN TALK OVER HER. Until now the ears were hard-muted for as long as
+# she was speaking, so a forty-word answer was forty seconds in which the
+# only way to stop her was to leave the room. Everything else about the
+# voice is a wording problem; this one is the difference between talking
+# to her and being talked AT.
+#
+# The mute existed for a real reason — her own speakers wake her up — so
+# barge-in keeps the guard and narrows it. While she is speaking the audio
+# no longer goes to the wide recognizer; it goes to a CONSTRAINED one that
+# can only hear a handful of words, and two things have to be true before
+# a word counts:
+#
+#   * it is a word he would use to cut in — her name, or "stop"/"wait";
+#   * it is NOT a word she is saying this second. Her own voice coming
+#     back through the microphone can only ever repeat what she just said,
+#     so the sentence in her mouth is the echo cancellation.
+#
+# A false positive costs him one repeated sentence. A false negative is
+# the thing he is complaining about, so the bias is deliberate.
+BARGE_GRAMMAR = ('["thea", "aletheia", "stop", "wait", "hold on", '
+                 '"never mind", "[unk]"]')
+BARGE_WORDS = frozenset({"thea", "aletheia", "stop", "wait", "hold", "on",
+                         "never", "mind"})
+#: Enough on its own. "on", "never" and "mind" are in the grammar so the
+#: phrase is transcribable, but no single one of them may interrupt her.
+BARGE_ALONE = frozenset({"thea", "aletheia", "stop", "wait"})
+#: Stricter than the wake gate. The wake gate is deciding whether to
+#: answer; this is deciding whether to stop mid-word, with her own
+#: loudspeaker in the same room.
+BARGE_CONFIDENCE_MIN = 0.85
+
+_INTERRUPT = threading.Event()
+_INTERRUPT_LOCK = threading.Lock()
+_stop_sound: list = []          # cut the sound that is playing RIGHT NOW
+_interrupt_pending = False      # his sentence is coming; take it
+_now_saying = ""                # the echo guard: what is in her mouth
+
+
+def speaking() -> bool:
+    """Is she talking this second?"""
+    return _OUTPUT_ACTIVE.is_set()
+
+
+def barge_in_heard(result: dict, now_saying: str = "",
+                   minimum: float = BARGE_CONFIDENCE_MIN) -> bool:
+    """Did HE just talk over her? A pure decision, so it can be tested.
+
+    `result` is what the constrained recognizer returned; `now_saying` is
+    the sentence currently coming out of the speakers. A word she is
+    saying is not evidence that he said it — it is evidence that the
+    microphone can hear her, which was never in doubt.
+    """
+    hers = speech.bare_words(now_saying)
+    words = result.get("result")
+    if isinstance(words, list) and words:
+        for item in words:
+            if not isinstance(item, dict):
+                continue
+            word = str(item.get("word", "")).casefold().strip(",.!?")
+            try:
+                confidence = float(item.get("conf", 0.0))
+            except (TypeError, ValueError):
+                confidence = 0.0
+            if word in BARGE_ALONE and word not in hers and confidence >= minimum:
+                return True
+        return False
+    # Older Vosk builds hand back text with no per-word confidence. Then
+    # the only guard left is the echo one, so require the whole utterance
+    # to be words he could plausibly have said over her.
+    heard = sorted(speech.bare_words(result.get("text", "")))
+    if not heard or len(heard) > 3:
+        return False
+    return any(w in BARGE_ALONE and w not in hers for w in heard)
+
+
+def interrupt_speech() -> bool:
+    """Stop talking NOW, and remember that his sentence is coming.
+
+    Returns False when she was not speaking, so a stray detection cannot
+    open a command window out of nothing.
+    """
+    global _interrupt_pending
+    if not _OUTPUT_ACTIVE.is_set():
+        return False
+    _INTERRUPT.set()
+    with _INTERRUPT_LOCK:
+        _interrupt_pending = True
+        stoppers = list(_stop_sound)
+    for stop in stoppers:
+        try:
+            stop()
+        except Exception:
+            pass      # a mouth that will not shut up must not crash the ears
+    return True
+
+
+def take_interrupt() -> bool:
+    """Was she cut off since this was last asked? Consumed once."""
+    global _interrupt_pending
+    with _INTERRUPT_LOCK:
+        was, _interrupt_pending = _interrupt_pending, False
+    return was
+
+
+def _while_playing(stop) -> None:
+    """Register something that can cut the current sound short."""
+    with _INTERRUPT_LOCK:
+        _stop_sound.append(stop)
+
+
+def _done_playing(stop) -> None:
+    with _INTERRUPT_LOCK:
+        if stop in _stop_sound:
+            _stop_sound.remove(stop)
+
+
 # ---------------------------------------------------------------- mouth
 def sapi_speak(text: str) -> None:
-    """Fallback mouth: the local Windows SAPI voice, blocking until done."""
+    """Fallback mouth: the local Windows SAPI voice, blocking until done.
+
+    Spawned rather than run, so `interrupt_speech` can end it mid-word.
+    A sentence that cannot be stopped is not a sentence he can talk over.
+    """
+    import subprocess
     script = (
         "Add-Type -AssemblyName System.Speech; "
         "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
         "$s.Rate = 1; $s.Speak([Console]::In.ReadToEnd())"
     )
-    proc_run(
+    child = proc.popen(
         ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
-        input=text, text=True, capture_output=True, timeout=120,
+        stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL, text=True,
     )
 
+    def stop() -> None:
+        try:
+            child.kill()
+        except Exception:
+            pass
 
-def speak(text: str) -> None:
-    """Speak once while hard-muting the ears against our own output.
+    _while_playing(stop)
+    try:
+        child.communicate(input=text, timeout=120)
+    except Exception:
+        stop()
+    finally:
+        _done_playing(stop)
+
+
+def _wav_seconds(path) -> float:
+    """How long a rendered sentence lasts, so the wait is not a guess."""
+    try:
+        import wave
+        with wave.open(str(path), "rb") as handle:
+            rate = handle.getframerate() or 1
+            return handle.getnframes() / float(rate)
+    except Exception:
+        return 30.0     # a ceiling, not an estimate: the poll below ends it
+
+
+def _play_interruptible(path) -> None:
+    """Play a rendered sentence asynchronously and watch for him."""
+    import winsound
+
+    def stop() -> None:
+        winsound.PlaySound(None, winsound.SND_PURGE)
+
+    winsound.PlaySound(str(path), winsound.SND_FILENAME | winsound.SND_ASYNC)
+    _while_playing(stop)
+    try:
+        deadline = time.monotonic() + _wav_seconds(path) + 0.2
+        while time.monotonic() < deadline and not _INTERRUPT.is_set():
+            time.sleep(0.05)
+    finally:
+        _done_playing(stop)
+        if _INTERRUPT.is_set():
+            try:
+                stop()
+            except Exception:
+                pass
+
+
+def say_chunk(text: str) -> None:
+    """One breath, out loud, through whichever mouth is prepared."""
+    if not voice_quality.piper_speak(text, player=_play_interruptible):
+        sapi_speak(text)
+
+
+def speak(text: str, *, chunk=None) -> None:
+    """Speak once, in breaths he can talk over.
 
     Piper is preferred only when it was explicitly prepared. Provider failure is
     silent and falls back to SAPI; a broken mouth must not create a spoken error
     about the broken mouth and start a loop.
+
+    Long answers are said a breath at a time so that even a mouth with no
+    stop button gives him a gap every sentence or two, and so the rest of
+    a paragraph he has already heard enough of is never said at all.
     """
-    global _ignore_audio_until, _output_generation
+    global _ignore_audio_until, _output_generation, _now_saying
     if not isinstance(text, str) or not text.strip():
         return
+    chunk = chunk or say_chunk
+    # THE LAST DOOR. Every sentence the room says comes through here,
+    # whoever wrote it — her own model, a subsystem's receipt, an
+    # exception somebody let through — so this is the one place that can
+    # promise he will never hear a URL, a hex id or a class name.
+    said = speech.for_the_room(text)
+    if not said.strip():
+        return
     with _OUTPUT_LOCK:
+        _INTERRUPT.clear()
         _OUTPUT_ACTIVE.set()
         try:
-            if not voice_quality.piper_speak(text):
-                sapi_speak(text)
+            for breath in speech.breaths(said):
+                if _INTERRUPT.is_set():
+                    break
+                _now_saying = breath
+                chunk(breath)
         finally:
+            cut = _INTERRUPT.is_set()
+            _now_saying = ""
             _OUTPUT_ACTIVE.clear()
-            _ignore_audio_until = time.monotonic() + OUTPUT_TAIL_S
+            # No deaf tail after an interruption: he is MID-SENTENCE, and
+            # half a second of politeness there eats the first words of
+            # the thing he stopped her to say.
+            _ignore_audio_until = 0.0 if cut else time.monotonic() + OUTPUT_TAIL_S
             _output_generation += 1
 
 
@@ -320,6 +522,12 @@ def microphone_recognizer():
     except AttributeError:
         pass
 
+    barge = vosk.KaldiRecognizer(model, SAMPLE_RATE, BARGE_GRAMMAR)
+    try:
+        barge.SetWords(True)
+    except AttributeError:
+        pass
+
     audio: queue.Queue[bytes] = queue.Queue(maxsize=40)
     agc_state: dict = {}
     utterance = bytearray()
@@ -327,7 +535,27 @@ def microphone_recognizer():
 
     def on_audio(indata, frames, time_info, status):
         del frames, time_info, status
-        if _OUTPUT_ACTIVE.is_set() or time.monotonic() < _ignore_audio_until:
+        if _OUTPUT_ACTIVE.is_set():
+            # LISTENING FOR HIM WHILE SHE TALKS, and for nothing else.
+            # This used to be `return`, which is why she could not be
+            # interrupted. The constrained recognizer can only produce
+            # words from BARGE_GRAMMAR, so the room's ordinary
+            # conversation cannot reach it — and `barge_in_heard` throws
+            # away anything she is saying herself.
+            try:
+                chunk = _auto_gain(bytes(indata), agc_state)
+                if barge.AcceptWaveform(chunk):
+                    heard = json.loads(barge.Result())
+                else:
+                    heard = json.loads(barge.PartialResult() or "{}")
+                    heard = {"text": heard.get("partial", "")}
+                if barge_in_heard(heard, _now_saying):
+                    barge.Reset()
+                    interrupt_speech()
+            except Exception:
+                pass      # a deaf half-second is not worth a dead listener
+            return
+        if time.monotonic() < _ignore_audio_until:
             return
         try:
             audio.put_nowait(bytes(indata))
@@ -365,6 +593,10 @@ def microphone_recognizer():
                 agc_state.clear()
                 full.Reset()
                 wake.Reset()
+                # ...and the barge listener, so half a word left over from
+                # the sentence she just finished cannot interrupt the next
+                # one. Its whole job is the few seconds she is speaking.
+                barge.Reset()
             data = _auto_gain(audio.get(), agc_state)
             utterance.extend(data)
             wake.AcceptWaveform(data)
@@ -405,6 +637,7 @@ def collect_followup(followup_id: str, core_url: str = CORE_URL,
     sleep = sleep or _time.sleep
     deadline = _time.monotonic() + wait_s
     spoken = 0
+    heard_running = False
     while _time.monotonic() < deadline:
         try:
             with urllib.request.urlopen(
@@ -428,8 +661,12 @@ def collect_followup(followup_id: str, core_url: str = CORE_URL,
             return payload.get("say")
         if payload.get("state") == "EXPIRED":
             return None
+        heard_running = True
         sleep(poll_s)
-    return None
+    # Out of patience while the Core still reports it running: say so, and do
+    # not acknowledge - the answer has not been heard yet. A Core that never
+    # answered at all proves nothing is coming, so that stays a failure.
+    return FOLLOWUP_STILL_WORKING if heard_running else None
 
 
 def acknowledge_followup(followup_id: str, core_url: str = CORE_URL) -> bool:
@@ -486,7 +723,7 @@ def launch_followup(followup_id: str, core_url: str, say,
         # Acknowledging a failed collection would consume an answer
         # nobody heard — the exact loss the pure-read GET exists to
         # prevent.
-        if later:
+        if later and later != FOLLOWUP_STILL_WORKING:
             acknowledge(followup_id, core_url)
 
     thread = threading.Thread(target=deliver, name=f"voice-{followup_id}",
@@ -648,6 +885,12 @@ def listen_forever(recognizer=None, speaker=None, core_url: str = CORE_URL,
 
     for wake_heard, text in recognizer:
         now = monotonic()
+        # HE TALKED OVER HER, so the sentence he is in the middle of is
+        # for her, whether or not it starts with her name. He already said
+        # it once — to stop her — and making him say it again is the
+        # machine winning an argument it should not be having.
+        if take_interrupt():
+            awaiting_since = now
         # SPEAKING FIRST (§144). The capability registry has claimed since it
         # was written that this loop says pending lines before handling an
         # utterance — and it did not: `announce` was imported by nothing but

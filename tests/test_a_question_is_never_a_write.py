@@ -111,11 +111,17 @@ class TheFastLaneNeverEndsTheTurn(unittest.TestCase):
             self.assertEqual(got["command"]["kind"], "free_time", said)
 
     def test_a_day_it_cannot_read_goes_to_the_planner(self):
-        for said in ("am I free at 3 on friday", "when am I free next week",
-                     "am I free the week after next"):
+        for said in ("am I free at 3 on friday", "am I free the week after next"):
             got = voice.interpret(said)
             self.assertEqual((got.get("command") or {}).get("kind"), "intent", said)
             self.assertIsNone(got.get("say"), said)
+
+    def test_a_week_goes_to_the_command_that_reads_weeks(self):
+        # Since 2026-09-16 calendar reasoning reads a window like "next week",
+        # so this no longer needs the planner; the rule is still no dead end.
+        got = voice.interpret("when am I free next week")
+        self.assertEqual(got["command"], {"kind": "calendar_find_free", "when": "next week"})
+        self.assertIsNone(got.get("say"))
 
     def test_a_genuinely_ambiguous_day_still_asks(self):
         # "Friday" when today IS Friday is a real question, not a parse

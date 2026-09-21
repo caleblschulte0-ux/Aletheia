@@ -171,6 +171,14 @@ class BrowseError(RuntimeError):
     """A page would not load, said in English."""
 
 
+class BrowserBusy(BrowseError):
+    """Another session kept the browser for longer than this one would wait.
+
+    Nothing was opened, so nothing was done: an application that meets this
+    is safe to try again on a later turn.
+    """
+
+
 NET_CODE = re.compile(r"\b(net::ERR_[A-Z_]+)\b")
 NET_ENGLISH = {
     "net::ERR_CONNECTION_RESET": "the connection was reset",
@@ -245,6 +253,7 @@ def native_login(url: str, profile: Path | None = None) -> int:
         "--new-window",
         url,
     ]
+    # proc: visible-by-design — this is the Chrome window he signs in with.
     return subprocess.run(cmd, check=False).returncode
 
 
@@ -307,68 +316,52 @@ class _ProfileLock:
                 self.held = True
                 return True
             except FileExistsError:
+                holder = self._holder_alive()
                 try:
-                    stale = (_time.time() - self.path.stat().st_mtime) > self.stale_after_s
+                    aged = (_time.time() - self.path.stat().st_mtime) > self.stale_after_s
                 except OSError:
-                    stale = False
-                # Or the holder is simply gone. Age alone meant a crashed
-                # run held her browser for the full fifteen minutes: live
-                # 2026-09-13 a dead pid sat on the profile and every
-                # session queued behind it with nothing to wait for. The
-                # pid was already being written into the file and never
-                # read back. This only ever NARROWS the steal — dead AND
-                # nameable, so a live holder is still untouchable and the
-                # two-sessions bug cannot come back through it.
-                if not stale and self._holder_is_gone():
-                    stale = True
-                if stale:
+                    aged = False
+                # A holder that is provably gone is stolen from at once: a
+                # dead pid sat on the profile live 2026-09-13 and every
+                # session queued behind it with nothing to wait for. AGE
+                # alone steals only when the holder is not provably ALIVE —
+                # an old lock held by a running process is a long session,
+                # and walking in on it is the TargetClosedError this lock
+                # exists to prevent.
+                if holder is False or (aged and holder is not True):
                     try:
                         self.path.unlink()
                     except OSError:
                         pass
                     continue
                 if _time.monotonic() >= deadline:
-                    # Never block for ever: the caller gets a browser and the
-                    # collision is visible, rather than a run that hangs.
+                    # The caller is told the browser is busy. It used to
+                    # open the profile anyway, "so the collision is
+                    # visible" — and the collision was a TargetClosedError
+                    # that failed the application for nothing.
                     return False
                 _time.sleep(1.0)
 
-    def _holder_is_gone(self) -> bool:
-        """True only when the file names a pid that is provably not running.
+    def _holder_alive(self) -> bool | None:
+        """Is the process named in the lock file running? None when unsure.
 
-        Fails CLOSED in every uncertain case — an unreadable file, an empty
-        one, a pid that is not a number, our own pid, or any error asking
-        the OS. "I could not tell" must mean "leave it alone", because the
-        cost of a wrong yes is two browsers in one profile (the bug this
-        class exists to prevent) while the cost of a wrong no is waiting,
-        which the age check already bounds.
+        Asked of the operating system through `proc.pid_alive`, NEVER by
+        running `tasklist`. Live 2026-09-13 this asked `tasklist` once a
+        second from windowless processes, and each call opened its own
+        console tab: he woke to Windows Terminal opening and closing them
+        three and four at a time, two Terminal crashes, and a restart.
+
+        Our own pid, an unreadable file or a pid that is not a number are
+        all "cannot tell" — the age rule decides those.
         """
+        from aletheia import proc
         try:
             holder = self.path.read_text(encoding="utf-8", errors="ignore").strip()
         except OSError:
-            return False
+            return None
         if not holder.isdigit() or int(holder) == os.getpid():
-            return False
-        pid = int(holder)
-        try:
-            if os.name == "nt":
-                import subprocess
-                out = proc.run(
-                    ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
-                    capture_output=True, text=True, timeout=10).stdout
-                # tasklist prints "INFO: No tasks are running..." when absent,
-                # and never prints the pid. Requiring the pid to be ABSENT
-                # from real output keeps an unexpected format from reading as
-                # "gone" — an empty result is not proof of death.
-                return bool(out.strip()) and str(pid) not in out
-            os.kill(pid, 0)          # POSIX: raises if it is not there
-            return False
-        except ProcessLookupError:
-            return True
-        except PermissionError:
-            return False             # alive and owned by somebody else
-        except Exception:
-            return False
+            return None
+        return proc.pid_alive(int(holder))
 
     def release(self) -> None:
         if not self.held:
@@ -381,7 +374,48 @@ class _ProfileLock:
 
 
 def _profile_lock(profile: Path) -> "_ProfileLock":
-    return _ProfileLock(Path(profile).parent / (Path(profile).name + ".lock"))
+    return _ProfileLock(Path(profile).parent / (Path(profile).name + ".lock"),
+                        wait_s=PROFILE_LOCK_WAIT_S)
+
+
+def _profile_in_use_error(exc: BaseException) -> bool:
+    text = str(exc).lower()
+    return "processsingleton" in text or "profile directory is already in use" in text         or "profile is already in use" in text
+
+
+def _close_orphans(profile: Path) -> bool:
+    """Kill Chrome processes left running in `profile`. True if any were.
+
+    Only ever called while holding the profile lock, so nothing legitimate
+    can be using the profile: a Chrome still in it belongs to a session
+    that was killed (a submit stopped at its time limit takes the python
+    process, and used to leave its browser behind). Chrome refuses a second
+    process in a profile, so every later launch died with TargetClosedError
+    — three applications overnight on 2026-09-13.
+    """
+    from aletheia import proc
+    try:
+        import psutil
+    except ImportError:
+        return False
+    want = os.path.normcase(os.path.abspath(str(profile)))
+    closed = False
+    for process in psutil.process_iter(["pid", "name"]):
+        name = str(process.info.get("name") or "").casefold()
+        if "chrom" not in name:
+            continue
+        try:
+            command = process.cmdline()
+        except Exception:
+            continue
+        for arg in command:
+            if arg.startswith("--user-data-dir="):
+                used = os.path.normcase(os.path.abspath(arg.split("=", 1)[1].strip('"')))
+                if used == want:
+                    proc.kill_tree(process.info["pid"])
+                    closed = True
+                break
+    return closed
 
 
 class _Session:
@@ -405,21 +439,55 @@ class _Session:
         # queue now instead of colliding, which is what makes unattended
         # sending survive running alongside the hunt.
         self._lock = _profile_lock(self.profile)
-        self._lock.acquire()
-        self._pw = sync_playwright().start()
-        kwargs = {"headless": not self.headed}
-        if self.args:
-            kwargs["args"] = list(self.args)
-        proxy = _proxy_from_environment()
-        if proxy:
-            kwargs["proxy"] = proxy
-        exe = _browser_executable()
-        if exe:
-            kwargs["executable_path"] = exe
-        self.context = self._pw.chromium.launch_persistent_context(
-            str(self.profile), **kwargs)
-        self.context.set_default_timeout(DEFAULT_TIMEOUT_MS)
+        if not self._lock.acquire():
+            raise BrowserBusy(
+                "her browser is still busy with another job, so this waits "
+                "for its turn - nothing was opened")
+        try:
+            self._pw = sync_playwright().start()
+            kwargs = {"headless": not self.headed}
+            if self.args:
+                kwargs["args"] = list(self.args)
+            proxy = _proxy_from_environment()
+            if proxy:
+                kwargs["proxy"] = proxy
+            exe = _browser_executable()
+            if exe:
+                kwargs["executable_path"] = exe
+            try:
+                self.context = self._pw.chromium.launch_persistent_context(
+                    str(self.profile), **kwargs)
+            except Exception as exc:
+                # A Chrome left behind in the profile by a killed session.
+                # We hold the lock, so it is nobody's: close it, try once more.
+                # A browser still DYING from a killed process (live 2026-09-17: a
+                # mission killed mid-run and resumed 4 s later) says "Failed to
+                # create a ProcessSingleton" instead; it gets the same recovery,
+                # plus a moment to finish exiting.
+                in_use = _profile_in_use_error(exc)
+                if not ((_closed_browser_error(exc) or in_use) and (_close_orphans(self.profile) or in_use)):
+                    raise
+                if in_use:
+                    time.sleep(3.0)
+                self.context = self._pw.chromium.launch_persistent_context(
+                    str(self.profile), **kwargs)
+            self.context.set_default_timeout(DEFAULT_TIMEOUT_MS)
+        except BaseException:
+            # __exit__ never runs for a failed __enter__. Without this a
+            # launch that failed inside the long-lived Core kept the lock
+            # under a LIVE pid, and every later session waited behind it.
+            self._abandon()
+            raise
         return self.context
+
+    def _abandon(self) -> None:
+        pw, self._pw = self._pw, None
+        if pw:
+            try:
+                pw.stop()
+            except Exception:
+                pass
+        self._lock.release()
 
     def __exit__(self, *exc):
         try:
@@ -512,7 +580,15 @@ CONFIRMED_WORDS = ("thank you", "application received", "we have received",
                    "successfully submitted", "your application has been",
                    "thanks for applying", "we've received", "submission received",
                    "your submission", "all set", "you're all set",
-                   "successfully", "confirmation number", "we have your")
+                   "successfully", "confirmation number", "we have your",
+                   "thanks for taking the time to apply")
+#: A page TITLE or ADDRESS that only an accepted submission is given. Live
+#: 2026-09-13 MongoDB's page read "Thanks for taking the time to apply to
+#: MongoDB!" under the title "Thank you for applying" at .../confirmation, and
+#: it was reported unconfirmed - the thank-you email arrived a minute later.
+CONFIRMED_TITLES = ("thank you for applying", "thanks for applying",
+                    "application submitted", "application received")
+_CONFIRMED_URL = re.compile(r"/confirmation\b|/thank-?you\b|/application[-_]submitted\b", re.I)
 
 # A site that REFUSED usually says so in the plainest possible words, and
 # hands the form straight back. She pressed Submit on a form whose phone
@@ -549,7 +625,7 @@ DID_IT = {
 
 
 def read_outcome(body: str, *, did: str = "",
-                 form_still_there: bool = False) -> dict:
+                 form_still_there: bool = False, title: str = "", url: str = "") -> dict:
     """CONFIRMED, REJECTED or UNCONFIRMED — never just "pressed".
 
     A press is an action; whether it worked is a different question, and
@@ -568,6 +644,11 @@ def read_outcome(body: str, *, did: str = "",
     if any(word in text for word in CONFIRMED_WORDS):
         return {"verdict": "confirmed",
                 "note": "The page said it went through."}
+    if not form_still_there and (
+            any(word in (title or "").casefold() for word in CONFIRMED_TITLES)
+            or _CONFIRMED_URL.search(str(url or ""))):
+        return {"verdict": "confirmed",
+                "note": "The site moved to its confirmation page."}
     hit = next((word for word in REJECTED_WORDS if word in text), "")
     if hit:
         return {"verdict": "rejected",

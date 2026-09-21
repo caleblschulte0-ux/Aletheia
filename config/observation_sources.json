@@ -1,0 +1,21 @@
+{
+  "_about": "Reviewed DATA for aletheia.study_observe: public APIs a study may read, described as a URL pattern, the hosts it may call and the fields it yields. Adding a platform is an edit here, never code. Every entry reads only public data, anonymously, within the platform's published rate limits; nothing here logs in, writes or spends. robots.txt governs pages and feeds, not documented API endpoints; a domain whose terms forbid automation (config/site_skills.json manual_only) is refused before any call.",
+  "sources": [
+    {
+      "id": "code-host.repository",
+      "describe": "a public GitHub repository: its counts, its README and its release cadence, through GitHub's public REST API (anonymous, 60 requests an hour)",
+      "match": "^https://github\\.com/(?P<owner>[A-Za-z0-9-]+)/(?P<name>[A-Za-z0-9._-]+?)(?:\\.git)?/?$",
+      "hosts": ["api.github.com"],
+      "reads": [
+        {"what": "repository metadata", "url": "https://api.github.com/repos/{owner}/{name}", "as": "json",
+         "fields": {"stars": "stargazers_count", "forks": "forks_count", "open_issues": "open_issues_count",
+                    "watchers": "subscribers_count", "days_since_push": "pushed_at:age_days",
+                    "description": "description", "homepage": "homepage"}},
+        {"what": "the README as markdown", "url": "https://api.github.com/repos/{owner}/{name}/readme",
+         "as": "markdown", "accept": "application/vnd.github.raw"},
+        {"what": "release cadence", "url": "https://api.github.com/repos/{owner}/{name}/releases?per_page=30",
+         "as": "json_dates", "date": "published_at", "title": "name", "series": "releases"}
+      ]
+    }
+  ]
+}

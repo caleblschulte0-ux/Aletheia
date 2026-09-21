@@ -34,9 +34,15 @@ class IntentCase(unittest.TestCase):
         root = Path(self.tmp.name)
         env = mock.patch.dict(os.environ, {"ALETHEIA_PRIVATE_STATE": str(root / "private")})
         env.start(); self.addCleanup(env.stop)
+        from aletheia import converse
         for module, attr, value in (
                 (policy, "APPROVALS_DIR", root / "approvals"),
-                (journal, "JOURNAL_PATH", root / "journal.jsonl")):
+                (journal, "JOURNAL_PATH", root / "journal.jsonl"),
+                # `converse.THREAD_PATH` is bound at import, so the env
+                # patch above does not move it: these tests were writing
+                # "what am I paying for" into the suite-wide thread and
+                # tests/test_local_planner's snapshot test read it back.
+                (converse, "THREAD_PATH", root / "conversation.json")):
             p = mock.patch.object(module, attr, value)
             p.start(); self.addCleanup(p.stop)
         (root / "approvals").mkdir(parents=True, exist_ok=True)
@@ -326,9 +332,13 @@ class IntentCase(unittest.TestCase):
             {"gap": "purchase.execute", "why": "cannot buy"},
             {"manual": "sign it"}]})
         said = intents.spoken(record)
-        self.assertIn("1 step ready", said)
+        # NOT "1 step ready". That froze a row count he cannot act on in
+        # front of the one fact he needs. The rule this protects is the
+        # test's own name: the sentence says what will HAPPEN, and how to
+        # let it happen.
         self.assertIn("file a task", said)
         self.assertIn("Say approve", said)
+        self.assertIn("Nothing happens until you do", said)
         self.assertNotIn(record["approval"], said)
         self.assertNotIn("purchase.execute", said)
         from aletheia import capabilities
@@ -374,6 +384,41 @@ class IntentCase(unittest.TestCase):
         intents._record_path(record["id"]).write_text("{ broken", encoding="utf-8")
         self.assertEqual(intents.all_intents(), [])
         self.assertEqual(intents.run_approved(FLEET, executor=lambda *a, **k: "x"), [])
+
+
+class NobodyCouldThinkIsSaidInEnglishCase(unittest.TestCase):
+    """Acceptance D, live, 2026-09-18.
+
+    An ordinary browser ask with the frontier off came back as
+    "I could not plan that: ReasonerUnavailable: subscription reasoning and
+    local deep reasoning are unavailable (subscription: neither Claude nor the
+    ChatGPT browser could answer just now" - a log line, with a class name on
+    the front, cut off mid-word. The full diagnosis stays in the record.
+    """
+
+    def said(self, degraded):
+        return intents.spoken({"degraded": degraded, "steps": []})
+
+    def test_the_frontier_being_off_is_said_as_that(self):
+        said = self.said("ReasonerUnavailable: subscription reasoning and local deep reasoning are "
+                         "unavailable (subscription: the frontier models are switched off for this run; "
+                         "local: no local model fits in free memory)")
+        self.assertIn("switched off for this run", said)
+        self.assertIn("my own model could not answer either", said)
+        self.assertNotIn("ReasonerUnavailable", said)
+
+    def test_neither_rung_answering_is_one_clause_not_a_paragraph(self):
+        said = self.said("ReasonerUnavailable: subscription reasoning and local deep reasoning are "
+                         "unavailable (subscription: neither Claude nor the ChatGPT browser could answer "
+                         "just now; local: nothing fits in the memory that is free)")
+        self.assertIn("nothing could think just now", said)
+        self.assertNotIn("(", said, "no machine parenthetical is read out")
+        self.assertFalse(said.rstrip().endswith("local"), "never cut mid-clause")
+
+    def test_any_other_failure_keeps_its_own_words_without_the_class_name(self):
+        said = self.said("BrainOutputError: the model returned prose instead of JSON")
+        self.assertIn("the model returned prose instead of JSON", said)
+        self.assertNotIn("BrainOutputError", said)
 
 
 if __name__ == "__main__":

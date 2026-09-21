@@ -76,10 +76,15 @@ class CoreCase(unittest.TestCase):
         self.assertEqual(self._post({"kind": "resume"})["outcome"], "done")
 
     def test_serves_the_interfaces(self):
-        for path in ("/", "/command.html"):
+        """One page is the product; the ambient fleet wall is behind it.
+        `/` used to serve the wall, which answered none of the four things
+        he opens her for."""
+        for path, wants in (("/", b"Thea"),
+                            ("/interface/thea.html", b"Ask Thea"),
+                            ("/interface/wall.html", b"ALETHEIA")):
             with urllib.request.urlopen(f"http://127.0.0.1:{self.port}{path}") as r:
                 self.assertEqual(r.status, 200)
-                self.assertIn(b"ALETHEIA", r.read())
+                self.assertIn(wants, r.read(), path)
 
     def test_no_path_escape(self):
         with self.assertRaises(urllib.error.HTTPError) as ctx:
@@ -155,16 +160,21 @@ class CommandGrammarSingleSource(CoreCase):
         for kind, (req, opt) in intercom.KIND_ARGS.items():
             self.assertEqual(kinds[kind], [sorted(req), sorted(opt)])
 
-    def test_command_center_has_no_hardcoded_grammar(self):
+    def test_the_page_has_no_hardcoded_grammar(self):
         from aletheia.fleet import REPO_ROOT
-        html = (REPO_ROOT / "interface" / "command.html").read_text(encoding="utf-8")
-        self.assertIn("/api/kinds", html)
-        self.assertNotIn("plan_add_step", html,
-                         "command.html restates the kind grammar — it must render /api/kinds")
+        js = (REPO_ROOT / "interface" / "thea-app.js").read_text(encoding="utf-8")
+        self.assertIn("/api/kinds", js)
+        self.assertNotIn("plan_add_step", js,
+                         "the page restates the kind grammar — it must render /api/kinds")
 
-    def test_command_center_waits_for_async_answers_and_surfaces_errors(self):
+    def test_the_page_waits_for_async_answers_and_surfaces_errors(self):
+        """A reply the planner has to think about arrives in a follow-up
+        slot ten to thirty seconds later. A page that stops at the
+        acknowledgement loses the answer he asked for."""
         from aletheia.fleet import REPO_ROOT
-        html = (REPO_ROOT / "interface" / "command.html").read_text(encoding="utf-8")
-        self.assertIn('api("/api/ask"', html)
-        self.assertIn("waitForFollowup", html)
-        self.assertIn("catch (err)", html)
+        shared = (REPO_ROOT / "interface" / "thea.js").read_text(encoding="utf-8")
+        page = (REPO_ROOT / "interface" / "thea-app.js").read_text(encoding="utf-8")
+        self.assertIn('api("/api/voice"', shared)
+        self.assertIn("/api/voice/followup", shared)
+        self.assertIn("collect(res.followup_id", shared)
+        self.assertIn("catch (err)", page)

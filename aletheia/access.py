@@ -1,7 +1,8 @@
 """Authenticated remote access — the transport the phone never had (§92).
 
-`interface/mobile.html` has existed since Phase 21 and no phone could ever
-load it, for a good reason: the Core binds loopback only, because it had
+A phone surface had existed since Phase 21 (`interface/mobile.html`, long
+since folded into the one Thea page) and no phone could ever load it, for
+a good reason: the Core binds loopback only, because it had
 no authentication and `--host` refused non-loopback rather than pretend
 otherwise (§59, fail closed). The roadmap called the transport a ticket
 and warned in the same breath that port 8777 must never simply be exposed

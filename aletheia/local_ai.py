@@ -94,6 +94,13 @@ def main(argv: list[str] | None = None) -> int:
                 value = {"updated": True, **effective}
     elif args.cmd in {"smoke", "activate"}:
         try:
+            if args.cmd == "activate" and model_pool_config.environment_forbids():
+                # Asked BEFORE anything is written: an opt-in saved and then
+                # found forbidden would spring to life the day the override
+                # is removed.
+                raise local_model_pool.LocalPoolUnavailable(
+                    "an environment override keeps local AI disabled"
+                )
             value = local_model_pool.smoke()
             if args.cmd == "activate":
                 model_pool_config.save_settings(enabled=True, shadow=False)
@@ -104,11 +111,19 @@ def main(argv: list[str] | None = None) -> int:
                     )
                 value = {"activated": True, **effective, "smoke": value}
         except Exception as exc:
-            if args.cmd == "activate":
-                model_pool_config.save_settings(enabled=False, shadow=False)
+            # A FAILED ACTIVATION NEVER TURNS OFF AN EARLIER ONE. This used to
+            # write enabled=False here, and `settings()` treats a saved False
+            # as the emergency brake nothing can override - so the Windows
+            # bring-up, which runs `activate` after every update, switched
+            # local AI OFF for good whenever Ollama happened to be slow to
+            # start after a reboot. The rung that is never supposed to run out
+            # was turned off by the update path. Not working right now is
+            # reported (smoke_ok false, exit 1); it is not a decision to keep
+            # it off. `deactivate` is the only thing that writes the brake.
             value = {
                 "activated": False,
                 "smoke_ok": False,
+                "still_enabled": model_pool_config.enabled(),
                 "error": f"{type(exc).__name__}: {exc}",
             }
             exit_code = 1

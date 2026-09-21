@@ -34,7 +34,14 @@ class InterpretCase(unittest.TestCase):
     def test_status_is_answered_not_commanded(self):
         out = voice.interpret("Thea, what's going on?")
         self.assertIsNone(out["command"])
-        self.assertIn("task", out["say"])
+        # It said "1 fleet alert. 0 live tasks." — a dashboard read out
+        # loud. The rule is that the question is ANSWERED here rather than
+        # compiled into a command, and that the answer is a sentence: no
+        # count of nothing, and no word off a screen he is not looking at.
+        said = out["say"]
+        self.assertTrue(said and said[0].isupper() and said.endswith("."), said)
+        self.assertNotIn("0 ", said)
+        self.assertNotIn("fleet alert", said)
 
     def test_read_a_spoken_url(self):
         out = voice.interpret("Thea, read example dot com")
@@ -258,10 +265,14 @@ class VoiceEndpointCase(unittest.TestCase):
         self.assertTrue(res["followup_id"])
 
     def test_voice_pages_carry_the_ears(self):
+        """Both surfaces can be TALKED to. The wall keeps the push-to-talk
+        script; the one Thea page listens through thea.js instead, because
+        that path also works on a phone, where the script's
+        SpeechRecognition does not exist at all."""
         from aletheia.fleet import REPO_ROOT
-        for page in ("index.html", "command.html"):
+        for page, wants in (("wall.html", "voice.js"), ("thea-app.js", "T.listen")):
             html = (REPO_ROOT / "interface" / page).read_text(encoding="utf-8")
-            self.assertIn("voice.js", html, page)
+            self.assertIn(wants, html, page)
 
 
 class HisOwnDetailsAreNotAContactCase(unittest.TestCase):
@@ -325,11 +336,15 @@ class AttentionAnsweredWithoutAModel(unittest.TestCase):
         empty = {"halted": None, "needs_attention": {
             "pending_approvals": [], "waiting_operator": [], "blocked_tasks": [],
             "overdue_replies": [], "unread_notifications": 0}}
-        with mock.patch("aletheia.current_state.snapshot", return_value=empty), \
-             mock.patch("aletheia.core.status_payload",
-                        return_value={"pulse": {"alerts": 0}}):
-            self.assertIn("Nothing needs your attention",
-                          voice.interpret("Thea, what needs my attention?")["say"])
+        with mock.patch("aletheia.needs_you.items", return_value=[]), \
+             mock.patch("aletheia.presence.snapshot",
+                        return_value={"halted": None, "notifications": []}):
+            # "What needs my attention" and "what's waiting on me" are one
+            # question with one answer now, so this asserts the RULE -
+            # quiet says so plainly - rather than which of the two
+            # sentences happened to be written first.
+            said = voice.interpret("Thea, what needs my attention?")["say"]
+            self.assertTrue(said.lower().startswith("nothing"), said)
 
 
 class TheWallCollectsTheAnswerItWasPromised(unittest.TestCase):
@@ -444,3 +459,19 @@ class SpokenOpenIsNotAlwaysTheWebCase(unittest.TestCase):
     def test_open_a_web_address_still_browses(self):
         out = voice.interpret("Thea, open example.com")
         self.assertEqual(out["command"]["kind"], "browse_read")
+
+
+class TheBriefsQuestionsReachTheRightAnswer(unittest.TestCase):
+    def test_what_do_you_need_from_me_is_what_is_waiting_not_setup(self):
+        # Said out loud it went to a twenty-second setup audit; typed, the same
+        # sentence got what is waiting on him. One sentence, one answer.
+        self.assertEqual(voice.interpret("Thea, what do you need from me?")["command"],
+                         {"kind": "intent", "text": "what do you need from me?"})
+        self.assertEqual(voice.interpret("what do you still need from me")["command"],
+                         {"kind": "setup_status"})
+
+    def test_where_are_you_with_a_project_is_not_a_lost_file(self):
+        for said in ("where are you with barkly", "where are we on the promo video"):
+            with self.subTest(said=said):
+                self.assertEqual(voice.interpret(said)["command"]["kind"], "intent")
+        self.assertEqual(voice.interpret("where is my lease")["command"]["kind"], "file_find")

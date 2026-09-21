@@ -4,9 +4,10 @@ Runs on the operator's Windows PC (or anywhere Python runs):
 
     python -m aletheia.core            # http://127.0.0.1:8777
 
-One process, stdlib only, serving the internal API every interface uses
-(§110) plus the static interfaces (the wall at `/`, the Command Center at
-`/command.html`). It executes commands through the SAME grammar and
+One process, stdlib only, serving the internal API the interface uses
+(§110) plus the interface itself: ONE page at `/` (interface/thea.html) —
+the same product on his PC and his phone — with the ambient fleet wall at
+`/interface/wall.html` behind it. It executes commands through the SAME grammar and
 gates as the intercom — `intercom.validate_kind_args` →
 `intercom.execute_command` → policy/halt/front-door checks → journal —
 so voice-via-ChatGPT and the local console can never drift apart.
@@ -39,12 +40,18 @@ API:
     GET  /api/capabilities  the capability registry
     GET  /api/journal?last=N
     GET  /api/state         canonical current-state snapshot (focus/attention)
+    GET  /api/mission       the mission screen: header (state word, doing, next,
+                            stale), job-hunt pipeline + cards, discovery, the
+                            activity ribbon, eyes — read-only
+    GET  /api/mission/receipt?kind=application|session|journal&id=
+    GET  /api/mission/screenshot?id=apply-…  a screenshot already on the record
     GET  /api/notifications[?state=UNREAD]
     GET  /api/events?last=N  the local event bus, newest first
     GET  /api/watchers      durable watcher definitions + states
     GET  /api/schedules     durable schedule definitions
     GET  /api/runtime       last runtime tick summary
     GET  /api/setup         what the operator still has to supply, checked live
+    GET  /api/phone         the tailnet address his phone should open (never a token)
     GET  /api/voice/followup?id=  a slow spoken answer; non-destructive
     POST /api/voice/followup/ack  {"id": …} once the listener has spoken it
     GET  /api/computer/status
@@ -78,6 +85,14 @@ from aletheia.sync import GitSync
 import time
 
 INTERFACE_DIR = REPO_ROOT / "interface"
+#: The one page that is the product, on his PC and on his phone alike.
+THE_PAGE = "/interface/thea.html"
+#: What it replaced. They redirect rather than 404, because an icon he added
+#: to his home screen in September must not stop working in October.
+RETIRED_PAGES = frozenset({
+    "index.html", "command.html", "console.html", "console.js",
+    "phone.html", "talk.js", "mobile.html", "mobile.js",
+})
 ACTOR = "operator-local-core"
 DEFAULT_PORT = 8777
 MAX_BODY_BYTES = 64 * 1024
@@ -103,8 +118,17 @@ def status_payload() -> dict:
             pulse_meta = {"error": "pulse unreadable"}
     all_t = tasks.all_tasks()
     heartbeat_age = liveness.age_seconds()
+    # THE FOUR SECTIONS THE BRIEF ASKS FOR, on the route the Command Center
+    # already polls: her state in the tiny vocabulary, the job hunt counted
+    # from the records, the browser, the code. `sections` never raises and
+    # is cached for a few seconds, so a status read stays cheap.
+    derived = current_state.sections()
     return {
         "halted": policy.halted(),
+        "agent": derived["agent"],
+        "job_hunt": derived["job_hunt"],
+        "browser": derived["browser"],
+        "code": derived["code"],
         "pulse": pulse_meta,
         "liveness": {
             "heartbeat_age_s": None if heartbeat_age is None else round(heartbeat_age, 1),
@@ -119,6 +143,54 @@ def status_payload() -> dict:
         "approvals_pending": [a["id"] for a in policy.all_approvals()
                               if a["state"] == "PENDING"],
     }
+
+
+def linked_devices() -> int:
+    """How many devices could present a credential right now. A COUNT, never
+    a token: they are stored as sha256 and the plaintext exists once, in the
+    terminal where he minted it."""
+    try:
+        return len(access.live_tokens())
+    except Exception:
+        return 0
+
+
+def phone_link() -> dict:
+    """The address his phone should open, or an honest reason there isn't one.
+
+    Read-only, and it mints nothing. Getting Thea onto a phone is: scan the
+    code on this page, open the link, Add to Home Screen — and the page can
+    do that because the ADDRESS is not a secret. The credential still comes
+    from `python -m aletheia.access mint`, at his own keyboard, because
+    handing a page the power to create one would be a new authority and this
+    pass adds none.
+    """
+    devices = linked_devices()
+    try:
+        from aletheia import tailscale
+        state = tailscale.state()
+    except Exception as exc:
+        return {"url": None, "devices": devices,
+                "why": f"Could not ask Tailscale on this PC ({type(exc).__name__})."}
+    if not state.installed:
+        return {"url": None, "devices": devices,
+                "why": "Tailscale isn't installed on this PC, so your phone has no "
+                       "address to open."}
+    if not state.dns_name:
+        return {"url": None, "devices": devices,
+                "why": "Tailscale is installed but this PC has no tailnet name yet "
+                       f"({state.backend or state.detail or 'not signed in'})."}
+    served = False
+    try:
+        from aletheia import tailscale as _ts
+        served = any(f":{DEFAULT_PORT}" in backend
+                     for backend in _ts.serve_proxies().values())
+    except Exception:
+        served = False
+    return {"url": f"https://{state.dns_name}{THE_PAGE}", "devices": devices,
+            "why": "" if served else
+                   "Your phone can see this PC, but nothing is forwarding her to it "
+                   "yet — run  tailscale serve --bg 8777  once on this PC."}
 
 
 def run_command(payload: dict, fleet: dict) -> dict:
@@ -277,10 +349,13 @@ def _surface_failures(failures: list[dict]) -> None:
             continue  # same failure as last beat: already said
         _FAILURES_SEEN[producer] = error
         try:
+            from aletheia import speech
             notifications.publish(
-                f"{producer} is failing",
-                f"Every beat since it started: {error}. Nothing else has stopped.",
-                priority="IMPORTANT", source="runtime",
+                "Part of me keeps failing",
+                speech.for_the_room(
+                    f"{producer} has failed every beat since it started: "
+                    f"{speech.plainly(error)}. Everything else is still running."),
+                priority="IMPORTANT", source="runtime", about=notifications.FAILED,
                 dedupe_key=f"runtime-failure:{producer}:{error[:60]}")
         except Exception:
             pass  # the journal line above is the record
@@ -411,6 +486,7 @@ def kick_approved_work(fleet: dict, wait_s: float = 0.0) -> bool:
         global _KICKING
         try:
             for name, work in (("intents", lambda: runtime._run_approved_intents(fleet)),
+                               ("handoffs", runtime._run_approved_handoffs),
                                ("errands", runtime._run_authorized_errands),
                                ("scheduling", lambda: runtime._reconcile_scheduling(
                                    dt.datetime.now(dt.timezone.utc)))):
@@ -617,10 +693,20 @@ class Handler(BaseHTTPRequestHandler):
                         or parse_qs(urlparse(self.path).query).get("local", [None])[0])
             if access.local_write_allowed(supplied):
                 return True
+            # SAID THE WAY HE READS IT, AND FILED THE WAY IT IS DEBUGGED.
+            # The journal is what "what have you done" reads out and what the
+            # activity list on his phone renders, and this arrived in both as
+            # a diagnostic: "A local process attempted POST
+            # /api/voice/followup/ack without the local session secret",
+            # twice, among the things she did. Two waves found it the same
+            # afternoon and fixed different halves: the sentence is the voice
+            # wave's, and the method and route moved into the SUBJECT, which
+            # nothing renders — so it is still there for whoever is debugging
+            # and never on his screen.
             journal.append(
-                "alert", "access",
-                f"a local process attempted {self.command} "
-                f"{path} without the local session secret",
+                "alert", f"access:{self.command} {path}",
+                "I turned away something on this computer that asked me to "
+                "act without proving it was you",
                 actor="aletheia-access")
             self._json({"error": "unauthorized"}, code=401)
             return False
@@ -637,9 +723,11 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": "unauthorized"}, code=401)
             return False
         if not access.scope_allows(record["scope"], self.command):
-            journal.append("alert", "access",
-                           f"{record['id']} ({record['scope']}) tried "
+            journal.append("alert",
+                           f"access:{record['id']} {record['scope']} "
                            f"{self.command} {path} from {source}",
+                           "a device whose code may only read tried to change "
+                           "something, so nothing happened",
                            actor="aletheia-access")
             self._json({"error": "this token is read-only"}, code=403)
             return False
@@ -657,6 +745,12 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def _redirect(self, where: str) -> None:
+        self.send_response(302)
+        self.send_header("Location", where)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
     def _static(self, rel: str) -> None:
         target = (INTERFACE_DIR / rel).resolve()
@@ -721,6 +815,14 @@ class Handler(BaseHTTPRequestHandler):
             # `reason` raw and showed `operator said: "x"` above a hex id.
             # Two surfaces disagreeing about the same approval, and the one
             # with the buttons on it had the worse text.
+            #
+            # AND WITH THE LINE THAT TELLS TWO OF THEM APART. Live on his
+            # machine, thirty-eight pending approvals all read "It sends your
+            # application to this employer under your name. There is no
+            # undo." — the right headline, and identical for every one, so
+            # the screen asked for thirty-eight irreversible decisions with
+            # nothing on it to choose between them. `approval_about` is the
+            # sub-line; it is computed here for the same reason the label is.
             from aletheia import voice as _voice
             rows = []
             for approval in policy.all_approvals():
@@ -728,7 +830,11 @@ class Handler(BaseHTTPRequestHandler):
                     label = _voice.approval_label(approval)
                 except Exception:
                     label = ""
-                rows.append({**approval, "label": label})
+                try:
+                    about = _voice.approval_about(approval)
+                except Exception:
+                    about = ""
+                rows.append({**approval, "label": label, "about": about})
             return self._json(rows)
         if url.path == "/api/capabilities":
             return self._json(capabilities.load_registry())
@@ -751,6 +857,43 @@ class Handler(BaseHTTPRequestHandler):
                                for k, (req, opt) in intercom.KIND_ARGS.items()})
         if url.path == "/api/state":
             return self._json(current_state.snapshot())
+        if url.path == "/api/needs":
+            # THE ONE "NEEDS YOU" LIST, computed here so every surface
+            # shows the same rows in the same order — the wall, the
+            # phone and the room. Smarts belong in the collector and
+            # never in the page (§88), which is the same reason
+            # `voice.approval_label` is computed by the API.
+            from aletheia import needs_you as _needs
+            # A CAP THAT LIES ABOUT THE COUNT is the failure this list was
+            # built to avoid: with forty-one things waiting, the default
+            # twenty-five made the page say "show the other 20" and the
+            # spoken line say "25 things need you". One read, the true
+            # total, and `spoken` counts the same rows the page renders.
+            try:
+                asked = int(parse_qs(url.query).get("limit", [""])[0])
+            except ValueError:
+                asked = _needs.MAX_ITEMS
+            rows = _needs.items(limit=200)
+            return self._json({"needs": rows[:max(1, min(asked, 200))],
+                               "total": len(rows),
+                               "says": _needs.spoken(rows),
+                               "activity": _needs.activity()})
+        if url.path == "/api/health":
+            # "Is she all right?" in words, for the page to render as-is.
+            # `include_tasks=False` skips the 0.6s scheduled-task query;
+            # `?tasks=1` asks for the full picture.
+            from aletheia import running as _running
+            want_tasks = parse_qs(url.query).get("tasks", ["0"])[0] == "1"
+            state = _running.snapshot(include_tasks=want_tasks)
+            state["says"] = _running.headline(state)
+            # `well` is what the page hides itself on, and it comes from
+            # `running` rather than from the page re-deriving it: a health
+            # strip that stays quiet while the sentence says the Core is
+            # down would be worse than having none.
+            state["well"] = _running.all_well(state)
+            return self._json(state)
+        if url.path.startswith("/api/mission"):
+            return self._mission(url)
         if url.path == "/api/notifications":
             state = parse_qs(url.query).get("state", [None])[0]
             rows = notifications.all_notifications(state=state)
@@ -773,6 +916,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(events.list_watchers())
         if url.path == "/api/schedules":
             return self._json(scheduler.all_schedules())
+        if url.path == "/api/phone":
+            return self._json(phone_link())
         if url.path == "/api/setup":
             from aletheia import setup as _setup
             return self._json(_setup.audit())
@@ -802,12 +947,42 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(body)
                 return
             return self.send_error(404)
-        # A service worker may only control paths at or below its own URL,
-        # so /interface/sw.js can claim /interface/* — which is the whole
-        # phone app. Nothing else needs a special route.
-        rel = "index.html" if url.path in ("/", "/interface/", "/interface/index.html") \
-            else url.path.removeprefix("/interface/").lstrip("/")
-        return self._static(rel)
+        # A service worker may only control paths at or below its own URL, so
+        # /interface/sw.js can claim /interface/* — which is the whole app.
+        # ONE page is the product (2026-09-18): the five surfaces it replaced
+        # still answer, with a redirect, because a home-screen icon and a
+        # bookmark outlive a rename.
+        rel = url.path.removeprefix("/interface/").lstrip("/")
+        if url.path in ("/", "/interface/") or rel in RETIRED_PAGES:
+            return self._redirect(THE_PAGE)
+        return self._static(rel or "thea.html")
+
+    def _mission(self, url) -> None:
+        """Mission control's read-only routes. Reached only through
+        `authorized()` like every other GET: open on genuine loopback, a
+        real token for anything remote. Nothing here writes or launches."""
+        from aletheia import mission_control
+        query = parse_qs(url.query)
+        if url.path == "/api/mission":
+            return self._json(mission_control.gather())
+        if url.path == "/api/mission/receipt":
+            found = mission_control.receipt(query.get("kind", [""])[0], query.get("id", [""])[0])
+            if found is None:
+                return self._json({"error": "no such receipt"}, code=404)
+            return self._json(found)
+        if url.path == "/api/mission/screenshot":
+            shot = mission_control.screenshot_for(query.get("id", [""])[0])
+            if shot is None:
+                return self._json({"error": "no screenshot on that record"}, code=404)
+            body = shot.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "private, max-age=60")
+            self.end_headers()
+            self.wfile.write(body)
+            return None
+        return self._json({"error": "not found"}, code=404)
 
     def do_POST(self):
         if not self.authorized():
@@ -1129,9 +1304,22 @@ def main(argv: list[str] | None = None) -> int:
         except Exception:
             pass
     threading.Thread(target=warm_the_fast_lane, daemon=True).start()
+
+    def keep_her_memory_indexed():
+        # HER SEMANTIC INDEX, BUILT SOMEWHERE ELSE. This thread only waits and,
+        # when a run is due, starts `python -m aletheia.semantic_index build`
+        # as its own windowless below-normal-priority process with a time
+        # budget - so indexing can never hold a beat, a request or an answer.
+        try:
+            from aletheia import semantic_index
+            semantic_index.background_loop()
+        except Exception:
+            pass
+    threading.Thread(target=keep_her_memory_indexed, name="semantic-index",
+                     daemon=True).start()
     journal.append("event", "core", f"local Core up on {args.host}:{args.port}")
     print(f"Aletheia Core: http://{args.host}:{args.port}  "
-          f"(wall at /, command center at /command.html) — Ctrl+C stops")
+          f"(Thea at /, the fleet wall at /interface/wall.html) — Ctrl+C stops")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

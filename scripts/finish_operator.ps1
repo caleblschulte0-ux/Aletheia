@@ -1,6 +1,6 @@
 # Finish Aletheia operator activation after GitHub + ChatGPT session checks already pass.
 # Safe entrypoint:
-#   irm https://raw.githubusercontent.com/caleblschulte0-ux/Aletheia/main/scripts/finish_operator.ps1 | iex
+#   irm https://raw.githubusercontent.com/caleblschulte0-ux/Aletheia/live/scripts/finish_operator.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 $dest = Join-Path $HOME "Aletheia"
@@ -24,7 +24,7 @@ function Invoke-AletheiaPython {
   }
 }
 
-Write-Host "`n  ALETHEIA OPERATOR MODE — FINISH" -ForegroundColor Cyan
+Write-Host "`n  ALETHEIA OPERATOR MODE - FINISH" -ForegroundColor Cyan
 Write-Host "  Skipping the full test/install pass; verifying prerequisites first." -ForegroundColor DarkGray
 
 # These must already be working before standing authority is enabled.

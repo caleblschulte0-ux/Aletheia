@@ -120,8 +120,7 @@ class PrivateStateCase(unittest.TestCase):
         self.assertTrue(model_pool_config.enabled())
         self.assertFalse(model_pool_config.shadow_enabled())
 
-    def test_failed_activation_leaves_local_routing_disabled(self):
-        model_pool_config.save_settings(enabled=True, shadow=True)
+    def test_a_first_activation_that_fails_leaves_local_routing_disabled(self):
         with mock.patch.object(local_model_pool, "smoke",
                                side_effect=local_model_pool.LocalPoolUnavailable("missing")), \
              redirect_stdout(StringIO()):
@@ -129,12 +128,35 @@ class PrivateStateCase(unittest.TestCase):
         self.assertFalse(model_pool_config.enabled())
         self.assertFalse(model_pool_config.shadow_enabled())
 
+    def test_a_failed_activation_never_turns_off_an_earlier_one(self):
+        """The bring-up runs `activate` after every update. Ollama being slow
+        to start after a reboot must not become the emergency brake."""
+        model_pool_config.save_settings(enabled=True, shadow=False)
+        out = StringIO()
+        with mock.patch.object(local_model_pool, "smoke",
+                               side_effect=local_model_pool.LocalPoolUnavailable("missing")), \
+             redirect_stdout(out):
+            self.assertEqual(local_ai.main(["activate"]), 1)
+        self.assertTrue(model_pool_config.enabled())
+        self.assertIn('"still_enabled": true', out.getvalue())
+        self.assertEqual(model_pool_config.settings()["enabled_source"], "local_config")
+
+    def test_activate_is_how_a_deactivate_is_undone(self):
+        model_pool_config.save_settings(enabled=False)
+        with mock.patch.object(local_model_pool, "smoke", return_value={"ok": True}), \
+             redirect_stdout(StringIO()):
+            self.assertEqual(local_ai.main(["activate"]), 0)
+        self.assertTrue(model_pool_config.enabled())
+
     def test_activation_reports_environment_forced_disable(self):
         with mock.patch.dict(os.environ, {"ALETHEIA_LOCAL_AI_ENABLED": "0"}), \
              mock.patch.object(local_model_pool, "smoke", return_value={"ok": True}), \
              redirect_stdout(StringIO()):
             self.assertEqual(local_ai.main(["activate"]), 1)
         self.assertFalse(model_pool_config.enabled())
+        # Nothing was written: a saved opt-in behind a forbidding environment
+        # would spring to life the day the override is removed.
+        self.assertEqual(model_pool_config.settings()["enabled_source"], "default")
 
     def test_shadow_enable_failure_does_not_leave_a_latent_opt_in(self):
         model_pool_config.save_settings(enabled=True, shadow=False)
@@ -328,8 +350,10 @@ class LocalSmokeCase(unittest.TestCase):
         def status(config):
             return {"online": True, "model_available": True, "model": config.model}
 
-        def infer(system, text, *, context, config):
+        def infer(system, text, *, context, config, should_yield=None):
             del system, text, context
+            # The activation probe is attended: nothing interrupts it.
+            assert should_yield is None
             role = "fast" if config.model == "qwen3:8b" else "deep"
             observed_timeouts[role] = config.timeout_s
             observed_thinking[role] = config.think
@@ -399,7 +423,11 @@ class LocalSmokeCase(unittest.TestCase):
             Path(__file__).resolve().parents[1]
             / "scripts" / "activate_local_ai.ps1"
         ).read_text(encoding="utf-8")
-        self.assertIn('$branch -ne "main"', script)
+        # The Core deploys from `live` (tests/test_ci_writes_where_she_reads).
+        # This script refused to run on a live checkout for eleven days
+        # because it froze "main" - the branch the operator's PC is never on.
+        self.assertIn('$branch -ne "live"', script)
+        self.assertNotIn('-ne "main"', script)
         self.assertIn("-m aletheia.local_ai activate", script)
         self.assertIn("local routing remains disabled", script)
         self.assertIn("Testing the fast route", script)

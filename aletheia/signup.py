@@ -337,6 +337,15 @@ def remember(host: str, *, username: str, password: str,
     """
     alias = account_alias(host)
     _vault().put(alias, password, provider=provider or host, kind="account")
+    return record_account(host, username=username, employer=employer, provider=provider)
+
+
+def record_account(host: str, *, username: str, employer: str = "", provider: str = "") -> dict:
+    """Record an account whose password is ALREADY in the vault under
+    `account_alias(host)` - the general browser loop puts it there before the
+    form is filled, so the create press and the record can never disagree
+    about which password the account has."""
+    alias = account_alias(host)
     try:
         rows = stateio.read_json(accounts_path())
         rows = rows if isinstance(rows, dict) else {}

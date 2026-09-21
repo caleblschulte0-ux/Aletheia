@@ -63,6 +63,23 @@ READER_FOR = {
     "project_new": "projects",
     "project_step": "projects",
     "project_drop": "projects",
+    # A long mission he starts, adds to or confirms shows up at once in "how
+    # is my mission going" (and "what are we waiting on"): a draft being
+    # written, a draft with his questions, then the running mission.
+    "mission_new": "missions",
+    "mission_add": "missions",
+    "mission_confirm": "missions",
+    # A schedule starting this round of a recurring activity adds a task he
+    # sees in the same answer.
+    "mission_activity": "missions",
+    # "Work on my projects" is answered by "what did you get done": the session's
+    # receipts, what it queued for a stronger model and why, and what waits on him.
+    "work_projects": "work_report",
+    # A study, his decisions on it and his yes to its comparables are all read back by
+    # "how's the study going / what did you find / what should we change".
+    "study_new": "studies",
+    "study_decide": "studies",
+    "study_confirm": "studies",
     "apply_prepare": "applications",
     "apply_campaign": "applications",
     "apply_answer": "applications",
@@ -99,6 +116,13 @@ READER_FOR = {
     # "Are you recording" is how he checks a recording started or stopped.
     "screen_record": "recording",
     "screen_record_stop": "recording",
+    # A conversation she drafts, follows up on or proposes times in is read
+    # back with "did they reply" / "what's happening with the landlord".
+    "thread_draft": "thread_status",
+    "thread_followup": "thread_status",
+    "calendar_propose": "thread_status",
+    # A hold makes that time busy: "when am I free" says so, and names it.
+    "calendar_hold": "calendar_find_free",
 }
 
 
