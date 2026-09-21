@@ -105,5 +105,44 @@ class LeaseCase(unittest.TestCase):
         self.assertIn("busy", str(said.exception))
 
 
+
+class AWantMarkerHalfWrittenIsNotLitter(unittest.TestCase):
+    """The reader polls every half second and used to delete any marker
+    it could not parse - including one being written that instant. Seen
+    on a loaded CI runner: the conversation's marker vanished and the
+    checkpoint never saw it waiting."""
+
+    def setUp(self):
+        import tempfile
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        patcher = mock.patch.dict(os.environ, {local_lease.LEASE_ENV: self.tmp.name})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_an_unreadable_fresh_marker_survives_a_poll(self):
+        marker = local_lease.lease_dir() / "want-1-abcd.json"
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text('{"pid": 1, "at"', encoding="utf-8")       # half a record
+        self.assertEqual(local_lease._wants(time.time()), [])
+        self.assertTrue(marker.exists(), "a marker mid-write was deleted by the reader")
+        # One that is old by the file's clock IS litter.
+        old = time.time() - local_lease.WANT_FRESH_S - 5
+        os.utime(marker, (old, old))
+        local_lease._wants(time.time())
+        self.assertFalse(marker.exists())
+
+    def test_the_marker_is_written_whole(self):
+        from aletheia import stateio
+        seen = []
+        real = stateio.write_json_atomic
+        with mock.patch.object(stateio, "write_json_atomic",
+                               side_effect=lambda path, value: (seen.append(path.name), real(path, value))[1]):
+            with local_lease.purpose(local_lease.CONVERSATION):
+                with local_lease.hold(what="he asked", max_wait_s=1.0):
+                    pass
+        self.assertTrue(any(name.startswith("want-") for name in seen), "the want marker did not go through the atomic writer")
+
+
 if __name__ == "__main__":
     unittest.main()
