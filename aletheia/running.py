@@ -287,19 +287,85 @@ def version() -> dict:
         #
         # Counted against the last fetch, never fetching here: a status
         # read must not touch the network.
-        behind = ""
+        behind, behind_count = "", 0
         for remote in (f"origin/{branch}", "origin/main"):
             counted = git("rev-list", "--count", f"HEAD..{remote}")
             if counted.isdigit() and int(counted):
+                behind_count = int(counted)
                 behind = f"{counted} commits behind {remote}"
                 break
         facts = {"branch": branch, "commit": commit, "subject": subject,
-                 "behind": behind}
+                 "behind": behind, "behind_count": behind_count}
         _VERSION_CACHE = (signature, dict(facts))
 
     facts.update({"started_at": started, "newest_code": newest_file,
                   "running_old_code": stale})
     return facts
+
+
+#: A checkout behind its remote for longer than this is STUCK, not
+#: updating: a merge lands on the PC within a minute of the next beat and
+#: the restart takes seconds. Half an hour is longer than the full suite.
+UPDATE_STUCK_AFTER_S = 1800
+#: (commit she is on, when this process first saw it behind). In memory
+#: on purpose: the Core is the one process that pulls and the one that
+#: answers the page, and after a restart it is up to date by construction.
+_BEHIND_SEEN: tuple[str, str] | None = None
+
+
+def update_stuck(now: "dt.datetime | None" = None, info: dict | None = None) -> dict | None:
+    """The update she has not managed to take, or None while there is none.
+
+    Three days of stale code hid behind "Everything's running" on
+    2026-09-21: `version()` knew the checkout was 85 commits behind and
+    nothing above it ever asked. This is the ask. It is measured from
+    when THIS process first saw the checkout behind on this commit, never
+    from the commits' own dates: a branch merged today carries commits
+    from last week, and those would read as three days stuck the minute
+    they landed.
+
+    `because` is the sync loop's own last word, read in-process, and empty
+    anywhere else — outside the Core the reason is simply not known.
+    """
+    global _BEHIND_SEEN
+    import datetime as dt
+    try:
+        info = version() if info is None else info
+    except Exception:
+        return None
+    waiting = int(info.get("behind_count") or 0)
+    if not waiting:
+        _BEHIND_SEEN = None
+        return None
+    now = now or dt.datetime.now(dt.timezone.utc)
+    commit = str(info.get("commit") or "")
+    if _BEHIND_SEEN is None or _BEHIND_SEEN[0] != commit:
+        _BEHIND_SEEN = (commit, now.isoformat())
+    for_s = (now - dt.datetime.fromisoformat(_BEHIND_SEEN[1])).total_seconds()
+    if for_s < UPDATE_STUCK_AFTER_S:
+        return None
+    because = ""
+    core = sys.modules.get("aletheia.core")
+    pull = (getattr(core, "SYNC_STATUS", None) or {}).get("pull") if core else None
+    if isinstance(pull, dict) and not pull.get("ok", True):
+        because = str(pull.get("detail") or "")
+    return {"since": _BEHIND_SEEN[1], "for_s": for_s, "waiting": waiting,
+            "because": because}
+
+
+def for_words(seconds: float) -> str:
+    """How long, the way a person says it: 'twenty minutes', 'about an hour',
+    'three hours', 'three days'. Never a decimal read out loud."""
+    minutes = seconds / 60
+    if minutes < 55:
+        return f"{max(1, round(minutes))} minutes"
+    hours = seconds / 3600
+    if hours < 1.5:
+        return "about an hour"
+    if hours < 36:
+        return f"{round(hours)} hours"
+    days = seconds / 86400
+    return "a day and a half" if days < 2 else f"{round(days)} days"
 
 
 def version_words(info: dict) -> str:
@@ -365,12 +431,17 @@ def snapshot(include_tasks: bool = True) -> dict:
                       "pids": [r["pid"] for r in rows],
                       "mb": sum(r.get("mb", 0) for r in rows)})
     _started, newest_file, stale = running_old_code()
+    try:
+        stuck = update_stuck()
+    except Exception:
+        stuck = None
     return {"parts": parts, "tasks": tasks() if include_tasks else {},
             # Whether the microphone is OPEN, which is not the same fact as
             # whether the room process is up: the process exists and opens
             # nothing until he presses the button.
             "listening": _listening(),
-            "running_old_code": stale, "newest_code": newest_file, "closed": shut,
+            "running_old_code": stale, "newest_code": newest_file,
+            "update_stuck": stuck, "closed": shut,
             "closed_reason": why, "halted": bool(halt),
             "halt_reason": (halt or {}).get("reason", "") if halt else "",
             "heartbeat_age_s": beat_age}
@@ -423,7 +494,8 @@ def all_well(state: dict) -> bool:
     """
     return bool(not state.get("closed") and not state.get("halted")
                 and _every_expected_part_is_up(state)
-                and not state.get("running_old_code"))
+                and not state.get("running_old_code")
+                and not state.get("update_stuck"))
 
 
 def why_not(part: dict) -> str:
@@ -466,6 +538,16 @@ def headline(state: dict) -> str:
                 + (f", because {because}" if because else "")
                 + ". I won't act on anything until you say resume.")
     if _every_expected_part_is_up(state):
+        stuck = state.get("update_stuck")
+        if stuck:
+            # Not "restart me": a restart picks up nothing while the pull
+            # itself is refused. What he can act on is how long and how
+            # much; what is in the way is a developer's line, in the drawer.
+            waiting = int(stuck.get("waiting") or 0)
+            return (f"Everything's running, but I haven't managed to update "
+                    f"myself for {for_words(float(stuck.get('for_s') or 0))} — "
+                    f"{waiting} newer change{'s' if waiting != 1 else ''} "
+                    "waiting. I try again every minute.")
         if state.get("running_old_code"):
             return ("Everything's running, but on older code than you have "
                     "checked out. Restart me to pick it up.")
