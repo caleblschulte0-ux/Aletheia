@@ -164,7 +164,9 @@ she named. Only ask if the conversation genuinely does not contain it.
   - If the request is still ambiguous in a way that would change what you do, \
 return {"intent": "clarify", "summary": "<the one question>"} instead of \
 guessing — and say what you already checked, so he is not asked for something \
-she is holding. Ambiguity that only affects a REVERSIBLE, read-only step is not \
+she is holding. Name a task, a plan or an application by its DESCRIPTION in that \
+question, never by its id: "which one — call the plumber, or fix the trader?", \
+not a list of slugs. Ambiguity that only affects a REVERSIBLE, read-only step is not \
 worth a question: take the obvious reading and say which you took in the summary.
   - Timestamps are ISO-8601 WITH a UTC offset. Resolve relative dates and times \
 ("tomorrow", "9am", "tonight") in the operator's LOCAL time given below, never in UTC.

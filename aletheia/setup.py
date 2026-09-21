@@ -24,6 +24,7 @@ rather than keeping a second copy that will disagree by Friday.
 """
 from __future__ import annotations
 
+import re
 import argparse
 import json
 import os
@@ -443,7 +444,7 @@ def steps() -> list[Step]:
               "If you do not run one, this is not a five-minute task — it is "
               "installing a home automation platform. Skip it until you want one."],
              _room, optional=True),
-        Step("access.remote", "Your phone reaching her", 10,
+        Step("access.remote", "Your phone reaching me", 10,
              "The phone surface has existed since Phase 21 and no phone could "
              "load it.",
              _remote_how,
@@ -516,6 +517,29 @@ _CACHE: dict = {"at": 0.0, "report": None}
 CACHE_SECONDS = 60.0
 
 
+def cached_report() -> dict | None:
+    """The last audit, if one ran recently - for the fast lane, which may
+    never pay for a live check itself. None when nothing is cached."""
+    import time as _time
+    if _CACHE["report"] is None or _time.monotonic() - _CACHE["at"] >= CACHE_SECONDS:
+        return None
+    return _CACHE["report"]
+
+
+def _in_her_voice(text: str) -> str:
+    """A step's `why` was written for the checklist screen, about her in
+    the third person ("an app password lets her send as you"). Said by her
+    it has to be the first person."""
+    said = str(text or "")
+    for pattern, word in (("\\bshe's\\b", "I'm"), ("\\bShe's\\b", "I'm"),
+                          ("\\bshe is\\b", "I am"), ("\\bShe is\\b", "I am"),
+                          ("\\bshe\\b", "I"), ("\\bShe\\b", "I"),
+                          ("\\bherself\\b", "myself"), ("\\bher\\b", "me"),
+                          ("\\bHer\\b", "My"), ("\\bAletheia's\\b", "my")):
+        said = re.sub(pattern, word, said)
+    return said
+
+
 def audit(*, fresh: bool = False) -> dict:
     """Every step, checked live. Never claims a thing works without proof."""
     import time as _time
@@ -577,6 +601,61 @@ def render(report: dict) -> str:
                      f"about {report['minutes_left']} minutes of your time left")
     lines.append("")
     return "\n".join(lines)
+
+
+#: What he calls each step, for "is my email set up". Title words count
+#: too; this is for the words that are not in the title.
+_SAID_AS = {
+    "mail.send": ("email", "mail", "gmail"),
+    "calendar.read": ("calendar",),
+    "access.remote": ("phone", "iphone", "tailscale", "remote"),
+    "phone.call": ("call", "calls", "calling"),
+    "room.scene": ("lights", "room", "home assistant", "scenes"),
+    "media.edit": ("video", "ffmpeg", "media"),
+    "reason.chatgpt_browser": ("chatgpt", "backup brain"),
+    "voice.wall": ("microphone", "mic", "ears", "voice"),
+}
+
+
+def spoken_about(about: str, report: dict | None = None) -> str:
+    """"Is my email set up?" - that ONE step, not the whole checklist.
+
+    Asked about email, she read out four of sixteen done and every
+    outstanding step. The answer to a question about one thing is where
+    that thing stands: done, or not and why, and where the steps are.
+    """
+    from aletheia import speech
+    key = " ".join(str(about or "").casefold().split())
+    if not key:
+        return spoken(report)
+    report = report if report is not None else audit()
+    words = set(re.findall(r"[a-z]+", key))
+    best = None
+    for item in report["steps"]:
+        names = set(re.findall(r"[a-z]+", str(item.get("title") or "").casefold()))
+        names |= set(_SAID_AS.get(str(item.get("capability") or ""), ()))
+        names |= set(w for alias in _SAID_AS.get(str(item.get("capability") or ""), ())
+                     for w in alias.split())
+        if key in names or words & names:
+            best = item
+            break
+    if best is None:
+        return spoken(report)
+    title = str(best.get("title") or "that")
+    if best["state"] == OK:
+        return f"{title}: yes, set up and checked."
+    if best["state"] == BROKEN:
+        said = f"{title} is set up but not working: {speech.plainly(str(best.get('detail') or ''))}"
+    else:
+        said = f"{title} isn't set up yet"
+        why = speech.plainly(_in_her_voice(str(best.get("why") or "")))
+        if why:
+            said += f": {why[0].lower() + why[1:]}"
+    minutes = int(best.get("minutes") or 0)
+    said = said.rstrip(".") + "."
+    if minutes:
+        said += f" About {speech.count_phrase(minutes, 'minute')} of your time."
+    return said + " The exact steps are under 'Still to set up' at the bottom of the Thea page."
 
 
 def spoken(report: dict | None = None) -> str:

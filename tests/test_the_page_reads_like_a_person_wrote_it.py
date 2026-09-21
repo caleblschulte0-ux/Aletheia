@@ -106,3 +106,70 @@ class TheWorkCardCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TheSecondProbeCase(unittest.TestCase):
+    """Five more replies with every model down, and where each goes now."""
+
+    def test_what_she_cannot_do_never_needs_a_model(self):
+        from aletheia import quick, setup
+        with mock.patch.object(setup, "cached_report", return_value={"steps": [
+                {"title": "Email", "state": "MISSING", "optional": False},
+                {"title": "The room", "state": "MISSING", "optional": True},
+                {"title": "Your phone reaching me", "state": "OK", "optional": False}]}):
+            said = quick.answer("what can't you do")
+        self.assertIsNotNone(said)
+        self.assertIn("Waiting on you to set up: email", said)
+        self.assertNotIn("the room", said.lower())          # optional is not owed
+        self.assertIn("Not built yet:", said)
+        for machine in ("finance.", "music.", "message.", "NOT_BUILT"):
+            self.assertNotIn(machine, said)                 # English, never ids
+        with mock.patch.object(setup, "cached_report", return_value=None):
+            said = quick.answer("what can't you do")
+        self.assertIn("check each one live", said)
+
+    def test_the_days_agenda_comes_from_the_calendar_mirror(self):
+        import datetime as dt
+        from aletheia import calendar, localtime, quick
+        tz = localtime.operator_tz()
+        today = dt.datetime.now(tz).replace(hour=14, minute=30, second=0, microsecond=0)
+        rows = [{"id": "a", "title": "Dentist", "start": today.isoformat(),
+                 "end": (today + dt.timedelta(hours=1)).isoformat(), "status": "CONFIRMED"},
+                {"id": "b", "title": "Gone", "start": today.isoformat(),
+                 "end": today.isoformat(), "status": "CANCELLED"},
+                {"id": "c", "title": "Flight", "start": (today + dt.timedelta(days=1)).isoformat(),
+                 "end": (today + dt.timedelta(days=1, hours=2)).isoformat(), "status": "CONFIRMED"}]
+        with mock.patch.object(calendar, "all_events", return_value=rows):
+            self.assertEqual(quick.answer("what's on my calendar today"), "Today: Dentist at 2:30 pm.")
+            self.assertEqual(quick.answer("what do I have tomorrow"), "Tomorrow: Flight at 2:30 pm.")
+        with mock.patch.object(calendar, "all_events", return_value=[]):
+            self.assertEqual(quick.answer("what's on my schedule today"),
+                             "Nothing on your calendar today.")
+
+    def test_why_a_repo_is_red_is_answered_from_the_pulse(self):
+        from aletheia import current_state, quick
+        with mock.patch.object(current_state, "repo_words",
+                               return_value="Shorts-pipeline is not healthy; 1 workflow failing: third."):
+            self.assertIn("third", quick.answer("why is the shorts pipeline red"))
+
+    def test_a_question_about_one_setup_step_answers_about_that_step(self):
+        from aletheia import setup, voice
+        self.assertEqual(voice._interpret("is my email set up")["command"],
+                         {"kind": "setup_status", "about": "email"})
+        self.assertNotEqual(voice._interpret("is everything set up")["command"].get("kind"),
+                            "setup_status")
+        report = {"ready": False, "done": 4, "total": 16, "minutes_left": 22, "steps": [
+            {"capability": "mail.send", "title": "Email", "state": setup.MISSING, "optional": False,
+             "minutes": 5, "why": "an app password lets her send as you", "detail": "", "how": []},
+            {"capability": "access.remote", "title": "Your phone reaching me", "state": setup.OK,
+             "optional": False, "minutes": 10, "why": "", "detail": "", "how": []}]}
+        said = setup.spoken_about("email", report)
+        self.assertTrue(said.startswith("Email isn't set up yet: an app password lets me send as you."), said)
+        self.assertIn("5 minutes", said)
+        self.assertNotIn("4 of 16", said)
+        self.assertEqual(setup.spoken_about("phone", report), "Your phone reaching me: yes, set up and checked.")
+        self.assertIn("4 of 16", setup.spoken_about("nonsense", report))   # unknown: the whole answer
+
+    def test_the_planner_is_told_to_name_things_not_ids(self):
+        from aletheia import planner
+        self.assertIn("never by its id", planner.system_prompt())

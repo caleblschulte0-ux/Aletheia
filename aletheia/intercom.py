@@ -323,7 +323,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "authority_status": (set(), set()),
     # "what do you still need from me?" — read-only; it checks, it configures
     # nothing. Every credential remains the operator's to create.
-    "setup_status":     (set(), set()),
+    "setup_status":     (set(), {"about"}),
     # ---- 2026-09-02, both operator-authorized in his own words -----------
     # Desktop HANDS, not just eyes: a typed step list run through
     # aletheia.computer.act. Any control whose label commits or destroys
@@ -2822,6 +2822,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return _projects_answer()
     if kind == "setup_status":
         from aletheia import setup as _setup
+        if cmd.get("about"):
+            return _setup.spoken_about(str(cmd["about"]))
         return _setup.spoken()
     if kind == "authority_status":
         from aletheia import standing

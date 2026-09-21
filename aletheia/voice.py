@@ -1477,6 +1477,16 @@ def _interpret(transcript: str) -> dict:
                     r"what'?s left(?: to set up)?|am i done|"
                     r"what'?s still missing|setup status)", low):
         return {"command": {"kind": "setup_status"}, "say": None}
+    # "IS MY EMAIL SET UP?" is about ONE thing. It reached the whole
+    # checklist and he heard four of sixteen done and every step left.
+    m = re.fullmatch(r"(?:is|are) (?:my |the |your )?(?P<what>[a-z][a-z ]{1,30}?) "
+                     r"(?:set ?up|configured|connected|hooked up|working|ready)(?: yet)?"
+                     r"|(?:have|did) (?:you|i|we) (?:set ?up|configured|connected) "
+                     r"(?:my |the |your )?(?P<what2>[a-z][a-z ]{1,30}?)(?: yet)?", low)
+    if m and (m.group("what") or m.group("what2")) not in ("you", "u", "it", "everything", "all"):
+        return {"command": {"kind": "setup_status",
+                            "about": _as_he_said(transcript, m.group("what") or m.group("what2"))},
+                "say": None}
 
     # "what can you do without asking me?" — a read, so it answers.
     if re.fullmatch(r"(?:what can you do without asking(?: me)?|"
