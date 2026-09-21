@@ -341,6 +341,23 @@ class TheBeatCase(PursuitCase):
         self.assertEqual(fresh["state"], pursuit.OPEN)
         self.assertEqual(fresh["next_look"]["at"], "2026-09-21T15:30:00Z")
 
+    def test_her_own_model_giving_out_is_nobody_could_think_not_a_failed_pass(self):
+        # Live 2026-09-21: both subscriptions resting, her own model starved
+        # of memory; four opportunities were parked six hours as "failed".
+        from aletheia import local_model_pool, reasoner, reasoning_gateway
+        rec = self.opportunity()
+        think = pursuit._gateway_think()
+        with mock.patch.object(reasoning_gateway, "frontier_available", return_value=False), \
+             mock.patch.object(reasoning_gateway, "local_json",
+                               side_effect=local_model_pool.LocalPoolUnavailable("local Ollama unavailable")):
+            with self.assertRaises(reasoner.ReasonerUnavailable):
+                think(rec, NOW)
+            out = pursuit.tick(think=think, now=NOW)
+        self.assertEqual(out, [])
+        fresh = pursuit.load(rec["id"])
+        self.assertEqual(fresh["next_look"]["at"], "2026-09-21T15:30:00Z")
+        self.assertEqual(fresh["next_look"]["because"], "nobody could think just now")
+
     def test_lessons_are_sentences_about_what_happened_not_rules(self):
         rec = self.opportunity()
         rec["moves"].append({"id": "m1", "kind": "note_to_person", "state": "sent", "why": "w",

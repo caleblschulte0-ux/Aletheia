@@ -477,21 +477,30 @@ def validate(proposal: dict, record: dict) -> tuple[dict, list[dict]]:
 def _gateway_think():
     """The default thinker: the frontier through the gateway when it is up,
     her own model with the compact brief when it is not."""
-    from aletheia import reasoning_gateway, work_states
+    from aletheia import local_model_pool, reasoner, reasoning_gateway, work_states
 
     def think(record: dict, now: dt.datetime) -> tuple[dict, dict]:
         validator = lambda out: validate(out, record)[0]
-        if reasoning_gateway.frontier_available():
-            got = reasoning_gateway.reason_json(
-                BRIEF, "What, if anything, would help this opportunity along?",
-                context=context_for(record, now=now), policy="standard",
-                validator=validator, attention=work_states.BACKGROUND,
-                max_context_bytes=MAX_CONTEXT_BYTES)
-        else:
-            got = reasoning_gateway.local_json(
-                COMPACT_BRIEF, "What, if anything, would help this opportunity?",
-                context=context_for(record, compact=True, now=now), role="fast",
-                validator=validator, attention=work_states.BACKGROUND)
+        try:
+            if reasoning_gateway.frontier_available():
+                got = reasoning_gateway.reason_json(
+                    BRIEF, "What, if anything, would help this opportunity along?",
+                    context=context_for(record, now=now), policy="standard",
+                    validator=validator, attention=work_states.BACKGROUND,
+                    max_context_bytes=MAX_CONTEXT_BYTES)
+            else:
+                got = reasoning_gateway.local_json(
+                    COMPACT_BRIEF, "What, if anything, would help this opportunity?",
+                    context=context_for(record, compact=True, now=now), role="fast",
+                    validator=validator, attention=work_states.BACKGROUND)
+        except local_model_pool.LocalPoolUnavailable as exc:
+            # Her own model timing out, or stepping aside for a conversation,
+            # is "nobody could think just now" - the same thing as a spent
+            # subscription, and the same short wait. The first live turn
+            # (2026-09-21, Claude and Codex both resting, her model starved
+            # of memory) read it as a failed pass and parked four
+            # opportunities for six hours.
+            raise reasoner.ReasonerUnavailable(f"my own model could not answer: {exc}") from exc
         provider = str(got.provider or "")
         return got.output, {"provider": provider[:120], "local": provider.startswith("ollama:")}
     return think
