@@ -1,45 +1,45 @@
 # Fleet briefing
 
-Generated 2026-09-21T12:56:51Z from fleet registry rev 5 via GitHubSource.
+Generated 2026-09-21T22:01:18Z from fleet registry rev 5 via GitHubSource.
 
-## 🟢 `Aletheia` — hub (active)
+## ⚪ `Aletheia` — hub (active)
 
 The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.
 
-Last commit `c8089d98c3d9` at 2026-09-13T15:52:48Z: Apply anywhere: her texts, four more systems, and no more black boxes
+Last commit `0991e15dfdaf` at 2026-09-21T21:51:01Z: Merge pull request #126 from claude/the-pc-runs-old-code
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-09-21T12:56:47Z
-- `ci.yml`: success at 2026-09-19T21:00:09Z
+- `pulse.yml`: in_progress at 2026-09-21T22:01:15Z
+- `ci.yml`: in_progress at 2026-09-21T21:54:12Z
 
 ## 🔴 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `7bd8ebe10069` at 2026-09-21T12:44:47Z: daily: 2026-09-21 report + state [skip ci]
+Last commit `e798423e127d` at 2026-09-21T22:00:08Z: explainer: update posted log + analytics [skip ci]
 
-Vitals — trending posted: 339 · explainer posted: 261 · third posted: 579 · curiosity posted: 1
+Vitals — trending posted: 341 · explainer posted: 261 · third posted: 594 · curiosity posted: 1
 
 Watched workflows:
-- `daily.yml`: in_progress at 2026-09-21T12:44:54Z
-- `exchange_phase_a.yml`: success at 2026-09-20T14:37:29Z
-- `exchange_phase_b.yml`: success at 2026-09-21T12:27:04Z
-- `story_forge.yml`: success at 2026-09-21T10:50:57Z
-- `third.yml`: failure at 2026-09-20T23:18:44Z
-- `explainer.yml`: success at 2026-09-20T23:53:48Z
+- `daily.yml`: failure at 2026-09-21T21:35:07Z
+- `exchange_phase_a.yml`: success at 2026-09-21T21:42:06Z
+- `exchange_phase_b.yml`: success at 2026-09-21T19:37:53Z
+- `story_forge.yml`: success at 2026-09-21T21:09:59Z
+- `third.yml`: success at 2026-09-21T21:02:57Z
+- `explainer.yml`: in_progress at 2026-09-21T22:00:17Z
 - `retro.yml`: success at 2026-09-21T04:59:36Z
 - `doctor.yml`: success at 2026-09-21T10:38:55Z
 
-## 🔴 `schwab-trader` — trading-bot (active)
+## 🟢 `schwab-trader` — trading-bot (active)
 
 Guardrailed paper-trading system. The SELL brain and executor watchdog are active; the subscription-backed BUY brain and trade executor are intentionally paused until the operator resumes them.
 
-Last commit `b4dd00b5ddfb` at 2026-09-18T18:37:20Z: sell-brain: update exit decisions [skip ci]
+Last commit `c18cea2f823c` at 2026-09-21T18:36:51Z: sell-brain: update exit decisions [skip ci]
 Vitals withheld (5, on his own screen): realized P&L, win rate, closed trades, open positions, cash
 
 Watched workflows:
-- `sell-brain.yml`: failure at 2026-09-21T12:35:23Z
-- `watchdog.yml`: success at 2026-09-18T21:45:27Z
+- `sell-brain.yml`: success at 2026-09-21T18:36:56Z
+- `watchdog.yml`: success at 2026-09-21T18:23:40Z
 
 ## 🟢 `Money_Machine` — product-ventures (active)
 
@@ -66,6 +66,6 @@ Last commit `41ea84afb060` at 2026-06-03T15:08:19Z: Initial commit
 
 - **Barkly** (`Money_Machine` @ `claude/barkley-mvp-mobile-qbegtj`, low risk): 0/8 steps; last human or builder commit 2026-09-13T05:00:51Z; next step 1 (thea): Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push
 - **Holdco platform** (`Money_Machine` @ `claude/ai-holdco-master-playbook-i5q80w`, low risk): 0/5 steps; last human or builder commit 2026-08-06T02:51:23Z; next step 1 (caleb): Pick the one offer to test first and write it as one sentence in docs/NEXT_OFFER.md on the holdco branch (or tell any Claude session to)
-- **Open Range demo films** (`Money_Machine` @ `claude/open-range-promo-video-4n7k7o`, low risk): 0/4 steps; last human or builder commit 2026-09-13T14:44:52Z; next step 1 (thea): Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open
+- **Open Range demo films** (`Money_Machine` @ `claude/open-range-promo-video-4n7k7o`, low risk): 0/4 steps; last human or builder commit 2026-09-21T21:49:28Z; next step 1 (thea): Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open
 - **Schwab trader** (`schwab-trader` @ `main`, high risk): 0/5 steps; last human or builder commit never; next step 1 (caleb): Answer the sell approval waiting since June 26 (schwab-trader issue #5): comment approve, hold, or close it
 
