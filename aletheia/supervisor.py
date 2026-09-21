@@ -127,13 +127,14 @@ def repair_registration() -> list[str]:
 
 
 def core_alive(port: int = DEFAULT_PORT) -> bool:
-    """Is an Aletheia Core already answering on this machine?"""
-    try:
-        with urllib.request.urlopen(
-                f"http://127.0.0.1:{port}/api/status", timeout=2):
-            return True
-    except Exception:
-        return False
+    """Is an Aletheia Core already answering on this machine?
+
+    The same patient probe the Core uses before it binds: a 2 s timeout
+    read a Core answering in 2.5 s (2026-09-21, under memory load) as
+    "down", and the watchdog started a rival that crash-looped.
+    """
+    from aletheia.core import another_core_answering
+    return another_core_answering(port)
 
 
 def _child_env() -> dict:
