@@ -1886,6 +1886,18 @@
       "module": "aletheia.autonomy",
       "verification": "Live on his PC 2026-09-18 in a sandboxed private state: a work session and an agent session did reversible things unattended, the ledger listed them with their undo, and one was undone and stayed undone.",
       "notes": "The ledger and the undo for docs/CONTINUITY_BRIEF.md Part III item 10. It grants nothing: aletheia.tools decides what is reversible, and this only counts it, bounds it per session and per day, and reverses it. It refuses to undo anything outward and anything of yours - a decision, an approval - and no flag here reaches spending or the kill switch. EXPERIMENTAL until a week of real sessions has run against it."
+    },
+    {
+      "id": "careers.read",
+      "description": "Find a company's own careers page and read the jobs off it, for the employers who never bought an applicant-tracking system - which is most of them",
+      "provider": "aletheia.local",
+      "status": "EXPERIMENTAL",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "caller": "aletheia.campaign._careers_page_openings, when the boards and the web search came up short of the target count; python -m aletheia.careers read/find",
+      "module": "aletheia.careers",
+      "verification": "tests/test_the_net_is_wider_than_big_tech.py: a page about working somewhere is not a page to apply on, 'no current openings' is an answer rather than a failure, an unreadable page is neither, a relative link becomes a real address, an ATS link is handed back to jobs.job_from_url rather than reimplemented, a mailto is dropped rather than faked into something the form path can use, an aggregator's page about the company is not the company's page, and an AST walk holds that it reads and never presses",
+      "notes": "Built 2026-09-13 from his words: 'there are companies all over the country that only have [jobs] on their website. Like, I've never heard of that I probably would like to work at.' jobs.ATS reaches six applicant-tracking systems - thousands of employers, but every one of them an employer who bought an ATS. UNPROVEN against a real careers page: company sites are far more varied than any ATS and the first real sweep is where that shows. Asked LAST and bounded by CAREERS_PAGES_PER_RUN, because a board is one API call for all its jobs and a careers page is a page read per company. Applying by email is NOT built: a mailto row is dropped rather than passed to a stager that cannot use it."
     }
   ]
 }
