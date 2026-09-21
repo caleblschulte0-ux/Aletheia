@@ -143,13 +143,39 @@ class OnePortOneCoreCase(unittest.TestCase):
             with mock.patch.object(core, "another_core_answering", return_value=True), \
                  mock.patch.object(journal, "append") as noted:
                 self.assertIsNone(core.bind_or_yield(port=port))
-            self.assertTrue(noted.called)
-            # ...but a port held by something that is NOT a Core is still the error
-            with mock.patch.object(core, "another_core_answering", return_value=False):
-                with self.assertRaises(OSError):
-                    core.bind_or_yield(port=port)
+            self.assertEqual(noted.call_args.args[0], "event")
+            self.assertIn("already answering", noted.call_args.args[2])
         finally:
             first.server_close()
+
+    def test_a_held_port_whose_holder_is_slow_is_still_a_reason_to_step_aside(self):
+        # Live 2026-09-21: the real Core answered in 2.5 s under memory load;
+        # a 2 s probe called that "not a Core", the bind error was re-raised,
+        # and the watchdog's supervisor crash-looped to a false alarm.
+        from aletheia import core, journal
+        first = core.make_server(port=0)
+        try:
+            port = first.server_address[1]
+            with mock.patch.object(core, "another_core_answering", return_value=False), \
+                 mock.patch.object(journal, "append") as noted:
+                self.assertIsNone(core.bind_or_yield(port=port))
+            self.assertEqual(noted.call_args.args[0], "alert")
+            self.assertIn("did not answer", noted.call_args.args[2])
+        finally:
+            first.server_close()
+
+    def test_a_bind_error_that_is_not_a_held_port_is_still_raised(self):
+        from aletheia import core
+        with mock.patch.object(core, "make_server", side_effect=OSError(13, "permission denied")):
+            with self.assertRaises(OSError):
+                core.bind_or_yield(port=1)
+
+    def test_the_probe_is_patient_and_the_supervisor_uses_the_same_one(self):
+        from aletheia import core, supervisor
+        self.assertGreaterEqual(core.ALIVE_PROBE_S, 5.0)
+        with mock.patch.object(core, "another_core_answering", return_value=True) as probe:
+            self.assertTrue(supervisor.core_alive(8777))
+        self.assertTrue(probe.called)
 
     def test_the_first_core_really_answers_the_probe(self):
         from aletheia import core

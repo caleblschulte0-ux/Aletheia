@@ -1195,34 +1195,60 @@ class OneCoreServer(ThreadingHTTPServer):
         super().server_bind()
 
 
-def another_core_answering(port: int = DEFAULT_PORT) -> bool:
-    """Is an Aletheia Core already answering on this port?"""
+#: How long a running Core may take to answer "are you there?". It was 2 s,
+#: and on 2026-09-21 the live Core answered in 2.5 s under memory load — so
+#: the watchdog's supervisor thought she was down, launched a second Core,
+#: which could not bind the held port, read the same slow answer as "not a
+#: Core", and crash-looped its way to a false "I keep restarting" notice.
+ALIVE_PROBE_S = 8.0
+
+
+def another_core_answering(port: int = DEFAULT_PORT, timeout_s: float = ALIVE_PROBE_S) -> bool:
+    """Is an Aletheia Core already answering on this port? Patient: a slow
+    answer is an answer, and a second probe covers one stall."""
     import urllib.request
-    try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/status", timeout=2):
-            return True
-    except Exception:
-        return False
+    for _ in range(2):
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/status", timeout=timeout_s):
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def _port_is_held(exc: OSError) -> bool:
+    import errno
+    held = {errno.EADDRINUSE, getattr(errno, "WSAEADDRINUSE", 10048), 10048, 10013}
+    return getattr(exc, "errno", None) in held or getattr(exc, "winerror", None) in held
 
 
 def bind_or_yield(host: str = "127.0.0.1", port: int = DEFAULT_PORT, **kw):
-    """`make_server`, or None when the port is held by a Core that answers.
+    """`make_server`, or None when the port is already held.
 
     A second Core is not a crash to retry: relaunching it with backoff
     would have the supervisor say "I keep restarting and failing" about a
-    machine on which she is, in fact, running. It says so and exits clean,
-    and its supervisor stops with it. A port held by something that is NOT
-    a Core is still the error it always was.
+    machine on which she is, in fact, running. A held port means somebody
+    has it, and binding again in two seconds cannot change that — so it
+    steps aside and exits clean either way, and the journal says whether
+    the holder answered as a Core. The watchdog looks again in five
+    minutes; if the holder is a hung Core, that is its own repair, not a
+    crash loop's. Any other bind error is still the error it always was.
     """
     try:
         return make_server(host, port, **kw)
-    except OSError:
+    except OSError as exc:
+        if not _port_is_held(exc):
+            raise
         if another_core_answering(port):
             journal.append("event", "core",
                            f"another Aletheia is already answering on port {port} — "
                            "this one exits", actor="aletheia-core")
-            return None
-        raise
+        else:
+            journal.append("alert", "core",
+                           f"port {port} is held by something that did not answer as a "
+                           "Core within a few seconds — stepping aside rather than fighting "
+                           "it; the watchdog looks again in five minutes", actor="aletheia-core")
+        return None
 
 
 def make_server(host: str = "127.0.0.1", port: int = DEFAULT_PORT,
