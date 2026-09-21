@@ -27,7 +27,10 @@ from aletheia import (mission_studies, stateio, studies as st, study_observe as 
                       study_run as run, tools, voice, waits, work_engine)
 
 REPO = Path(__file__).resolve().parent.parent
-NEW_MODULES = ("studies", "study_observe", "study_reason", "study_run", "study_tools", "mission_studies")
+NEW_MODULES = ("studies", "study_observe", "study_reason", "study_run", "study_tools", "mission_studies",
+               # the general pursuit: the words that make an opportunity one kind
+               # of thing live in its adapter and its evidence, never here
+               "pursuit")
 NOW = dt.datetime(2026, 9, 17, 15, 0, tzinfo=dt.timezone.utc)
 
 #: Words that name a PLATFORM's audience or a KIND of project. The capability is general;

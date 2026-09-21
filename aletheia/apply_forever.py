@@ -156,8 +156,28 @@ def once(*, batch: int = BATCH, resume: str = "", starter=None, refiller=None,
     return out
 
 
+def pursue_once(*, pursuer=None) -> list[dict]:
+    """Every turn, after the batch: carry the opportunities the applications
+    became (`docs/PURSUIT_BRIEF.md`). Each live application is opened as an
+    opportunity once, and the few that are due get a reasoning pass. A halt
+    propagates; anything else is journaled and the next turn tries again."""
+    if pursuer is not None:
+        return pursuer()
+    try:
+        from aletheia import pursuit, pursuit_applications
+        pursuit_applications.sync()
+        return pursuit.tick(limit=2)
+    except policy.Halted:
+        raise
+    except Exception as exc:
+        journal.append("alert", "apply:forever",
+                       f"the pursuit pass failed: {type(exc).__name__}: {exc}"[:200], actor=ACTOR)
+        return []
+
+
 def forever(*, batch: int = BATCH, resume: str = "", wait_s: float = IDLE_WAIT_S,
-            turns: int | None = None, starter=None, sleeper=None, refiller=None) -> int:
+            turns: int | None = None, starter=None, sleeper=None, refiller=None,
+            pursuer=None) -> int:
     """Look, apply, wait, repeat — until he halts her or the process dies.
 
     `turns` and `sleeper` exist for the tests. Left alone it does not stop.
@@ -177,6 +197,7 @@ def forever(*, batch: int = BATCH, resume: str = "", wait_s: float = IDLE_WAIT_S
             journal.append("alert", "apply:forever",
                            f"a batch could not start: {type(exc).__name__}: {exc}"[:200],
                            actor=ACTOR)
+        pursue_once(pursuer=pursuer)
         done += 1
         if turns is None or done < turns:
             sleep(wait_s)

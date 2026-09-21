@@ -1146,6 +1146,37 @@ And the bring-up proves what it can before it stops anything (Git,
 Python, the fetched update, a `continuity` snapshot of his private
 state) and holds the checkout to that snapshot before it says UP.
 
+## An opportunity is its own problem; there is no step after "applied"
+
+His brief, 2026-09-21, `docs/PURSUIT_BRIEF.md`, in his words: *"Do not
+build a job-application workflow... Every job is its own problem."* and
+*"A developer should not be able to answer: what does Aletheia always do
+after applying?"* `aletheia/pursuit.py` is the general half — an
+OPPORTUNITY with objective, evidence, understanding, uncertainty, strategy,
+moves and their effects, people, never-repeat, next look, effort, outcome —
+and `pursuit_applications.py` is the only place it knows a role, an
+employer or his CV. Rules that hold the brief:
+
+- **A catalog of moves, no order.** The reasoner is shown what she CAN do
+  (look, submit, note to a person, write, wait, leave, close) and chooses
+  per opportunity, or chooses none. Add a move when a real pass wanted one
+  she had no door for; never add a stage, a tier, or a default next step.
+- **Why, and on what.** Every move cites evidence she holds and says why
+  it would help THIS opportunity, or `pursuit.validate` drops it. A note or
+  document names the evidence its claims stand on — creative tactics,
+  never creative biography. An unknown kind becomes a suggestion he hears.
+- **Effort is a decision under a ceiling** (`EFFORT_DAY_S`): the model says
+  how many more minutes it is worth; the ceiling bounds a day. Not a tier.
+- **The doors are the old doors.** A note is `mail.draft`/`messages.draft`
+  with its own approval; the form is `apply_run.stage` under his rules; a
+  page read and a workspace file are reversible and ledgered. Nothing here
+  widens authority.
+- **What happened is evidence, not law.** `pursuit.lessons` hands the next
+  pass sentences about what was done and what came of it; nothing turns a
+  rate into a rule.
+- **A reply reaches the record AND the opportunity** (`runtime._heard_back`):
+  until this, an employer's email was classified, notified and forgotten.
+
 ## Her own files are hers to settle, and being behind is a fact she says
 
 Found 2026-09-21 on his PC: the Core had run code 85 commits old since

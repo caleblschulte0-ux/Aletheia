@@ -372,7 +372,9 @@ def _job_reply(event: dict) -> dict | None:
             if acknowledges:
                 return {"application": entry.get("id"), "outcome": "acknowledgement"}
             if not any(word in low for word in _MIGHT_WANT_TIME):
+                _heard_back(entry.get("id"), subject, "noted")
                 return {"application": entry.get("id"), "outcome": "noted"}
+        _heard_back(entry.get("id"), subject, "wants_time")
         notifications.publish(
             f"{entry.get('company') or 'An employer'} wants to talk",
             f"{subject} — about {entry.get('job_title') or 'your application'}, "
@@ -387,6 +389,18 @@ def _job_reply(event: dict) -> dict | None:
         # Never break the beat over this. Same shape as every other handler
         # in this loop.
         return {"outcome": "error", "error_type": type(exc).__name__}
+
+
+def _heard_back(application_id: str, subject: str, outcome: str) -> None:
+    """Until 2026-09-21 an employer's reply was classified and notified and
+    then FORGOTTEN: nothing wrote it onto the application, so "what has
+    worked" had no data and the opportunity never heard. Never breaks the
+    beat."""
+    try:
+        from aletheia import pursuit_applications
+        pursuit_applications.heard_back(application_id, subject, outcome)
+    except Exception:
+        pass
 
 
 def _advisor_judgment(event: dict, now: dt.datetime) -> dict | None:
