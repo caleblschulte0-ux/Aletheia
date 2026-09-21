@@ -1,6 +1,6 @@
 # Aletheia full operator-mode activation for Windows.
 # Safe entrypoint from any PowerShell window:
-#   irm https://raw.githubusercontent.com/caleblschulte0-ux/Aletheia/main/scripts/activate_operator.ps1 | iex
+#   irm https://raw.githubusercontent.com/caleblschulte0-ux/Aletheia/live/scripts/activate_operator.ps1 | iex
 #
 # This is the one explicit local operator action that enables bounded standing
 # workstation + reviewed-code grants. Human authentication remains human: if

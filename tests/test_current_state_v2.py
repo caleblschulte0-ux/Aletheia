@@ -286,7 +286,7 @@ class TheFastLaneAnswersTheFourQuestions(Records):
 
     def test_how_did_the_applications_go_today(self):
         for sentence in ("how did the applications go today", "how did the job hunt go",
-                         "how's the job hunt going", "how many jobs did you apply to today"):
+                         "how's the job hunt going"):
             with self.subTest(sentence=sentence):
                 said = quick.answer(sentence)
                 self.assertIsNotNone(said, sentence)
@@ -295,6 +295,14 @@ class TheFastLaneAnswersTheFourQuestions(Records):
                 self.assertIn("1 blocked", said)
                 self.assertIn("Palantir", said)
                 self.assertIn("CAPTCHA", said)
+
+    def test_how_many_is_answered_with_the_count_not_the_report(self):
+        """"How many" wants a number. It used to get the whole day's report,
+        with the number somewhere in the middle of it."""
+        said = quick.answer("how many jobs did you apply to today")
+        self.assertIsNotNone(said)
+        self.assertTrue(said.startswith("1 application sent today"), said)
+        self.assertNotIn("openings found", said)
 
     def test_what_went_wrong_today(self):
         said = quick.answer("what went wrong today")

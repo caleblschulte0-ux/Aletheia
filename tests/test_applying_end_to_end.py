@@ -506,6 +506,52 @@ class HeSaysApplyCase(unittest.TestCase):
 
     def test_the_questions_about_applications_are_still_questions(self):
         self.assertEqual(self.cmd("what jobs have i applied to").get("kind"), "applications")
+        self.assertNotEqual(self.cmd("how's applying going").get("kind"), "apply_campaign")
+        self.assertNotEqual(self.cmd("are you still applying").get("kind"), "apply_campaign")
+
+    def test_the_wording_does_not_gate_the_capability(self):
+        """The seamless brief, section 1: "Start applying." must work like
+        "Apply to 8 jobs for me." with no frontier model. Each of these went
+        to the planner, and on 2026-09-19 with the frontier out went nowhere."""
+        for said in ("Start applying.", "Go apply to some jobs.", "Keep the job search going.",
+                     "Find me more jobs and apply.", "Start sending applications.",
+                     "Get back to applying.", "keep applying", "thea, start the job hunt",
+                     "can you keep applying to jobs while I'm gone", "resume applying",
+                     "get the applications going", "start the applications up again",
+                     "keep the applications rolling", "apply", "start applying for jobs please"):
+            with self.subTest(said=said):
+                self.assertEqual(self.cmd(said), {"kind": "apply_campaign", "count": 5})
+        self.assertEqual(self.cmd("start applying to remote jobs"),
+                         {"kind": "apply_campaign", "count": 5, "where": "remote"})
+
+    def test_finding_without_applying_is_not_a_campaign(self):
+        """"Look for jobs" is a search; a search does not fill forms."""
+        for said in ("look for more jobs", "find work", "find me some jobs"):
+            with self.subTest(said=said):
+                self.assertNotEqual(self.cmd(said).get("kind"), "apply_campaign")
+
+    def test_keep_going_is_the_job_hunt_only_when_that_is_the_context(self):
+        with mock.patch.object(voice, "_job_hunt_is_the_context", return_value=True):
+            self.assertEqual(self.cmd("keep going"), {"kind": "apply_campaign", "count": 5})
+            self.assertEqual(self.cmd("continue"), {"kind": "apply_campaign", "count": 5})
+        with mock.patch.object(voice, "_job_hunt_is_the_context", return_value=False):
+            out = voice._interpret("keep going")
+            self.assertIsNone(out.get("command"))
+            self.assertIn("with what", out["say"])
+
+    def test_the_context_is_read_from_the_records_and_the_thread(self):
+        from aletheia import converse, current_state
+        hunt = {"readable": True, "running": False, "campaign": None,
+                "today": {"discovered": 0, "sent": 0, "blocked": 0, "ready": 0}}
+        with mock.patch.object(current_state, "job_hunt", return_value=hunt), \
+             mock.patch.object(converse, "recent", return_value=[]):
+            self.assertFalse(voice._job_hunt_is_the_context())
+        with mock.patch.object(current_state, "job_hunt", return_value=dict(hunt, running=True)):
+            self.assertTrue(voice._job_hunt_is_the_context())
+        with mock.patch.object(current_state, "job_hunt", return_value=hunt), \
+             mock.patch.object(converse, "recent", return_value=[
+                 {"he_asked": "how's applying going", "she_answered": "No applications today."}]):
+            self.assertTrue(voice._job_hunt_is_the_context())
 
     def test_role_is_optional_in_the_grammar(self):
         self.assertEqual(intercom.KIND_ARGS["apply_campaign"][0], set())

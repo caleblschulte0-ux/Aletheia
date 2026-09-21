@@ -892,6 +892,165 @@ def job_hunt_words(hunt: dict | None = None) -> str:
     return said
 
 
+def last_application(rows: list | None = None) -> dict | None:
+    """The newest application she pressed Submit on, or None. Never raises."""
+    from aletheia import apply_run
+    try:
+        rows = rows if rows is not None else apply_run.all_runs()
+    except Exception:  # noqa: BLE001
+        return None
+    pressed = [r for r in rows if r.get("state") in PRESSED]
+    if not pressed:
+        return None
+    pressed.sort(key=lambda r: str(r.get("submitted_at") or r.get("pressed_at") or ""))
+    return pressed[-1]
+
+
+def _said_application(record: dict) -> str:
+    """"Operations Analyst at Stripe" - or, when the record has no names,
+    what `said_name` makes of its URL."""
+    company, job = _name(record)
+    return said_name(company, job) if job.startswith("http") or not job else job
+
+
+def still_applying_words(hunt: dict | None = None) -> str:
+    """"Are you still applying?" - from whether the batch's PROCESS is alive."""
+    from aletheia import speech
+    hunt = hunt if hunt is not None else job_hunt()
+    lock = hunt.get("campaign") or {}
+    if hunt.get("running"):
+        since = speech.ago(lock.get("started_at"))
+        said = "Yes, a batch of applications is running now"
+        said += f", started {since}" if since and since != "just now" else ""
+        if lock.get("limit"):
+            said += f", making {speech.count_phrase(int(lock['limit']), 'application')} ready"
+        return said + "."
+    said = "No, nothing is running right now."
+    if hunt.get("readable") and hunt.get("blocked"):
+        said += " The hunt is stopped because nobody can think just now."
+    last = last_application()
+    if last:
+        when = speech.ago(last.get("submitted_at") or last.get("pressed_at"))
+        said += f" The last one I sent was {_said_application(last)}"
+        said += f", {when}." if when else "."
+    elif hunt.get("readable"):
+        said += " I have not sent an application yet."
+    return said
+
+
+def how_many_words(hunt: dict | None = None, *, total: bool = False) -> str:
+    """"How many jobs have you applied to?" - a count of records, nothing else."""
+    from aletheia import speech
+    hunt = hunt if hunt is not None else job_hunt()
+    if not hunt.get("readable"):
+        return ("I can't read my application records right now, so I can't count them. "
+                + str(hunt.get("note") or "")).strip()
+    now = hunt.get("now") or {}
+    today = hunt.get("today") or {}
+    sent_total = now.get("sent_total")
+    if total and sent_total is not None:
+        said = f"{speech.count_phrase(int(sent_total), 'application')} sent in total"
+        said += f", {today.get('sent', 0)} of them today." if today.get("sent") else "."
+    else:
+        said = f"{speech.count_phrase(int(today.get('sent', 0)), 'application')} sent today"
+        said += f", {sent_total} in total." if sent_total else "."
+    if today.get("ready"):
+        said += f" {speech.count_phrase(int(today['ready']), 'more')} ready for you to approve."
+    if not sent_total and not today.get("sent"):
+        said = "None so far: I have no record of an application sent"
+        said += (f", though {speech.count_phrase(int(today['ready']), 'application')} "
+                 "waiting for you to approve." if today.get("ready") else ".")
+    return said
+
+
+def last_application_words(*, what: bool) -> str:
+    """"When was the last application?" / "What was the last job you applied to?" """
+    from aletheia import speech
+    hunt = job_hunt()
+    if not hunt.get("readable"):
+        return "I can't read my application records right now, so I can't say."
+    last = last_application()
+    if not last:
+        return "I have not sent an application yet, so there is no last one."
+    who = _said_application(last)
+    when = speech.ago(last.get("submitted_at") or last.get("pressed_at"))
+    if what:
+        return f"The last one was {who}" + (f", sent {when}." if when else ".")
+    return (f"The last application went {when}, to {who}." if when
+            else f"The last application was {who}; I did not record when.")
+
+
+def blocking_words(hunt: dict | None = None) -> str:
+    """"What's blocking the job hunt?" - the recorded blockers, or that there are none."""
+    from aletheia import speech
+    hunt = hunt if hunt is not None else job_hunt()
+    if not hunt.get("readable"):
+        return "I can't read my application records right now, so I can't say what is blocking them."
+    parts = []
+    if hunt.get("blocked"):
+        minds = hunt.get("thinking") or {}
+        parts.append("nobody can think: the big models are out and my own model "
+                     + str((minds.get("local") or {}).get("why") or "cannot run"))
+    waiting = hunt.get("waiting_on_him") or []
+    if waiting:
+        parts.append(needs_from_him_words(hunt).rstrip("."))
+    if hunt.get("blockers"):
+        named = [f"{said_name(b['company'], b['job'])} ({said_clause(b['reason'], 110)})"
+                 for b in hunt["blockers"][:3]]
+        parts.append(f"{speech.count_phrase(len(hunt['blockers']), 'application')} blocked today: "
+                     + "; ".join(named))
+    if not parts:
+        # NOTHING RECORDED IS NOT AN ANSWER TO "WHY". The records say no
+        # application is blocked and someone can think; "why is the job
+        # hunt stopped" then deserves the investigator, which reads the
+        # journal and the receipts, not a fast "nothing here". Empty means
+        # the fast lane steps aside (quick may only remove latency).
+        return ""
+    return ". ".join(p[0].upper() + p[1:] for p in parts) + "."
+
+
+def repo_words(name: str) -> str | None:
+    """"Is the Shorts pipeline running?" - that repo's row of the pulse, or None
+    when the pulse does not know a repo by that name."""
+    import json
+    from aletheia import pulse, speech
+    try:
+        latest = json.loads((pulse.PULSE_DIR / "latest.json").read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return None
+    repos = latest.get("repos") if isinstance(latest.get("repos"), dict) else {}
+    key = "".join(ch for ch in str(name or "").casefold() if ch.isalnum())
+    if len(key) < 3:
+        return None
+
+    def known_as(row: dict, slug: str) -> bool:
+        # "shorts" is the Shorts-pipeline; "it" is nothing. The name he
+        # says has to be the slug, or how the slug starts.
+        for said in (slug, str(row.get("github") or "")):
+            plain = "".join(ch for ch in said.casefold() if ch.isalnum())
+            if plain == key or plain.startswith(key) or (len(key) >= 5 and key in plain):
+                return True
+        return False
+
+    row = next((r for slug, r in repos.items() if isinstance(r, dict) and known_as(r, slug)), None)
+    if not isinstance(row, dict):
+        return None
+    said = str(row.get("github") or name)
+    health = str(row.get("health") or "unknown")
+    flows = row.get("workflows") if isinstance(row.get("workflows"), dict) else {}
+    failing = sorted(n for n, w in flows.items()
+                     if isinstance(w, dict) and w.get("conclusion") not in (None, "success", "skipped"))
+    last = (row.get("commit") or {}).get("date")
+    when = speech.ago(last) if last else ""
+    bits = [f"{said} is {'healthy' if health == 'green' else 'not healthy' if health == 'red' else health}"]
+    if failing:
+        bits.append(f"{speech.count_phrase(len(failing), 'workflow')} failing: "
+                    + speech.and_list([f.replace('.yml', '') for f in failing[:3]]))
+    if when:
+        bits.append(f"the last commit was {when}")
+    return "; ".join(bits) + "."
+
+
 def said_name(company: str, job: str) -> str:
     """Who an application is with, sayable. A record with no employer name
     carries its URL in `job`, and "https://jobs.smartrecruiters.com/oneclick-ui/

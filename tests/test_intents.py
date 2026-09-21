@@ -34,9 +34,15 @@ class IntentCase(unittest.TestCase):
         root = Path(self.tmp.name)
         env = mock.patch.dict(os.environ, {"ALETHEIA_PRIVATE_STATE": str(root / "private")})
         env.start(); self.addCleanup(env.stop)
+        from aletheia import converse
         for module, attr, value in (
                 (policy, "APPROVALS_DIR", root / "approvals"),
-                (journal, "JOURNAL_PATH", root / "journal.jsonl")):
+                (journal, "JOURNAL_PATH", root / "journal.jsonl"),
+                # `converse.THREAD_PATH` is bound at import, so the env
+                # patch above does not move it: these tests were writing
+                # "what am I paying for" into the suite-wide thread and
+                # tests/test_local_planner's snapshot test read it back.
+                (converse, "THREAD_PATH", root / "conversation.json")):
             p = mock.patch.object(module, attr, value)
             p.start(); self.addCleanup(p.stop)
         (root / "approvals").mkdir(parents=True, exist_ok=True)

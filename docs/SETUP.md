@@ -28,7 +28,7 @@ open visible ChatGPT conversations if local/Claude reasoning is unavailable.
 PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/caleblschulte0-ux/Aletheia/main/scripts/bootstrap.ps1 | iex
+irm https://raw.githubusercontent.com/caleblschulte0-ux/Aletheia/live/scripts/bootstrap.ps1 | iex
 ```
 
 That URL now delegates to the bounded Windows bring-up path. It:

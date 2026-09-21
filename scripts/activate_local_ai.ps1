@@ -1,5 +1,6 @@
 # Smoke-test and activate Aletheia's local reasoning pool on Windows.
-# Run only after the reviewed local-AI integration has landed on main:
+# Run only after the reviewed local-AI integration has landed on live (the
+# branch the operator's Core runs from):
 #   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\activate_local_ai.ps1
 
 $ErrorActionPreference = "Stop"
@@ -29,8 +30,8 @@ if ($env:OS -ne "Windows_NT") {
 
 $branch = (git -C $repoRoot branch --show-current).Trim()
 if ($LASTEXITCODE -ne 0) { throw "could not read the Aletheia git branch" }
-if ($branch -ne "main") {
-  throw "refusing to activate local AI from branch '$branch'; run this only after the reviewed integration lands on main."
+if ($branch -ne "live") {
+  throw "refusing to activate local AI from branch '$branch'; the operator's checkout runs from live."
 }
 
 $python = Find-AletheiaPython
