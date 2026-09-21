@@ -47,6 +47,7 @@ the call through the gateway.
 | `web_search_jobs._claude_search`, `_claude_ready`, `_codex_search` | critical | web search is a tool of the Claude/Codex CLIs; her own model cannot search |
 | `eyes._ask_claude_about` | critical | reads a screenshot through the Claude CLI; no gateway vision route yet (gap: qwen3-vl) |
 | `setup._claude_cli` | critical | a setup probe OF the Claude CLI itself, not reasoning |
+| `current_state.thinking` | critical | is each frontier CLI even installed, for the brains line; a presence check, no prompt |
 | `planner.compile` (`infer_or_fallback`) | standard | already the gateway: the frontier rung is `reasoning_gateway.frontier_json` with the whole grammar, and the local rung is `local_planner` through `reasoning_gateway.local_json` with a compact prompt (the 28.7 KB one timed out at 300 s) |
 | `code_worker`, `self_diagnosis`, `project_merge` | critical (review/merge), routine (local investigation) | owned this wave by `claude/continuity-local-repair`, which moves code work onto the gateway and adds the bounded local repair tier |
 

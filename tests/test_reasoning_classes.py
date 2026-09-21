@@ -82,6 +82,11 @@ ALLOWED = {
         ("critical", "setup audit: is the Claude CLI itself signed in and answering"),
     ("setup", "_claude_cli", "infer_text"):
         ("critical", "setup audit: a live one-word prompt to the Claude CLI"),
+    ("current_state", "thinking", "cli_path"):
+        ("critical", "is the Claude CLI even installed: the brains line said 'thinking with the "
+                     "big models' from the rest markers alone with no CLI on the PC"),
+    ("current_state", "thinking", "codex_path"):
+        ("critical", "same for Codex; a presence check, no prompt"),
     # -- adapters that already route through the gateway
     ("planner", "compile", "infer_or_fallback"):
         ("standard", "runs the gateway-backed frontier provider, deterministic brain on refusal; "
