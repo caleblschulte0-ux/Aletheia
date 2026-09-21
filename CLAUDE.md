@@ -1099,6 +1099,27 @@ catch-all and no rule can reach a forbidden kind (held by
 friction ledger shows a sentence he says that fell through; never widen
 one to "sort of" match.
 
+**A rule may answer outright, and only when a fact on disk settles it.**
+"Read me my resume" with no resume on the PC, "text my sister" with no
+number for her: the shape matched, the fill found nothing, and the ask
+was kept for a model to plan - which could not do better, and her own
+model, asked instead, answered about a resume it had never seen. A fill
+returns `{"say": sentence}` and `match` returns `rule_planner.ANSWER`:
+no step, one sentence, spoken by `intents._speak_answer` before any model
+is asked and by `_answer_by_rules` when none can be. It is the same
+safety argument as `quick`: the sentence names a fact somebody can go and
+look at, never a guess.
+
+**Probe her with the binaries off the PATH, not with a flag.** The first
+"every model off" probe of 2026-09-21 was nothing of the kind: this
+container has the Claude CLI on its PATH, so a frontier model was
+answering the whole time and the run measured the wrong rung. Hide the
+binaries (`PATH` without their directory) and run `talk --sandbox`; if
+the answers take five seconds and read like paragraphs, a model is still
+there. In the sandbox her own model is switched off too, so what you are
+reading is the bottom rung alone - the fast lane, the rules and the
+queue - which is the floor he stands on when everything else is out.
+
 Her own model has to BE there for the middle rung to exist, and nothing
 started Ollama or pulled the model until 2026-09-21. `local_model_pool.ensure`
 does both - rate-limited, journaled, never raising - from `activate` and
