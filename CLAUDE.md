@@ -1146,6 +1146,40 @@ And the bring-up proves what it can before it stops anything (Git,
 Python, the fetched update, a `continuity` snapshot of his private
 state) and holds the checkout to that snapshot before it says UP.
 
+## Her own files are hers to settle, and being behind is a fact she says
+
+Found 2026-09-21 on his PC: the Core had run code 85 commits old since
+Thursday — every merge of the week — and the page said "Everything's
+running". An autostash replay had left conflict markers inside the legacy
+`state/journal/journal.jsonl`; nothing writes that file any more, so
+nothing rewrote it clean; `sync.heal_owned_conflicts` refused a file still
+holding markers; every rebase after that refused "you have unmerged files".
+A recovery then left a whole second clone INSIDE the checkout, which read
+as "a person's uncommitted work" and refused the pull a second way. Two
+supervisors and two Cores were answering on one port. Nothing anywhere
+said any of it.
+
+- **A conflict in a file the Core owns is the Core's to settle**
+  (`sync.resolve_conflict_markers`): an append-only log keeps BOTH halves,
+  the union the Windows recovery already used; anything else keeps the
+  Core's own copy, its newest write. The same rule carries a rebase that
+  stopped on one of its own checkpoints through to the end instead of
+  aborting it. A file belonging to anybody else is still theirs, and a
+  shape git did not leave is never guessed at.
+- **An untracked directory that is itself a repository is nobody's work in
+  progress.** Git treats it as opaque and a rebase cannot touch it.
+- **Behind is a fact the health line says** (`running.update_stuck`): a
+  checkout behind its remote for longer than `UPDATE_STUCK_AFTER_S` on the
+  same commit is stuck, and "Everything's running" is false. Measured from
+  when the Core first SAW it behind, never from the commits' own dates — a
+  branch merged today carries last week's commits. It says how long and
+  how many, not "restart me": a restart picks up nothing while the pull is
+  refused, and the reason is a developer's line that stays in the drawer.
+- **One port, one Core.** `core.OneCoreServer` asks Windows for exclusive
+  use of the port (SO_REUSEADDR there lets a second listener share a live
+  one), and a Core that finds a Core already answering exits clean rather
+  than crash-looping under its supervisor.
+
 ## The standing assignment
 
 Every session acts on the playbook rather than re-describing it (§156):

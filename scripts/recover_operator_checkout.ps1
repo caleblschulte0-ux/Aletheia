@@ -89,9 +89,12 @@ function Invoke-Git {
 }
 
 function Rebase-In-Progress {
+  # The two directories are what `git status` reads. REBASE_HEAD is NOT a
+  # sign of progress: git 2.55 leaves that file behind after a rebase has
+  # finished, and reading it as "still rebasing" made this script throw
+  # "a non-legacy rebase is active" on a checkout it had just repaired.
   $gitDir = Join-Path $dest ".git"
-  return ((Test-Path (Join-Path $gitDir "REBASE_HEAD")) -or
-          (Test-Path (Join-Path $gitDir "rebase-merge")) -or
+  return ((Test-Path (Join-Path $gitDir "rebase-merge")) -or
           (Test-Path (Join-Path $gitDir "rebase-apply")))
 }
 

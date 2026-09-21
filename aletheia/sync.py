@@ -23,6 +23,18 @@ Design rules:
   caller says (receipts, journal); a stray local edit on the PC never
   rides along in an automated commit.
 
+- **A conflict in the Core's OWN files is the Core's to settle.** Added
+  2026-09-21 after three days of it: an autostash replay left conflict
+  markers inside `state/journal/journal.jsonl` on the operator's PC, no
+  process writes that file any more, so nothing ever rewrote it clean;
+  `heal_owned_conflicts` refused a file still holding markers, every
+  rebase after that refused "you have unmerged files", and the Core ran
+  code 85 commits old — every merge of that week — with nothing on the
+  page saying so. An append-only log keeps BOTH sides (the union the
+  Windows recovery script already used); anything else keeps the Core's
+  own copy, which is its newest write. The same rule finishes a rebase
+  that stopped on one of its own files instead of aborting it.
+
 - **Never rebase a tree someone else is holding.** Added 2026-08-27 after
   it happened: a session was editing this very clone on a `claude/*`
   branch while the Core was running. Every sixty seconds the Core ran
@@ -46,10 +58,75 @@ from aletheia.proc import run as proc_run
 
 GIT_TIMEOUT_S = 60
 PUSH_ATTEMPTS = 3
+#: How many of its own conflicted commits a rebase may settle before the
+#: Core gives up and aborts it. A checkpoint a minute for a day is far
+#: fewer than this; an endless loop is what the bound is for.
+REBASE_STEPS = 20
 
 # What the Core writes itself, and may therefore safely stash across a
 # rebase. Everything else in the tree belongs to a person.
 OWNED_PATHS = ("state/", "exchange/commands/", "exchange/receipts/", "cache/")
+
+_MARKER = re.compile(r"^(<{7}|>{7}) ", re.MULTILINE)
+
+
+def resolve_conflict_markers(text: str, keep_both: bool) -> str | None:
+    """`text` with every conflict block settled, or None if it is not
+    shaped like git left it.
+
+    Git writes the side already in the tree FIRST (upstream: `HEAD` in a
+    rebase, `Updated upstream` when an autostash is replayed) and the side
+    being applied second (the Core's own commit or its own dirty copy). So
+    `keep_both` keeps first then second — what `git merge-file --union`
+    does, right for an append-only log — and otherwise the second block,
+    the Core's newest write, wins.
+    """
+    out, first, second = [], [], []
+    where = "outside"
+    for line in text.splitlines(keepends=True):
+        bare = line.rstrip("\r\n")
+        if where == "outside":
+            if bare.startswith("<<<<<<< "):
+                where, first, second = "first", [], []
+            else:
+                out.append(line)
+        elif where == "first":
+            if bare == "=======":
+                where = "second"
+            elif bare.startswith("<<<<<<< ") or bare.startswith(">>>>>>> "):
+                return None
+            else:
+                first.append(line)
+        else:  # second
+            if bare.startswith(">>>>>>> "):
+                out.extend(first if keep_both else [])
+                out.extend(second)
+                where = "outside"
+            elif bare.startswith("<<<<<<< ") or bare == "=======":
+                return None
+            else:
+                second.append(line)
+    if where != "outside":
+        return None
+    return "".join(out)
+
+
+def _keeps_both_sides(rel: str) -> bool:
+    """An append-only log keeps both halves; a snapshot keeps the Core's."""
+    return rel.endswith(".jsonl")
+
+
+_IN_THE_WAY = re.compile(
+    r"untracked working tree files would be overwritten by [a-z ]+:\n((?:[ \t]+\S.*\n?)+)")
+
+
+def untracked_in_the_way(out: str) -> list[str]:
+    """The paths git names in 'untracked working tree files would be
+    overwritten by checkout/merge', or [] when that is not the complaint."""
+    m = _IN_THE_WAY.search(out.replace("\r\n", "\n"))
+    if not m:
+        return []
+    return [line.strip() for line in m.group(1).splitlines() if line.strip()]
 
 
 #: `XY path`, where XY is one or two status characters. Matched by SHAPE
@@ -147,15 +224,39 @@ class GitSync:
         paths = []
         for line in out.splitlines():
             path = _porcelain_path(line)
-            if path and not any(path.startswith(prefix) for prefix in owned):
-                paths.append(path)
+            if not path or any(path.startswith(prefix) for prefix in owned):
+                continue
+            if self._is_stray_clone(line, path):
+                continue
+            paths.append(path)
         return paths
 
+    def _is_stray_clone(self, line: str, path: str) -> bool:
+        """An untracked directory that is itself a git repository.
+
+        A recovery on 2026-09-19 left a whole second clone inside the
+        checkout, and for two days it read as "a person's uncommitted
+        work" and blocked every pull. It is nobody's work in progress:
+        git treats a nested repository as opaque, never descends into it,
+        and a rebase cannot touch it — so it is not a reason to refuse.
+        """
+        if not line.lstrip().startswith("??"):
+            return False
+        return (self.root / path.rstrip("/") / ".git").exists()
+
     def merge_in_progress(self) -> bool:
-        """Is a human (or an agent) part-way through a merge or rebase here?"""
+        """Is a human (or an agent) part-way through a merge or rebase here?
+
+        A rebase is in progress while its `rebase-merge` or `rebase-apply`
+        directory exists — that is what `git status` reads. `REBASE_HEAD`
+        is NOT on the list: git 2.55 leaves that ref behind after a rebase
+        finishes (`git rebase --continue` then "fatal: no rebase in
+        progress", with the file still there), and reading it as "in
+        progress" made a clean tree refuse every pull that followed.
+        """
         git_dir = self.root / ".git"
         return any((git_dir / marker).exists() for marker in (
-            "MERGE_HEAD", "REBASE_HEAD", "rebase-merge", "rebase-apply",
+            "MERGE_HEAD", "rebase-merge", "rebase-apply",
             "CHERRY_PICK_HEAD", "REVERT_HEAD"))
 
     def heal_owned_conflicts(self) -> list[str]:
@@ -169,29 +270,118 @@ class GitSync:
 
         Once the Core has rewritten the file (no conflict markers left), the
         copy on disk is its newest write and is the resolution. A file still
-        holding markers is left alone so they are never committed, and a
-        conflicted file anyone else owns is theirs.
+        holding markers is settled by `resolve_conflict_markers` — both
+        halves of a log, the Core's own copy of anything else — because a
+        file nothing writes any more (the legacy journal) would otherwise
+        hold its markers forever, and did: 2026-09-18 to 09-21, with every
+        pull refused behind it. A conflicted file anyone else owns is theirs.
         """
         if self.merge_in_progress():
             return []
+        conflicted = self._owned_conflicts()
+        if not conflicted or not self._settle_on_disk(conflicted):
+            return []
+        code, _ = _git(["add", "--", *conflicted], self.root)
+        if code != 0:
+            return []
+        _git(["reset", "-q", "--", *conflicted], self.root)
+        return conflicted
+
+    def _owned_conflicts(self) -> list[str]:
+        """Conflicted paths, if EVERY one is the Core's own; else []."""
         code, out = _git(["diff", "--name-only", "--diff-filter=U"], self.root)
         if code != 0:
             return []
         conflicted = [p.strip() for p in out.splitlines() if p.strip()]
         if not conflicted or not all(p.startswith(OWNED_PATHS) for p in conflicted):
             return []
-        for rel in conflicted:
-            try:
-                text = (self.root / rel).read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                return []
-            if re.search(r"^(<{7}|>{7}) ", text, re.MULTILINE):
-                return []
-        code, _ = _git(["add", "--", *conflicted], self.root)
-        if code != 0:
-            return []
-        _git(["reset", "-q", "--", *conflicted], self.root)
         return conflicted
+
+    def _settle_on_disk(self, conflicted: list[str]) -> bool:
+        """Rewrite each file without markers. False leaves everything as it was."""
+        settled = []
+        for rel in conflicted:
+            path = self.root / rel
+            try:
+                raw = path.read_bytes()
+            except OSError:
+                return False
+            text = raw.decode("utf-8", errors="surrogateescape")
+            if _MARKER.search(text):
+                text = resolve_conflict_markers(text, _keeps_both_sides(rel))
+                if text is None:
+                    return False
+                settled.append((path, text.encode("utf-8", errors="surrogateescape")))
+        for path, data in settled:
+            try:
+                path.write_bytes(data)
+            except OSError:
+                return False
+        return True
+
+    def _set_aside_and_rebase(self, in_the_way: list[str]) -> tuple[int, str]:
+        """Move the Core's own untracked files out of a rebase's way, run
+        it, and put them back by the owned-file rule. Returns the rebase's
+        (code, output); on any failure the files are exactly as they were."""
+        kept: list[tuple[Path, bytes]] = []
+        for rel in in_the_way:
+            path = self.root / rel
+            try:
+                kept.append((path, path.read_bytes()))
+            except OSError:
+                return 1, f"could not read {rel} to set it aside"
+        for path, _ in kept:
+            try:
+                path.unlink()
+            except OSError:
+                for back, data in kept:   # put back what was already moved
+                    back.write_bytes(data)
+                return 1, f"could not set aside {path.name}"
+        code, out = _git(
+            ["rebase", "--autostash", f"{self.remote}/{self.branch}"], self.root)
+        for path, data in kept:
+            rel = path.relative_to(self.root).as_posix()
+            try:
+                if code == 0 and path.exists() and _keeps_both_sides(rel):
+                    upstream = path.read_bytes()
+                    data = upstream + (b"" if upstream.endswith(b"\n") or not upstream
+                                       else b"\n") + data
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+            except OSError:
+                pass   # the copy is in the log below; never raise out of sync
+        return code, out
+
+    def finish_owned_rebase(self) -> tuple[bool, str]:
+        """Carry a rebase that stopped on the Core's own files through to the
+        end. (True, what was kept) when it finished; (False, why) when a
+        person's file is in the conflict or the bound ran out — the caller
+        aborts then, exactly as before this existed."""
+        if not self.merge_in_progress():
+            # Refused before it began (an untracked file in the way, a
+            # detached HEAD it could not make): nothing here to finish.
+            return False, "the rebase never started"
+        kept = []
+        for _ in range(REBASE_STEPS):
+            if not self.merge_in_progress():
+                return True, ("kept the Core's own copy of " + ", ".join(sorted(set(kept)))
+                              if kept else "")
+            conflicted = self._owned_conflicts()
+            if not conflicted or not self._settle_on_disk(conflicted):
+                return False, "a file that is not the Core's is in the conflict"
+            code, _ = _git(["add", "--", *conflicted], self.root)
+            if code != 0:
+                return False, "could not stage the settled files"
+            kept.extend(conflicted)
+            code, _ = _git(["diff", "--cached", "--quiet"], self.root)
+            if code == 0:   # the commit became empty once settled: nothing to keep
+                code, out = _git(["rebase", "--skip"], self.root)
+            else:
+                code, out = _git(["-c", "core.editor=true", "rebase", "--continue"],
+                                 self.root)
+            if code != 0 and not self.merge_in_progress():
+                return False, f"rebase could not continue: {out[-200:]}"
+        return False, f"rebase still unfinished after {REBASE_STEPS} of its own conflicts"
 
     def recover_editor_only_upstream_merge(self) -> tuple[bool | None, str]:
         """Abort only the harmless merge state created by plain ``git pull``.
@@ -216,8 +406,7 @@ class GitSync:
         if not (git_dir / "MERGE_HEAD").exists():
             return None, ""
         if any((git_dir / marker).exists() for marker in (
-                "REBASE_HEAD", "rebase-merge", "rebase-apply",
-                "CHERRY_PICK_HEAD", "REVERT_HEAD")):
+                "rebase-merge", "rebase-apply", "CHERRY_PICK_HEAD", "REVERT_HEAD")):
             return False, "another Git operation is active — leaving it alone"
 
         code, current = _git(["rev-parse", "--abbrev-ref", "HEAD"], self.root)
@@ -277,16 +466,37 @@ class GitSync:
             return False, f"fetch failed: {out[-200:]}"
         code, out = _git(
             ["rebase", "--autostash", f"{self.remote}/{self.branch}"], self.root)
-        if code != 0:
-            _git(["rebase", "--abort"], self.root)
-            return False, f"rebase conflict, aborted cleanly: {out[-200:]}"
-        if "resulted in conflicts" in out:
-            # autostash pop conflicted: dirty file vs upstream — callers
-            # avoid this by committing local state BEFORE pulling
-            return False, f"autostash conflict: {out[-200:]}"
         notes = [recovery_detail] if recovered else []
+        if code != 0:
+            # An untracked file of its OWN that upstream has since added
+            # (the Core filed a task; a session committed the same task)
+            # stops a rebase before it starts, and the autostash never
+            # carries untracked files. Set them aside, rebase, then apply
+            # the same rule as a conflict: both halves of a log, its own
+            # copy of anything else. Found live 2026-09-21, one file.
+            in_the_way = untracked_in_the_way(out)
+            if in_the_way and all(p.startswith(OWNED_PATHS) for p in in_the_way):
+                code, out = self._set_aside_and_rebase(in_the_way)
+                healed = healed + in_the_way
+        if code != 0:
+            # Its own checkpoint clashing with upstream's copy of its own
+            # file is the Core's to settle; anything else is aborted clean.
+            finished, note = self.finish_owned_rebase()
+            if not finished:
+                _git(["rebase", "--abort"], self.root)
+                return False, f"rebase conflict, aborted cleanly: {out[-200:]}"
+            if note:
+                notes.append(note)
+        if "resulted in conflicts" in out:
+            # The rebase itself is done; replaying the Core's dirty copy
+            # over upstream's clashed. Settle it the same way, now, rather
+            # than leave markers in a file nothing may rewrite.
+            healed = healed + self.heal_owned_conflicts()
+            _code, left = _git(["diff", "--name-only", "--diff-filter=U"], self.root)
+            if left.strip():
+                return False, f"autostash conflict: {out[-200:]}"
         if healed:
-            notes.append("kept the Core's own copy of " + ", ".join(healed))
+            notes.append("kept the Core's own copy of " + ", ".join(sorted(set(healed))))
         return True, "; ".join(notes + ["up to date with remote"])
 
     def commit(self, paths: list[Path | str], message: str) -> tuple[bool, str]:

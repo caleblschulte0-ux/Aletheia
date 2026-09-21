@@ -234,10 +234,16 @@ class TheCoresOwnConflictDoesNotWedgeIt(GitSyncCase):
         self.assertTrue(self.sync.pull()[0])
         (self.pc / self.PULSE).write_text('{"beat": "pc"}\n')
         self.relay_pushes(self.PULSE, '{"beat": "cloud"}\n')
+        # Until 2026-09-21 this pull came back False and the file stayed
+        # unmerged for the NEXT beat's rewrite to heal — which never came
+        # for a file nothing rewrites (the legacy journal), and wedged his
+        # PC for three days. The Core's own conflict is settled on the spot
+        # now: its own copy of a snapshot, both halves of a log.
         ok, detail = self.sync.pull()
-        self.assertFalse(ok)
-        self.assertIn("autostash conflict", detail)
-        self.assertTrue(self.unmerged(), "the scenario did not reproduce")
+        self.assertTrue(ok, detail)
+        self.assertIn("kept the Core's own copy of " + self.PULSE, detail)
+        self.assertEqual(self.unmerged(), "")
+        self.assertEqual((self.pc / self.PULSE).read_text(), '{"beat": "pc"}\n')
 
     def test_the_next_beat_heals_it_and_sync_resumes(self):
         self.conflict_the_pulse()
@@ -251,9 +257,15 @@ class TheCoresOwnConflictDoesNotWedgeIt(GitSyncCase):
         self.assertTrue(ok, detail)
 
     def test_conflict_markers_are_never_committed(self):
+        # The RULE: whatever settles a conflict, no marker reaches a commit.
         self.conflict_the_pulse()
-        self.assertEqual(self.sync.heal_owned_conflicts(), [])
-        self.assertTrue(self.unmerged())
+        self.assertNotIn("<<<<<<<", (self.pc / self.PULSE).read_text())
+        ok, detail = self.sync.commit([self.PULSE], "core: checkpoint")
+        self.assertTrue(ok, detail)
+        shown = subprocess.run(["git", "show", f"HEAD:{self.PULSE}"], cwd=str(self.pc),
+                               capture_output=True, text=True).stdout
+        self.assertNotIn("<<<<<<<", shown)
+        self.assertNotIn(">>>>>>>", shown)
 
     def test_a_persons_conflicted_file_is_left_for_them(self):
         (self.pc / "seed.txt").write_text("his edit\n")

@@ -85,6 +85,20 @@ adding architecture. The architecture build is finished
   `python -m aletheia.talk --sandbox` with the model binaries off the
   PATH, and read what the room would hear.
 
+- **2026-09-21 — the update that stayed stuck for three days.** The first
+  look at his PC after the week's merges: the Core there was running
+  Thursday's code, 85 commits behind, with the page saying everything was
+  running. Conflict markers left in the legacy journal by an autostash
+  replay, a second clone left inside the checkout by a recovery, two
+  supervisors and two Cores on one port, the always-on task disabled.
+  Every one of those is now a class she handles herself
+  (`sync.resolve_conflict_markers`, `sync.finish_owned_rebase`, the
+  stray-clone exemption, `core.OneCoreServer`, `core.bind_or_yield`) and
+  the one that cannot be handled is at least SAID
+  (`running.update_stuck`: "I haven't managed to update myself for 3
+  days — 85 newer changes waiting"). Steps 2–4 are still his to run;
+  this is the kind of thing they exist to find.
+
 - **2026-09-21 — the rung that never runs out.** His words: *"it's to the
   point I can say whatever I want and it will do stuff even when no
   frontier models are available."* Three rungs now: the frontier; her own

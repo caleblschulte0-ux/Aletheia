@@ -568,6 +568,13 @@ def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
     # the process keeps running code that is no longer on disk. Found live
     # 2026-08-27: a new command kind was on disk and unknown to the Core for
     # half an hour. Ask the FILES, not just git.
+    try:
+        # Asked on the beat, not only when the page asks: the "first seen
+        # behind" stamp has to be kept by the process that pulls.
+        from aletheia import running as _running
+        status["update_stuck"] = _running.update_stuck()
+    except Exception:
+        pass
     stale = stale_code_files()
     if stale and on_code_update is not None:
         journal.append("event", "core:sync",
@@ -1166,6 +1173,58 @@ class Handler(BaseHTTPRequestHandler):
         return self._json({"outcome": "done", "result": result})
 
 
+class OneCoreServer(ThreadingHTTPServer):
+    """A Core that will not share its port.
+
+    Python's HTTP server sets SO_REUSEADDR so a restart never waits on
+    TIME_WAIT. On Windows that flag means something else: a second socket
+    may bind the same port while the first is LISTENING, and both get a
+    share of the connections. Found live 2026-09-21: two supervisors, two
+    Cores, both on 8777, each answering some of his asks with whichever
+    code it had started on. Windows needs no such flag to rebind after a
+    close, so there it asks for exclusive use instead; elsewhere the
+    kernel refuses a second listener on its own.
+    """
+    allow_reuse_address = os.name != "nt"
+
+    def server_bind(self):
+        import socket
+        exclusive = getattr(socket, "SO_EXCLUSIVEADDRUSE", None)
+        if exclusive is not None:
+            self.socket.setsockopt(socket.SOL_SOCKET, exclusive, 1)
+        super().server_bind()
+
+
+def another_core_answering(port: int = DEFAULT_PORT) -> bool:
+    """Is an Aletheia Core already answering on this port?"""
+    import urllib.request
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/status", timeout=2):
+            return True
+    except Exception:
+        return False
+
+
+def bind_or_yield(host: str = "127.0.0.1", port: int = DEFAULT_PORT, **kw):
+    """`make_server`, or None when the port is held by a Core that answers.
+
+    A second Core is not a crash to retry: relaunching it with backoff
+    would have the supervisor say "I keep restarting and failing" about a
+    machine on which she is, in fact, running. It says so and exits clean,
+    and its supervisor stops with it. A port held by something that is NOT
+    a Core is still the error it always was.
+    """
+    try:
+        return make_server(host, port, **kw)
+    except OSError:
+        if another_core_answering(port):
+            journal.append("event", "core",
+                           f"another Aletheia is already answering on port {port} — "
+                           "this one exits", actor="aletheia-core")
+            return None
+        raise
+
+
 def make_server(host: str = "127.0.0.1", port: int = DEFAULT_PORT,
                 computer_backend_factory=None, tls_cert: str | None = None,
                 tls_key: str | None = None) -> ThreadingHTTPServer:
@@ -1188,7 +1247,7 @@ def make_server(host: str = "127.0.0.1", port: int = DEFAULT_PORT,
     BoundHandler.fleet = load_fleet()
     BoundHandler.computer_backend_factory = (
         staticmethod(computer_backend_factory) if computer_backend_factory else None)
-    server = ThreadingHTTPServer((host, port), BoundHandler)
+    server = OneCoreServer((host, port), BoundHandler)
     if tls_cert and tls_key and not access.is_loopback(host):
         import ssl
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -1267,9 +1326,15 @@ def main(argv: list[str] | None = None) -> int:
     # Before anything else: measure the gap we are coming back from. If the
     # last heartbeat is old, this start ENDED an outage, and that is a fact
     # the journal and the bus get to hear about (2026-08-27).
+    # The port first: a second Core must not stamp a start, note an outage
+    # ended, or write anything the running one will have to undo.
+    server = bind_or_yield(args.host, args.port, tls_cert=args.tls_cert,
+                           tls_key=args.tls_key)
+    if server is None:
+        print(f"Aletheia is already running at http://127.0.0.1:{args.port}/ — "
+              "nothing to do.")
+        return 0
     liveness.note_start(actor="core", port=args.port)
-    server = make_server(args.host, args.port, tls_cert=args.tls_cert,
-                         tls_key=args.tls_key)
     restarting = threading.Event()
 
     def on_code_update(changed):
