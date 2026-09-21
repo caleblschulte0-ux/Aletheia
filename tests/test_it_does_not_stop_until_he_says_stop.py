@@ -279,6 +279,43 @@ class TheRefillShareTheCampaignLockCase(unittest.TestCase):
         self.assertFalse(campaign.LOCK_PATH.exists())
 
 
+class ItComesBackOnNewCodeCase(unittest.TestCase):
+    """The Core restarts itself when the code on disk is newer than the
+    process; this loop never did. Found 2026-09-21: the job hunt on his PC
+    had run 09-19's code through two days of merges, while every batch it
+    spawned ran the new code."""
+
+    def test_newer_code_on_disk_stops_the_loop_cleanly_between_batches(self):
+        started = []
+        with mock.patch.object(apply_forever.campaign, "running", return_value=None), \
+             mock.patch.object(apply_forever.journal, "append") as noted:
+            code = apply_forever.forever(turns=3, starter=lambda **kw: started.append(1) or {"started": True},
+                                         sleeper=lambda _s: None, pursuer=lambda: [],
+                                         stale=lambda: ["aletheia/campaign.py"])
+        self.assertEqual(code, 0)
+        self.assertEqual(started, [])
+        self.assertIn("newer than this process", noted.call_args.args[2])
+
+    def test_a_running_batch_is_finished_first(self):
+        # Stopping under a live batch would orphan it; the check waits.
+        turns = []
+        with mock.patch.object(apply_forever.campaign, "running", return_value={"pid": 7}), \
+             mock.patch.object(apply_forever.journal, "append"):
+            code = apply_forever.forever(turns=2, sleeper=lambda _s: turns.append(1),
+                                         pursuer=lambda: [], stale=lambda: ["aletheia/campaign.py"])
+        self.assertEqual(code, 0)
+        self.assertEqual(len(turns), 1)
+
+    def test_unchanged_code_keeps_hunting(self):
+        started = []
+        with mock.patch.object(apply_forever.campaign, "running", return_value=None), \
+             mock.patch.object(apply_forever, "_claude_rests_until", return_value=None), \
+             mock.patch.object(apply_forever.journal, "append"):
+            apply_forever.forever(turns=2, starter=lambda **kw: started.append(1) or {"started": True},
+                                  sleeper=lambda _s: None, pursuer=lambda: [], stale=lambda: [])
+        self.assertEqual(len(started), 2)
+
+
 class ItSurvivesTheSessionThatStartedItCase(unittest.TestCase):
     def test_it_is_registered_as_an_always_on_task(self):
         spec = autostart.TASKS["apply"]

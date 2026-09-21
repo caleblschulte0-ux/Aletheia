@@ -175,16 +175,45 @@ def pursue_once(*, pursuer=None) -> list[dict]:
         return []
 
 
+#: When this process loaded its code. The Core restarts itself when the
+#: code on disk is newer than the process; this loop never did, so the job
+#: hunt on his PC ran 2026-09-19's code for two days of merges (found
+#: 2026-09-21) while every batch it SPAWNED ran the new code.
+_STARTED_AT = time.time()
+
+
+def code_changed_on_disk() -> list[str]:
+    from aletheia.core import stale_code_files
+    return stale_code_files(started_at=_STARTED_AT)
+
+
 def forever(*, batch: int = BATCH, resume: str = "", wait_s: float = IDLE_WAIT_S,
             turns: int | None = None, starter=None, sleeper=None, refiller=None,
-            pursuer=None) -> int:
+            pursuer=None, stale=None) -> int:
     """Look, apply, wait, repeat — until he halts her or the process dies.
 
-    `turns` and `sleeper` exist for the tests. Left alone it does not stop.
+    `turns` and `sleeper` exist for the tests. Left alone it does not stop
+    — except to come back on newer code: between batches, when the code on
+    disk is newer than this process, it exits clean and the watchdog task
+    starts it again within five minutes on what is there now.
     """
     sleep = sleeper or time.sleep
+    stale = stale or code_changed_on_disk
     done = 0
     while turns is None or done < turns:
+        try:
+            if not campaign.running():
+                changed = stale()
+                if changed:
+                    journal.append("event", "apply:forever",
+                                   f"the code on disk is newer than this process "
+                                   f"({len(changed)} file(s), e.g. {changed[0]}) — stopping so "
+                                   "the watchdog brings me back on it", actor=ACTOR)
+                    return 0
+        except policy.Halted:
+            raise
+        except Exception:
+            pass  # a stat that failed is not a reason to stop hunting
         try:
             once(batch=batch, resume=resume, starter=starter, refiller=refiller)
         except policy.Halted:
