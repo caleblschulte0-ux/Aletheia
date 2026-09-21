@@ -876,3 +876,28 @@ def ago(when, now=None) -> str:
         return f"on {local.strftime('%A')} at {clock}"
     return f"on {local.strftime('%B')} {local.day} at {clock}"
 
+
+def about_seconds(seconds: float | None) -> str:
+    """"about a minute", "about 2 and a half minutes", "under 10 seconds" -
+    how long a thing takes, said the way a person says it."""
+    try:
+        s = float(seconds or 0)
+    except (TypeError, ValueError):
+        return ""
+    if s <= 0:
+        return ""
+    if s < 10:
+        return "under 10 seconds"
+    if s < 55:
+        return f"about {int(round(s / 5.0) * 5)} seconds"
+    minutes = s / 60.0
+    if minutes < 1.25:
+        return "about a minute"
+    if minutes < 1.75:
+        return "about a minute and a half"
+    whole = int(round(minutes))
+    half = 0.4 <= minutes - int(minutes) <= 0.6 and minutes < 10
+    if half:
+        return f"about {int(minutes)} and a half minutes"
+    return f"about {whole} minutes"
+

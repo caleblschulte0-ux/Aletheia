@@ -202,13 +202,31 @@ def run_json(system_prompt: str, text: str, *, context: dict | None = None,
             with local_lease.hold(what=f"{role} {config.model}", hold_s=float(config.timeout_s or 0) + 30.0,
                                   purpose_name=local_lease.WORK if background else None):
                 started = time.perf_counter()
-                proposal = local_brain.infer_json(system_prompt, text, context=ctx, config=config,
-                                                  should_yield=should_yield)
-        except local_lease.LeaseBusy as busy:
-            raise LocalPoolUnavailable(f"her own model is busy: {busy}") from None
+                # SEEN WHILE IT RUNS. The mark is what "what are you doing"
+                # and the page read; the progress line is what the room hears
+                # and the ask box shows, once, when he is waiting on it.
+                _mark_busy(role, config.model, text, attention)
+                if not background:
+                    try:
+                        from aletheia import followups, speech
+                        typical = recent().get("typical_s")
+                        followups.report("Thinking with my own model, which is slower"
+                                         + (f", usually {speech.about_seconds(typical)}" if typical else "")
+                                         + ".")
+                    except Exception:  # noqa: BLE001
+                        pass
+                try:
+                    proposal = local_brain.infer_json(system_prompt, text, context=ctx, config=config,
+                                                      should_yield=should_yield)
+                finally:
+                    _clear_busy()
+        except local_lease.LeaseBusy as lease_busy:
+            raise LocalPoolUnavailable(f"her own model is busy: {lease_busy}") from None
         output = validator(proposal) if validator else proposal
     except Exception as exc:
         elapsed = round((time.perf_counter() - started) * 1000)
+        if config is not None:
+            _remember_run(role, elapsed, False, text)
         if config is not None:
             training_data.record_turn(
                 provider="ollama", model=config.model, role=role, text=text, context=ctx,
@@ -229,6 +247,7 @@ def run_json(system_prompt: str, text: str, *, context: dict | None = None,
             raise LocalPoolUnavailable(f"local {role} role failed ({type(exc).__name__})") from None
         raise
     elapsed = round((time.perf_counter() - started) * 1000)
+    _remember_run(role, elapsed, True, text)
     turn_id = training_data.record_turn(
         provider="ollama", model=config.model, role=role, text=text, context=ctx,
         request_payload=payload, result=output, status="validated", duration_ms=elapsed,
@@ -322,6 +341,95 @@ def reachable(*, now: float | None = None, probe=None) -> bool:
 
 def forget_reachability() -> None:
     _REACH.update({"at": 0.0, "ok": False})
+
+
+# ---- what her own model is doing, and how long it takes ---------------------------
+#
+# His words, 2026-09-21: he needs "a better way for me to see it's working
+# and what it's doing ... mainly when it's just the local model up so I can
+# make sure it's working since it is a lot slower." So every local call
+# leaves a mark while it runs (what, since when, which role) and a line in a
+# small ring when it ends (how long, whether it answered). `current_state`
+# reads both; the page, the room and "what are you doing" say them.
+
+BUSY_STALE_S = 40 * 60.0
+RECENT_KEEP = 40
+
+
+def _busy_path():
+    return stateio.private_dir("local-ai") / "busy.json"
+
+
+def _recent_path():
+    return stateio.private_dir("local-ai") / "recent.json"
+
+
+def _mark_busy(role: str, model: str, what: str, attention: str) -> None:
+    import os
+    try:
+        stateio.write_json_atomic(_busy_path(), {
+            "started_at": stateio.utcnow(), "role": role, "model": model,
+            "what": " ".join(str(what or "").split())[:160], "attention": attention,
+            "pid": os.getpid()})
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _clear_busy() -> None:
+    try:
+        _busy_path().unlink()
+    except OSError:
+        pass
+
+
+def busy() -> dict | None:
+    """The local call running right now, or None. A mark older than
+    BUSY_STALE_S is a crash's leftovers, not a call, and reads as None."""
+    import datetime as dt
+    try:
+        value = stateio.read_json(_busy_path())
+        started = dt.datetime.fromisoformat(str(value["started_at"]).replace("Z", "+00:00"))
+    except Exception:  # noqa: BLE001
+        return None
+    age = (dt.datetime.now(dt.timezone.utc) - started).total_seconds()
+    if age < 0 or age > BUSY_STALE_S:
+        return None
+    return {**value, "elapsed_s": round(age)}
+
+
+def _remember_run(role: str, elapsed_ms: int, ok: bool, what: str = "") -> None:
+    try:
+        rows = []
+        try:
+            rows = list(stateio.read_json(_recent_path()).get("runs") or [])
+        except Exception:  # noqa: BLE001
+            rows = []
+        rows.append({"at": stateio.utcnow(), "role": role, "s": round(elapsed_ms / 1000.0, 1),
+                     "ok": bool(ok), "what": " ".join(str(what or "").split())[:80]})
+        stateio.write_json_atomic(_recent_path(), {"runs": rows[-RECENT_KEEP:]})
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def recent(*, now=None) -> dict:
+    """How her own model has been doing: answers today, the last one, and
+    how long one typically takes (the median of the ones that answered)."""
+    import datetime as dt
+    now = now or dt.datetime.now(dt.timezone.utc)
+    try:
+        rows = list(stateio.read_json(_recent_path()).get("runs") or [])
+    except Exception:  # noqa: BLE001
+        rows = []
+    floor = now.strftime("%Y-%m-%dT00:00:00Z")
+    today = [r for r in rows if str(r.get("at") or "") >= floor]
+    answered = [float(r["s"]) for r in rows if r.get("ok") and r.get("s") is not None]
+    answered.sort()
+    typical = answered[len(answered) // 2] if answered else None
+    last = rows[-1] if rows else None
+    return {"today": len(today), "today_ok": sum(1 for r in today if r.get("ok")),
+            "typical_s": typical, "last_s": (float(last["s"]) if last and last.get("s") is not None else None),
+            "last_ok": (bool(last.get("ok")) if last else None), "last_at": (last or {}).get("at"),
+            "known": len(answered)}
 
 
 # ---- the rung that never runs out has to actually be there ------------------
