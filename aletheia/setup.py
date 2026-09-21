@@ -641,7 +641,7 @@ def spoken_about(about: str, report: dict | None = None) -> str:
             break
     if best is None:
         return spoken(report)
-    title = str(best.get("title") or "that")
+    title = _in_her_voice(str(best.get("title") or "that"))
     if best["state"] == OK:
         return f"{title}: yes, set up and checked."
     if best["state"] == BROKEN:
@@ -673,7 +673,7 @@ def spoken(report: dict | None = None) -> str:
                    if c["state"] != OK and not c["optional"]]
     broken = [c["title"] for c in report["steps"] if c["state"] == BROKEN]
     said = (f"{report['done']} of {report['total']} done. I still need "
-            + speech.and_list([c["title"].lower() for c in outstanding])
+            + speech.and_list([_in_her_voice(c["title"]).lower() for c in outstanding])
             + f" — about {report['minutes_left']} minutes of your time.")
     if broken:
         said += (" " + speech.and_list(broken)
