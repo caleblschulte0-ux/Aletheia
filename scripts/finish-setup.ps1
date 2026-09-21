@@ -1,12 +1,12 @@
-# finish-setup.ps1 — the last steps that genuinely need Caleb.
+# finish-setup.ps1  - the last steps that genuinely need Caleb.
 #
 #   powershell -ExecutionPolicy Bypass -File C:\Users\caleb\Aletheia\scripts\finish-setup.ps1
 #
 # Claude already did the rest from its session (2026-08-26): merged the
 # reviewed work to main, pushed it (your one-time GitHub sign-in stored the
-# credentials), and installed the supervisor — Aletheia now starts at every
+# credentials), and installed the supervisor  - Aletheia now starts at every
 # logon, restarts on crash, and updates itself from main. What remains needs
-# your password, your approval, or your voice. Idempotent — re-run any time.
+# your password, your approval, or your voice. Idempotent  - re-run any time.
 
 $ErrorActionPreference = "Stop"
 $repo = "C:\Users\caleb\Aletheia"

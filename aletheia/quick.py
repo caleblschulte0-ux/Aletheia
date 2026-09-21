@@ -51,6 +51,78 @@ def _tidy(text: str) -> str:
         return text
 
 
+#: What he calls the job hunt. Every status shape below takes one of these
+#: as its subject; a subject that is none of them is looked up as a repo
+#: name in the pulse, and failing that the question goes to the planner.
+_JOB = (r"(?:(?:the |my |our |your )?(?:(?:job |jobs? )?(?:applying|applications?|apps|hunt|search|"
+        r"application run|hunting)|jobs|job stuff|job thing|"
+        r"applying (?:to|for) (?:jobs|work|places|companies)|"
+        r"sending (?:out )?applications))")
+_JOB_RE = re.compile(_JOB)
+_STATUS = re.compile(
+    # how's it going
+    r"^(?:how(?:'s| is|s| are) (?:it |things |everything )?(?:going |coming along |looking )?"
+    r"(?:with |on |for )?(?P<going>" + _JOB + r")(?: going| coming along| doing| looking| been going)?"
+    r"|(?:(?:give me|can i get|i want|i need|send me) )?(?:a |an |the |my )?(?:quick |short |little )?"
+    r"(?:status |progress )?(?:update|status|report|rundown|summary)(?: on| about| for| of)?"
+    r"(?: how)? (?P<going2>" + _JOB + r")(?: (?:is|are) going| (?:is|are) doing)?"
+    r"|what(?:'s| is|s)? (?:the )?(?:status|progress|latest|news|word)(?: on| of| with| about)? "
+    r"(?P<going3>" + _JOB + r")"
+    r"|where (?:are we|are you|is it|am i|do we stand|do things stand) (?:with|on|at with) "
+    r"(?P<going4>" + _JOB + r")"
+    r"|any (?:progress|update|news|luck|movement)(?: on| with| in| from)? (?P<going5>" + _JOB + r")"
+    r"|how (?:did|have|has) (?P<going6>" + _JOB + r") (?:go|gone|been)(?: today| so far)?)$"
+    # still running
+    r"|^(?:(?:are|r) (?:you|u|we) still (?P<still>applying|applying (?:to|for) jobs|"
+    r"sending (?:out )?applications|working on (?:the )?jobs|on (?:the )?" + _JOB + r"|"
+    r"doing (?:the )?" + _JOB + r"|running (?:the )?" + _JOB + r"|hunting|job hunting)"
+    r"|(?:is|are) (?P<still2>" + _JOB + r") (?:still )?(?:running|going|on|active|happening|"
+    r"working|in progress|underway|live|being sent)"
+    r"|(?:is|are) (?:the |any )?(?:applications|jobs) still (?P<still3>going|running|being sent|"
+    r"happening|in progress)"
+    r"|(?:is|are) (?:she|it|the batch|the run) still (?P<still4>applying|running the job hunt))$"
+    # how many
+    r"|^how many (?:jobs|applications|apps|places|companies|positions|roles|employers)"
+    r"(?: (?:have|did|has) (?:you|u|she|we))? ?(?P<count>applied (?:to|for|at)|apply (?:to|for|at)|"
+    r"sent(?: out)?|submitted|put in|done|gotten through|finished|completed|applied)"
+    r"(?: (?:to|for))?(?P<count_total> (?:in total|total|overall|all ?together|altogether|ever|"
+    r"so far|to date|all time))?(?: (?:today|now))?$"
+    r"|^how many (?:have|did) (?:you|u) (?P<count2>apply to|send(?: out)?|submit|get through)"
+    r"(?P<count2_total> (?:in total|total|overall|so far|ever))?(?: today)?$"
+    # when was the last one
+    r"|^when (?:was|did) (?:the |your |my |her )?(?:last|latest|most recent) "
+    r"(?P<last_when>application|one|job application|job|submission)"
+    r"(?: (?:go|go out|get sent|sent|submitted|happen|go through))?"
+    r"|^when did (?:you|u|she) last (?P<last_when2>apply|apply (?:to|for) (?:a job|one|something|"
+    r"anything|anywhere)|send (?:one|an application|an app)|submit (?:one|an application))"
+    r"|^when(?:'s| is|s| was) (?:the )?(?:most recent|latest|last) (?P<last_when3>application|"
+    r"one (?:you|u) sent)$"
+    # what was the last one
+    r"|^(?:what|which|who|where) (?:was|is|were) (?:the |your |her )?(?:last|latest|most recent) "
+    r"(?P<last_what>job|application|one|company|place|employer|position|role)"
+    r"(?: (?:you|u|she) (?:applied (?:to|for|at|with)|sent|did|went for|submitted))?"
+    r"|^(?:what|which|where|who) did (?:you|u|she) (?P<last_what2>last apply (?:to|for|at|with)|"
+    r"apply (?:to|for|at|with) last|apply (?:to|for) most recently)"
+    r"|^what(?:'s| is|s) (?:the )?(?:last|latest|most recent) (?P<last_what3>job|application|one|"
+    r"place|company)(?: (?:you|u) applied (?:to|for|at))?$"
+    # what's blocking
+    r"|^what(?:'s| is|s)? (?:blocking|stopping|holding up|in the way of|holding back|stalling) "
+    r"(?P<blocking>" + _JOB + r"|(?:you|u)(?: from applying| on (?:the )?jobs)?|it|the run|things)"
+    r"|^why (?:is|are|has|have|did) (?P<blocking2>" + _JOB + r") (?:stuck|stopped|blocked|stalled|"
+    r"not (?:running|going|moving|working|happening)|stop(?:ped)?)"
+    r"|^(?:is|are) (?P<blocking3>" + _JOB + r") (?:stuck|blocked|stalled)"
+    r"|^why (?:aren't|are not|haven't|have not|arent|havent) (?:you|u) (?P<blocking4>applying|"
+    r"applied|sending (?:any |out )?applications|sent (?:any )?(?:applications|any))"
+    r"(?: (?:to|for) (?:jobs|anything|anywhere))?$"
+    # a repo, by name (resolved against the pulse; unknown -> planner)
+    r"|^(?:is|are) (?:the |my )?(?P<repo>[a-z0-9][a-z0-9 _.-]{1,40}?)(?: pipeline| repo| project| bot| thing)?"
+    r" (?:still )?(?:running|healthy|ok|okay|fine|good|green|up|working|alive|broken|down|failing|red|"
+    r"in trouble|having (?:problems|issues|trouble))(?: right now| now| today| at the moment)?$"
+    r"|^how(?:'s| is|s) (?:the |my )?(?P<repo2>[a-z0-9][a-z0-9 _.-]{1,40}?)(?: pipeline| repo| project| bot)?"
+    r"(?: doing| going| looking| holding up| running)(?: today| now| lately| these days)?$"
+    r"|^what(?:'s| is|s)? (?:the )?(?:status|state|health)(?: on| of)? (?:the |my )?"
+    r"(?P<repo3>[a-z0-9][a-z0-9 _.-]{1,40}?)(?: pipeline| repo| project| bot)?$")
+
 # Each is (name, pattern). Anchored, because "tell me about the halt
 # behaviour in the docs" is not "are you halted".
 PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
@@ -96,8 +168,6 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how (?:did|have|are) (?:the )?(?:job )?(?:applications|apps|job hunt|hunt|job search)"
         r" (?:go|gone|going)(?: today| so far| so far today)?$"
         r"|^how(?:'s| is) the (?:job )?(?:hunt|search|applications?)(?: going)?(?: today)?$"
-        r"|^how many (?:jobs|applications) (?:did|have) (?:you|u) (?:apply to|applied to|send|sent)"
-        r"(?: today| so far)?$"
         r"|^(?:did|have) (?:you|u) (?:apply|applied) to (?:any|anything|any jobs)(?: today)?$"
         r"|^(?:job )?(?:applications|hunt) (?:status|today|report)$")),
     # The third question. It has a `recollection` pattern for the model's
@@ -281,6 +351,17 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:can|could) (?:you|u) (?P<what>.{3,120})$"
         r"|^(?:are|r) (?:you|u) able to (?P<what2>.{3,120})$"
         r"|^do (?:you|u) know how to (?P<what3>.{3,120})$")),
+    # THE GROUNDED STATUS FAMILY, last so an exact pattern above wins.
+    # Found live 2026-09-14 from his phone: "give me a status update on how
+    # applying to jobs is going" went to the PLANNER, and with Claude and
+    # ChatGPT out came back "I could not plan that: ReasonerUnavailable".
+    # The failure was not that nobody could think; it was that a question
+    # whose answer is a file read was routed to thinking at all. A status
+    # question is a SHAPE (how's it going, still running, how many, when
+    # was the last, what's blocking) and a SUBJECT; the subject picks the
+    # store, and the store answers. A subject nothing here knows returns
+    # None, which is the planner - never a guess.
+    ("status_of", _STATUS),
 )
 
 
@@ -294,6 +375,8 @@ def match(question: str) -> tuple[str, str] | None:
         if not found:
             continue
         captured = found.groupdict()
+        if name == "status_of":
+            return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
                                            "free", "free2", "free3",
                                            "down", "down2", "weather",
@@ -981,6 +1064,70 @@ def _greeting() -> str | None:
         return None
 
 
+def status_of(text: str) -> tuple[str, str] | None:
+    """(shape, subject) for a status question, or None. The shape is one of
+    going / still / count / count_total / last_when / last_what / blocking /
+    repo; the subject is his words for it."""
+    found = _STATUS.match(_tidy(text))
+    if not found:
+        return None
+    groups = {k: v for k, v in found.groupdict().items() if v}
+    for key, value in groups.items():
+        if key.startswith("count"):
+            total = bool(groups.get("count_total") or groups.get("count2_total"))
+            return ("count_total" if total else "count"), "the job hunt"
+        if key.startswith("going"):
+            return "going", value
+        if key.startswith("still"):
+            return "still", value
+        if key.startswith("last_when"):
+            return "last_when", value
+        if key.startswith("last_what"):
+            return "last_what", value
+        if key.startswith("blocking"):
+            return "blocking", value
+        if key.startswith("repo"):
+            return "repo", value
+    return None
+
+
+def _status_of(text: str) -> str | None:
+    """Answer a status question from the store its subject names. Every
+    number is a count of records; nothing here invents progress. None for a
+    subject no store knows - the planner is still there for that."""
+    from aletheia import current_state
+    found = status_of(text)
+    if not found:
+        return None
+    shape, subject = found
+    if shape == "repo":
+        # "Is the job hunt running" arrives here when its subject was said
+        # in a way _JOB does not list; the pulse will not know it either.
+        if _JOB_RE.fullmatch(subject):
+            shape = "still"
+        elif subject in ("aletheia", "thea", "you", "yourself", "everything", "it all"):
+            # Her own status is the "what are you doing" answer, not the
+            # Aletheia repository's row of the pulse.
+            return _doing()
+        else:
+            return current_state.repo_words(subject)
+    if shape == "going":
+        return current_state.job_hunt_words()
+    if shape == "still":
+        return current_state.still_applying_words()
+    if shape in ("count", "count_total"):
+        return current_state.how_many_words(total=shape == "count_total")
+    if shape == "last_when":
+        return current_state.last_application_words(what=False)
+    if shape == "last_what":
+        return current_state.last_application_words(what=True)
+    if shape == "blocking":
+        # Empty when nothing is recorded: a "why" with no evidence in the
+        # stores goes on to the investigator, which can look properly.
+        return current_state.blocking_words() or None
+    return None
+
+
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "waiting": lambda rest: _waiting(),
            "doing": lambda rest: _doing(),
@@ -1008,7 +1155,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "mine": _mine,
            "weather": lambda rest: _weather(rest),
            "greeting": lambda rest: _greeting(),
-           "home": lambda rest: _home()}
+           "home": lambda rest: _home(),
+           "status_of": _status_of}
 
 
 # The sentences whose stores cost the most to reach the first time.

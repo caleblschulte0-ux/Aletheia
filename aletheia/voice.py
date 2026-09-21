@@ -786,6 +786,36 @@ def _a_study_waits_for_a_verdict() -> bool:
         return False
 
 
+def _job_hunt_is_the_context() -> bool:
+    """Was the job hunt the last thing she did or talked about? True when a
+    batch ran, or an application was staged, in the last few hours, or the
+    last turn of the conversation was about it. Never raises."""
+    import datetime as dt
+    try:
+        from aletheia import current_state
+        hunt = current_state.job_hunt()
+        if hunt.get("running"):
+            return True
+        lock = hunt.get("campaign") or {}
+        started = lock.get("started_at")
+        if started:
+            when = dt.datetime.fromisoformat(str(started).replace("Z", "+00:00"))
+            if dt.datetime.now(dt.timezone.utc) - when < dt.timedelta(hours=6):
+                return True
+        today = hunt.get("today") or {}
+        if any(today.get(k) for k in ("discovered", "sent", "blocked", "ready")):
+            return True
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        from aletheia import converse
+        text = " ".join(f"{t.get('he_asked', '')} {t.get('she_answered', '')}"
+                        for t in converse.recent(2) if isinstance(t, dict)).casefold()
+        return bool(re.search(r"\b(apply|applying|applications?|job hunt|job search|jobs)\b", text))
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def _interpret(transcript: str) -> dict:
     text = strip_wake_word(transcript)
     low = _without_preamble(text.lower().strip().rstrip(".?!"))
@@ -954,6 +984,56 @@ def _interpret(transcript: str) -> dict:
         if "remote" in (m.group(2) or "").split():
             command["where"] = "remote"
         return {"command": command, "say": None}
+    # THE SENTENCE HAD TO CONTAIN "APPLY ... JOBS" OR IT WENT TO THE PLANNER.
+    # "Start applying", "keep going with the job search", "get back to
+    # applying", "find me more jobs and apply" - his ordinary ways of
+    # saying the one thing she is most often asked to do - each cost a
+    # frontier round trip, and on 2026-09-19 with the frontier out cost
+    # him the whole ask. The phrasing of a sentence must not gate a
+    # capability she has (the seamless brief, section 1). No count: the
+    # campaign's own default. "Keep going" on its own is only this when
+    # the job hunt is what she was last doing (`_job_hunt_is_the_context`);
+    # otherwise it asks, because a wrong guess opens real employer pages.
+    if re.fullmatch(
+            r"(?:(?:can you|could you|please|go|hey|just|ok|okay|now|go ahead and|let'?s) )*"
+            r"(?:(?:start|keep|continue|resume|restart|get back to|go back to|carry on|carry on with|"
+            r"get on with|get going with|get going on|go on with|crack on with|stay on|"
+            r"go and start|start on|begin|get|set|kick off|fire up|spin up) )?"
+            r"(?:(?:applying|apply)(?: (?:to|for) (?:(?:some |more |a few |new |remote |local |"
+            r"the |other )*(?:jobs|work|positions|places|companies|openings)))?"
+            r"|(?:the |my |our )?(?:job (?:hunt|search|hunting|applications?)|applications?|"
+            r"job stuff|hunt|hunting)(?: going| running| up| moving| rolling| back up| up again)?"
+            r"|(?:sending|send)(?: out)? (?:some |more |the |a few )?applications"
+            # Finding is only this when applying is said too: "look for
+            # jobs" on its own is a search, and a search does not fill forms.
+            r"|(?:finding|find|look for|looking for|search for|searching for)(?: me)? "
+            r"(?:some |more |a few |new |some more |remote )*(?:jobs|openings|positions|work)"
+            r" (?:and|then) (?:apply|apply to them|apply for them|send applications|start applying)"
+            r"|(?:go|get) (?:apply|applying)(?: (?:to|for) (?:some |more |a few |remote )*jobs)?"
+            r"|(?:get|go) back to (?:the )?(?:jobs|job hunt|applications|applying)"
+            r"|going with the (?:job (?:hunt|search)|applications))"
+            r"(?: for me| please| now| again| today| tonight| this (?:morning|afternoon|evening)"
+            r"| while i'?m (?:gone|out|away|asleep)| some more| a bit more)*", low) \
+            and re.search(r"\b(apply|applying|job|jobs|hunt|application|applications|openings|"
+                          r"positions|work)\b", low):
+        command = {"kind": "apply_campaign", "count": 5}
+        if "remote" in low.split():
+            command["where"] = "remote"
+        return {"command": command, "say": None}
+    # "KEEP GOING" / "CONTINUE" with nothing named: the job hunt when that
+    # is what she was last doing; otherwise ask, out loud, rather than
+    # guess at something that opens real employer pages.
+    if re.fullmatch(r"(?:(?:can you|could you|please|go|hey|just|ok|okay|now) )*"
+                    r"(?:keep going|keep at it|carry on|continue|keep it up|keep on|go on|"
+                    r"keep working|keep going with (?:that|it)|carry on with (?:that|it)|"
+                    r"continue (?:that|with that|with it)|more of (?:that|the same)|"
+                    r"do (?:that|it) again|again|another (?:batch|round))"
+                    r"(?: please| for me| now)*", low):
+        if _job_hunt_is_the_context():
+            return {"command": {"kind": "apply_campaign", "count": 5}, "say": None}
+        return {"command": None,
+                "say": "Keep going with what? Say the thing - the job hunt, a project, or "
+                       "a task - and I'll pick it back up."}
     # WHAT AN EMPLOYER DID about one he sent. Narrow on purpose: "I heard
     # back from Dana" is not about a job, and a pattern that swallows too
     # much answers a different question than the one he asked.

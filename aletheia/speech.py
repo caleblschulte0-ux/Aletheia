@@ -833,3 +833,39 @@ def ack_line(command: str) -> str:
     if not text:
         return ACK_ACTION
     return ACK_QUESTION if LOOKING_UP.match(text) else ACK_ACTION
+
+
+def ago(when, now=None) -> str:
+    """"18 minutes ago", "yesterday at 3:10 pm", "on Tuesday at 9 am" - a
+    timestamp the way a person says one, on HIS clock. A receipt carries
+    `2026-09-21T13:07:19Z`; read out, that is nothing. Returns "" for
+    anything that is not a time, so a caller can leave it out."""
+    import datetime as dt
+    from aletheia import localtime
+    try:
+        when = when if isinstance(when, dt.datetime) else localtime.parse_utc(str(when))
+    except (TypeError, ValueError):
+        return ""
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=dt.timezone.utc)
+    now = now or dt.datetime.now(dt.timezone.utc)
+    seconds = (now - when).total_seconds()
+    if seconds < 0:
+        seconds = 0
+    if seconds < 60:
+        return "just now"
+    if seconds < 3600:
+        return count_phrase(int(seconds // 60), "minute") + " ago"
+    tz = localtime.operator_tz()
+    local, today = when.astimezone(tz), now.astimezone(tz)
+    clock = local.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+    if local.date() == today.date():
+        if seconds < 6 * 3600:
+            return count_phrase(int(seconds // 3600), "hour") + " ago"
+        return f"today at {clock}"
+    if (today.date() - local.date()).days == 1:
+        return f"yesterday at {clock}"
+    if (today.date() - local.date()).days < 7:
+        return f"on {local.strftime('%A')} at {clock}"
+    return f"on {local.strftime('%B')} {local.day} at {clock}"
+

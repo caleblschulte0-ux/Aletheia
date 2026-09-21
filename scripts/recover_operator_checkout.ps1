@@ -2,7 +2,7 @@
 # This is intentionally narrow: it never hard-resets, never deletes local commits,
 # and refuses to rebase if non-Aletheia working files are dirty.
 # Safe entrypoint:
-#   irm https://raw.githubusercontent.com/caleblschulte0-ux/Aletheia/main/scripts/recover_operator_checkout.ps1 | iex
+#   irm https://raw.githubusercontent.com/caleblschulte0-ux/Aletheia/live/scripts/recover_operator_checkout.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 $dest = Join-Path $HOME "Aletheia"

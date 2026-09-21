@@ -1,6 +1,6 @@
 # Aletheia Windows bring-up: one operator command after reviewed code lands on main.
 #
-#   irm https://raw.githubusercontent.com/caleblschulte0-ux/Aletheia/main/scripts/bringup_windows.ps1 | iex
+#   irm https://raw.githubusercontent.com/caleblschulte0-ux/Aletheia/live/scripts/bringup_windows.ps1 | iex
 #
 # This is deliberately NOT a development test runner. CI owns the 1,200+ test
 # suite. This script proves only the live things that can differ on the operator's
@@ -11,7 +11,7 @@
 $ErrorActionPreference = "Stop"
 $repo = "https://github.com/caleblschulte0-ux/Aletheia.git"
 $dest = Join-Path $HOME "Aletheia"
-$recovery = "https://raw.githubusercontent.com/caleblschulte0-ux/Aletheia/main/scripts/recover_operator_checkout.ps1"
+$recovery = "https://raw.githubusercontent.com/caleblschulte0-ux/Aletheia/live/scripts/recover_operator_checkout.ps1"
 
 function Have($name) {
   [bool](Get-Command $name -CommandType Application -ErrorAction SilentlyContinue)
@@ -59,10 +59,8 @@ function Wait-ForCore([int]$Seconds = 30) {
 }
 
 if ($env:OS -ne "Windows_NT") { throw "Aletheia bring-up is Windows-only." }
-Write-Host "`n  ALETHEIA — SAFE WINDOWS BRING-UP" -ForegroundColor Cyan
+Write-Host "`n  ALETHEIA - SAFE WINDOWS BRING-UP" -ForegroundColor Cyan
 
-# Containment first. A stale watchdog must not resurrect old code while the repo
-# and dependencies are being repaired. Missing tasks are fine on a first install.
 function Restore-AletheiaCore {
   # This script KILLS the running Core for containment. Every throw between
   # that kill and "Core: UP" used to end with her simply dead - which is what
@@ -86,16 +84,6 @@ function Restore-AletheiaCore {
     return (Wait-ForCore 20)
   }
   return $false
-}
-
-foreach ($name in @("AletheiaVoice", "Aletheia")) {
-  Stop-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
-  Disable-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
-}
-Get-CimInstance Win32_Process | Where-Object {
-  $_.CommandLine -match '(?i)(-m\s+aletheia\.(voice_room|supervisor|core))'
-} | ForEach-Object {
-  Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
 }
 
 try {
@@ -130,8 +118,45 @@ if (-not $python) {
 $script:PyExe = $python.Exe
 $script:PyFlags = @($python.Flags)
 
+# PROVE WHAT CAN BE PROVED BEFORE ANYTHING IS STOPPED. She was killed at
+# the top of this script, and every failure between that kill and "Core:
+# UP" - no network, a Python that vanished, a private state the update
+# lost - used to be found with her already dead. So the update is
+# downloaded first, and what she must not forget is written down first;
+# only then is the old copy stopped. An in-place checkout cannot run old
+# and new side by side, so this is the whole of "verify before retiring":
+# nothing is retired until the new code is on disk and the old state is
+# on record.
+$continuity = Join-Path $env:TEMP "aletheia-continuity-before.json"
 if (Test-Path $dest) {
-  Write-Host "  Safely updating Aletheia main ..." -ForegroundColor Yellow
+  Write-Host "  Downloading the update before stopping anything ..." -ForegroundColor Yellow
+  & git -C $dest fetch origin live 2>&1 | Out-Null
+  if ($LASTEXITCODE -ne 0) {
+    throw "The update could not be downloaded (git fetch failed), so nothing was stopped and nothing changed."
+  }
+  if (Test-Path (Join-Path $dest "aletheia\continuity.py")) {
+    Push-Location $dest
+    try {
+      & $script:PyExe @script:PyFlags -m aletheia.continuity snapshot $continuity
+      if ($LASTEXITCODE -ne 0) { Remove-Item $continuity -ErrorAction SilentlyContinue }
+    } finally { Pop-Location }
+  }
+}
+
+# Containment. A stale watchdog must not resurrect old code while the repo
+# and dependencies are being repaired. Missing tasks are fine on a first install.
+foreach ($name in @("AletheiaVoice", "Aletheia")) {
+  Stop-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
+  Disable-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
+}
+Get-CimInstance Win32_Process | Where-Object {
+  $_.CommandLine -match '(?i)(-m\s+aletheia\.(voice_room|supervisor|core))'
+} | ForEach-Object {
+  Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+}
+
+if (Test-Path $dest) {
+  Write-Host "  Safely updating Aletheia (live) ..." -ForegroundColor Yellow
   # The recovery entrypoint rebases local Aletheia state, preserves the one
   # known legacy journal conflict, and refuses foreign work.  Keeping tasks
   # stopped prevents its standalone finally block from restarting old code
@@ -157,6 +182,16 @@ Set-Location $dest
 $version = & $script:PyExe @script:PyFlags -c "import sys; print(sys.version.split()[0])"
 Write-Host "  Python $version" -ForegroundColor Green
 
+# THE UPDATE MUST HAND BACK WHAT IT WAS GIVEN. Held before "Core: UP":
+# a Core answering over an empty memory is the same lie one layer down.
+if (Test-Path $continuity) {
+  Write-Host "  Checking the update kept your private state and local AI ..." -ForegroundColor Yellow
+  & $script:PyExe @script:PyFlags -m aletheia.continuity verify $continuity
+  if ($LASTEXITCODE -ne 0) {
+    throw "The update lost something (see above). The Core is being brought back on the code now on disk; tell Claude what the list says."
+  }
+}
+
 # The browser-reasoning lease is intentionally foreground-only. This bring-up
 # never grants it. Always-on Aletheia must use local/Claude reasoning or degrade;
 # it must never create visible ChatGPT conversations while the operator is away.
@@ -173,8 +208,17 @@ Invoke-AletheiaPython -PyArgs @("-m","aletheia.suggestions","validate")
 Invoke-AletheiaPython -PyArgs @("-m","aletheia.plans","validate")
 Invoke-AletheiaPython -PyArgs @("-c","from aletheia import browser_reasoner as b; assert not b.operator_lease_enabled(); print('browser reasoning: unattended fallback BLOCKED')")
 
+# Local reasoning is proved, not required: Ollama being slow to start
+# after a reboot is a warning here and a line in the final report, never
+# the reason the bring-up fails and she stays down. A failed activation
+# no longer turns an earlier activation off (aletheia.local_ai).
 Write-Host "  Activating local reasoning ..." -ForegroundColor Yellow
-Invoke-AletheiaPython -PyArgs @("-m","aletheia.local_ai","activate")
+$localAiOk = $true
+& $script:PyExe @script:PyFlags -m aletheia.local_ai activate
+if ($LASTEXITCODE -ne 0) {
+  $localAiOk = $false
+  Write-Warning "Local AI did not answer its smoke test. She runs without it until it does; nothing was switched off."
+}
 
 # Bring the Core up without changing production authority. The Core can serve
 # status while halted; nothing autonomous is authorized by this installer.
@@ -219,6 +263,9 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "`n  ALETHEIA IS UP." -ForegroundColor Green
+if (-not $localAiOk) {
+  Write-Host "  Local AI: NOT answering (see the warning above). Retry: python -m aletheia.local_ai activate" -ForegroundColor Yellow
+}
 Write-Host "  Core:  http://127.0.0.1:8777/" -ForegroundColor Green
 Write-Host "  Voice: persistent; say a full command such as 'Thea, what needs my attention?'" -ForegroundColor Green
 Write-Host "  Browser reasoning: blocked in unattended processes." -ForegroundColor Green
