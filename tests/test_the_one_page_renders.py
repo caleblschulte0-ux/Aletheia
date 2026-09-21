@@ -154,6 +154,10 @@ class OnePageCase(unittest.TestCase):
                         "document.documentElement.clientWidth"),
                     "drawer_open": page.evaluate(
                         "() => document.getElementById('drawer').open"),
+                    "health_boxes": page.evaluate(
+                        "() => ['banner', 'health'].filter(id => {"
+                        " const el = document.getElementById(id);"
+                        " return el && !el.hidden && el.textContent.trim(); }).length"),
                     "tall": page.evaluate(
                         "() => document.documentElement.scrollHeight"),
                     "taps": page.evaluate(
@@ -280,6 +284,14 @@ class OnePageCase(unittest.TestCase):
                 self.assertNotIn(shouted, body, shouted)
 
     # ---- it fits a phone --------------------------------------------------
+    def test_one_health_sentence_never_two(self):
+        """The fixture has no supervisor AND a missing heartbeat: two
+        collectors with something to say about the same fact. He reads one
+        sentence about it, not a yellow box and a red one."""
+        for who, seen in self.seen.items():
+            with self.subTest(at=who):
+                self.assertLessEqual(seen["health_boxes"], 1)
+
     def test_nothing_scrolls_sideways_on_a_phone(self):
         self.assertLessEqual(self.seen["phone"]["overflow"], 0,
                              "the page is wider than the phone")

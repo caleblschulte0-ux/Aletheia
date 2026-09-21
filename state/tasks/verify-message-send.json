@@ -1,0 +1,11 @@
+{
+  "id": "verify-message-send",
+  "description": "Verify or repair capability message.send",
+  "status": "QUEUED",
+  "created_at": "2026-09-21T14:59:33Z",
+  "updated_at": "2026-09-21T14:59:33Z",
+  "attempts": 0,
+  "priority": 2,
+  "goal": "Produce live evidence for message.send (EXPERIMENTAL); repair implementation if evidence fails",
+  "assigned_worker": "claude"
+}

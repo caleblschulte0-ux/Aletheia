@@ -121,7 +121,9 @@ _STATUS = re.compile(
     r"|^how(?:'s| is|s) (?:the |my )?(?P<repo2>[a-z0-9][a-z0-9 _.-]{1,40}?)(?: pipeline| repo| project| bot)?"
     r"(?: doing| going| looking| holding up| running)(?: today| now| lately| these days)?$"
     r"|^what(?:'s| is|s)? (?:the )?(?:status|state|health)(?: on| of)? (?:the |my )?"
-    r"(?P<repo3>[a-z0-9][a-z0-9 _.-]{1,40}?)(?: pipeline| repo| project| bot)?$")
+    r"(?P<repo3>[a-z0-9][a-z0-9 _.-]{1,40}?)(?: pipeline| repo| project| bot)?$"
+    r"|^why (?:is|are) (?:the |my )?(?P<repo4>[a-z0-9][a-z0-9 _.-]{1,40}?)(?: pipeline| repo| project| bot)?"
+    r" (?:red|failing|broken|down|unhealthy|not healthy|in trouble)(?: right now| today)?$")
 
 # Each is (name, pattern). Anchored, because "tell me about the halt
 # behaviour in the docs" is not "are you halted".
@@ -243,6 +245,22 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what can (?:you|u) do(?: for me)?$"
         r"|^what are (?:you|u) able to do$|^what are your capabilities$"
         r"|^what do (?:you|u) do$")),
+    # THE HONESTY QUESTION, answered from the registry with no model. With
+    # every model down "what can't you do" came back "I can't think just
+    # now" - the one question that must never need thinking.
+    ("cannot", re.compile(
+        r"^what (?:can'?t|cannot|can not|couldn'?t) (?:you|u)(?: do| handle| do yet)?(?: for me)?$"
+        r"|^what are (?:you|u) (?:unable|not able) to do$"
+        r"|^what (?:don'?t|doesn'?t) (?:you|u) (?:do|support|handle)(?: yet)?$"
+        r"|^what(?:'s| is|s)? (?:still )?(?:missing|not built|not built yet|unavailable|not working)$"
+        r"|^what (?:isn'?t|is not) (?:built|working|set up)(?: yet)?$")),
+    # HIS DAY, from the calendar mirror she already holds.
+    ("agenda", re.compile(
+        r"^what(?:'s| is|s)? on (?:my |the )?(?:calendar|schedule|agenda|plate)"
+        r"(?: for)? (?P<day>today|tomorrow)$"
+        r"|^what (?:do i have|have i got|is there|am i doing) (?:on )?(?P<day2>today|tomorrow)$"
+        r"|^(?:my |the )?(?:calendar|schedule|agenda) (?:for )?(?P<day3>today|tomorrow)$"
+        r"|^what(?:'s| is|s)? (?P<day4>today|tomorrow)(?:'s| like)?(?: looking like| look like)?$")),
     ("alerts", re.compile(
         r"^(?:are there |is there )?any(?:thing)? (?:alerts|broken|wrong|failing)$"
         r"|^any alerts$|^is anything broken$|^anything broken$"
@@ -389,7 +407,8 @@ def match(question: str) -> tuple[str, str] | None:
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
                                            "free", "free2", "free3",
                                            "down", "down2", "weather",
-                                           "weather2", "weather3")
+                                           "weather2", "weather3",
+                                           "day", "day2", "day3", "day4")
                      if captured.get(k)), "")
         return name, rest
     return None
@@ -827,6 +846,78 @@ def _capabilities() -> str | None:
     return said + ". Ask me for anything and I'll tell you straight if I can't."
 
 
+def _cannot() -> str | None:
+    """"What can't you do?" - from the registry, never from a model.
+
+    Two kinds of no, said apart because they are different asks of him:
+    what is waiting on SETUP (his credentials, his ten minutes) and what is
+    NOT BUILT (a build, not a chore). Named, not counted; a handful each.
+    """
+    from aletheia import capabilities, intents, setup, speech
+    try:
+        reg = capabilities.load_registry()
+    except Exception:
+        return None
+    rows = [c for c in reg.get("capabilities", []) if isinstance(c, dict)]
+    if not rows:
+        return None
+    unbuilt = [c["id"] for c in rows if c.get("status") == "NOT_BUILT"]
+    # WHAT WAITS ON SETUP is what the live audit says, and the fast lane
+    # never pays for a live check. A recent audit is read; without one the
+    # sentence says how to get it rather than guessing from the registry,
+    # whose NEEDS_CONFIGURATION rows are only the optional extras.
+    report = setup.cached_report()
+    parts = []
+    if report is not None:
+        chores = [str(s.get("title") or "") for s in report.get("steps", [])
+                  if s.get("state") != setup.OK and not s.get("optional")]
+        if chores:
+            parts.append("Waiting on you to set up: " + speech.and_list(chores[:4]).lower()
+                         + (f", and {len(chores) - 4} more" if len(chores) > 4 else ""))
+    else:
+        parts.append("Some things wait on setup from you; say \"what do you still need "
+                     "from me\" and I'll check each one live")
+    if unbuilt:
+        named = [speech.shorten(intents._in_english(c), 60).rstrip(".") for c in unbuilt[:3]]
+        parts.append("Not built yet: " + speech.and_list(named)
+                     + (f", and {speech.count_phrase(len(unbuilt) - 3, 'other')}"
+                        if len(unbuilt) > 3 else ""))
+    if not parts:
+        return "Nothing I know of is missing: everything in my list is built and set up."
+    return ". ".join(parts) + ". Ask about any one and I'll say exactly where it stands."
+
+
+def _agenda(day: str = "today") -> str | None:
+    """"What's on my calendar today?" - the day's events from the calendar
+    mirror, on his clock. An empty day still proves the calendar."""
+    import datetime as dt
+    from aletheia import calendar, localtime, speech
+    try:
+        tz = localtime.operator_tz()
+        now = dt.datetime.now(tz)
+        want = now.date() + dt.timedelta(days=1 if str(day).strip() == "tomorrow" else 0)
+        rows = []
+        for event in calendar.all_events():
+            if event.get("status") == "CANCELLED":
+                continue
+            try:
+                start = calendar.parse_time(event["start"]).astimezone(tz)
+            except (KeyError, ValueError, TypeError):
+                continue
+            if start.date() == want:
+                rows.append((start, str(event.get("title") or "something")[:80]))
+    except Exception:
+        return None                  # no calendar mirror: the model may know more
+    label = "Today" if want == now.date() else "Tomorrow"
+    if not rows:
+        return f"Nothing on your calendar {label.lower()}."
+    rows.sort(key=lambda r: r[0])
+    said = [f"{title} at {start.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower()}"
+            for start, title in rows[:6]]
+    return (f"{label}: " + speech.and_list(said)
+            + (f", and {len(rows) - 6} more" if len(rows) > 6 else "") + ".")
+
+
 def _how_many() -> str | None:
     """The counts, for the question the old answer was really answering."""
     from aletheia import self_knowledge, speech
@@ -1161,6 +1252,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "tasks": lambda rest: _tasks(),
            "approvals": lambda rest: _approvals(),
            "capabilities": lambda rest: _capabilities(),
+           "cannot": lambda rest: _cannot(),
+           "agenda": lambda rest: _agenda(rest or "today"),
            "how_many": lambda rest: _how_many(),
            "alerts": lambda rest: _alerts(),
            "repos": lambda rest: _repos(),

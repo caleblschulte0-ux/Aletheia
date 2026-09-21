@@ -665,7 +665,13 @@ def plainly(detail: str) -> str:
 PROVIDER_TOKEN = re.compile(
     r"\b(?:ollama|openai|anthropic|azure|bedrock|vertex|hf|huggingface)"
     r"[:/][A-Za-z0-9._:-]+"
-    r"|\b(?:subscription|gateway|policy|local)\.[a-z_]+\b")
+    r"|\b(?:subscription|gateway|policy|local)\.[a-z0-9_]+\b")
+#: The token WITH the words that hung it on the sentence. Stripping the
+#: token alone turned "Answered with ollama:qwen3:8b on subscription.auto,
+#: from boards.example.com" into "Answered with on, from" on his screen.
+PROVIDER_PHRASE = re.compile(
+    r"(?:\s+(?:with|on|via|using|by|through)\s+)?(?:" + PROVIDER_TOKEN.pattern + r")"
+    r"(?:\s+(?:on|via|using|through)\s+(?:" + PROVIDER_TOKEN.pattern + r"))*")
 
 #: A URL in a sentence he READS. He cannot click it, and the path, the
 #: query and the tracking id in it cost three lines of his phone to say
@@ -698,8 +704,9 @@ def for_reading(text: object) -> str:
         if _ANY_CASE_ID is None:
             _ANY_CASE_ID = re.compile(ID_TOKEN.pattern, re.IGNORECASE)
         said = html.unescape(str(text or ""))
-        said = PROVIDER_TOKEN.sub("", said)
+        said = PROVIDER_PHRASE.sub("", said)
         said = URL_IN_A_LINE.sub(lambda m: m.group(1), said)
+        said = re.sub(r"\s+([,;.])", r"\1", said)
         return tidy(_ANY_CASE_ID.sub("", said))
     except Exception:
         return str(text or "")

@@ -107,14 +107,27 @@
   };
 
   // ---- what she is doing -------------------------------------------------
+  // ONE health sentence. `/api/health` is the collector's judgment of the
+  // whole of her (running.headline); the mission header's banner is one
+  // signal of it (the Core's heartbeat). Both on screen at once said the
+  // same fact twice in two colours, so the health line wins and the
+  // banner shows only while the health line has nothing to say.
+  let healthSaid = false;
+  let bannerText = "";
+  function paintBanner() {
+    const show = bannerText && !healthSaid;
+    $("banner").textContent = show ? bannerText : "";
+    $("banner").hidden = !show;
+  }
+
   function paintNow(m) {
     const h = m.header || {};
     const word = STATE_WORD[h.state] || "";
     $("doing").textContent = h.doing || "";
     $("next").textContent = h.next ? "Next: " + h.next : "";
     $("today").textContent = (h.today && h.today.said) || "";
-    $("banner").textContent = h.banner || "";
-    $("banner").hidden = !h.banner;
+    bannerText = h.banner || "";
+    paintBanner();
     return word;
   }
 
@@ -343,9 +356,12 @@
       const h = await T.api("/api/health");
       $("health").textContent = h.well ? "" : (h.says || "");
       $("health").hidden = !!h.well || !h.says;
+      healthSaid = !h.well && !!h.says;
     } catch {
       $("health").hidden = true;   // the rail already says she is unreachable
+      healthSaid = false;
     }
+    paintBanner();
   }
 
   // ---- the loop ----------------------------------------------------------

@@ -105,11 +105,19 @@ class WhyItAsksCase(unittest.TestCase):
                "steps": [{"n": 1, "status": "EXECUTABLE", "capability": None,
                           "command": {"kind": "remember"}, "detail": ""}]}
 
-    def test_a_routine_ask_names_the_command_that_stops_it(self):
+    def test_a_routine_ask_says_where_the_asking_stops(self):
+        """It names standing permission and where he grants it. It does not
+        put a command in the sentence: "until you run python -m
+        aletheia.standing on, once" reached his phone as her reply. The
+        drawer on the Thea page carries the exact command
+        (tests/test_one_thea_interface)."""
         with mock.patch.object(intents, "_due_to_mention", lambda *a: True), \
              mock.patch("aletheia.authority.active_grants", lambda: []):
             said = intents.spoken(dict(self.ROUTINE))
-        self.assertIn("aletheia.standing on", said)
+        self.assertIn("standing permission", said)
+        self.assertIn("Thea page", said)
+        self.assertNotIn("python", said)
+        self.assertNotIn("aletheia.", said)
 
     def test_it_is_not_repeated_every_time(self):
         """Three replies in a row carrying it — out loud, in a room — is
@@ -117,15 +125,15 @@ class WhyItAsksCase(unittest.TestCase):
         with mock.patch("aletheia.authority.active_grants", lambda: []):
             first = intents.spoken(dict(self.ROUTINE))
             second = intents.spoken(dict(self.ROUTINE))
-        self.assertIn("aletheia.standing on", first)
-        self.assertNotIn("aletheia.standing on", second)
+        self.assertIn("standing permission", first)
+        self.assertNotIn("standing permission", second)
 
     def test_nothing_is_said_once_the_grant_exists(self):
         with mock.patch.object(intents, "_due_to_mention", lambda *a: True), \
              mock.patch("aletheia.authority.active_grants",
                         lambda: [{"id": "standing-routine"}]):
             said = intents.spoken(dict(self.ROUTINE))
-        self.assertNotIn("aletheia.standing on", said)
+        self.assertNotIn("standing permission", said)
 
     def test_a_gap_step_carries_no_command_and_must_not_crash(self):
         """A GAP or MANUAL step has the key with the value None, and

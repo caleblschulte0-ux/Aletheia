@@ -66,6 +66,19 @@ adding architecture. The architecture build is finished
 
 ## Where it stands (kept honest, newest first)
 
+- **2026-09-21 — step 2 begun, from the page and the probe, not the
+  source.** The one page was rendered at a phone's width and a desk's and
+  she was asked five ordinary things with every model down. Seven
+  defects, fixed at the source with a test each
+  (`tests/test_the_page_reads_like_a_person_wrote_it.py`): the reply when
+  nobody can think was a log line; the standing nudge put a command in a
+  spoken sentence; a plan with a gap offered and refused the same thing in
+  one breath; a provider name scrubbed out of a "done" line left "Answered
+  with on, from"; a "Work inventory" card sat above the one task it
+  inventoried; "Next" repeated "Doing"; two health boxes said one fact
+  twice. Still his to find: what a real day on the real phone shows,
+  which no render here can.
+
 - **2026-09-21 — step 1 built** (PR #120): every PowerShell script pure
   ASCII and parsed by Windows PowerShell 5.1 in CI; the one-liner fetches
   `live`; a failed local-AI activation never turns an earlier one off;
