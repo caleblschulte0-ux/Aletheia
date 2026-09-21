@@ -81,8 +81,12 @@ UNATTENDED_MOVES = ("look", "write", "wait", "leave", "close")
 #: A move's `why` shorter than this is not a reason.
 MIN_WHY_CHARS = 12
 MAX_MOVES_PER_PASS = 4
-MAX_EVIDENCE_CHARS = 14_000       # what a frontier model is shown
+MAX_EVIDENCE_CHARS = 12_000       # what a frontier model is shown
 COMPACT_EVIDENCE_CHARS = 3_000    # what her own model is shown
+#: The gateway's default whole-context cap is 8 KB, sized for a sentence
+#: and a snapshot. A real opportunity's evidence (the posting alone is up
+#: to 6 KB) needs the room the fit judge already takes for itself.
+MAX_CONTEXT_BYTES = 20 * 1024
 MAX_NOTE_CHARS = 1_500
 MAX_DOC_CHARS = 8_000
 #: The most she may spend on one opportunity in a day, whatever the model
@@ -298,6 +302,10 @@ Rules:
   why. Zero is a fine answer.
 - A move of a kind not in the catalog is allowed: it becomes a suggestion he
   hears. Do not pretend it can be carried out.
+- YOU do the work. Anything you would do now is a move in "moves", not a
+  sentence in the strategy: a brief to write is a "write" move, a page to
+  check is a "look", something only he can do is a "suggest". Never assign
+  him a chore in prose; the strategy is the hypothesis, not a to-do list.
 
 Answer with ONE JSON object:
 {"understanding": "<what this situation is, in a few sentences>",
@@ -360,8 +368,14 @@ def context_for(record: dict, *, compact: bool = False, now: dt.datetime | None 
     return out
 
 
+_CITE_MARK = re.compile(r"\s*\[(?:e\d+)(?:\s*,\s*e\d+)*\]")
+
+
 def _clean(text, limit: int) -> str:
-    return " ".join(str(text or "").split())[:limit]
+    """One line, bounded, and without the model's own citation marks: the
+    second live pass wrote "[e2]" into a reason that a notice then showed
+    him. The citations live in `cites`; the words are for a person."""
+    return " ".join(_CITE_MARK.sub("", str(text or "")).split())[:limit]
 
 
 def validate(proposal: dict, record: dict) -> tuple[dict, list[dict]]:
@@ -471,7 +485,8 @@ def _gateway_think():
             got = reasoning_gateway.reason_json(
                 BRIEF, "What, if anything, would help this opportunity along?",
                 context=context_for(record, now=now), policy="standard",
-                validator=validator, attention=work_states.BACKGROUND)
+                validator=validator, attention=work_states.BACKGROUND,
+                max_context_bytes=MAX_CONTEXT_BYTES)
         else:
             got = reasoning_gateway.local_json(
                 COMPACT_BRIEF, "What, if anything, would help this opportunity?",
@@ -808,6 +823,15 @@ def tick(*, limit: int = 2, think=None, doers: dict | None = None,
 
 # ---------------------------------------------------------------- words
 
+def _first_sentence(text: str, limit: int = 220) -> str:
+    """Model prose, one sentence, through the one door for speech. The
+    first live pass produced five sentences of shorthand for a room."""
+    from aletheia import speech
+    clean = speech.spoken_prose(str(text or ""))
+    first = re.split(r"(?<=[.!?])\s+", clean, maxsplit=1)[0].strip()
+    return first[:limit].rstrip(" ,;:.") if first else ""
+
+
 def spoken(record: dict) -> str:
     name = record["subject"].get("name", record["id"])
     said = f"{name}: "
@@ -816,7 +840,7 @@ def spoken(record: dict) -> str:
         return said + f"closed — {outcome.get('kind', 'dropped')}" + (
             f", {outcome['note']}" if outcome.get("note") else "")
     if record.get("strategy"):
-        said += record["strategy"]
+        said += _first_sentence(record["strategy"]) or "thought about"
     else:
         said += "not thought about yet"
     last = [m for m in record.get("moves", []) if m.get("state") not in ("proposed",)]

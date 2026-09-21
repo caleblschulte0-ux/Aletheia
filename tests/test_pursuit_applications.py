@@ -53,6 +53,15 @@ class ApplicationsBecomeOpportunitiesCase(unittest.TestCase):
         self.assertIn("Funding Manager", facts["text"])
         self.assertNotIn("gender", facts["text"])
 
+    def test_the_open_questions_are_named_not_counted(self):
+        # The first live pass guessed one blank field "could be disqualifying"
+        # and told him to go and look: the count was all the evidence said.
+        record = {**RECORD, "not_filled": [{"label": "Years of customer success experience",
+                                            "required": True, "selector": "#q1"}]}
+        opp = pa.open_from_application(record, now=NOW, posting=lambda r: "P", resume=lambda: "R")
+        text = next(e for e in opp["evidence"] if e["kind"] == "application")["text"]
+        self.assertIn("Open question on the form (required): Years of customer success experience", text)
+
     def test_opening_again_adds_no_second_copy(self):
         a = pa.open_from_application(RECORD, now=NOW, posting=lambda r: "P", resume=lambda: "R")
         b = pa.open_from_application(RECORD, now=NOW, posting=lambda r: "P", resume=lambda: "R")

@@ -471,5 +471,15 @@ That is the standard.
   never as rules. The words that make an opportunity a job live in the
   adapter and the evidence; the pursuit module itself carries none of them
   (held by `tests/test_studies.py`).
-  Still to see on his machine: what a real pass proposes for a real
-  application, and the first outcome recorded from a real reply.
+  Seen on his machine, sandboxed with rehearsal on, one real application
+  (submitted two days earlier), two passes through the frontier at ~130 s
+  each: the first read the record's "1 field left as a question" as a
+  possible disqualifier and told HIM to go and look — so the evidence now
+  names the open questions, and the brief says she does the work or says
+  plainly it needs him. The second pass filed a suggestion (get conversant
+  with their product before a screening call — his to do) and a wait of
+  five days for their screening to run, and judged it worth no minutes of
+  her own today. No note, no document, no noise: the brief's "another is
+  left alone after applying" happened on its own. Still to see: the first
+  outcome recorded from a real reply, and a pass that chooses a note or a
+  document for a real opportunity.

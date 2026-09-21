@@ -363,6 +363,27 @@ class TheBeatCase(PursuitCase):
         for word in ("opp-", "e1", "ollama", "claude", "{", "}"):
             self.assertNotIn(word, said)
 
+    def test_the_spoken_line_is_one_sentence_of_the_strategy(self):
+        # The first live pass came back with five sentences of shorthand;
+        # a room hears the hypothesis, not the essay.
+        rec = self.opportunity()
+        rec["strategy"] = ("Wait five days for their screening to run. Then, if it stalls, "
+                           "a targeted note to the team lead is justified. Meanwhile write a brief.")
+        pursuit.save(rec)
+        said = pursuit.spoken(rec)
+        self.assertIn("Wait five days for their screening to run.", said)
+        self.assertNotIn("Meanwhile", said)
+        self.assertNotIn("..", said)
+
+    def test_the_models_citation_marks_do_not_reach_his_ears(self):
+        rec = self.opportunity()
+        clean, _ = pursuit.validate(
+            {"moves": [{"kind": "wait", "why": "their screening takes a week [e1], so wait [e1, e2]",
+                        "cites": ["e1"], "detail": {"days": 5, "for": "a reply [e1]"}}]}, rec)
+        self.assertEqual(clean["moves"][0]["why"], "their screening takes a week, so wait")
+        self.assertEqual(clean["moves"][0]["detail"]["for"], "a reply")
+        self.assertEqual(clean["moves"][0]["cites"], ["e1"])
+
     def test_the_cli_lists_and_shows(self):
         rec = self.opportunity()
         with mock.patch("builtins.print") as out:

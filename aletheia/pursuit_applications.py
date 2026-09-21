@@ -59,9 +59,17 @@ def _record_evidence(record: dict) -> str:
     if record.get("why_not"):
         lines.append(f"Reservation: {record['why_not']}")
     filled = record.get("filled") or []
+    open_questions = record.get("not_filled") or record.get("questions") or []
     if filled:
         lines.append(f"Filled {len(filled)} fields on the form; "
-                     f"{len(record.get('not_filled') or [])} left as questions")
+                     f"{len(open_questions)} left as questions")
+    # WHICH questions are open, not just how many: the first live pass
+    # guessed that one blank field "could be disqualifying" and told him to
+    # go and look, because the count was all it had.
+    for q in open_questions[:12]:
+        label = str(q.get("label") or q.get("selector") or "").strip()
+        if label:
+            lines.append(f"Open question on the form{' (required)' if q.get('required') else ''}: {label}")
     for row in record.get("outcomes") or []:
         lines.append(f"Outcome {row.get('outcome')}: {row.get('note', '')} ({row.get('at', '')[:10]})")
     return "\n".join(l for l in lines if l.strip())
