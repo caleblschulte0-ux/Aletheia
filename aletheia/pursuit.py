@@ -481,14 +481,27 @@ def _gateway_think():
 
     def think(record: dict, now: dt.datetime) -> tuple[dict, dict]:
         validator = lambda out: validate(out, record)[0]
+        ask = "What, if anything, would help this opportunity along?"
         try:
             if reasoning_gateway.frontier_available():
                 got = reasoning_gateway.reason_json(
-                    BRIEF, "What, if anything, would help this opportunity along?",
-                    context=context_for(record, now=now), policy="standard",
+                    BRIEF, ask, context=context_for(record, now=now), policy="standard",
                     validator=validator, attention=work_states.BACKGROUND,
                     max_context_bytes=MAX_CONTEXT_BYTES)
+            elif reasoner.codex_available()[0]:
+                # The job hunt's own chain (his 2026-09-13 ruling: Claude,
+                # then Codex on his ChatGPT subscription, then her own
+                # model). The gateway carries no Codex rung, and while
+                # Claude rests this is the difference between a pass and
+                # a day of "nobody could think".
+                out = reasoner.codex_json(BRIEF, ask, context=context_for(record, now=now),
+                                          validator=validator, max_context_bytes=MAX_CONTEXT_BYTES)
+                return out, {"provider": reasoner.CODEX_PROVIDER, "local": False}
             else:
+                room, why = reasoner.local_allowed()
+                if not room:
+                    # Asking a starved model is a timeout, not an answer.
+                    raise reasoner.ReasonerUnavailable(f"my own model has no room to think: {why}")
                 got = reasoning_gateway.local_json(
                     COMPACT_BRIEF, "What, if anything, would help this opportunity?",
                     context=context_for(record, compact=True, now=now), role="fast",

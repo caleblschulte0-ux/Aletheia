@@ -40,6 +40,7 @@ the call through the gateway.
 | `campaign._job_hunt_thinker`, `campaign._any_model_answers` | standard | the job hunt's own chain `work_json`: Claude -> Codex -> her own model with 6 GB free (his 2026-09-13 ruling) |
 | `campaign._any_model_writes` | standard | essays walk every writer, Codex and her own model included (his 2026-09-12 ruling); the gateway has no text route |
 | `job_fit.judge` | standard | job-hunt chain with a stricter local prompt; a verdict only her model made waits for his OK |
+| `pursuit._gateway_think` | standard | the pursuit IS the job hunt: the gateway first, then the same Codex rung (`codex_json`) while Claude rests — the gateway carries no Codex — then her own model, and only when `local_allowed()` says there is memory for it (a starved model is a timeout, not an answer; measured live 2026-09-21) |
 | `converse.answer`, `converse._from_my_own_model` | standard | conversation is prose, and the local rung DISCLOSES itself ("this answer is from my own model") |
 | `compose.compose` | standard | document prose; no gateway text route and no own-model disclosure on a saved file yet (gap) |
 | `webtask.run` | standard | the older selector loop, superseded by `browser_loop` whenever a start page is known (gap: route or retire) |
