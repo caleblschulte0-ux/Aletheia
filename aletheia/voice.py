@@ -498,6 +498,10 @@ def _not_a_file(said: str) -> bool:
     # "Find ME a plumber near me": a person or a service, never a file.
     if re.match(r"(?:me|us) (?:a|an|some)\b", low) or re.search(r"\b(?:near me|nearby|around here|in town)\b", low):
         return True
+    # "Find me customer success jobs in Denver" is a job search, whatever
+    # else the sentence says (2026-09-22: it read Desktop and Downloads).
+    if re.search(r"\b(?:jobs?|openings|positions|roles|vacancies|careers|hiring)\b", low):
+        return True
     # "Where are you with Barkly", "where are we on the promo video": a
     # question about how far some work has got, never a lost file.
     if re.match(r"(?:you|u|we|things|it) (?:at )?(?:with|on)\b|(?:you|u|we) at\b", low):
@@ -1418,6 +1422,36 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "file_find",
                             "place": _a_place_she_knows(m.group(1))}, "say": None}
 
+    # "Find me customer success jobs in Denver" is a JOB search. It was
+    # compiled as a file search ("I looked in Desktop, Documents,
+    # Downloads...") - the fluent wrong verb, which is the failure he
+    # cannot detect (2026-09-22). Jobs are a search of the boards she
+    # knows; a file is a file.
+    m = re.fullmatch(
+        r"(?:(?:can you|could you|please|go|hey) )?"
+        r"(?:find|look for|search for|look up|show me|get me|any|are there any|what)(?: me)? "
+        r"(?:some |any |new |more |a few |good |open |remote |local )*"
+        r"(?P<role>[a-z][a-z /&+.'-]{1,60}?) (?:jobs|openings|positions|roles|job openings)"
+        r"(?: (?:in|near|around|out of) (?:the )?(?P<where>[a-z][a-z .'-]{1,40}?))?"
+        r"(?: for me| please| right now| today)?\s*\??", low)
+    if m:
+        command = {"kind": "jobs", "role": _as_he_said(transcript, m.group("role"))}
+        if m.group("where"):
+            command["where"] = _as_he_said(transcript, m.group("where"))
+        return {"command": command, "say": None}
+
+    # "Read me the landlord note": not a filename (no suffix), so the
+    # read-a-file shape above did not take it and the planner did. A named
+    # note, draft or document is found by name, and the not-found answer
+    # is instant and honest instead of two minutes on her own model.
+    m = re.fullmatch(
+        r"(?:read|read me|open|show me|pull up|find)(?: me)? (?:the |my |that )?"
+        r"(?P<what>[a-z][a-z0-9 '-]{1,40}?) (?:note|draft|file|document|letter|memo|doc)s?\s*\??", low)
+    if m and not _not_a_file(m.group("what")):
+        return {"command": {"kind": "file_find",
+                            "query": _as_he_said(transcript, m.group("what"))},
+                "say": None}
+
     m = re.fullmatch(
         r"(?:find|look for|search for|do i have|have i got) "
         r"(?:a |an |any |my |the )?(?:files? |documents? )?"
@@ -2094,7 +2128,11 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "message_send", "to": m.group(1).strip(),
                             "body": m.group(2).strip()}, "say": None}
 
-    m = re.match(r"e?mail\s+(.+?)\s+(?:that|saying|and say|:)\s+(.+)", low)
+    # "Send an email to dana@example.com saying thanks for the call" went to
+    # the planner - and with every frontier off, to her own model for two
+    # minutes - because only "email X saying Y" was a shape (2026-09-22).
+    m = re.match(r"(?:send (?:an? |the )?e?mail(?: to)?|e?mail|write (?:an? )?e?mail to)\s+"
+                 r"(.+?)\s+(?:that says|that|saying|and say|telling (?:him|her|them)|:)\s+(.+)", low)
     if m:
         return {"command": {"kind": "email_draft", "to": m.group(1).strip(),
                             "body": m.group(2).strip()}, "say": None}
