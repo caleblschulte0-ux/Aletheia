@@ -304,8 +304,32 @@ def spoken_prose(text: str) -> str:
     are page formatting, and this door exists because everything through
     it is going to be read out.
     """
-    return tidy(strip_ids(say_capabilities(
-        sentences_not_lines(unmarkdown(text)))))
+    return tidy(plain_models(strip_ids(say_capabilities(
+        sentences_not_lines(unmarkdown(text))))))
+
+
+#: Model tiers a model names when asked what it is. "Sonnet 5" reached the
+#: room on 2026-09-22 with every frontier off - the wrong answer, and a
+#: developer's word either way. Which mind is thinking is a fact she holds
+#: (`current_state.brains_words`), not a thing a model says about itself.
+_MODEL_TIERS = re.compile(
+    # a tier with its version ("Sonnet 5") or with its maker ("Claude Opus");
+    # a bare "sonnet" is a poem and stays one
+    r"\b(?:claude[- ]?(?:sonnet|opus|haiku)(?:[- ]?\d+(?:\.\d+)?)?|(?:sonnet|opus|haiku)[- ]?\d+(?:\.\d+)?|"
+    r"gpt[- ]?\d+(?:\.\d+)?[a-z-]*|o[1-9](?:-mini)?|"
+    r"qwen\d*(?:\.\d+)?(?::\d+b)?|llama\d*(?:\.\d+)?(?::\d+b)?|mistral|gemini(?:[- ]?\d+(?:\.\d+)?)?|ollama)\b",
+    re.I)
+
+
+def plain_models(text: str) -> str:
+    """Model tier names, said the way she says them: "the big model" for a
+    subscription's tier, "my own model" for a local one."""
+    def swap(m: re.Match) -> str:
+        word = m.group(0).casefold()
+        if word.startswith(("qwen", "llama", "mistral", "ollama")):
+            return "my own model"
+        return "the big model"
+    return _MODEL_TIERS.sub(swap, str(text or ""))
 
 
 # ------------------------------------------------------- links and paths
