@@ -83,10 +83,10 @@ _STATUS = re.compile(
     r"|(?:is|are) (?:she|it|the batch|the run) still (?P<still4>applying|running the job hunt))$"
     # how many
     r"|^how many (?:jobs|applications|apps|places|companies|positions|roles|employers)"
-    r"(?: (?:have|did|has) (?:you|u|she|we))? ?(?P<count>applied (?:to|for|at)|apply (?:to|for|at)|"
-    r"sent(?: out)?|submitted|put in|done|gotten through|finished|completed|applied)"
+    r"(?: (?:have|did|has) (?:you|u|she|we|i))? ?(?P<count>applied (?:to|for|at)|apply (?:to|for|at)|"
+    r"sent(?: out)?|send(?: out)?|submitted|submit|put in|done|gotten through|finished|completed|applied)"
     r"(?: (?:to|for))?(?P<count_total> (?:in total|total|overall|all ?together|altogether|ever|"
-    r"so far|to date|all time))?(?: (?:today|now))?$"
+    r"so far|to date|all time))?(?: (?:today|now))?(?P<count_window> (?:this week|this month|yesterday|last week))?$"
     r"|^how many (?:have|did) (?:you|u) (?P<count2>apply to|send(?: out)?|submit|get through)"
     r"(?P<count2_total> (?:in total|total|overall|so far|ever))?(?: today)?$"
     # when was the last one
@@ -201,6 +201,42 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"what(?:'s| is|s)? next (?:for|on|with)|what(?:'s| is|s)? the next (?:step|move) (?:for|on|with)|"
         r"what (?:are|r) (?:you|u) doing (?:about|with|on|for))"
         r" (?:the |my |our )?(?P<what>.+?) (?:application|app|job|role|opportunity|position|posting)(?: going| doing| looking)?$")),
+    # "What's the latest with DevRev" names the thing without calling it an
+    # application; when the words match an opportunity or a record, that is
+    # the answer, and when they match nothing the model may still think.
+    ("opportunity_loose", re.compile(
+        r"^(?:what(?:'s| is|s)? the latest (?:with|on|from)|any (?:news|word|update) (?:from|on|with)|"
+        r"how(?:'s| is) it going with|where (?:are we|am i) with|what(?:'s| is|s)? happening with|"
+        r"how (?:did|has) (?:it|things) (?:go|gone) with) (?:the |my )?(?P<what>[a-z0-9][a-z0-9 .&'-]{1,40}?)\s*\??$")),
+    # "What companies have I applied to" came back from her own model as
+    # "I don't have a record of your job applications - no tracker
+    # connected here", and "when did I apply to Stripe" waited two
+    # minutes. The records are the answer (2026-09-22).
+    ("applied_to", re.compile(
+        r"^(?:what|which) (?:companies|employers|places|jobs) have i applied (?:to|for)(?: so far| this week| today)?$"
+        r"|^where have i applied(?: so far| this week| today)?$"
+        r"|^(?:who|what) have (?:you|u) applied (?:to|for)(?: for me)?(?: so far| this week| today)?$"
+        r"|^(?:list|show me|name) (?:the |my )?(?:companies|employers|places) (?:i|you|u|we)(?:'ve| have)? applied to$")),
+    ("applied_when", re.compile(
+        r"^when did (?:i|you|u|we) apply (?:to|for|at) (?:the |my )?(?P<what>[a-z0-9][a-z0-9 .&'-]{1,40}?)"
+        r"(?: (?:job|role|position|application|opening))?\s*\??$"
+        r"|^(?:did|have) (?:i|you|u|we) (?:apply|applied) (?:to|for|at) (?:the |my )?(?P<what2>[a-z0-9][a-z0-9 .&'-]{1,40}?)"
+        r"(?: (?:job|role|position|application|opening))?(?: yet| already)?\s*\??$")),
+    # "What do you know about me" answered "I don't have anything
+    # remembered about 'me'" - a lookup under the key "me". It is the
+    # whole of what she holds about him, said plainly.
+    ("about_him", re.compile(
+        r"^what do (?:you|u) (?:know|have|remember) (?:about|on) me$"
+        r"|^what have (?:you|u) (?:remembered|learned|got|saved) about me$"
+        r"|^what(?:'s| is) (?:on file|in your memory) about me$|^tell me what (?:you|u) know about me$")),
+    # "Who is my landlord" came back from her own model as "no lease or
+    # rental info connected here" - a capability she has, denied. The
+    # person is remembered or he is asked, in words, never a model's guess.
+    ("person", re.compile(
+        r"^who(?:'s| is|s)? my (?P<what>landlord|landlady|boss|manager|doctor|dentist|lawyer|accountant|"
+        r"realtor|agent|mechanic|plumber|electrician|barber|therapist|trainer|coach|banker|broker|"
+        r"sister|brother|mom|mother|dad|father|wife|husband|partner|girlfriend|boyfriend|roommate|"
+        r"neighbou?r|best friend|emergency contact|recruiter)\s*\??$")),
     # "How many opportunities are you working on" came back from her own
     # model as "opportunity tracking is experimental for me right now, not
     # something I run live yet" - while forty of them sat in her store.
@@ -532,7 +568,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "weather2", "weather3",
                                            "day", "day2", "day3", "day4", "day5", "day6")
                      if captured.get(k)), "")
-        if name == "opportunity":
+        if name in ("opportunity", "opportunity_loose", "applied_when", "person"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
             # name he said is read back to him: "nowhere inc" is not what
             # he said. His capitals, put back from the sentence itself.
@@ -1492,6 +1528,10 @@ def status_of(text: str) -> tuple[str, str] | None:
     if not found:
         return None
     groups = {k: v for k, v in found.groupdict().items() if v}
+    if groups.get("count_window"):
+        # "How many jobs did I apply to this week" waited two minutes on her
+        # own model (2026-09-22); the records carry their dates.
+        return "count_window", groups["count_window"].strip()
     for key, value in groups.items():
         if key.startswith("count"):
             total = bool(groups.get("count_total") or groups.get("count2_total"))
@@ -1533,6 +1573,8 @@ def _status_of(text: str) -> str | None:
             return current_state.repo_words(subject)
     if shape == "going":
         return current_state.job_hunt_words()
+    if shape == "count_window":
+        return _applied_in_window(subject)
     if shape == "still":
         return current_state.still_applying_words()
     if shape in ("count", "count_total"):
@@ -1598,6 +1640,149 @@ def _sent_today() -> str | None:
             + (f", and {len(rows) - 6} more" if len(rows) > 6 else "") + ".")
 
 
+def _opportunity_loose(rest: str) -> str | None:
+    """"What's the latest with DevRev": the opportunity or record when the
+    words name one; None when they name nothing, so the model may think."""
+    from aletheia import apply_run, pursuit
+    words = " ".join(str(rest or "").split()).strip(" ,.?")
+    if not words:
+        return None
+    if _JOB_RE.fullmatch(words.casefold()) or words.casefold() in ("applications", "jobs", "the applications"):
+        # "Where are we with the applications" is the job hunt as a whole
+        return _job_hunt()
+    try:
+        if pursuit.search(words) or apply_run.find(words):
+            return _opportunity(words)
+    except Exception:
+        return None
+    return None
+
+
+def _sent_records():
+    from aletheia import apply_run
+    rows = [r for r in apply_run.all_runs() if r.get("state") in ("SUBMITTED", "SUBMITTING")]
+    rows.sort(key=lambda r: r.get("submitted_at") or r.get("pressed_at") or "", reverse=True)
+    return rows
+
+
+def _applied_in_window(window: str) -> str:
+    """Applications sent this week, this month, yesterday or last week."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    if window == "this week":
+        first, last = today - dt.timedelta(days=today.weekday()), today
+    elif window == "last week":
+        first = today - dt.timedelta(days=today.weekday() + 7)
+        last = first + dt.timedelta(days=6)
+    elif window == "this month":
+        first, last = today.replace(day=1), today
+    else:   # yesterday
+        first = last = today - dt.timedelta(days=1)
+    try:
+        rows = _sent_records()
+    except Exception:
+        return "I can't read my application records right now, so I can't count them."
+    hits = []
+    for r in rows:
+        when = str(r.get("submitted_at") or r.get("pressed_at") or "")
+        try:
+            day = dt.datetime.fromisoformat(when.replace("Z", "+00:00")).astimezone(tz).date()
+        except ValueError:
+            continue
+        if first <= day <= last:
+            hits.append(r)
+    if not hits:
+        return f"No applications sent {window}."
+    names = []
+    for r in hits[:5]:
+        company = " ".join(str(r.get("company") or "").split())
+        if company and company not in names:
+            names.append(company)
+    return (f"{speech.count_phrase(len(hits), 'application')} sent {window}"
+            + (f": {speech.and_list(names)}" + (", and more" if len(hits) > 5 else "") if names else "") + ".")
+
+
+def _applied_to() -> str:
+    """The employers he has applied to, newest first, from the records."""
+    from aletheia import speech
+    try:
+        rows = _sent_records()
+    except Exception:
+        return "I can't read my application records right now, so I can't say."
+    if not rows:
+        return "None on record yet — I haven't sent an application for you."
+    seen, names = set(), []
+    for r in rows:
+        company = " ".join(str(r.get("company") or "").split())
+        if company and company.casefold() not in seen:
+            seen.add(company.casefold())
+            names.append(company)
+    said = speech.and_list(names[:8]) + (f", and {len(names) - 8} more" if len(names) > 8 else "")
+    return f"{speech.count_phrase(len(rows), 'application')} sent, to {said}."
+
+
+def _applied_when(rest: str) -> str:
+    """"When did I apply to Stripe": the record's own stamp."""
+    import datetime as dt
+    from aletheia import apply_run, localtime
+    words = " ".join(str(rest or "").split()).strip(" ,.?")
+    try:
+        found = [r for r in apply_run.find(words) if r.get("state") in ("SUBMITTED", "SUBMITTING")]
+    except Exception:
+        return "I can't read my application records right now, so I can't say."
+    if not found:
+        return f"I have no application to {words} on record."
+    record = sorted(found, key=lambda r: r.get("submitted_at") or "", reverse=True)[0]
+    when = str(record.get("submitted_at") or record.get("pressed_at") or "")
+    try:
+        stamp = dt.datetime.fromisoformat(when.replace("Z", "+00:00")).astimezone(localtime.operator_tz())
+        said = stamp.strftime("%A %d %B at %I:%M %p").replace(" 0", " ").lstrip("0")
+    except (ValueError, TypeError):
+        said = "a date I can't read"
+    return f"{apply_run.describe(record)}: sent {said}."
+
+
+def _about_him() -> str:
+    """Everything she holds about him, in one breath."""
+    from aletheia import memory, profile, speech
+    facts = []
+    try:
+        known = profile.known()
+        for key in ("first_name", "last_name", "current_title", "current_employer", "city", "state",
+                    "school", "degree", "years_experience"):
+            if known.get(key):
+                facts.append(f"{key.replace('_', ' ')}: {known[key]}")
+    except Exception:
+        pass
+    try:
+        remembered = memory.everything(max_chars=1200)
+        for domain, rows in (remembered or {}).items():
+            if isinstance(rows, dict):
+                for key, value in list(rows.items())[:6]:
+                    text = value.get("value") if isinstance(value, dict) else value
+                    facts.append(f"{key.replace('_', ' ')}: {text}")
+    except Exception:
+        pass
+    if not facts:
+        return "Nothing yet. Tell me things and I'll remember them; a resume teaches me a lot at once."
+    return "Here's what I have: " + speech.and_list(facts[:12]) + "."
+
+
+def _person(rest: str) -> str:
+    """"Who is my landlord": the person remembered under that word."""
+    from aletheia import memory
+    who = " ".join(str(rest or "").split()).strip(" ,.?")
+    try:
+        found = memory.recall("people", who) or memory.recall("people", who.replace(" ", "_"))
+    except Exception:
+        found = None
+    if found:
+        return f"Your {who} is {found}."
+    return f"I don't have anyone remembered as your {who}. Tell me and I'll remember it."
+
+
 def _pursuit_count() -> str:
     """How many opportunities she is carrying, from her own store."""
     from aletheia import pursuit, speech
@@ -1640,6 +1825,11 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "opportunity": _opportunity,
            "unattended": lambda rest: _unattended(),
            "pursuit_count": lambda rest: _pursuit_count(),
+           "opportunity_loose": _opportunity_loose,
+           "applied_to": lambda rest: _applied_to(),
+           "applied_when": _applied_when,
+           "about_him": lambda rest: _about_him(),
+           "person": _person,
            "sent_today": lambda rest: _sent_today(),
            "machine": lambda rest: _machine(),
            "waiting": lambda rest: _waiting(),
