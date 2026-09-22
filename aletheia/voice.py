@@ -488,10 +488,46 @@ _NOT_A_FILE = frozenset({
 })
 
 
+def _where_he_lives() -> str:
+    """His city, from what he has said and his resume; never a guess."""
+    try:
+        from aletheia import memory, profile
+        address = memory.recall("identity", "address")
+        if address:
+            return f"Your address on file is {address}."
+        known = profile.known()
+        city = str(known.get("city") or memory.recall("identity", "home_city") or "").strip()
+        state = str(known.get("state") or "").strip()
+        if city:
+            return f"You live in {city}" + (f", {state}" if state and state.casefold() not in city.casefold() else "") \
+                + ", as far as I know. Tell me your address if you want me to have it."
+    except Exception:  # noqa: BLE001
+        pass
+    return "I don't have your address or city on file. Tell me and I'll remember it."
+
+
+def _spell_his_name(which: str) -> str:
+    try:
+        from aletheia import profile
+        known = profile.known()
+    except Exception:  # noqa: BLE001
+        known = {}
+    first = str(known.get("first_name") or "").strip()
+    last = str(known.get("last_name") or "").strip()
+    parts = ([first] if which == "first" else [last] if which in ("last", "sur") else [first, last])
+    parts = [p for p in parts if p]
+    if not parts:
+        return "I don't have your name on file. Tell me and I'll remember it."
+    return "; ".join(f"{p}: " + "-".join(ch.upper() for ch in p if ch.isalpha()) for p in parts) + "."
+
+
 def _not_a_file(said: str) -> bool:
     """True when "find my X" is not about a file at all."""
     low = " ".join(str(said or "").casefold().split())
     if not low:
+        return True
+    # "Where do I live": a question with a verb in it is not a filename.
+    if re.match(r"(?:do|does|did|am|is|are|can|could|should|will|was|were) (?:i|we|you|u)\b", low):
         return True
     if low in _NOT_A_FILE:
         return True
@@ -1273,6 +1309,33 @@ def _interpret(transcript: str) -> dict:
     # word as often as a digit out loud, and only the digit form was read
     # - the word form fell through to a planner that, with no model, kept
     # it for later. Same words table as the timer above.
+    # A DAY IN THE SENTENCE. "Remind me to call mom on Sunday at 6" was set
+    # for TODAY at 6 with "on sunday" swallowed into the text (2026-09-22):
+    # the day is read from either end of the sentence. "Next friday" is
+    # still asked about, as before.
+    _days = r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today)"
+    m = (re.fullmatch(r"remind me (?:to|that) (?P<text>.+?),? (?:on |this )?(?P<day>" + _days + r")"
+                      r"(?: at (?P<time>[\w: ]+?))?", low)
+         or re.fullmatch(r"remind me (?:on |this )?(?P<day>" + _days + r")(?: at (?P<time>[\w: ]+?))? "
+                         r"(?:to|that) (?P<text>.+)", low)
+         or re.fullmatch(r"remind me at (?P<time>[\w: ]+?) (?:on |this )?(?P<day>" + _days + r") "
+                         r"(?:to|that) (?P<text>.+)", low))
+    if m:
+        import datetime as dt
+        from aletheia import localtime
+        day_iso = _spoken_day(m.group("day"))
+        hhmm = _spoken_time(m.group("time")) if m.group("time") else DEFAULT_REMINDER_TIME
+        if not day_iso or not hhmm:
+            return _to_the_planner(text)
+        hour, minute = map(int, hhmm.split(":"))
+        if m.group("time") and _is_bare_hour(m.group("time")) and hour <= EARLIEST_BARE_HOUR:
+            hour += 12                                  # "at 6" on a Sunday is the evening; "at 9" the morning
+        tz = localtime.operator_tz()
+        when = dt.datetime.combine(dt.date.fromisoformat(day_iso), dt.time(hour, minute), tzinfo=tz)
+        if when <= dt.datetime.now(tz) and m.group("day") in ("today", ""):
+            when += dt.timedelta(days=1)
+        return {"command": {"kind": "remind_at", "at": when.isoformat(),
+                            "text": _as_he_said(text, m.group("text").strip())}, "say": None}
     m = re.match(r"remind me (?:at ([\w: ]+?)|in (\w+(?: an)?) (minutes?|mins?|hours?)) (?:to|that) (.+)", low)
     if m:
         if m.group(1):
@@ -1500,6 +1563,17 @@ def _interpret(transcript: str) -> dict:
     # about a store nothing in its context mentions DENIES THE STORE
     # EXISTS, and that is worse than an error: an error sends him back to
     # her, this sends him off to keep his files somewhere else.
+    # WHERE HE LIVES and WHAT HIS NAME IS are his facts, on file. "Where do I
+    # live" went to the file finder ("I could not find anything matching
+    # do I live") and "spell my last name" waited two minutes on her own
+    # model (2026-09-22).
+    if re.fullmatch(r"where do i live|what(?:'s| is) my (?:address|home address|city|home ?town)|"
+                    r"what city (?:am i in|do i live in)|where(?:'s| is) (?:my )?home", low):
+        return {"command": None, "say": _where_he_lives()}
+    m = re.fullmatch(r"(?:spell|how do (?:you|u) spell) my (?P<which>first|last|full|sur)?\s*name(?: for me)?", low)
+    if m:
+        return {"command": None, "say": _spell_his_name(m.group("which") or "full")}
+
     m = re.fullmatch(r"where(?:'s| is| are)? (?:my |the )?(.+?)\s*\??", low)
     if m and not _not_a_file(m.group(1)):
         return {"command": {"kind": "file_find",
@@ -2054,6 +2128,19 @@ def _interpret(transcript: str) -> dict:
             action = "previous"
         else:
             action = "play"
+        return {"command": {"kind": "music", "action": action}, "say": None}
+    # VOLUME is the same kind of key. "Turn the volume down" waited two
+    # minutes on her own model for want of it (2026-09-22).
+    m = re.fullmatch(r"(?:turn (?:the |it )?(?:volume |sound )?(?P<dir>up|down)(?: a (?:bit|little|notch))?|"
+                     r"(?:volume|sound) (?P<dir2>up|down)(?: a (?:bit|little|notch))?|"
+                     r"(?P<louder>louder|turn it up|make it louder)|(?P<quieter>quieter|softer|make it quieter)|"
+                     r"(?P<mute>mute(?: it| the sound| the music| the volume)?|shut it up|silence it)|"
+                     r"(?P<unmute>unmute(?: it)?|sound back on))(?: please)?", low)
+    if m:
+        direction = m.group("dir") or m.group("dir2")
+        action = ("volume_up" if direction == "up" or m.group("louder")
+                  else "volume_down" if direction == "down" or m.group("quieter")
+                  else "mute")
         return {"command": {"kind": "music", "action": action}, "say": None}
 
     # NAMING SOMETHING TO PLAY is the half that needs his account, and

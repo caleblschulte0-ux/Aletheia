@@ -49,6 +49,11 @@ KEYS = {
     "next": 0xB0,        # VK_MEDIA_NEXT_TRACK
     "previous": 0xB1,    # VK_MEDIA_PREV_TRACK
     "stop": 0xB2,        # VK_MEDIA_STOP
+    # The volume buttons are the same kind of key, and "turn the volume
+    # down" waited two minutes on her own model for want of them (2026-09-22).
+    "volume_up": 0xAF,   # VK_VOLUME_UP
+    "volume_down": 0xAE, # VK_VOLUME_DOWN
+    "mute": 0xAD,        # VK_VOLUME_MUTE (a toggle)
 }
 
 # How long to give the player to come up before pressing play at it.
