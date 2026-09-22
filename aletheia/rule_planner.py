@@ -346,6 +346,9 @@ RULES: tuple[tuple[str, str, Callable], ...] = (
      r"\s+(?:the )?(?P<what>(?!i |you |we |it |they )[^?]+?)(?: task| thing)?",
      "task_done", _task_done),
     (r"(?:add|put)\s+(?P<what>.+?)\s+(?:to|on)\s+(?:my |the )?(?:shopping )?list", "shopping_add", _shopping_add),
+    (r"(?:clear|empty|wipe|reset)\s+(?:my |the )?(?:shopping )?list|"
+     r"(?:take|cross|remove)\s+(?:everything|it all|all of it)\s+(?:off|from)\s+(?:my |the )?(?:shopping )?list",
+     "shopping_off", lambda m, r: ({"item": "everything"}, "Clear the shopping list")),
     (r"(?:take|remove|cross|delete|strike)\s+(?P<what>.+?)\s+(?:off|from)\s+(?:my |the )?(?:shopping )?list",
      "shopping_off", _shopping_off),
     (r"(?P<what>play|put on|start)(?: some| the| my)? music|(?P<what2>play)(?: me)? (?:something|anything)(?: \w+)?|"

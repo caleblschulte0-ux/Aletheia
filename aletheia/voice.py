@@ -1377,6 +1377,15 @@ def _interpret(transcript: str) -> dict:
     # After the forward forms so nothing that already worked changes
     # route, and a time is REQUIRED: "remind me to call the dentist"
     # with no when is a task, and the planner decides that better.
+    # A PLACE IS NOT A TIME. "Remind me to call mom when I get home"
+    # waited two minutes on her own model (2026-09-22); she has no way to
+    # know where he is, and says so instead of guessing at a time.
+    m = re.match(r"remind me (?:to|that) (.+?) when i(?:'m| am| get| arrive| go| come)? "
+                 r"(?:get |am |arrive |go |come )?(?:back )?(?:home|back|there|at work|to work|at the office|to the office|in)$", low)
+    if m:
+        return {"command": None,
+                "say": "I can't tell where you are yet, so I can't do it when you get home. "
+                       f"Give me a time - 'remind me at 6 to {m.group(1).strip()}' - and I'll do that."}
     m = re.match(r"remind me (?:to|that) (.+?) "
                  r"(?:at ([\w: ]+)|in (\d+) (minutes?|hours?))$", low)
     if m:

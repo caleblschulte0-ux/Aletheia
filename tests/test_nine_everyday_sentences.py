@@ -18,6 +18,7 @@ from aletheia import computer, music, quick, rule_planner, voice
 class VolumeCase(unittest.TestCase):
     def test_every_key_has_a_sentence(self):
         with mock.patch("aletheia.music.press", return_value=True), \
+             mock.patch("aletheia.music.player_running", return_value=True), \
              mock.patch("aletheia.journal.append"):
             for key in music.KEYS:
                 with self.subTest(key=key):

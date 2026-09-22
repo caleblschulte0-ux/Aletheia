@@ -298,6 +298,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s)? (?:broken|failing|stuck)(?: today)?$"
         r"|^(?:did|has) anything (?:fail|failed|go wrong|gone wrong|break|broken)(?: today)?$"
         r"|^what failed(?: today)?$|^any (?:errors|failures|problems)(?: today)?$")),
+    # "What's the last thing you did" paid a model to read the newest
+    # line of a journal she holds (2026-09-22).
+    ("last", re.compile(
+        r"^what(?:'s| is|s| was)? the last thing (?:you|u) did$"
+        r"|^what did (?:you|u) (?:just )?do (?:last|just now|most recently|a (?:minute|moment|second) ago)$"
+        r"|^what did (?:you|u) just do$"
+        r"|^what was (?:your|the) (?:last|most recent) (?:action|thing)$"
+        r"|^what(?:'s| is|s)? the (?:last|latest|most recent) thing (?:you|u)(?:'ve| have)? done$")),
     ("today", re.compile(
         r"^what (?:did|have) (?:you|u) (?:do|done)(?: today)?$"
         r"|^what have (?:you|u) been doing$"
@@ -352,7 +360,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # Five stores she was already holding and answering from a model.
     ("tasks", re.compile(
         r"^what(?:'s| is|s)? on my task list$|^what are my tasks$"
-        r"|^what tasks do i have$|^how many tasks do i have$"
+        r"|^what tasks do i have(?: left| open| to do)?$"
+        r"|^how many tasks (?:do i have|are there|have i got)(?: left| open| remaining| to do)?$"
+        r"|^what(?:'s| is|s)? left (?:on my list|to do)$|^how many things (?:do i have )?(?:left )?to do$"
         r"|^(?:my )?task list$|^my tasks$"
         r"|^what(?:'s| is|s)? my next task$|^what(?:'s| is|s)? next$")),
     ("approvals", re.compile(
@@ -395,7 +405,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:what(?:'s| is|s)? (?:on|happening|coming up)|anything (?:on|happening|coming up)|what have i got on"
         r"|what(?:'s| is|s)? (?:my|the) (?:week|day) (?:looking like|look like))"
         r"(?: for)? (?P<day5>today|tomorrow|this week|next week)$"
-        r"|^what(?:'s| is|s)? (?:my|the) (?P<day6>week) (?:looking like|look like)$")),
+        r"|^what(?:'s| is|s)? (?:my|the) (?P<day6>week) (?:looking like|look like)$"
+        # "What's my schedule this week" paid seven seconds of model for a
+        # feed the shapes above already read (2026-09-22).
+        r"|^what(?:'s| is|s)? (?:my |the )?(?:calendar|schedule|agenda) (?:for |like )?(?P<day7>today|tomorrow|this week|next week)"
+        r"(?: like| looking like)?$")),
     ("alerts", re.compile(
         r"^(?:are there |is there )?any(?:thing)? (?:alerts|broken|wrong|failing)$"
         r"|^any alerts$|^is anything broken$|^anything broken$"
@@ -593,7 +607,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "free", "free2", "free3",
                                            "down", "down2", "weather",
                                            "weather2", "weather3",
-                                           "day", "day2", "day3", "day4", "day5", "day6")
+                                           "day", "day2", "day3", "day4", "day5", "day6", "day7")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
@@ -814,6 +828,17 @@ def _listed(rows: list[dict], when: str) -> str:
         return f"{when.capitalize()}: {said}."
     more = speech.count_phrase(len(rows) - len(lines), "other thing")
     return f"{when.capitalize()}: {said} — and {more}."
+
+
+def _last() -> str:
+    """The newest thing she did, today or yesterday, as one sentence."""
+    for days_ago, when in ((0, "today"), (1, "yesterday")):
+        rows = _on_day(days_ago)
+        if rows:
+            line = _shortened(str(rows[-1].get("what") or "").strip().rstrip("."))
+            if line:
+                return f"The last thing I did {when}: {line}."
+    return "Nothing in my journal for today or yesterday."
 
 
 def _today() -> str:
@@ -1904,6 +1929,7 @@ def _windows() -> str:
 
 
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
+           "last": lambda rest: _last(),
            "disk": lambda rest: _disk(),
            "ip": lambda rest: _ip(),
            "internet": lambda rest: _internet(),

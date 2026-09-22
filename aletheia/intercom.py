@@ -1437,6 +1437,27 @@ def _day_words(stamp: object) -> str:
 SHOPPING_OPEN = ("RESEARCHING", "SELECTED", "PURCHASE_PROPOSED")
 
 
+#: What "take everything off the list" is allowed to say.
+SHOPPING_EVERYTHING = frozenset({"everything", "all", "all of it", "the whole list",
+                                 "the lot", "it all", "the list"})
+
+
+def shopping_items_of(said: str) -> list[str]:
+    """The things one sentence adds. "Milk and eggs" is two rows; "salt and
+    vinegar chips" is one, because a side with a space in it is a name and
+    not a list. A comma list is always a list. Never empty."""
+    text = " ".join(str(said or "").split()).strip()
+    if not text:
+        return [text]
+    if "," in text:
+        parts = [p.strip() for p in re.split(r",\s*(?:and\s+)?|\s+and\s+|\s*&\s*", text) if p.strip()]
+        return parts or [text]
+    parts = [p.strip() for p in re.split(r"\s+(?:and|&)\s+", text) if p.strip()]
+    if len(parts) >= 2 and all(" " not in p for p in parts):
+        return parts
+    return [text]
+
+
 def _shopping_items() -> list[dict]:
     from aletheia import shopping
     return [w for w in shopping.all_workflows()
@@ -2768,11 +2789,14 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "shopping_add":
         from aletheia import shopping
         import re as _re, uuid as _uuid
-        slug = _re.sub(r"[^a-z0-9]+", "-", cmd["item"].lower()).strip("-")[:30]
         budget = float(cmd["budget"]) if cmd.get("budget") else None
-        workflow = shopping.create(f"shop-{slug}-{_uuid.uuid4().hex[:4]}"[:60],
-                                   need=cmd["item"], budget=budget)
-        return f"Added to the shopping list: {workflow['need']}."
+        added = []
+        for item in shopping_items_of(cmd["item"]):
+            slug = _re.sub(r"[^a-z0-9]+", "-", item.lower()).strip("-")[:30]
+            workflow = shopping.create(f"shop-{slug}-{_uuid.uuid4().hex[:4]}"[:60],
+                                       need=item, budget=budget)
+            added.append(str(workflow["need"]))
+        return f"Added to the shopping list: {speech.and_list(added)}."
     if kind == "contacts":
         return _contacts_answer(cmd.get("which", ""))
     if kind == "watches":
@@ -2783,6 +2807,18 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return shopping_answer()
     if kind == "shopping_off":
         from aletheia import shopping
+        if str(cmd["item"]).casefold().strip() in SHOPPING_EVERYTHING:
+            # "Clear the shopping list" planned two steps for two minutes on
+            # her own model (2026-09-22). Every row is cancelled, not
+            # deleted, the way one is.
+            rows = _shopping_items()
+            for row in rows:
+                shopping.cancel(row["id"])
+            if not rows:
+                return "The shopping list was already empty."
+            return (f"Took {speech.count_phrase(len(rows), 'thing')} off the shopping list: "
+                    f"{speech.and_list([str(r.get('need', '')) for r in rows[:6]])}"
+                    + (f", and {len(rows) - 6} more" if len(rows) > 6 else "") + ".")
         found, why = _one_shopping_item(cmd["item"])
         if found is None:
             raise act.Refused(why)
