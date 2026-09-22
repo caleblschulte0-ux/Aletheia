@@ -27,8 +27,26 @@ def stamp(hours_ago: float) -> str:
 def fresh(minutes_ago: float) -> str:
     """Against the REAL clock, for the fast lane, which reads the real
     clock: a frozen date next to a moving fixture fails on the day the
-    calendar passes it (CLAUDE.md)."""
-    return (dt.datetime.now(UTC) - dt.timedelta(minutes=minutes_ago)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    calendar passes it (CLAUDE.md).
+
+    And never across midnight. "140 minutes ago" is yesterday between
+    midnight and 02:20, and the readers count TODAY - in his zone and in
+    UTC - so this failed at 01:35 Central on 2026-09-22 with nothing
+    changed but the hour. The offset is held inside the current day of
+    both zones; the ordering of a fixture's stamps survives, only the gaps
+    shrink near midnight.
+    """
+    from aletheia import localtime
+    now = dt.datetime.now(UTC)
+    cap = None
+    for tz in (UTC, localtime.operator_tz()):
+        local = now.astimezone(tz)
+        since_midnight = (local - local.replace(hour=0, minute=0, second=0, microsecond=0)).total_seconds() / 60
+        cap = since_midnight if cap is None else min(cap, since_midnight)
+    room = max(0.0, (cap or 0.0) - 1.0)
+    if minutes_ago > room:
+        minutes_ago = room * (minutes_ago / max(minutes_ago, 240.0))
+    return (now - dt.timedelta(minutes=minutes_ago)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def record(run_id: str, state: str, *, hours_ago: float = 1.0, **fields) -> dict:
