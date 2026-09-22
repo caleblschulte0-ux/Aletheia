@@ -155,6 +155,24 @@ def find(which: str) -> dict | None:
     return None
 
 
+def search(words: str, *, include_closed: bool = False) -> list[dict]:
+    """The opportunities he means by a few words (an organisation, a
+    role), newest first. Every word must appear in the subject's name."""
+    wanted = [w for w in str(words or "").casefold().split() if w]
+    if not wanted:
+        return []
+    rows = []
+    for row in all_opportunities():
+        if row.get("state") == CLOSED and not include_closed:
+            continue
+        subject = row.get("subject") or {}
+        haystack = " ".join(str(subject.get(k, "")) for k in ("name", "organisation")).casefold()
+        if all(w in haystack for w in wanted):
+            rows.append(row)
+    rows.sort(key=lambda r: r.get("updated_at") or "", reverse=True)
+    return rows
+
+
 def _now(now: dt.datetime | None) -> dt.datetime:
     return now or dt.datetime.now(dt.timezone.utc)
 

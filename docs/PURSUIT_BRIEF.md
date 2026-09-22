@@ -521,3 +521,13 @@ That is the standard.
   nothing and parks what is open, and why her own model's prose is said
   as what it did ("looked with my own model; nothing worth doing yet")
   rather than read out as a plan.
+
+- **2026-09-22, 14:25 — the first outcome from a real reply.** An
+  employer's email ("Candidacy Update") reached `runtime._job_reply`, was
+  written onto the application as `replied` and onto its opportunity as
+  evidence and an outcome, with no model in the loop. The second of the
+  two things the ledger said were still to be seen. And the pursuit store
+  has a spoken reader now: "how do you feel about the Anthropic
+  application" is the opportunity's own line from the fast lane, or the
+  application's record, or an honest "I don't have an application to
+  Anthropic" — it had gone to her own model for two minutes.
