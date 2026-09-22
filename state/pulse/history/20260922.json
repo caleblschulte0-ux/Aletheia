@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-22T17:01:29Z",
+  "generated_at": "2026-09-22T21:24:05Z",
   "fleet_revision": 5,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,55 +11,55 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
-          "sha": "281d3b8ac1dc",
-          "date": "2026-09-22T16:16:58Z",
-          "message": "Merge pull request #139 from claude/the-pc-runs-old-code"
+          "sha": "da4ec01aec9f",
+          "date": "2026-09-22T20:18:39Z",
+          "message": "Merge pull request #145 from caleblschulte0-ux/claude/the-pc-runs-old-code"
         },
         {
-          "sha": "d865e835ed97",
-          "date": "2026-09-22T15:43:18Z",
-          "message": "Three sentences that took the wrong door"
+          "sha": "fdde9add2539",
+          "date": "2026-09-22T19:44:03Z",
+          "message": "Eight more from her records: what she denied having, what she looked up under \"me\""
         },
         {
-          "sha": "5fbc97472144",
-          "date": "2026-09-22T15:43:15Z",
-          "message": "Merge pull request #138 from claude/the-pc-runs-old-code"
+          "sha": "5c2475e3115d",
+          "date": "2026-09-22T19:40:22Z",
+          "message": "Merge pull request #144 from claude/the-pc-runs-old-code"
         },
         {
-          "sha": "6639522093f5",
-          "date": "2026-09-22T15:20:25Z",
-          "message": "brief: 2026-09-22"
+          "sha": "3305a4933e12",
+          "date": "2026-09-22T19:08:01Z",
+          "message": "Four more by voice: a reminder's day, where he lives, his name spelled, the volume"
         },
         {
-          "sha": "9db128e3aa64",
-          "date": "2026-09-22T15:11:20Z",
-          "message": "Two more answers from her stores: what she did on her own, and the machine's memory"
+          "sha": "c7d60ac98ef2",
+          "date": "2026-09-22T19:07:55Z",
+          "message": "Merge pull request #143 from claude/the-pc-runs-old-code"
         }
       ],
       "commit": {
-        "sha": "281d3b8ac1dc",
-        "date": "2026-09-22T16:16:58Z",
-        "message": "Merge pull request #139 from claude/the-pc-runs-old-code"
+        "sha": "da4ec01aec9f",
+        "date": "2026-09-22T20:18:39Z",
+        "message": "Merge pull request #145 from caleblschulte0-ux/claude/the-pc-runs-old-code"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-09-22T17:01:23Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/35757942512"
+          "updated_at": "2026-09-22T21:24:02Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/35786402585"
         },
         "ci.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-09-22T16:45:44Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/35756244179"
+          "updated_at": "2026-09-22T21:14:10Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/35785365105"
         }
       },
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 19971
+          "bytes": 19886
         }
       },
       "health": "unknown"
@@ -71,40 +71,40 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "4c559aed9013",
-          "date": "2026-09-22T16:55:38Z",
-          "message": "watchdog: chatgpt task verdicts 20260922 [skip ci]"
-        },
-        {
-          "sha": "eaf6a1d1bb16",
-          "date": "2026-09-22T16:53:22Z",
-          "message": "explainer: update posted log + analytics [skip ci]"
-        },
-        {
-          "sha": "08aeb222b81d",
-          "date": "2026-09-22T16:47:49Z",
-          "message": "claim: mailbox verdicts 2026-09-22T16:47Z [skip ci]"
-        },
-        {
-          "sha": "cd0bc2174139",
-          "date": "2026-09-22T16:46:35Z",
+          "sha": "147ad546bf96",
+          "date": "2026-09-22T20:52:51Z",
           "message": "exchange: phase A bundle for 20260922 [skip ci]"
         },
         {
-          "sha": "2bc9f5be4454",
-          "date": "2026-09-22T16:46:13Z",
-          "message": "Trending: the hook card at full ink and off the axis; the ranker never ships tickers (#420)"
+          "sha": "644ac1729295",
+          "date": "2026-09-22T20:52:30Z",
+          "message": "Trending: a backfill story is fiction on a universal premise, and a rejected panel gets one replacement round (#423)"
+        },
+        {
+          "sha": "79e336205e46",
+          "date": "2026-09-22T20:47:57Z",
+          "message": "claim: mailbox verdicts 2026-09-22T20:47Z [skip ci]"
+        },
+        {
+          "sha": "c1a063f77ab9",
+          "date": "2026-09-22T20:32:16Z",
+          "message": "explainer: update posted log + analytics [skip ci]"
+        },
+        {
+          "sha": "97879fc38a20",
+          "date": "2026-09-22T20:23:18Z",
+          "message": "daily: 2026-09-22 report + state [skip ci]"
         }
       ],
       "commit": {
-        "sha": "4c559aed9013",
-        "date": "2026-09-22T16:55:38Z",
-        "message": "watchdog: chatgpt task verdicts 20260922 [skip ci]"
+        "sha": "147ad546bf96",
+        "date": "2026-09-22T20:52:51Z",
+        "message": "exchange: phase A bundle for 20260922 [skip ci]"
       },
       "vitals": [
         {
           "label": "trending posted",
-          "value": 344
+          "value": 346
         },
         {
           "label": "explainer posted",
@@ -123,38 +123,38 @@
         "daily.yml": {
           "status": "completed",
           "conclusion": "failure",
-          "updated_at": "2026-09-22T16:11:05Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35747714297"
+          "updated_at": "2026-09-22T20:23:30Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35778362065"
         },
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-22T16:46:40Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35756313743"
+          "updated_at": "2026-09-22T20:52:56Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35783103009"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-22T14:46:10Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35742583500"
+          "updated_at": "2026-09-22T18:10:53Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35765440567"
         },
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-22T10:06:48Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35713956197"
+          "updated_at": "2026-09-22T20:16:25Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35778900963"
         },
         "third.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-22T15:34:27Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35747710947"
+          "updated_at": "2026-09-22T20:11:24Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35778359038"
         },
         "explainer.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-09-22T16:53:33Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35747707424"
+          "updated_at": "2026-09-22T20:33:03Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35778534087"
         },
         "retro.yml": {
           "status": "completed",
@@ -172,7 +172,7 @@
       "state_files": {
         "state/posted_log.json": {
           "exists": true,
-          "bytes": 105948
+          "bytes": 106554
         },
         "state/explainer_posted_log.json": {
           "exists": true,
@@ -188,7 +188,7 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 1140083
+          "bytes": 1244313
         },
         "config/channel_registry.json": {
           "exists": true,
@@ -203,6 +203,11 @@
       "status": "active",
       "summary": "Guardrailed paper-trading system. The SELL brain and executor watchdog are active; the subscription-backed BUY brain and trade executor are intentionally paused until the operator resumes them.",
       "commits": [
+        {
+          "sha": "3a76bffdf678",
+          "date": "2026-09-22T18:37:03Z",
+          "message": "sell-brain: update exit decisions [skip ci]"
+        },
         {
           "sha": "ea5534ea8480",
           "date": "2026-09-22T15:36:28Z",
@@ -222,16 +227,11 @@
           "sha": "268515b844ab",
           "date": "2026-09-21T15:36:38Z",
           "message": "sell-brain: update exit decisions [skip ci]"
-        },
-        {
-          "sha": "b4dd00b5ddfb",
-          "date": "2026-09-18T18:37:20Z",
-          "message": "sell-brain: update exit decisions [skip ci]"
         }
       ],
       "commit": {
-        "sha": "ea5534ea8480",
-        "date": "2026-09-22T15:36:28Z",
+        "sha": "3a76bffdf678",
+        "date": "2026-09-22T18:37:03Z",
         "message": "sell-brain: update exit decisions [skip ci]"
       },
       "vitals": [],
@@ -246,14 +246,14 @@
         "sell-brain.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-22T15:36:33Z",
-          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/35748375471"
+          "updated_at": "2026-09-22T18:37:07Z",
+          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/35768128011"
         },
         "watchdog.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-21T22:05:08Z",
-          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/35660784964"
+          "updated_at": "2026-09-22T20:19:57Z",
+          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/35779569558"
         }
       },
       "state_files": {
@@ -298,8 +298,8 @@
         "barkly-ci.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-14T03:58:28Z",
-          "url": "https://github.com/caleblschulte0-ux/Money_Machine/actions/runs/34803565080"
+          "updated_at": "2026-09-22T20:14:39Z",
+          "url": "https://github.com/caleblschulte0-ux/Money_Machine/actions/runs/35777210443"
         }
       },
       "state_files": {},
@@ -360,9 +360,9 @@
           "n": 1,
           "text": "Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push"
         },
-        "last_progress_at": "2026-09-13T05:00:51Z",
-        "days_quiet": 9,
-        "commits_7d": 0,
+        "last_progress_at": "2026-09-22T19:58:18Z",
+        "days_quiet": 0,
+        "commits_7d": 10,
         "open_prs": [
           {
             "number": 9,
@@ -437,7 +437,7 @@
           "n": 1,
           "text": "Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open"
         },
-        "last_progress_at": "2026-09-22T16:39:54Z",
+        "last_progress_at": "2026-09-22T21:09:20Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": [
