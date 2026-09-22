@@ -88,6 +88,17 @@ class WithRecords(EveryBrainOff):
                 self.assertIn("1 blocked", said)
                 self.assertIn("Palantir", said)
 
+    def test_which_applications_are_waiting_on_me_is_the_one_list(self):
+        # With every frontier off this went to the planner and then to her
+        # own model for two minutes before the room gave up (2026-09-22).
+        for sentence in ("which of my applications are waiting on me",
+                         "what applications need my answers", "which jobs are stuck on me",
+                         "are any applications waiting on me"):
+            with self.subTest(sentence=sentence):
+                said = self.ask(sentence)
+                self.assertIn("Brex", said)
+                self.assertNotIn("Let me look", said)
+
     def test_how_many_is_the_exact_count(self):
         said = self.ask("how many jobs have you applied to?")
         self.assertTrue(said.startswith("2 applications sent today"), said)

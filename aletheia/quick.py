@@ -158,7 +158,16 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s)? on my plate$"
         r"|^is there anything waiting(?: on me| for me)?$"
         r"|^anything i should know(?: about)?$"
-        r"|^what am i blocking$|^am i blocking anything$")),
+        r"|^what am i blocking$|^am i blocking anything$"
+        # "Which of my applications are waiting on me" went to the planner
+        # and, with every frontier off, to her own model for two minutes
+        # before the room gave up (2026-09-22) - the applications are on
+        # the same ONE list as everything else that needs him.
+        r"|^(?:which|what)(?: of my)? (?:applications|apps|jobs|forms) (?:are|r|is) "
+        r"(?:waiting (?:on|for) me|stuck on me|(?:still )?(?:waiting|blocked|stuck)|"
+        r"(?:waiting on|need(?:ing)?) (?:my|an) answers?|need(?:ing)? me)$"
+        r"|^(?:which|what) (?:applications|apps|jobs|forms) need(?: me| my answers?| my input)?$"
+        r"|^(?:are|r) (?:any|there any) (?:applications|apps|jobs|forms) waiting(?: on| for)? me$")),
     ("doing", re.compile(
         r"^what (?:are|r) (?:you|u) (?:doing|working on|up to)"
         r"(?: right now| now| at the moment| currently)?$"
