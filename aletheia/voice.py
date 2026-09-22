@@ -443,6 +443,36 @@ _DETAIL_WORDS = frozenset({"email", "phone", "number", "address", "details",
                            "ip", "mac"})
 
 
+#: "Call it a day", "call it off", "call the shots" are idioms, not people,
+#: and "call me" is him talking about himself. A name to ring is one or two
+#: plain words that are not an idiom's tail.
+_NOT_SOMEBODY = frozenset({"me", "it", "this", "that", "them", "him", "her", "us",
+                           "you", "back", "again", "later", "off", "out", "in",
+                           "round", "over", "up", "the", "a", "an"})
+_NOT_A_CALL = ("it a day", "it quits", "it off", "it even", "the shots",
+               "the police on", "a meeting", "a vote", "a halt", "time on", "dibs")
+
+
+def _is_a_person_to_ring(captured: str) -> bool:
+    """Is the thing after "call" somebody he could actually ring?"""
+    text = " ".join(str(captured or "").split()).casefold()
+    text = re.sub(r"^(?:the|my|a|an) ", "", text)
+    if not text or any(text.startswith(tail) for tail in _NOT_A_CALL):
+        return False
+    words = text.split()
+    if len(words) > 3 or words[0] in _NOT_SOMEBODY:
+        return False
+    # "Call the whole thing off" ends on a particle, and a particle is
+    # what makes the verb mean something other than the telephone.
+    if len(words) > 1 and words[-1] in _NOT_SOMEBODY:
+        return False
+    # "call the plumber" is a person; "call the meeting" and "call the list"
+    # are her own nouns, and every one of those has a verb of its own here.
+    return not any(word in {"task", "tasks", "reminder", "reminders", "note", "notes",
+                            "list", "meeting", "vote", "shots", "day", "quits", "time"}
+                   for word in words)
+
+
 def _is_about_himself(captured: str) -> bool:
     """Is this capture HIM, or a person he knows?
 
@@ -2176,6 +2206,18 @@ def _interpret(transcript: str) -> dict:
                   else "volume_down" if direction == "down" or m.group("quieter")
                   else "mute")
         return {"command": {"kind": "music", "action": action}, "say": None}
+
+    # A PHONE CALL is a door she does not have. "Call the dentist" waited
+    # two minutes on her own model (2026-09-22) for a verb nothing here
+    # owns; the honest answer names the three doors she does have.
+    m = re.fullmatch(r"(?:call|phone|ring|ring up|dial|give (?:a )?call to) "
+                     r"(?:my |the )?(?P<who>[a-z][a-z .'-]{1,40}?)"
+                     r"(?: for me| now| please| back)?", low)
+    if m and _is_a_person_to_ring(m.group("who")):
+        who = _as_he_said(transcript, m.group("who"))
+        return {"command": None,
+                "say": f"I can't place phone calls from here. I can text or email {who}, "
+                       "or remind you to call them - which would you like?"}
 
     # NAMING SOMETHING TO PLAY is the half that needs his account, and
     # she says so instead of resuming whatever was paused on Thursday and
