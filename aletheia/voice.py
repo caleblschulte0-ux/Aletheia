@@ -1727,8 +1727,18 @@ def _interpret(transcript: str) -> dict:
 
     m = re.match(r"(?:what do you know about|what have you got on|"
                  r"remind me about|tell me about) (.+)", low)
-    if m:
+    # "What do you know about me" is not a lookup under the key "me" (it
+    # answered "I don't have anything remembered about 'me'"); the fast
+    # lane says the whole of what she holds about him.
+    if m and m.group(1).strip() not in ("me", "myself", "me then", "yourself", "you"):
         return {"command": {"kind": "recall", "about": m.group(1).strip()},
+                "say": None}
+
+    # "Read me the DevRev email": the unread message that names them.
+    m = re.fullmatch(r"(?:read me|read|open|show me) (?:the |that |my )?(?P<which>[a-z0-9][a-z0-9 .&'-]{1,40}?) "
+                     r"(?:email|e-mail|mail|message from them)", low)
+    if m and m.group("which") not in ("latest", "last", "newest", "first", "new", "unread"):
+        return {"command": {"kind": "email_read", "which": _as_he_said(transcript, m.group("which"))},
                 "say": None}
 
     if re.fullmatch(r"(?:the |my )?(?:morning )?brief(?:ing)?|"
