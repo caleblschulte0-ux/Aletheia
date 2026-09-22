@@ -924,23 +924,48 @@ def _ollama_holds_bytes() -> int:
         return 0
 
 
-def local_allowed() -> tuple[bool, str]:
-    """Whether the job hunt may ask her own model right now. Never raises."""
+#: What the small rung needs free. qwen3:4b is 2.6 GB on disk; with its
+#: working memory, three and a half is the honest floor.
+SMALL_MIN_FREE_BYTES = int(3.5 * 1024 ** 3)
+
+
+def local_role_that_fits() -> tuple[str | None, str]:
+    """Which of her own models may be asked right now: ("fast" | "small" |
+    None, why). The fast model with ~6 GB free; the small one with ~3.5 GB
+    and the model on disk; neither otherwise. Never raises.
+
+    His words, 2026-09-22: it "really needs to be able to handle a lot when
+    there's no frontier model available." That night 4 GB was free, the
+    fast model needed 6, and there was nothing under it.
+    """
     try:
         from aletheia import local_model_pool, machine, model_pool_config
         if not model_pool_config.enabled():
-            return False, "my own model is switched off"
+            return None, "my own model is switched off"
         free = _free_memory_bytes()
         if free is None:
-            return False, "I could not tell how much memory is free, so my own model stays off"
-        if free < LOCAL_MIN_FREE_BYTES and free + _ollama_holds_bytes() < LOCAL_MIN_FREE_BYTES:
-            return False, (f"only {machine.gigabytes(free)} of memory is free and my own model "
-                           f"needs {machine.gigabytes(LOCAL_MIN_FREE_BYTES)}")
+            return None, "I could not tell how much memory is free, so my own model stays off"
+        room = free + _ollama_holds_bytes()
         if not local_model_pool.reachable():
-            return False, "my own model is not running"
-        return True, "my own model has room to run"
+            return None, "my own model is not running"
+        if free >= LOCAL_MIN_FREE_BYTES or room >= LOCAL_MIN_FREE_BYTES:
+            return "fast", "my own model has room to run"
+        small = model_pool_config.resolve("small")["model"]
+        if room >= SMALL_MIN_FREE_BYTES and small in local_model_pool.installed_sizes():
+            return "small", (f"only {machine.gigabytes(free)} of memory is free, so my smaller "
+                             "model answers")
+        return None, (f"only {machine.gigabytes(free)} of memory is free and my own model "
+                      f"needs {machine.gigabytes(LOCAL_MIN_FREE_BYTES)}"
+                      + ("" if small in local_model_pool.installed_sizes()
+                         else f"; the smaller one, {small}, is not on this machine yet"))
     except Exception as exc:
-        return False, f"my own model could not be checked ({type(exc).__name__})"
+        return None, f"my own model could not be checked ({type(exc).__name__})"
+
+
+def local_allowed() -> tuple[bool, str]:
+    """Whether the job hunt may ask her own model right now. Never raises."""
+    role, why = local_role_that_fits()
+    return role is not None, why
 
 
 def provider_kind(provider: str) -> str:
@@ -1028,8 +1053,8 @@ def work_json_with_provider(system_prompt: str, text: str, *, context: dict | No
     except ValueError:
         why_not.append("Codex's answer did not fit what was asked")
 
-    ok, why = local_allowed()
-    if ok:
+    role, why = local_role_that_fits()
+    if role:
         from aletheia import local_model_pool, work_states
         try:
             # THE JOB HUNT IS WORK, NOT A CONVERSATION. This rung ran as
@@ -1043,7 +1068,7 @@ def work_json_with_provider(system_prompt: str, text: str, *, context: dict | No
             # background work has (work_states.LOCAL_CEILING_S).
             run = local_model_pool.auto_json(
                 local_prompt or system_prompt, text, context=context or {},
-                validator=validator, preferred_role="fast", allow_failover=False,
+                validator=validator, preferred_role=role, allow_failover=False,
                 timeout_s=work_states.local_ceiling_s(work_states.BACKGROUND),
                 attention=work_states.BACKGROUND)
             if isinstance(run.output, dict):

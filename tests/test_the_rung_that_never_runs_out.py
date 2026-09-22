@@ -202,13 +202,33 @@ class HerOwnModelRepairsItself(unittest.TestCase):
         self.assertEqual(len(self.spawned), 1)
         self.assertIn("still downloading", again["why"])
 
-    def test_a_reachable_pool_with_its_model_is_simply_ok(self):
+    def test_a_reachable_pool_with_both_its_models_is_simply_ok(self):
         model_pool_config.save_settings(enabled=True)
+        small = model_pool_config.resolve("small")["model"]
         with mock.patch("aletheia.local_brain.status",
-                        return_value={"online": True, "model_available": True}):
+                        return_value={"online": True, "model_available": True}), \
+             mock.patch.object(self.pool, "installed_sizes", return_value={small: 2_600_000_000}):
             out = self.pool.ensure(spawner=self.spawner, binary="/bin/ollama", probe=lambda base: True)
         self.assertTrue(out["ok"])
         self.assertEqual(self.spawned, [])
+
+    def test_a_ready_pool_still_fetches_the_smaller_rung_once(self):
+        # 2026-09-22: 4 GB free, the fast model wanting 6, and nothing under
+        # it. The rung that fits is fetched in the background, once, and the
+        # fast model is still reported ready meanwhile.
+        model_pool_config.save_settings(enabled=True)
+        small = model_pool_config.resolve("small")["model"]
+        with mock.patch("aletheia.local_brain.status",
+                        return_value={"online": True, "model_available": True}), \
+             mock.patch.object(self.pool, "installed_sizes", return_value={}), \
+             mock.patch("aletheia.proc.pid_alive", return_value=True):
+            out = self.pool.ensure(spawner=self.spawner, binary="/bin/ollama", probe=lambda base: True)
+            self.assertTrue(out["ok"])
+            self.assertEqual(out["pulling_small"], small)
+            self.assertEqual(self.spawned, [["/bin/ollama", "pull", small]])
+            again = self.pool.ensure(spawner=self.spawner, binary="/bin/ollama", probe=lambda base: True)
+        self.assertTrue(again["ok"])
+        self.assertEqual(len(self.spawned), 1)
 
     def test_activation_repairs_before_it_judges(self):
         with mock.patch.object(self.pool, "ensure", return_value={"enabled": True, "ok": True}) as heal, \

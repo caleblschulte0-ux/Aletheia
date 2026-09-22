@@ -305,7 +305,7 @@ class WhenClaudeIsOutSheStillAnswersCase(unittest.TestCase):
                                side_effect=reasoner.ReasonerUnavailable("out of session")), \
              mock.patch.object(reasoner, "codex_json",
                                side_effect=reasoner.ReasonerUnavailable("not signed in")), \
-             mock.patch.object(reasoner, "local_allowed", return_value=(True, "room")), \
+             mock.patch.object(reasoner, "local_role_that_fits", return_value=("fast", "room")), \
              mock.patch.object(reasoner, "_say_switch"), \
              mock.patch.object(local_model_pool, "auto_json", return_value=Run()) as local:
             got = campaign._any_model_answers("brief", "resume", context={},

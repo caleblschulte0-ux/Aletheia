@@ -156,6 +156,17 @@ def once(*, batch: int = BATCH, resume: str = "", starter=None, refiller=None,
     return out
 
 
+def _only_her_own_model() -> bool:
+    """Nobody but her own model can think right now. Never raises."""
+    try:
+        from aletheia import reasoner, reasoning_gateway
+        if reasoning_gateway.frontier_available():
+            return False
+        return not reasoner.codex_available()[0]
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def pursue_once(*, pursuer=None) -> list[dict]:
     """Every turn, after the batch: carry the opportunities the applications
     became (`docs/PURSUIT_BRIEF.md`). Each live application is opened as an
@@ -166,6 +177,15 @@ def pursue_once(*, pursuer=None) -> list[dict]:
     try:
         from aletheia import pursuit, pursuit_applications
         pursuit_applications.sync()
+        if _only_her_own_model() and campaign.running():
+            # ONE HEAVY THING AT A TIME when she is on her own. Measured
+            # 2026-09-22 07:30 on his laptop: a batch driving a browser
+            # through 116-field forms, her own model resident at 5.7 GB,
+            # 2 GB free, and every pass timing out at the ceiling - not for
+            # want of memory but because both were running at once on four
+            # cores. The frontier makes a pass cheap; her own model does
+            # not, so with only her own model the passes wait for the batch.
+            return []
         return pursuit.tick(limit=2)
     except policy.Halted:
         raise

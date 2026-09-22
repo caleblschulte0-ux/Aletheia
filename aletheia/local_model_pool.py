@@ -166,8 +166,8 @@ def run_json(system_prompt: str, text: str, *, context: dict | None = None,
              require_enabled: bool = True,
              think_override: bool | None = None,
              attention: str = work_states.ATTENDED) -> LocalRun:
-    if role not in {"fast", "deep"}:
-        raise ValueError("local role must be fast or deep")
+    if role not in model_pool_config.ROLES:
+        raise ValueError("local role must be fast, deep or small")
     if attention not in work_states.ATTENTION:
         raise ValueError(f"attention must be one of {sorted(work_states.ATTENTION)}")
     if require_enabled and not model_pool_config.enabled():
@@ -272,9 +272,10 @@ def auto_json(system_prompt: str, text: str, *, context: dict | None = None,
               require_enabled: bool = True,
               attention: str = work_states.ATTENDED) -> LocalRun:
     first = preferred_role or choose_role(text, context)
-    if first not in {"fast", "deep"}:
-        raise ValueError("preferred_role must be fast or deep")
-    second = "deep" if first == "fast" else "fast"
+    if first not in model_pool_config.ROLES:
+        raise ValueError("preferred_role must be fast, deep or small")
+    # the other way round for fast/deep; the small rung's second is fast
+    second = {"fast": "deep", "deep": "fast", "small": "fast"}[first]
     try:
         return run_json(
             system_prompt, text, context=context, role=first,
@@ -569,6 +570,7 @@ def ensure(*, now: float | None = None, spawner=None, binary=None,
     if observed.get("model_available"):
         out["model"] = wanted
         out["ok"] = True
+        _fetch_small_rung(exe, state, wall, spawner, out)
         return out
     pull = state.get("pull") or {}
     if pull.get("model") == wanted and proc.pid_alive(pull.get("pid")) is not False \
@@ -591,6 +593,33 @@ def ensure(*, now: float | None = None, spawner=None, binary=None,
     out["started_pull"] = True
     out["why"] = f"downloading {wanted}; a few minutes on a good connection"
     return out
+
+
+def _fetch_small_rung(exe, state: dict, wall: float, spawner, out: dict) -> None:
+    """The small model, pulled once in the background when it is missing.
+
+    Same shape as the fast model's pull: once, journaled, a pull already
+    running left to run. Never raises, never blocks: the fast model is
+    ready and that is what `ensure` reports; this is the rung under it.
+    """
+    from aletheia import journal, proc
+    small = model_pool_config.resolve("small")["model"]
+    if not exe or small in installed_sizes():
+        return
+    pull = state.get("pull_small") or {}
+    if pull.get("model") == small and proc.pid_alive(pull.get("pid")) is not False \
+            and wall - float(pull.get("started_at") or 0) < 6 * 3600:
+        out["pulling_small"] = small
+        return
+    try:
+        pid = (spawner or _spawn_detached)([exe, "pull", small])
+    except Exception:  # noqa: BLE001
+        return
+    _remember_heal(pull_small={"model": small, "pid": pid, "started_at": wall})
+    journal.append("action", "local-ai",
+                   f"downloading a smaller model too, {small}, for the nights the bigger one has no room",
+                   actor="aletheia-local-ai")
+    out["pulling_small"] = small
 
 
 def smoke() -> dict[str, Any]:

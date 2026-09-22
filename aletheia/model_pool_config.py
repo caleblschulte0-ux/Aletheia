@@ -14,12 +14,21 @@ from aletheia import stateio
 
 ENV_FAST_MODEL = "ALETHEIA_LOCAL_AI_FAST_MODEL"
 ENV_DEEP_MODEL = "ALETHEIA_LOCAL_AI_DEEP_MODEL"
+ENV_SMALL_MODEL = "ALETHEIA_LOCAL_AI_SMALL_MODEL"
+ENV_BY_ROLE = {"fast": ENV_FAST_MODEL, "deep": ENV_DEEP_MODEL, "small": ENV_SMALL_MODEL}
 ENV_ENABLED = "ALETHEIA_LOCAL_AI_ENABLED"
 ENV_SHADOW = "ALETHEIA_LOCAL_AI_SHADOW"
 DEFAULTS: dict[str, dict[str, Any]] = {
     "fast": {"model": "qwen3:8b", "think": False},
     "deep": {"model": "qwen3.6:27b", "think": True},
+    # THE RUNG THAT FITS WHEN THE FAST ONE DOES NOT. The fast model wants
+    # ~6 GB free and his laptop, with two browsers and a job batch open,
+    # often has 4. "Never make a fallback that only tries one model"
+    # (CLAUDE.md): a 2.6 GB model answers worse and answers, which on a
+    # night with both subscriptions resting is the whole difference.
+    "small": {"model": "qwen3:4b", "think": False},
 }
+ROLES = tuple(DEFAULTS)
 SETTING_DEFAULTS = {"enabled": False, "shadow": False}
 
 
@@ -112,10 +121,10 @@ def shadow_enabled() -> bool:
 
 def resolve(role: str) -> dict[str, Any]:
     if role not in DEFAULTS:
-        raise ValueError("role must be fast or deep")
+        raise ValueError("role must be fast, deep or small")
     saved = _saved().get(role)
     saved = saved if isinstance(saved, dict) else {}
-    env_name = ENV_FAST_MODEL if role == "fast" else ENV_DEEP_MODEL
+    env_name = ENV_BY_ROLE[role]
     env_model = os.environ.get(env_name, "").strip()
     model = _model(env_model or saved.get("model") or DEFAULTS[role]["model"])
     think = saved.get("think", DEFAULTS[role]["think"])
@@ -159,5 +168,6 @@ def show() -> dict[str, Any]:
         **settings(),
         "fast": resolve("fast"),
         "deep": resolve("deep"),
+        "small": resolve("small"),
         "config_path": str(config_path()),
     }
