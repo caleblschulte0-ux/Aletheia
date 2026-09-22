@@ -919,8 +919,17 @@ def spoken(record: dict) -> str:
         outcome = record.get("outcome") or {}
         return said + f"closed — {outcome.get('kind', 'dropped')}" + (
             f", {outcome['note']}" if outcome.get("note") else "")
-    if record.get("strategy"):
+    last_pass = record.get("last_pass") or {}
+    if record.get("strategy") and not (last_pass.get("drafted_by") or {}).get("local"):
         said += _first_sentence(record["strategy"]) or "thought about"
+    elif last_pass:
+        # Her own model's strategy is filler in the right shape ("Focus on
+        # leveraging the candidate's background..."; fourteen of them on
+        # 2026-09-22). Its moves are held to quoting; its prose is not
+        # something to read out as a plan. What it DID is the sentence.
+        filed = [m for m in record.get("moves", []) if m.get("at") == last_pass.get("at")]
+        said += (f"looked with my own model; {len(filed)} thing{'s' if len(filed) != 1 else ''} worth doing"
+                 if filed else "looked with my own model; nothing worth doing yet")
     else:
         said += "not thought about yet"
     last = [m for m in record.get("moves", []) if m.get("state") not in ("proposed",)]
