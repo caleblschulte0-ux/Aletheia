@@ -316,6 +316,47 @@ class ItComesBackOnNewCodeCase(unittest.TestCase):
         self.assertEqual(len(started), 2)
 
 
+class OneHeavyThingAtATimeCase(unittest.TestCase):
+    """With only her own model, a pass waits for the batch: measured
+    2026-09-22, a browser batch and her own model on four cores made every
+    pass time out at the ceiling."""
+
+    def test_with_only_her_own_model_a_running_batch_means_no_pass_this_turn(self):
+        with mock.patch.object(apply_forever, "_only_her_own_model", return_value=True), \
+             mock.patch.object(apply_forever.campaign, "running", return_value={"pid": 7}), \
+             mock.patch("aletheia.pursuit_applications.sync", return_value=[]), \
+             mock.patch("aletheia.pursuit.tick") as tick:
+            self.assertEqual(apply_forever.pursue_once(), [])
+        tick.assert_not_called()
+
+    def test_with_a_frontier_the_pass_runs_beside_the_batch(self):
+        with mock.patch.object(apply_forever, "_only_her_own_model", return_value=False), \
+             mock.patch.object(apply_forever.campaign, "running", return_value={"pid": 7}), \
+             mock.patch("aletheia.pursuit_applications.sync", return_value=[]), \
+             mock.patch("aletheia.pursuit.tick", return_value=[{"id": "x"}]) as tick:
+            self.assertEqual(apply_forever.pursue_once(), [{"id": "x"}])
+        tick.assert_called_once()
+
+    def test_with_only_her_own_model_and_no_batch_the_pass_runs(self):
+        with mock.patch.object(apply_forever, "_only_her_own_model", return_value=True), \
+             mock.patch.object(apply_forever.campaign, "running", return_value=None), \
+             mock.patch("aletheia.pursuit_applications.sync", return_value=[]), \
+             mock.patch("aletheia.pursuit.tick", return_value=[]) as tick:
+            apply_forever.pursue_once()
+        tick.assert_called_once()
+
+    def test_only_her_own_model_means_no_frontier_and_no_codex(self):
+        from aletheia import reasoner, reasoning_gateway
+        with mock.patch.object(reasoning_gateway, "frontier_available", return_value=False), \
+             mock.patch.object(reasoner, "codex_available", return_value=(False, "out")):
+            self.assertTrue(apply_forever._only_her_own_model())
+        with mock.patch.object(reasoning_gateway, "frontier_available", return_value=False), \
+             mock.patch.object(reasoner, "codex_available", return_value=(True, "")):
+            self.assertFalse(apply_forever._only_her_own_model())
+        with mock.patch.object(reasoning_gateway, "frontier_available", return_value=True):
+            self.assertFalse(apply_forever._only_her_own_model())
+
+
 class ItSurvivesTheSessionThatStartedItCase(unittest.TestCase):
     def test_it_is_registered_as_an_always_on_task(self):
         spec = autostart.TASKS["apply"]
