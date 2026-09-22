@@ -87,6 +87,48 @@ class TheUpdateSheCouldNotTakeCase(unittest.TestCase):
             self.assertIsNone(running.update_stuck(now=T0))
 
 
+class BehindIsMeasuredAgainstHerOwnBranchCase(unittest.TestCase):
+    """An even checkout on `live` read as "1 commit behind origin/main" the
+    moment CI put a state commit on main, and the health line told him she
+    had not managed to update for an hour (2026-09-22)."""
+
+    def version_with(self, answers):
+        import subprocess as sp
+        calls = []
+
+        def fake_run(args, **kw):
+            calls.append(args[1:])
+            key = " ".join(args[1:])
+            out = next((v for k, v in answers.items() if key.startswith(k)), "")
+            return mock.Mock(returncode=0 if out or "verify" not in key else 1, stdout=out)
+        with mock.patch.object(running.subprocess, "run", side_effect=fake_run), \
+             mock.patch.object(running, "running_old_code", return_value=("", "", False)), \
+             mock.patch.object(running, "_VERSION_CACHE", None), \
+             mock.patch.object(running, "_git_signature", return_value=("fresh",)):
+            return running.version(), calls
+
+    def test_even_with_her_own_remote_is_not_behind_main(self):
+        info, calls = self.version_with({
+            "log -1": "abc1234\nHEAD -> live, origin/live\nsubject\n",
+            "rev-parse --abbrev-ref HEAD": "live",
+            "rev-parse --verify origin/live": "deadbeef",
+            "rev-list --count HEAD..origin/live": "0",
+            "rev-list --count HEAD..origin/main": "1",
+        })
+        self.assertEqual(info["behind_count"], 0)
+        self.assertEqual(info["behind"], "")
+        self.assertNotIn(["rev-list", "--count", "HEAD..origin/main"], calls)
+
+    def test_a_branch_with_no_remote_is_measured_against_main(self):
+        info, _calls = self.version_with({
+            "log -1": "abc1234\nHEAD -> scratch\nsubject\n",
+            "rev-parse --abbrev-ref HEAD": "scratch",
+            "rev-list --count HEAD..origin/main": "3",
+        })
+        self.assertEqual(info["behind_count"], 3)
+        self.assertIn("origin/main", info["behind"])
+
+
 class TheHeadlineSaysItCase(unittest.TestCase):
     STUCK = {"since": T0.isoformat(), "for_s": 3 * 86400, "waiting": 85,
              "because": "uncommitted changes the Core does not own: Aletheia-new/"}

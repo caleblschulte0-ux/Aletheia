@@ -288,7 +288,15 @@ def version() -> dict:
         # Counted against the last fetch, never fetching here: a status
         # read must not touch the network.
         behind, behind_count = "", 0
-        for remote in (f"origin/{branch}", "origin/main"):
+        # Against THIS branch's remote when it has one; origin/main only for
+        # a branch with no counterpart. It used to fall through to main
+        # whenever the count against origin/<branch> was ZERO, so an even
+        # checkout on `live` read as "1 commit behind origin/main" the
+        # moment CI put a state commit on main - and on 2026-09-22 the
+        # health line told him she had not managed to update for an hour.
+        remotes = [f"origin/{branch}"] if git("rev-parse", "--verify", f"origin/{branch}") \
+            else ["origin/main"]
+        for remote in remotes:
             counted = git("rev-list", "--count", f"HEAD..{remote}")
             if counted.isdigit() and int(counted):
                 behind_count = int(counted)
