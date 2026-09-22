@@ -232,6 +232,18 @@ class TheChainCase(Clean):
         self.codex.assert_not_called()
         self.local.assert_not_called()
 
+    def test_her_own_model_is_asked_as_work_with_the_budget_work_has(self):
+        # Measured 2026-09-22 00:42: this rung ran as a conversation, so a
+        # background pass yielded to a batch reading his resume, and the
+        # same resume ask died at 300 s loading a cold model.
+        from aletheia import work_states
+        ask = self.chain(claude=reasoner.ClaudeResting(LATER),
+                         codex=reasoner.ReasonerUnavailable("Codex is out"))
+        self.assertEqual(ask()[1], "ollama:qwen3:8b")
+        kwargs = self.local.call_args.kwargs
+        self.assertEqual(kwargs["attention"], work_states.BACKGROUND)
+        self.assertEqual(kwargs["timeout_s"], work_states.local_ceiling_s(work_states.BACKGROUND))
+
     def test_while_claude_rests_it_is_not_asked_and_codex_answers(self):
         reasoner._rest(LATER, "You've hit your session limit · resets 4:40pm (UTC)")
         ask = self.chain()
@@ -247,7 +259,10 @@ class TheChainCase(Clean):
         kw = self.local.call_args.kwargs
         self.assertEqual(kw["preferred_role"], "fast")
         self.assertFalse(kw["allow_failover"], "never escalates to the model that does not fit")
-        self.assertLessEqual(kw["timeout_s"], 300)
+        # BOUNDED, by the class of the work: it was "<= 300", a
+        # conversation's cap, and a cold model died at exactly 300 s.
+        from aletheia import work_states
+        self.assertLessEqual(kw["timeout_s"], work_states.local_ceiling_s(work_states.BACKGROUND))
         self.assertEqual(self.local.call_args.args[0], "Decide strictly.")
 
     def test_too_little_memory_is_an_honest_no(self):

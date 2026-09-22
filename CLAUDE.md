@@ -1126,6 +1126,21 @@ does both - rate-limited, journaled, never raising - from `activate` and
 from every beat of the Core. A missing model is a download, not a reason
 she is switched off.
 
+**Background is the budget, and the job hunt is work.** Measured on his
+PC 2026-09-22, with both subscriptions resting: a background pass that
+named no number got the fast role's 12 s — a conversation's number — and
+died loading a cold 5 GB model, while the job hunt's own local calls ran
+as a CONVERSATION, so every real background call on the machine was put
+down to make way for a batch nobody was waiting on. So `local_model_pool`
+gives `attention=BACKGROUND` the background ceiling when the caller names
+no number, and the job hunt's chain asks her own model as work, with work's
+budget. And **her own model is held to quoting** in the pursuit
+(`pursuit.validate(quoting=True)`): a move must carry a verbatim line from
+the evidence it cites or it is dropped, because the first pass on her own
+model alone filed a suggestion that suggested nothing — fluent filler in the
+right shape, and a quote is the one thing filler cannot supply. The floor,
+measured: qwen3:8b, 557 s cold, 157 s warm, one honest sentence, no noise.
+
 ## Done means several normal days without him as sysadmin
 
 `docs/SEAMLESS_BRIEF.md` (2026-09-21) changed the definition of done. A

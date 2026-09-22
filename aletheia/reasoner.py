@@ -889,7 +889,6 @@ def codex_json(system_prompt: str, text: str, *, context: dict | None = None,
 #: laptop (16 GB, no GPU, ~5 GB of browsers) loading qwen3:8b with less got
 #: background processes killed.
 LOCAL_MIN_FREE_BYTES = 6 * 1024 ** 3
-LOCAL_WORK_TIMEOUT_CAP_S = 300.0
 WORK_TIMEOUT_S = 240.0
 _WORK_ACTOR = "aletheia-reasoner"
 
@@ -1031,12 +1030,22 @@ def work_json_with_provider(system_prompt: str, text: str, *, context: dict | No
 
     ok, why = local_allowed()
     if ok:
-        from aletheia import local_model_pool
+        from aletheia import local_model_pool, work_states
         try:
+            # THE JOB HUNT IS WORK, NOT A CONVERSATION. This rung ran as
+            # attended: it took the lease as a conversation, so every real
+            # background call on the machine (a pursuit pass, a draft) was
+            # put down to make way for a batch nobody was waiting on -
+            # measured 2026-09-22 00:42, a 210 s pass yielded to a campaign
+            # reading his resume. And it had a conversation's budget: the
+            # same resume ask died at 300 s loading a cold model. Saying
+            # BACKGROUND is saying WORK to the lease, and gets the budget
+            # background work has (work_states.LOCAL_CEILING_S).
             run = local_model_pool.auto_json(
                 local_prompt or system_prompt, text, context=context or {},
                 validator=validator, preferred_role="fast", allow_failover=False,
-                timeout_s=max(0.5, min(budget, LOCAL_WORK_TIMEOUT_CAP_S)))
+                timeout_s=work_states.local_ceiling_s(work_states.BACKGROUND),
+                attention=work_states.BACKGROUND)
             if isinstance(run.output, dict):
                 _say_switch("local", claude_until)
                 return run.output, f"ollama:{run.model}"

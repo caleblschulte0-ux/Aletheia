@@ -34,7 +34,11 @@ MAX_TIMEOUT_S = 1_800.0
 #: stays warm; a background draft that has just finished has nobody waiting on
 #: it, so it lets the memory go (his laptop is 16 GB and his job loop shares it).
 ATTENDED_KEEP_ALIVE = "5m"
-BACKGROUND_KEEP_ALIVE = "30s"
+#: Ten minutes, not thirty seconds: background work comes in QUEUES now (a
+#: pass over each opportunity, one every few minutes), and at "30s" every
+#: pass paid the cold load again - measured 2026-09-22 on his laptop, 400 s
+#: for a call that is ~100 s warm. An idle queue still lets the memory go.
+BACKGROUND_KEEP_ALIVE = "10m"
 DEFAULT_KEEP_ALIVE = ATTENDED_KEEP_ALIVE
 #: A streamed call looks at `should_yield` no less often than this.
 YIELD_CHECK_S = 0.5

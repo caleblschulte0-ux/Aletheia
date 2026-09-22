@@ -132,9 +132,18 @@ def _config(role: str, timeout_s: float | None = None,
             think_override: bool | None = None,
             attention: str = work_states.ATTENDED) -> local_brain.OllamaConfig:
     profile = model_pool_config.resolve(role)
-    timeout = timeout_s if timeout_s is not None else (
-        FAST_TIMEOUT_S if role == "fast" else DEEP_TIMEOUT_S
-    )
+    if timeout_s is not None:
+        timeout = timeout_s
+    elif attention == work_states.BACKGROUND:
+        # BACKGROUND IS THE BUDGET. A caller that said nobody is waiting and
+        # gave no number got the fast role's 12 s - a conversation's number -
+        # and on this laptop a cold 5 GB model cannot even load in 12 s.
+        # Measured 2026-09-21 23:01: every pursuit pass with the frontier
+        # out died at 12.2 s, "local Ollama unavailable (TimeoutError)",
+        # while the same model answered a campaign ask in 118 s.
+        timeout = work_states.local_ceiling_s(attention)
+    else:
+        timeout = FAST_TIMEOUT_S if role == "fast" else DEEP_TIMEOUT_S
     # THE CEILING IS THE CLASS OF WORK, and the class is attended unless the
     # caller said otherwise. A caller that asks for twenty minutes without
     # saying the work is background gets the five minutes conversation has
