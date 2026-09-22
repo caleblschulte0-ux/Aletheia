@@ -61,6 +61,10 @@ ACTION_FIELDS = {
     # read it", and she had no way to wait. Nothing is touched; the seconds
     # count toward the plan's wait budget and HALT is read while it waits.
     "pause": {"action", "seconds"},
+    # 2026-09-22: "lock the computer" waited two minutes on her own model
+    # for want of a door. Locking touches nothing and he undoes it with
+    # his password, so unattended hands may do it.
+    "lock_screen": {"action"},
 }
 # Hotkeys unattended hands may send, and how pywinauto spells them. Enter,
 # Delete, Alt+F4, Ctrl+Enter, Ctrl+W/Q are absent on purpose: each one
@@ -284,7 +288,7 @@ def validate_steps(steps: object) -> list[str]:
                         problems.append(
                             f"{label}.arguments[{arg_index}]: control characters "
                             "are not accepted")
-        elif action not in ("list_windows", "pause"):
+        elif action not in ("list_windows", "pause", "lock_screen"):
             problems += _selector(step.get("window"), f"{label}.window",
                                   WINDOW_SELECTOR_FIELDS)
         if action == "pause":
@@ -835,6 +839,11 @@ class WindowsUIABackend:
             app = self._Application(backend="uia").start(command)
             self._opened.add(app.process)
             return {"action": action, "process_id": app.process}
+        if action == "lock_screen":
+            import ctypes
+            if not ctypes.windll.user32.LockWorkStation():
+                raise RuntimeError("Windows refused to lock the workstation")
+            return {"action": action, "verified": "lock requested; Windows shows the sign-in screen"}
         if action == "list_windows":
             maximum = step.get("max_results", 50)
             windows = self._Desktop(backend="uia").windows()[:maximum]
@@ -1195,7 +1204,7 @@ def observe(steps: object, backend: ComputerBackend | None = None,
 #   - HALT is re-read between every step.
 
 ACT_ACTIONS = frozenset({"open_app", "wait_window", "focus_window", "set_text", "invoke",
-                         "hotkey", "select", "pause"})
+                         "hotkey", "select", "pause", "lock_screen"})
 
 COMMITTING_PATTERN = re.compile(
     r"\b(?:send|delete|pay|purchase|buy|confirm|submit|format|uninstall|"

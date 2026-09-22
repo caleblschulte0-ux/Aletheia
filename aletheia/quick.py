@@ -268,6 +268,28 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?: on (?:this|the|my) (?:computer|machine|pc|laptop))?$"
         r"|^(?:is|how is) (?:the |this |my )?(?:computer|machine|pc|laptop) (?:low on memory|out of memory|running low)$"
         r"|^how(?:'s| is) (?:the |this |my )?(?:computer|machine|pc|laptop)(?:'s)? memory$")),
+    # Four more readings of the same machine (2026-09-22): the disk ("not
+    # something in my toolkit yet" - it is a system call), the address
+    # (searched his contacts for "my ip"), whether the internet is up
+    # (94 s of her own model, and "Thinking with no internet: yes"), and
+    # what is open ("[Uses look at the desktop]" read out as prose).
+    ("disk", re.compile(
+        r"^how much (?:disk|disk space|storage|space|hard drive space|room)(?: do (?:i|we) have| is)?"
+        r"(?: free| left| available)?(?: on (?:this|the|my) (?:computer|machine|pc|laptop|disk|drive|hard drive))?$"
+        r"|^(?:is|how is) (?:the |this |my )?(?:computer|machine|pc|laptop|disk|drive) (?:low on (?:space|storage|disk)|full|out of space)$")),
+    ("ip", re.compile(
+        r"^what(?:'s| is) (?:my|this computer's|the|this machine's) ip(?: address)?$"
+        r"|^what ip(?: address)? (?:am i on|is this|do i have)$")),
+    ("internet", re.compile(
+        r"^(?:is|do (?:i|we) have) (?:the |an )?(?:internet|wifi|wi-fi|network|connection)(?: connection)?"
+        r"(?: working| up| on| down| connected| okay| ok)?$"
+        r"|^(?:am i|are we|are you) (?:online|connected|on the internet)$"
+        r"|^(?:is|has) the (?:internet|wifi|wi-fi) (?:down|out|gone|back)$")),
+    ("windows", re.compile(
+        r"^what(?:'s| is| are)? (?:apps?|programs?|windows?)(?: are| is)? (?:open|running|up)"
+        r"(?: right now| now| on (?:this|the|my) (?:computer|machine|pc|laptop|screen))?$"
+        r"|^what(?:'s| is) (?:open|on (?:my|the) screen)(?: right now| now)?$"
+        r"|^what (?:do (?:i|you) have|have i got) open(?: right now| now)?$")),
     # The third question. It has a `recollection` pattern for the model's
     # context and no fast answer, so "what went wrong today" paid a round
     # trip to read out alerts that are a file read away.
@@ -1837,7 +1859,55 @@ def _machine() -> str:
     return said + "."
 
 
+def _disk() -> str:
+    from aletheia import machine
+    try:
+        found = machine.disk()
+    except machine.UnknownMachine:
+        return "I can't read this computer's disk right now."
+    total, free = int(found.get("total") or 0), int(found.get("free") or 0)
+    if not total:
+        return "I can't read this computer's disk right now."
+    said = f"{machine.gigabytes(free)} free of {machine.gigabytes(total)} on this drive"
+    if free < 10 * 1024 ** 3:
+        said += " - that's getting tight"
+    return said + "."
+
+
+def _ip() -> str:
+    from aletheia import machine
+    found = machine.ip_address()
+    return (f"This computer's address on the network is {found}."
+            if found else "This computer has no network address right now - it looks offline.")
+
+
+def _internet() -> str:
+    from aletheia import machine
+    return ("Yes - the internet is reachable from here."
+            if machine.internet_reachable()
+            else "No - I can't reach the internet from this computer right now.")
+
+
+def _windows() -> str:
+    from aletheia import machine, speech
+    titles = machine.open_windows()
+    if not titles:
+        return "I can't see any open windows from here."
+    apps: list[str] = []
+    for title in titles:
+        app = machine.app_of(title)
+        if app and app not in apps:
+            apps.append(app)
+    said = speech.and_list(apps[:8])
+    more = f", and {len(apps) - 8} more" if len(apps) > 8 else ""
+    return f"Open right now: {said}{more}."
+
+
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
+           "disk": lambda rest: _disk(),
+           "ip": lambda rest: _ip(),
+           "internet": lambda rest: _internet(),
+           "windows": lambda rest: _windows(),
            "opportunity": _opportunity,
            "unattended": lambda rest: _unattended(),
            "pursuit_count": lambda rest: _pursuit_count(),

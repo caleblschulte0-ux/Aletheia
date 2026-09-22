@@ -437,7 +437,10 @@ HIS_WORDS = ("text", "description", "item", "body", "question", "goal",
 # number" read as him rather than as somebody called "my email".
 _FIRST_PERSON = frozenset({"my", "our", "mine"})
 _DETAIL_WORDS = frozenset({"email", "phone", "number", "address", "details",
-                           "cell", "mobile", "e-mail", "telephone"})
+                           "cell", "mobile", "e-mail", "telephone",
+                           # "what's my ip address" searched his contacts for
+                           # somebody called "my ip" (2026-09-22)
+                           "ip", "mac"})
 
 
 def _is_about_himself(captured: str) -> bool:
@@ -1221,8 +1224,13 @@ def _interpret(transcript: str) -> dict:
 
     # what is set, and stopping one. Before the "remind me" patterns so a
     # question about reminders is never read as a request for a new one.
+    # "Do I have any reminders set" waited two minutes on her own model
+    # for a store this branch reads (2026-09-22): the question in the
+    # shape of a yes/no is the same question.
     if re.fullmatch(r"(what|which) reminders? (do i have|are set|have i got)"
                     r"|what am i being reminded (of|about)"
+                    r"|(do i have|have i got|are there|is there) (any |a )?reminders?( set| pending| coming up)?"
+                    r"|any reminders( set| pending| coming up)?"
                     r"|list (my )?reminders|my reminders|reminders", low):
         return {"command": {"kind": "reminders"}, "say": None}
     m = re.match(r"(?:cancel|stop|delete|turn off|remove) (?:the |my |that )?"
@@ -2171,6 +2179,15 @@ def _interpret(transcript: str) -> dict:
                 r"[a-z0-9]", low):
         from aletheia import music as _music
         return {"command": None, "say": _music.cannot_choose()}
+    # "What song is this" is the same honest half, asked the other way:
+    # a media key does not tell her what is playing.
+    if re.fullmatch(r"what(?:'s| is) (?:this|that|playing|this song|that song|the song)"
+                    r"(?: song| called| playing)?(?: right now| now)?"
+                    r"|(?:what|which) song is (?:this|that|playing|on)(?: right now| now)?"
+                    r"|who (?:sings|is) this(?: song)?", low):
+        return {"command": None,
+                "say": "I can't see what's playing - the media keys only play, pause "
+                       "and skip. The player's window has the name."}
 
     # HIS CHATGPT SUBSCRIPTION AS A SECOND WORKER. Granting it is a
     # deliberate act and stopping it is instant, the same asymmetry as

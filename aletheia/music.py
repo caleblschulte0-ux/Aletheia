@@ -121,7 +121,7 @@ def control(what: str, *, sleep=time.sleep) -> str:
     if what not in KEYS:
         raise MusicUnavailable(
             f"I don't know how to {what or 'do that'} — I can play, pause, "
-            "skip and go back.")
+            "skip, go back, and turn the volume up, down or off.")
 
     opened = ""
     if what == "play" and not player_running():
@@ -138,8 +138,12 @@ def control(what: str, *, sleep=time.sleep) -> str:
             "I couldn't reach the media keys on this machine.")
     journal.append("action", "music", f"pressed {what}", actor=ACTOR)
 
+    # EVERY key in KEYS has a sentence: "turn the volume up" pressed the key
+    # and then said "That failed: KeyError: 'volume_up'" (2026-09-22).
     said = {"play": "Play.", "pause": "Paused.", "next": "Skipped.",
-            "previous": "Back one.", "stop": "Stopped."}[what]
+            "previous": "Back one.", "stop": "Stopped.", "volume_up": "Louder.",
+            "volume_down": "Quieter.", "mute": "Sound off — say it again to bring it back."}
+    said = said.get(what, f"Pressed {what.replace('_', ' ')}.")
     # NOT "it's playing". A media key is fire-and-forget and nothing
     # confirms the player acted, so the sentence describes what she did.
     return opened + said
