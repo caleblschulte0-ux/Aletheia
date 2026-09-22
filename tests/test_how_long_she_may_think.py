@@ -171,6 +171,14 @@ class SheStaysWarmForTheRoomAndNotForADraft(unittest.TestCase):
         self.assertEqual(self.payload_keep_alive(self.configured(attention=BACKGROUND)),
                          local_brain.BACKGROUND_KEEP_ALIVE)
 
+    def test_background_work_with_no_number_gets_the_background_budget(self):
+        # Measured 2026-09-21 23:01: a background pass that named no number
+        # got the fast role's 12 s and died at 12.2 s loading a 5 GB model.
+        config = self.configured(attention=BACKGROUND)
+        self.assertEqual(config.timeout_s, work_states.local_ceiling_s(BACKGROUND))
+        # ...while a conversation with no number keeps its quick default
+        self.assertEqual(self.configured().timeout_s, local_model_pool.FAST_TIMEOUT_S)
+
     def test_his_machine_still_wins(self):
         # 16 GB, and his job loop shares it: what the memory can afford is his
         # to say, and it is not something a caller knows.

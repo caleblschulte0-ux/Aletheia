@@ -322,28 +322,65 @@ Answer with ONE JSON object:
 """
 
 COMPACT_BRIEF = """Decide what, if anything, would help ONE opportunity. Evidence has ids.
-Propose at most two moves from the catalog, each with a reason and the evidence
-ids it rests on, or none. Never invent facts. Answer with one JSON object:
+Look for ONE concrete match between what they ask for and what he has.
+Propose at most two moves from the catalog, or none. Every move must carry
+"quote": an exact sentence copied from the evidence it rests on - if you
+cannot quote it, do not propose it. Never invent facts. Answer with one JSON object:
 {"understanding": "...", "uncertainty": [], "strategy": "...",
  "effort": {"minutes": 0, "why": "..."},
- "moves": [{"kind": "...", "why": "...", "cites": ["e1"], "detail": {}}],
+ "moves": [{"kind": "...", "why": "...", "cites": ["e1"], "quote": "...", "detail": {}}],
  "stop": {"done": true, "why": "..."}}
 """
+#: A quote shorter than this is not a quote.
+MIN_QUOTE_CHARS = 20
+
+
+def _quoted(move_raw: dict, record: dict, cites: list[str]) -> bool:
+    """Does the move carry a verbatim line from the evidence it cites?
+
+    The rule `page_answer` already uses for her own model: it may only
+    answer by QUOTING what she holds, because an invented answer comes with
+    an invented quote and an invented quote is checkable. A move with no
+    quote, or a "quote" that is not in the cited evidence, is dropped.
+    """
+    quote = " ".join(str(move_raw.get("quote") or "").split()).casefold()
+    if len(quote) < MIN_QUOTE_CHARS:
+        return False
+    held = {row["id"]: " ".join(str(row.get("text", "")).split()).casefold()
+            for row in record.get("evidence", [])}
+    return any(quote in held.get(cid, "") for cid in cites)
 
 
 def _evidence_text(record: dict, budget: int) -> list[dict]:
-    """The newest evidence first, cut to `budget` characters in total."""
-    rows, used = [], 0
-    for row in reversed(record.get("evidence", [])):
+    """Every piece of evidence, cut to `budget` characters in total.
+
+    An EVEN share each, with what a short piece leaves over passed to the
+    long ones - not newest-first: at her own model's 3 KB the first live
+    pass (2026-09-22) filled the budget with his background and never
+    showed the posting at all, and then reasoned about a role it had not
+    read.
+    """
+    rows = [r for r in record.get("evidence", []) if str(r.get("text", "")).strip()]
+    if not rows:
+        return []
+    shares = {r["id"]: 0 for r in rows}
+    left = budget
+    pending = sorted(rows, key=lambda r: len(str(r["text"])))
+    while pending and left > 0:
+        each = left // len(pending)
+        row = pending.pop(0)
+        take = min(len(str(row["text"])), max(each, 80))
+        shares[row["id"]] = take
+        left -= take
+    out = []
+    for row in rows:
         text = str(row.get("text", ""))
-        room = budget - used
-        if room <= 80:
-            break
-        cut = text[:room]
-        rows.append({"id": row["id"], "kind": row["kind"], "provenance": row.get("provenance", ""),
-                     "text": cut + ("…" if len(text) > len(cut) else "")})
-        used += len(cut)
-    return list(reversed(rows))
+        cut = text[:shares[row["id"]]]
+        if not cut:
+            continue
+        out.append({"id": row["id"], "kind": row["kind"], "provenance": row.get("provenance", ""),
+                    "text": cut + ("…" if len(text) > len(cut) else "")})
+    return out
 
 
 def context_for(record: dict, *, compact: bool = False, now: dt.datetime | None = None) -> dict:
@@ -378,8 +415,15 @@ def _clean(text, limit: int) -> str:
     return " ".join(_CITE_MARK.sub("", str(text or "")).split())[:limit]
 
 
-def validate(proposal: dict, record: dict) -> tuple[dict, list[dict]]:
-    """The model's answer, held to the rules. Returns (kept proposal, dropped moves)."""
+def validate(proposal: dict, record: dict, *, quoting: bool = False) -> tuple[dict, list[dict]]:
+    """The model's answer, held to the rules. Returns (kept proposal, dropped moves).
+
+    `quoting` is the stricter line her own model is held to: a move that
+    does something (not wait, leave or close) must quote the evidence it
+    cites, verbatim. The first pass on her own model alone (2026-09-22,
+    557 s) filed a suggestion that suggested nothing - fluent filler in
+    the right shape - and a quote is the one thing filler cannot supply.
+    """
     if not isinstance(proposal, dict):
         raise ValueError("the answer is not an object")
     held = {row["id"] for row in record.get("evidence", [])}
@@ -402,6 +446,9 @@ def validate(proposal: dict, record: dict) -> tuple[dict, list[dict]]:
             continue
         if not cites:
             dropped.append({"kind": kind, "why": "it cites no evidence she holds"})
+            continue
+        if quoting and kind not in ("wait", "leave", "close") and not _quoted(raw, record, cites):
+            dropped.append({"kind": kind, "why": "it quotes nothing from the evidence it cites"})
             continue
         if kind not in MOVES:
             detail = {"idea": _clean(raw.get("kind"), 200) + ": " + _clean(detail.get("idea") or why, 400)}
@@ -481,6 +528,9 @@ def _gateway_think():
 
     def think(record: dict, now: dt.datetime) -> tuple[dict, dict]:
         validator = lambda out: validate(out, record)[0]
+        # her own model is held to the quoting line; `reason` re-validates
+        # the same way once it knows which rung answered
+        quoting = lambda out: validate(out, record, quoting=True)[0]
         ask = "What, if anything, would help this opportunity along?"
         try:
             if reasoning_gateway.frontier_available():
@@ -488,24 +538,32 @@ def _gateway_think():
                     BRIEF, ask, context=context_for(record, now=now), policy="standard",
                     validator=validator, attention=work_states.BACKGROUND,
                     max_context_bytes=MAX_CONTEXT_BYTES)
-            elif reasoner.codex_available()[0]:
+                provider = str(got.provider or "")
+                return got.output, {"provider": provider[:120], "local": provider.startswith("ollama:")}
+            if not reasoning_gateway.frontier_off() and reasoner.codex_available()[0]:
                 # The job hunt's own chain (his 2026-09-13 ruling: Claude,
                 # then Codex on his ChatGPT subscription, then her own
                 # model). The gateway carries no Codex rung, and while
                 # Claude rests this is the difference between a pass and
-                # a day of "nobody could think".
-                out = reasoner.codex_json(BRIEF, ask, context=context_for(record, now=now),
-                                          validator=validator, max_context_bytes=MAX_CONTEXT_BYTES)
-                return out, {"provider": reasoner.CODEX_PROVIDER, "local": False}
-            else:
-                room, why = reasoner.local_allowed()
-                if not room:
-                    # Asking a starved model is a timeout, not an answer.
-                    raise reasoner.ReasonerUnavailable(f"my own model has no room to think: {why}")
-                got = reasoning_gateway.local_json(
+                # a day of "nobody could think". Codex saying it is out is
+                # a reason to go on down, not to stop: measured 2026-09-22,
+                # "Codex is out until 1:04 AM" escaped and ended the pass.
+                try:
+                    out = reasoner.codex_json(BRIEF, ask, context=context_for(record, now=now),
+                                              validator=validator, max_context_bytes=MAX_CONTEXT_BYTES)
+                    return out, {"provider": reasoner.CODEX_PROVIDER, "local": False}
+                except reasoner.ReasonerUnavailable:
+                    pass
+            room, why = reasoner.local_allowed()
+            if not room:
+                # Asking a starved model is a timeout, not an answer.
+                raise reasoner.ReasonerUnavailable(f"my own model has no room to think: {why}")
+            got = reasoning_gateway.local_json(
                     COMPACT_BRIEF, "What, if anything, would help this opportunity?",
                     context=context_for(record, compact=True, now=now), role="fast",
-                    validator=validator, attention=work_states.BACKGROUND)
+                    validator=quoting, attention=work_states.BACKGROUND,
+                    timeout_s=work_states.local_ceiling_s(work_states.BACKGROUND),
+                    think_override=False)
         except local_model_pool.LocalPoolUnavailable as exc:
             # Her own model timing out, or stepping aside for a conversation,
             # is "nobody could think just now" - the same thing as a spent
@@ -526,7 +584,7 @@ def reason(oid: str, *, think=None, now: dt.datetime | None = None) -> dict:
     think = think or _gateway_think()
     record = load(oid)
     raw, drafted_by = think(record, now)
-    clean, dropped = validate(raw, record)
+    clean, dropped = validate(raw, record, quoting=bool(drafted_by.get("local")))
     with _LOCK:
         record = load(oid)
         record["understanding"] = clean["understanding"] or record.get("understanding", "")

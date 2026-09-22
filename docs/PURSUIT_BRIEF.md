@@ -483,3 +483,23 @@ That is the standard.
   left alone after applying" happened on its own. Still to see: the first
   outcome recorded from a real reply, and a pass that chooses a note or a
   document for a real opportunity.
+
+- **2026-09-22 — the floor, measured.** His words: *"it really needs to be
+  able to handle a lot when there's no frontier model available."* The
+  first night on his PC, Claude's subscription resting and Codex's window
+  spent, every pass died on her own model. Five causes, each fixed as a
+  class with a test: a background pass with no number got a conversation's
+  12 s (it now gets the background budget); the job hunt's own local calls
+  ran as a *conversation*, so every real background call on the machine
+  was put down for a batch nobody was waiting on (they are WORK now, with
+  work's budget); Codex saying it was out ended the pass instead of
+  falling through; the compact context was filled newest-first and her
+  own model never saw the posting (even shares of every piece now); and
+  fluent filler in the right shape ("propose something that would help")
+  came through — her own model is held to QUOTING: a move must carry a
+  verbatim line from the evidence it cites or it is dropped (the rule
+  `page_answer` already uses). The model stays warm ten minutes between
+  passes instead of thirty seconds (a cold load is ~100 s here).
+  Measured on his laptop, every frontier switched off, qwen3:8b: 557 s
+  cold, 157 s warm, and the answer is one honest sentence and no invented
+  move. Slow, quiet, true — that is the floor.

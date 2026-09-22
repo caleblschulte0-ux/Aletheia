@@ -159,6 +159,81 @@ class TheRulesOnAMoveCase(PursuitCase):
         self.assertNotIn("what_has_happened_elsewhere", compact)
 
 
+class HerOwnModelIsHeldToQuotingCase(PursuitCase):
+    """The first pass on her own model alone (2026-09-22, 557 s) filed a
+    suggestion that suggested nothing: fluent filler in the right shape.
+    A quote is the one thing filler cannot supply."""
+
+    POSTING = "They want someone who knows funding partners and has run lender onboarding."
+
+    def test_a_local_move_that_quotes_nothing_is_dropped(self):
+        rec = self.opportunity(posting=self.POSTING)
+        clean, dropped = pursuit.validate(
+            {"moves": [{"kind": "suggest", "why": "propose something that aligns with his background",
+                        "cites": ["e1"], "detail": {"idea": "propose something"}}]}, rec, quoting=True)
+        self.assertEqual(clean["moves"], [])
+        self.assertIn("quotes nothing", dropped[0]["why"])
+
+    def test_a_local_move_with_a_verbatim_quote_is_kept(self):
+        rec = self.opportunity(posting=self.POSTING)
+        clean, _ = pursuit.validate(
+            {"moves": [{"kind": "write", "why": "his lender onboarding work is exactly what they name",
+                        "cites": ["e1"], "quote": "has run lender onboarding",
+                        "detail": {"title": "Lender onboarding", "text": "x", "grounded_on": ["e1"]}}]},
+            rec, quoting=True)
+        self.assertEqual(clean["moves"][0]["kind"], "write")
+
+    def test_an_invented_quote_is_not_in_the_evidence_and_is_dropped(self):
+        rec = self.opportunity(posting=self.POSTING)
+        clean, dropped = pursuit.validate(
+            {"moves": [{"kind": "look", "why": "they mention a product launch worth reading about",
+                        "cites": ["e1"], "quote": "we just launched a new lending product this quarter",
+                        "detail": {"query": "their launch"}}]}, rec, quoting=True)
+        self.assertEqual(clean["moves"], [])
+
+    def test_waiting_and_leaving_need_no_quote(self):
+        rec = self.opportunity(posting=self.POSTING)
+        clean, _ = pursuit.validate(
+            {"moves": [{"kind": "wait", "why": "nothing has happened yet, look again later",
+                        "cites": ["e1"], "detail": {"days": 4}}]}, rec, quoting=True)
+        self.assertEqual(clean["moves"][0]["kind"], "wait")
+
+    def test_the_frontier_is_not_held_to_quoting_but_her_own_model_is(self):
+        rec = self.opportunity(posting=self.POSTING)
+        proposal = {**NOTHING, "stop": {"done": False, "why": ""}, "effort": {"minutes": 5, "why": "x"},
+                    "moves": [{"kind": "suggest", "why": "a specific reason that is long enough",
+                               "cites": ["e1"], "detail": {"idea": "a real idea"}}]}
+        with mock.patch("aletheia.notifications.publish"):
+            frontier = pursuit.reason(rec["id"], think=lambda r, n: (proposal, {"provider": "claude", "local": False}), now=NOW)
+        self.assertEqual(len(frontier["moves"]), 1)
+        rec2 = pursuit.open_opportunity(key="thing-2", name="n", objective="o", now=NOW)
+        pursuit.add_evidence(rec2, "posting", self.POSTING, source="test", now=NOW)
+        pursuit.save(rec2)
+        local = pursuit.reason(rec2["id"], think=lambda r, n: (proposal, {"provider": "ollama:x", "local": True}), now=NOW)
+        self.assertEqual(local["moves"], [])
+        self.assertIn("quotes nothing", local["dropped"][0]["why"])
+
+
+class EveryPieceOfEvidenceIsShownCase(PursuitCase):
+    def test_a_small_budget_shows_a_share_of_each_piece_not_the_newest_whole(self):
+        # At her own model's 3 KB the first live pass never saw the posting.
+        rec = self.opportunity(posting="P" * 4000)
+        pursuit.add_evidence(rec, "his background", "B" * 4000, source="test", now=NOW)
+        pursuit.add_evidence(rec, "his facts", "F" * 100, source="test", now=NOW)
+        pursuit.save(rec)
+        shown = pursuit._evidence_text(rec, 3000)
+        kinds = [r["kind"] for r in shown]
+        self.assertEqual(kinds, ["posting", "his background", "his facts"])
+        self.assertLessEqual(sum(len(r["text"]) for r in shown), 3000 + 3 * 2)
+        self.assertEqual(len(shown[2]["text"]), 100)      # a short piece is whole
+        self.assertGreater(len(shown[0]["text"]), 1200)    # the long ones share the rest
+
+    def test_a_big_budget_shows_everything_whole(self):
+        rec = self.opportunity(posting="short posting")
+        shown = pursuit._evidence_text(rec, 12_000)
+        self.assertEqual(shown[0]["text"], "short posting")
+
+
 class NothingIsFixedAfterwardsCase(PursuitCase):
     """The brief's test: there is no answer to "what does she always do next"."""
 
@@ -372,6 +447,39 @@ class TheBeatCase(PursuitCase):
         self.assertFalse(local.called)
         self.assertEqual(out, answer)
         self.assertFalse(drafted_by["local"])
+
+    def test_codex_saying_it_is_out_falls_through_to_her_own_model(self):
+        from aletheia import reasoner, reasoning_gateway
+        rec = self.opportunity()
+        think = pursuit._gateway_think()
+        got = mock.Mock(output={**NOTHING}, provider="ollama:qwen3:8b")
+        with mock.patch.object(reasoning_gateway, "frontier_available", return_value=False), \
+             mock.patch.object(reasoning_gateway, "frontier_off", return_value=False), \
+             mock.patch.object(reasoner, "codex_available", return_value=(True, "")), \
+             mock.patch.object(reasoner, "codex_json", side_effect=reasoner.ReasonerUnavailable("Codex is out")), \
+             mock.patch.object(reasoner, "local_allowed", return_value=(True, "")), \
+             mock.patch.object(reasoning_gateway, "local_json", return_value=got) as local:
+            out, drafted_by = think(rec, NOW)
+        self.assertTrue(local.called)
+        self.assertTrue(drafted_by["local"])
+        # and the local rung gets the background budget, thinking off
+        self.assertGreaterEqual(local.call_args.kwargs["timeout_s"], 600)
+        self.assertIs(local.call_args.kwargs["think_override"], False)
+
+    def test_with_every_frontier_switched_off_codex_is_not_asked_either(self):
+        # A probe with the frontier off must read the bottom rung alone.
+        from aletheia import reasoner, reasoning_gateway
+        rec = self.opportunity()
+        think = pursuit._gateway_think()
+        got = mock.Mock(output={**NOTHING}, provider="ollama:qwen3:8b")
+        with mock.patch.object(reasoning_gateway, "frontier_available", return_value=False), \
+             mock.patch.object(reasoning_gateway, "frontier_off", return_value=True), \
+             mock.patch.object(reasoner, "codex_available", return_value=(True, "")) as codex_avail, \
+             mock.patch.object(reasoner, "codex_json") as codex, \
+             mock.patch.object(reasoner, "local_allowed", return_value=(True, "")), \
+             mock.patch.object(reasoning_gateway, "local_json", return_value=got):
+            think(rec, NOW)
+        self.assertFalse(codex.called)
 
     def test_a_starved_own_model_is_not_asked(self):
         from aletheia import reasoner, reasoning_gateway
