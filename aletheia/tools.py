@@ -77,6 +77,7 @@ DESTRUCTIVE_KINDS = frozenset({
     "file_delete", "forget", "halt", "close", "agent_stop", "agents_pause",
     "shopping_off", "reminder_off", "notify_clear", "screen_record_stop",
     "subscription_cancel", "chatgpt_off", "eyes_off", "mic_off", "project_drop",
+    "apply_pause",
 })
 
 #: Kinds that set a state rather than add to one: saying them twice leaves
@@ -86,7 +87,7 @@ IDEMPOTENT_KINDS = frozenset({
     "task_status", "task_done", "plan_step", "plan_set", "announce_set",
     "mic_off", "mic_on", "chatgpt_off", "eyes_off", "halt", "resume", "close",
     "open", "reminder_off", "shopping_off", "notify_clear", "rule", "approve",
-    "deny", "remember", "apply_outcome", "file_write",
+    "deny", "remember", "apply_outcome", "file_write", "apply_pause",
 })
 
 #: Read-only kinds a LOCAL model is not shown even though nothing stops it
@@ -131,7 +132,7 @@ STORE_OF = {
     "project_new": "charters", "project_step": "charters", "project_drop": "charters",
     "applications": "applications", "apply_prepare": "applications",
     "apply_campaign": "applications", "apply_answer": "applications",
-    "apply_outcome": "applications",
+    "apply_outcome": "applications", "apply_pause": "applications",
     "file_list": "workspace", "file_read": "workspace", "file_find": "workspace",
     "file_size": "workspace", "file_write": "workspace", "file_edit": "workspace",
     "file_move": "workspace", "file_delete": "workspace", "compose": "workspace",
@@ -265,7 +266,7 @@ OUTWARD_ALWAYS = frozenset({
     # deleting for good
     "forget",
     # authority, and the switches that are authority
-    "approve", "deny", "resume", "halt", "close", "open", "rule",
+    "approve", "deny", "resume", "halt", "close", "open", "rule", "apply_pause",
     "study_decide", "study_confirm", "mission_confirm",
     # his desktop, and a new worker with capacity of its own
     "computer_do", "agent_new",
@@ -287,7 +288,7 @@ UI_BY_TIER = {intercom.TIER_READ: "answer", intercom.TIER_ROUTINE: "form",
               intercom.TIER_WORLD: "approval"}
 SWITCH_KINDS = frozenset({"mic_on", "mic_off", "eyes_on", "eyes_off", "chatgpt_on",
                           "chatgpt_off", "halt", "resume", "close", "open",
-                          "announce_set"})
+                          "announce_set", "apply_pause"})
 
 
 def derive_consequence(*, name: str, risk: str, touches: tuple[str, ...],
@@ -714,7 +715,7 @@ SPOKEN_GROUPS_BY_NAME: dict[str, tuple[str, ...]] = {
     "working on your projects on your say-so": ("work_projects", "work_report"),
     "studying what does better and improving your projects": ("study_new", "studies", "study_decide",
                                                               "study_confirm"),
-    "job applications": ("jobs", "apply_prepare", "apply_campaign", "apply_answer",
+    "job applications": ("jobs", "apply_prepare", "apply_campaign", "apply_pause", "apply_answer",
                          "applications", "apply_outcome"),
     "money you spend": ("money", "subscriptions", "subscription_cancel"),
     "your car and journeys": ("car", "travel_time"),

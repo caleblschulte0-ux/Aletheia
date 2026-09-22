@@ -181,7 +181,11 @@ class TheKillSwitchIsNotSomethingASENTENCECanTrip(unittest.TestCase):
                                     "close", "open", "mic_on", "eyes_on",
                                     # 2026-09-17: a study's proposal is accepted, kept or
                                     # reverted, and its comparables confirmed, on HIS words
-                                    "study_decide", "study_confirm"}))
+                                    "study_decide", "study_confirm",
+                                    # 2026-09-22: "stop applying" is his word; a compiler that
+                                    # can pause the job hunt from "hold on a sec" is a compiler
+                                    # that stops the one thing he asked her to keep doing
+                                    "apply_pause"}))
 
     def test_the_agenda_refuses_the_same_ones(self):
         """Two lists that disagree is one list that is wrong."""

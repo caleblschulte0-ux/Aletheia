@@ -73,6 +73,8 @@ FORBIDDEN_KINDS = {
     "approve", "deny",
     # a kill switch the agent can lift is decoration
     "halt", "resume",
+    # "stop applying" is his word, never an agenda's guess
+    "apply_pause",
     # ...and neither is an off switch it can press. `close` stops the Core,
     # the room microphone and the project loop; an agenda reaching it
     # mid-mission would shut her down in the middle of his work and look,
@@ -104,6 +106,7 @@ FORBIDDEN_KINDS = {
 
 REFUSAL_REASON = {
     "close": "an agenda that can close her can close her mid-mission",
+    "apply_pause": "stopping the job hunt is his word, not a mission's",
     "mic_on": "the microphone is a button he presses, not a step in a mission",
     "eyes_on": "looking at the actual picture of his screen is his to switch on",
     "open": "opening her again is his, not a mission's",
