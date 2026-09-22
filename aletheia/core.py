@@ -262,7 +262,14 @@ RESTART_EXIT_CODE = 42  # tells the supervisor: relaunch me, this is not a crash
 # setup_status makes real network attempts on purpose — an IMAP login, a
 # request to the hub, a PowerShell probe — so it belongs here too. Measured
 # live: 20.9s. The room gets an acknowledgement and the answer when it lands.
-SLOW_KINDS = {"intent", "screen_ask", "setup_status"}
+SLOW_KINDS = {"intent", "screen_ask", "setup_status",
+              # Searches and pages: a research question opens the pages it
+              # cites and writes a sourced report - half a minute with a
+              # frontier, minutes on her own model. Run inline it held the
+              # spoken door open until the room gave up (2026-09-22, every
+              # frontier off: the client timed out at 180 s while she was
+              # still reading). Answered as a follow-up, like an intent.
+              "research", "web_task", "web_task_retry", "web_task_answer"}
 
 
 def answered_now(cmd: dict) -> str | None:

@@ -53,6 +53,10 @@ ACTOR = "aletheia-research"
 MAX_SOURCES = 5
 MAX_QUERIES = 3
 MAX_EXTRACT_CHARS = 6_000
+#: What her own model is shown when it writes the report alone: measured on
+#: his laptop, ~3 KB of context is the whole of what qwen3:8b finishes in
+#: its ceiling with the machine busy.
+LOCAL_REPORT_BYTES = 3_000
 MAX_QUESTION_CHARS = 500
 SEARCH_URL = "https://duckduckgo.com/html/?q={}"
 # Engines, in the order she tries them. The first live run (2026-09-02)
@@ -111,6 +115,32 @@ RULES, and the first is absolute:
 
 class ResearchError(RuntimeError):
     pass
+
+
+#: Words a person drops when they type a question into a search box.
+_ASK_FILLER = ("look into whether", "look into", "find out whether", "find out if", "find out about",
+               "find out", "what do you know about", "can you check whether", "can you check if",
+               "check whether", "check if", "tell me whether", "tell me if", "tell me about",
+               "research", "please", "for me", "i want to know if", "i want to know", "whether", "if")
+
+
+def queries_without_a_model(question: str) -> dict:
+    """The search queries a person would type, from the question alone.
+
+    The question first, as said; then the same with the asking-words gone,
+    when that leaves something different. Deterministic, so the bottom rung
+    can search when nobody can think."""
+    said = " ".join(str(question or "").split()).rstrip("?.! ")
+    stripped = said.casefold()
+    for filler in _ASK_FILLER:
+        if stripped.startswith(filler + " "):
+            stripped = stripped[len(filler) + 1:]
+    stripped = stripped.strip(" ,")
+    queries = [said[:200]]
+    if stripped and stripped != said.casefold() and len(stripped) >= 8:
+        queries.append(stripped[:200])
+    return {"queries": queries[:MAX_QUERIES],
+            "why": "nobody could plan the search, so the question itself is the query"}
 
 
 def _plan_validator(value: dict) -> dict:
@@ -485,15 +515,33 @@ def run(question: str, *, reader=browse.read_page, think=None,
     # A CLASS of reasoning, not a company (docs/REASONING_CLASSES.md): picking
     # search queries is routine (her own model first); writing the cited
     # report is standard (frontier first, her own model when it is out).
+    alone = False
     if think is None:
-        from aletheia import reasoning_gateway
-        plan_think = reasoning_gateway.thinker("routine")
-        think = reasoning_gateway.thinker("standard")
+        from aletheia import reasoning_gateway, work_states
+        alone = not reasoning_gateway.frontier_available()
+        # ALONE, RESEARCH IS BACKGROUND WORK. Measured 2026-09-22 on his
+        # laptop beside a job batch: the plan came back on her own model in
+        # 45 s and the report died at the 300 s attended ceiling. He asked,
+        # and the answer reaches him as a follow-up when it exists
+        # (`core.SLOW_KINDS`); what buys her own model the room to finish is
+        # saying so - and saying BACKGROUND is also saying WORK to the lease,
+        # so a real sentence of his still takes the queue.
+        attention = work_states.BACKGROUND if alone else work_states.ATTENDED
+        plan_think = reasoning_gateway.thinker("routine", attention=attention)
+        think = reasoning_gateway.thinker("standard", attention=attention)
     else:
         plan_think = think
 
-    plan = plan_think(PLAN_SYSTEM, question, model=reasoner.INTERPRET_MODEL,
-                 validator=_plan_validator)
+    try:
+        plan = plan_think(PLAN_SYSTEM, question, model=reasoner.INTERPRET_MODEL,
+                          validator=_plan_validator)
+    except reasoner.ReasonerUnavailable:
+        # PICKING A QUERY NEEDS NO MODEL. With every frontier off and her own
+        # model cold, "look into whether Ramp is hiring in Denver" died here
+        # in 16 s (2026-09-22) - before a single page was read - on a step a
+        # person does by typing the question into the box. The question IS
+        # the query; a model only ever made it a slightly better one.
+        plan = queries_without_a_model(question)
 
     candidates, seen_hosts = [], set()
     for query in plan["queries"]:
@@ -534,9 +582,15 @@ def run(question: str, *, reader=browse.read_page, think=None,
             "found " + speech.count_phrase(len(candidates), "candidate page")
             + " and could read none of them")
 
+    # THE LOCAL RUNG HAS TO FIT (CLAUDE.md). With no frontier, her own
+    # model writes the report, and 7.5 KB of extracts is a call it cannot
+    # finish inside its ceiling on his laptop (measured 2026-09-22: 420 s
+    # and no answer). Fewer words in, an answer out.
+    bounded = (_bounded(question, sources, limit=LOCAL_REPORT_BYTES) if alone
+               else _bounded(question, sources))
     report = think(
         WRITE_SYSTEM, question,
-        context={"question": question, "sources": _bounded(question, sources)},
+        context={"question": question, "sources": bounded},
         model=reasoner.PLAN_MODEL, validator=_report_validator)
     report = _verified(report, sources)
     report.update({
