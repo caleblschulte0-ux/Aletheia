@@ -1544,8 +1544,22 @@ def _interpret(transcript: str) -> dict:
     if not m:
         m = re.fullmatch(r"any (?:reply|replies|response|word|answer) (?:from|back from) (.+?)(?: yet)?", low)
     if m and not re.search(r"\bapplication\b", low):
-        which = m.group(1).strip()
-        which = "" if which in ("they", "them", "anyone", "anybody") else which
+        named = m.group(1).strip()
+        which = "" if named in ("they", "them", "anyone", "anybody") else named
+        # "Did anyone write back" with no conversation open is about his
+        # applications, not a thread she keeps: it answered "there's no
+        # conversation open right now" while an employer's reply sat on
+        # the record (2026-09-22). "They" still means the last thread;
+        # "anyone" with nothing open falls through to the fast lane's
+        # employer-replies reader.
+        if named in ("anyone", "anybody"):
+            try:
+                from aletheia import conversations
+                if not conversations.all_threads():
+                    m = None
+            except Exception:  # noqa: BLE001
+                pass
+    if m and not re.search(r"\bapplication\b", low):
         return {"command": {"kind": "thread_status", **({"which": which} if which else {})}, "say": None}
 
     # "When am I free next week for a tour": a stretch of days and a purpose,

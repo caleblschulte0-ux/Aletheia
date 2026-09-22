@@ -180,7 +180,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r" (?:go|gone|going)(?: today| so far| so far today)?$"
         r"|^how(?:'s| is) the (?:job )?(?:hunt|search|applications?)(?: going)?(?: today)?$"
         r"|^(?:did|have) (?:you|u) (?:apply|applied) to (?:any|anything|any jobs)(?: today)?$"
-        r"|^(?:job )?(?:applications|hunt) (?:status|today|report)$")),
+        r"|^(?:job )?(?:applications|hunt) (?:status|today|report)$"
+        # "What are you doing about the job hunt right now" waited two
+        # minutes on her own model with every frontier off (2026-09-22).
+        r"|^what (?:are|r) (?:you|u) doing (?:about|with|on|for) (?:the |my )?"
+        r"(?:job (?:hunt|search|applications?)|applications|jobs|hunt)(?: right now| today| at the moment)?$")),
     # ONE opportunity, by name. "How do you feel about the Anthropic
     # application" went to the planner and, with every frontier off, to
     # her own model for two minutes (2026-09-22) - and the opportunity
@@ -189,8 +193,17 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("opportunity", re.compile(
         r"^(?:how do (?:you|u) feel about|how(?:'s| is|s)?|what(?:'s| is|s)? (?:the plan|happening|going on|the story|the status) (?:with|for|on)|"
         r"where (?:are we|am i|do we stand) (?:with|on)|what about|any (?:news|word|movement|update) on|"
-        r"(?:what(?:'s| is|s)? the )?status of|how(?:'s| is) it going with|tell me about|what do (?:you|u) think (?:of|about))"
+        r"(?:what(?:'s| is|s)? the )?status of|how(?:'s| is) it going with|tell me about|what do (?:you|u) think (?:of|about)|"
+        r"what(?:'s| is|s)? next (?:for|on|with)|what(?:'s| is|s)? the next (?:step|move) (?:for|on|with)|"
+        r"what (?:are|r) (?:you|u) doing (?:about|with|on|for))"
         r" (?:the |my |our )?(?P<what>.+?) (?:application|app|job|role|opportunity|position|posting)(?: going| doing| looking)?$")),
+    # "How many opportunities are you working on" came back from her own
+    # model as "opportunity tracking is experimental for me right now, not
+    # something I run live yet" - while forty of them sat in her store.
+    ("pursuit_count", re.compile(
+        r"^how many (?:opportunities|jobs|applications|things|roles) (?:are|r) (?:you|u) "
+        r"(?:working on|pursuing|carrying|tracking|chasing|following up on|looking after)(?: right now| at the moment)?$"
+        r"|^what (?:opportunities|jobs) (?:are|r) (?:you|u) (?:working on|pursuing|carrying|chasing)(?: right now)?$")),
     # "What did you do without asking me" is the honesty question the
     # autonomy ledger exists for (CLAUDE.md), and with every frontier off
     # it went to her own model for two minutes (2026-09-22). A file read.
@@ -414,7 +427,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:did|have) i (?:get|got|gotten|receive|received|hear) (?:any |anything )?(?:replies|responses|"
         r"back|any(?:thing)? back)(?: yet| today| from anyone)?$"
         r"|^any (?:replies|responses|word|news)(?: from (?:employers|anyone|the jobs))?(?: yet| today)?$"
-        r"|^(?:has|did) anyone (?:replied|reply|written back|write back|got back|get back)(?: to me)?(?: yet)?$")),
+        r"|^(?:has|did) anyone (?:replied|reply|written back|write back|got back|get back)(?: to me)?(?: yet)?$"
+        # "Which jobs have replied" / "who wrote back" waited two minutes on
+        # her own model with every frontier off (2026-09-22); the answer is
+        # the application records.
+        r"|^(?:which|what) (?:jobs|applications|apps|companies|employers|places) (?:have |has )?"
+        r"(?:replied|written back|wrote back|got back|responded|gotten back)(?: to me)?(?: yet| so far)?$"
+        r"|^who (?:has |have )?(?:replied|written back|wrote back|got back|responded)(?: to me)?(?: yet| so far)?$"
+        r"|^(?:any|anyone|has anybody|any employers?) (?:written|wrote|got|gotten) back(?: to me)?(?: yet)?$")),
     # Why she is slow is a question about who is thinking.
     ("slow", re.compile(
         r"^why (?:are|r) (?:you|u) (?:so |being )?slow(?: today| right now)?$"
@@ -1036,6 +1056,34 @@ def _agenda(day: str = "today") -> str | None:
             + (f", and {len(rows) - 6} more" if len(rows) > 6 else "") + ".")
 
 
+def _last_reply_on_record(days: int = 14) -> str:
+    """" The last was DevRev, on Tuesday." - or "" when there is none."""
+    try:
+        import datetime as dt
+        from aletheia import apply_run, current_state
+        now = dt.datetime.now(dt.timezone.utc)
+        latest = None
+        for record in apply_run.all_runs():
+            for row in record.get("outcomes") or []:
+                when = str(row.get("at") or "")
+                try:
+                    stamp = dt.datetime.fromisoformat(when.replace("Z", "+00:00"))
+                except ValueError:
+                    continue
+                if (now - stamp).days > days:
+                    continue
+                if latest is None or stamp > latest[0]:
+                    latest = (stamp, record, row)
+        if latest is None:
+            return ""
+        stamp, record, row = latest
+        who = current_state.said_name(record.get("company", ""), record.get("job_title", ""))
+        day = "today" if stamp.date() == now.date() else stamp.strftime("%A")
+        return f" The last was {who} ({row.get('outcome', 'replied')}), {day}."
+    except Exception:
+        return ""
+
+
 def _replies() -> str | None:
     """Replies from employers today, from the application records."""
     try:
@@ -1047,7 +1095,9 @@ def _replies() -> str | None:
         return "I can't read my application records right now, so I can't say."
     rows = list(hunt.get("replies") or [])
     if not rows:
-        return "No replies from employers today."
+        # Not only today: "did anyone write back" on a Wednesday is about
+        # the week, and the last one on record is the honest answer.
+        return "No replies from employers today." + _last_reply_on_record()
     named = [f"{current_state.said_name(r.get('company', ''), r.get('job', ''))}"
              + (f" ({r['outcome']})" if r.get("outcome") else "") for r in rows[:4]]
     return (f"{speech.count_phrase(len(rows), 'reply', 'replies')} today: "
@@ -1504,6 +1554,23 @@ def _opportunity(rest: str) -> str | None:
     return f"I don't have an application to {words}."
 
 
+def _pursuit_count() -> str:
+    """How many opportunities she is carrying, from her own store."""
+    from aletheia import pursuit, speech
+    rows = pursuit.all_opportunities()
+    open_ = [r for r in rows if r.get("state") == pursuit.OPEN]
+    parked = [r for r in rows if r.get("state") == pursuit.PARKED]
+    if not open_ and not parked:
+        return "None yet: nothing has been applied to that I'm carrying."
+    said = speech.count_phrase(len(open_), "opportunity") + " I'm working on"
+    if parked:
+        said += f", and {speech.count_phrase(len(parked), 'more')} left alone until something happens"
+    replied = [r for r in rows if (r.get("outcome") or {}).get("kind") in ("replied", "conversation")]
+    if replied:
+        said += f". {speech.count_phrase(len(replied), 'employer')} wrote back"
+    return said + "."
+
+
 def _unattended() -> str:
     """What she did on her own, from the autonomy ledger - never a model."""
     from aletheia import autonomy
@@ -1528,6 +1595,7 @@ def _machine() -> str:
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "opportunity": _opportunity,
            "unattended": lambda rest: _unattended(),
+           "pursuit_count": lambda rest: _pursuit_count(),
            "machine": lambda rest: _machine(),
            "waiting": lambda rest: _waiting(),
            "doing": lambda rest: _doing(),
