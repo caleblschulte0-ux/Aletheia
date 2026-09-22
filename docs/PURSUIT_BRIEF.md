@@ -503,3 +503,21 @@ That is the standard.
   Measured on his laptop, every frontier switched off, qwen3:8b: 557 s
   cold, 157 s warm, and the answer is one honest sentence and no invented
   move. Slow, quiet, true — that is the floor.
+
+  Then, the same morning: with the fast model wanting 6 GB free and his
+  laptop holding 2, there was nothing beneath it, so the pool has a
+  `small` role (qwen3:4b, 2.6 GB) fetched once by her own self-healing —
+  which had been the LAST call in a 25 s beat and was skipped every beat
+  under load, so it is first now. One function says which of her models
+  may be asked (`reasoner.local_role_that_fits`); the job hunt's chain,
+  the pursuit and the local planner ask it. And with only her own model,
+  a pass waits for a running browser batch instead of timing out beside
+  it (one heavy thing at a time on four cores). Measured, qwen3:4b, every
+  frontier off, beside a running batch: 562 s cold, a grounded reading
+  (it saw "4+ years" against his seven and said so), no move that
+  quoted nothing, parked quietly. Overnight on his PC, 14 passes completed
+  on her own model and 240 opportunities had opened — most of them forms
+  waiting on his answers, which is why a form waiting on him now opens
+  nothing and parks what is open, and why her own model's prose is said
+  as what it did ("looked with my own model; nothing worth doing yet")
+  rather than read out as a plan.

@@ -992,6 +992,14 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
                              "error": f"{type(exc).__name__}: {exc}"[:300]})
             return []
 
+    # Her own model stays reachable without him: Ollama stopped is started,
+    # a missing model is fetched, once, in the background (the rung that
+    # never runs out has to be there). Rate-limited inside; a reachable pool
+    # costs one cached probe. FIRST, not last: it sat at the end of this
+    # beat behind a 25 s budget, and on a loaded night (2026-09-22) the beat
+    # ran out of time before it every time, so the smaller model was never
+    # fetched and the rung under the fast one never existed.
+    local_ai_heal = guarded("local_ai", _heal_local_ai)
     mail_events = guarded("mail", poll_mail_events)
     pulse_events = guarded("pulse", mirror_pulse_events)
     action_records = guarded("receipts", verification.reconcile_durable_receipts)
@@ -1059,11 +1067,6 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     subscriptions_settled = guarded(
         "subscriptions", lambda: [s["id"] for s in subscriptions.reconcile()])
     delivered = guarded("desktop", desktop_notify.deliver_pending)
-    # Her own model stays reachable without him: Ollama stopped is started,
-    # a missing model is fetched, once, in the background (the rung that
-    # never runs out has to be there). Rate-limited inside; a reachable pool
-    # costs one cached probe.
-    local_ai_heal = guarded("local_ai", _heal_local_ai)
     return {
         "failures": failures,
         "local_ai": local_ai_heal,
