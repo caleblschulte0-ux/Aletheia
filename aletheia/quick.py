@@ -229,6 +229,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what do (?:you|u) (?:know|have|remember) (?:about|on) me$"
         r"|^what have (?:you|u) (?:remembered|learned|got|saved) about me$"
         r"|^what(?:'s| is) (?:on file|in your memory) about me$|^tell me what (?:you|u) know about me$")),
+    # "Say that again" waited two minutes on her own model for her own last
+    # sentence, which the conversation thread holds (2026-09-22).
+    ("repeat", re.compile(
+        r"^(?:say that again|repeat that|come again|what did (?:you|u) just say|what was that|"
+        r"sorry,? what|pardon|say again|one more time|i didn'?t (?:catch|hear) that|what did (?:you|u) say)$")),
     # "Who is my landlord" came back from her own model as "no lease or
     # rental info connected here" - a capability she has, denied. The
     # person is remembered or he is asked, in words, never a model's guess.
@@ -1770,6 +1775,17 @@ def _about_him() -> str:
     return "Here's what I have: " + speech.and_list(facts[:12]) + "."
 
 
+def _repeat() -> str:
+    """Her last sentence, from the thread, said again."""
+    try:
+        from aletheia import converse
+        turns = converse.recent(limit=1)
+    except Exception:
+        turns = []
+    said = str((turns[-1] if turns else {}).get("she_said") or "").strip()
+    return f"I said: {said}" if said else "I haven't said anything yet this conversation."
+
+
 def _person(rest: str) -> str:
     """"Who is my landlord": the person remembered under that word."""
     from aletheia import memory
@@ -1830,6 +1846,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "applied_when": _applied_when,
            "about_him": lambda rest: _about_him(),
            "person": _person,
+           "repeat": lambda rest: _repeat(),
            "sent_today": lambda rest: _sent_today(),
            "machine": lambda rest: _machine(),
            "waiting": lambda rest: _waiting(),

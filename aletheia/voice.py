@@ -1094,6 +1094,13 @@ def _interpret(transcript: str) -> dict:
         if m:
             reason = m.group(1)
         return {"command": {"kind": "apply_pause", **({"reason": reason} if reason else {})}, "say": None}
+    # "YOU'RE WRONG" with nothing else waited two minutes on her own model
+    # to guess at a correction (2026-09-22). She asks for the correction
+    # instead: a correction she guesses at is a second mistake.
+    if re.fullmatch(r"(?:you'?re|that'?s|thats|youre) (?:wrong|not right|incorrect|mistaken|off)|wrong|"
+                    r"no,? that'?s (?:not it|wrong|not right)|not that|nope,? wrong", low):
+        return {"command": None,
+                "say": "Tell me what's wrong and I'll put it right - I won't guess at a correction."}
     # "THE OTHER ONE" with nothing before it. A follow-up word with an
     # empty thread went to the planner and waited two minutes on her own
     # model; the honest answer is instant and asks for the whole thing.
