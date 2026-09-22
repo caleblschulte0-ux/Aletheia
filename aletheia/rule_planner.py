@@ -123,10 +123,37 @@ def _browse_read(m, request):
     return {"url": url}, f"Read {_host(url)} and tell you what it says"
 
 
+#: Desktop programs he names, and the executable each one is. "Open
+#: chrome" was compiled as "open chrome in the browser" - a page named
+#: chrome - while `computer_do` could launch it all along (2026-09-22).
+#: A shell or interpreter is never here (computer.FORBIDDEN_APPS).
+APPS = {
+    "chrome": "chrome.exe", "google chrome": "chrome.exe", "edge": "msedge.exe",
+    "microsoft edge": "msedge.exe", "firefox": "firefox.exe", "notepad": "notepad.exe",
+    "word": "winword.exe", "microsoft word": "winword.exe", "excel": "excel.exe",
+    "powerpoint": "powerpnt.exe", "outlook": "outlook.exe", "spotify": "spotify.exe",
+    "calculator": "calc.exe", "the calculator": "calc.exe", "explorer": "explorer.exe",
+    "file explorer": "explorer.exe", "task manager": "taskmgr.exe", "paint": "mspaint.exe",
+    "discord": "discord.exe", "slack": "slack.exe", "teams": "ms-teams.exe", "zoom": "zoom.exe",
+    "vs code": "code.exe", "vscode": "code.exe", "visual studio code": "code.exe",
+}
+
+
+def _open_app(m, request):
+    what = _clean(m.group("what"))
+    app = APPS.get(what.casefold())
+    if not app:
+        return None
+    return ({"steps": [{"action": "open_app", "app": app, "arguments": []}]},
+            f"Open {what.title() if what.islower() else what}")
+
+
 def _open_site(m, request):
     what = _clean(m.group("what"))
     if not what or len(what) > 40:
         return None
+    if what.casefold() in APPS:
+        return None   # a program, not a page: the app rule owns it
     found = _URL.search(what)
     args = {"goal": f"Open {what} in the browser"}
     if found:
@@ -299,6 +326,8 @@ RULES: tuple[tuple[str, str, Callable], ...] = (
      r"(?: and (?:tell me|read me|say) what (?:it says|is on it|it is))?", "browse_read", _browse_read),
     (r"open (?:the |my )?(?:folder|file|document|directory)s? (?:with|containing|for|of|that has) (?:my |the )?(?P<what>.+)",
      "file_find", _file_find),
+    (r"(?:open|open up|launch|start|run|bring up|fire up)\s+(?P<what>[a-z][a-z ]{2,24}?)(?: for me| please| up)?",
+     "computer_do", _open_app),
     (r"(?:open|go to|pull up|bring up|launch)\s+(?P<what>(?!the folder|the file|my folder|my file)[a-z0-9][a-z0-9 .'-]{1,39}?)(?: in (?:the |my )?browser| for me)?",
      "web_task", _open_site),
     (r"find (?:me |us )?(?:a |an |some )?(?P<what>.+?) (?:near me|nearby|near here|around here|in town|close by)",

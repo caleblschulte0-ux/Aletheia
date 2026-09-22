@@ -47,6 +47,31 @@ class ANamedNoteIsFoundByNameCase(unittest.TestCase):
         self.assertNotEqual(out["command"].get("kind"), "file_find")
 
 
+class OpenAProgramIsNotOpenAPageCase(unittest.TestCase):
+    """"Open chrome" was compiled as "open chrome in the browser" - a page
+    named chrome - while she could launch the program all along."""
+
+    def test_a_program_he_names_is_launched(self):
+        from aletheia import rule_planner
+        kind, args, summary = rule_planner.match("open chrome")
+        self.assertEqual(kind, "computer_do")
+        self.assertEqual(args["steps"], [{"action": "open_app", "app": "chrome.exe", "arguments": []}])
+        self.assertEqual(summary, "Open Chrome")
+        kind, args, _ = rule_planner.match("launch the calculator for me")
+        self.assertEqual((kind, args["steps"][0]["app"]), ("computer_do", "calc.exe"))
+
+    def test_a_site_is_still_a_page(self):
+        from aletheia import rule_planner
+        kind, args, _ = rule_planner.match("open hacker news")
+        self.assertEqual(kind, "web_task")
+        self.assertIn("in the browser", args["goal"])
+
+    def test_no_shell_is_ever_an_app_here(self):
+        from aletheia import computer, rule_planner
+        for exe in rule_planner.APPS.values():
+            self.assertNotIn(exe.split(".")[0], computer.FORBIDDEN_APPS)
+
+
 class SendAnEmailToSomeoneSayingSomethingCase(unittest.TestCase):
     def test_the_full_sentence_is_a_draft(self):
         out = voice.interpret("Thea, send an email to dana@example.com saying thanks for the call")
