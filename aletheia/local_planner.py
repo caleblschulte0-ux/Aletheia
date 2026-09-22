@@ -429,8 +429,29 @@ def propose(request: str, *, context: dict | None = None,
     raise LocalPlanUnavailable(f"her own model did not return a usable plan ({last})")
 
 
+def local_roles_in_order() -> tuple[str, ...]:
+    """Her own models, the one with room to run right now first.
+
+    It was ("fast", "deep"): the deep role never fits 16 GB, and on a night
+    with 4 GB free the fast role loaded into a starved machine and timed
+    out with nothing tried beneath it. `reasoner.local_role_that_fits`
+    says which model has room now; the rest follow, deep last, because
+    its refusal is cheap and honest.
+    """
+    from aletheia import reasoner
+    try:
+        fits, _why = reasoner.local_role_that_fits()
+    except Exception:  # noqa: BLE001
+        fits = None
+    order = [fits] if fits else []
+    for role in ("fast", "small", "deep"):
+        if role not in order:
+            order.append(role)
+    return tuple(order)
+
+
 def _local_thinker():
-    """Her own model, fast role first (the one that fits 16 GB), then deep."""
+    """Her own model, the role with room first, then the others."""
     def think(system_prompt: str, text: str, *, context: dict | None = None):
         from aletheia import local_model_pool, reasoning_gateway
         # The per-call ceiling belongs to the local lane, not to this module:
@@ -438,7 +459,7 @@ def _local_thinker():
         # copy that disagrees.
         budget = float(reasoning_gateway.LOCAL_MAX_TIMEOUT_S)
         first = None
-        for role in ("fast", "deep"):
+        for role in local_roles_in_order():
             try:
                 result = reasoning_gateway.local_json(
                     system_prompt, text, context=context or {}, role=role,

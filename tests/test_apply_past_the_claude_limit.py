@@ -265,6 +265,26 @@ class TheChainCase(Clean):
         self.assertLessEqual(kw["timeout_s"], work_states.local_ceiling_s(work_states.BACKGROUND))
         self.assertEqual(self.local.call_args.args[0], "Decide strictly.")
 
+    def test_with_room_for_only_the_small_model_the_small_one_is_asked(self):
+        # His words, 2026-09-22: it "really needs to be able to handle a lot
+        # when there's no frontier model available." That night 4 GB was
+        # free, the fast model needed 6, and there was nothing under it.
+        reasoner._rest(LATER, "You've hit your session limit")
+        ask = self.chain(codex=reasoner.CodexResting(LATER, reasoner.CODEX_LOGIN), free=4 * GB)
+        with mock.patch.object(local_model_pool, "installed_sizes",
+                               return_value={"qwen3:8b": 5 * GB, "qwen3:4b": int(2.6 * GB)}):
+            self.assertEqual(ask()[1], "ollama:qwen3:8b")   # the stubbed run's model name
+        self.assertEqual(self.local.call_args.kwargs["preferred_role"], "small")
+
+    def test_the_small_model_not_on_disk_is_an_honest_no_that_names_it(self):
+        reasoner._rest(LATER, "You've hit your session limit")
+        ask = self.chain(codex=reasoner.CodexResting(LATER, reasoner.CODEX_LOGIN), free=4 * GB)
+        with mock.patch.object(local_model_pool, "installed_sizes", return_value={"qwen3:8b": 5 * GB}):
+            with self.assertRaises(reasoner.ReasonerUnavailable) as caught:
+                ask()
+        self.local.assert_not_called()
+        self.assertIn("qwen3:4b", str(caught.exception))
+
     def test_too_little_memory_is_an_honest_no(self):
         reasoner._rest(LATER, "You've hit your session limit")
         ask = self.chain(codex=reasoner.CodexResting(LATER, reasoner.CODEX_LOGIN), free=3 * GB)

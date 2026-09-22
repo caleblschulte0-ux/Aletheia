@@ -1141,6 +1141,15 @@ model alone filed a suggestion that suggested nothing — fluent filler in the
 right shape, and a quote is the one thing filler cannot supply. The floor,
 measured: qwen3:8b, 557 s cold, 157 s warm, one honest sentence, no noise.
 
+**And there is a rung under the fast model.** That same night 4 GB was
+free, the fast model wanted 6, and there was nothing beneath it. The pool
+has a `small` role now (qwen3:4b, 2.6 GB), `local_model_pool.ensure` pulls
+it once in the background alongside the fast one, and
+`reasoner.local_role_that_fits()` says which of her own models may be asked
+right now — fast with ~6 GB free, small with ~3.5 GB and the model on disk,
+neither otherwise, with the reason. The job hunt's chain and the pursuit
+ask that role. "Never make a fallback that only tries one model."
+
 ## Done means several normal days without him as sysadmin
 
 `docs/SEAMLESS_BRIEF.md` (2026-09-21) changed the definition of done. A

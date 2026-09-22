@@ -457,7 +457,7 @@ class TheBeatCase(PursuitCase):
              mock.patch.object(reasoning_gateway, "frontier_off", return_value=False), \
              mock.patch.object(reasoner, "codex_available", return_value=(True, "")), \
              mock.patch.object(reasoner, "codex_json", side_effect=reasoner.ReasonerUnavailable("Codex is out")), \
-             mock.patch.object(reasoner, "local_allowed", return_value=(True, "")), \
+             mock.patch.object(reasoner, "local_role_that_fits", return_value=("fast", "")), \
              mock.patch.object(reasoning_gateway, "local_json", return_value=got) as local:
             out, drafted_by = think(rec, NOW)
         self.assertTrue(local.called)
@@ -476,7 +476,7 @@ class TheBeatCase(PursuitCase):
              mock.patch.object(reasoning_gateway, "frontier_off", return_value=True), \
              mock.patch.object(reasoner, "codex_available", return_value=(True, "")) as codex_avail, \
              mock.patch.object(reasoner, "codex_json") as codex, \
-             mock.patch.object(reasoner, "local_allowed", return_value=(True, "")), \
+             mock.patch.object(reasoner, "local_role_that_fits", return_value=("fast", "")), \
              mock.patch.object(reasoning_gateway, "local_json", return_value=got):
             think(rec, NOW)
         self.assertFalse(codex.called)
@@ -487,7 +487,7 @@ class TheBeatCase(PursuitCase):
         think = pursuit._gateway_think()
         with mock.patch.object(reasoning_gateway, "frontier_available", return_value=False), \
              mock.patch.object(reasoner, "codex_available", return_value=(False, "resting")), \
-             mock.patch.object(reasoner, "local_allowed", return_value=(False, "4 GB free")), \
+             mock.patch.object(reasoner, "local_role_that_fits", return_value=(None, "4 GB free")), \
              mock.patch.object(reasoning_gateway, "local_json") as local:
             with self.assertRaises(reasoner.ReasonerUnavailable):
                 think(rec, NOW)

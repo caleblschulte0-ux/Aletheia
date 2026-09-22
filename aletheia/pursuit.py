@@ -554,13 +554,13 @@ def _gateway_think():
                     return out, {"provider": reasoner.CODEX_PROVIDER, "local": False}
                 except reasoner.ReasonerUnavailable:
                     pass
-            room, why = reasoner.local_allowed()
-            if not room:
+            role, why = reasoner.local_role_that_fits()
+            if not role:
                 # Asking a starved model is a timeout, not an answer.
                 raise reasoner.ReasonerUnavailable(f"my own model has no room to think: {why}")
             got = reasoning_gateway.local_json(
                     COMPACT_BRIEF, "What, if anything, would help this opportunity?",
-                    context=context_for(record, compact=True, now=now), role="fast",
+                    context=context_for(record, compact=True, now=now), role=role,
                     validator=quoting, attention=work_states.BACKGROUND,
                     timeout_s=work_states.local_ceiling_s(work_states.BACKGROUND),
                     think_override=False)
