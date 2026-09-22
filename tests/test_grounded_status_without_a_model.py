@@ -20,7 +20,7 @@ import datetime as dt
 import unittest
 from unittest import mock
 
-from aletheia import apply_run, campaign, current_state, intents, quick, stateio
+from aletheia import apply_run, campaign, current_state, intents, quick, stateio, voice
 from tests.test_current_state_v2 import Records, fresh, record
 
 NOBODY = {"claude": {"resting_until": "2026-01-01T00:00:00Z"},
@@ -111,6 +111,26 @@ class WithRecords(EveryBrainOff):
                 self.assertIn("sent", said.casefold())
         said = self.ask("what about the Nowhere Inc application")
         self.assertIn("don't have an application to Nowhere Inc", said)
+
+    def test_the_pursuit_questions_are_her_stores(self):
+        # Five of six pursuit questions waited two minutes on her own model
+        # with every frontier off (2026-09-22).
+        said = self.ask("which jobs have replied")
+        self.assertTrue(said.startswith("No replies from employers today"), said)
+        with mock.patch("aletheia.conversations.all_threads", return_value=[]):
+            out = voice.interpret("thea did anyone write back")
+        self.assertNotEqual(out["command"].get("kind"), "thread_status")
+        said = self.ask("what's next for the Stripe application")
+        self.assertIn("Stripe", said)
+        said = self.ask("what are you doing about the job hunt right now")
+        self.assertIn("2 sent", said)
+        with mock.patch("aletheia.pursuit.all_opportunities", return_value=[
+                {"state": "OPEN", "outcome": None}, {"state": "OPEN", "outcome": {"kind": "replied"}},
+                {"state": "PARKED", "outcome": None}]):
+            said = self.ask("how many opportunities are you working on")
+        self.assertIn("2 opportunities I'm working on", said)
+        self.assertIn("1 more left alone", said)
+        self.assertIn("1 employer wrote back", said)
 
     def test_how_many_is_the_exact_count(self):
         said = self.ask("how many jobs have you applied to?")
