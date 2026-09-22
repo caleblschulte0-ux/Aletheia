@@ -162,6 +162,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "watches":       (set(), set()),
     # "apply to ten jobs with this resume" — the whole thing, one call.
     "apply_campaign": (set(), {"role", "count", "where", "resume"}),
+    "apply_pause":   (set(), {"reason"}),
     # His answer to one question the staged applications wait on.
     "apply_answer": ({"question", "answer"}, set()),
     # What an employer DID about one he sent. His words, 2026-09-11: "it
@@ -486,6 +487,11 @@ KIND_NOTES: dict[str, str] = {
         'background and tells him when the applications are ready. Prefer '
         'this over apply_prepare, which only writes a packet and does not '
         'touch the form.'),
+    "apply_pause": (
+        'His "stop applying for now": no new batch of applications starts '
+        'until he says start applying again. Not the kill switch - everything '
+        'else keeps going, and a batch already running finishes. reason is '
+        'optional ("for today"). Only his own words say it.'),
     "apply_outcome": (
         'What an employer did about an application he already sent. which names '
         'it the way he does (the employer, the job, or the application id); '
@@ -598,6 +604,8 @@ KIND_NOTES: dict[str, str] = {
 # no receipt is honestly PENDING: the PC hasn't picked it up (Core off or
 # offline), and ChatGPT should say exactly that, not invent an outcome.
 LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email_read", "email_draft",
+               # the job hunt's pause marker lives in the PC's private state
+               "apply_pause",
                # a recording is a process and a file on this PC
                "screen_record", "screen_record_stop", "recording",
                # the workspace is a directory on his PC
@@ -901,6 +909,7 @@ def _steps_of(cmd: dict):
 # them; the planner may not even name them.
 PLANNER_FORBIDDEN = frozenset({
     "halt", "resume",      # a kill switch a compiler can trip is decoration
+    "apply_pause",         # "stop applying" is his word, never a compiler's guess
     "approve", "deny",     # self-authorization, from an ambiguous word
     # Same rule, same reason. "Close the browser tab", "open my resume"
     # and "shut the door" are ordinary sentences full of these words, and
@@ -2154,9 +2163,18 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         if rehearsing():
             return ("This is a rehearsal, so I didn't start: a job search opens "
                     "real employer pages and fills real forms.")
+        from aletheia import apply_forever
+        lifted = apply_forever.resume_hunt(via=f"intercom: {quote[:80]}")
         started = campaign.start(cmd.get("role", ""), count=int(cmd.get("count", 5)),
                                  where=cmd.get("where", ""), resume=cmd.get("resume", ""))
-        return campaign.started_words(started)
+        return ("Back on it. " if lifted else "") + campaign.started_words(started)
+    if kind == "apply_pause":
+        from aletheia import apply_forever, campaign
+        held = apply_forever.pause(cmd.get("reason", ""), via=f"intercom: {quote[:80]}")
+        running_batch = campaign.running()
+        return ("Okay — no more applications until you say start applying"
+                + (f" ({held['reason']})" if held.get("reason") else "")
+                + (". The batch already running finishes first." if running_batch else "."))
     if kind == "apply_outcome":
         from aletheia import apply_run
         matches = apply_run.find(cmd["which"])

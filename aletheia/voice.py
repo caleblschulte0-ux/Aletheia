@@ -1041,6 +1041,35 @@ def _interpret(transcript: str) -> dict:
         if "remote" in low.split():
             command["where"] = "remote"
         return {"command": command, "say": None}
+    # "STOP APPLYING FOR NOW". There was no such switch: the sentence went
+    # to the planner and, with every frontier off, waited two minutes on
+    # her own model (2026-09-22). Not the kill switch - everything else of
+    # hers keeps going - and a batch already running finishes.
+    if re.fullmatch(
+            r"(?:(?:can you|could you|please|go|hey|just|ok|okay|now|let'?s) )*"
+            r"(?:stop|pause|hold off on|hold off|halt|quit|no more|take a break from|give it a rest with|"
+            r"put a hold on|freeze|suspend)"
+            r"(?: (?:the |my |our |with the )?(?:applying|applications?|job (?:hunt|search|hunting|applications?)|"
+            r"jobs?|hunt|sending (?:out )?applications|applying (?:to|for) (?:jobs|work|places|companies)))"
+            r"(?: for now| for today| for tonight| for a (?:bit|while|few days)| until (?:i say|tomorrow|monday)| please)*", low) \
+            and re.search(r"\b(?:apply|applying|applications?|jobs?|hunt)\b", low):
+        reason = ""
+        m = re.search(r"\b(for (?:now|today|tonight|a (?:bit|while|few days))|until [a-z ]+)$", low)
+        if m:
+            reason = m.group(1)
+        return {"command": {"kind": "apply_pause", **({"reason": reason} if reason else {})}, "say": None}
+    # "THE OTHER ONE" with nothing before it. A follow-up word with an
+    # empty thread went to the planner and waited two minutes on her own
+    # model; the honest answer is instant and asks for the whole thing.
+    if re.fullmatch(r"(?:the )?(?:other|first|second|third|last|next) one|that one|this one|"
+                    r"the other|not that one|the same one", low):
+        try:
+            from aletheia import converse
+            if not converse.recent(limit=1):
+                return {"command": None,
+                        "say": "Nothing came before this for me to pick from - say the whole thing."}
+        except Exception:  # noqa: BLE001
+            pass
     # "KEEP GOING" / "CONTINUE" with nothing named: the job hunt when that
     # is what she was last doing; otherwise ask, out loud, rather than
     # guess at something that opens real employer pages.

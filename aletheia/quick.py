@@ -571,9 +571,19 @@ def _job_hunt() -> str | None:
     """How the applications went today, counted from the records."""
     try:
         from aletheia import current_state
-        return current_state.job_hunt_words()
+        said = current_state.job_hunt_words()
     except Exception:
         return None                 # she does not know; the model may look
+    try:
+        from aletheia import apply_forever
+        held = apply_forever.paused()
+    except Exception:
+        held = None
+    if held and said:
+        said += (" The hunt is paused since you said stop"
+                 + (f" ({held['reason']})" if held.get("reason") else "")
+                 + " — say start applying to pick it back up.")
+    return said
 
 
 def _wrong() -> str | None:

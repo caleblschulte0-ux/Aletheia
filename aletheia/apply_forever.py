@@ -101,11 +101,58 @@ def _waiting() -> int:
         return 0
 
 
+def _pause_path():
+    from aletheia import stateio
+    return stateio.private_dir("jobs") / "paused.json"
+
+
+def paused() -> dict | None:
+    """Why the job hunt is paused, or None. Never raises."""
+    try:
+        from aletheia import stateio
+        path = _pause_path()
+        return stateio.read_json(path) if path.exists() else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def pause(reason: str = "", *, via: str = "voice") -> dict:
+    """His "stop applying for now". A marker the loop honours between
+    batches; "start applying" lifts it. Not the kill switch: everything
+    else of hers keeps going, and a batch already running finishes."""
+    from aletheia import stateio
+    record = {"at": stateio.utcnow(), "reason": " ".join(str(reason or "").split())[:200], "via": via}
+    stateio.write_json_atomic(_pause_path(), record)
+    journal.append("decision", "apply:forever",
+                   "he said to stop applying" + (f": {record['reason']}" if record["reason"] else "")
+                   + " — no new batch until he says start", actor=ACTOR)
+    return record
+
+
+def resume_hunt(*, via: str = "voice") -> bool:
+    """Lift the pause. True if there was one."""
+    path = _pause_path()
+    if not path.exists():
+        return False
+    try:
+        path.unlink()
+    except OSError:
+        return False
+    journal.append("decision", "apply:forever", "he said to start applying again", actor=ACTOR)
+    return True
+
+
 def once(*, batch: int = BATCH, resume: str = "", starter=None, refiller=None,
          clock=None) -> dict:
     """One turn of the loop: refill the waiting applications, start a
     campaign, or leave the running one be."""
     policy.ensure_not_halted()
+    held = paused()
+    if held:
+        # "Stop applying for now" (2026-09-22): there was no such switch,
+        # and the sentence waited two minutes on her own model. The loop
+        # keeps its beat so "start applying" takes hold at once.
+        return {"started": False, "paused": held.get("reason") or "he said stop"}
     current = campaign.running()
     if current:
         return {"started": False, "already": current.get("pid")}
