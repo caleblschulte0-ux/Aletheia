@@ -191,6 +191,25 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"where (?:are we|am i|do we stand) (?:with|on)|what about|any (?:news|word|movement|update) on|"
         r"(?:what(?:'s| is|s)? the )?status of|how(?:'s| is) it going with|tell me about|what do (?:you|u) think (?:of|about))"
         r" (?:the |my |our )?(?P<what>.+?) (?:application|app|job|role|opportunity|position|posting)(?: going| doing| looking)?$")),
+    # "What did you do without asking me" is the honesty question the
+    # autonomy ledger exists for (CLAUDE.md), and with every frontier off
+    # it went to her own model for two minutes (2026-09-22). A file read.
+    ("unattended", re.compile(
+        r"^what (?:did|have) (?:you|u) (?:do|done)(?: today| lately| recently)? "
+        r"(?:without (?:asking|telling|checking with) me|on your own|by yourself|unattended|"
+        r"without (?:my|an) (?:ok|okay|approval|yes))(?: today| lately| recently)?$"
+        r"|^(?:did|have) (?:you|u) (?:do|done) anything (?:without (?:asking|telling) me|on your own|by yourself)"
+        r"(?: today| lately| recently)?$"
+        r"|^what have (?:you|u) been doing on your own$")),
+    # "How much memory is free" came back "reading system memory usage
+    # isn't something I can do" from her own model - the same machine
+    # reading she makes before loading that model. An offer of ignorance
+    # is a claim about ability, and it was false.
+    ("machine", re.compile(
+        r"^how much (?:memory|ram|free memory)(?: is| do (?:i|we) have)?(?: free| left| available| used| in use)?"
+        r"(?: on (?:this|the|my) (?:computer|machine|pc|laptop))?$"
+        r"|^(?:is|how is) (?:the |this |my )?(?:computer|machine|pc|laptop) (?:low on memory|out of memory|running low)$"
+        r"|^how(?:'s| is) (?:the |this |my )?(?:computer|machine|pc|laptop)(?:'s)? memory$")),
     # The third question. It has a `recollection` pattern for the model's
     # context and no fast answer, so "what went wrong today" paid a round
     # trip to read out alerts that are a file read away.
@@ -1475,8 +1494,31 @@ def _opportunity(rest: str) -> str | None:
     return f"I don't have an application to {words}."
 
 
+def _unattended() -> str:
+    """What she did on her own, from the autonomy ledger - never a model."""
+    from aletheia import autonomy
+    return autonomy.spoken(hours=24.0)
+
+
+def _machine() -> str:
+    """The machine's memory, the way a person says it."""
+    from aletheia import machine
+    found = machine.memory()
+    total, free = int(found.get("total") or 0), int(found.get("available") or 0)
+    if not total:
+        return "I can't read this computer's memory right now."
+    used = max(0, total - free)
+    said = (f"{machine.gigabytes(free)} of {machine.gigabytes(total)} is free; "
+            f"{machine.gigabytes(used)} in use")
+    if free < 3 * 1024 ** 3:
+        said += " — that's tight, and my own model needs a few gigabytes to think"
+    return said + "."
+
+
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "opportunity": _opportunity,
+           "unattended": lambda rest: _unattended(),
+           "machine": lambda rest: _machine(),
            "waiting": lambda rest: _waiting(),
            "doing": lambda rest: _doing(),
            "job_hunt": lambda rest: _job_hunt(),
