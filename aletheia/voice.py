@@ -2320,7 +2320,7 @@ def _interpret(transcript: str) -> dict:
     # really cancels things.
     asked_to_cancel = re.match(
         r"(?:deny|denied|no to|cancel|scrap|drop)"
-        r"(?:\s+(?:that|it|the pending one))?$", low)
+        r"(?:\s+(?:that|it|the pending one|(?P<which>the (?:last|latest|newest|most recent|first|oldest)(?: one)?)))?$", low)
     # DROPPING THE SUBJECT, which is not the same sentence. Both deny a
     # pending thing when there is one; they differ only when there is
     # nothing to cancel, and there "Nothing is waiting for approval" is a
@@ -2331,6 +2331,14 @@ def _interpret(transcript: str) -> dict:
     m = asked_to_cancel or dropped_it
     if m:
         pending = [a for a in policy.all_approvals() if a["state"] == "PENDING"]
+        # "Deny the last one" names which of several: the newest asked, or
+        # the oldest. It waited two minutes on her own model (2026-09-22).
+        which = (asked_to_cancel.groupdict().get("which") or "") if asked_to_cancel else ""
+        if which and len(pending) > 1:
+            ordered = sorted(pending, key=lambda a: str(a.get("requested_at") or ""))
+            chosen = ordered[0] if re.search(r"first|oldest", which) else ordered[-1]
+            return {"command": {"kind": "deny", "id": chosen["id"],
+                                "because": "denied by voice"}, "say": None}
         if len(pending) == 1:
             return {"command": {"kind": "deny", "id": pending[0]["id"],
                                 "because": "denied by voice"}, "say": None}
@@ -2371,7 +2379,10 @@ def _interpret(transcript: str) -> dict:
 
     # LONGEST ALTERNATIVE FIRST. Python's alternation takes the first that
     # matches, so "note" won and the note read "that Dana called".
-    m = re.match(r"(?:note that|note|write down that|write down|log)\s+(.+)", low)
+    # "Make a note that the roof leaks" waited two minutes on her own model
+    # with every frontier off (2026-09-22); it is the same note.
+    m = re.match(r"(?:make a note(?: that| of|:)?|take a note(?: that|:)?|jot down(?: that)?|"
+                 r"note that|note|write down that|write down|log)\s+(.+)", low)
     if m:
         return {"command": {"kind": "note", "text": m.group(1).strip()}, "say": None}
 

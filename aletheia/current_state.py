@@ -340,6 +340,11 @@ def job_hunt(now: dt.datetime | None = None) -> dict:
         "running": running,
         "campaign": lock,
         "today": today,
+        # BY NAME, not only counted: "what did you send today" is a list
+        # (2026-09-22, two minutes on her own model for a count she had).
+        "sent_list": [dict(zip(("company", "job"), _name(r))) for r in
+                      sorted(sent_today, key=lambda r: str(r.get("submitted_at") or r.get("pressed_at") or ""),
+                             reverse=True)[:MAX_LISTED]],
         "now": {"ready": sum(1 for r in rows if r.get("state") == "AWAITING_YOU"),
                 "needs_you": sum(1 for r in rows if r.get("state") == "NEEDS_YOU"),
                 "in_flight": sum(1 for r in rows if r.get("state") == "SUBMITTING"),

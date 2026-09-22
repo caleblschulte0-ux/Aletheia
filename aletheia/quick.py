@@ -159,6 +159,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^is there anything waiting(?: on me| for me)?$"
         r"|^anything i should know(?: about)?$"
         r"|^what am i blocking$|^am i blocking anything$"
+        # "What needs my yes" took fifteen seconds on her own model for the
+        # same one list (2026-09-22).
+        r"|^what(?:'s| is|s)? (?:needs|waiting on|wants|waiting for|needing) my (?:yes|ok|okay|approval|sign-?off|answer|go-?ahead)$"
+        r"|^(?:is there )?anything (?:that )?(?:needs|waiting on|waiting for) my (?:yes|ok|okay|approval|answer)$"
         # "Which of my applications are waiting on me" went to the planner
         # and, with every frontier off, to her own model for two minutes
         # before the room gave up (2026-09-22) - the applications are on
@@ -239,7 +243,20 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # `recall` and answered "I don't have anything remembered about
         # 'journal entries'" — a lookup in the wrong store.
         r"|^(?:show me |read me )?(?:the |your )?journal$"
-        r"|^what(?:'s| is|s)? in (?:the |your )?journal$")),
+        r"|^what(?:'s| is|s)? in (?:the |your )?journal$"
+        # "Did I miss anything while I was out" is today's journal, and it
+        # waited two minutes on her own model (2026-09-22).
+        r"|^(?:did|have) i miss(?:ed)? anything(?: while i was (?:out|gone|away|asleep|at work|busy))?$"
+        r"|^what did i miss(?: while i was (?:out|gone|away|asleep|at work))?$"
+        r"|^what happened while i was (?:out|gone|away|asleep|at work|busy)$"
+        r"|^(?:did )?anything happen(?:ed)? while i was (?:out|gone|away|asleep|at work)$")),
+    # "What did you send today" waited two minutes on her own model; the
+    # applications she sent today are records, and she sends nothing else
+    # without his yes on each.
+    ("sent_today", re.compile(
+        r"^what (?:did|have) (?:you|u) (?:send|sent)(?: out)?(?: today| so far today)?$"
+        r"|^what (?:applications|apps|emails|messages) (?:did|have) (?:you|u) (?:send|sent)(?: out)?(?: today)?$"
+        r"|^what went out today$|^(?:did|have) (?:you|u) (?:send|sent) anything(?: out)?(?: today)?$")),
     # "What did you do yesterday" is one journal read and she was paying a
     # round trip for it. Deliberately NOT "what did I ask you to do
     # yesterday": that asks for HIS instructions, and her journal also
@@ -1564,6 +1581,23 @@ def _opportunity(rest: str) -> str | None:
     return f"I don't have an application to {words}."
 
 
+def _sent_today() -> str | None:
+    """What went out today: the applications, by name, from the records."""
+    try:
+        from aletheia import current_state, speech
+        hunt = current_state.job_hunt()
+    except Exception:
+        return None
+    if not hunt.get("readable"):
+        return "I can't read my application records right now, so I can't say."
+    rows = list(hunt.get("sent_list") or [])
+    if not rows:
+        return "Nothing sent today — no applications went out, and I send nothing else without your yes."
+    named = [current_state.said_name(r.get("company", ""), r.get("job", "")) for r in rows[:6]]
+    return (f"Sent today: {speech.and_list(named)}"
+            + (f", and {len(rows) - 6} more" if len(rows) > 6 else "") + ".")
+
+
 def _pursuit_count() -> str:
     """How many opportunities she is carrying, from her own store."""
     from aletheia import pursuit, speech
@@ -1606,6 +1640,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "opportunity": _opportunity,
            "unattended": lambda rest: _unattended(),
            "pursuit_count": lambda rest: _pursuit_count(),
+           "sent_today": lambda rest: _sent_today(),
            "machine": lambda rest: _machine(),
            "waiting": lambda rest: _waiting(),
            "doing": lambda rest: _doing(),
