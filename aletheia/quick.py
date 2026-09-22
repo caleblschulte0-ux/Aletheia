@@ -181,6 +181,16 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how(?:'s| is) the (?:job )?(?:hunt|search|applications?)(?: going)?(?: today)?$"
         r"|^(?:did|have) (?:you|u) (?:apply|applied) to (?:any|anything|any jobs)(?: today)?$"
         r"|^(?:job )?(?:applications|hunt) (?:status|today|report)$")),
+    # ONE opportunity, by name. "How do you feel about the Anthropic
+    # application" went to the planner and, with every frontier off, to
+    # her own model for two minutes (2026-09-22) - and the opportunity
+    # record, or the application record, IS the answer. The pursuit store
+    # had a writer and no spoken reader; this is the reader.
+    ("opportunity", re.compile(
+        r"^(?:how do (?:you|u) feel about|how(?:'s| is|s)?|what(?:'s| is|s)? (?:the plan|happening|going on|the story|the status) (?:with|for|on)|"
+        r"where (?:are we|am i|do we stand) (?:with|on)|what about|any (?:news|word|movement|update) on|"
+        r"(?:what(?:'s| is|s)? the )?status of|how(?:'s| is) it going with|tell me about|what do (?:you|u) think (?:of|about))"
+        r" (?:the |my |our )?(?P<what>.+?) (?:application|app|job|role|opportunity|position|posting)(?: going| doing| looking)?$")),
     # The third question. It has a `recollection` pattern for the model's
     # context and no fast answer, so "what went wrong today" paid a round
     # trip to read out alerts that are a file read away.
@@ -456,7 +466,20 @@ def match(question: str) -> tuple[str, str] | None:
                                            "weather2", "weather3",
                                            "day", "day2", "day3", "day4", "day5", "day6")
                      if captured.get(k)), "")
+        if name == "opportunity":
+            # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
+            # name he said is read back to him: "nowhere inc" is not what
+            # he said. His capitals, put back from the sentence itself.
+            rest = _as_said(rest, question)
         return name, rest
+
+
+def _as_said(fragment: str, original: str) -> str:
+    """`fragment` as it appears in `original`, capitals and all."""
+    where = str(original or "").casefold().find(str(fragment or "").casefold())
+    if where < 0 or not fragment:
+        return fragment
+    return str(original)[where:where + len(fragment)]
     return None
 
 
@@ -1419,7 +1442,41 @@ def _status_of(text: str) -> str | None:
     return None
 
 
+def _opportunity(rest: str) -> str | None:
+    """One opportunity or application, by the words he used for it.
+
+    The opportunity's own line first (it carries the strategy and the last
+    move); the application record when there is no opportunity yet; an
+    honest "I don't have one" otherwise - never a guess, and never a model.
+    """
+    from aletheia import apply_run, mission_jobs, pursuit, speech
+    words = " ".join(str(rest or "").split()).strip(" ,.?")
+    if not words:
+        return None
+    try:
+        found = pursuit.search(words)
+    except Exception:
+        found = []
+    if found:
+        said = pursuit.spoken(found[0])
+        if len(found) > 1:
+            said += f" ({speech.count_phrase(len(found) - 1, 'other')} at the same place.)"
+        return said
+    try:
+        records = apply_run.find(words)
+    except Exception:
+        records = []
+    if records:
+        record = sorted(records, key=lambda r: r.get("submitted_at") or r.get("staged_at") or "",
+                        reverse=True)[0]
+        stage = mission_jobs.stage_of(record).replace("_", " ").casefold()
+        return f"{apply_run.describe(record)}: {stage}." + (
+            f" {record['say']}" if record.get("say") else "")
+    return f"I don't have an application to {words}."
+
+
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
+           "opportunity": _opportunity,
            "waiting": lambda rest: _waiting(),
            "doing": lambda rest: _doing(),
            "job_hunt": lambda rest: _job_hunt(),

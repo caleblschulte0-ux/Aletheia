@@ -89,6 +89,17 @@ class TheRecordCase(PursuitCase):
         self.assertEqual([r["id"] for r in due], [rec["id"]])
         self.assertEqual(due[0]["state"], pursuit.OPEN)
 
+    def test_search_finds_it_by_the_words_he_uses(self):
+        rec = self.opportunity()
+        rec["subject"]["organisation"] = "Acme Lending"
+        pursuit.save(rec)
+        self.assertEqual([r["id"] for r in pursuit.search("acme")], [rec["id"]])
+        self.assertEqual([r["id"] for r in pursuit.search("a role somewhere")], [rec["id"]])
+        self.assertEqual(pursuit.search("acme unrelated"), [])
+        pursuit.record_outcome(rec["id"], "declined", now=NOW)
+        self.assertEqual(pursuit.search("acme"), [])
+        self.assertEqual(len(pursuit.search("acme", include_closed=True)), 1)
+
     def test_an_outcome_that_ends_it_closes_it(self):
         rec = self.opportunity()
         pursuit.record_outcome(rec["id"], "declined", note="not this time", now=NOW)

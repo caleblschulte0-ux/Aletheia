@@ -339,6 +339,12 @@ def _job_reply(event: dict) -> dict | None:
         from aletheia import apply_run
         subject = " ".join(str(event.get("summary") or "").split())
         low = subject.casefold()
+        if _his_own_mail(event):
+            # His note to himself matched an employer once (2026-09-22:
+            # "AI_HANDOFF_READY" holds the letters of "Ro"), and because
+            # replies are written onto the record now, that became an
+            # outcome. What he sends himself is never an employer's reply.
+            return None
         ledger = apply_run.already_sent()
         if not ledger:
             return None
@@ -350,7 +356,7 @@ def _job_reply(event: dict) -> dict | None:
             # what a subject like "Application for Inbound Sales Development
             # Representative received by Team Flexport!" actually names.
             role = re.split(r"\s+[—–-]\s+", title)[0].strip()
-            if company and company.casefold() in low:
+            if _names_company(low, company):
                 hit = (url, entry); break
             if len(role) > 10 and role.casefold() in low:
                 hit = (url, entry); break
@@ -389,6 +395,34 @@ def _job_reply(event: dict) -> dict | None:
         # Never break the beat over this. Same shape as every other handler
         # in this loop.
         return {"outcome": "error", "error_type": type(exc).__name__}
+
+
+#: An employer's name shorter than this matches inside too many words to
+#: be evidence on its own ("Ro" is in "handoff_ready"); the role title
+#: carries those.
+MIN_COMPANY_CHARS = 3
+
+
+def _names_company(low_subject: str, company: str) -> bool:
+    """Does the subject name this employer, as a whole word?"""
+    name = " ".join(str(company or "").casefold().split())
+    if len(name) < MIN_COMPANY_CHARS:
+        return False
+    return re.search(r"(?<![a-z0-9])" + re.escape(name) + r"(?![a-z0-9])", low_subject) is not None
+
+
+def _his_own_mail(event: dict) -> bool:
+    """Was this sent by him? Read from the event's own sender field and
+    the configured mailbox; unknown on either side reads as "not his"."""
+    sender = str((event.get("attributes") or {}).get("sender") or "").strip().casefold()
+    if not sender:
+        return False
+    try:
+        from aletheia import mail
+        mine = str(mail._config().get("address") or "").strip().casefold()
+    except Exception:
+        return False
+    return bool(mine) and sender == mine
 
 
 def _heard_back(application_id: str, subject: str, outcome: str) -> None:

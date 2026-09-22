@@ -116,6 +116,30 @@ class AnEmployerWroteBackCase(unittest.TestCase):
         self.assertIsNone(runtime._job_reply(an_event("Your Amazon order has shipped")))
         self.assertIsNone(runtime._job_reply(an_event("AI_HANDOFF_READY")))
 
+    def test_a_short_employer_name_matches_only_as_a_whole_word(self):
+        # 2026-09-22: "Ro" is in "handoff_ready", so his own note to himself
+        # became a reply from Ro - and, replies being written down now, an
+        # outcome on the application. A name is a word, not a substring.
+        import aletheia
+        aletheia.apply_run.already_sent.return_value = {
+            "https://jobs.example/ro": {"id": "apply-ro", "at": "2026-09-20T00:00:00Z",
+                                        "company": "Ro", "job_title": "Packaging Program Manager — Ro"}}
+        self.assertIsNone(runtime._job_reply(an_event("AI_HANDOFF_READY")))
+        self.assertIsNone(runtime._job_reply(an_event("Prospectus for your review")))
+        out = runtime._job_reply(an_event("Next steps for your Packaging Program Manager application"))
+        self.assertEqual(out.get("application"), "apply-ro")
+        self.assertTrue(runtime._names_company("interview at ro next week", "Ro") is False)
+        self.assertTrue(runtime._names_company("interview at gong next week", "Gong"))
+        self.assertFalse(runtime._names_company("gongs and drums", "Gong"))
+
+    def test_his_own_mail_is_never_an_employers_reply(self):
+        event = {**an_event("Thank you for applying to Gong"),
+                 "attributes": {"sender": "caleb@example.com"}}
+        with mock.patch("aletheia.mail._config", return_value={"address": "Caleb@Example.com"}):
+            self.assertIsNone(runtime._job_reply(event))
+        with mock.patch("aletheia.mail._config", return_value={"address": "someone@else.com"}):
+            self.assertIsNotNone(runtime._job_reply(event))
+
     def test_it_only_looks_at_received_mail(self):
         self.assertIsNone(
             runtime._job_reply(an_event("Interview request from Gong",

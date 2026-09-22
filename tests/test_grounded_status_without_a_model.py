@@ -99,6 +99,19 @@ class WithRecords(EveryBrainOff):
                 self.assertIn("Brex", said)
                 self.assertNotIn("Let me look", said)
 
+    def test_one_application_by_name_is_its_record_not_a_model(self):
+        # "How do you feel about the Anthropic application" went to her own
+        # model for two minutes with every frontier off (2026-09-22).
+        for sentence in ("how do you feel about the Stripe application",
+                         "what about the Stripe job", "where are we with the Stripe application",
+                         "how's the Stripe application going"):
+            with self.subTest(sentence=sentence):
+                said = self.ask(sentence)
+                self.assertIn("Stripe", said)
+                self.assertIn("sent", said.casefold())
+        said = self.ask("what about the Nowhere Inc application")
+        self.assertIn("don't have an application to Nowhere Inc", said)
+
     def test_how_many_is_the_exact_count(self):
         said = self.ask("how many jobs have you applied to?")
         self.assertTrue(said.startswith("2 applications sent today"), said)
