@@ -196,7 +196,12 @@ def thinking(now: dt.datetime | None = None) -> dict:
     except Exception:  # noqa: BLE001
         out["local"]["busy"] = None
         out["local"]["recent"] = {}
-    out["anyone"] = claude is None or codex is None or bool(local_ok)
+    # Switched off for this run (`ALETHEIA_FRONTIER_OFF`, a probe of the
+    # bottom rung) is not able: with the flag set the line said "Thinking
+    # with the big models" while only her own model could answer.
+    from aletheia import reasoning_gateway
+    out["switched_off"] = bool(_safe(reasoning_gateway.frontier_off, False))
+    out["anyone"] = (not out["switched_off"] and (claude is None or codex is None)) or bool(local_ok)
     return out
 
 
@@ -216,11 +221,20 @@ def brains_words(minds: dict | None = None) -> str:
     # than it was.
     claude_able = claude_until is None and (minds.get("claude") or {}).get("installed", True)
     codex_able = codex_until is None and (minds.get("codex") or {}).get("installed", True)
-    frontier = bool(claude_able or codex_able)
+    # Switched off for this run (a probe with every frontier off) is not
+    # able either: with the flag set she said "Thinking with the big
+    # models" while nothing but her own model could answer (2026-09-22).
+    frontier = bool(claude_able or codex_able) and not minds.get("switched_off")
     typical = recent.get("typical_s")
     pace = f", usually {speech.about_seconds(typical)} an answer" if typical else ""
     today = recent.get("today_ok") or 0
     tally = f" {speech.count_phrase(int(today), 'answer')} from it today." if today else ""
+    if minds.get("switched_off"):
+        if local.get("allowed"):
+            return ("The big models are switched off for this run, so I'm thinking with my own "
+                    "model, which is slower" + pace + "." + tally)
+        return ("The big models are switched off for this run, and my own model is "
+                + _local_state_words(local) + ". Nobody can think until one is back.")
     if frontier:
         if local.get("allowed"):
             said = "Thinking with the big models; my own model is ready as backup" + pace + "."

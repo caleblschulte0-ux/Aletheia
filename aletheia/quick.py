@@ -440,7 +440,17 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^why (?:are|r) (?:you|u) (?:so |being )?slow(?: today| right now)?$"
         r"|^why (?:is|does) (?:this|it|everything) (?:take|taking) so long$"
         r"|^what(?:'s| is) taking so long$|^who(?:'s| is) (?:thinking|answering)(?: right now)?$"
-        r"|^(?:are|r) (?:you|u) (?:using|on) (?:your own|the local) (?:model|brain)$")),
+        r"|^(?:are|r) (?:you|u) (?:using|on) (?:your own|the local) (?:model|brain)$"
+        # Who is thinking is a fact she holds; asked with every frontier off,
+        # her own model said "Sonnet 5" and "I'm running on Claude right now
+        # - nothing's down" (2026-09-22). The line is the brains line.
+        r"|^(?:which|what) (?:model|brain|ai) (?:are|r) (?:you|u) (?:using|on|running(?: on)?)(?: right now)?$"
+        r"|^(?:are|r) (?:you|u) (?:on|using|running on) (?:claude|chatgpt|codex|gpt|the big models?|your own model)(?: right now)?$"
+        r"|^(?:are|r) the big models (?:out|down|back|up|available|working)(?: right now| yet)?$"
+        r"|^(?:is|are) (?:claude|chatgpt|codex|the big models?) (?:out|down|back|up|available|resting|working)(?: right now| yet)?$"
+        r"|^when (?:will|is|does|do) (?:claude|chatgpt|codex|the big models?) (?:be )?(?:back|reset|available|up)(?: again)?$"
+        r"|^is your own model (?:running|up|on|working|ready)$"
+        r"|^how long (?:until|till|before) (?:you|u) can think (?:properly|normally|again|with the big models)(?: again)?$")),
     # Sums he would otherwise wait a minute for.
     ("math", re.compile(
         r"^what(?:'s| is|s)? (?P<pct>[\d.]+) ?(?:%|percent) of (?P<of>[\d.,]+)$"
