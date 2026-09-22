@@ -76,6 +76,29 @@ class ApplicationsBecomeOpportunitiesCase(unittest.TestCase):
         self.assertEqual(len(first), 1)
         self.assertEqual(second, [])
 
+    def test_a_form_waiting_on_him_opens_nothing_and_parks_what_is_open(self):
+        # 240 opportunities out of one night's records, most of them forms
+        # waiting on his answers: nothing to pursue until he answers.
+        waiting = {**RECORD, "id": "apply-1", "url": "https://example.com/apply/w", "state": "NEEDS_YOU"}
+        with mock.patch("aletheia.apply_run.all_runs", return_value=[waiting]), \
+             mock.patch.object(pa, "_posting", return_value="P"), mock.patch.object(pa, "_resume", return_value="R"):
+            self.assertEqual(pa.sync(now=NOW), [])
+            opp = pa.open_from_application({**waiting, "state": "SUBMITTED"}, now=NOW,
+                                           posting=lambda r: "P", resume=lambda: "R")
+            pa.sync(now=NOW)
+        fresh = pursuit.load(opp["id"])
+        self.assertEqual(fresh["state"], pursuit.PARKED)
+        self.assertIn("only he can answer", fresh["next_look"]["because"])
+
+    def test_a_closed_or_failed_application_ends_its_opportunity(self):
+        opp = pa.open_from_application(RECORD, now=NOW, posting=lambda r: "P", resume=lambda: "R")
+        with mock.patch("aletheia.apply_run.all_runs", return_value=[{**RECORD, "state": "CLOSED"}]), \
+             mock.patch.object(pa, "_posting", return_value="P"), mock.patch.object(pa, "_resume", return_value="R"):
+            pa.sync(now=NOW)
+        fresh = pursuit.load(opp["id"])
+        self.assertEqual(fresh["state"], pursuit.CLOSED)
+        self.assertEqual(fresh["outcome"]["kind"], "dropped")
+
     def test_an_employers_reply_is_written_on_the_application_and_heard_by_the_opportunity(self):
         with mock.patch.object(pa, "_posting", return_value="P"), \
              mock.patch.object(pa, "_resume", return_value="R"), \

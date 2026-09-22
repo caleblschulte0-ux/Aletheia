@@ -527,6 +527,21 @@ class TheBeatCase(PursuitCase):
         self.assertNotIn("Meanwhile", said)
         self.assertNotIn("..", said)
 
+    def test_her_own_models_strategy_is_not_read_out_as_a_plan(self):
+        # Fourteen local passes on 2026-09-22 all "Focus on leveraging the
+        # candidate's background": filler. What it did is the sentence.
+        rec = self.opportunity()
+        rec["strategy"] = "Focus on leveraging the candidate's background and experience."
+        rec["last_pass"] = {"at": "2026-09-21T15:00:00Z", "dropped": [], "stop": {},
+                            "drafted_by": {"provider": "ollama:qwen3:8b", "local": True}}
+        pursuit.save(rec)
+        said = pursuit.spoken(rec)
+        self.assertNotIn("leveraging", said)
+        self.assertIn("my own model", said)
+        self.assertIn("nothing worth doing yet", said)
+        rec["last_pass"]["drafted_by"] = {"provider": "claude", "local": False}
+        self.assertIn("Focus on leveraging", pursuit.spoken(rec))
+
     def test_the_models_citation_marks_do_not_reach_his_ears(self):
         rec = self.opportunity()
         clean, _ = pursuit.validate(

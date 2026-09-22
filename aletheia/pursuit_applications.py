@@ -13,8 +13,16 @@ import datetime as dt
 from aletheia import journal, pursuit
 
 ACTOR = "aletheia-pursuit"
-#: Applications in these states are live situations worth carrying.
-LIVE_STATES = ("SUBMITTED", "AWAITING_YOU", "APPROVED", "SUBMITTING", "NEEDS_YOU")
+#: Applications in these states are live situations worth carrying. Not
+#: NEEDS_YOU: a form waiting on questions only he can answer has nothing to
+#: pursue until he answers, and opening one for each of those made 240
+#: opportunities out of one night's records (2026-09-22) - twelve hours of
+#: her own model's time on situations that could not move.
+LIVE_STATES = ("SUBMITTED", "AWAITING_YOU", "APPROVED", "SUBMITTING")
+#: The application's state that means the opportunity waits on him.
+HIS_TURN_STATES = ("NEEDS_YOU", "NEEDS_ACCOUNT")
+#: ...and the states that mean it is over.
+OVER_STATES = {"CLOSED": "dropped", "FAILED": "gone", "REJECTED": "declined"}
 #: How many new opportunities one sync may open; the rest wait for the next.
 OPEN_PER_SYNC = 5
 RESUME_CHARS = 5_000
@@ -154,11 +162,16 @@ def open_from_application(record: dict, *, now: dt.datetime | None = None,
 
 
 def sync(*, now: dt.datetime | None = None, limit: int = OPEN_PER_SYNC) -> list[dict]:
-    """Open an opportunity for every live application not yet carried."""
+    """Open an opportunity for every live application not yet carried, and
+    let the application's own state reach the ones already open: a form
+    that came back to him is parked until he answers, a closed or failed
+    one is over."""
     from aletheia import apply_run
+    now = pursuit._now(now)
     opened = []
-    for record in sorted(apply_run.all_runs(), key=lambda r: r.get("submitted_at") or r.get("staged_at") or "",
-                         reverse=True):
+    records = sorted(apply_run.all_runs(), key=lambda r: r.get("submitted_at") or r.get("staged_at") or "",
+                     reverse=True)
+    for record in records:
         if record.get("state") not in LIVE_STATES:
             continue
         if pursuit._path(pursuit.opportunity_id(_key(record))).exists():
@@ -170,7 +183,36 @@ def sync(*, now: dt.datetime | None = None, limit: int = OPEN_PER_SYNC) -> list[
                            f"{type(exc).__name__}: {exc}", actor=ACTOR)
         if len(opened) >= limit:
             break
+    reconcile(records, now=now)
     return opened
+
+
+def reconcile(records: list[dict], *, now: dt.datetime | None = None) -> list[str]:
+    """The application's state, carried onto its opportunity. Returns what changed."""
+    now = pursuit._now(now)
+    by_key = {_key(r): r for r in records}
+    changed = []
+    for opp in pursuit.all_opportunities():
+        if opp.get("state") == pursuit.CLOSED:
+            continue
+        record = by_key.get((opp.get("subject") or {}).get("key", ""))
+        if not record:
+            continue
+        state = str(record.get("state") or "")
+        if state in OVER_STATES:
+            pursuit.record_outcome(opp["id"], OVER_STATES[state],
+                                   note=f"the application is {state.lower()}", now=now)
+            changed.append(opp["id"])
+        elif state in HIS_TURN_STATES and opp.get("state") == pursuit.OPEN:
+            with pursuit._LOCK:
+                fresh = pursuit.load(opp["id"])
+                fresh["state"] = pursuit.PARKED
+                fresh["next_look"] = {"at": pursuit._stamp(now + dt.timedelta(days=30)),
+                                      "because": "the form is waiting on questions only he can answer"}
+                fresh["history"].append({"at": pursuit._stamp(now), "what": "parked: waiting on him"})
+                pursuit.save(fresh)
+            changed.append(opp["id"])
+    return changed
 
 
 def decline_words(subject: str) -> bool:
