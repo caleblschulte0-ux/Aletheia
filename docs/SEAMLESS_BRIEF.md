@@ -85,6 +85,25 @@ adding architecture. The architecture build is finished
   `python -m aletheia.talk --sandbox` with the model binaries off the
   PATH, and read what the room would hear.
 
+- **2026-09-22 — the floor, when nobody else can think.** His words:
+  *"it really needs to be able to handle a lot when there's no frontier
+  model available."* Measured on his laptop with both subscriptions
+  resting and a job batch running, and fixed as classes (PRs #130–#134):
+  background local calls get the background budget (a nameless one got a
+  conversation's 12 s); the job hunt's own local calls are work, not a
+  conversation that pre-empts everything; Codex-out falls through; her own
+  model is held to quoting in the pursuit; even evidence shares; a `small`
+  model (qwen3:4b) under the fast one, fetched by her own self-healing —
+  which now runs first in the beat instead of being skipped at its end;
+  one heavy thing at a time when she is alone; and research: picking a
+  query needs no model, alone it is background work carried as a
+  follow-up, and the seam that dropped the word "background" carries it.
+  The pursuit's own floor: qwen3:8b 557 s cold / 157 s warm, one honest
+  sentence; qwen3:4b 562 s cold beside a batch, a grounded reading. A
+  research question alone beside a batch is still more than ten minutes
+  end to end — carried as a follow-up now, so the answer reaches him
+  when it exists instead of the door timing out with her mid-read.
+
 - **2026-09-21 — the update that stayed stuck for three days.** The first
   look at his PC after the week's merges: the Core there was running
   Thursday's code, 85 commits behind, with the page saying everything was

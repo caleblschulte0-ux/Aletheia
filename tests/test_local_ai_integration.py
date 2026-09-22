@@ -228,6 +228,20 @@ class GatewayRoutingCase(unittest.TestCase):
             reasoning_gateway.ROUTINE_LOCAL_TIMEOUT_S,
         )
 
+    def test_routine_alone_gives_her_own_model_the_room_conversation_has(self):
+        # 2026-09-22: every frontier off, "look into whether Ramp is hiring"
+        # died in 16 s - a 15 s slice against a 25 s cold load, with the
+        # only thinker there was never asked properly.
+        run = local_model_pool.LocalRun("fast", "qwen3:8b", False, {"summary": "local"}, None, 1)
+        with mock.patch.object(model_pool_config, "enabled", return_value=True), \
+             mock.patch.object(local_model_pool, "reachable", return_value=True), \
+             mock.patch.object(reasoning_gateway, "frontier_available", return_value=False), \
+             mock.patch.object(local_model_pool, "auto_json", return_value=run) as local:
+            result = reasoning_gateway.reason_json("sys", "simple", policy="routine")
+        self.assertEqual(result.output["summary"], "local")
+        self.assertGreater(local.call_args.kwargs["timeout_s"], reasoning_gateway.ROUTINE_TOTAL_TIMEOUT_S)
+        self.assertLessEqual(local.call_args.kwargs["timeout_s"], reasoning_gateway.LOCAL_MAX_TIMEOUT_S)
+
     def test_invalid_route_timeout_is_rejected_before_any_provider(self):
         with mock.patch.object(local_model_pool, "auto_json") as local, \
              mock.patch.object(reasoner, "subscription_json") as subscription:
@@ -266,7 +280,10 @@ class GatewayRoutingCase(unittest.TestCase):
         sub.assert_called_once()
 
     def test_standard_uses_local_deep_when_both_subscriptions_are_down(self):
+        # Deep WHERE THE MACHINE CAN HOLD IT (this fixture says it can); on
+        # his 16 GB laptop the role with room to run goes first instead.
         with mock.patch.object(reasoner, "subscription_json", side_effect=reasoner.ReasonerUnavailable("down")), \
+             mock.patch.object(local_model_pool, "room_for_role", return_value={"fits": True}), \
              mock.patch.object(local_model_pool, "auto_json", return_value=self.local_run("offline", "deep")) as local:
             result = reasoning_gateway.reason_json("sys", "normal", policy="standard")
         self.assertEqual(result.output["summary"], "offline")

@@ -64,6 +64,18 @@ class TheThinkerAsksForAClass(unittest.TestCase):
         self.assertEqual(seen["policy"], "routine")
         self.assertEqual(seen["context"], {"x": 1})
 
+    def test_the_seam_carries_attention_and_a_work_budget(self):
+        # research said BACKGROUND through this seam and the word was dropped
+        # (2026-09-22): her own model got the attended 300 s and the report
+        # died at 299.8 s beside a running batch.
+        seen = {}
+        def fake(system, text, **kw):
+            seen.update(kw)
+            return gw.GatewayResult({"ok": True}, "p", kw["policy"])
+        with mock.patch.object(gw, "reason_json", side_effect=fake):
+            gw.thinker("standard", attention=gw.BACKGROUND)("s", "t", validator=None)
+        self.assertEqual(seen["attention"], gw.BACKGROUND)
+
     def test_an_unknown_class_is_refused(self):
         with self.assertRaises(ValueError):
             gw.thinker("whatever")

@@ -148,6 +148,20 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
             raise ValueError(f"work budget must be 0.5..{cap:.0f} seconds")
         ceiling = work
     total_budget = min(requested_budget, ceiling)
+    # WHEN HER OWN MODEL IS THE ONLY ONE, IT GETS THE ROOM. The routine
+    # class gives her own model a 15 s slice so a conversation never waits
+    # long on a cold model before the frontier answers - but with no
+    # frontier that slice is a guaranteed failure: a cold load alone is
+    # ~25 s on his laptop, and "look into whether Ramp is hiring" died in
+    # 16 s (2026-09-22) with the only thinker there was never asked
+    # properly. Alone, a routine ask may wait what conversation has always
+    # waited for her own model: the attended ceiling.
+    alone = policy in ("routine", "standard") and not frontier_available()
+    if alone and work_budget_s is None:
+        # The caller's number is a frontier-shaped number (a 180 s report,
+        # a 45 s routine ask); alone, the honest budget is what conversation
+        # has always waited for her own model. A named work budget stays.
+        total_budget = max(total_budget, work_states.local_ceiling_s(attention))
 
     def remaining() -> float:
         return max(0.0, total_budget - (time.monotonic() - started))
@@ -163,10 +177,12 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
         local_exc = None
         if local_enabled:
             try:
+                slice_s = (max(0.5, remaining()) if alone
+                           else min(_local_slice(local_timeout_s), max(0.5, remaining())))
                 local = local_model_pool.auto_json(
                     system_prompt, text, context=ctx, validator=checked,
                     allow_failover=False,
-                    timeout_s=min(_local_slice(local_timeout_s), max(0.5, remaining())),
+                    timeout_s=slice_s,
                     attention=attention,
                 )
                 return GatewayResult(
@@ -235,7 +251,12 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
             # the best". The fast model fits; not the best is the point.
             local = local_model_pool.auto_json(
                 system_prompt, text, context=ctx, validator=checked,
-                preferred_role="deep",
+                # deep where the machine can hold it; otherwise the role with
+                # room to run NOW - the small rung when 4 GB is all there is.
+                # It was always deep first, which on his 16 GB laptop is a
+                # refusal every time before the fast role is even tried.
+                preferred_role=("deep" if local_model_pool.room_for_role("deep").get("fits")
+                                else (reasoner.local_role_that_fits()[0] or "fast")),
                 allow_failover=True,
                 timeout_s=min(local_ceiling_s(attention), max(0.5, remaining())),
                 attention=attention,
@@ -391,8 +412,13 @@ def thinker(policy: str, **fixed) -> Callable[..., dict]:
 
     def think(system_prompt: str, text: str, **kwargs) -> dict:
         merged = {**fixed, **kwargs}
+        # `attention` and `work_budget_s` travel too: research asked for
+        # BACKGROUND through this seam on 2026-09-22 and the word was
+        # dropped here, so her own model got the attended 300 s and the
+        # report died at 299.8 s beside a running batch.
         allowed = {k: merged[k] for k in ("context", "model", "timeout_s", "validator",
-                                          "local_timeout_s") if k in merged}
+                                          "local_timeout_s", "attention", "work_budget_s",
+                                          "max_context_bytes") if k in merged}
         return reason_json(system_prompt, text, policy=policy, **allowed).output
     think.policy = policy  # type: ignore[attr-defined]
     return think

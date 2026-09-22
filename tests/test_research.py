@@ -77,6 +77,65 @@ class ResearchCase(unittest.TestCase):
         return fake
 
 
+class PickingAQueryNeedsNoModel(ResearchCase):
+    """With every frontier off and her own model cold, the search died before
+    a page was read - on a step a person does by typing the question in."""
+
+    def test_the_question_is_the_query_when_nobody_can_plan(self):
+        from aletheia import reasoner
+        report_calls = []
+
+        def fake(system, text, **kwargs):
+            if system is research.PLAN_SYSTEM:
+                raise reasoner.ReasonerUnavailable("nobody could think")
+            report_calls.append(text)
+            value = {"answer": "Forty two.", "gaps": [], "confidence": 0.8,
+                     "findings": [{"claim": "It is forty two", "url": "https://example.org/a"}]}
+            validator = kwargs.get("validator")
+            return validator(value) if validator else value
+        report = research.run("look into whether Ramp is hiring in Denver", http=None,
+                              reader=reader, think=fake)
+        self.assertEqual(report["queries"][0], "look into whether Ramp is hiring in Denver")
+        self.assertEqual(report["queries"][1], "ramp is hiring in denver")
+        self.assertEqual(report_calls, ["look into whether Ramp is hiring in Denver"])
+
+    def test_alone_the_report_is_background_work_and_the_ask_is_a_follow_up(self):
+        # Beside a job batch on his laptop the report died at the 300 s
+        # attended ceiling; alone, research thinks as background work.
+        from aletheia import core, reasoning_gateway, work_states
+        seen = []
+
+        def fake_thinker(policy, **fixed):
+            seen.append((policy, fixed.get("attention")))
+
+            def think(system, text, **kw):
+                if system is research.PLAN_SYSTEM:
+                    return {"queries": ["q1"], "why": "x"}
+                value = {"answer": "Forty two.", "gaps": [], "confidence": 0.8,
+                         "findings": [{"claim": "It is forty two", "url": "https://example.org/a"}]}
+                validator = kw.get("validator")
+                return validator(value) if validator else value
+            return think
+        with mock.patch.object(reasoning_gateway, "thinker", side_effect=fake_thinker), \
+             mock.patch.object(reasoning_gateway, "frontier_available", return_value=False):
+            research.run("what is the answer", http=None, reader=reader)
+        self.assertEqual(seen, [("routine", work_states.BACKGROUND), ("standard", work_states.BACKGROUND)])
+        with mock.patch.object(reasoning_gateway, "thinker", side_effect=fake_thinker), \
+             mock.patch.object(reasoning_gateway, "frontier_available", return_value=True):
+            seen.clear()
+            research.run("what is the answer", http=None, reader=reader)
+        self.assertEqual(seen, [("routine", work_states.ATTENDED), ("standard", work_states.ATTENDED)])
+        self.assertIn("research", core.SLOW_KINDS)
+        self.assertIn("web_task", core.SLOW_KINDS)
+
+    def test_the_asking_words_are_dropped_and_nothing_else(self):
+        plan = research.queries_without_a_model("find out about the Denver office?")
+        self.assertEqual(plan["queries"], ["find out about the Denver office", "the denver office"])
+        plan = research.queries_without_a_model("Ramp Denver office")
+        self.assertEqual(plan["queries"], ["Ramp Denver office"])
+        self.assertLessEqual(len(research.queries_without_a_model("x " * 300)["queries"][0]), 200)
+
+
 class ItAnswersWithSources(ResearchCase):
     def test_a_run_produces_sourced_findings(self):
         report = research.run("what is the answer", http=None, reader=reader,
