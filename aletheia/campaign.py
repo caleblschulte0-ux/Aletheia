@@ -1617,16 +1617,10 @@ def _where_found(stage, found_on: str) -> dict:
     return {"found_on": found_on} if takes and found_on else {}
 
 
-#: How many times a form whose Submit refused is read again before it is
-#: left for him. Two: the first re-read carries every fix to the reader since
-#: it was filled (Vanta's Location box, 2026-09-23); a form refusing twice more
-#: is a form for his eyes.
-REREADS_AFTER_REFUSAL = 2
-
-
 def refused_submit(record: dict) -> bool:
     """A FAILED record whose Submit would not take a click - and nothing in
-    evidence says a CAPTCHA was in front of it - with re-reads left.
+    evidence says a CAPTCHA challenge was in front of it - with fillings left
+    (`apply_run.MAX_STAGINGS_AFTER_FAILURE`; `stage` counts every rebuild).
 
     Vanta, 2026-09-23: thirteen fields went in, the required Location box was
     never read, Submit refused, and the record sat FAILED while the reader
@@ -1637,9 +1631,13 @@ def refused_submit(record: dict) -> bool:
     if "would not take a click" not in str(record.get("failure") or ""):
         return False
     evidence = record.get("click_evidence") if isinstance(record.get("click_evidence"), dict) else {}
-    if record.get("captcha") or evidence.get("captcha"):
-        return False                      # she does not solve those; reading again changes nothing
-    return int(record.get("rereads") or 0) < REREADS_AFTER_REFUSAL
+    # A challenge SHOWN in front of the button is not a reading problem. An
+    # invisible check merely loaded on the form is not that: 57 Greenhouse
+    # sends went through with one, and Vanta's "may be what held it" was a
+    # selector that matched nothing.
+    if evidence.get("captcha"):
+        return False
+    return int(record.get("stagings") or 0) < apply_run.MAX_STAGINGS_AFTER_FAILURE
 
 
 def retry_waiting(*, resume: str = "", stager=None, json_think=None, writer=None,
@@ -1677,13 +1675,6 @@ def retry_waiting(*, resume: str = "", stager=None, json_think=None, writer=None
     for record in waiting[:max(0, int(limit))]:
         policy.ensure_not_halted()
         url = record.get("url") or ""
-        if record.get("state") == "FAILED":
-            # Counted BEFORE the read, so a re-read that fails mid-way still
-            # spent one of its two; `stage` keeps the count across the rebuild.
-            try:
-                apply_run.remember(record["id"], rereads=int(record.get("rereads") or 0) + 1)
-            except Exception:
-                pass
         if judge_with is not False and not job_fit.fit_is_current(record.get("fit")):
             job = {k: record.get(k, "") for k in ("company", "job_title", "url", "posting")}
             fit = job_fit.verdict(job, text, known, think=judge_with, describe=describe,

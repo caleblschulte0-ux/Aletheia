@@ -330,6 +330,18 @@ READ_FORM_JS = r"""() => {
     }
     return '';
   };
+  // "Location *" in a bare <span> above a typeahead: no label, no
+  // aria-required, no `required` on the input - and the page's own script
+  // refuses to submit without it. The first line of the block a control has
+  // to itself, ending in an asterisk, is the convention every form uses.
+  const starred = (el) => {
+    for (let box = el.parentElement, up = 0; box && up < 3; box = box.parentElement, up++) {
+      if (box.querySelectorAll('input:not([type="hidden"]), select, textarea').length > 1) return false;
+      const first = ((box.innerText || '').trim().split('\n')[0] || '').trim();
+      if (first && first.length <= 120 && /\*$/.test(first)) return true;
+    }
+    return false;
+  };
   const unseen = (el) => {
     try {
       const style = getComputedStyle(el);
@@ -364,7 +376,8 @@ READ_FORM_JS = r"""() => {
       required: !!(el.required || el.getAttribute('aria-required') === 'true'
                    || el.getAttribute('data-required_mark') === 'required'
                    || el.getAttribute('data-required') === 'true'
-                   || (ownLabel(el) && /(?:^|[\s_-])required(?:$|[\s_-])/i.test(String(ownLabel(el).className)))),
+                   || (ownLabel(el) && /(?:^|[\s_-])required(?:$|[\s_-])/i.test(String(ownLabel(el).className)))
+                   || starred(el)),
       value: (el.value || '').slice(0, 200),
       // Can a PERSON see it? A honeypot is a box nobody can see, and so is
       // hCaptcha's token textarea. Python decides what that means per type:

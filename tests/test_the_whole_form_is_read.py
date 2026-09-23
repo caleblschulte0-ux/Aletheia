@@ -120,41 +120,86 @@ class AParagraphIsNotAProgressMessage(unittest.TestCase):
         self.assertEqual(apply_run._upload_state(page), "working")
 
 
-class AFormWhoseSubmitRefusedIsReadAgain(unittest.TestCase):
-    """Vanta sat FAILED with a misread form while the reader was fixed. A
-    refused Submit is read again with what she knows now, twice at most, and
-    never when a CAPTCHA was in front of the button."""
+ASHBY_BUTTONS = """
+<form>
+  <div><label>Resume</label><div><button>Upload file</button></div></div>
+  <div><label>Consent</label><div><button aria-pressed="false">Yes</button><button aria-pressed="false">No</button></div></div>
+  <div class="_actions"><button class="_button_zyh3g_28 _submitButton_5yu8i_411">Submit Application</button></div>
+</form>"""
+
+
+class ASubmitSelectorThatResolves(unittest.TestCase):
+    """Ashby's buttons carry no type attribute, so el.type says "submit" while
+    button[type="submit"] matches nothing: every Ashby send waited on a
+    locator no element answered to (Vanta, Spekit, 2026-09-23)."""
+
+    def test_ashbys_submit_button_is_named_by_a_path_that_finds_it(self):
+        from aletheia import apply_run
+        page = Browser.page(ASHBY_BUTTONS)
+        buttons = page.evaluate(apply_run.BUTTONS_JS)
+        chosen = apply_run._submit_selector(buttons)
+        self.assertIsNotNone(chosen, buttons)
+        self.assertNotEqual(chosen, 'button[type="submit"]', "the attribute is not there to match")
+        hit = page.query_selector(chosen)
+        self.assertIsNotNone(hit, chosen)
+        self.assertEqual(hit.inner_text().strip(), "Submit Application")
+        self.assertEqual(len(page.query_selector_all(chosen)), 1, "one element, not the first of eight")
+
+    def test_a_button_with_an_id_or_a_real_type_attribute_is_unchanged(self):
+        from aletheia import apply_run
+        page = Browser.page('<form><button id="submit_app">Submit Application</button></form>')
+        self.assertEqual(apply_run._submit_selector(page.evaluate(apply_run.BUTTONS_JS)), "#submit_app")
+        page = Browser.page('<form><input type="text"><button type="submit">Submit</button></form>')
+        self.assertEqual(apply_run._submit_selector(page.evaluate(apply_run.BUTTONS_JS)), 'button[type="submit"]')
+
+
+class AFormWhoseSubmitRefusedIsReadAgainAndNotForEver(unittest.TestCase):
+    """Vanta and Spekit were filled, renewed and refused four times each in
+    one night. A refused Submit is read again with what she knows now; the
+    fourth filling is his eyes; a CAPTCHA shown in front of the button is
+    not a reading problem at all."""
     REFUSED = {"id": "apply-v", "state": "FAILED", "url": "https://x/v", "resume": "C:/r.pdf",
+               "company": "Vanta", "job_title": "CSM",
                "failure": "ApplyError: the Submit button would not take a click - it never became clickable"}
 
     def test_which_failed_records_are_read_again(self):
         from aletheia import campaign
         self.assertTrue(campaign.refused_submit(self.REFUSED))
-        self.assertFalse(campaign.refused_submit({**self.REFUSED, "rereads": 2}))
-        self.assertFalse(campaign.refused_submit({**self.REFUSED, "captcha": "hCaptcha"}))
+        self.assertTrue(campaign.refused_submit({**self.REFUSED, "captcha": "recaptcha"}),
+                        "an invisible check merely loaded on the form is not a challenge")
+        self.assertFalse(campaign.refused_submit({**self.REFUSED, "stagings": 3}))
         self.assertFalse(campaign.refused_submit({**self.REFUSED, "click_evidence": {"captcha": True}}))
         self.assertFalse(campaign.refused_submit({**self.REFUSED, "failure": "ApplyError: the page went away"}))
         self.assertFalse(campaign.refused_submit({**self.REFUSED, "state": "SUBMITTED"}))
 
-    def test_the_refused_form_is_staged_again_and_the_read_is_counted(self):
+    def test_the_refused_form_is_staged_again(self):
         from unittest import mock
         from aletheia import apply_run, campaign
-        calls, remembered = [], []
+        calls = []
 
         def stager(url, **kw):
             calls.append(url)
             return {"id": "apply-v", "url": url, "state": "AWAITING_YOU", "questions": []}
         with mock.patch.object(apply_run, "all_runs",
                                side_effect=lambda state=None: [self.REFUSED] if state == "FAILED" else []), \
-             mock.patch.object(apply_run, "remember", side_effect=lambda rid, **f: remembered.append((rid, f))), \
              mock.patch.object(campaign, "read_resume", return_value=("C:/r.pdf", "resume text")), \
              mock.patch.object(campaign.policy, "ensure_not_halted"), \
              mock.patch.object(campaign.journal, "append"):
             out = campaign.retry_waiting(stager=stager, json_think=False, writer=False)
         self.assertEqual(calls, ["https://x/v"])
         self.assertEqual(len(out["ready"]), 1)
-        self.assertIn(("apply-v", {"rereads": 1}), remembered)
-        self.assertIn("rereads", apply_run.REMEMBERED, "the count survives stage's rebuild of the record")
+
+    def test_stage_counts_its_fillings_and_refuses_the_fourth_of_a_refused_form(self):
+        from unittest import mock
+        from aletheia import apply_run
+        self.assertIn("stagings", apply_run.REMEMBERED, "the count survives stage's rebuild of the record")
+        with mock.patch.object(apply_run.policy, "ensure_not_halted"), \
+             mock.patch.object(apply_run, "was_sent", return_value=None), \
+             mock.patch.object(apply_run, "load_run", return_value={**self.REFUSED, "stagings": 3}):
+            with self.assertRaises(apply_run.ApplyError) as held:
+                apply_run.stage("https://x/v", reader=lambda url: [])
+        self.assertIn("needs your eyes", str(held.exception))
+        self.assertIn("3 times", str(held.exception))
 
 
 class TheEarliestDateHeCanBeginIsOnFile(unittest.TestCase):

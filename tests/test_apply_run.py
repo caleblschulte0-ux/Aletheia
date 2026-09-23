@@ -171,9 +171,15 @@ class WhatIsOnTheFormIsWhatHeApproves(ApplyCase):
         self.assertIn("The option it chose", [f["value"] for f in out["filled"]])
 
     def test_a_dropdown_that_chose_nothing_is_not_listed_as_filled(self):
+        """And a REQUIRED one that chose nothing is a question, not a shorter
+        confirmation (2026-09-23: a widget's own script refused a form whose
+        required location was left empty, and nothing had asked him)."""
         chosen = self.stage_choosing("The option it chose")
+        self.assertIn("The option it chose", [f["value"] for f in chosen["filled"]])
         nothing = self.stage_choosing("")
-        self.assertEqual(len(nothing["filled"]), len(chosen["filled"]) - 1)
+        self.assertEqual(nothing["state"], "NEEDS_YOU")
+        self.assertEqual(nothing["filled"], [])
+        self.assertIn("First name", [q["label"] for q in nothing["not_filled"]])
 
 
 class WhatHeApprovesIsWhatIsTyped(ApplyCase):
