@@ -881,15 +881,17 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
             _employers.remember_jobs([job for _v, job in found] + web + own + searched + crawled + held)
         except Exception:
             pass
+    # A SENTENCE HE CAN READ under "what she's done" - "searched 147 boards
+    # for 'Business Development Associate, Partnership Manager, ...': 12
+    # matches, 0 more by web search, 0 on employers' own sites, ..." was a
+    # report card, not a line (live 2026-09-23). The counts stay in `report`.
+    extra = len(discovered) + len(on_their_sites) + len(anywhere) + len(on_crawled)
     journal.append("action", "jobs",
-                   f"searched {speech.count_phrase(boards_read, 'board')} for "
-                   f"{', '.join(roles)!r}: {speech.count_phrase(len(found), 'match')}, "
-                   f"{len(discovered)} more by web search, "
-                   f"{len(on_their_sites)} on employers' own sites, "
-                   f"{len(anywhere)} found anywhere by an AI web search, "
-                   f"{len(on_crawled)} on employers she crawled herself"
-                   + (f" ({len(held)} more held until discovery may choose)" if held else "") + ", "
-                   f"{speech.count_phrase(len(failures), 'board')} failed",
+                   f"searched {speech.count_phrase(boards_read, 'job board')} for your roles: "
+                   f"{speech.count_phrase(len(found), 'match')}"
+                   + (f" and {extra} more from employers' own sites and the web" if extra else "")
+                   + (f"; {len(held)} held until discovery may choose" if held else "")
+                   + (f"; {speech.count_phrase(len(failures), 'board')} did not answer" if failures else ""),
                    actor=ACTOR)
     return {"role": ", ".join(roles), "roles": list(roles), "where": where,
             "matches": matches, "searched": boards_read, "matched": len(found),
