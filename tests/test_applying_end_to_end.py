@@ -38,6 +38,9 @@ RESUME = ("Caleb Schulte\nHartford, SD 57033\ncaleb@example.invalid\n"
 
 class PrivateProfile(unittest.TestCase):
     def setUp(self):
+        # The roles a model read off the fixture resume are kept by its hash
+        # (2026-09-23); every test here mocks its own model, so none may see another's.
+        campaign.forget_roles()
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         root = Path(self.tmp.name)
