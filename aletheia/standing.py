@@ -48,6 +48,22 @@ GRANT_ID = "standing-routine"
 DEFAULT_DAYS = 30
 DEFAULT_USES = 500
 
+# THE SECOND GRANT: sending the applications she has filled. His ruling,
+# 2026-09-23, in his words: "Yes, this can apply to jobs without my
+# permission. In fact, that's like kind of the whole point of it." The beat
+# (`runtime.send_approved_applications`) has spent a grant over this
+# capability since 2026-09-12 - and nothing had ever CREATED one, so every
+# filled application sat waiting for a tap and 82 were waiting the night
+# he said this. `application.submit` is `registry_grant` in the registry,
+# which is what makes it grantable at all; `authority.allows` still
+# refuses anything high-risk or operator_always, and part-time work and a
+# job only her own model judged realistic still wait for his own yes
+# (`apply_run.waits_for_his_ok`) whatever this grant says.
+JOBS_CAPABILITY = "application.submit"
+JOBS_GRANT_ID = "standing-jobs"
+DEFAULT_JOB_DAYS = 365
+DEFAULT_JOB_USES = 10_000
+
 
 def _expiry(days: int) -> str:
     return (dt.datetime.now(dt.timezone.utc)
@@ -98,6 +114,87 @@ def enable(*, days: int = DEFAULT_DAYS, uses: int = DEFAULT_USES,
                    f"standing authority granted over {ROUTINE_CAPABILITY} "
                    f"for {days} days / {uses} uses", actor=ACTOR)
     return grant
+
+
+def jobs_active() -> dict | None:
+    """The live grant over sending applications, or None."""
+    for grant in authority.active_grants():
+        if JOBS_CAPABILITY in grant.get("capability_ids", []):
+            return grant
+    return None
+
+
+def jobs_enable(*, days: int = DEFAULT_JOB_DAYS, uses: int = DEFAULT_JOB_USES,
+                via: str = "operator", quote: str = "") -> dict:
+    """Send filled applications without a tap, on his say-so at the keyboard.
+
+    `quote` is his own words, kept on the approval: a grant is a thing he
+    gave, and the record should say what he said when he gave it.
+    """
+    if not 1 <= int(days) <= 365:
+        raise ValueError("days must be 1..365 - a permission with no end is "
+                         "one nobody remembers giving")
+    existing = jobs_active()
+    if existing:
+        return existing
+    # Unique per grant, not per day: revoking and re-granting on the same
+    # day collided on "already decided".
+    import uuid
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:4]
+    approval_id = f"{JOBS_GRANT_ID}-{stamp}"
+    policy.request(
+        approval_id,
+        requested_action=f"standing authority over {JOBS_CAPABILITY}",
+        reason="send the applications she has filled without asking each time",
+        consequence=(f"applications she has filled go out under his name without a tap for "
+                     f"{days} days or {uses} uses, whichever comes first; part-time, contract, "
+                     "temporary and internship work, and a job only her own model judged "
+                     "realistic, still wait for his own yes"),
+        reversible=True)
+    policy.decide(approval_id, "APPROVED", via=via,
+                  because=("granted at the command line by the operator"
+                           + (f" - his words: {quote}" if quote else "")))
+    grant = authority.create(
+        approval_id[:60], capability_ids=[JOBS_CAPABILITY], approval_id=approval_id,
+        expires=_expiry(int(days)), max_uses=int(uses),
+        note="jobs: send filled applications without a tap"
+             + (f" - his words: {quote}" if quote else ""))
+    journal.append("decision", "authority",
+                   f"standing authority granted over {JOBS_CAPABILITY} for {days} days / "
+                   f"{uses} uses" + (f" - his words: {quote}" if quote else ""), actor=ACTOR)
+    return grant
+
+
+def jobs_disable(via: str = "operator") -> bool:
+    grant = jobs_active()
+    if not grant:
+        return False
+    authority.revoke(grant["id"])
+    journal.append("decision", "authority",
+                   f"standing authority over {JOBS_CAPABILITY} revoked", actor=via)
+    return True
+
+
+def jobs_status() -> dict:
+    """Whether she may send applications without a tap right now, and how much
+    of that permission is left - so "why is this waiting on me" has an answer."""
+    grant = jobs_active()
+    used = len(authority._claims(grant["id"])) if grant else 0
+    return {"granted": bool(grant),
+            "expires": grant.get("expires") if grant else None,
+            "uses_left": (grant["max_uses"] - used) if grant else 0,
+            "command": "python -m aletheia.standing jobs on"}
+
+
+def jobs_spoken() -> str:
+    from aletheia import speech
+    state = jobs_status()
+    if not state["granted"]:
+        return ("I ask you before every application I send. At your keyboard, "
+                "'python -m aletheia.standing jobs on' lets me send them without asking.")
+    return (f"I send the applications I fill without asking - {state['uses_left']} left, "
+            f"until {speech.humanize_time(state['expires'])}. Part-time or contract work "
+            "still waits for your own yes.")
 
 
 def disable(via: str = "operator") -> bool:
@@ -166,9 +263,24 @@ def main(argv: list[str] | None = None) -> int:
     on.add_argument("--uses", type=int, default=DEFAULT_USES)
     sub.add_parser("off", help="revoke it")
     sub.add_parser("status", help="what she can do without asking")
+    jobs = sub.add_parser("jobs", help="sending the applications she fills")
+    jobs.add_argument("what", choices=("on", "off", "status"))
+    jobs.add_argument("--days", type=int, default=DEFAULT_JOB_DAYS)
+    jobs.add_argument("--uses", type=int, default=DEFAULT_JOB_USES)
+    jobs.add_argument("--quote", default="", help="his own words, kept on the approval")
     args = ap.parse_args(argv)
 
     try:
+        if args.cmd == "jobs":
+            if args.what == "on":
+                grant = jobs_enable(days=args.days, uses=args.uses, quote=args.quote)
+                print(f"Granted until {grant['expires']} ({grant['max_uses']} uses).")
+            elif args.what == "off":
+                print("Revoked." if jobs_disable() else "There was no jobs grant.")
+            else:
+                print(json.dumps(jobs_status(), indent=2))
+            print(jobs_spoken())
+            return 0
         if args.cmd == "on":
             grant = enable(days=args.days, uses=args.uses)
             print(f"Granted until {grant['expires']} ({grant['max_uses']} uses).")

@@ -742,6 +742,22 @@ def _settle_stuck_submits() -> list[dict]:
     return settled
 
 
+def _say_the_grant_is_missing() -> None:
+    """A filled application is waiting only because no standing permission
+    covers sending it - said once, with the command, never per application."""
+    from aletheia import standing
+    state = standing.jobs_status()
+    if state.get("granted"):
+        return                          # a grant exists; it is exhausted for now
+    notifications.publish(
+        "Applications are waiting for a tap you said you would not give",
+        ("I have filled applications ready and no standing permission to send them, so "
+         "each one waits for your yes. At your keyboard: " + state["command"] +
+         " - then they go out on their own."),
+        priority="IMPORTANT", source="apply", about=notifications.NEEDS_YOU,
+        dedupe_key="apply-grant-missing")
+
+
 def send_approved_applications() -> list[dict]:
     """Send what he authorized, once each.
 
@@ -801,9 +817,19 @@ def send_approved_applications() -> list[dict]:
             # His standing grant. The action id names THIS application, so
             # the receipt says what the use was spent on — a probe with a
             # made-up id would spend a use and record a fiction.
+            # The approval id, which is already a safe id. "apply:<id>" was
+            # refused by `safe_id` (no colon), so `satisfy` returned None
+            # on EVERY application even with a live grant - the second
+            # silent way this path never sent anything (found 2026-09-23).
             claim = authority.satisfy(
-                "application.submit", f"apply:{record['id']}")
+                "application.submit", str(record.get("approval") or f"{record['id']}-submit"))
             if claim is None:
+                # NOT QUIETLY. Nothing had ever created this grant, so from
+                # 2026-09-12 to 2026-09-23 every filled application fell
+                # through here in silence and waited for a tap he had said
+                # he would not be giving - 82 of them the night he noticed.
+                # One notice, once, naming the one command that fixes it.
+                _say_the_grant_is_missing()
                 continue
             # And then GRANT the approval, in his name, citing the grant.
             # Not because the gate is inconvenient: `accept` and `submit`

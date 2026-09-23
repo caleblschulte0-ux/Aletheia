@@ -1109,8 +1109,24 @@ forms staged nothing: the chosen resume PDF did not read, and with the
 - **READY is the count.** It keeps trying openings until N applications
   are ready to approve, runs in its own process (`campaign.start`), and
   notifies him. `apply_answer` finishes what is left.
-- **One approval per application stays.** His own spec: "it comes to me
-  and it says confirm you wanna apply to this job, that's fine."
+- **No tap per application.** The 2026-09-10 spec ("it comes to me and it
+  says confirm you wanna apply to this job, that's fine") was retired by
+  his 2026-09-12 words ("No one approval per application. I want this
+  thing just to be applying to jobs, nonstop") and settled 2026-09-23, in
+  his words: *"Yes, this can apply to jobs without my permission. In fact,
+  that's like kind of the whole point of it. Especially on something that
+  you can just answer really easily."* The mechanism is a standing grant
+  over `application.submit` (`python -m aletheia.standing jobs on`, at
+  his keyboard, his words on the approval), spent by `authority.satisfy`
+  on the Core's beat - never a code path around the check. From 09-12 to
+  09-23 the beat spent a grant nobody had ever CREATED, silently, and 82
+  filled applications were waiting for a tap the night he noticed: a
+  missing grant is SAID now (`runtime._say_the_grant_is_missing`), once,
+  with the command. Still his own yes, whatever the grant says: part-time,
+  contract, temporary and internship work, and a job only her own model
+  judged realistic (`apply_run.waits_for_his_ok`); and `profile.NEVER_AUTOFILL`
+  is untouched. "Easy" questions a form asks are hers to answer from his
+  facts, not his to be asked.
 - **Asked once is once.** 2026-09-11: *"if it don't know somthing about me
   it can ask 1 time after that it should know."* An answer matching a field
   of hers became a fact already; an answer matching NO field was used on
