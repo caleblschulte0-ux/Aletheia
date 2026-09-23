@@ -353,10 +353,18 @@ def his_ok_notice(record: dict, kind: str) -> tuple[str, str, str]:
 NOT_A_FORM = "not-a-form"
 
 
+#: A closure for a posting that is GONE: the page has no form at all - a 404,
+#: "Sorry, but we can't find that page", a posting taken down. Told apart from
+#: NOT_A_FORM (a page with boxes that ask nothing about him) because it says
+#: something different about the job, and never reopens.
+GONE = "gone"
+
+
 def _not_a_form(run_id: str, url: str, failure: str, *, resume: str, kept_job: dict,
-                not_filled: list | None = None, skipped: list | None = None) -> dict:
+                not_filled: list | None = None, skipped: list | None = None,
+                kind: str = NOT_A_FORM) -> dict:
     record = {"id": run_id, "state": CLOSED, "url": url, "failure": failure,
-              "closed_because": failure, "closed_kind": NOT_A_FORM, "closed_by": ACTOR,
+              "closed_because": failure, "closed_kind": kind, "closed_by": ACTOR,
               "closed_at": stateio.utcnow(),
               "approval": "", "steps": [], "filled": [], "not_filled": list(not_filled or []),
               "skipped": list(skipped or []), "resume": resume,
@@ -798,6 +806,18 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
     # for contacting us" - and it was staged AWAITING_YOU with nothing filled.
     # An application asks for a name, an email or a phone; a page where she
     # fills nothing and none of those is asked for is not one.
+    # A PAGE WITH NO BOXES AT ALL is a posting that is gone, and says so
+    # first. Live 2026-09-23 two 404s ("Sorry, we couldn't find anything
+    # here", "Sorry, but we can't find that page") were closed as "asks
+    # nothing about who he is - a bot check or a contact page", which is a
+    # different fact about a different page.
+    if not fields:
+        failure = ("there is no application form on this page at all - the posting "
+                   "has been taken down or the link was wrong")
+        _not_a_form(run_id, url, failure, resume=resume, kept_job=kept_job, kind=GONE)
+        journal.append("action", "apply", f"{url} is gone - no form on the page, "
+                       "not staged", actor=ACTOR)
+        raise ApplyError(f"{run_id}: {failure}")
     if (not plan["fill"] and not answered["steps"]
             and not any(formfill.match_field(f) in _IDENTITY for f in fields)):
         failure = ("nothing on this page asks for his name, email or phone, so it is not an "
