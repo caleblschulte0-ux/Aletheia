@@ -122,6 +122,11 @@ def humanize_time(stamp: str, now: dt.datetime | None = None) -> str:
         return f"{WEEKDAYS[parsed.weekday()]} at {clock}"
     if days == -1:
         return f"yesterday at {clock}"
+    # A YEAR AWAY SAYS THE YEAR. "until 22 September at 10:15 pm" was said of
+    # a grant that expires in 2027 (2026-09-23): a date in another year without
+    # its year is a different date.
+    if parsed.year != now.year:
+        return f"{parsed.strftime('%d %B %Y').lstrip('0')} at {clock}"
     return f"{parsed.strftime('%d %B').lstrip('0')} at {clock}"
 
 

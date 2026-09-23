@@ -1239,7 +1239,12 @@ it once in the background alongside the fast one, and
 `reasoner.local_role_that_fits()` says which of her own models may be asked
 right now — fast with ~6 GB free, small with ~3.5 GB and the model on disk,
 neither otherwise, with the reason. The job hunt's chain and the pursuit
-ask that role. "Never make a fallback that only tries one model."
+ask that role. "Never make a fallback that only tries one model." And the
+pool's own failover goes DOWN the rungs (`local_model_pool.auto_json`):
+from deep, fast then small; from fast, small. It went fast -> deep until
+2026-09-23, and on a night with 2 GB free the journal held 97 "nobody
+could think" events - the 8b failed for memory, the 27b never fits, and
+the 4b that would have run was never asked.
 
 ## Done means several normal days without him as sysadmin
 

@@ -187,12 +187,20 @@ class BothReasonsSurviveCase(unittest.TestCase):
             raise pool.LocalPoolUnavailable(
                 f"{kw.get('role')} says no because reason-{kw.get('role')}")
 
+        # Every rung's reason, down the chain (2026-09-23): from fast the
+        # next rung is small; from deep, fast then small.
         with mock.patch.object(pool, "run_json", refuse):
             with self.assertRaises(pool.LocalPoolUnavailable) as caught:
-                pool.auto_json("system", "hello")
+                pool.auto_json("system", "hello", preferred_role="fast")
         said = str(caught.exception)
         self.assertIn("reason-fast", said)
-        self.assertIn("reason-deep", said)
+        self.assertIn("reason-small", said)
+        with mock.patch.object(pool, "run_json", refuse):
+            with self.assertRaises(pool.LocalPoolUnavailable) as caught:
+                pool.auto_json("system", "hello", preferred_role="deep")
+        said = str(caught.exception)
+        for role in ("deep", "fast", "small"):
+            self.assertIn(f"reason-{role}", said)
 
 
 class TheAuditSaysItCase(unittest.TestCase):
