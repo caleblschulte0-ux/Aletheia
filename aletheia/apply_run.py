@@ -1055,8 +1055,17 @@ UPLOADED_JS = r"""(name) => {
 # on too, not given up at once: the verdict can arrive after the input clears.
 UPLOAD_SETTLED_JS = r"""() => {
   const text = (document.body && document.body.innerText) || '';
-  if (/\b(uploading|analyzing|analysing|processing file|please wait)\b/i.test(text))
-    return 'working';
+  // A page AT WORK says so in a short status line a person can see. The
+  // whole body was searched until 2026-09-23, and Lever's AI notice
+  // ("...reviewing applications, analyzing resumes, or assessing
+  // responses...") kept every Voltus upload "working" for the full budget
+  // with "Success!" showing beside the file, so two applications waited on
+  // him for "Resume/CV". A paragraph is not a progress message.
+  const busyWords = /\b(uploading|analyzing|analysing|processing file|please wait)\b/i;
+  const atWork = [...document.querySelectorAll('body *')].some(el =>
+    !el.children.length && el.offsetParent !== null
+    && (el.textContent || '').trim().length <= 60 && busyWords.test(el.textContent || ''));
+  if (atWork) return 'working';
   const shown = (el) => !!el && el.offsetParent !== null && (el.innerText || '').trim();
   const verdict = [...document.querySelectorAll(
       '[class*="resume-upload-success"], [class*="resume-upload-failure"]')].some(shown)

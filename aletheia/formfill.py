@@ -174,6 +174,25 @@ READ_FORM_JS = r"""() => {
     if (tail.length < 10 || !/^[A-Za-z0-9]+$/.test(tail)) return false;
     return (tail.match(/[a-z](?=[A-Z])|[A-Z](?=[a-z])|[A-Za-z](?=\d)|\d(?=[A-Za-z])/g) || []).length >= 4;
   };
+  // The <label> of the block this control has to itself, when its `for`
+  // names nothing on the page. Ashby's Location is <label
+  // for="_systemfield_location"> over an <input role=combobox> with no id
+  // and no name: never read, so Vanta's form went to Submit with a required
+  // box empty and the button refused (live 2026-09-23). The label's own
+  // class says required ("_required_f7cvd_91"); the asterisk is CSS.
+  const ownLabel = (el) => {
+    for (let box = el.parentElement, up = 0; box && up < 4; box = box.parentElement, up++) {
+      const controls = box.querySelectorAll('input:not([type="hidden"]), select, textarea, button[aria-pressed]');
+      if (controls.length > 1) return null;
+      for (const l of box.querySelectorAll('label')) {
+        if (l.querySelector('input, select, textarea')) continue;
+        const target = l.getAttribute('for');
+        if (target && document.getElementById(target)) continue;
+        if ((l.innerText || '').trim()) return l;
+      }
+    }
+    return null;
+  };
   const labelFor = (el) => {
     if (el.id) {
       const l = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
@@ -187,6 +206,8 @@ READ_FORM_JS = r"""() => {
     }
     const wrap = el.closest('label');
     if (wrap && wrap.innerText.trim()) return wrap.innerText.trim();
+    const orphan = ownLabel(el);
+    if (orphan) return orphan.innerText.trim();
     const aria = el.getAttribute('aria-label');
     if (aria) return aria.trim();
     const by = el.getAttribute('aria-labelledby');
@@ -245,6 +266,18 @@ READ_FORM_JS = r"""() => {
     // on (live 2026-09-17).
     if (el.type === 'file' && document.querySelectorAll('input[type=file]').length === 1)
       return 'input[type=file]';
+    // No id and no name. The block's own steady data attribute names the
+    // field on every load: Ashby's Location is <input role=combobox> inside
+    // <div data-field-path="_systemfield_location"> (live 2026-09-23).
+    for (let box = el.parentElement, up = 0; box && up < 4; box = box.parentElement, up++) {
+      for (const attr of ['data-field-path', 'data-qa', 'data-testid', 'data-name', 'data-field']) {
+        const v = box.getAttribute(attr);
+        if (!v || generated(v)) continue;
+        const role = el.getAttribute('role');
+        const css = `[${attr}="${CSS.escape(v)}"] ${el.tagName.toLowerCase()}` + (role ? `[role="${role}"]` : '');
+        if (document.querySelectorAll(css).length === 1) return css;
+      }
+    }
     return null;
   };
   // A checkbox or radio is an OPTION, not a question. Its own label says
@@ -330,7 +363,8 @@ READ_FORM_JS = r"""() => {
       // employment application read as "everything is filled in" with most empty).
       required: !!(el.required || el.getAttribute('aria-required') === 'true'
                    || el.getAttribute('data-required_mark') === 'required'
-                   || el.getAttribute('data-required') === 'true'),
+                   || el.getAttribute('data-required') === 'true'
+                   || (ownLabel(el) && /(?:^|[\s_-])required(?:$|[\s_-])/i.test(String(ownLabel(el).className)))),
       value: (el.value || '').slice(0, 200),
       // Can a PERSON see it? A honeypot is a box nobody can see, and so is
       // hCaptcha's token textarea. Python decides what that means per type:
@@ -739,6 +773,13 @@ def match_field(field: dict) -> str | None:
     labelled at all.
     """
     label = _clean_label(field.get("label")).casefold()
+    # A box that asks only "Location" asks where HE is - Ashby's system field,
+    # a city-state-country picker (live 2026-09-23, Vanta). "Preferred office
+    # location" and "which locations" are somebody else's places and are not
+    # touched: this is the bare word, with or without its hint.
+    if re.fullmatch(r"(?:your |current )?location(?: \(?(?:city|town)(?:,? state)?(?:,? country)?\)?)?\*?",
+                    label.strip()):
+        return "city"
     # "If you're not authorized to work at the stated location, what..." asks
     # something that depends on an earlier answer, not a fact on file. Live on
     # Brex 2026-09-10 it got "Yes", and "If you have worked at Capital One..."
