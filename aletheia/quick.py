@@ -502,9 +502,17 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # date string; "what meetings do I have tomorrow" paid a model.
         r"|^(?:show me|pull up|open|read me|give me) (?:my |the )?(?:calendar|schedule|agenda)(?: for)? (?P<day8>today|tomorrow|this week|next week)$"
         r"|^what (?:meetings|appointments|events|calls) (?:do i have|have i got|are there)(?: on)? (?P<day9>today|tomorrow|this week|next week)$")),
+    ("repo_wrong", re.compile(
+        r"^what(?:'s| is|s)? (?:wrong|broken|failing|up|going on|the matter) with (?:the |my )?(?P<repo_wrong>[a-z0-9][a-z0-9 _.-]{1,40}?)"
+        r"(?: pipeline| repo| project| bot)?\s*\??$"
+        r"|^what did (?:the |my )?(?P<repo_wrong2>[a-z0-9][a-z0-9 _.-]{1,40}?)(?: pipeline| repo| project| bot)? do (?:today|overnight|last night|this week)\s*\??$")),
+    ("fleet_read_at", re.compile(
+        r"^when (?:was|did) (?:the )?fleet (?:last )?(?:checked|read|looked at|scanned|updated|refreshed)(?: last)?\s*\??$"
+        r"|^how (?:old|fresh|stale) is the fleet (?:reading|read|pulse)\s*\??$")),
     ("alerts", re.compile(
         r"^(?:are there |is there )?any(?:thing)? (?:alerts|broken|wrong|failing)$"
         r"|^any alerts$|^is anything broken$|^anything broken$"
+        r"|^(?:which|what) (?:project|projects|repo|repos|one|ones) (?:has|have|is|are) (?:a fault|faults|red|broken|failing|down)\s*\??$"
         r"|^what(?:'s| is|s)? (?:broken|failing|wrong|red|down) (?:in|with|on|across) (?:the |my )?fleet$"
         r"|^is everything (?:ok|green|fine)$")),
     ("repos", re.compile(
@@ -722,6 +730,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5",
                                            "until", "until2", "day8", "day9",
                                            "why_not", "why_not2", "why_not3",
+                                           "repo_wrong", "repo_wrong2",
                                            "recall", "recall2", "recall3", "recall4")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not"):
@@ -1691,6 +1700,38 @@ def _how_many() -> str | None:
             + ". Ask about a specific one and I'll tell you straight.")
 
 
+def _no_pulse() -> bool:
+    from aletheia import pulse
+    try:
+        return not (pulse.PULSE_DIR / "latest.json").is_file()
+    except Exception:
+        return True
+
+
+def _repo_wrong(name: str) -> str | None:
+    """"What's wrong with the trader": that repo's row of the pulse, in words;
+    no pulse is said as no pulse; a name the pulse does not know is a model's."""
+    from aletheia import current_state
+    said = current_state.repo_words(" ".join(str(name or "").split()))
+    if said is None and _no_pulse():
+        return "No fleet reading yet - the pulse hasn't been written on this machine, so I can't say."
+    return said
+
+
+def _fleet_read_at() -> str:
+    """When the pulse was last written - the fleet's own timestamp."""
+    import json
+    from aletheia import pulse, speech
+    try:
+        latest = json.loads((pulse.PULSE_DIR / "latest.json").read_text(encoding="utf-8"))
+    except Exception:
+        return "No fleet reading yet - the pulse hasn't been written on this machine."
+    when = str(latest.get("generated_at") or "")
+    if not when:
+        return "The fleet reading carries no time."
+    return f"The fleet was last read {speech.humanize_time(when)}; it is read every six hours."
+
+
 def _alerts() -> str | None:
     """The fleet's own red lights, from the pulse she already writes."""
     import json
@@ -1707,7 +1748,8 @@ def _alerts() -> str | None:
         return "Nothing red. The fleet is green."
     named = []
     for row in alerts[:3]:
-        repo = str(row.get("repo") or row.get("github") or "something")
+        # the name he knows it by, never the pulse's slug ("schwab_trader")
+        repo = str(row.get("github") or row.get("repo") or "something")
         failing = [str(f) for f in (row.get("failing") or [])]
         named.append(repo + (f" ({', '.join(failing[:2])})" if failing else ""))
     if len(alerts) > 3:
@@ -2054,7 +2096,12 @@ def _status_of(text: str) -> str | None:
             # Aletheia repository's row of the pulse.
             return _doing()
         else:
-            return current_state.repo_words(subject)
+            said = current_state.repo_words(subject)
+            if said is None and _no_pulse():
+                # "Is the trader running" with the pulse unwritten went to a
+                # model that knows no trader (2026-09-23 night sweep).
+                return "No fleet reading yet - the pulse hasn't been written on this machine, so I can't say."
+            return said
     if shape == "going":
         return current_state.job_hunt_words()
     if shape == "count_window":
@@ -2536,6 +2583,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "agenda": lambda rest: _agenda(rest or "today"),
            "how_many": lambda rest: _how_many(),
            "alerts": lambda rest: _alerts(),
+           "repo_wrong": _repo_wrong,
+           "fleet_read_at": lambda rest: _fleet_read_at(),
            "repos": lambda rest: _repos(),
            "shopping": lambda rest: _shopping(),
            "uptime": lambda rest: _uptime(),
