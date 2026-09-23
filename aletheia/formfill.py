@@ -272,7 +272,9 @@ READ_FORM_JS = r"""() => {
     for (let box = el.parentElement, up = 0; box && up < 4; box = box.parentElement, up++) {
       for (const attr of ['data-field-path', 'data-qa', 'data-testid', 'data-name', 'data-field']) {
         const v = box.getAttribute(attr);
-        if (!v || generated(v)) continue;
+        // data-field-path IS the field's key (Ashby's is a uuid, the same on
+        // every load and the label's `for`); the minted-id test is for the rest.
+        if (!v || (attr !== 'data-field-path' && generated(v))) continue;
         const role = el.getAttribute('role');
         const css = `[${attr}="${CSS.escape(v)}"] ${el.tagName.toLowerCase()}` + (role ? `[role="${role}"]` : '');
         if (document.querySelectorAll(css).length === 1) return css;
@@ -379,6 +381,13 @@ READ_FORM_JS = r"""() => {
                    || (ownLabel(el) && /(?:^|[\s_-])required(?:$|[\s_-])/i.test(String(ownLabel(el).className)))
                    || starred(el)),
       value: (el.value || '').slice(0, 200),
+      // A DATE PICKER: a text box that takes only a date - Ashby's "earliest
+      // date you can begin" is <input type=text placeholder="Pick date...">
+      // inside react-datepicker (live 2026-09-23, Tenex), and prose typed
+      // into it is thrown away.
+      date_widget: el.type === 'date' || /\bdate\b/i.test(String(el.className || ''))
+        || /\b(?:pick|select|choose|enter)\s+(?:a\s+)?date\b/i.test(el.placeholder || '')
+        || !!el.closest('[class*="datepicker" i], [class*="date-picker" i]'),
       // Can a PERSON see it? A honeypot is a box nobody can see, and so is
       // hCaptcha's token textarea. Python decides what that means per type:
       // a hidden native radio behind a styled label is still the real control.
@@ -1840,9 +1849,65 @@ def plan(fields: list[dict], *, answers: dict | None = None, found_on: str = "")
             fill.append({"action": "select", "selector": field["selector"],
                          "value": option, "label": label, "profile_field": key})
             continue
+        if key == "notice_period" and (field.get("type") == "date" or field.get("date_widget")):
+            # "Two weeks from an accepted offer." typed into a date picker is
+            # thrown away, and Tenex went to him as "Please fill out this
+            # field" with the answer on file (live 2026-09-23). A date box
+            # gets a date read off what he said, counted from today.
+            when = start_date_from(value)
+            if when is None:
+                row["why"] = f"a date box, and what you told me ({value}) does not name a date"
+                row["profile_field"] = key
+                ask.append(row)
+                continue
+            typed = when.isoformat() if field.get("type") == "date" else when.strftime("%m/%d/%Y")
+            fill.append({"action": "type", "selector": field["selector"], "value": typed,
+                         "label": label, "profile_field": key, "date_widget": True})
+            continue
         fill.append({"action": "type", "selector": field["selector"],
                      "value": str(value), "label": label, "profile_field": key})
     return {"fill": fill, "ask": ask, "skipped": skipped}
+
+
+_SOON = re.compile(r"\b(?:immediately|right away|straight away|asap|as soon as possible|now|any ?time|today)\b", re.I)
+_IN_SPAN = re.compile(
+    r"\b(?P<n>\d{1,2}|a|an|one|two|three|four|five|six|eight|ten|twelve)\s*[- ]?\s*(?P<unit>days?|weeks?|months?)\b", re.I)
+_WORD_NUMBERS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+                 "eight": 8, "ten": 10, "twelve": 12}
+
+
+def start_date_from(text, today=None):
+    """The date his words about starting come to, or None.
+
+    "Two weeks from an accepted offer" is today plus fourteen days as far as
+    a form's date box is concerned; "immediately" is today; a date he wrote
+    is that date. Anything else - "after my current project" - is not a
+    date and is his to answer."""
+    import datetime as dt
+    said = str(text or "").strip()
+    today = today or dt.date.today()
+    hit = re.search(r"\b(\d{4})-(\d{2})-(\d{2})\b", said)
+    if hit:
+        try:
+            return dt.date(int(hit.group(1)), int(hit.group(2)), int(hit.group(3)))
+        except ValueError:
+            return None
+    hit = re.search(r"\b(\d{1,2})/(\d{1,2})/(\d{4})\b", said)
+    if hit:
+        try:
+            return dt.date(int(hit.group(3)), int(hit.group(1)), int(hit.group(2)))
+        except ValueError:
+            return None
+    span = _IN_SPAN.search(said)
+    if span:
+        n = span.group("n").casefold()
+        count = int(n) if n.isdigit() else _WORD_NUMBERS.get(n, 0)
+        unit = span.group("unit").casefold()
+        days = count * (1 if unit.startswith("day") else 7 if unit.startswith("week") else 30)
+        return today + dt.timedelta(days=days) if count else None
+    if _SOON.search(said):
+        return today
+    return None
 
 
 def apply_answers(out: dict, fields: list[dict], answers: dict) -> dict:
@@ -1929,9 +1994,16 @@ def apply_answers(out: dict, fields: list[dict], answers: dict) -> dict:
 
 
 def steps(filled: list[dict]) -> list[dict]:
-    """The plan in `browse.interact`'s grammar — and nothing that submits."""
-    return [{"action": s["action"], "selector": s["selector"],
-             "value": s["value"]} for s in filled]
+    """The plan in `browse.interact`'s grammar — and nothing that submits.
+
+    A date picker keeps a typed date only once it is confirmed, so a date
+    box's fill is followed by Enter in that box (react-datepicker, Ashby)."""
+    out = []
+    for s in filled:
+        out.append({"action": s["action"], "selector": s["selector"], "value": s["value"]})
+        if s.get("date_widget") and s["action"] == "type":
+            out.append({"action": "press", "selector": s["selector"], "value": "Enter"})
+    return out
 
 
 # How many frames deep she will look, and how long she will wait for
