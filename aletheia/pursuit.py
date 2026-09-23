@@ -493,6 +493,9 @@ def validate(proposal: dict, record: dict, *, quoting: bool = False) -> tuple[di
             if not (to and text):
                 dropped.append({"kind": kind, "why": "it names no person or has no text"})
                 continue
+            if nobody_by_name(to):
+                dropped.append({"kind": kind, "why": "it names a role or a placeholder, not a person she could reach"})
+                continue
             if not grounded:
                 dropped.append({"kind": kind, "why": "its claims stand on no evidence she holds"})
                 continue
@@ -707,6 +710,27 @@ def _do_look(record: dict, move: dict, now: dt.datetime) -> dict:
         raise PursuitError("the page had no text to read")
     eid = add_evidence(record, "looked", text[:6000], source=source, provenance=UNTRUSTED, now=now)
     return {"state": "done", "effect": f"kept what it said as {eid}", "evidence": eid}
+
+
+#: A recipient that is a description of who to find, not somebody found.
+_NOBODY = re.compile(r"\b(?:hiring manager|recruiter|recruiting|recruitment|talent(?: acquisition)?(?: team)?|"
+                     r"hr(?: team)?|people team|whoever|someone|somebody|a contact|the contact|team at|"
+                     r"contact from|point of contact)\b", re.I)
+
+
+def nobody_by_name(to: str) -> bool:
+    """Live 2026-09-23: her own model addressed a note to "[Hiring manager or
+    recruiter contact from DevRev email]" and it reached him as "a note worth
+    sending to [Hiring manager or ...]". A role, a bracketed placeholder or
+    "someone at" is a description of a person to find, not a person; without
+    an address in the words it is nobody, and the move is dropped rather than
+    left with him to address. An address in the words is always somebody."""
+    text = str(to or "")
+    if re.search(r"[\w.+-]+@[\w-]+\.[\w.-]+", text):
+        return False
+    if re.search(r"[\[\]{}<>]", text):
+        return True
+    return bool(_NOBODY.search(text))
 
 
 def _address_of(to: str) -> tuple[str, str]:
