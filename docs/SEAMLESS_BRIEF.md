@@ -92,7 +92,13 @@ adding architecture. The architecture build is finished
     hunt (#154).
   - *Sentences swept with every frontier off:* morning shapes (#152),
     three verbs (#153), status/focus/outcomes (#155), small facts and a
-    refusal in words (#156), what her model was doing (#160).
+    refusal in words (#156), what her model was doing (#160), four more
+    doors - order more, do-not-disturb, a lost object, the calendar (#162),
+    good morning as the night then the day (#165).
+  - *Also found from his records:* a known resume asked a model to read it
+    every batch (#161); a filled application whose yes had expired was
+    claimed on the grant every beat and never sent (#164); a fixture that
+    cannot be today skips rather than squeezing into a young day (#163).
   - *Not done, said plainly:* Lever `/apply` pages fill nothing and stop on
     "resume upload did not finish" (unprobed); `update_now`, `apply_retry`,
     `apply_questions`, `frontier_on` still need a kind; the poll interval and
