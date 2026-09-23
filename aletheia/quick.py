@@ -90,7 +90,8 @@ _STATUS = re.compile(
     r"so far|to date|all time))?(?: (?:today|now))?(?P<count_window> (?:this week|this month|yesterday|last week|"
     r"tonight|last night|overnight|this evening|this morning))?$"
     r"|^how many (?:have|did) (?:you|u) (?P<count2>apply to|send(?: out)?|submit|get through)"
-    r"(?P<count2_total> (?:in total|total|overall|so far|ever))?(?: today)?$"
+    r"(?P<count2_total> (?:in total|total|overall|so far|ever))?"
+    r"(?P<count2_window> (?:this week|this month|yesterday|last week|tonight))?(?: today)?$"
     # when was the last one
     r"|^when (?:was|did) (?:the |your |my |her )?(?:last|latest|most recent) "
     r"(?P<last_when>application|one|job application|job|submission)"
@@ -230,10 +231,22 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What's the latest with DevRev" names the thing without calling it an
     # application; when the words match an opportunity or a record, that is
     # the answer, and when they match nothing the model may still think.
+    # "Anything from Vanta" and "did Vanta reply" fell through to a planner
+    # with every frontier off (2026-09-23 night sweep); the record answers.
     ("opportunity_loose", re.compile(
         r"^(?:what(?:'s| is|s)? the latest (?:with|on|from)|any (?:news|word|update) (?:from|on|with)|"
         r"how(?:'s| is) it going with|where (?:are we|am i) with|what(?:'s| is|s)? happening with|"
-        r"how (?:did|has) (?:it|things) (?:go|gone) with) (?:the |my )?(?P<what>[a-z0-9][a-z0-9 .&'-]{1,40}?)\s*\??$")),
+        r"how (?:did|has) (?:it|things) (?:go|gone) with|"
+        r"anything (?:new |back )?from|any(?:thing| word| reply| response| answer) (?:back )?from|"
+        r"(?:have (?:you|u|we|i) )?heard (?:anything |back )?from|did (?:you|u|we|i) hear (?:anything |back )?from)"
+        # "anything from anyone" / "did any employers reply" name nobody in
+        # particular and stay with the replies shape below
+        r" (?:the |my )?(?!(?:any|anyone|anybody|someone|somebody|they|them|people|employers?|companies|recruiters|jobs|work)\b)"
+        r"(?P<what>[a-z0-9][a-z0-9 .&'-]{1,40}?)(?: yet)?\s*\??$"
+        r"|^(?:did|has|have) (?:the )?(?!(?:any|anyone|anybody|someone|somebody|they|them|people|employers?|companies|recruiters)\b)"
+        r"(?P<what2>[a-z0-9][a-z0-9 .&'-]{1,40}?)"
+        r" (?:replied|reply|responded|respond|get back|gotten back|written back|write back|answered|answer)"
+        r"(?: yet| to me| to us| back)?\s*\??$")),
     # "What companies have I applied to" came back from her own model as
     # "I don't have a record of your job applications - no tracker
     # connected here", and "when did I apply to Stripe" waited two
@@ -242,6 +255,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:what|which) (?:companies|employers|places|jobs) have i applied (?:to|for)(?: so far| this week| today)?$"
         r"|^where have i applied(?: so far| this week| today)?$"
         r"|^(?:who|what) have (?:you|u) applied (?:to|for)(?: for me)?(?: so far| this week| today)?$"
+        r"|^(?:what|who|where) did (?:you|u|we) apply(?: (?:to|for))?(?: for me)?(?: today| this week| tonight| so far)?$"
         r"|^(?:list|show me|name) (?:the |my )?(?:companies|employers|places) (?:i|you|u|we)(?:'ve| have)? applied to$")),
     ("applied_when", re.compile(
         r"^when did (?:i|you|u|we) apply (?:to|for|at) (?:the |my )?(?P<what>[a-z0-9][a-z0-9 .&'-]{1,40}?)"
@@ -379,9 +393,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what(?:'s| is|s)? the date (?:on |for )?(?:next |this |of )?(?!(?:today|tomorrow|yesterday|now)\b)(?P<date_of>[a-z][a-z ']{2,30}?)\s*\??$"
         r"|^what date is (?:next |this )?(?P<date_of2>[a-z][a-z ']{2,30}?)\s*\??$"
         r"|^when(?:'s| is) (?:next |this )(?P<date_of3>monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$")),
+    ("up_to_date", re.compile(
+        r"^(?:are|is) (?:you|u|your code) (?:up to date|current|on the (?:latest|newest)(?: code)?)(?: right now| now)?$"
+        r"|^(?:are|is) (?:you|u) (?:behind|running old code|out of date)$")),
     ("updated", re.compile(
         r"^when (?:did|were) (?:you|u) last (?:update|updated|upgrade|upgraded)(?: yourself)?$"
-        r"|^(?:are|is) (?:you|u|your code) (?:up to date|current|on the (?:latest|newest)(?: code)?)$"
         r"|^when was your last update$")),
     # HIS DAY'S TWO ENDS AND ITS DOOR (2026-09-23): "morning thea" waited
     # 91 s on her own model; "I'm leaving for work" and "going to bed" were
@@ -500,6 +516,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("alerts", re.compile(
         r"^(?:are there |is there )?any(?:thing)? (?:alerts|broken|wrong|failing)$"
         r"|^any alerts$|^is anything broken$|^anything broken$"
+        r"|^what(?:'s| is|s)? (?:broken|failing|wrong|red|down) (?:in|with|on|across) (?:the |my )?fleet$"
         r"|^is everything (?:ok|green|fine)$")),
     ("repos", re.compile(
         r"^how many repos (?:are )?(?:you|u) (?:watching|watch|track|tracking)$"
@@ -1794,7 +1811,9 @@ def _alerts() -> str | None:
         latest = json.loads((pulse.PULSE_DIR / "latest.json")
                             .read_text(encoding="utf-8"))
     except Exception:
-        return None                 # no pulse written yet is not "all green"
+        # Not "all green" - and not a model's guess either: with the pulse
+        # unwritten this went to a model, which had nothing to read (2026-09-23).
+        return "No fleet reading yet - the pulse hasn't been written on this machine, so I can't say what's red."
     alerts = [a for a in (latest.get("alerts") or []) if isinstance(a, dict)]
     if not alerts:
         return "Nothing red. The fleet is green."
@@ -2041,10 +2060,11 @@ def status_of(text: str) -> tuple[str, str] | None:
     if not found:
         return None
     groups = {k: v for k, v in found.groupdict().items() if v}
-    if groups.get("count_window"):
+    if groups.get("count_window") or groups.get("count2_window"):
         # "How many jobs did I apply to this week" waited two minutes on her
-        # own model (2026-09-22); the records carry their dates.
-        return "count_window", groups["count_window"].strip()
+        # own model (2026-09-22); the records carry their dates. "How many
+        # did you send this week" is the same count (2026-09-23).
+        return "count_window", (groups.get("count_window") or groups["count2_window"]).strip()
     for key, value in groups.items():
         if key.startswith("count"):
             total = bool(groups.get("count_total") or groups.get("count2_total"))
@@ -2292,7 +2312,7 @@ def _overnight() -> str:
     return "Overnight: " + ". ".join(parts) + "."
 
 
-def _updated() -> str:
+def _updated(asked_yes_no: bool = False) -> str:
     """When her code last changed and whether it is the newest - from git and
     `running.version`, never a guess ("no record of that in the journal")."""
     from aletheia import proc, running, speech
@@ -2317,6 +2337,15 @@ def _updated() -> str:
         said += f". {speech.count_phrase(int(info['behind_count']), 'newer change')} waiting; I try to update every minute"
     elif info.get("running_old_code") is False:
         said += ", and that's the code I'm running"
+    # "Are you up to date" is a yes-or-no question, and "my code last changed
+    # at 3:17 am" answers a different one (2026-09-23 night sweep).
+    if asked_yes_no:
+        if info.get("running_old_code") or info.get("behind_count"):
+            said = "No. " + said
+        elif info.get("running_old_code") is False:
+            said = "Yes. " + said
+        else:
+            said = "I can't tell whether that's the newest. " + said
     return said + "."
 
 
@@ -2513,6 +2542,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "good_morning": lambda rest: _good_morning(),
            "status": lambda rest: _status(),
            "why_not": _why_not,
+           "up_to_date": lambda rest: _updated(asked_yes_no=True),
            "to_answer": lambda rest: _to_answer(),
            "found": lambda rest: _found(),
            "fleet": lambda rest: _fleet(),

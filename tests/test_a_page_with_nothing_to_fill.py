@@ -36,11 +36,12 @@ class NothingToFill(apply_base.ApplyCase):
             apply_run.stage(url, reader=lambda _u: [],
                             filler=lambda *a, **k: self.fail("a page with no form was filled"))
         # Two checks can say it ("no application form on this page", "not an
-        # application form"); the rule is that it is refused as not a form.
+        # application form"); the rule is that it is refused as not a form -
+        # and a page with no boxes at all is a posting that is GONE (2026-09-23).
         self.assertIn("application form", str(caught.exception))
         records = [r for r in apply_run.all_runs() if r.get("url") == url]
         self.assertEqual([r["state"] for r in records], ["CLOSED"])
-        self.assertEqual([r.get("closed_kind") for r in records], ["not-a-form"])
+        self.assertEqual([r.get("closed_kind") for r in records], [apply_run.GONE])
         self.assertFalse(any(str(a.get("id", "")).startswith(records[0]["id"])
                              for a in policy.all_approvals()),
                          "nothing to press, so nothing to approve")
