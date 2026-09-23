@@ -132,7 +132,7 @@ STORE_OF = {
     "project_new": "charters", "project_step": "charters", "project_drop": "charters",
     "applications": "applications", "apply_prepare": "applications",
     "apply_campaign": "applications", "apply_answer": "applications",
-    "apply_outcome": "applications", "apply_pause": "applications",
+    "apply_outcome": "applications", "apply_pause": "applications", "apply_retry": "applications",
     "file_list": "workspace", "file_read": "workspace", "file_find": "workspace",
     "file_size": "workspace", "file_write": "workspace", "file_edit": "workspace",
     "file_move": "workspace", "file_delete": "workspace", "compose": "workspace",
@@ -234,6 +234,8 @@ CONSEQUENCE_OF: dict[str, str] = {
     # on an employer's website. A form filled on somebody else's site has left
     # this machine, whatever the tier says.
     "apply_prepare": OUTWARD, "apply_campaign": OUTWARD, "apply_answer": OUTWARD,
+    # A second send reaches the employer as surely as the first.
+    "apply_retry": OUTWARD,
     # Recording his screen is his to start, and a recording is a thing about
     # him that exists afterwards.
     "screen_record": OUTWARD, "screen_record_stop": OUTWARD,
@@ -715,7 +717,7 @@ SPOKEN_GROUPS_BY_NAME: dict[str, tuple[str, ...]] = {
     "working on your projects on your say-so": ("work_projects", "work_report"),
     "studying what does better and improving your projects": ("study_new", "studies", "study_decide",
                                                               "study_confirm"),
-    "job applications": ("jobs", "apply_prepare", "apply_campaign", "apply_pause", "apply_answer",
+    "job applications": ("jobs", "apply_prepare", "apply_campaign", "apply_pause", "apply_answer", "apply_retry",
                          "applications", "apply_outcome"),
     "money you spend": ("money", "subscriptions", "subscription_cancel"),
     "your car and journeys": ("car", "travel_time"),

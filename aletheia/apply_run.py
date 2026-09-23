@@ -1327,6 +1327,39 @@ def accept(run_id: str) -> dict:
     return record
 
 
+#: How many times a failed send may be tried again on his tap. Two, because
+#: a form that refused twice is a form for him to look at, not a loop.
+MAX_RETRIES = 2
+
+
+def retry(run_id: str, *, via: str = "operator") -> dict:
+    """Try a failed send again: back to AWAITING_YOU with a fresh approval,
+    so the next beat sends it on the grant. "An application could not be
+    sent" carried no way to say "try again" (2026-09-23)."""
+    record = load_run(run_id)
+    if record.get("state") in PRESSED_STATES:
+        raise ApplyError(f"{run_id} already went to the employer")
+    if record.get("state") != "FAILED":
+        raise ApplyError(f"{run_id} is {record.get('state')}, not a failed send")
+    tried = int(record.get("retries") or 0)
+    if tried >= MAX_RETRIES:
+        raise ApplyError(f"{run_id} has been tried {tried} times already - it needs your eyes, not another go")
+    if not record.get("steps"):
+        raise ApplyError(f"{run_id} was never filled, so there is nothing to send again")
+    record["retries"] = tried + 1
+    record["state"] = "AWAITING_YOU"
+    record["retried_at"] = stateio.utcnow()
+    record["failure_before"] = str(record.get("failure") or "")
+    record.pop("failure", None)
+    record.setdefault("history", []).append(
+        {"at": stateio.utcnow(), "what": f"tried again ({tried + 1} of {MAX_RETRIES}) on his say-so"})
+    stateio.write_json_atomic(_record_path(run_id), record)
+    renew_approval(run_id)
+    journal.append("decision", "apply", f"{run_id}: trying the send again ({describe(record)}), {tried + 1} of {MAX_RETRIES}",
+                   actor=via)
+    return load_run(run_id)
+
+
 def confirm(run_id: str, *, via: str = "operator", because: str = "") -> dict:
     """He said yes here, at a keyboard. Grants the approval, sends nothing."""
     record = load_run(run_id)
