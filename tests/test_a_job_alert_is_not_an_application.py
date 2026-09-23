@@ -151,7 +151,8 @@ class StageRefusesASignup(apply_base.ApplyCase):
         self.assertIn("a talent-network / job-alert signup, not an application",
                       str(caught.exception))
         records = [r for r in apply_run.all_runs() if r.get("url") == self.URL]
-        self.assertEqual([r["state"] for r in records], ["FAILED"])
+        self.assertEqual([r["state"] for r in records], ["CLOSED"])
+        self.assertEqual([r.get("closed_kind") for r in records], ["not-a-form"])
         self.assertEqual(records[0]["failure"],
                          "a talent-network / job-alert signup, not an application")
         self.assertFalse(any(str(a.get("id", "")).startswith(records[0]["id"])

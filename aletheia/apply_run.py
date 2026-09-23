@@ -345,6 +345,26 @@ def his_ok_notice(record: dict, kind: str) -> tuple[str, str, str]:
             f"apply-not-full-time:{record.get('id')}")
 
 
+#: A page that turned out not to be an application form - a job-alert
+#: signup, a bot check, a taken-down posting. Recorded CLOSED with this
+#: kind rather than FAILED (2026-09-23): 32 of the newest 40 "failures" on
+#: his PC were these, and a failure count that is mostly pages-that-were-
+#: never-forms says nothing about what actually would not send.
+NOT_A_FORM = "not-a-form"
+
+
+def _not_a_form(run_id: str, url: str, failure: str, *, resume: str, kept_job: dict,
+                not_filled: list | None = None, skipped: list | None = None) -> dict:
+    record = {"id": run_id, "state": CLOSED, "url": url, "failure": failure,
+              "closed_because": failure, "closed_kind": NOT_A_FORM, "closed_by": ACTOR,
+              "closed_at": stateio.utcnow(),
+              "approval": "", "steps": [], "filled": [], "not_filled": list(not_filled or []),
+              "skipped": list(skipped or []), "resume": resume,
+              "staged_at": stateio.utcnow(), **kept_job}
+    stateio.write_json_atomic(_record_path(run_id), record)
+    return record
+
+
 def close(run_id: str, why: str, *, via: str = "aletheia") -> dict:
     """Retire a waiting application without applying, and say why.
 
@@ -761,11 +781,7 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
     # under that job's name. Same predicate as the campaign's form check.
     if formfill.is_signup_list(fields):
         failure = "a talent-network / job-alert signup, not an application"
-        record = {"id": run_id, "state": "FAILED", "url": url, "failure": failure,
-                  "approval": "", "steps": [], "filled": [], "not_filled": [],
-                  "skipped": [], "resume": resume,
-                  "staged_at": stateio.utcnow(), **kept_job}
-        stateio.write_json_atomic(_record_path(run_id), record)
+        _not_a_form(run_id, url, failure, resume=resume, kept_job=kept_job)
         journal.append("action", "apply", f"{url} is a job-alert signup, not an "
                        "application - not staged", actor=ACTOR)
         raise ApplyError(f"{run_id}: {failure}")
@@ -786,11 +802,8 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
             and not any(formfill.match_field(f) in _IDENTITY for f in fields)):
         failure = ("nothing on this page asks for his name, email or phone, so it is not an "
                    "application form - a bot check or a contact page looks like this")
-        record = {"id": run_id, "state": "FAILED", "url": url, "failure": failure,
-                  "approval": "", "steps": [], "filled": [], "not_filled": plan["ask"],
-                  "skipped": plan["skipped"], "resume": resume,
-                  "staged_at": stateio.utcnow(), **kept_job}
-        stateio.write_json_atomic(_record_path(run_id), record)
+        _not_a_form(run_id, url, failure, resume=resume, kept_job=kept_job,
+                    not_filled=plan["ask"], skipped=plan["skipped"])
         journal.append("action", "apply", f"{url} asks nothing about who he is - "
                        "not an application, not staged", actor=ACTOR)
         raise ApplyError(f"{run_id}: {failure}")
@@ -804,11 +817,7 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
     if not plan["fill"] and not plan["ask"] and not answered["steps"]:
         failure = ("there is no application form on this page to fill - the posting "
                    "may have been taken down or the link was wrong")
-        record = {"id": run_id, "state": "FAILED", "url": url, "failure": failure,
-                  "approval": "", "steps": [], "filled": [], "not_filled": [],
-                  "skipped": plan["skipped"], "resume": resume,
-                  "staged_at": stateio.utcnow(), **kept_job}
-        stateio.write_json_atomic(_record_path(run_id), record)
+        _not_a_form(run_id, url, failure, resume=resume, kept_job=kept_job, skipped=plan["skipped"])
         journal.append("action", "apply", f"{url} has no application form to fill - "
                        "not staged", actor=ACTOR)
         raise ApplyError(f"{run_id}: {failure}")

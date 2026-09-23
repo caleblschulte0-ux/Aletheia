@@ -39,7 +39,8 @@ class NothingToFill(apply_base.ApplyCase):
         # application form"); the rule is that it is refused as not a form.
         self.assertIn("application form", str(caught.exception))
         records = [r for r in apply_run.all_runs() if r.get("url") == url]
-        self.assertEqual([r["state"] for r in records], ["FAILED"])
+        self.assertEqual([r["state"] for r in records], ["CLOSED"])
+        self.assertEqual([r.get("closed_kind") for r in records], ["not-a-form"])
         self.assertFalse(any(str(a.get("id", "")).startswith(records[0]["id"])
                              for a in policy.all_approvals()),
                          "nothing to press, so nothing to approve")
