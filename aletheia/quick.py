@@ -179,9 +179,33 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^status$|^how(?:'s| is) it going$")),
     # The brief's first question, answered from the application records
     # with no model: every number in the answer is a count of records.
+    # "Give me a status update" and "what should I focus on today" waited two
+    # minutes or planned "Plan your day" as a step (2026-09-23). Both are
+    # her records, read together: how she is, what needs him, his day, the
+    # hunt, his next task.
+    ("status", re.compile(
+        r"^(?:give me |i want |i need )?(?:a |the |an )?(?:status|status update|status report|update|sitrep|rundown|"
+        r"situation report)(?: please)?$"
+        r"|^(?:how are things|how(?:'s| is) everything|how(?:'s| is) it going|what(?:'s| is) (?:going on|the situation|the status))"
+        r"(?: today| right now| with you)?$"
+        r"|^(?:catch me up|fill me in|bring me up to speed|where are we)(?: please)?$")),
+    ("focus", re.compile(
+        r"^what should i (?:focus on|do|work on|prioriti[sz]e|tackle|start with)(?: today| first| right now| this morning| now)?$"
+        r"|^(?:plan|organi[sz]e|map out|lay out) my day$|^what(?:'s| is) (?:the )?(?:most important|top priority|priority)"
+        r"(?: thing)?(?: today| right now)?$|^what(?:'s| is) on (?:my|the) plate(?: today)?$"
+        r"|^what do i need to (?:do|get done)(?: today)?$")),
+    # "How many interviews do I have" / "did I get any rejections" (2026-09-23):
+    # outcomes are on the application records.
+    ("outcomes", re.compile(
+        r"^(?:how many|any|do i have any|did i get any|have i (?:got|gotten|had) any|what) (?P<outcome>interviews?|offers?|"
+        r"rejections?)(?: (?:do i have|have i got|so far|yet|lined up|coming up|today|this week))*$"
+        r"|^(?:who|which (?:companies|employers|jobs)) (?:(?P<outcome2>rejected) me|(?P<outcome3>turned) me down|"
+        r"made (?:me )?an (?P<outcome4>offer)|(?:wants?|asked) (?:to |an |for an )?(?P<outcome5>interview|talk))$")),
     ("job_hunt", re.compile(
         r"^how (?:did|have|are) (?:the )?(?:job )?(?:applications|apps|job hunt|hunt|job search)"
         r" (?:go|gone|going)(?: today| so far| so far today)?$"
+        r"|^how am i doing (?:on|with|in) (?:the |my )?(?:job hunt|job search|hunt|search|applications)(?: today)?$"
+        r"|^(?:how(?:'s| is) )?(?:my|the) (?:job hunt|job search) (?:doing|looking|coming along|progressing)(?: today)?$"
         r"|^how(?:'s| is) the (?:job )?(?:hunt|search|applications?)(?: going)?(?: today)?$"
         r"|^(?:did|have) (?:you|u) (?:apply|applied) to (?:any|anything|any jobs)(?: today)?$"
         r"|^(?:job )?(?:applications|hunt) (?:status|today|report)$"
@@ -607,7 +631,8 @@ def match(question: str) -> tuple[str, str] | None:
                                            "free", "free2", "free3",
                                            "down", "down2", "weather",
                                            "weather2", "weather3",
-                                           "day", "day2", "day3", "day4", "day5", "day6", "day7")
+                                           "day", "day2", "day3", "day4", "day5", "day6", "day7",
+                                           "outcome", "outcome2", "outcome3", "outcome4", "outcome5")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
@@ -689,6 +714,93 @@ def _waiting() -> str:
                      f"{speech.count_phrase(len(notices), 'thing')} "
                      "I wanted to tell you about")
     return ". ".join(parts) + "."
+
+
+def _status() -> str:
+    """The whole of it in one breath: how she is, what needs him, the hunt,
+    his day and his next task - each from the store that knows."""
+    from aletheia import running, speech
+    parts: list[str] = []
+    try:
+        state = running.snapshot(include_tasks=False)
+        # The whole headline only when something is wrong; "everything's
+        # running" is the summary a status wants.
+        parts.append("Everything's running" if running.all_well(state) else running.headline(state).rstrip("."))
+    except Exception:
+        pass
+    try:
+        from aletheia import needs_you
+        rows = needs_you.items()
+        parts.append(f"{speech.count_phrase(len(rows), 'thing')} need{'s' if len(rows) == 1 else ''} you"
+                     if rows else "Nothing needs you")
+    except Exception:
+        pass
+    hunt = _job_hunt()
+    if hunt:
+        parts.append(hunt.rstrip("."))
+    day = _agenda("today")
+    if day:
+        parts.append(day.rstrip("."))
+    tasks = _tasks()
+    if tasks and not tasks.lower().startswith("nothing"):
+        parts.append(tasks.rstrip("."))
+    return ". ".join(p for p in parts if p) + "."
+
+
+def _focus() -> str:
+    """What to do first: what needs him, then what is due, then the day."""
+    from aletheia import speech
+    parts: list[str] = []
+    try:
+        from aletheia import needs_you
+        rows = needs_you.items()
+        if rows:
+            first = rows[0]
+            parts.append(f"First, {speech.count_phrase(len(rows), 'thing')} need{'s' if len(rows) == 1 else ''} you"
+                         + (f" - the first is {first.get('what')}" if first.get("what") else ""))
+    except Exception:
+        pass
+    tasks = _tasks()
+    if tasks and not tasks.lower().startswith("nothing") and "empty" not in tasks.lower():
+        parts.append(tasks.rstrip("."))
+    day = _agenda("today")
+    if day and not day.lower().startswith("nothing"):
+        parts.append(day.rstrip("."))
+    if not parts:
+        return "Nothing is waiting on you, nothing is due and your calendar is clear - the day is yours."
+    return ". ".join(parts) + "."
+
+
+_OUTCOME_WORDS = {"interview": "interviews", "offer": "offers", "rejected": "rejections",
+                  "replied": "replies"}
+
+
+def _outcomes(said: str) -> str:
+    """How many applications came back with this outcome, and from whom."""
+    from aletheia import apply_run, speech
+    word = said.casefold().strip().rstrip("s")
+    key = {"interview": "interview", "offer": "offer", "rejection": "rejected", "replie": "replied",
+           "reply": "replied", "response": "replied", "talk": "interview", "turned": "rejected",
+           "rejected": "rejected"}.get(word, word)
+    try:
+        rows = apply_run.all_runs()
+    except Exception:
+        return "I can't read my application records right now."
+    hits = []
+    for r in rows:
+        if any(str(o.get("outcome")) == key for o in (r.get("outcomes") or [])) or str(r.get("outcome")) == key \
+                or (key == "rejected" and str(r.get("state")) == "REJECTED"):
+            hits.append(r)
+    plural = _OUTCOME_WORDS.get(key, key + "s")
+    if not hits:
+        return f"No {plural} on record."
+    names = []
+    for r in hits:
+        company = " ".join(str(r.get("company") or "").split())
+        if company and company not in names:
+            names.append(company)
+    return (f"{speech.count_phrase(len(hits), plural[:-1] if plural.endswith('s') else plural)} on record"
+            + (f": {speech.and_list(names[:6])}" + (", and more" if len(names) > 6 else "") if names else "") + ".")
 
 
 def _job_hunt() -> str | None:
@@ -1929,6 +2041,9 @@ def _windows() -> str:
 
 
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
+           "status": lambda rest: _status(),
+           "focus": lambda rest: _focus(),
+           "outcomes": _outcomes,
            "last": lambda rest: _last(),
            "disk": lambda rest: _disk(),
            "ip": lambda rest: _ip(),
