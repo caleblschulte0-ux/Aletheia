@@ -40,18 +40,14 @@ class ThreeMoreFromTheSecondSweep(unittest.TestCase):
         self.assertEqual(quick.match("what did you apply to today")[0], "applied_to")
         self.assertEqual(quick.match("where did we apply this week")[0], "applied_to")
 
-    def test_how_many_did_you_send_counts_the_records_in_the_window(self):
-        import datetime as dt
-        now = dt.datetime.now(dt.timezone.utc)
-        rows = [{"state": "SUBMITTED", "submitted_at": (now - dt.timedelta(hours=1)).isoformat()},
-                {"state": "SUBMITTED", "submitted_at": (now - dt.timedelta(days=3)).isoformat()},
-                {"state": "SUBMITTED", "submitted_at": (now - dt.timedelta(days=20)).isoformat()}]
-        with mock.patch("aletheia.apply_run.all_runs", return_value=rows):
-            self.assertEqual(quick.answer("how many did you send this week"), "2 applications sent this week.")
-            self.assertEqual(quick.answer("how many applications have you sent in total"), "3 applications sent in all.")
-            self.assertIn("sent today", quick.answer("how many did you send today"))
-        with mock.patch("aletheia.apply_run.all_runs", return_value=[]):
-            self.assertTrue(quick.answer("how many did you send this week").startswith("None this week"))
+    def test_how_many_did_you_send_this_week_is_the_existing_count_by_date(self):
+        """One implementation: the status shape already counts by date for
+        "how many jobs did I apply to this week"; the elliptical "how many did
+        you send this week" is the same question."""
+        self.assertEqual(quick.match("how many did you send this week")[0], "status_of")
+        self.assertEqual(quick.match("how many did you send this week")[1], "how many did you send this week")
+        self.assertEqual(quick.match("how many applications did you send in total")[0], "status_of")
+
 
     def test_are_you_up_to_date_is_answered_yes_or_no(self):
         done = mock.Mock(returncode=0, stdout="2026-09-23T03:17:00+00:00\n")

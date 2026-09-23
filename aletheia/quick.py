@@ -90,7 +90,8 @@ _STATUS = re.compile(
     r"so far|to date|all time))?(?: (?:today|now))?(?P<count_window> (?:this week|this month|yesterday|last week|"
     r"tonight|last night|overnight|this evening|this morning))?$"
     r"|^how many (?:have|did) (?:you|u) (?P<count2>apply to|send(?: out)?|submit|get through)"
-    r"(?P<count2_total> (?:in total|total|overall|so far|ever))?(?: today)?$"
+    r"(?P<count2_total> (?:in total|total|overall|so far|ever))?"
+    r"(?P<count2_window> (?:this week|this month|yesterday|last week|tonight))?(?: today)?$"
     # when was the last one
     r"|^when (?:was|did) (?:the |your |my |her )?(?:last|latest|most recent) "
     r"(?P<last_when>application|one|job application|job|submission)"
@@ -411,11 +412,6 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What did you send today" waited two minutes on her own model; the
     # applications she sent today are records, and she sends nothing else
     # without his yes on each.
-    # "how many did you send this week" went to a planner nobody could run
-    # (2026-09-23 night sweep); the records carry the dates.
-    ("sent_count", re.compile(
-        r"^how many (?:applications |apps |jobs )?(?:did|have) (?:you|u|we) (?:send|sent|submit|submitted|apply to|applied to|put in)(?: out)?"
-        r"(?: (?P<sent_window>today|tonight|this week|so far this week|this month|yesterday|last week|so far|in total|altogether|overall|ever))?\s*\??$")),
     ("sent_today", re.compile(
         r"^what (?:did|have) (?:you|u) (?:send|sent)(?: out)?(?: today| so far today)?$"
         r"|^what (?:applications|apps|emails|messages) (?:did|have) (?:you|u) (?:send|sent)(?: out)?(?: today)?$"
@@ -713,7 +709,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5",
                                            "until", "until2", "day8", "day9",
-                                           "why_not", "why_not2", "why_not3", "sent_window")
+                                           "why_not", "why_not2", "why_not3")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
@@ -1939,10 +1935,11 @@ def status_of(text: str) -> tuple[str, str] | None:
     if not found:
         return None
     groups = {k: v for k, v in found.groupdict().items() if v}
-    if groups.get("count_window"):
+    if groups.get("count_window") or groups.get("count2_window"):
         # "How many jobs did I apply to this week" waited two minutes on her
-        # own model (2026-09-22); the records carry their dates.
-        return "count_window", groups["count_window"].strip()
+        # own model (2026-09-22); the records carry their dates. "How many
+        # did you send this week" is the same count (2026-09-23).
+        return "count_window", (groups.get("count_window") or groups["count2_window"]).strip()
     for key, value in groups.items():
         if key.startswith("count"):
             total = bool(groups.get("count_total") or groups.get("count2_total"))
@@ -2032,53 +2029,6 @@ def _opportunity(rest: str) -> str | None:
         return f"{apply_run.describe(record)}: {stage}." + (
             f" {record['say']}" if record.get("say") else "")
     return f"I don't have an application to {words}."
-
-
-_WINDOW_DAYS = {"today": 0, "tonight": 0, "so far": 0, "yesterday": 1, "this week": 7, "so far this week": 7,
-                "last week": 14, "this month": 30}
-
-
-def _sent_count(window: str) -> str | None:
-    """How many applications went out in a window, counted from the records."""
-    import datetime as dt
-    from aletheia import apply_run, speech
-    window = " ".join(str(window or "today").split()).casefold()
-    try:
-        rows = apply_run.all_runs("SUBMITTED")
-    except Exception:
-        return "I can't read my application records right now, so I can't say."
-    now = dt.datetime.now(dt.timezone.utc)
-    days = _WINDOW_DAYS.get(window)
-    if days is None:                           # in total / altogether / ever
-        count, span = len(rows), "in all"
-    elif days == 0:
-        today = now.astimezone().date()
-        count = sum(1 for r in rows if _local_day(r.get("submitted_at")) == today)
-        span = "today"
-    else:
-        since = now - dt.timedelta(days=days)
-        count = sum(1 for r in rows if _stamp_of(r.get("submitted_at")) and _stamp_of(r.get("submitted_at")) >= since)
-        span = window if window != "so far this week" else "this week"
-        if window == "yesterday":
-            yesterday = (now.astimezone() - dt.timedelta(days=1)).date()
-            count = sum(1 for r in rows if _local_day(r.get("submitted_at")) == yesterday)
-    if not count:
-        return f"None {span} - no applications went out{' ' + span if span != 'in all' else ' at all'}."
-    return f"{speech.count_phrase(count, 'application')} sent {span}."
-
-
-def _stamp_of(value) -> "dt.datetime | None":
-    import datetime as dt
-    try:
-        when = dt.datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    return when if when.tzinfo else when.replace(tzinfo=dt.timezone.utc)
-
-
-def _local_day(value):
-    when = _stamp_of(value)
-    return when.astimezone().date() if when else None
 
 
 def _sent_today() -> str | None:
@@ -2467,7 +2417,6 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "good_morning": lambda rest: _good_morning(),
            "status": lambda rest: _status(),
            "why_not": _why_not,
-           "sent_count": _sent_count,
            "up_to_date": lambda rest: _updated(asked_yes_no=True),
            "to_answer": lambda rest: _to_answer(),
            "found": lambda rest: _found(),
