@@ -158,6 +158,11 @@ def is_widget_furniture(field: dict) -> bool:
 # sees, so the label matters more than the name attribute: `q_31415926` is
 # what Workday calls "Are you legally authorized to work?".
 READ_FORM_JS = r"""() => {
+  // THE SITE IS NOT THE FORM. A careers page inside an employer's own website
+  // carries the website's menu, and Navan's hamburger checkbox, its menu-group
+  // toggles and its region picker reached him as required questions on three
+  // applications (live 2026-09-22). Nothing inside the site's chrome is a field.
+  const SITE_CHROME = 'nav, header, footer, [role=navigation], [role=banner], [role=contentinfo], [aria-label*="navigation" i], [class*="navbar" i], [id*="navbar" i], [class*="site-header" i], [class*="site-footer" i]';
   // An id a script MINTED for this page load ("cedfyMSPdOianhkc"). Workable
   // issues new ones on every render, so a selector read in one browser and
   // typed in the next found nothing: live 2026-09-13 the fill of Hugging
@@ -332,6 +337,10 @@ READ_FORM_JS = r"""() => {
       // a hidden native radio behind a styled label is still the real control.
       hidden: unseen(el),
       readonly: !!el.readOnly,
+      // Inside the website's menu/header/footer, not the form. Kept for the
+      // browser loop (a site's search box lives in its header); dropped by
+      // `plan` and never a blocker (READY_JS).
+      chrome: !!el.closest(SITE_CHROME),
       // A COOKIE BANNER'S TOGGLES are not questions on the page (live 2026-09-17,
       // Paylocity: OneTrust's "Targeting Cookies" boxes made a job posting a form).
       consent: !!el.closest('#onetrust-consent-sdk, #onetrust-pc-sdk, #CybotCookiebotDialog, #usercentrics-root, #truste-consent-track, #didomi-host, .osano-cm-window, .cc-window, [id*="cookie" i], [class*="cookie" i], [aria-label*="cookie" i], [id*="consent-banner" i], [class*="consent-banner" i], [id*="tracking-consent" i], [class*="tracking-consent" i]'),
@@ -1438,6 +1447,9 @@ def _money_choice(value, options: list[str]) -> str | None:
 
 def plan(fields: list[dict], *, answers: dict | None = None, found_on: str = "") -> dict:
     """Split a form into what she can fill and what he has to answer."""
+    # THE SITE IS NOT THE FORM (2026-09-23): a menu's toggles and a header's
+    # search box are read (the browser loop needs them) and never asked.
+    fields = [f for f in fields if not (isinstance(f, dict) and f.get("chrome"))]
     answers = known = (answers if answers is not None else profile.known())
     fields, choices = _group_choices(list(fields)[:MAX_FIELDS])
     fill, ask, skipped = [], [], []
@@ -2208,6 +2220,11 @@ def read_form(url: str, *, reader=None) -> list[dict]:
 
 
 READ_ARIA_JS = r"""() => {
+  // THE SITE IS NOT THE FORM. A careers page inside an employer's own website
+  // carries the website's menu, and Navan's hamburger checkbox, its menu-group
+  // toggles and its region picker reached him as required questions on three
+  // applications (live 2026-09-22). Nothing inside the site's chrome is a field.
+  const SITE_CHROME = 'nav, header, footer, [role=navigation], [role=banner], [role=contentinfo], [aria-label*="navigation" i], [class*="navbar" i], [id*="navbar" i], [class*="site-header" i], [class*="site-footer" i]';
   // The questions the browser knows nothing about. On a modern form the
   // "Yes" you click is a <div role=radio> and the city you pick is an
   // <li role=option>: no id, no name, not an <input>, invisible to
@@ -2289,7 +2306,7 @@ READ_ARIA_JS = r"""() => {
       const innerRequired = !!(inner && (inner.required || inner.getAttribute('aria-required') === 'true'))
         || opt.getAttribute('aria-required') === 'true';
       out.push({
-        selector, tag: 'aria', type: 'radio', name: '', id: '',
+        selector, tag: 'aria', type: 'radio', name: '', id: '', chrome: !!group.closest(SITE_CHROME),
         group: key, question: question.slice(0, 110),
         option: (opt.innerText || '').trim().slice(0, 70),
         label: (opt.innerText || '').trim().slice(0, 70),
@@ -2320,7 +2337,7 @@ READ_ARIA_JS = r"""() => {
       const selector = path(b);
       if (!selector) continue;
       const text = (b.innerText || '').trim().slice(0, 70);
-      out.push({selector, tag: 'aria', type: 'radio', name: '', id: '', group: key,
+      out.push({selector, tag: 'aria', type: 'radio', name: '', id: '', group: key, chrome: !!box.closest(SITE_CHROME),
                 question: question.slice(0, 110), option: text, label: text, required,
                 value: '', checked: b.getAttribute('aria-pressed') === 'true'});
     }
@@ -2331,6 +2348,11 @@ READ_ARIA_JS = r"""() => {
 
 
 READY_JS = r"""() => {
+  // THE SITE IS NOT THE FORM. A careers page inside an employer's own website
+  // carries the website's menu, and Navan's hamburger checkbox, its menu-group
+  // toggles and its region picker reached him as required questions on three
+  // applications (live 2026-09-22). Nothing inside the site's chrome is a field.
+  const SITE_CHROME = 'nav, header, footer, [role=navigation], [role=banner], [role=contentinfo], [aria-label*="navigation" i], [class*="navbar" i], [id*="navbar" i], [class*="site-header" i], [class*="site-footer" i]';
   // WILL THIS FORM ACTUALLY GO? Two different answers, because forms
   // refuse in two different ways.
   const label = (el) => {
@@ -2384,6 +2406,7 @@ READY_JS = r"""() => {
   const invalid = [];
   const groupsAsked = new Set();
   for (const el of document.querySelectorAll('input, select, textarea')) {
+    if (el.closest(SITE_CHROME)) continue;
     if (typeof el.checkValidity !== 'function') continue;
     const scripted = (el.getAttribute('data-required_mark') === 'required' || el.getAttribute('data-required') === 'true')
       && !/^(?:radio|checkbox)$/.test(el.type) && !String(el.value || '').trim();
@@ -2444,6 +2467,7 @@ READY_JS = r"""() => {
   // question — because these carry no `required` attribute to check.
   const groups = [];
   for (const g of document.querySelectorAll('[role=radiogroup], [role=listbox]')) {
+    if (g.closest(SITE_CHROME)) continue;
     let question = g.getAttribute('aria-label') || '';
     const by = g.getAttribute('aria-labelledby');
     if (!question && by) {
