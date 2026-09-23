@@ -1,32 +1,32 @@
 # Fleet briefing
 
-Generated 2026-09-23T17:09:53Z from fleet registry rev 5 via GitHubSource.
+Generated 2026-09-23T21:33:46Z from fleet registry rev 5 via GitHubSource.
 
 ## 🟢 `Aletheia` — hub (active)
 
 The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.
 
-Last commit `41f2d191d160` at 2026-09-23T15:15:16Z: brief: 2026-09-23
+Last commit `4accfae75936` at 2026-09-23T19:16:32Z: Merge pull request #192 from caleblschulte0-ux/claude/a-note-names-a-person
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-09-23T17:09:51Z
-- `ci.yml`: success at 2026-09-23T12:41:44Z
+- `pulse.yml`: in_progress at 2026-09-23T21:33:41Z
+- `ci.yml`: success at 2026-09-23T19:36:15Z
 
 ## 🔴 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `a7505f75db3c` at 2026-09-23T16:55:14Z: watchdog: chatgpt task verdicts 20260923 [skip ci]
+Last commit `2e0405c3f60d` at 2026-09-23T21:06:54Z: exchange: phase A bundle for 20260923 [skip ci]
 
-Vitals — trending posted: 347 · explainer posted: 262 · third posted: 635 · curiosity posted: 1
+Vitals — trending posted: 347 · explainer posted: 266 · third posted: 635 · curiosity posted: 1
 
 Watched workflows:
 - `daily.yml`: failure at 2026-09-23T15:49:48Z
-- `exchange_phase_a.yml`: success at 2026-09-23T15:38:59Z
-- `exchange_phase_b.yml`: success at 2026-09-23T14:46:22Z
-- `story_forge.yml`: failure at 2026-09-23T10:05:41Z
+- `exchange_phase_a.yml`: success at 2026-09-23T21:07:00Z
+- `exchange_phase_b.yml`: success at 2026-09-23T18:28:58Z
+- `story_forge.yml`: failure at 2026-09-23T20:29:18Z
 - `third.yml`: success at 2026-09-23T15:32:11Z
-- `explainer.yml`: in_progress at 2026-09-23T15:33:12Z
+- `explainer.yml`: success at 2026-09-23T20:36:32Z
 - `retro.yml`: success at 2026-09-23T04:48:12Z
 - `doctor.yml`: success at 2026-09-23T09:56:30Z
 

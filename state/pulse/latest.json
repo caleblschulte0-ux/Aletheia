@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-23T17:09:53Z",
+  "generated_at": "2026-09-23T21:33:46Z",
   "fleet_revision": 5,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,6 +11,16 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
+          "sha": "4accfae75936",
+          "date": "2026-09-23T19:16:32Z",
+          "message": "Merge pull request #192 from caleblschulte0-ux/claude/a-note-names-a-person"
+        },
+        {
+          "sha": "21a0c84c59d0",
+          "date": "2026-09-23T17:10:08Z",
+          "message": "pulse: 2026-09-23T17:10Z"
+        },
+        {
           "sha": "41f2d191d160",
           "date": "2026-09-23T15:15:16Z",
           "message": "brief: 2026-09-23"
@@ -21,45 +31,35 @@
           "message": "Merge pull request #191 from caleblschulte0-ux/claude/no-toast-for-nothing"
         },
         {
-          "sha": "bed0685bdfe2",
-          "date": "2026-09-23T11:50:44Z",
-          "message": "Merge pull request #190 from caleblschulte0-ux/claude/a-refused-record-is-read-again"
-        },
-        {
-          "sha": "b144386a8185",
-          "date": "2026-09-23T11:50:23Z",
-          "message": "Merge pull request #186 from caleblschulte0-ux/claude/the-fleet-in-words"
-        },
-        {
-          "sha": "141bf26268f9",
-          "date": "2026-09-23T11:49:37Z",
-          "message": "Merge pull request #188 from caleblschulte0-ux/claude/an-unconfirmed-send-is-not-his"
+          "sha": "5813866f6bf1",
+          "date": "2026-09-23T12:00:08Z",
+          "message": "A note is to a person, never to a placeholder"
         }
       ],
       "commit": {
-        "sha": "41f2d191d160",
-        "date": "2026-09-23T15:15:16Z",
-        "message": "brief: 2026-09-23"
+        "sha": "4accfae75936",
+        "date": "2026-09-23T19:16:32Z",
+        "message": "Merge pull request #192 from caleblschulte0-ux/claude/a-note-names-a-person"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-09-23T17:09:51Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/35893712938"
+          "updated_at": "2026-09-23T21:33:41Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/35923200555"
         },
         "ci.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-23T12:41:44Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/35860005093"
+          "updated_at": "2026-09-23T19:36:15Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/35908221969"
         }
       },
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 20176
+          "bytes": 20247
         }
       },
       "health": "green"
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "a7505f75db3c",
-          "date": "2026-09-23T16:55:14Z",
-          "message": "watchdog: chatgpt task verdicts 20260923 [skip ci]"
-        },
-        {
-          "sha": "9c008e5b3e32",
-          "date": "2026-09-23T16:48:34Z",
-          "message": "claim: mailbox verdicts 2026-09-23T16:48Z [skip ci]"
-        },
-        {
-          "sha": "523d6a6a60a9",
-          "date": "2026-09-23T15:49:34Z",
-          "message": "daily: 2026-09-23 report + state [skip ci]"
-        },
-        {
-          "sha": "397a87ddf459",
-          "date": "2026-09-23T15:47:53Z",
-          "message": "claim: mailbox verdicts 2026-09-23T15:47Z [skip ci]"
-        },
-        {
-          "sha": "fbc819d00528",
-          "date": "2026-09-23T15:38:54Z",
+          "sha": "2e0405c3f60d",
+          "date": "2026-09-23T21:06:54Z",
           "message": "exchange: phase A bundle for 20260923 [skip ci]"
+        },
+        {
+          "sha": "16d0190eabe5",
+          "date": "2026-09-23T20:53:19Z",
+          "message": "exchange: phase A bundle for 20260923 [skip ci]"
+        },
+        {
+          "sha": "82643aa6bf10",
+          "date": "2026-09-23T20:52:58Z",
+          "message": "Explainer: the verifier refuses a scene where Data stands over text (#440)"
+        },
+        {
+          "sha": "1d8f592e2f54",
+          "date": "2026-09-23T20:36:55Z",
+          "message": "claim: mailbox verdicts 2026-09-23T20:36Z [skip ci]"
+        },
+        {
+          "sha": "929b95fe3566",
+          "date": "2026-09-23T20:36:24Z",
+          "message": "explainer: update posted log + analytics [skip ci]"
         }
       ],
       "commit": {
-        "sha": "a7505f75db3c",
-        "date": "2026-09-23T16:55:14Z",
-        "message": "watchdog: chatgpt task verdicts 20260923 [skip ci]"
+        "sha": "2e0405c3f60d",
+        "date": "2026-09-23T21:06:54Z",
+        "message": "exchange: phase A bundle for 20260923 [skip ci]"
       },
       "vitals": [
         {
@@ -108,7 +108,7 @@
         },
         {
           "label": "explainer posted",
-          "value": 262
+          "value": 266
         },
         {
           "label": "third posted",
@@ -129,20 +129,20 @@
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-23T15:38:59Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35882960681"
+          "updated_at": "2026-09-23T21:07:00Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35920351351"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-23T14:46:22Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35876595152"
+          "updated_at": "2026-09-23T18:28:58Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35902740518"
         },
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "failure",
-          "updated_at": "2026-09-23T10:05:41Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35846685913"
+          "updated_at": "2026-09-23T20:29:18Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35916182651"
         },
         "third.yml": {
           "status": "completed",
@@ -151,10 +151,10 @@
           "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35881399199"
         },
         "explainer.yml": {
-          "status": "in_progress",
-          "conclusion": null,
-          "updated_at": "2026-09-23T15:33:12Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35881453404"
+          "status": "completed",
+          "conclusion": "success",
+          "updated_at": "2026-09-23T20:36:32Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35915038312"
         },
         "retro.yml": {
           "status": "completed",
@@ -176,7 +176,7 @@
         },
         "state/explainer_posted_log.json": {
           "exists": true,
-          "bytes": 83110
+          "bytes": 86824
         },
         "state/third_posted_log.json": {
           "exists": true,
@@ -188,7 +188,7 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 1475203
+          "bytes": 1549414
         },
         "config/channel_registry.json": {
           "exists": true,
@@ -497,14 +497,7 @@
     ],
     "evidence": []
   },
-  "transitions": [
-    {
-      "repo": "aletheia",
-      "github": "Aletheia",
-      "from": "unknown",
-      "to": "green"
-    }
-  ],
+  "transitions": [],
   "alerts": [
     {
       "repo": "shorts_pipeline",
