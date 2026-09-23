@@ -454,7 +454,10 @@ REMEMBERED = ("job_title", "company", "posting", "found_on", "answered_for_you",
               "employment",
               # What the opening was WORTH and why (`job_value`), so "why this
               # one?" is answered from the record.
-              "value", "queue", "why_she_liked_it", "why_not")
+              "value", "queue", "why_she_liked_it", "why_not",
+              # How many times a form whose Submit refused has been read again
+              # (`campaign.retry_waiting`); survives the rebuild so it is bounded.
+              "rereads")
 # What an employer did about an application he sent, in his words. "No
 # answer yet" is not one: that is the absence of an outcome, not an outcome.
 OUTCOMES = ("replied", "interview", "offer", "rejected", "closed")

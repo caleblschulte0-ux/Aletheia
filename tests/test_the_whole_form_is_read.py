@@ -120,6 +120,43 @@ class AParagraphIsNotAProgressMessage(unittest.TestCase):
         self.assertEqual(apply_run._upload_state(page), "working")
 
 
+class AFormWhoseSubmitRefusedIsReadAgain(unittest.TestCase):
+    """Vanta sat FAILED with a misread form while the reader was fixed. A
+    refused Submit is read again with what she knows now, twice at most, and
+    never when a CAPTCHA was in front of the button."""
+    REFUSED = {"id": "apply-v", "state": "FAILED", "url": "https://x/v", "resume": "C:/r.pdf",
+               "failure": "ApplyError: the Submit button would not take a click - it never became clickable"}
+
+    def test_which_failed_records_are_read_again(self):
+        from aletheia import campaign
+        self.assertTrue(campaign.refused_submit(self.REFUSED))
+        self.assertFalse(campaign.refused_submit({**self.REFUSED, "rereads": 2}))
+        self.assertFalse(campaign.refused_submit({**self.REFUSED, "captcha": "hCaptcha"}))
+        self.assertFalse(campaign.refused_submit({**self.REFUSED, "click_evidence": {"captcha": True}}))
+        self.assertFalse(campaign.refused_submit({**self.REFUSED, "failure": "ApplyError: the page went away"}))
+        self.assertFalse(campaign.refused_submit({**self.REFUSED, "state": "SUBMITTED"}))
+
+    def test_the_refused_form_is_staged_again_and_the_read_is_counted(self):
+        from unittest import mock
+        from aletheia import apply_run, campaign
+        calls, remembered = [], []
+
+        def stager(url, **kw):
+            calls.append(url)
+            return {"id": "apply-v", "url": url, "state": "AWAITING_YOU", "questions": []}
+        with mock.patch.object(apply_run, "all_runs",
+                               side_effect=lambda state=None: [self.REFUSED] if state == "FAILED" else []), \
+             mock.patch.object(apply_run, "remember", side_effect=lambda rid, **f: remembered.append((rid, f))), \
+             mock.patch.object(campaign, "read_resume", return_value=("C:/r.pdf", "resume text")), \
+             mock.patch.object(campaign.policy, "ensure_not_halted"), \
+             mock.patch.object(campaign.journal, "append"):
+            out = campaign.retry_waiting(stager=stager, json_think=False, writer=False)
+        self.assertEqual(calls, ["https://x/v"])
+        self.assertEqual(len(out["ready"]), 1)
+        self.assertIn(("apply-v", {"rereads": 1}), remembered)
+        self.assertIn("rereads", apply_run.REMEMBERED, "the count survives stage's rebuild of the record")
+
+
 class TheEarliestDateHeCanBeginIsOnFile(unittest.TestCase):
     def test_tenexs_question_reaches_his_notice_period(self):
         for label in ("What's the earliest date you can begin at Tenex?",
