@@ -134,3 +134,89 @@ def why_it_does_not_fit(name: str, verdict: dict) -> str:
             f"{gigabytes(verdict['usable'])} once everything else you have "
             f"open is left alone. It would run out of memory rather than "
             f"run slowly.")
+
+
+# Four more readings of the machine he is sitting at, each asked for out
+# loud with every frontier off (2026-09-22) and each answered by her own
+# model DENYING it could look: "that's not something in my toolkit yet"
+# for the disk, a contact search for "my ip", and "[Uses look at the
+# desktop]" as prose for what is open. Every one is a system call.
+
+def disk(path: str | None = None) -> dict:
+    """Total and free bytes on the drive holding `path` (his home by default)."""
+    import shutil
+    where = path or os.path.expanduser("~")
+    try:
+        usage = shutil.disk_usage(where)
+    except OSError as exc:
+        raise UnknownMachine(f"disk usage of {where!r} will not read ({exc})") from None
+    return {"path": where, "total": int(usage.total), "free": int(usage.free)}
+
+
+def ip_address() -> str:
+    """The address this machine uses to reach the internet, or "" if it has none.
+
+    A UDP socket's connect sends nothing; it only asks the kernel which
+    interface it WOULD use. No packet leaves the machine.
+    """
+    import socket
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(("10.255.255.255", 1))
+            return str(sock.getsockname()[0])
+    except OSError:
+        return ""
+
+
+def internet_reachable(timeout_s: float = 2.0) -> bool:
+    """One TCP connect to a public resolver. Cheap, and the only honest answer
+    to "is the internet working" — a network interface being up is not it."""
+    import socket
+    for host in ("1.1.1.1", "8.8.8.8"):
+        try:
+            with socket.create_connection((host, 53), timeout=timeout_s):
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def open_windows(limit: int = 12) -> list[str]:
+    """Titles of the visible top-level windows, most recent first, no
+    duplicates. Empty off Windows. Never raises."""
+    if sys.platform != "win32":
+        return []
+    titles: list[str] = []
+    try:
+        user32 = ctypes.windll.user32
+        proto = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+
+        def each(handle, _lparam):
+            if not user32.IsWindowVisible(handle):
+                return True
+            length = user32.GetWindowTextLengthW(handle)
+            if length <= 0:
+                return True
+            buffer = ctypes.create_unicode_buffer(length + 1)
+            user32.GetWindowTextW(handle, buffer, length + 1)
+            title = buffer.value.strip()
+            if title and title not in titles and title not in ("Program Manager", "Windows Input Experience"):
+                titles.append(title)
+            return len(titles) < limit
+
+        user32.EnumWindows(proto(each), 0)
+    except Exception:
+        return titles
+    return titles
+
+
+def app_of(title: str) -> str:
+    """The program a window title names: the part after its last " - " (Chrome,
+    Word, Notepad all end that way), else the title itself."""
+    import unicodedata
+    # A title carries marks meant for the eye: a bullet for "unsaved", a
+    # zero-width space inside a brand name. Out loud they are noise.
+    clean = "".join(ch for ch in title if unicodedata.category(ch) not in ("Cf", "Cc", "So"))
+    parts = [p.strip(" 	-–—|") for p in clean.split(" - ")]
+    parts = [p for p in parts if p]
+    return parts[-1] if parts else clean.strip()

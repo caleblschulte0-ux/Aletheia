@@ -148,12 +148,46 @@ def _open_app(m, request):
             f"Open {what.title() if what.islower() else what}")
 
 
+#: Folders he names by their Windows name. "Open my downloads folder" was
+#: compiled as a page called "my downloads folder" (2026-09-22).
+FOLDERS = ("downloads", "documents", "desktop", "pictures", "music", "videos")
+
+
+def _open_folder(m, request):
+    from pathlib import Path
+    name = _clean(m.group("folder")).casefold()
+    if name not in FOLDERS:
+        return None
+    path = Path.home() / name.title()
+    if not path.is_dir():
+        return {"say": f"There's no {name.title()} folder under your user folder here."}
+    return ({"steps": [{"action": "open_app", "app": "explorer.exe", "arguments": [str(path)]}]},
+            f"Open your {name.title()} folder")
+
+
+def _lock(m, request):
+    return {"steps": [{"action": "lock_screen"}]}, "Lock this computer"
+
+
+def _close_app(m, request):
+    # Closing a program is the one desktop act unattended hands never do
+    # (`computer.ACT_ACTIONS`): it can lose unsaved work. Said, not guessed.
+    what = _clean(m.group("what"))
+    if what.casefold() not in APPS:
+        return None
+    return {"say": f"I don't close programs — closing can lose unsaved work. "
+                   f"Alt+F4 closes {what.title() if what.islower() else what}; "
+                   "I can open it, bring it to the front and read its windows."}
+
+
 def _open_site(m, request):
     what = _clean(m.group("what"))
     if not what or len(what) > 40:
         return None
     if what.casefold() in APPS:
         return None   # a program, not a page: the app rule owns it
+    if re.search(r"(?:^| )(?:folder|directory|file|drive)$", what.casefold()):
+        return None   # a place on his disk is never a web page
     found = _URL.search(what)
     args = {"goal": f"Open {what} in the browser"}
     if found:
@@ -312,6 +346,9 @@ RULES: tuple[tuple[str, str, Callable], ...] = (
      r"\s+(?:the )?(?P<what>(?!i |you |we |it |they )[^?]+?)(?: task| thing)?",
      "task_done", _task_done),
     (r"(?:add|put)\s+(?P<what>.+?)\s+(?:to|on)\s+(?:my |the )?(?:shopping )?list", "shopping_add", _shopping_add),
+    (r"(?:clear|empty|wipe|reset)\s+(?:my |the )?(?:shopping )?list|"
+     r"(?:take|cross|remove)\s+(?:everything|it all|all of it)\s+(?:off|from)\s+(?:my |the )?(?:shopping )?list",
+     "shopping_off", lambda m, r: ({"item": "everything"}, "Clear the shopping list")),
     (r"(?:take|remove|cross|delete|strike)\s+(?P<what>.+?)\s+(?:off|from)\s+(?:my |the )?(?:shopping )?list",
      "shopping_off", _shopping_off),
     (r"(?P<what>play|put on|start)(?: some| the| my)? music|(?P<what2>play)(?: me)? (?:something|anything)(?: \w+)?|"
@@ -326,6 +363,12 @@ RULES: tuple[tuple[str, str, Callable], ...] = (
      r"(?: and (?:tell me|read me|say) what (?:it says|is on it|it is))?", "browse_read", _browse_read),
     (r"open (?:the |my )?(?:folder|file|document|directory)s? (?:with|containing|for|of|that has) (?:my |the )?(?P<what>.+)",
      "file_find", _file_find),
+    (r"(?:open|open up|show me|go to|bring up)\s+(?:my |the )?(?P<folder>[a-z]+)(?: folder| directory)(?: for me| please)?",
+     "computer_do", _open_folder),
+    (r"lock (?:the |this |my )?(?:computer|pc|laptop|screen|machine|workstation)(?: for me| please)?|lock it",
+     "computer_do", _lock),
+    (r"(?:close|quit|exit|shut|shut down|kill)\s+(?P<what>[a-z][a-z ]{2,24}?)(?: for me| please| down)?",
+     "computer_do", _close_app),
     (r"(?:open|open up|launch|start|run|bring up|fire up)\s+(?P<what>[a-z][a-z ]{2,24}?)(?: for me| please| up)?",
      "computer_do", _open_app),
     (r"(?:open|go to|pull up|bring up|launch)\s+(?P<what>(?!the folder|the file|my folder|my file)[a-z0-9][a-z0-9 .'-]{1,39}?)(?: in (?:the |my )?browser| for me)?",

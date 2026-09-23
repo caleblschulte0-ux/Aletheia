@@ -437,7 +437,40 @@ HIS_WORDS = ("text", "description", "item", "body", "question", "goal",
 # number" read as him rather than as somebody called "my email".
 _FIRST_PERSON = frozenset({"my", "our", "mine"})
 _DETAIL_WORDS = frozenset({"email", "phone", "number", "address", "details",
-                           "cell", "mobile", "e-mail", "telephone"})
+                           "cell", "mobile", "e-mail", "telephone",
+                           # "what's my ip address" searched his contacts for
+                           # somebody called "my ip" (2026-09-22)
+                           "ip", "mac"})
+
+
+#: "Call it a day", "call it off", "call the shots" are idioms, not people,
+#: and "call me" is him talking about himself. A name to ring is one or two
+#: plain words that are not an idiom's tail.
+_NOT_SOMEBODY = frozenset({"me", "it", "this", "that", "them", "him", "her", "us",
+                           "you", "back", "again", "later", "off", "out", "in",
+                           "round", "over", "up", "the", "a", "an"})
+_NOT_A_CALL = ("it a day", "it quits", "it off", "it even", "the shots",
+               "the police on", "a meeting", "a vote", "a halt", "time on", "dibs")
+
+
+def _is_a_person_to_ring(captured: str) -> bool:
+    """Is the thing after "call" somebody he could actually ring?"""
+    text = " ".join(str(captured or "").split()).casefold()
+    text = re.sub(r"^(?:the|my|a|an) ", "", text)
+    if not text or any(text.startswith(tail) for tail in _NOT_A_CALL):
+        return False
+    words = text.split()
+    if len(words) > 3 or words[0] in _NOT_SOMEBODY:
+        return False
+    # "Call the whole thing off" ends on a particle, and a particle is
+    # what makes the verb mean something other than the telephone.
+    if len(words) > 1 and words[-1] in _NOT_SOMEBODY:
+        return False
+    # "call the plumber" is a person; "call the meeting" and "call the list"
+    # are her own nouns, and every one of those has a verb of its own here.
+    return not any(word in {"task", "tasks", "reminder", "reminders", "note", "notes",
+                            "list", "meeting", "vote", "shots", "day", "quits", "time"}
+                   for word in words)
 
 
 def _is_about_himself(captured: str) -> bool:
@@ -1094,6 +1127,13 @@ def _interpret(transcript: str) -> dict:
         if m:
             reason = m.group(1)
         return {"command": {"kind": "apply_pause", **({"reason": reason} if reason else {})}, "say": None}
+    # "YOU'RE WRONG" with nothing else waited two minutes on her own model
+    # to guess at a correction (2026-09-22). She asks for the correction
+    # instead: a correction she guesses at is a second mistake.
+    if re.fullmatch(r"(?:you'?re|that'?s|thats|youre) (?:wrong|not right|incorrect|mistaken|off)|wrong|"
+                    r"no,? that'?s (?:not it|wrong|not right)|not that|nope,? wrong", low):
+        return {"command": None,
+                "say": "Tell me what's wrong and I'll put it right - I won't guess at a correction."}
     # "THE OTHER ONE" with nothing before it. A follow-up word with an
     # empty thread went to the planner and waited two minutes on her own
     # model; the honest answer is instant and asks for the whole thing.
@@ -1214,8 +1254,13 @@ def _interpret(transcript: str) -> dict:
 
     # what is set, and stopping one. Before the "remind me" patterns so a
     # question about reminders is never read as a request for a new one.
+    # "Do I have any reminders set" waited two minutes on her own model
+    # for a store this branch reads (2026-09-22): the question in the
+    # shape of a yes/no is the same question.
     if re.fullmatch(r"(what|which) reminders? (do i have|are set|have i got)"
                     r"|what am i being reminded (of|about)"
+                    r"|(do i have|have i got|are there|is there) (any |a )?reminders?( set| pending| coming up)?"
+                    r"|any reminders( set| pending| coming up)?"
                     r"|list (my )?reminders|my reminders|reminders", low):
         return {"command": {"kind": "reminders"}, "say": None}
     m = re.match(r"(?:cancel|stop|delete|turn off|remove) (?:the |my |that )?"
@@ -1362,6 +1407,15 @@ def _interpret(transcript: str) -> dict:
     # After the forward forms so nothing that already worked changes
     # route, and a time is REQUIRED: "remind me to call the dentist"
     # with no when is a task, and the planner decides that better.
+    # A PLACE IS NOT A TIME. "Remind me to call mom when I get home"
+    # waited two minutes on her own model (2026-09-22); she has no way to
+    # know where he is, and says so instead of guessing at a time.
+    m = re.match(r"remind me (?:to|that) (.+?) when i(?:'m| am| get| arrive| go| come)? "
+                 r"(?:get |am |arrive |go |come )?(?:back )?(?:home|back|there|at work|to work|at the office|to the office|in)$", low)
+    if m:
+        return {"command": None,
+                "say": "I can't tell where you are yet, so I can't do it when you get home. "
+                       f"Give me a time - 'remind me at 6 to {m.group(1).strip()}' - and I'll do that."}
     m = re.match(r"remind me (?:to|that) (.+?) "
                  r"(?:at ([\w: ]+)|in (\d+) (minutes?|hours?))$", low)
     if m:
@@ -2153,6 +2207,18 @@ def _interpret(transcript: str) -> dict:
                   else "mute")
         return {"command": {"kind": "music", "action": action}, "say": None}
 
+    # A PHONE CALL is a door she does not have. "Call the dentist" waited
+    # two minutes on her own model (2026-09-22) for a verb nothing here
+    # owns; the honest answer names the three doors she does have.
+    m = re.fullmatch(r"(?:call|phone|ring|ring up|dial|give (?:a )?call to) "
+                     r"(?:my |the )?(?P<who>[a-z][a-z .'-]{1,40}?)"
+                     r"(?: for me| now| please| back)?", low)
+    if m and _is_a_person_to_ring(m.group("who")):
+        who = _as_he_said(transcript, m.group("who"))
+        return {"command": None,
+                "say": f"I can't place phone calls from here. I can text or email {who}, "
+                       "or remind you to call them - which would you like?"}
+
     # NAMING SOMETHING TO PLAY is the half that needs his account, and
     # she says so instead of resuming whatever was paused on Thursday and
     # calling it what he asked for.
@@ -2164,6 +2230,15 @@ def _interpret(transcript: str) -> dict:
                 r"[a-z0-9]", low):
         from aletheia import music as _music
         return {"command": None, "say": _music.cannot_choose()}
+    # "What song is this" is the same honest half, asked the other way:
+    # a media key does not tell her what is playing.
+    if re.fullmatch(r"what(?:'s| is) (?:this|that|playing|this song|that song|the song)"
+                    r"(?: song| called| playing)?(?: right now| now)?"
+                    r"|(?:what|which) song is (?:this|that|playing|on)(?: right now| now)?"
+                    r"|who (?:sings|is) this(?: song)?", low):
+        return {"command": None,
+                "say": "I can't see what's playing - the media keys only play, pause "
+                       "and skip. The player's window has the name."}
 
     # HIS CHATGPT SUBSCRIPTION AS A SECOND WORKER. Granting it is a
     # deliberate act and stopping it is instant, the same asymmetry as

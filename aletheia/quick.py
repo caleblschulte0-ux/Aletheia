@@ -229,6 +229,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what do (?:you|u) (?:know|have|remember) (?:about|on) me$"
         r"|^what have (?:you|u) (?:remembered|learned|got|saved) about me$"
         r"|^what(?:'s| is) (?:on file|in your memory) about me$|^tell me what (?:you|u) know about me$")),
+    # "Say that again" waited two minutes on her own model for her own last
+    # sentence, which the conversation thread holds (2026-09-22).
+    ("repeat", re.compile(
+        r"^(?:say that again|repeat that|come again|what did (?:you|u) just say|what was that|"
+        r"sorry,? what|pardon|say again|one more time|i didn'?t (?:catch|hear) that|what did (?:you|u) say)$")),
     # "Who is my landlord" came back from her own model as "no lease or
     # rental info connected here" - a capability she has, denied. The
     # person is remembered or he is asked, in words, never a model's guess.
@@ -263,6 +268,28 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?: on (?:this|the|my) (?:computer|machine|pc|laptop))?$"
         r"|^(?:is|how is) (?:the |this |my )?(?:computer|machine|pc|laptop) (?:low on memory|out of memory|running low)$"
         r"|^how(?:'s| is) (?:the |this |my )?(?:computer|machine|pc|laptop)(?:'s)? memory$")),
+    # Four more readings of the same machine (2026-09-22): the disk ("not
+    # something in my toolkit yet" - it is a system call), the address
+    # (searched his contacts for "my ip"), whether the internet is up
+    # (94 s of her own model, and "Thinking with no internet: yes"), and
+    # what is open ("[Uses look at the desktop]" read out as prose).
+    ("disk", re.compile(
+        r"^how much (?:disk|disk space|storage|space|hard drive space|room)(?: do (?:i|we) have| is)?"
+        r"(?: free| left| available)?(?: on (?:this|the|my) (?:computer|machine|pc|laptop|disk|drive|hard drive))?$"
+        r"|^(?:is|how is) (?:the |this |my )?(?:computer|machine|pc|laptop|disk|drive) (?:low on (?:space|storage|disk)|full|out of space)$")),
+    ("ip", re.compile(
+        r"^what(?:'s| is) (?:my|this computer's|the|this machine's) ip(?: address)?$"
+        r"|^what ip(?: address)? (?:am i on|is this|do i have)$")),
+    ("internet", re.compile(
+        r"^(?:is|do (?:i|we) have) (?:the |an )?(?:internet|wifi|wi-fi|network|connection)(?: connection)?"
+        r"(?: working| up| on| down| connected| okay| ok)?$"
+        r"|^(?:am i|are we|are you) (?:online|connected|on the internet)$"
+        r"|^(?:is|has) the (?:internet|wifi|wi-fi) (?:down|out|gone|back)$")),
+    ("windows", re.compile(
+        r"^what(?:'s| is| are)? (?:apps?|programs?|windows?)(?: are| is)? (?:open|running|up)"
+        r"(?: right now| now| on (?:this|the|my) (?:computer|machine|pc|laptop|screen))?$"
+        r"|^what(?:'s| is) (?:open|on (?:my|the) screen)(?: right now| now)?$"
+        r"|^what (?:do (?:i|you) have|have i got) open(?: right now| now)?$")),
     # The third question. It has a `recollection` pattern for the model's
     # context and no fast answer, so "what went wrong today" paid a round
     # trip to read out alerts that are a file read away.
@@ -271,6 +298,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s)? (?:broken|failing|stuck)(?: today)?$"
         r"|^(?:did|has) anything (?:fail|failed|go wrong|gone wrong|break|broken)(?: today)?$"
         r"|^what failed(?: today)?$|^any (?:errors|failures|problems)(?: today)?$")),
+    # "What's the last thing you did" paid a model to read the newest
+    # line of a journal she holds (2026-09-22).
+    ("last", re.compile(
+        r"^what(?:'s| is|s| was)? the last thing (?:you|u) did$"
+        r"|^what did (?:you|u) (?:just )?do (?:last|just now|most recently|a (?:minute|moment|second) ago)$"
+        r"|^what did (?:you|u) just do$"
+        r"|^what was (?:your|the) (?:last|most recent) (?:action|thing)$"
+        r"|^what(?:'s| is|s)? the (?:last|latest|most recent) thing (?:you|u)(?:'ve| have)? done$")),
     ("today", re.compile(
         r"^what (?:did|have) (?:you|u) (?:do|done)(?: today)?$"
         r"|^what have (?:you|u) been doing$"
@@ -325,7 +360,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # Five stores she was already holding and answering from a model.
     ("tasks", re.compile(
         r"^what(?:'s| is|s)? on my task list$|^what are my tasks$"
-        r"|^what tasks do i have$|^how many tasks do i have$"
+        r"|^what tasks do i have(?: left| open| to do)?$"
+        r"|^how many tasks (?:do i have|are there|have i got)(?: left| open| remaining| to do)?$"
+        r"|^what(?:'s| is|s)? left (?:on my list|to do)$|^how many things (?:do i have )?(?:left )?to do$"
         r"|^(?:my )?task list$|^my tasks$"
         r"|^what(?:'s| is|s)? my next task$|^what(?:'s| is|s)? next$")),
     ("approvals", re.compile(
@@ -368,7 +405,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:what(?:'s| is|s)? (?:on|happening|coming up)|anything (?:on|happening|coming up)|what have i got on"
         r"|what(?:'s| is|s)? (?:my|the) (?:week|day) (?:looking like|look like))"
         r"(?: for)? (?P<day5>today|tomorrow|this week|next week)$"
-        r"|^what(?:'s| is|s)? (?:my|the) (?P<day6>week) (?:looking like|look like)$")),
+        r"|^what(?:'s| is|s)? (?:my|the) (?P<day6>week) (?:looking like|look like)$"
+        # "What's my schedule this week" paid seven seconds of model for a
+        # feed the shapes above already read (2026-09-22).
+        r"|^what(?:'s| is|s)? (?:my |the )?(?:calendar|schedule|agenda) (?:for |like )?(?P<day7>today|tomorrow|this week|next week)"
+        r"(?: like| looking like)?$")),
     ("alerts", re.compile(
         r"^(?:are there |is there )?any(?:thing)? (?:alerts|broken|wrong|failing)$"
         r"|^any alerts$|^is anything broken$|^anything broken$"
@@ -566,7 +607,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "free", "free2", "free3",
                                            "down", "down2", "weather",
                                            "weather2", "weather3",
-                                           "day", "day2", "day3", "day4", "day5", "day6")
+                                           "day", "day2", "day3", "day4", "day5", "day6", "day7")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
@@ -787,6 +828,17 @@ def _listed(rows: list[dict], when: str) -> str:
         return f"{when.capitalize()}: {said}."
     more = speech.count_phrase(len(rows) - len(lines), "other thing")
     return f"{when.capitalize()}: {said} — and {more}."
+
+
+def _last() -> str:
+    """The newest thing she did, today or yesterday, as one sentence."""
+    for days_ago, when in ((0, "today"), (1, "yesterday")):
+        rows = _on_day(days_ago)
+        if rows:
+            line = _shortened(str(rows[-1].get("what") or "").strip().rstrip("."))
+            if line:
+                return f"The last thing I did {when}: {line}."
+    return "Nothing in my journal for today or yesterday."
 
 
 def _today() -> str:
@@ -1770,6 +1822,17 @@ def _about_him() -> str:
     return "Here's what I have: " + speech.and_list(facts[:12]) + "."
 
 
+def _repeat() -> str:
+    """Her last sentence, from the thread, said again."""
+    try:
+        from aletheia import converse
+        turns = converse.recent(limit=1)
+    except Exception:
+        turns = []
+    said = str((turns[-1] if turns else {}).get("she_said") or "").strip()
+    return f"I said: {said}" if said else "I haven't said anything yet this conversation."
+
+
 def _person(rest: str) -> str:
     """"Who is my landlord": the person remembered under that word."""
     from aletheia import memory
@@ -1821,7 +1884,56 @@ def _machine() -> str:
     return said + "."
 
 
+def _disk() -> str:
+    from aletheia import machine
+    try:
+        found = machine.disk()
+    except machine.UnknownMachine:
+        return "I can't read this computer's disk right now."
+    total, free = int(found.get("total") or 0), int(found.get("free") or 0)
+    if not total:
+        return "I can't read this computer's disk right now."
+    said = f"{machine.gigabytes(free)} free of {machine.gigabytes(total)} on this drive"
+    if free < 10 * 1024 ** 3:
+        said += " - that's getting tight"
+    return said + "."
+
+
+def _ip() -> str:
+    from aletheia import machine
+    found = machine.ip_address()
+    return (f"This computer's address on the network is {found}."
+            if found else "This computer has no network address right now - it looks offline.")
+
+
+def _internet() -> str:
+    from aletheia import machine
+    return ("Yes - the internet is reachable from here."
+            if machine.internet_reachable()
+            else "No - I can't reach the internet from this computer right now.")
+
+
+def _windows() -> str:
+    from aletheia import machine, speech
+    titles = machine.open_windows()
+    if not titles:
+        return "I can't see any open windows from here."
+    apps: list[str] = []
+    for title in titles:
+        app = machine.app_of(title)
+        if app and app not in apps:
+            apps.append(app)
+    said = speech.and_list(apps[:8])
+    more = f", and {len(apps) - 8} more" if len(apps) > 8 else ""
+    return f"Open right now: {said}{more}."
+
+
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
+           "last": lambda rest: _last(),
+           "disk": lambda rest: _disk(),
+           "ip": lambda rest: _ip(),
+           "internet": lambda rest: _internet(),
+           "windows": lambda rest: _windows(),
            "opportunity": _opportunity,
            "unattended": lambda rest: _unattended(),
            "pursuit_count": lambda rest: _pursuit_count(),
@@ -1830,6 +1942,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "applied_when": _applied_when,
            "about_him": lambda rest: _about_him(),
            "person": _person,
+           "repeat": lambda rest: _repeat(),
            "sent_today": lambda rest: _sent_today(),
            "machine": lambda rest: _machine(),
            "waiting": lambda rest: _waiting(),
