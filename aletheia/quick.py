@@ -230,10 +230,18 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What's the latest with DevRev" names the thing without calling it an
     # application; when the words match an opportunity or a record, that is
     # the answer, and when they match nothing the model may still think.
+    # "Anything from Vanta" and "did Vanta reply" fell through to a planner
+    # with every frontier off (2026-09-23 night sweep); the record answers.
     ("opportunity_loose", re.compile(
         r"^(?:what(?:'s| is|s)? the latest (?:with|on|from)|any (?:news|word|update) (?:from|on|with)|"
         r"how(?:'s| is) it going with|where (?:are we|am i) with|what(?:'s| is|s)? happening with|"
-        r"how (?:did|has) (?:it|things) (?:go|gone) with) (?:the |my )?(?P<what>[a-z0-9][a-z0-9 .&'-]{1,40}?)\s*\??$")),
+        r"how (?:did|has) (?:it|things) (?:go|gone) with|"
+        r"anything (?:new |back )?from|any(?:thing| word| reply| response| answer) (?:back )?from|"
+        r"(?:have (?:you|u|we|i) )?heard (?:anything |back )?from|did (?:you|u|we|i) hear (?:anything |back )?from)"
+        r" (?:the |my )?(?P<what>[a-z0-9][a-z0-9 .&'-]{1,40}?)(?: yet)?\s*\??$"
+        r"|^(?:did|has|have) (?:the )?(?P<what2>[a-z0-9][a-z0-9 .&'-]{1,40}?)"
+        r" (?:replied|reply|responded|respond|get back|gotten back|written back|write back|answered|answer)"
+        r"(?: yet| to me| to us| back)?\s*\??$")),
     # "What companies have I applied to" came back from her own model as
     # "I don't have a record of your job applications - no tracker
     # connected here", and "when did I apply to Stripe" waited two
