@@ -26,7 +26,7 @@ class TheMoneyDoorCase(unittest.TestCase):
 class DoNotDisturbCase(unittest.TestCase):
     def test_it_is_her_notices_going_quiet(self):
         for said, minutes in (("thea turn on do not disturb", 60), ("thea don't disturb me for 2 hours", 120),
-                              ("thea quiet for 30 minutes", 30), ("thea snooze your notifications", 60)):
+                              ("thea quiet for 30 minutes", 30), ("thea snooze your notifications", voice.DEFAULT_SNOOZE_MINUTES)):
             with self.subTest(said=said):
                 cmd = voice.interpret(said)["command"]
                 self.assertEqual(cmd["kind"], "notify_snooze")
