@@ -358,14 +358,6 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("good_morning", re.compile(
         r"^(?:good morning|morning|mornin'?|good morning thea|morning thea|hey good morning|"
         r"top of the morning|rise and shine)(?:,? thea)?(?: !)?$")),
-    ("leaving", re.compile(
-        r"^(?:i'?m |i am )?(?:leaving|heading out|off to work|leaving for work|going to work|heading to work|"
-        r"going out|out for a bit|back later|be back later|leaving now|heading off)(?: now| for work| for the day)?$")),
-    ("goodnight", re.compile(
-        # "Goodnight" itself is the farewell shape's ("I'll keep going quietly");
-        # these are the phrasings that were planned as steps.
-        r"^(?:(?:i'?m |i am )?(?:going to bed|off to bed|heading to bed|turning in|going to sleep)|"
-        r"see you tomorrow|talk tomorrow)(?:,? thea)?(?: now)?$")),
     ("today", re.compile(
         r"^what (?:did|have) (?:you|u) (?:do|done)(?: today)?$"
         r"|^what have (?:you|u) been doing$"
@@ -573,8 +565,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("arrival", re.compile(
         r"^(?:i'?m|im|i am) (?:home|back|here|in)(?: now)?$|^(?:just )?got (?:home|back|in)$")),
     ("farewell", re.compile(
-        r"^(?P<night>good ?night|night night|sleep well|i'?m going to (?:bed|sleep))$"
-        r"|^(?:i'?m|im|i am) (?:leaving|heading out|going out|off|out)(?: now)?$"
+        # "Going to bed" and "I'm leaving for work" were planned as steps
+        # ("I will let you know when you're ready to go", 2026-09-23).
+        r"^(?P<night>good ?night|night night|sleep well|(?:i'?m |im |i am )?(?:going to|off to|heading to) (?:bed|sleep)"
+        r"|turning in|see you tomorrow|talk tomorrow)(?:,? thea)?(?: now)?$"
+        r"|^(?:(?:i'?m|im|i am) )?(?:leaving|heading out|heading off|going out|off|out|off to work|going to work|"
+        r"heading to work|leaving for work|back later|be back later)(?: now| for work| for the day| for a bit)?$"
         r"|^(?:see (?:you|ya)(?: later)?|bye|goodbye|later|talk later|catch you later)$")),
     # Replies from employers, from the application records.
     ("replies", re.compile(
@@ -2262,21 +2258,8 @@ def _good_morning() -> str:
     return " ".join(parts)
 
 
-def _leaving() -> str:
-    """"I'm leaving for work" planned "I will let you know when you're ready
-    to go" as a step (2026-09-23). It is a handoff: she keeps going."""
-    return "Okay. I'll keep going and have what happened ready when you're back."
-
-
-def _goodnight() -> str:
-    return ("Goodnight. I'll keep working - the overnight summary is the first thing "
-            "I'll say in the morning.")
-
-
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "good_morning": lambda rest: _good_morning(),
-           "leaving": lambda rest: _leaving(),
-           "goodnight": lambda rest: _goodnight(),
            "status": lambda rest: _status(),
            "focus": lambda rest: _focus(),
            "outcomes": _outcomes,

@@ -27,15 +27,17 @@ class GoodMorningCase(unittest.TestCase):
 
 
 class LeavingAndBedCase(unittest.TestCase):
-    def test_leaving_is_a_handoff(self):
+    def test_leaving_is_the_farewell_not_a_plan(self):
         for said in ("I'm leaving for work", "heading out", "leaving now", "off to work"):
             with self.subTest(said=said):
-                self.assertIn("I'll keep going", quick.answer(said))
+                self.assertIn("keep at it while you're out", quick.answer(said))
 
-    def test_bed_is_a_promise_of_the_morning(self):
-        for said in ("going to bed", "I'm off to bed", "see you tomorrow"):
+    def test_bed_is_the_goodnight_not_a_plan(self):
+        for said in ("going to bed", "I'm off to bed", "turning in"):
             with self.subTest(said=said):
-                self.assertIn("overnight summary", quick.answer(said))
+                self.assertIn("keep going quietly", quick.answer(said))
+        # "See you tomorrow" is a see-you first and a goodnight second.
+        self.assertIn("keep at it", quick.answer("see you tomorrow"))
 
 
 if __name__ == "__main__":
