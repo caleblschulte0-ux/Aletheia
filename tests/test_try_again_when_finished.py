@@ -88,6 +88,21 @@ class ARecordRefusedForAMomentIsReadAgain(unittest.TestCase):
         self.assertFalse(campaign.refused_submit({**moment, "failure": "the site refused it: it says 'Phone must be 10 digits'"}))
         self.assertFalse(campaign.refused_submit({**moment, "stagings": 3}))
 
+    def test_retry_waiting_reads_the_rejected_record_again(self):
+        from unittest import mock
+        from aletheia import apply_run, campaign
+        moment = {"id": "apply-t", "state": "REJECTED", "url": "https://x/t", "resume": "C:/r.pdf",
+                  "failure": "the site refused it: it says \"We're updating your application (e.g. uploading files), please try again when they're finished.\""}
+        calls = []
+
+        def stager(url, **kw):
+            calls.append(url)
+            return {"id": "apply-t", "url": url, "state": "AWAITING_YOU", "questions": []}
+        with mock.patch.object(apply_run, "all_runs", side_effect=lambda state=None: [moment] if state in (None,) else []),              mock.patch.object(campaign, "read_resume", return_value=("C:/r.pdf", "resume text")),              mock.patch.object(campaign.policy, "ensure_not_halted"),              mock.patch.object(campaign.journal, "append"):
+            out = campaign.retry_waiting(stager=stager, json_think=False, writer=False)
+        self.assertEqual(calls, ["https://x/t"])
+        self.assertEqual(len(out["ready"]), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

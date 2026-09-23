@@ -1675,7 +1675,10 @@ def retry_waiting(*, resume: str = "", stager=None, json_think=None, writer=None
     known = profile.known()
     early = bool(_seniority_to_leave_out(known))
     waiting = list(apply_run.all_runs("NEEDS_YOU"))
-    waiting += [r for r in apply_run.all_runs("FAILED") if refused_submit(r)]
+    # FAILED and REJECTED both: a record the site refused for a moment
+    # ("try again when finished") is REJECTED, and live 2026-09-23 Tenex's
+    # sat that way through three re-read passes because only FAILED was read.
+    waiting += [r for r in apply_run.all_runs() if r.get("state") in ("FAILED", "REJECTED") and refused_submit(r)]
     for record in waiting[:max(0, int(limit))]:
         policy.ensure_not_halted()
         url = record.get("url") or ""

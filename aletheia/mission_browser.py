@@ -45,7 +45,7 @@ KIND_WORDS = {"CAPTCHA": "a CAPTCHA", "SIGN_IN": "a sign-in", "QUESTIONS": "ques
               "OUT_OF_STEPS": "its step budget"}
 
 #: What each mission state means on a card.
-WAITS_ON_HIM = ("NEEDS_YOU", "AWAITING_APPROVAL", "SUBMITTED_UNCONFIRMED")
+WAITS_ON_HIM = ("NEEDS_YOU", "AWAITING_APPROVAL")
 _HIS_KINDS = ("CAPTCHA", "SIGN_IN", "QUESTIONS", "WAITING_FOR_CODE", "NO_VAULT",
               "ACCOUNT_CREATION_APPROVAL")
 STOPPED_STATES = ("REFUSED", "MANUAL_ONLY", "REJECTED")
@@ -107,6 +107,14 @@ def card(record: dict, now: dt.datetime, *, stale_min: int = 20) -> dict | None:
                                  "(the process ended)", "since": record.get("beat"), "source": "browser mission"})
         nxt = ("Nothing, until it is resumed; a press already made is never made again without proof it failed."
                if state == "SUBMITTING" else "Resume it to replay the route it had and carry on.")
+    elif state == "SUBMITTED_UNCONFIRMED":
+        # Pressed, and the site did not say. That waits on the SITE, not on
+        # him: live 2026-09-23 four of these sat under "needs you" saying
+        # "waiting for you" with nothing to do. Kept a day, like a done one.
+        if age is not None and age > KEEP_S:
+            return None
+        status, step = "WAITING", "pressed; the site did not say whether it went through"
+        nxt = "Nothing: it is never pressed twice. A reply, if one comes, reaches the record."
     elif state in WAITS_ON_HIM:
         status = "NEEDS YOU"
         stop = named_stop(record)
