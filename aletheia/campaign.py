@@ -1844,10 +1844,45 @@ def start(role: str = "", *, count: int = 5, where: str = "", resume: str = "",
 
 
 def start_answer(question: str, answer: str, *, spawner=None) -> dict:
-    """Apply his answer to the waiting applications, in its own process."""
+    """Apply his answer to the waiting applications, in its own process.
+
+    While a batch holds the lock the process cannot start - and until
+    2026-09-23 his answer went with it ("Tell me that again when I say
+    they're ready"; Aptiv's country, said once, was never heard). Kept now,
+    by what the question asks, so the next re-read of the waiting forms
+    has it; a question that maps to a field of his is kept the same way
+    `answer_all` keeps it."""
     args = [sys.executable, "-m", "aletheia.campaign", "answer-one",
             "--question", str(question), "--answer", str(answer), "--notify"]
-    return _launch(args, {"kind": "answer", "question": str(question)[:200]}, spawner)
+    out = _launch(args, {"kind": "answer", "question": str(question)[:200]}, spawner)
+    if not out.get("started"):
+        out["kept"] = keep_answer(str(question), str(answer))
+    return out
+
+
+def keep_answer(question: str, answer: str) -> bool:
+    """His answer to an open question, kept against the question it best
+    matches (the same match `answer_one` makes), or against his words when
+    nothing is open. Never raises."""
+    from aletheia import profile
+    wanted = _content_words(question)
+    best, score = None, 0.0
+    try:
+        for held in open_questions():
+            have = _content_words(held["label"])
+            if not have or not wanted:
+                continue
+            shared = sum(1 for w in wanted if any(w[:5] == h[:5] for h in have))
+            overlap = shared / len(wanted)
+            if overlap > score:
+                best, score = held, overlap
+    except Exception:
+        best = None
+    label = best["label"] if best is not None and score >= 0.5 else question
+    try:
+        return profile.remember_question(label, answer, source="operator") is not None
+    except Exception:
+        return False
 
 
 def start_retry(limit: int = 60, spawner=None) -> dict:
@@ -1904,6 +1939,9 @@ def started_words(started: dict) -> str:
 
 def answer_words(started: dict) -> str:
     if not started.get("started"):
+        if started.get("kept"):
+            return ("I'm in the middle of the applications, so I've kept that; the forms "
+                    "waiting on it get it on the next pass.")
         return ("I'm still working on the applications. Tell me that again when I say "
                 "they're ready.")
     return ("Got it. I'm putting that into the applications that were waiting on it, "

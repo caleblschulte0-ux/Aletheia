@@ -60,6 +60,13 @@ DEFAULT_USES = 500
 # job only her own model judged realistic still wait for his own yes
 # (`apply_run.waits_for_his_ok`) whatever this grant says.
 JOBS_CAPABILITY = "application.submit"
+# And the account a site wants before it will take one. His words, the
+# morning of 2026-09-23: "Yeah, it can make its own accounts. I don't give a
+# shit." Five "press 'Create Account'" approvals were on his page when he
+# said it. `account.create` is `registry_grant` in the registry since that
+# ruling; the general browser's job missions spend this grant on the act
+# their held button is (`jobs_grant`), never on `web.commit` itself.
+JOBS_CAPABILITIES = (JOBS_CAPABILITY, "account.create")
 JOBS_GRANT_ID = "standing-jobs"
 DEFAULT_JOB_DAYS = 365
 DEFAULT_JOB_USES = 10_000
@@ -135,8 +142,15 @@ def jobs_enable(*, days: int = DEFAULT_JOB_DAYS, uses: int = DEFAULT_JOB_USES,
         raise ValueError("days must be 1..365 - a permission with no end is "
                          "one nobody remembers giving")
     existing = jobs_active()
-    if existing:
+    if existing and all(cid in existing.get("capability_ids", []) for cid in JOBS_CAPABILITIES):
         return existing
+    if existing:
+        # A grant from before accounts were hers: replaced, not widened in
+        # place - a grant is a thing he gave, and this is a new one he gave.
+        authority.revoke(existing["id"])
+        journal.append("decision", "authority",
+                       f"standing authority over {JOBS_CAPABILITY} replaced by one that also covers "
+                       "account.create" + (f" - his words: {quote}" if quote else ""), actor=ACTOR)
     # Unique per grant, not per day: revoking and re-granting on the same
     # day collided on "already decided".
     import uuid
@@ -144,10 +158,12 @@ def jobs_enable(*, days: int = DEFAULT_JOB_DAYS, uses: int = DEFAULT_JOB_USES,
     approval_id = f"{JOBS_GRANT_ID}-{stamp}"
     policy.request(
         approval_id,
-        requested_action=f"standing authority over {JOBS_CAPABILITY}",
-        reason="send the applications she has filled without asking each time",
+        requested_action=f"standing authority over {', '.join(JOBS_CAPABILITIES)}",
+        reason="send the applications she has filled, and make the account a site wants first, "
+               "without asking each time",
         consequence=(f"applications she has filled go out under his name without a tap for "
-                     f"{days} days or {uses} uses, whichever comes first; part-time, contract, "
+                     f"{days} days or {uses} uses, whichever comes first, and an account a job site "
+                     "wants before it will take one is made in his name; part-time, contract, "
                      "temporary and internship work, and a job only her own model judged "
                      "realistic, still wait for his own yes"),
         reversible=True)
@@ -155,12 +171,12 @@ def jobs_enable(*, days: int = DEFAULT_JOB_DAYS, uses: int = DEFAULT_JOB_USES,
                   because=("granted at the command line by the operator"
                            + (f" - his words: {quote}" if quote else "")))
     grant = authority.create(
-        approval_id[:60], capability_ids=[JOBS_CAPABILITY], approval_id=approval_id,
+        approval_id[:60], capability_ids=list(JOBS_CAPABILITIES), approval_id=approval_id,
         expires=_expiry(int(days)), max_uses=int(uses),
-        note="jobs: send filled applications without a tap"
+        note="jobs: send filled applications, and make the accounts sites want, without a tap"
              + (f" - his words: {quote}" if quote else ""))
     journal.append("decision", "authority",
-                   f"standing authority granted over {JOBS_CAPABILITY} for {days} days / "
+                   f"standing authority granted over {', '.join(JOBS_CAPABILITIES)} for {days} days / "
                    f"{uses} uses" + (f" - his words: {quote}" if quote else ""), actor=ACTOR)
     return grant
 
@@ -181,6 +197,7 @@ def jobs_status() -> dict:
     grant = jobs_active()
     used = len(authority._claims(grant["id"])) if grant else 0
     return {"granted": bool(grant),
+            "accounts": bool(grant) and "account.create" in grant.get("capability_ids", []),
             "expires": grant.get("expires") if grant else None,
             "uses_left": (grant["max_uses"] - used) if grant else 0,
             "command": "python -m aletheia.standing jobs on"}
@@ -192,7 +209,10 @@ def jobs_spoken() -> str:
     if not state["granted"]:
         return ("I ask you before every application I send. At your keyboard, "
                 "'python -m aletheia.standing jobs on' lets me send them without asking.")
-    return (f"I send the applications I fill without asking - {state['uses_left']} left, "
+    accounts = (" and make the accounts sites want" if state["accounts"]
+                else "; an account a site wants still waits for your yes - 'python -m aletheia.standing "
+                     "jobs on' again lets me make it")
+    return (f"I send the applications I fill{accounts} without asking - {state['uses_left']} left, "
             f"until {speech.humanize_time(state['expires'])}. Part-time or contract work "
             "still waits for your own yes.")
 

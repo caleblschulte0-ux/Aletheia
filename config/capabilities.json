@@ -1746,7 +1746,7 @@
       "provider": "aletheia.local",
       "status": "EXPERIMENTAL",
       "risk_class": "medium",
-      "approval_policy": "operator_always",
+      "approval_policy": "registry_grant",
       "caller": "aletheia.apply_run.stage names an account wall as NEEDS_ACCOUNT rather than staging an application that could never be submitted; python -m aletheia.signup check/list/read",
       "module": "aletheia.signup",
       "verification": "tests/test_signup.py: a CAPTCHA stops her before anything is typed and before the vault is even consulted, no vault means no account, the password reaches the vault and appears in neither the record nor the journal, every phone box on a signup gets his signup number and his real number never appears, one employer gets one account, and the module makes no browser calls at all",
