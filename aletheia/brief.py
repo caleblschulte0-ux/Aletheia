@@ -157,6 +157,38 @@ def _charters(pulse: dict) -> list[dict]:
             if isinstance(i, dict) and i.get("slug")]
 
 
+def _job_hunt_lines() -> list[str]:
+    """"## Job hunt" for the brief: sent, replies, waiting on him - or nothing
+    at all when there is no hunt to speak of."""
+    try:
+        from aletheia import current_state
+        hunt = current_state.job_hunt() or {}
+    except Exception:
+        return []
+    if not hunt.get("readable", True):
+        return []
+    today = hunt.get("today") or {}
+    sent, replies = int(today.get("sent") or 0), int(today.get("replies") or 0)
+    waiting = list(hunt.get("waiting_on_him") or [])
+    ready, blocked = int(today.get("ready") or 0), int(today.get("blocked") or 0)
+    if not (sent or replies or waiting or ready or blocked):
+        return []
+    out = ["## Job hunt"]
+    names = [str(r.get("company") or "") for r in (hunt.get("sent_list") or []) if r.get("company")]
+    out.append(f"- **{sent} sent** today" + (f": {', '.join(dict.fromkeys(names[:6]))}" if names else ""))
+    if replies:
+        out.append(f"- **{replies} heard back**")
+    if ready:
+        out.append(f"- {ready} filled and waiting to go")
+    if waiting:
+        who = ", ".join(str(w.get("company") or "") for w in waiting[:4] if w.get("company"))
+        out.append(f"- **{len(waiting)} stopped on a question only you can answer**" + (f": {who}" if who else ""))
+    if blocked:
+        out.append(f"- {blocked} could not be sent")
+    out.append("")
+    return out
+
+
 def _drafts() -> list[dict]:
     """Charters drafted from something he asked for, waiting for his yes."""
     from aletheia import plans
@@ -284,6 +316,11 @@ def compose(pulse: dict, prev: dict | None, journal_entries: list[dict],
         lines.append("## 🧭 Your one thing today")
         lines.append(thing["text"])
         lines.append("")
+
+    # THE JOB HUNT, which is what he actually asks about first thing.
+    # From the same reading the page and the room use; never fails the brief.
+    for line in _job_hunt_lines():
+        lines.append(line)
 
     charters = _charters(pulse)
     if charters or drafts:

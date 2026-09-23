@@ -303,7 +303,7 @@ class ABlockPageIsNotAnApplication(ApplyCase):
                             filler=lambda *a: filled.append(a) or {})
         self.assertIn("not an application form", str(said.exception))
         self.assertEqual(filled, [], "no browser is spent filling it")
-        self.assertEqual(apply_run.load_run(f"apply-{apply_run._tag(url)}")["state"], "FAILED")
+        self.assertEqual(apply_run.load_run(f"apply-{apply_run._tag(url)}")["state"], "CLOSED")
 
     def test_the_bot_check_wording_closes_a_lead_before_a_browser(self):
         body = "<h1>Access is temporarily restricted</h1><p>We detected unusual activity from your device</p>"
