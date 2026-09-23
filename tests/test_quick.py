@@ -460,7 +460,7 @@ class TheWiderLaneCase(unittest.TestCase):
                 ("what can you do", "capabilities"),
                 ("any alerts", "alerts"),
                 ("is anything broken", "alerts"),
-                ("how's the fleet", "alerts"),
+                ("how's the fleet", "fleet"),
                 ("what's my email", "mine"),
                 ("what's my phone number", "mine"),
                 ("where do i live", "home"),
