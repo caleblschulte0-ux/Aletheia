@@ -1227,7 +1227,7 @@ def _interpret(transcript: str) -> dict:
 
     # "Snooze that for an hour" — the commonest thing anybody says to a
     # notification, and it had no verb at all.
-    m = re.fullmatch(r"snooze(?: (?:that|it|this|them|the (?:alert|notification|"
+    m = re.fullmatch(r"snooze(?: (?:that|it|this|them|(?:your |all |the )?(?:notifications|notices|alerts)|the (?:alert|notification|"
                      r"reminder)))?\s*(?:for |by )?(.*)", low)
     if m:
         rest = m.group(1).strip()
