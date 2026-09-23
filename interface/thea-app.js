@@ -418,18 +418,14 @@
   const HEALTH_CLASS = { green: "ok", red: "bad", unknown: "dim", dormant: "dim" };
   let fleetOpen = null;      // the repo id he asked for by link or tap
 
-  function githubURL(fleet, r, path) {
-    const owner = (fleet && fleet.owner) || "";
-    return owner && r.github ? "https://github.com/" + owner + "/" + r.github + (path || "") : "";
-  }
-
   function repoCard(fleet, id, r) {
     const word = HEALTH_WORD[r.health] || "no signal";
     const wfs = Object.entries(r.workflows || {}).map(([name, w]) => {
       const short = name.replace(/\.yml$/, "");
       const state = w.error ? "unknown" : (w.conclusion || w.status || "");
       const bad = state === "failure" || state === "timed_out" || state === "cancelled";
-      const runs = githubURL(fleet, r, "/actions/workflows/" + encodeURIComponent(name));
+      // Links come from the Core (`/api/fleet`); the page holds no host.
+      const runs = w.url || "";
       const label = short + (state ? " · " + state.replace(/_/g, " ") : "");
       return runs
         ? '<a class="wf ' + (bad ? "bad" : state === "success" ? "ok" : "dim") + '" href="' +
@@ -453,7 +449,7 @@
       (c.message ? '<details class="peek"><summary>Latest change' +
           (c.date ? " · " + T.esc(T.ago(c.date)) : "") + "</summary><div class=\"body\">" +
           T.esc(c.message) + "</div></details>" : "") +
-      (githubURL(fleet, r) ? '<p><a class="out" href="' + T.esc(githubURL(fleet, r)) +
+      (r.url ? '<p><a class="out" href="' + T.esc(r.url) +
           '" target="_blank" rel="noopener">Open it on GitHub</a></p>' : "") +
       "</div></details>";
   }
@@ -487,7 +483,7 @@
     // The fleet block is a six-hourly cron; once a minute is plenty.
     if (!force && Date.now() - fleetAt < 60000) return;
     fleetAt = Date.now();
-    try { last.fleet = await T.api("/state/pulse/latest.json"); } catch { /* keep the last one */ }
+    try { last.fleet = await T.api("/api/fleet"); } catch { /* keep the last one */ }
     paintFleet(last.fleet);
   }
 

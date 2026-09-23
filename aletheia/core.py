@@ -910,6 +910,13 @@ class Handler(BaseHTTPRequestHandler):
                                "total": len(rows),
                                "says": _needs.spoken(rows),
                                "activity": _needs.activity()})
+        if url.path == "/api/fleet":
+            # The pulse the wall reads, with the links a card needs already
+            # on it. Built HERE because the page may hold no absolute URL
+            # (it must behave the same on loopback, the tailnet name and a
+            # `tailscale cert` host - test_no_host_is_hard_coded), and
+            # because where a repository lives is the collector's fact.
+            return self._json(fleet_payload())
         if url.path == "/api/health":
             # "Is she all right?" in words, for the page to render as-is.
             # `include_tasks=False` skips the 0.6s scheduled-task query;
@@ -1227,6 +1234,26 @@ class OneCoreServer(ThreadingHTTPServer):
 #: which could not bind the held port, read the same slow answer as "not a
 #: Core", and crash-looped its way to a false "I keep restarting" notice.
 ALIVE_PROBE_S = 8.0
+
+
+def fleet_payload() -> dict:
+    """`state/pulse/latest.json` plus `url` on every repository and every
+    workflow, so the Thea page can link to them without knowing a host."""
+    try:
+        pulse = json.loads((REPO_ROOT / "state" / "pulse" / "latest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"repos": {}, "alerts": [], "generated_at": None, "unreadable": True}
+    owner = str(pulse.get("owner") or "")
+    for rid, repo in (pulse.get("repos") or {}).items():
+        if not isinstance(repo, dict):
+            continue
+        name = str(repo.get("github") or "")
+        home = f"https://github.com/{owner}/{name}" if owner and name else ""
+        repo["url"] = home
+        for wf_name, wf in (repo.get("workflows") or {}).items():
+            if isinstance(wf, dict):
+                wf["url"] = f"{home}/actions/workflows/{wf_name}" if home else ""
+    return pulse
 
 
 def another_core_answering(port: int = DEFAULT_PORT, timeout_s: float = ALIVE_PROBE_S) -> bool:
