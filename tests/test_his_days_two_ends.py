@@ -33,11 +33,14 @@ class LeavingAndBedCase(unittest.TestCase):
                 self.assertIn("keep at it while you're out", quick.answer(said))
 
     def test_bed_is_the_goodnight_not_a_plan(self):
-        for said in ("going to bed", "I'm off to bed", "turning in"):
+        for said in ("going to bed", "I'm off to bed", "heading to sleep"):
             with self.subTest(said=said):
                 self.assertIn("keep going quietly", quick.answer(said))
-        # "See you tomorrow" is a see-you first and a goodnight second.
-        self.assertIn("keep at it", quick.answer("see you tomorrow"))
+        # "See you tomorrow" and "turning in" are farewells too; the wording
+        # follows the words he used, and either way nothing is planned.
+        for said in ("see you tomorrow", "turning in"):
+            with self.subTest(said=said):
+                self.assertIn("I'll keep", quick.answer(said))
 
 
 if __name__ == "__main__":
