@@ -1082,6 +1082,13 @@
   $("fleetFold").addEventListener("toggle", () => {
     if ($("fleetFold").open) loadFleet(!last.fleet);
   });
+  // ON A DESK THE RIGHT LANE HAD ROOM TO SPARE (design pass 3, 2026-09-23:
+  // the desk screenshot showed "What she's done" ending a third of the way
+  // down and nothing under it). The fleet opens itself there; on a phone it
+  // stays folded, because the phone budget is real.
+  if (window.matchMedia && window.matchMedia("(min-width: 900px)").matches && !location.hash) {
+    $("fleetFold").open = true;
+  }
 
   $("drawer").addEventListener("toggle", () => {
     if (!$("drawer").open || $("drawer").dataset.loaded) return;
