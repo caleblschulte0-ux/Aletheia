@@ -375,7 +375,7 @@ def _recent_path():
     return stateio.private_dir("local-ai") / "recent.json"
 
 
-_LOOKS_PERSONAL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+|\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}|\d{5}(?:-\d{4})?")
+_LOOKS_PERSONAL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+|\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}|\b\d{5}(?:-\d{4})?\b")
 
 
 def _what_words(text: str) -> str:
