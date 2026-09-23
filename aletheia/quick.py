@@ -368,6 +368,17 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how (?:did|was) (?:the night|last night|overnight)(?: go)?$")),
     # "When did you last update" was answered by her own model from the
     # journal ("no record of that") - git and `running.version` know.
+    # THE CLOCK ELSEWHERE AND THE CALENDAR AHEAD (2026-09-23 night sweep):
+    # "what time is it in Tokyo" and "what's the date next Friday" each
+    # waited on a model for arithmetic.
+    ("time_in", re.compile(
+        r"^what(?:'s| is|s)? the time (?:in|at) (?P<time_in>[a-z][a-z .'-]{1,40}?)(?: right now| now)?\s*\??$"
+        r"|^what time is it (?:in|at|over in) (?P<time_in2>[a-z][a-z .'-]{1,40}?)(?: right now| now)?\s*\??$"
+        r"|^(?:what(?:'s| is) the )?(?:current |local )?time in (?P<time_in3>[a-z][a-z .'-]{1,40}?)\s*\??$")),
+    ("date_of", re.compile(
+        r"^what(?:'s| is|s)? the date (?:on |for )?(?:next |this |of )?(?!(?:today|tomorrow|yesterday|now)\b)(?P<date_of>[a-z][a-z ']{2,30}?)\s*\??$"
+        r"|^what date is (?:next |this )?(?P<date_of2>[a-z][a-z ']{2,30}?)\s*\??$"
+        r"|^when(?:'s| is) (?:next |this )(?P<date_of3>monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$")),
     ("updated", re.compile(
         r"^when (?:did|were) (?:you|u) last (?:update|updated|upgrade|upgraded)(?: yourself)?$"
         r"|^(?:are|is) (?:you|u|your code) (?:up to date|current|on the (?:latest|newest)(?: code)?)$"
@@ -548,6 +559,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # meeting" are different questions and belong to the planner.
     ("next_meeting", re.compile(
         r"^what(?:'s| is|s)? my next (?:meeting|appointment|event)$"
+        r"|^how long (?:until|till|before) my next (?:meeting|appointment|event)$"
         r"|^when(?:'s| is)? my next (?:meeting|appointment|event)$"
         r"|^do i have (?:any )?(?:meetings|appointments)(?: coming up| today)?$"
         r"|^what(?:'s| is|s)? (?:next |coming up )?on my calendar$"
@@ -692,7 +704,9 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5",
                                            "until", "until2", "day8", "day9",
-                                           "why_not", "why_not2", "why_not3")
+                                           "why_not", "why_not2", "why_not3",
+                                           "time_in", "time_in2", "time_in3",
+                                           "date_of", "date_of2", "date_of3")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
@@ -821,10 +835,121 @@ def _named_date(words: str, today):
     return None
 
 
+#: Where a place name puts the clock. Cities, countries and US states he
+#: is likely to say; anything not here is left to a model, never guessed.
+_ZONES = {
+    "tokyo": "Asia/Tokyo", "japan": "Asia/Tokyo", "osaka": "Asia/Tokyo",
+    "london": "Europe/London", "uk": "Europe/London", "england": "Europe/London", "the uk": "Europe/London",
+    "britain": "Europe/London", "scotland": "Europe/London", "dublin": "Europe/Dublin", "ireland": "Europe/Dublin",
+    "paris": "Europe/Paris", "france": "Europe/Paris", "berlin": "Europe/Berlin", "germany": "Europe/Berlin",
+    "munich": "Europe/Berlin", "rome": "Europe/Rome", "italy": "Europe/Rome", "milan": "Europe/Rome",
+    "madrid": "Europe/Madrid", "spain": "Europe/Madrid", "barcelona": "Europe/Madrid",
+    "amsterdam": "Europe/Amsterdam", "the netherlands": "Europe/Amsterdam", "netherlands": "Europe/Amsterdam",
+    "brussels": "Europe/Brussels", "belgium": "Europe/Brussels", "zurich": "Europe/Zurich", "switzerland": "Europe/Zurich",
+    "vienna": "Europe/Vienna", "austria": "Europe/Vienna", "stockholm": "Europe/Stockholm", "sweden": "Europe/Stockholm",
+    "oslo": "Europe/Oslo", "norway": "Europe/Oslo", "copenhagen": "Europe/Copenhagen", "denmark": "Europe/Copenhagen",
+    "helsinki": "Europe/Helsinki", "finland": "Europe/Helsinki", "warsaw": "Europe/Warsaw", "poland": "Europe/Warsaw",
+    "lisbon": "Europe/Lisbon", "portugal": "Europe/Lisbon", "athens": "Europe/Athens", "greece": "Europe/Athens",
+    "prague": "Europe/Prague", "moscow": "Europe/Moscow", "russia": "Europe/Moscow", "istanbul": "Europe/Istanbul",
+    "turkey": "Europe/Istanbul", "cairo": "Africa/Cairo", "egypt": "Africa/Cairo", "lagos": "Africa/Lagos",
+    "nigeria": "Africa/Lagos", "johannesburg": "Africa/Johannesburg", "south africa": "Africa/Johannesburg",
+    "nairobi": "Africa/Nairobi", "kenya": "Africa/Nairobi", "dubai": "Asia/Dubai", "uae": "Asia/Dubai",
+    "the uae": "Asia/Dubai", "tel aviv": "Asia/Jerusalem", "israel": "Asia/Jerusalem", "jerusalem": "Asia/Jerusalem",
+    "mumbai": "Asia/Kolkata", "delhi": "Asia/Kolkata", "new delhi": "Asia/Kolkata", "bangalore": "Asia/Kolkata",
+    "india": "Asia/Kolkata", "karachi": "Asia/Karachi", "pakistan": "Asia/Karachi", "bangkok": "Asia/Bangkok",
+    "thailand": "Asia/Bangkok", "hanoi": "Asia/Ho_Chi_Minh", "vietnam": "Asia/Ho_Chi_Minh", "singapore": "Asia/Singapore",
+    "kuala lumpur": "Asia/Kuala_Lumpur", "malaysia": "Asia/Kuala_Lumpur", "jakarta": "Asia/Jakarta", "indonesia": "Asia/Jakarta",
+    "manila": "Asia/Manila", "the philippines": "Asia/Manila", "philippines": "Asia/Manila", "hong kong": "Asia/Hong_Kong",
+    "shanghai": "Asia/Shanghai", "beijing": "Asia/Shanghai", "china": "Asia/Shanghai", "taipei": "Asia/Taipei",
+    "taiwan": "Asia/Taipei", "seoul": "Asia/Seoul", "korea": "Asia/Seoul", "south korea": "Asia/Seoul",
+    "sydney": "Australia/Sydney", "melbourne": "Australia/Melbourne", "australia": "Australia/Sydney",
+    "brisbane": "Australia/Brisbane", "perth": "Australia/Perth", "auckland": "Pacific/Auckland",
+    "new zealand": "Pacific/Auckland", "honolulu": "Pacific/Honolulu", "hawaii": "Pacific/Honolulu",
+    "anchorage": "America/Anchorage", "alaska": "America/Anchorage", "los angeles": "America/Los_Angeles",
+    "la": "America/Los_Angeles", "san francisco": "America/Los_Angeles", "seattle": "America/Los_Angeles",
+    "portland": "America/Los_Angeles", "san diego": "America/Los_Angeles", "las vegas": "America/Los_Angeles",
+    "california": "America/Los_Angeles", "washington state": "America/Los_Angeles", "oregon": "America/Los_Angeles",
+    "nevada": "America/Los_Angeles", "denver": "America/Denver", "colorado": "America/Denver", "salt lake city": "America/Denver",
+    "utah": "America/Denver", "phoenix": "America/Phoenix", "arizona": "America/Phoenix", "chicago": "America/Chicago",
+    "illinois": "America/Chicago", "dallas": "America/Chicago", "houston": "America/Chicago", "austin": "America/Chicago",
+    "texas": "America/Chicago", "minneapolis": "America/Chicago", "minnesota": "America/Chicago", "kansas city": "America/Chicago",
+    "st louis": "America/Chicago", "nashville": "America/Chicago", "new orleans": "America/Chicago", "omaha": "America/Chicago",
+    "nebraska": "America/Chicago", "iowa": "America/Chicago", "wisconsin": "America/Chicago", "missouri": "America/Chicago",
+    "oklahoma": "America/Chicago", "sioux falls": "America/Chicago", "south dakota": "America/Chicago",
+    "north dakota": "America/Chicago", "fargo": "America/Chicago", "new york": "America/New_York", "nyc": "America/New_York",
+    "new york city": "America/New_York", "boston": "America/New_York", "philadelphia": "America/New_York",
+    "washington": "America/New_York", "washington dc": "America/New_York", "dc": "America/New_York",
+    "miami": "America/New_York", "florida": "America/New_York", "atlanta": "America/New_York", "georgia": "America/New_York",
+    "charlotte": "America/New_York", "detroit": "America/Detroit", "michigan": "America/Detroit", "ohio": "America/New_York",
+    "pittsburgh": "America/New_York", "toronto": "America/Toronto", "ottawa": "America/Toronto", "montreal": "America/Toronto",
+    "canada": "America/Toronto", "vancouver": "America/Vancouver", "calgary": "America/Edmonton", "mexico city": "America/Mexico_City",
+    "mexico": "America/Mexico_City", "bogota": "America/Bogota", "colombia": "America/Bogota", "lima": "America/Lima",
+    "peru": "America/Lima", "santiago": "America/Santiago", "chile": "America/Santiago", "buenos aires": "America/Argentina/Buenos_Aires",
+    "argentina": "America/Argentina/Buenos_Aires", "sao paulo": "America/Sao_Paulo", "brazil": "America/Sao_Paulo",
+    "rio": "America/Sao_Paulo", "utc": "UTC", "gmt": "UTC", "eastern time": "America/New_York", "the east coast": "America/New_York",
+    "east coast": "America/New_York", "central time": "America/Chicago", "mountain time": "America/Denver",
+    "pacific time": "America/Los_Angeles", "the west coast": "America/Los_Angeles", "west coast": "America/Los_Angeles",
+}
+
+
+def _time_in(place: str) -> str | None:
+    """The clock somewhere he named, and how far it sits from his own."""
+    import datetime as dt
+    from zoneinfo import ZoneInfo
+    from aletheia import localtime
+    key = " ".join(str(place or "").casefold().split()).strip(" ?.")
+    zone = _ZONES.get(key) or _ZONES.get(key.replace("the ", "", 1))
+    if not zone:
+        return None
+    try:
+        there = dt.datetime.now(ZoneInfo(zone))
+        here = dt.datetime.now(localtime.operator_tz())
+    except Exception:
+        return None
+    clock = there.strftime("%I:%M %p").lstrip("0").replace("AM", "am").replace("PM", "pm")
+    said = f"{clock} on {there.strftime('%A')} in {place.strip().title() if key not in ('utc', 'gmt') else key.upper()}"
+    hours = (there.utcoffset() - here.utcoffset()).total_seconds() / 3600
+    whole = int(hours) if float(hours).is_integer() else hours
+    if hours > 0:
+        said += f" - {whole} hour{'s' if abs(hours) != 1 else ''} ahead of you"
+    elif hours < 0:
+        said += f" - {abs(whole)} hour{'s' if abs(hours) != 1 else ''} behind you"
+    else:
+        said += " - the same as yours"
+    return said + "."
+
+
+def _date_of(words: str) -> str | None:
+    """The date a named day comes to: "next Friday", "Christmas"."""
+    import datetime as dt
+    from aletheia import localtime
+    w = " ".join(str(words or "").casefold().split()).strip(" ?.")
+    for lead in ("next ", "this "):
+        if w.startswith(lead):
+            w = w[len(lead):]
+    try:
+        today = dt.datetime.now(localtime.operator_tz()).date()
+    except Exception:
+        today = dt.date.today()
+    when = _named_date(w, today)
+    if when is None:
+        return None
+    day = when.day
+    suffix = "th" if 11 <= day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+    said = f"{when.strftime('%A')} the {day}{suffix} of {when.strftime('%B')}"
+    if when.year != today.year:
+        said += f" {when.year}"
+    return said + "."
+
+
 def _until(words: str) -> str | None:
     """Days until a date he named, from the calendar and nothing else."""
     import datetime as dt
     from aletheia import localtime
+    # "how long until my next meeting" is the calendar's, not a date's
+    # (2026-09-23 night sweep: it fell through here to a model).
+    if re.fullmatch(r"(?:my |the )?next (?:meeting|appointment|event)", " ".join(str(words or "").casefold().split())):
+        return _next_meeting()
     today = dt.datetime.now(localtime.operator_tz()).date()
     when = _named_date(words, today)
     if when is None:
@@ -2394,6 +2519,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "focus": lambda rest: _focus(),
            "outcomes": _outcomes,
            "until": _until,
+           "time_in": _time_in,
+           "date_of": _date_of,
            "overnight": lambda rest: _overnight(),
            "updated": lambda rest: _updated(),
            "last": lambda rest: _last(),
