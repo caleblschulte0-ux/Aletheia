@@ -1,6 +1,7 @@
 """Two-role local reasoning pool with bounded failover and training capture."""
 from __future__ import annotations
 
+import re
 import json
 import time
 from dataclasses import dataclass
@@ -368,12 +369,26 @@ def _recent_path():
     return stateio.private_dir("local-ai") / "recent.json"
 
 
+_LOOKS_PERSONAL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+|\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}|\b\d{5}(?:-\d{4})?\b")
+
+
+def _what_words(text: str) -> str:
+    """What she is working on, fit for the page and the room. The prompt's
+    first line is what used to be kept, and for the resume-learning call
+    that was his name, address, phone and email (2026-09-23) - shown on his
+    screen under "what my own model is doing"."""
+    words = " ".join(str(text or "").split())
+    if _LOOKS_PERSONAL.search(words):
+        return "reading a document of his"
+    return words[:80]
+
+
 def _mark_busy(role: str, model: str, what: str, attention: str) -> None:
     import os
     try:
         stateio.write_json_atomic(_busy_path(), {
             "started_at": stateio.utcnow(), "role": role, "model": model,
-            "what": " ".join(str(what or "").split())[:160], "attention": attention,
+            "what": _what_words(what), "attention": attention,
             "pid": os.getpid()})
     except Exception:  # noqa: BLE001
         pass
@@ -409,7 +424,7 @@ def _remember_run(role: str, elapsed_ms: int, ok: bool, what: str = "") -> None:
         except Exception:  # noqa: BLE001
             rows = []
         rows.append({"at": stateio.utcnow(), "role": role, "s": round(elapsed_ms / 1000.0, 1),
-                     "ok": bool(ok), "what": " ".join(str(what or "").split())[:80]})
+                     "ok": bool(ok), "what": _what_words(what)})
         stateio.write_json_atomic(_recent_path(), {"runs": rows[-RECENT_KEEP:]})
     except Exception:  # noqa: BLE001
         pass
