@@ -571,7 +571,13 @@ def _bind_committing_presses(plan: planner.Plan, fleet: dict) -> list[dict]:
 def _hands_refused(hands: dict) -> str:
     """Why a plan was not offered, in words he can act on."""
     why = re.sub(r"^\w+:\s*", "", str(hands.get("detail") or ""))
-    why = re.split(r" — |; allowed:", why)[0]
+    # "steps[0].action: 'set_volume' not in ['close_window', 'focus_window',
+    # ...]" reached the room whole (2026-09-23). The list is the drawer's;
+    # the sentence is what her hands cannot do.
+    unknown = re.search(r"steps\[\d+\]\.action: '([a-z_]+)' not in \[", why)
+    if unknown:
+        why = f"my hands can't {unknown.group(1).replace('_', ' ')}"
+    why = re.split(r" — |; allowed:| not in \[", why)[0]
     why = speech.tidy(speech.strip_ids(speech.spoken_prose(why)))[:220].rstrip(" .;")
     return ("I can't run that plan as written"
             + (f": step {hands.get('n')} was refused — {why}." if why else ".")

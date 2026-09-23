@@ -380,6 +380,13 @@ def learn_more(text: str, *, think=None) -> dict:
     """
     have = profile.known()
     found: dict = {}
+    # A RESUME SHE HAS ALREADY LEARNED IS NOT READ AGAIN. Every batch asked a
+    # model to read the same document - on his PC 2026-09-23, 300-500 s of
+    # her own model per batch (the local-run ring showed his resume's first
+    # line over and over) for fields the profile already held. Nothing a
+    # model could add is missing: skip the call.
+    if think is not False and all(field in have for field in LEARNABLE if field not in ("website",)):
+        think = False
     if think is not False:
         try:
             if think is None:
@@ -438,6 +445,46 @@ def _roles_validator(value: dict) -> dict:
     return {"roles": clean[:MAX_ROLES]}
 
 
+def _roles_cache_path():
+    return stateio.private_dir("jobs") / "roles_from_resume.json"
+
+
+def _resume_key(text: str) -> str:
+    import hashlib
+    return hashlib.sha256(" ".join(str(text or "").split()).encode("utf-8")).hexdigest()[:16]
+
+
+def roles_remembered(text: str) -> list[str] | None:
+    """The roles a model already read off THIS resume, or None."""
+    try:
+        rows = stateio.read_json(_roles_cache_path())
+    except Exception:
+        return None
+    found = rows.get(_resume_key(text))
+    return [str(r) for r in found] if isinstance(found, list) and found else None
+
+
+def remember_roles(text: str, roles: list[str]) -> None:
+    try:
+        try:
+            rows = stateio.read_json(_roles_cache_path())
+        except Exception:
+            rows = {}
+        rows[_resume_key(text)] = [str(r) for r in roles][:12]
+        stateio.write_json_atomic(_roles_cache_path(), rows)
+    except Exception:
+        pass
+
+
+def forget_roles() -> None:
+    """Drop what a model read off any resume - his own words about the work
+    he wants change what the answer should be, and a test needs a clean slate."""
+    try:
+        _roles_cache_path().unlink()
+    except OSError:
+        pass
+
+
 def roles_for(text: str, *, think=None) -> list[str]:
     """What this resume is for, in the kind of work he wants - never a list in code."""
     known = profile.known()
@@ -447,9 +494,17 @@ def roles_for(text: str, *, think=None) -> list[str]:
             raise ValueError("no model")
         if think is None:
             think = _job_hunt_thinker(ROLES_SCHEMA)
-        roles = think(ROLES_BRIEF, str(text)[:8000], validator=_roles_validator,
-                      context={"he_wants": wanted or "(he has not said)",
-                               "he_will_not_do": unwanted or "(he has not said)"})["roles"]
+        # THE SAME RESUME ASKS ONCE. Roles a model read off this document are
+        # kept by its hash (2026-09-23): every batch re-read it, 100-500 s
+        # of her own model when the frontier is out.
+        remembered = roles_remembered(text)
+        if remembered:
+            roles = remembered
+        else:
+            roles = think(ROLES_BRIEF, str(text)[:8000], validator=_roles_validator,
+                          context={"he_wants": wanted or "(he has not said)",
+                                   "he_will_not_do": unwanted or "(he has not said)"})["roles"]
+            remember_roles(text, list(roles))
         # A model that names a kind of work he refused anyway does not get to
         # send her hunting for it.
         kept = [r for r in roles if not job_fit.unwanted_reason(r, "", known)]
