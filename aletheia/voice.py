@@ -2226,6 +2226,15 @@ def _interpret(transcript: str) -> dict:
                 "say": f"I can't place phone calls from here. I can text or email {who}, "
                        "or remind you to call them - which would you like?"}
 
+    # A VOLUME LEVEL is not a key. "Set the volume to 50" planned for a
+    # minute on her own model and was refused with a list of action ids
+    # (2026-09-23); up, down and mute are the keys she has.
+    if re.fullmatch(r"(?:set|put|turn|change) (?:the )?(?:volume|sound) (?:to|at) (?:\d+|half|max|maximum|full|low|high)"
+                    r"(?: ?%| percent)?", low):
+        return {"command": None,
+                "say": "I can't set the volume to a level - only up, down and mute, a notch at a time. "
+                       "Say 'volume up' or 'volume down' and I'll press it."}
+
     # NAMING SOMETHING TO PLAY is the half that needs his account, and
     # she says so instead of resuming whatever was paused on Thursday and
     # calling it what he asked for.
