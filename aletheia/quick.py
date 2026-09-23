@@ -881,7 +881,7 @@ _STATE_WORDS = {"SUBMITTED": "it went", "SUBMITTING": "it is going out now",
                 "AWAITING_YOU": "it is filled and waiting to go out on the next beat",
                 "NEEDS_YOU": "it stopped on a question only you can answer",
                 "NEEDS_ACCOUNT": "the site wants an account before it will take an application",
-                "REJECTED": "the site refused the form", "FAILED": "it would not send",
+                "REJECTED": "the site handed it back", "FAILED": "it would not send",
                 "CLOSED": "I set it aside"}
 
 
@@ -909,7 +909,14 @@ def _why_not(words: str) -> str | None:
     if state == "SUBMITTED" and r.get("submitted_at"):
         said += f" {speech.humanize_time(str(r['submitted_at']))}"
     reason = str(r.get("failure") or r.get("closed_because") or "")
-    if state in ("FAILED", "REJECTED", "NEEDS_ACCOUNT", "CLOSED") and reason:
+    if state == "REJECTED" and reason:
+        # "the site refused the form - the site refused it: The site handed it
+        # back..." read the refusal three times (live 2026-09-23). Once, and
+        # the site's own words if the record holds them.
+        quoted = re.search(r"it says\s+[\"'“](.+?)[\"'”]\.?\s*(?:Nothing was accepted|$)", reason, re.S)
+        said += (f' - it says "{" ".join(quoted.group(1).split())[:160]}"' if quoted
+                 else " - " + speech.plainly(re.sub(r"^the site refused it:\s*", "", reason))[:200].rstrip("."))
+    elif state in ("FAILED", "NEEDS_ACCOUNT", "CLOSED") and reason:
         said += " - " + speech.plainly(reason)[:200].rstrip(".")
     if state == "NEEDS_YOU":
         asks = [str(q.get("label") if isinstance(q, dict) else q) for q in (r.get("not_filled") or [])][:3]
@@ -943,13 +950,44 @@ def _found() -> str:
     except Exception:
         return "I can't read my application records right now."
     today = hunt.get("today") or {}
-    found = int(today.get("discovered") or 0)
-    if not found:
-        return "No openings found today yet."
-    fit = int(today.get("qualified") or 0)
     sent = int(today.get("sent") or 0)
-    return (f"{speech.count_phrase(found, 'opening')} found today, {fit} worth applying to"
+    # WHAT THE HUNT SAW, from its own note ("I found 1137 openings today, 27 of
+    # them realistic"): live 2026-09-23 this said "48 openings found today"
+    # while the campaign had seen 1,137 - 48 was the number FILLED IN.
+    seen = _hunt_saw_today()
+    if seen:
+        found, fit = seen
+        return (f"{speech.count_phrase(found, 'opening')} found today, {fit} worth applying to"
+                + (f", {sent} sent" if sent else "") + ".")
+    staged = int(today.get("discovered") or 0)
+    if not staged:
+        return "No openings found today yet."
+    return (f"{speech.count_phrase(staged, 'opening')} filled in today"
             + (f", {sent} sent" if sent else "") + ".")
+
+
+_HUNT_SAW = re.compile(r"I found (\d+) openings today, (\d+) of them realistic")
+
+
+def _hunt_saw_today() -> tuple[int, int] | None:
+    """The hunt's own latest count for today, from the note it writes each batch."""
+    import datetime as dt
+    from aletheia import journal, localtime
+    try:
+        today = dt.datetime.now(localtime.operator_tz()).date()
+        for entry in reversed(journal.entries()):
+            if entry.get("kind") != "note":
+                continue
+            hit = _HUNT_SAW.search(str(entry.get("text") or ""))
+            if not hit:
+                continue
+            when = dt.datetime.fromisoformat(str(entry.get("ts") or "").replace("Z", "+00:00"))
+            if when.astimezone(localtime.operator_tz()).date() != today:
+                return None
+            return int(hit.group(1)), int(hit.group(2))
+    except Exception:
+        return None
+    return None
 
 
 def _fleet() -> str:
@@ -1905,7 +1943,10 @@ def _notes(limit: int = 200) -> list[dict]:
     """His notes, newest first: the journal lines `note` writes."""
     from aletheia import journal
     try:
-        rows = [e for e in journal.entries() if e.get("kind") == "note" and e.get("subject") == "operator"]
+        rows = [e for e in journal.entries() if e.get("kind") == "note" and e.get("subject") == "operator"
+                # the room's unmatched transcripts are journaled as notes;
+                # "(voice, unmatched) north korea" is not a note of his
+                and not str(e.get("text") or "").startswith("(voice")]
     except Exception:
         return []
     return list(reversed(rows))[:limit]
