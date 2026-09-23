@@ -333,7 +333,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "How many days until Christmas" paid a model for arithmetic on a
     # calendar (2026-09-23). Weekdays, named days and a month-and-day.
     ("until", re.compile(
-        r"^how (?:many days|long) (?:until|till|to|before) (?:the )?(?P<until>[a-z][a-z' ]{2,30}?)(?: is it)?$"
+        r"^how (?:many days|long) (?:until|till|to|before) (?:the )?(?!(?:you|u|i|we|she|it|they|he) )"
+        r"(?P<until>[a-z][a-z' ]{2,30}?)(?: is it)?$"
         r"|^(?:when is|when's) (?P<until2>christmas|new year(?:'s)?(?: day| eve)?|halloween|thanksgiving|"
         r"valentine'?s(?: day)?|easter|the fourth of july|july 4th|independence day)$")),
     ("today", re.compile(
