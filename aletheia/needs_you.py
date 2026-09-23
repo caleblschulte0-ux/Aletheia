@@ -72,7 +72,7 @@ def _said(text: object, limit: int = MAX_WORDS_CHARS) -> str:
 
 
 def _row(*, id: str, kind: str, what: str, why: str, if_ignored: str,
-         since: str = "", how: str = "", which: str = "") -> dict:
+         since: str = "", how: str = "", which: str = "", question: str = "") -> dict:
     """One thing needing him, in the one shape.
 
     `which` is the half that tells two otherwise identical rows apart, and
@@ -84,7 +84,12 @@ def _row(*, id: str, kind: str, what: str, why: str, if_ignored: str,
     return {"id": str(id), "kind": kind, "what": _said(what),
             "why": _said(why, 120), "if_ignored": _said(if_ignored, 120),
             "since": str(since or ""), "how": _said(how, 90),
-            "which": _said(which, 120)}
+            "which": _said(which, 120),
+            # The exact question a form asked, verbatim, so the page can
+            # take his answer on the row itself (2026-09-23: "everything
+            # should be one click") rather than sending him to type
+            # "answer ..." somewhere else. Empty for anything but a question.
+            "question": str(question or "")[:300]}
 
 
 # ---------------------------------------------------------------- sources
@@ -104,9 +109,10 @@ def _approvals() -> list[dict]:
             if_ignored="nothing happens",
             which=voice.approval_about(approval),
             since=str(approval.get("requested_at") or ""),
-            how=("say approve and I'll do it" if routine
-                 else "say yes on your phone or at the keyboard and I'll "
-                      "do it")))
+            # The buttons are beside it; the words used to describe the
+            # spoken path instead ("say approve and I'll do it").
+            how=("tap Approve and I'll do it" if routine
+                 else "tap Approve here or on your phone and I'll do it")))
     return out
 
 
@@ -164,7 +170,8 @@ def _applications() -> list[dict]:
             why=str(waiting.get("why") or "") or "only you can answer this",
             if_ignored="the application stays unsent",
             since=str(waiting.get("at") or ""),
-            how="answer it and I'll finish the form"))
+            how="answer it and I'll finish the form",
+            question=first))
     return out
 
 

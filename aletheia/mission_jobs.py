@@ -530,6 +530,7 @@ def build(reading: dict, ctx: dict) -> dict:
     if not loop_ok and not ctx.get("halted") and (loop.get("stale") and loop.get("alive") is None
                                                   or (loop_age is not None and loop_age <= BANNER_S)):
         signal["banner"] = f"The job hunt looks stopped: {loop.get('said')}."
+        signal["action"] = {"label": "Start it again", "kind": "apply_campaign", "args": {}}
     out["signals"].append(signal)
     out["details"][MISSION_ID] = {
         "type": TYPE, "pipeline": piped, "discovery": discovery(reading.get("summary")), "loop": loop,

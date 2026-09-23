@@ -136,9 +136,31 @@
   // banner shows only while the health line has nothing to say.
   let healthSaid = false;
   let bannerText = "";
+  let bannerAction = null;
+  // A sentence that names a problem carries its one click (his words,
+  // 2026-09-23: "there should be like a link afterwards to like restart
+  // stuff"). The label and the command come from the Core; the page only
+  // puts a button on them.
+  // One button shape for every sentence that carries an action: the Core
+  // says {label, kind, args}; the page sends exactly that command.
+  function actButton(action, ack) {
+    if (!action || !action.kind) return "";
+    return ' <button class="act" data-act="' + T.esc(action.kind) + '" data-args=\'' +
+      T.esc(JSON.stringify(action.args || {})) + "'" +
+      (ack ? ' data-ack="' + T.esc(ack) + '"' : "") + ">" +
+      T.esc(action.label || "Fix it") + "</button>";
+  }
+
+  let healthAction = null;
   function paintBanner() {
-    const show = bannerText && !healthSaid;
-    $("banner").textContent = show ? bannerText : "";
+    // The health line wins when both say the same thing; a banner that
+    // carries an action the health line does not is still shown, because
+    // hiding it hid the one Restart button (found 2026-09-23).
+    const same = bannerAction && healthAction && bannerAction.kind === healthAction.kind;
+    const show = bannerText && (!healthSaid || (bannerAction && bannerAction.kind && !same));
+    setHTML("banner", show
+      ? "<span>" + T.esc(bannerText) + "</span>" + actButton(bannerAction)
+      : "");
     $("banner").hidden = !show;
   }
 
@@ -150,6 +172,7 @@
     $("today").textContent = (h.today && h.today.said) || "";
     $("brains").textContent = h.brains || "";
     bannerText = h.banner || "";
+    bannerAction = h.action || null;
     paintBanner();
     return word;
   }
@@ -177,14 +200,26 @@
    * There is deliberately no bulk control. Every one of these is bound to
    * its own hash and stays its own yes; what changed is how much of the
    * screen it takes to say no to it. */
+  /* A QUESTION IS ANSWERED ON ITS ROW. "Ramp asks: what is your percentage
+   * attainment to goal?" used to end with "answer it and I'll finish the
+   * form" and no way to - he had to go and type it somewhere. The answer
+   * goes through the same `apply_answer` the room takes. */
+  function answerBox(n) {
+    return '<form class="answer" data-answer="' + T.esc(n.id) + '" data-question="' +
+      T.esc(n.question) + '"><input name="answer" placeholder="Your answer" autocomplete="off" required>' +
+      '<button class="yes" type="submit">Send</button></form>';
+  }
+
   function decisionRow(n, lead) {
     const which = n.which || (lead ? "" : n.what);
     const decidable = n.kind === "approval";
+    const askable = n.kind === "application" && n.question;
     return '<div class="row-ask">' +
       '<div class="what clamp" data-unclamp>' + T.esc(which || n.what) + "</div>" +
       '<div class="meta">' + T.esc(T.clock(n.since)) +
         ' · <button class="link" data-open="' + T.esc(n.id) + '">what exactly?</button></div>' +
       (decidable ? decisionButtons(n.id) : "") +
+      (askable ? answerBox(n) : "") +
       (opened.has(n.id)
         ? '<div class="peeked">' + facts([
             ["It will", n.what],
@@ -202,9 +237,12 @@
     // question on every form, twelve lines of it, and three of them made
     // the page longer than everything he can actually act on. Tapping it
     // opens the whole thing; nothing is hidden, it just is not shouted.
+    // A notice that asks him to DO something carries the button for it;
+    // "Got it" alone was every notice's only control (2026-09-23).
     return '<div class="note"><h3>' + T.esc(heading) + "</h3>" +
       (under ? '<p class="clamp" data-unclamp>' + T.esc(under) + "</p>" : "") +
       '<div class="row"><span class="when">' + T.esc(T.clock(n.created_at)) + "</span>" +
+      actButton(n.action, n.id) +
       '<button class="seen" data-seen="' + T.esc(n.id) + '">Got it</button></div></div>';
   }
 
@@ -320,7 +358,9 @@
       (c.goal && c.goal !== c.title ? "<p>" + T.esc(c.goal) + "</p>" : "") +
       (step ? "<p>" + T.esc(step) + "</p>" : "") +
       (c.stuck ? '<p class="why clamp" data-unclamp>' + T.esc(c.stuck) + "</p>" : "") +
-      (once(c.next) ? "<p>" + T.esc(c.next) + "</p>" : "") + bar +
+      (once(c.next) ? "<p>" + T.esc(c.next) + "</p>" : "") +
+      // "Nothing moves until you do this" carried no way to say he did.
+      (c.action && c.action.kind ? '<div class="acts">' + actButton(c.action) + "</div>" : "") + bar +
       (receipt && receipt.id ? peek("How did it get here?", receipt.id, receipt.kind) : "") +
       "</div>";
   }
@@ -500,12 +540,14 @@
     healthAt = Date.now();
     try {
       const h = await T.api("/api/health");
-      $("health").textContent = h.well ? "" : (h.says || "");
+      healthAction = (!h.well && h.action && h.action.kind) ? h.action : null;
+      setHTML("health", h.well ? "" : "<span>" + T.esc(h.says || "") + "</span>" + actButton(healthAction));
       $("health").hidden = !!h.well || !h.says;
       healthSaid = !h.well && !!h.says;
     } catch {
       $("health").hidden = true;   // the rail already says she is unreachable
       healthSaid = false;
+      healthAction = null;
     }
     paintBanner();
   }
@@ -802,6 +844,56 @@
     }
   });
 
+  // The banner's one click, and the answer box's one click.
+  document.addEventListener("click", async (e) => {
+    const act = e.target.closest("[data-act]");
+    if (!act) return;
+    act.disabled = true;
+    const kind = act.dataset.act;
+    let args = {};
+    try { args = JSON.parse(act.dataset.args || "{}"); } catch { args = {}; }
+    try {
+      const cmd = Object.assign({ kind }, args);
+      if (kind === "restart" || kind === "halt") cmd.reason = "his tap on the Thea page";
+      await T.command(cmd);
+      if (act.dataset.ack) {
+        // The notice asked for this; done, it is read.
+        try { await T.api("/api/notifications/ack", { method: "POST",
+          body: JSON.stringify({ id: act.dataset.ack }) }); } catch {}
+        last.notices = last.notices.filter((n) => n.id !== act.dataset.ack);
+        repaint();
+      }
+      if (kind === "restart") {
+        toast("Restarting — back in about a minute");
+        paintWhere("trouble", { head: "Restarting…", tail: "back in about a minute" });
+        setTimeout(refresh, 8000);
+      } else {
+        toast("Done");
+        refresh();
+      }
+    } catch { act.disabled = false; toast("That didn't go through."); }
+  });
+  document.addEventListener("submit", async (e) => {
+    const form = e.target.closest("[data-answer]");
+    if (!form) return;
+    e.preventDefault();
+    const answer = (form.answer.value || "").trim();
+    if (!answer) return;
+    const id = form.dataset.answer;
+    form.querySelector("button").disabled = true;
+    decided.add(id);
+    repaint();
+    try {
+      await T.command({ kind: "apply_answer", question: form.dataset.question, answer });
+      toast("Answered — she'll finish the form");
+      refresh();
+    } catch {
+      decided.delete(id);
+      repaint();
+      toast("That didn't go through.");
+    }
+  });
+
   $("haltBtn").addEventListener("click", async () => {
     if (!haltedNow && !confirm("Stop everything Thea is doing?")) return;
     try {
@@ -866,9 +958,12 @@
 
   function paintDrawer(m, status) {
     const code = (m && m.code) || {};
-    $("codeLine").textContent = code.readable === false ? "not readable"
-      : [code.branch, code.commit, code.subject].filter(Boolean).join(" · ") +
-        (code.running_old_code ? " · newer code is on disk than this process is running" : "");
+    setHTML("codeLine", code.readable === false ? "not readable"
+      : T.esc([code.branch, code.commit, code.subject].filter(Boolean).join(" · ")) +
+        (code.running_old_code
+          ? " · newer code is on disk than this process is running" +
+            actButton({ label: "Restart her", kind: "restart" })
+          : ""));
     $("linkState").textContent = T.getToken()
       ? "Linked. The code is stored on this device only."
       : (T.onHisPC()

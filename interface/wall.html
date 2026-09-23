@@ -503,8 +503,11 @@ function render(pulse) {
   const alive = beat !== null && beat < 300;
   const live = document.getElementById("live");
   live.classList.toggle("stale", !alive);
-  document.getElementById("live-word").textContent =
-    now === null ? "NO LOCAL CORE" : (alive ? "LIVE" : "CORE SILENT");
+  /* The one word that names a problem is a link to where it is fixed:
+     the Thea page's own banner carries "Restart her". */
+  document.getElementById("live-word").innerHTML =
+    now === null ? link("needs", "NO LOCAL CORE", "alert-link")
+    : (alive ? "LIVE" : link("needs", "CORE SILENT", "alert-link"));
   document.getElementById("meta-line").textContent =
     (now ? `her ${ago(now.generated_at) || "just now"} · ` : "") +
     `fleet ${ago(pulse.generated_at) || "never"}${fleetStale ? " (stale)" : ""}` +
@@ -568,9 +571,15 @@ async function load() {
     render(await resp.json());
     document.getElementById("nosignal").classList.remove("show");
   } catch (err) {
-    document.getElementById("nosignal-why").textContent =
-      `could not read ${SRC} — ${err.message}. serve the repo root (python -m http.server) ` +
-      `or enable github pages; file:// blocks fetch. override the source with ?src=<url>.`;
+    /* His words, not a developer's: the exact reason stays in the title
+       attribute for whoever is debugging, and the sentence says what it
+       means for him. */
+    const why = document.getElementById("nosignal-why");
+    why.textContent = ON_PAGES
+      ? "The published copy of the fleet reading could not be loaded. Try again in a minute."
+      : "I can't read the fleet right now. If Thea is running on the PC, this clears itself " +
+        "on the next reading; if she isn't, start her from the PC.";
+    why.title = `${SRC}: ${err.message}`;
     document.getElementById("nosignal").classList.add("show");
   }
 }

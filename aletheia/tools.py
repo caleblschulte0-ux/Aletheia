@@ -87,7 +87,7 @@ IDEMPOTENT_KINDS = frozenset({
     "task_status", "task_done", "plan_step", "plan_set", "announce_set",
     "mic_off", "mic_on", "chatgpt_off", "eyes_off", "halt", "resume", "close",
     "open", "reminder_off", "shopping_off", "notify_clear", "rule", "approve",
-    "deny", "remember", "apply_outcome", "file_write", "apply_pause",
+    "deny", "remember", "apply_outcome", "file_write", "apply_pause", "restart",
 })
 
 #: Read-only kinds a LOCAL model is not shown even though nothing stops it
@@ -267,7 +267,7 @@ OUTWARD_ALWAYS = frozenset({
     "forget",
     # authority, and the switches that are authority
     "approve", "deny", "resume", "halt", "close", "open", "rule", "apply_pause",
-    "study_decide", "study_confirm", "mission_confirm",
+    "restart", "study_decide", "study_confirm", "mission_confirm",
     # his desktop, and a new worker with capacity of its own
     "computer_do", "agent_new",
 })
@@ -288,7 +288,7 @@ UI_BY_TIER = {intercom.TIER_READ: "answer", intercom.TIER_ROUTINE: "form",
               intercom.TIER_WORLD: "approval"}
 SWITCH_KINDS = frozenset({"mic_on", "mic_off", "eyes_on", "eyes_off", "chatgpt_on",
                           "chatgpt_off", "halt", "resume", "close", "open",
-                          "announce_set", "apply_pause"})
+                          "announce_set", "apply_pause", "restart"})
 
 
 def derive_consequence(*, name: str, risk: str, touches: tuple[str, ...],
@@ -729,7 +729,7 @@ SPOKEN_GROUPS_BY_NAME: dict[str, tuple[str, ...]] = {
 #: machinery of asking. Named so a test can tell "deliberately unlisted" from
 #: "somebody added a verb and forgot".
 INTERNAL_KINDS = frozenset({
-    "halt", "resume", "close", "open", "approve", "deny", "intent", "handle",
+    "halt", "resume", "close", "open", "restart", "approve", "deny", "intent", "handle",
     "running", "brief", "setup_status", "notify_check", "notify_clear",
     "notify_snooze", "notify_operator", "announce_set", "rule",
     "authority_status", "mic", "mic_on", "mic_off",

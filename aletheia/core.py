@@ -252,6 +252,24 @@ CODE_PATHS = ["aletheia", "interface", "config", "requirements-optional.txt"]
 # this is code the running process is not executing.
 PROCESS_STARTED_AT = time.time()
 RESTART_EXIT_CODE = 42  # tells the supervisor: relaunch me, this is not a crash
+
+#: Set by `main`: the same door a code update uses to restart the Core.
+#: "The Core's heartbeat is 19 minutes old" on his phone had no next step
+#: (2026-09-23, his words: "there should be like a link afterwards to like
+#: restart stuff"), and the only restart was a terminal on the PC.
+_RESTART_HOOK: dict = {"fn": None}
+
+
+def request_restart(why: str) -> bool:
+    """Restart this Core in a moment, the way a code update does. False when
+    nothing is running that could (a bare import, a test)."""
+    fn = _RESTART_HOOK.get("fn")
+    if fn is None:
+        return False
+    journal.append("event", "core", f"restart requested - {why}", actor=ACTOR)
+    # A moment, so the answer to whoever asked gets out first.
+    threading.Timer(1.0, lambda: fn([f"restart requested: {why}"])).start()
+    return True
 # How often the running Core looks for the "closed" marker.
 #
 # THIS WAS NEVER DEFINED. `watch_for_close` used it, so the watcher thread
@@ -907,6 +925,7 @@ class Handler(BaseHTTPRequestHandler):
             want_tasks = parse_qs(url.query).get("tasks", ["0"])[0] == "1"
             state = _running.snapshot(include_tasks=want_tasks)
             state["says"] = _running.headline(state)
+            state["action"] = _running.action(state)
             # `well` is what the page hides itself on, and it comes from
             # `running` rather than from the page re-deriving it: a health
             # strip that stays quiet while the sentence says the Core is
@@ -1401,6 +1420,8 @@ def main(argv: list[str] | None = None) -> int:
         # runs on the sync thread; shutdown() unblocks serve_forever below
         restarting.set()
         threading.Thread(target=server.shutdown, daemon=True).start()
+
+    _RESTART_HOOK["fn"] = on_code_update
 
     if not args.no_sync:
         start_sync_loop(load_fleet(), interval_s=args.sync_interval,

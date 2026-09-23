@@ -688,7 +688,9 @@ def surface_due_tasks(*, now: dt.datetime | None = None) -> list[dict]:
             title, body, priority="IMPORTANT", source="tasks",
             about=notifications.NEEDS_YOU,
             dedupe_key=f"task-due:{task['id']}:{today}",
-            related={"task": task["id"]})
+            related={"task": task["id"]},
+            action={"label": "Done", "kind": "task_done",
+                    "args": {"which": str(task.get("description") or task["id"])}})
         out.append({"task": task["id"], "overdue": overdue})
     return out
 
@@ -811,7 +813,11 @@ def send_approved_applications() -> list[dict]:
                 title, body,
                 priority="IMPORTANT", source="apply", about=notifications.NEEDS_YOU,
                 dedupe_key=key,
-                related={"application": record["id"]})
+                related={"application": record["id"]},
+                # "Approve it if you want it" - with the button that does.
+                action=({"label": "Approve it", "kind": "approve",
+                         "args": {"id": str(record.get("approval"))}}
+                        if record.get("approval") else None))
             continue
         if approval.get("state") != "APPROVED":
             # His standing grant. The action id names THIS application, so
