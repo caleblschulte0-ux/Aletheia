@@ -84,9 +84,11 @@ _STATUS = re.compile(
     # how many
     r"|^how many (?:jobs|applications|apps|places|companies|positions|roles|employers)"
     r"(?: (?:have|did|has) (?:you|u|she|we|i))? ?(?P<count>applied (?:to|for|at)|apply (?:to|for|at)|"
-    r"sent(?: out)?|send(?: out)?|submitted|submit|put in|done|gotten through|finished|completed|applied)"
+    r"sent(?: out)?|send(?: out)?|went out|go out|got sent|were sent|was sent|submitted|submit|put in|done|"
+    r"gotten through|finished|completed|applied)"
     r"(?: (?:to|for))?(?P<count_total> (?:in total|total|overall|all ?together|altogether|ever|"
-    r"so far|to date|all time))?(?: (?:today|now))?(?P<count_window> (?:this week|this month|yesterday|last week))?$"
+    r"so far|to date|all time))?(?: (?:today|now))?(?P<count_window> (?:this week|this month|yesterday|last week|"
+    r"tonight|last night|overnight|this evening|this morning))?$"
     r"|^how many (?:have|did) (?:you|u) (?P<count2>apply to|send(?: out)?|submit|get through)"
     r"(?P<count2_total> (?:in total|total|overall|so far|ever))?(?: today)?$"
     # when was the last one
@@ -306,6 +308,19 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what did (?:you|u) just do$"
         r"|^what was (?:your|the) (?:last|most recent) (?:action|thing)$"
         r"|^what(?:'s| is|s)? the (?:last|latest|most recent) thing (?:you|u)(?:'ve| have)? done$")),
+    # THE FIRST THING HE ASKS IN THE MORNING (2026-09-23): sent overnight
+    # and done overnight, from the records.
+    ("overnight", re.compile(
+        r"^what happened (?:overnight|last night|tonight|while i (?:was asleep|slept|was sleeping|was out))$"
+        r"|^what did (?:you|u) (?:do|get done) (?:overnight|last night|while i (?:was asleep|slept|was sleeping))$"
+        r"|^(?:did )?anything (?:happen )?(?:overnight|last night|while i (?:was asleep|slept))$"
+        r"|^how (?:did|was) (?:the night|last night|overnight)(?: go)?$")),
+    # "When did you last update" was answered by her own model from the
+    # journal ("no record of that") - git and `running.version` know.
+    ("updated", re.compile(
+        r"^when (?:did|were) (?:you|u) last (?:update|updated|upgrade|upgraded)(?: yourself)?$"
+        r"|^(?:are|is) (?:you|u|your code) (?:up to date|current|on the (?:latest|newest)(?: code)?)$"
+        r"|^what (?:version|code) are (?:you|u) (?:on|running)$|^when was your last update$")),
     ("today", re.compile(
         r"^what (?:did|have) (?:you|u) (?:do|done)(?: today)?$"
         r"|^what have (?:you|u) been doing$"
@@ -521,6 +536,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:did|have) i (?:get|got|gotten|receive|received|hear) (?:any |anything )?(?:replies|responses|"
         r"back|any(?:thing)? back)(?: yet| today| from anyone)?$"
         r"|^any (?:replies|responses|word|news)(?: from (?:employers|anyone|the jobs))?(?: yet| today)?$"
+        r"|^(?:anything|any word|any news|anything new) from (?:the )?(?:employers|recruiters|companies|jobs)"
+        r"(?: yet| today| overnight| this morning)?$"
+        r"|^did any (?:employers?|companies|recruiters) (?:reply|write back|get back|respond)(?: to me)?(?: yet)?$"
         r"|^(?:has|did) anyone (?:replied|reply|written back|write back|got back|get back)(?: to me)?(?: yet)?$"
         # "Which jobs have replied" / "who wrote back" waited two minutes on
         # her own model with every frontier off (2026-09-22); the answer is
@@ -1702,6 +1720,10 @@ def _opportunity_loose(rest: str) -> str | None:
     if _JOB_RE.fullmatch(words.casefold()) or words.casefold() in ("applications", "jobs", "the applications"):
         # "Where are we with the applications" is the job hunt as a whole
         return _job_hunt()
+    if words.casefold() in ("employers", "the employers", "recruiters", "the recruiters", "companies",
+                            "the companies", "anyone", "the jobs i applied to", "my applications"):
+        # "Any news from employers" is the replies question, not one employer
+        return _replies()
     try:
         if pursuit.search(words) or apply_run.find(words):
             return _opportunity(words)
@@ -1723,6 +1745,35 @@ def _applied_in_window(window: str) -> str:
     from aletheia import localtime, speech
     tz = localtime.operator_tz()
     today = dt.datetime.now(tz).date()
+    # WINDOWS INSIDE A DAY. "How many went out tonight" waited two minutes on
+    # her own model (2026-09-23); the evening starts at six, the night at ten.
+    now = dt.datetime.now(tz)
+    since = None
+    if window in ("tonight", "this evening"):
+        since = now.replace(hour=18, minute=0, second=0, microsecond=0)
+        if now < since:
+            since -= dt.timedelta(days=1)
+    elif window in ("last night", "overnight"):
+        since = (now - dt.timedelta(days=1)).replace(hour=22, minute=0, second=0, microsecond=0)
+        if now.hour >= 22:
+            since = now.replace(hour=22, minute=0, second=0, microsecond=0)
+    elif window == "this morning":
+        since = now.replace(hour=5, minute=0, second=0, microsecond=0)
+    if since is not None:
+        try:
+            rows = _sent_records()
+        except Exception:
+            return "I can't read my application records right now, so I can't count them."
+        hits = []
+        for r in rows:
+            when = str(r.get("submitted_at") or r.get("pressed_at") or "")
+            try:
+                stamp = dt.datetime.fromisoformat(when.replace("Z", "+00:00")).astimezone(tz)
+            except ValueError:
+                continue
+            if stamp >= since:
+                hits.append(r)
+        return _sent_sentence(hits, window)
     if window == "this week":
         first, last = today - dt.timedelta(days=today.weekday()), today
     elif window == "last week":
@@ -1745,6 +1796,11 @@ def _applied_in_window(window: str) -> str:
             continue
         if first <= day <= last:
             hits.append(r)
+    return _sent_sentence(hits, window)
+
+
+def _sent_sentence(hits: list, window: str) -> str:
+    from aletheia import speech
     if not hits:
         return f"No applications sent {window}."
     names = []
@@ -1754,6 +1810,73 @@ def _applied_in_window(window: str) -> str:
             names.append(company)
     return (f"{speech.count_phrase(len(hits), 'application')} sent {window}"
             + (f": {speech.and_list(names)}" + (", and more" if len(hits) > 5 else "") if names else "") + ".")
+
+
+def _overnight() -> str:
+    """What happened since ten last night: applications sent, and what she
+    did, from the records - the first thing he asks in the morning."""
+    import datetime as dt
+    from aletheia import localtime, recollection, speech
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    since = (now - dt.timedelta(days=1)).replace(hour=22, minute=0, second=0, microsecond=0)
+    if now.hour >= 22:
+        since = now.replace(hour=22, minute=0, second=0, microsecond=0)
+    hours = max(1.0, (now - since).total_seconds() / 3600.0 + 0.1)
+    parts = []
+    try:
+        sent = []
+        for r in _sent_records():
+            when = str(r.get("submitted_at") or r.get("pressed_at") or "")
+            try:
+                stamp = dt.datetime.fromisoformat(when.replace("Z", "+00:00")).astimezone(tz)
+            except ValueError:
+                continue
+            if stamp >= since:
+                sent.append(r)
+        if sent:
+            parts.append(_sent_sentence(sent, "overnight").rstrip("."))
+    except Exception:
+        pass
+    cutoff = since.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    rows = [e for e in recollection._read_journal(hours)[0]
+            if recollection._something_she_did(e) and str(e.get("ts", "")) >= cutoff]
+    lines = [_shortened(str(recollection._row(e).get("what") or "").rstrip(".")) for e in rows[-3:]]
+    lines = [l for l in lines if l]
+    if lines:
+        parts.append("; ".join(lines) + (f" — and {speech.count_phrase(len(rows) - len(lines), 'other thing')}"
+                                         if len(rows) > len(lines) else ""))
+    if not parts:
+        return "A quiet night: nothing sent and nothing recorded since ten last night."
+    return "Overnight: " + ". ".join(parts) + "."
+
+
+def _updated() -> str:
+    """When her code last changed and whether it is the newest - from git and
+    `running.version`, never a guess ("no record of that in the journal")."""
+    import datetime as dt
+    import subprocess
+    from aletheia import running, speech
+    from aletheia.fleet import REPO_ROOT
+    try:
+        done = subprocess.run(["git", "-C", str(REPO_ROOT), "log", "-1", "--format=%cI"],
+                              capture_output=True, text=True, timeout=10)
+        stamp = done.stdout.strip() if done.returncode == 0 else ""
+    except Exception:
+        stamp = ""
+    info = {}
+    try:
+        info = running.version() or {}
+    except Exception:
+        pass
+    said = ("My code last changed " + speech.humanize_time(stamp)) if stamp else "I can't read when my code last changed"
+    if info.get("running_old_code"):
+        said += ", but I started before that change, so I'm running an older copy — restart me to pick it up"
+    elif info.get("behind_count"):
+        said += f". {speech.count_phrase(int(info['behind_count']), 'newer change')} waiting; I try to update every minute"
+    elif info.get("running_old_code") is False:
+        said += ", and that's the code I'm running"
+    return said + "."
 
 
 def _applied_to() -> str:
@@ -1929,6 +2052,8 @@ def _windows() -> str:
 
 
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
+           "overnight": lambda rest: _overnight(),
+           "updated": lambda rest: _updated(),
            "last": lambda rest: _last(),
            "disk": lambda rest: _disk(),
            "ip": lambda rest: _ip(),
