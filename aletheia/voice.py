@@ -2214,6 +2214,36 @@ def _interpret(transcript: str) -> dict:
                   else "mute")
         return {"command": {"kind": "music", "action": action}, "say": None}
 
+    # DO NOT DISTURB is the one switch of hers this can honestly mean: her
+    # own notices go quiet for a while (`notify_snooze`). Windows' Focus
+    # Assist is not a door she has, and "turn on do not disturb" waited 78 s
+    # on her own model to ask what he meant (2026-09-23).
+    m = re.fullmatch(r"(?:turn on|enable|switch on|put me on|set|go|activate) (?:do not disturb|dnd|quiet mode|focus mode|"
+                     r"silent mode)(?: mode)?(?: for (?P<n>\d+) (?P<unit>minutes?|mins?|hours?|hrs?))?"
+                     r"|(?:don'?t|do not) (?:disturb|bother|interrupt) me(?: for (?P<n2>\d+) (?P<unit2>minutes?|mins?|hours?|hrs?))?"
+                     r"|(?:quiet|hush|shush|mute your notifications)(?: for (?P<n3>\d+) (?P<unit3>minutes?|mins?|hours?|hrs?))?"
+                     r"|(?:snooze|pause) (?:your |the |all )?(?:notifications|notices|alerts)(?: for (?P<n4>\d+) (?P<unit4>minutes?|mins?|hours?|hrs?))?",
+                     low)
+    if m:
+        n = next((m.group(k) for k in ("n", "n2", "n3", "n4") if m.group(k)), "")
+        unit = next((m.group(k) for k in ("unit", "unit2", "unit3", "unit4") if m.group(k)), "")
+        minutes = int(n) * (60 if unit.startswith(("h",)) else 1) if n else 60
+        return {"command": {"kind": "notify_snooze", "minutes": max(1, min(minutes, 60 * 24 * 7))},
+                "say": None}
+
+    # A LOST OBJECT is not a file. "Find my keys" planned for a minute and
+    # came back "she does not know a folder called on my computer" (2026-09-23).
+    m = re.fullmatch(r"(?:find|where(?:'s| are| is| did i (?:put|leave))|locate|look for) (?:my |the )?"
+                     r"(?P<thing>keys|phone|wallet|glasses|remote|car|bag|purse|shoes|charger|headphones|earbuds|passport|watch)"
+                     r"(?: please)?", low)
+    if m:
+        thing = m.group("thing")
+        return {"command": None,
+                "say": (f"I can't see where your {thing} are - I have no eyes in the room. "
+                        if thing in ("keys", "glasses", "shoes", "headphones", "earbuds")
+                        else f"I can't see where your {thing} is - I have no eyes in the room. ")
+                       + "I can find files and places, and I can ring your phone if it's linked."}
+
     # A PHONE CALL is a door she does not have. "Call the dentist" waited
     # two minutes on her own model (2026-09-22) for a verb nothing here
     # owns; the honest answer names the three doors she does have.

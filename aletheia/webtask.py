@@ -126,7 +126,10 @@ SPENDING_REFUSAL = ("That asks me to spend money, and I do not do that — "
 # money, and "no spending money" is the one rule he set as permanent.
 SPENDS_BY_VERB = re.compile(
     # "order me a pizza", "order a taxi" — but not "in order to"
-    r"\border\s+(?:me\s+)?(?:a|an|the|some|\d+)\b"
+    # "Order more coffee" reached an approval (2026-09-23): "more", "another"
+    # and "new" are how a person orders what they already buy.
+    r"\border\s+(?:me\s+|us\s+)?(?:a|an|the|some|more|another|new|\d+)\b"
+    r"|\b(?:buy|get)\s+(?:me\s+|us\s+)?(?:more|another)\b"
     # "book a flight/hotel/room/car/ticket/ride" — a table is not a charge
     r"|\bbook\s+(?:me\s+)?(?:a|an|the|\d+)?\s*"
     r"(?:flight|hotel|room|car|ticket|seat|ride|cab|taxi|train|airbnb)\b"
