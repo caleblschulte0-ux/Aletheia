@@ -744,6 +744,15 @@ def _settle_stuck_submits() -> list[dict]:
     return settled
 
 
+def _retry_action(record: dict) -> dict | None:
+    """"Try it again" on the notice that says a send failed - while the record
+    may still be tried (2026-09-23: "Got it" was the notice's only control)."""
+    from aletheia import apply_run
+    if int(record.get("retries") or 0) >= apply_run.MAX_RETRIES or not record.get("steps"):
+        return None
+    return {"label": "Try it again", "kind": "apply_retry", "args": {"which": str(record.get("id"))}}
+
+
 def _say_the_grant_is_missing() -> None:
     """A filled application is waiting only because no standing permission
     covers sending it - said once, with the command, never per application."""
@@ -873,7 +882,8 @@ def send_approved_applications() -> list[dict]:
                     "An application could not be sent",
                     _why_not(record, exc),
                     priority="IMPORTANT", source="apply", about=notifications.FAILED,
-                    dedupe_key=f"apply-grant-failed:{record['id']}")
+                    dedupe_key=f"apply-grant-failed:{record['id']}",
+                    action=_retry_action(record))
                 continue
         try:
             # accept, NOT confirm: he has already decided. `confirm` GRANTS
@@ -899,7 +909,8 @@ def send_approved_applications() -> list[dict]:
                 "An application could not be sent",
                 _why_not(record, exc),
                 priority="IMPORTANT", source="apply", about=notifications.FAILED,
-                dedupe_key=f"apply-failed:{record['id']}")
+                dedupe_key=f"apply-failed:{record['id']}",
+                action=_retry_action(record))
             continue
         result = done.get("result", {})
         notifications.publish(

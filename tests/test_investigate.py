@@ -129,6 +129,19 @@ class TheOrderIsTheSafetyArgument(unittest.TestCase):
                 intents.propose("retry the palantir one", fleet=FLEET)
         sessions.assert_not_called()
 
+    def test_a_question_the_record_itself_answers_asks_no_model(self):
+        """"why didn't the Palantir one send" is the record's own state and
+        reason (quick's why_not, 2026-09-23): the reason reaches him and no
+        session, no conversation and no planner is asked for it."""
+        with mock.patch.object(apply_run, "all_runs", return_value=[PALANTIR]), \
+                mock.patch.object(agent_session, "chain_think", side_effect=AssertionError("session reached")), \
+                mock.patch.object(converse, "answer", side_effect=AssertionError("converse reached")), \
+                mock.patch("aletheia.planner.compile", side_effect=AssertionError("planner reached")):
+            record = intents.propose("why didn't the Palantir one send", fleet=FLEET)
+        self.assertNotIn("investigated", record)
+        self.assertIn("hCaptcha", intents.spoken(record))
+        self.assertIn("Palantir", intents.spoken(record))
+
     def test_a_question_about_her_work_is_answered_by_a_session(self):
         think = scripted({"tool": "applications.query", "args": {"company": "Palantir"}},
                          {"answer": "It stopped at an hCaptcha check only you can pass.", "basis": "looked"})
@@ -136,7 +149,7 @@ class TheOrderIsTheSafetyArgument(unittest.TestCase):
                 mock.patch.object(agent_session, "chain_think", return_value=think), \
                 mock.patch.object(converse, "answer", side_effect=AssertionError("converse reached")), \
                 mock.patch("aletheia.planner.compile", side_effect=AssertionError("planner reached")):
-            record = intents.propose("why didn't the Palantir one send", fleet=FLEET)
+            record = intents.propose("tell me why the Palantir one failed", fleet=FLEET)
         self.assertEqual(record["investigated"]["outcome"], agent_session.ANSWERED)
         self.assertEqual(record["investigated"]["knowing"], agent_session.KNOWN)
         self.assertIn("hCaptcha", intents.spoken(record))
