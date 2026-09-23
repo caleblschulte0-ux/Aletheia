@@ -362,7 +362,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:i'?m |i am )?(?:leaving|heading out|off to work|leaving for work|going to work|heading to work|"
         r"going out|out for a bit|back later|be back later|leaving now|heading off)(?: now| for work| for the day)?$")),
     ("goodnight", re.compile(
-        r"^(?:good ?night|night|nite|(?:i'?m |i am )?(?:going to bed|off to bed|heading to bed|turning in|going to sleep)|"
+        # "Goodnight" itself is the farewell shape's ("I'll keep going quietly");
+        # these are the phrasings that were planned as steps.
+        r"^(?:(?:i'?m |i am )?(?:going to bed|off to bed|heading to bed|turning in|going to sleep)|"
         r"see you tomorrow|talk tomorrow)(?:,? thea)?(?: now)?$")),
     ("today", re.compile(
         r"^what (?:did|have) (?:you|u) (?:do|done)(?: today)?$"

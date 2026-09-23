@@ -33,7 +33,7 @@ class LeavingAndBedCase(unittest.TestCase):
                 self.assertIn("I'll keep going", quick.answer(said))
 
     def test_bed_is_a_promise_of_the_morning(self):
-        for said in ("going to bed", "goodnight", "night thea", "see you tomorrow"):
+        for said in ("going to bed", "I'm off to bed", "see you tomorrow"):
             with self.subTest(said=said):
                 self.assertIn("overnight summary", quick.answer(said))
 
