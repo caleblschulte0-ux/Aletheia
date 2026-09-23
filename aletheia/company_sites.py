@@ -82,7 +82,7 @@ PAGES_PER_CATEGORY = 5
 #: most - the API allows 500 an hour).
 MAX_LEADS = 300
 #: Listing pages actually opened per run, after title and place have matched.
-MAX_LEADS_READ = 40
+MAX_LEADS_READ = 100
 
 #: Job sites that are not the employer and that need a login or refuse
 #: automation. A lead pointing at one is skipped.

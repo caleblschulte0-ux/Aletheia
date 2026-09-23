@@ -266,7 +266,7 @@ HTTP_QUERY_SHAPES = (
     "{place} employers hiring",
     "{place} jobs",
 )
-MAX_HTTP_SEARCHES_PER_BATCH = 2
+MAX_HTTP_SEARCHES_PER_BATCH = 4
 MAX_HTTP_SEARCHES_PER_DAY = 24
 MAX_HTTP_EMPLOYERS_PER_SEARCH = 10
 
@@ -599,7 +599,7 @@ def employer_openings(roles: list[str], *, limit: int = 10, country: str = "", e
                       known: dict | None = None, searcher=None, fetch=None, feed=None, leads=None,
                       fetch_json=None, sleeper=time.sleep, now: dt.datetime | None = None,
                       report: dict | None = None, crawl_limit: int | None = None,
-                      http=None) -> list[dict]:
+                      http=None, prober=None) -> list[dict]:
     """The fourth source: discover employers, crawl the ones due, return their openings.
 
     In `jobs.search_many`'s shape, title-matched to his roles with the same
@@ -619,6 +619,17 @@ def employer_openings(roles: list[str], *, limit: int = 10, country: str = "", e
                                  fetch_json=fetch_json, report=report, now=now, http=http)
     except Exception:
         new = []
+    # Names into boards (`board_probe`). Real only on a real run: a test that
+    # hands in its own site never reaches the network for this either.
+    real_run = fetch is None and searcher is None and fetch_json is None
+    probed: dict = {}
+    if prober is not None or real_run:
+        try:
+            from aletheia import board_probe
+            probed = (prober or board_probe.probe)(now=now) or {}
+        except Exception:
+            probed = {}
+    report["probed"] = probed
 
     def near(row: dict) -> bool:
         try:

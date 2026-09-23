@@ -54,7 +54,11 @@ MAX_JOB_LINKS = 40
 MIN_GAP_S = 1.5
 RECRAWL_AFTER = dt.timedelta(days=1)
 #: Employers crawled in one batch. Each is up to MAX_PAGES polite fetches.
-MAX_EMPLOYERS_PER_BATCH = 6
+# Six read as "looked at 6 employers' own sites" every batch while the same
+# dozen boards filled the rest (his words, 2026-09-23: "it keeps getting
+# cycled back to these couple companies"). Twelve, at the polite gap, is
+# about three minutes of a batch.
+MAX_EMPLOYERS_PER_BATCH = 12
 DESCRIPTION_CHARS = 4000
 
 LIKELY_PATHS = ("/careers", "/careers/", "/jobs", "/jobs/", "/join-us", "/join",
