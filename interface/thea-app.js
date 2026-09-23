@@ -156,12 +156,19 @@
     // The health line wins when both say the same thing; a banner that
     // carries an action the health line does not is still shown, because
     // hiding it hid the one Restart button (found 2026-09-23).
+    // ONE BOX, never two. The banner (the Core's own heartbeat, with its
+    // Restart) outranks the health line when it carries an action the health
+    // line does not; when it shows, the health line steps aside rather than
+    // contradicting it ("Everything's running" beside "the heartbeat is
+    // missing" reached a real render, 2026-09-23).
     const same = bannerAction && healthAction && bannerAction.kind === healthAction.kind;
-    const show = bannerText && (!healthSaid || (bannerAction && bannerAction.kind && !same));
+    const bannerWins = !!(bannerText && bannerAction && bannerAction.kind && !same);
+    const show = bannerText && (!healthSaid || bannerWins);
     setHTML("banner", show
       ? "<span>" + T.esc(bannerText) + "</span>" + actButton(bannerAction)
       : "");
     $("banner").hidden = !show;
+    if (show && healthSaid) $("health").hidden = true;
   }
 
   function paintNow(m) {
