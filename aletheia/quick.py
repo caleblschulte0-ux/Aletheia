@@ -352,6 +352,18 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^when (?:did|were) (?:you|u) last (?:update|updated|upgrade|upgraded)(?: yourself)?$"
         r"|^(?:are|is) (?:you|u|your code) (?:up to date|current|on the (?:latest|newest)(?: code)?)$"
         r"|^when was your last update$")),
+    # HIS DAY'S TWO ENDS AND ITS DOOR (2026-09-23): "morning thea" waited
+    # 91 s on her own model; "I'm leaving for work" and "going to bed" were
+    # planned as steps ("I will let you know when you're ready to go").
+    ("good_morning", re.compile(
+        r"^(?:good morning|morning|mornin'?|good morning thea|morning thea|hey good morning|"
+        r"top of the morning|rise and shine)(?:,? thea)?(?: !)?$")),
+    ("leaving", re.compile(
+        r"^(?:i'?m |i am )?(?:leaving|heading out|off to work|leaving for work|going to work|heading to work|"
+        r"going out|out for a bit|back later|be back later|leaving now|heading off)(?: now| for work| for the day)?$")),
+    ("goodnight", re.compile(
+        r"^(?:good ?night|night|nite|(?:i'?m |i am )?(?:going to bed|off to bed|heading to bed|turning in|going to sleep)|"
+        r"see you tomorrow|talk tomorrow)(?:,? thea)?(?: now)?$")),
     ("today", re.compile(
         r"^what (?:did|have) (?:you|u) (?:do|done)(?: today)?$"
         r"|^what have (?:you|u) been doing$"
@@ -2231,7 +2243,38 @@ def _windows() -> str:
     return f"Open right now: {said}{more}."
 
 
+def _good_morning() -> str:
+    """The first sentence of his day, the way a person who worked all night
+    says it: what went out, what came back, what needs him, what is first.
+    "Good morning" answered "I'm here. Nothing is waiting on you."
+    (2026-09-23) - true, and not what a morning is for."""
+    parts = ["Good morning."]
+    night = _overnight()
+    if night and not night.startswith("A quiet night"):
+        parts.append(night)
+    else:
+        parts.append("A quiet night.")
+    focus = _focus()
+    if focus and "the day is yours" not in focus:
+        parts.append(focus)
+    return " ".join(parts)
+
+
+def _leaving() -> str:
+    """"I'm leaving for work" planned "I will let you know when you're ready
+    to go" as a step (2026-09-23). It is a handoff: she keeps going."""
+    return "Okay. I'll keep going and have what happened ready when you're back."
+
+
+def _goodnight() -> str:
+    return ("Goodnight. I'll keep working - the overnight summary is the first thing "
+            "I'll say in the morning.")
+
+
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
+           "good_morning": lambda rest: _good_morning(),
+           "leaving": lambda rest: _leaving(),
+           "goodnight": lambda rest: _goodnight(),
            "status": lambda rest: _status(),
            "focus": lambda rest: _focus(),
            "outcomes": _outcomes,
