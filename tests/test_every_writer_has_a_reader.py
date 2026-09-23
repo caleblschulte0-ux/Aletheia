@@ -51,6 +51,8 @@ READER_FOR = {
     "contact_add": "contacts",
     "watch_email_from": "watches",
     "remember": "recall",
+    # "Only apply to remote jobs" shows up the moment he asks what she steers by.
+    "preference_set": "preferences",
     # Forgetting is the same store read back the same way: "what do you
     # know about my landlord" is how he checks it is gone.
     "forget": "recall",

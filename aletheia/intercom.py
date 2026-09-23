@@ -119,6 +119,9 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "approve":       ({"id"}, set()),
     "deny":          ({"id"}, {"because"}),
     "remember":      ({"domain", "key", "value"}, {"memory_kind"}),
+    # 2026-09-23: what the job hunt steers by, in his words, and read back.
+    "preference_set": ({"field", "value"}, set()),
+    "preferences":   (set(), set()),
     # UNWIRED SINCE THE DAY IT WAS WRITTEN. `memory.forget` is a real
     # function in `aletheia.memory` with no kind, no registry entry and no
     # phrasing, so "forget my landlord" reached the planner — which
@@ -351,6 +354,12 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # generated from KIND_ARGS and these together, so the model learns the
 # shape of a step list from the registry rather than from a guess.
 KIND_NOTES: dict[str, str] = {
+    "preference_set": (
+        'Change one thing the job hunt steers by, in his words: field is one of '
+        'work_wanted, work_not_wanted, desired_pay, notice_period, willing_to_relocate; '
+        'value is what he said. The two lists accumulate; the single facts are replaced. '
+        'His own words about himself, never a plan\'s guess.'),
+    "preferences": ('What the job hunt steers by right now, read back in his words.'),
     "mission_new": (
         "Start a LONG mission from his words - something that takes weeks or months and "
         "spans several parts of his life (\"help me change X over the next six months\"). "
@@ -685,6 +694,7 @@ READ_ONLY_KINDS = frozenset({
     # Asking whether she is on changes nothing and must stay answerable
     # while she is halted, closed, or halfway between the two.
     "running",
+    "preferences",
     # And so must "what are your workers doing" — knowing what is running
     # is most urgent exactly when something has gone wrong.
     "agents",
@@ -734,6 +744,7 @@ READ_ONLY_KINDS = frozenset({
 # Nothing here spends, sends, publishes, or binds him to anything.
 ROUTINE_KINDS = frozenset({
     "task_new", "task_status", "plan_new", "plan_add_step", "plan_step",
+    "preference_set",
     # Starting and stopping a capped recording of one window, to a file on
     # his PC that goes nowhere.
     "screen_record", "screen_record_stop",
@@ -983,6 +994,7 @@ def _enum(module_name: str, attribute: str):
 KIND_ENUMS: dict[str, dict[str, object]] = {
     "remember": {"domain": _enum("aletheia.memory", "DOMAINS"),
                  "memory_kind": _enum("aletheia.memory", "KINDS")},
+    "preference_set": {"field": _enum("aletheia.profile", "PREFERENCE_FIELDS")},
     "task_status": {"state": _enum("aletheia.contracts", "TASK_STATES")},
     "rule": {"state": _enum("aletheia.suggestions", "VALID_STATES")},
     "plan_set": {"state": _enum("aletheia.plans", "PLAN_STATES")},
@@ -1942,6 +1954,15 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         raise act.Refused(
             f"this is a rehearsal — {kind} is gated as world-touching, so it "
             "was not run. Everything local happened for real.")
+    if kind == "preference_set":
+        from aletheia import profile
+        try:
+            return profile.steer_by(cmd["field"], cmd["value"], quote=quote)
+        except ValueError as exc:
+            raise act.Refused(str(exc))
+    if kind == "preferences":
+        from aletheia import profile
+        return profile.preferences_words()
     if kind == "note":
         journal.append("note", "operator", cmd["text"], actor=ACTOR)
         return "journaled"
