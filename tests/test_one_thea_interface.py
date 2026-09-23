@@ -73,7 +73,12 @@ class ThereIsOnlyOnePage(unittest.TestCase):
         `/`, it is not what the phone opens, and it has one way back."""
         from aletheia import core
         self.assertEqual(core.THE_PAGE, "/interface/thea.html")
-        self.assertIn("/interface/thea.html", read("wall.html"))
+        # RELATIVE. The way back used to be `/interface/thea.html`, which is
+        # a 404 on the published Pages copy (a project path); the wall now
+        # links to `thea.html` beside it, and nothing on it is root-absolute.
+        wall = read("wall.html")
+        self.assertIn('href="thea.html"', wall)
+        self.assertNotIn('href="/interface/', wall)
 
 
 class ItIsInstallable(unittest.TestCase):
