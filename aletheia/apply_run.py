@@ -173,6 +173,14 @@ def _role_key(company: str, job_title: str) -> str:
         title = re.sub(r"\s*[—–\-|]\s*" + re.escape(company) + r"\s*$", "",
                        title, flags=re.I)
     title = re.sub(r"[^a-z0-9]+", " ", title.casefold()).strip()
+    # ONE ROLE POSTED THREE WAYS. Live 2026-09-23 Taranis got three
+    # applications in one night for "Remote / Hybrid / On-site Associate
+    # Customer Success Representative": how the seat is worked is not what
+    # the job is. Words that only say where the desk is come off. A level
+    # or a region ("Technical Account Manager 3 - East") stays: those are
+    # different jobs.
+    title = re.sub(r"\b(?:remote|hybrid|on ?site|in office|in person|work from home|wfh|fully remote)\b", " ", title)
+    title = " ".join(title.split())
     return f"{company.casefold()}|{title}"
 
 
