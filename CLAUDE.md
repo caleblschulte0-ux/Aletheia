@@ -359,6 +359,52 @@ branches, hashes or developer terminology in normal use."*
   sha256 and stays its own yes; what got smaller is the screen it takes to
   answer, not the number of times he answers.
 
+## The wall is links, the Thea page is the place, and a tap answers now
+
+His ruling, 2026-09-23, in his words: *"if I click on shorts pipeline,
+something should pop up. If I see there's a fault, I'm gonna naturally
+click on that... everything you do should be within the command center
+interface because the wall would just be for show, but at the end of the
+day I still want to click on stuff on it and have it do stuff. And it
+needs to be a lot more responsive... [the wall] shouldn't have any
+capability that the command center doesn't."* Three rules:
+
+- **Every element on the wall is a link into the Thea page**, and nothing
+  else: a repository, its node on the map, its line in the ticker, a
+  fault, a chip waiting on him. `thea.html#repo=<id>`, `#fault=<id>`,
+  `#need=<id>`, `#needs`, `#work`. RELATIVE hrefs, because the wall is
+  also published on GitHub Pages under a project path where
+  `/interface/...` is a 404 - the one link it used to have was exactly
+  that. On Pages there is no Core and no Thea page, so the links say so
+  instead of dead-ending. `tests/test_the_wall_renders_the_pulse.py`
+  holds all of it: every panel links, no href is root-absolute, no href
+  leaves the Thea page, and every script the wall loads is copied by
+  `pages.yml`.
+- **The Thea page holds what the wall shows.** The fleet is a folded
+  section reading the same pulse; a link from the wall opens that
+  repository's card. The sha and the branch stay one tap down inside
+  "Latest change" - developer words, same rule as everything else above
+  the drawer. The hash is READ on load and on `hashchange`, never
+  written: the page must still open at `/interface/thea.html` with no
+  fragment (`test_the_bare_address_lands_on_the_one_page`).
+- **A tap that changes what is SHOWN repaints from the last answer in the
+  same frame; only a tap that changes what is TRUE goes to the Core, and
+  even that repaints first and confirms after.** Measured before this:
+  "what exactly?", "Show the other N" and "Not now" each paid a full
+  four-request round trip to reveal text the page already held, and an
+  approved row stayed on screen until the next poll. Now `last` holds the
+  Core's last answer, `repaint()` paints from it, the four requests go in
+  ONE wave, `setHTML` writes only markup that changed (so an open receipt
+  stays open under his thumb), and a decision leaves the screen the
+  instant he taps - `decided` hides it until the Core's next list
+  confirms, and a refused command puts it straight back with a toast.
+  The render test counts the requests a tap makes and asserts zero.
+
+A real tap in that test found the next lie: "What she's done" said
+`approval:ap-1: APPROVED`. `policy.decide` journals a sentence now
+("Approved: <what it was>") and `recollection` lets the subject speak for
+itself, because every journal line is read back to him somewhere.
+
 ## Storage & branch discipline
 
 Small JSON/markdown only, nothing over 256KB, no media, no secrets in

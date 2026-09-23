@@ -43,7 +43,9 @@ def _safe(fn, default):
 def _approvals() -> list[dict]:
     from aletheia import policy, voice
     pending = [a for a in policy.all_approvals() if a.get("state") == "PENDING"]
-    return [{"label": voice.approval_label(a), "since": a.get("requested_at")}
+    # The id rides along so the wall can link one chip to one decision on
+    # the Thea page (2026-09-23); the page never shows it.
+    return [{"id": a.get("id"), "label": voice.approval_label(a), "since": a.get("requested_at")}
             for a in pending[:MAX_ITEMS]]
 
 

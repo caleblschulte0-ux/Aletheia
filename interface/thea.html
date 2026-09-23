@@ -159,6 +159,41 @@ button.link{color:var(--warm-dim);text-decoration:underline;
 .fold > summary::-webkit-details-marker{display:none}
 .fold > summary::before{content:"▸ "}
 .fold[open] > summary::before{content:"▾ "}
+/* The fleet, folded: a card a repository, its workflows as links to
+   their own runs, and the fault he would click first at the top. */
+.fleetfold{margin-top:26px;border-top:1px solid var(--line);padding-top:14px}
+.fleetfold > summary{cursor:pointer;list-style:none;font-size:14px;
+  color:var(--warm-dim);padding:10px 0;min-height:44px}
+.fleetfold > summary::-webkit-details-marker{display:none}
+.fleetfold > summary::before{content:"▸ "}
+.fleetfold[open] > summary::before{content:"▾ "}
+.faults{display:flex;flex-direction:column;gap:8px;margin:4px 0 12px}
+.fault{text-align:left;min-height:44px;padding:10px 14px;border-radius:12px;
+  border:1px solid var(--stop);color:var(--warm);font-size:14.5px;background:var(--ink-2)}
+.repo{background:var(--ink-2);border:1px solid var(--line);border-radius:16px;
+  padding:4px 14px;margin-top:10px}
+.repo > summary{cursor:pointer;list-style:none;min-height:44px;display:flex;
+  align-items:center;gap:8px;flex-wrap:wrap;font-size:15px}
+.repo > summary::-webkit-details-marker{display:none}
+.repo .tag{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--line-2);
+  color:var(--warm-dim)}
+.repo.bad .tag{border-color:var(--stop);color:var(--warm)}
+.repo.ok .tag{color:var(--warm)}
+.repo .role{font-size:12.5px;color:var(--warm-dim)}
+.repo .body{padding:2px 0 12px;font-size:14px;color:var(--warm-dim)}
+.repo .body p{margin:6px 0}
+.repo .why{color:var(--warm)}
+.repo .wfs,.repo .vitals{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.repo .wf,.repo .vital{font-size:12.5px;padding:6px 10px;border-radius:999px;
+  border:1px solid var(--line-2);min-height:32px;display:inline-flex;align-items:center;
+  color:var(--warm-dim);text-decoration:none}
+.repo .wf.bad{border-color:var(--stop);color:var(--warm)}
+.repo .wf.ok{color:var(--warm)}
+.repo a.out{color:var(--warm);text-decoration:underline;text-underline-offset:3px;
+  display:inline-block;min-height:32px;line-height:32px}
+.repo .peek{margin-top:4px}
+.lit{outline:2px solid var(--warm);outline-offset:4px;border-radius:14px;
+  transition:outline-color 1.2s}
 .clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;
   overflow:hidden}
 [data-unclamp]{cursor:pointer}
@@ -367,6 +402,15 @@ button.link{color:var(--warm-dim);text-decoration:underline;
       <h2>What she's done</h2>
       <div id="done" class="lately"></div>
     </section>
+
+    <!-- THE FLEET, here, where he can act on it. His ruling (2026-09-23):
+         the wall is for show, but everything he would click on it must
+         land somewhere in this page, and the wall may have no capability
+         this page lacks. Folded, because it is the weather, not the day. -->
+    <details class="fleetfold" id="fleetFold">
+      <summary>The fleet — her other projects</summary>
+      <div id="fleet"></div>
+    </details>
   </div>
 </main>
 

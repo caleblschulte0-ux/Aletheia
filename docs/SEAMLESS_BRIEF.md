@@ -66,6 +66,38 @@ adding architecture. The architecture build is finished
 
 ## Where it stands (kept honest, newest first)
 
+- **2026-09-23 — the wall is links, the Thea page is the place.** His
+  words: *"if I click on shorts pipeline, something should pop up... [the
+  wall] shouldn't have any capability that the command center doesn't...
+  it needs to be a lot more responsive."* Audited first: the wall had ONE
+  link and it 404'd on Pages; the Thea page could not see a repository or
+  a fault at all (no route); every poll was two serialized waves and a
+  5 s cache under a 15 s poll; "what exactly?" and "Not now" each cost a
+  four-request round trip; an approved row stayed until the next poll.
+  Fixed as one change (PR #147): every wall element links into the Thea
+  page (relative), a folded fleet section reads the same pulse and a wall
+  link opens that card, one request wave, repaint-from-last-answer with
+  zero requests per shown-only tap, changed-markup-only writes, optimistic
+  decisions. The render test found "approval:ap-1: APPROVED" in "What
+  she's done" the first time it really tapped Approve; the journal line is
+  a sentence now. Not yet: the poll interval itself (15 s) and the Core's
+  per-poll recompute of the needs list; a phone tap on a wall link when
+  the wall is the published Pages copy (no Core there, said on the page).
+- **2026-09-23, 00:30 — everything that needed him, cleared on his word.**
+  *"if it's job related and it's just applying to a job, approve it. And
+  if you can't approve it, clear it."* 44 submissions approved, 22
+  non-submission approvals denied (Create Account, About Us, Language…),
+  42 applications stopped on a question only he could answer closed —
+  through her own local door, journaled as his decision. Open question
+  for him: standing rule or tonight's pile.
+- **2026-09-22 evening — two more sweeps with every frontier off** (PRs
+  #145–#146): 26 more sentence classes — the volume KeyError, four
+  machine readings her own model had denied (disk, internet, open
+  windows, address), lock / a named folder / close on the desktop, the
+  reminders-schedule-tasks questions, "say that again", "you're wrong",
+  "milk and eggs" as two rows, "clear the list", "when I get home", "call
+  the dentist" (a door she lacks, said with the three she has).
+
 - **2026-09-21 — a hundred and seven sentences with every model off.**
   His words: *"I just want to be able to talk at it and no matter what I
   say it will get stuff done."* Two probes through the real voice door in

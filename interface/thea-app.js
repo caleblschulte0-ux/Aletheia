@@ -57,6 +57,17 @@
   let busy = false, listening = false, rec = null;
   let haltedNow = false;
   let failures = 0;
+  // THE LAST THING THE CORE SAID, kept so a tap repaints from it in the
+  // same frame. Measured 2026-09-23: "what exactly?", "Show the other N"
+  // and "Not now" each paid a full four-request round trip to reveal text
+  // this page already held, and an approval stayed on screen until the
+  // next poll answered. Nothing here is decided from the cache — every
+  // sentence is still the collector's — it is only painted from it.
+  let last = { m: null, status: null, needs: { needs: [], activity: [], says: "" },
+               notices: [], fleet: null };
+  // Decisions he has already given while the Core's list still lists them:
+  // gone from the screen the instant he taps, confirmed by the next poll.
+  const decided = new Set();
   // Approvals he tapped "Not now" on: hidden for this visit only. Nothing is
   // sent, so they are still pending on the Core and will be back.
   const deferred = new Set();
@@ -80,6 +91,17 @@
     if (!rows.length) return "";
     return '<dl class="facts">' + rows.map(
       (p) => "<dt>" + T.esc(p[0]) + "</dt><dd>" + T.esc(p[1]) + "</dd>").join("") + "</dl>";
+  }
+
+  // Write only what CHANGED. Rewriting identical markup every poll closed
+  // every receipt he had open and threw away the scroll position under his
+  // thumb; a string compare costs nothing and keeps the DOM he is reading.
+  const painted = new Map();
+  function setHTML(id, html) {
+    if (painted.get(id) === html) return false;
+    painted.set(id, html);
+    $(id).innerHTML = html;
+    return true;
   }
 
   function peek(label, id, kind) {
@@ -244,7 +266,7 @@
    *  number meaningless and teaches him to ignore it. The count in the rail
    *  is decisions. Returns how many of those there are. */
   function paintNeeds(needs, notices) {
-    const rows = (needs.needs || []).filter((n) => !deferred.has(n.id));
+    const rows = (needs.needs || []).filter((n) => !deferred.has(n.id) && !decided.has(n.id));
     const decisions = decisionsHTML(rows);
     const open = expanded.has("needs");
     // Worth seeing is a hundred deep and none of it is a decision. One
@@ -258,7 +280,7 @@
           ? '<p class="calm">and ' + (notices.length - 25) + " older ones</p>" : "") +
         "</details>"
       : "";
-    $("needs").innerHTML = (rows.length
+    setHTML("needs", (rows.length
         ? decisions.html +
           (decisions.hidden
             ? '<button class="more" data-expand="needs">Show the other ' +
@@ -266,7 +288,7 @@
             : (open && rows.length > MOST_ROWS
                 ? '<button class="more" data-expand="needs">Show fewer</button>' : ""))
         : '<div class="calm">' + T.esc(needs.says || "Nothing needs you right now.") +
-          "</div>") + worth;
+          "</div>") + worth);
     return rows.length;
   }
 
@@ -309,13 +331,13 @@
     const take = open ? all : all.slice(0, A_FEW);
     const said = new Set();
     const rows = take.map((c) => jobCard(c, said));
-    $("work").innerHTML = all.length
+    setHTML("work", all.length
       ? rows.join("") + (all.length > take.length
           ? '<button class="more" data-expand="work">Show the other ' +
             (all.length - take.length) + "</button>"
           : (open && all.length > A_FEW
               ? '<button class="more" data-expand="work">Show fewer</button>' : ""))
-      : '<div class="calm">Nothing is in flight right now.</div>';
+      : '<div class="calm">Nothing is in flight right now.</div>');
   }
 
   // ---- what she has done -------------------------------------------------
@@ -327,7 +349,7 @@
   function paintDone(rows) {
     const open = expanded.has("done");
     const shown = open ? rows.slice(0, 40) : rows.slice(0, A_FEW);
-    $("done").innerHTML = rows.length
+    setHTML("done", rows.length
       ? shown.map((r) => {
           const note = r.outward ? "reached someone else"
             : (OUTCOME[r.outcome] || "");
@@ -341,8 +363,131 @@
         (rows.length > shown.length
           ? '<button class="more" data-expand="done">Show more</button>'
           : (open ? '<button class="more" data-expand="done">Show fewer</button>' : ""))
-      : '<div class="calm">Nothing recorded yet today.</div>';
+      : '<div class="calm">Nothing recorded yet today.</div>');
   }
+
+  // ---- the fleet: what the wall shows, HERE, where he can act on it -------
+  /* His ruling, 2026-09-23: "if I click on shorts pipeline, something
+   * should pop up... [the wall] shouldn't have any capability that the
+   * command center doesn't." So the wall's every element is a link INTO
+   * this section, which renders the same pulse the wall renders. The words
+   * are the wall's status vocabulary said plainly; the facts are the
+   * collector's. A commit sha and a branch name are developer words and
+   * stay one tap down, inside the card. */
+  const HEALTH_WORD = { green: "working", red: "fault", unknown: "no signal", dormant: "dormant" };
+  const HEALTH_CLASS = { green: "ok", red: "bad", unknown: "dim", dormant: "dim" };
+  let fleetOpen = null;      // the repo id he asked for by link or tap
+
+  function repoCard(fleet, id, r) {
+    const word = HEALTH_WORD[r.health] || "no signal";
+    const wfs = Object.entries(r.workflows || {}).map(([name, w]) => {
+      const short = name.replace(/\.yml$/, "");
+      const state = w.error ? "unknown" : (w.conclusion || w.status || "");
+      const bad = state === "failure" || state === "timed_out" || state === "cancelled";
+      // Links come from the Core (`/api/fleet`); the page holds no host.
+      const runs = w.url || "";
+      const label = short + (state ? " · " + state.replace(/_/g, " ") : "");
+      return runs
+        ? '<a class="wf ' + (bad ? "bad" : state === "success" ? "ok" : "dim") + '" href="' +
+          T.esc(runs) + '" target="_blank" rel="noopener">' + T.esc(label) + "</a>"
+        : '<span class="wf ' + (bad ? "bad" : "dim") + '">' + T.esc(label) + "</span>";
+    }).join("");
+    const vitals = (r.vitals || []).filter((v) => !("error" in v)).map((v) =>
+      '<span class="vital">' + T.esc(String(v.value) + (v.unit === "%" ? "%" : v.unit === "usd" ? " USD" : "")) +
+      " " + T.esc(v.label) + "</span>").join("");
+    const c = r.commit || {};
+    const isOpen = fleetOpen === id;
+    return '<details class="repo ' + (HEALTH_CLASS[r.health] || "dim") + '" data-repo="' + T.esc(id) + '"' +
+      (isOpen ? " open" : "") + '><summary><b>' + T.esc(r.github || id) + "</b> " +
+      '<span class="tag">' + T.esc(word) + "</span>" +
+      (r.role ? ' <span class="role">' + T.esc(r.role) + "</span>" : "") + "</summary>" +
+      '<div class="body">' +
+      (r.summary ? "<p>" + T.esc(r.summary) + "</p>" : "") +
+      (r.error ? '<p class="why">Can\'t read it: ' + T.esc(r.error) + "</p>" : "") +
+      (wfs ? '<div class="wfs">' + wfs + "</div>" : "") +
+      (vitals ? '<div class="vitals">' + vitals + "</div>" : "") +
+      (c.message ? '<details class="peek"><summary>Latest change' +
+          (c.date ? " · " + T.esc(T.ago(c.date)) : "") + "</summary><div class=\"body\">" +
+          T.esc(c.message) + "</div></details>" : "") +
+      (r.url ? '<p><a class="out" href="' + T.esc(r.url) +
+          '" target="_blank" rel="noopener">Open it on GitHub</a></p>' : "") +
+      "</div></details>";
+  }
+
+  function paintFleet(fleet) {
+    if (!fleet || !fleet.repos) {
+      setHTML("fleet", '<div class="calm">No fleet reading yet.</div>');
+      return;
+    }
+    const entries = Object.entries(fleet.repos);
+    const active = entries.filter(([, r]) => r.status === "active");
+    const dormant = entries.filter(([, r]) => r.status !== "active");
+    const faults = (fleet.alerts || []).map((a) => {
+      const r = fleet.repos[a.repo] || {};
+      const why = a.failing && a.failing.length
+        ? a.failing.map((f) => f.replace(/\.yml$/, "")).join(", ") + " failing"
+        : a.error ? "can't be read" : a.missing ? "missing its state" : "fault";
+      return '<button class="fault" data-fleet="' + T.esc(a.repo) + '">' +
+        T.esc((r.github || a.github || a.repo) + " — " + why) + "</button>";
+    }).join("");
+    setHTML("fleet",
+      (faults ? '<div class="faults">' + faults + "</div>" : "") +
+      active.map(([id, r]) => repoCard(fleet, id, r)).join("") +
+      (dormant.length ? '<p class="calm">Dormant: ' +
+          T.esc(dormant.map(([, r]) => r.github).join(", ")) + "</p>" : "") +
+      (fleet.generated_at ? '<p class="calm">Fleet read ' + T.esc(T.ago(fleet.generated_at)) + "</p>" : ""));
+  }
+
+  let fleetAt = 0;
+  async function loadFleet(force) {
+    // The fleet block is a six-hourly cron; once a minute is plenty.
+    if (!force && Date.now() - fleetAt < 60000) return;
+    fleetAt = Date.now();
+    try { last.fleet = await T.api("/api/fleet"); } catch { /* keep the last one */ }
+    paintFleet(last.fleet);
+  }
+
+  // ---- deep links: the wall lands here -----------------------------------
+  /* #need=<id>   a decision, opened, scrolled to
+   * #needs #work #done #fleet   a section
+   * #repo=<id> / #fault=<id>   one repository's card, opened
+   * The hash is READ, never written on load: a link is something he
+   * followed, and the page must open at the top with no hash otherwise. */
+  function reveal(el) {
+    if (!el) return;
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    el.classList.add("lit");
+    setTimeout(() => el.classList.remove("lit"), 2400);
+  }
+
+  function followHash() {
+    const hash = (location.hash || "").replace(/^#/, "");
+    if (!hash) return;
+    const [key, value] = hash.split("=");
+    if ((key === "repo" || key === "fault") && value) {
+      fleetOpen = decodeURIComponent(value);
+      $("fleetFold").open = true;
+      paintFleet(last.fleet);
+      reveal(document.querySelector('[data-repo="' + CSS.escape(fleetOpen) + '"]'));
+      if (!last.fleet) loadFleet(true).then(() =>
+        reveal(document.querySelector('[data-repo="' + CSS.escape(fleetOpen) + '"]')));
+      return;
+    }
+    if (key === "need" && value) {
+      const id = decodeURIComponent(value);
+      opened.add(id);
+      expanded.add("needs");
+      repaint();
+      reveal(document.querySelector('[data-open="' + CSS.escape(id) + '"]'));
+      return;
+    }
+    const section = { needs: "needsSec", work: "workSec", done: "doneSec", fleet: "fleetFold" }[key];
+    if (section) {
+      if (key === "fleet") $("fleetFold").open = true;
+      reveal($(section));
+    }
+  }
+  window.addEventListener("hashchange", followHash);
 
   /* The health view outcome 6 asks for: ONE sentence, in the open when
    * something is wrong and absent when nothing is. `well` comes from
@@ -376,9 +521,20 @@
       head: "Reconnecting…",
       tail: lastMission ? "last heard from her " + T.ago(lastMission.as_of) : "",
     }), 5000);
+    // ONE WAVE, not two serialized ones: needs and notices used to wait
+    // for mission and status to land first, which doubled the round trips
+    // every poll for no reason either list cared about.
+    let needsIn = null, noticesIn = null;
     try {
-      [m, status] = await Promise.all([T.api("/api/mission"), T.api("/api/status")]);
+      const got = await Promise.allSettled([
+        T.api("/api/mission"), T.api("/api/status"),
+        T.api("/api/needs?limit=200"), T.api("/api/notifications?state=UNREAD")]);
       clearTimeout(slow);
+      if (got[0].status !== "fulfilled") throw got[0].reason;
+      m = got[0].value;
+      status = got[1].status === "fulfilled" ? got[1].value : null;
+      needsIn = got[2].status === "fulfilled" ? got[2].value : null;
+      noticesIn = got[3].status === "fulfilled" ? got[3].value : null;
     } catch (err) {
       clearTimeout(slow);
       failures++;
@@ -407,6 +563,35 @@
     }
     failures = 0;
     lastMission = m;
+    last.m = m;
+    last.status = status;
+    // ONE needs list and ONE history, computed by the Core, so this page
+    // and the sentence she speaks out loud cannot disagree about what is
+    // waiting or what she did. The page used to assemble both itself from
+    // three routes, which is two chances to differ. A list that did not
+    // arrive keeps the last one rather than blanking the section.
+    if (needsIn) last.needs = needsIn;
+    if (noticesIn) last.notices = noticesIn;
+    // The Core has answered: what he already decided is either gone from
+    // its list or still there because the command failed to land.
+    if (needsIn) {
+      const listed = new Set((needsIn.needs || []).map((n) => n.id));
+      for (const id of decided) if (!listed.has(id)) decided.delete(id);
+    }
+    paintHealth();
+    repaint();
+    paintDrawer(m, status);
+    loadFleet(false);
+    flushOutbox();
+    if (!refresh.followed) { refresh.followed = true; followHash(); }
+  }
+
+  /* Paint from the last answer, in this frame. Every tap that changes only
+   * what is SHOWN comes here; only a tap that changes what is TRUE goes to
+   * the Core, and even that repaints first and confirms after. */
+  function repaint() {
+    const m = last.m, status = last.status;
+    if (!m) return;
     const word = paintNow(m);
     haltedNow = !!(status && status.halted);
     $("haltBtn").textContent = haltedNow ? "Let her start again" : "Stop everything";
@@ -414,28 +599,14 @@
     $("haltNote").textContent = haltedNow
       ? "Nothing is running. She will not take new work until you start her again."
       : "Ends anything running and refuses new work until you start her again.";
-
-    // ONE needs list and ONE history, computed by the Core, so this page
-    // and the sentence she speaks out loud cannot disagree about what is
-    // waiting or what she did. The page used to assemble both itself from
-    // three routes, which is two chances to differ.
-    let needs = { needs: [], activity: [], says: "" }, notices = [];
-    try { needs = await T.api("/api/needs?limit=200"); }
-    catch { /* the rest of the page is still true */ }
-    try { notices = await T.api("/api/notifications?state=UNREAD"); }
-    catch { /* likewise */ }
-    paintHealth();
-
-    const count = paintNeeds(needs, notices);
+    const count = paintNeeds(last.needs, last.notices);
     paintWork(m);
-    paintDone(needs.activity || []);
+    paintDone(last.needs.activity || []);
     paintWhere(haltedNow ? "trouble" : count ? "needs" : "here", {
       head: haltedNow ? "Stopped" : word || "Here",
-      tail: haltedNow ? ((status.halted && status.halted.reason) || "")
+      tail: haltedNow ? ((status && status.halted && status.halted.reason) || "")
         : count ? count + (count === 1 ? " thing needs you" : " things need you") : "",
     });
-    paintDrawer(m, status);
-    flushOutbox();
   }
 
   // ---- asking ------------------------------------------------------------
@@ -572,14 +743,21 @@
     if (expand) {
       const key = expand.dataset.expand;
       if (expanded.has(key)) expanded.delete(key); else expanded.add(key);
-      if (lastMission) refresh();
+      repaint();
       return;
     }
     const exact = e.target.closest("[data-open]");
     if (exact) {
       const id = exact.dataset.open;
       if (opened.has(id)) opened.delete(id); else opened.add(id);
-      refresh();
+      repaint();
+      return;
+    }
+    const fault = e.target.closest("[data-fleet]");
+    if (fault) {
+      fleetOpen = fault.dataset.fleet;
+      paintFleet(last.fleet);
+      reveal(document.querySelector('[data-repo="' + CSS.escape(fleetOpen) + '"]'));
       return;
     }
     const clamped = e.target.closest("[data-unclamp]");
@@ -594,17 +772,24 @@
       // the words say, and it comes back next time.
       deferred.add(later.dataset.later);
       toast("Left for later");
-      refresh();
+      repaint();
       return;
     }
     if (no && !confirm("Say no to this? She will not do it.")) return;
     e.target.disabled = true;
+    const id = seen ? null : (yes ? yes.dataset.approve : no.dataset.deny);
+    // OFF THE SCREEN NOW, confirmed after. The row used to stay, buttons
+    // greyed, until the command landed AND the next poll answered - two
+    // seconds of "did that take?" on every decision. If the Core refuses,
+    // it comes straight back with a toast saying so.
+    if (id) { decided.add(id); repaint(); }
     try {
       if (seen) {
         await T.api("/api/notifications/ack", {
           method: "POST", body: JSON.stringify({ id: seen.dataset.seen }) });
+        last.notices = last.notices.filter((n) => n.id !== seen.dataset.seen);
+        repaint();
       } else {
-        const id = yes ? yes.dataset.approve : no.dataset.deny;
         await T.command(yes ? { kind: "approve", id }
                             : { kind: "deny", id, because: "said no from the Thea page" });
         toast(yes ? "Approved" : "Refused");
@@ -612,6 +797,7 @@
       refresh();
     } catch (err) {
       e.target.disabled = false;
+      if (id) { decided.delete(id); repaint(); }
       toast("That didn't go through.");
     }
   });
@@ -788,6 +974,10 @@
     }
   }
   $("pairCode").addEventListener("input", paintQR);
+
+  $("fleetFold").addEventListener("toggle", () => {
+    if ($("fleetFold").open) loadFleet(!last.fleet);
+  });
 
   $("drawer").addEventListener("toggle", () => {
     if (!$("drawer").open || $("drawer").dataset.loaded) return;
