@@ -88,6 +88,7 @@ IDEMPOTENT_KINDS = frozenset({
     "mic_off", "mic_on", "chatgpt_off", "eyes_off", "halt", "resume", "close",
     "open", "reminder_off", "shopping_off", "notify_clear", "rule", "approve",
     "deny", "remember", "apply_outcome", "file_write", "apply_pause", "restart", "update_now",
+    "preference_set",
 })
 
 #: Read-only kinds a LOCAL model is not shown even though nothing stops it
@@ -109,7 +110,7 @@ LOCAL_MODEL_HIDDEN = frozenset({"setup_status", "screen_ask", "brief", "research
 #: feature"). `tests/test_consequence.py` fails if anything here is not
 #: reversible under the consequence model.
 LOCAL_MODEL_WRITES = frozenset({
-    "task_new", "task_status", "task_done", "remember", "note",
+    "task_new", "task_status", "task_done", "remember", "note", "preference_set",
     "file_write", "file_edit", "compose", "doc_make",
     "plan_step", "plan_add_step", "calendar_hold", "thread_draft",
     "notify_operator", "notify_snooze", "work_projects",
@@ -127,6 +128,7 @@ STORE_OF = {
     "contacts": "contacts", "contact_add": "contacts",
     "watches": "watches", "watch_email_from": "watches",
     "recall": "memory", "remember": "memory", "forget": "memory",
+    "preference_set": "profile", "preferences": "profile",
     "projects": "plans", "plan_new": "plans", "plan_add_step": "plans",
     "plan_step": "plans", "plan_set": "plans",
     "project_new": "charters", "project_step": "charters", "project_drop": "charters",
@@ -718,6 +720,7 @@ SPOKEN_GROUPS_BY_NAME: dict[str, tuple[str, ...]] = {
     "studying what does better and improving your projects": ("study_new", "studies", "study_decide",
                                                               "study_confirm"),
     "job applications": ("jobs", "apply_prepare", "apply_campaign", "apply_pause", "apply_answer", "apply_retry",
+                         "preference_set", "preferences",
                          "applications", "apply_outcome"),
     "money you spend": ("money", "subscriptions", "subscription_cancel"),
     "your car and journeys": ("car", "travel_time"),

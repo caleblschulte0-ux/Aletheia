@@ -1145,11 +1145,26 @@ UPLOAD_SETTLED_JS = r"""() => {
   if (!held) return 'empty';
   const seen = (el) => !!el && el.offsetParent !== null
     && (el.innerText || el.getAttribute('aria-valuenow') !== null);
+  // Ashby's resume widget shows a bare spinner beside the file's name for
+  // seven seconds and more (<span class="_spinner_...">), and the name alone
+  // read as landed: Submit pressed under it was answered "We're updating
+  // your application (e.g. uploading files), please try again" (Tenex,
+  // 2026-09-23).
   const busy = [...document.querySelectorAll(
       '[role=progressbar], progress, [class*="progress"], [class*="uploading"], '
       + '[class*="upload-working"], [class*="loading"]')]
     .some(el => seen(el) && !/complete|success|done/i.test(el.className || ''));
-  return busy ? 'working' : 'held';
+  if (busy) return 'working';
+  // A BARE SPINNER counts only beside the file that is going up: Ashby's
+  // "Autofill from resume" widget carries an idle spinner before any file
+  // is chosen, and it would have read every Ashby form as working for ever.
+  const spinning = [...document.querySelectorAll('input[type=file]')]
+    .filter(i => i.files && i.files.length > 0)
+    .some(i => {
+      const box = i.closest('[class*="fieldEntry" i], [data-field-path], [class*="field" i], li, fieldset') || i.parentElement;
+      return !!box && [...box.querySelectorAll('[class*="spinner" i]')].some(s => s.offsetParent !== null);
+    });
+  return spinning ? 'working' : 'held';
 }"""
 
 
@@ -1179,12 +1194,36 @@ def _resume_landed(page, resume: str, *, wait_ms: int | None = None) -> bool:
     wait = getattr(page, "wait_for_timeout", None)
     budget = UPLOAD_SETTLE_MS if wait_ms is None else wait_ms
     for _ in range(max(1, budget // 500)):
+        named = False
         for frame in formfill.frames(page):
             try:
                 if frame.evaluate(UPLOADED_JS, name):
-                    return True
+                    named = True
+                    break
             except Exception:
                 continue
+        if named:
+            # NAMED IS NOT FINISHED. Ashby prints the file's name the instant
+            # it is handed over and spins beside it while it goes up; a press
+            # under the spinner is refused (Tenex, 2026-09-23). Named, and
+            # nothing still at work, is landed.
+            extra = 0 if wait is None or wait_ms is not None else UPLOAD_WORKING_MS
+            calm = 0
+            for _ in range(max(1, extra // 500)):
+                if _upload_state(page) != "working":
+                    calm += 1
+                    # TWO CALM READINGS A BEAT APART. The spinner appears a
+                    # moment after the file is handed over; one reading taken
+                    # in that moment said "held" while the upload had not
+                    # begun (Tenex, live 2026-09-23, 0.3 s after attaching).
+                    if calm >= 2 or wait is None or not extra:
+                        return True
+                else:
+                    calm = 0
+                if wait is None or not extra:
+                    break
+                wait(700)
+            return _upload_state(page) != "working"
         if wait is None:
             break
         wait(500)
@@ -2050,6 +2089,27 @@ def _refill_and_submit(record: dict) -> dict:
         landed = page.url
         title = page.title()
         complaints = _page_complaints(page)
+        outcome = browse.read_outcome(body, did=record.get("button", "submit"),
+                                      title=title, url=landed, complaints=complaints)
+        if outcome.get("verdict") == "rejected" and asks_to_try_again(complaints, body):
+            # THE SITE ASKED FOR A MOMENT, NOT A CORRECTION. Live 2026-09-23
+            # Tenex (Ashby) answered the press with "We're updating your
+            # application (e.g. uploading files), please try again when
+            # they're finished" - the resume was still going up - and the
+            # application was recorded refused. Wait for the upload, press
+            # once more, read again. Once: a second refusal is a refusal.
+            _wait_for_uploads(page)
+            page.click(_submit_selector(page.evaluate(BUTTONS_JS)) or button)
+            page.wait_for_load_state("domcontentloaded")
+            settled = _settled_after_press(page, button) + "; pressed again once the upload had finished"
+            whole = page.inner_text("body") or ""
+            body = whole[:4000]
+            page.screenshot(path=str(shot), full_page=True)
+            landed = page.url
+            title = page.title()
+            complaints = _page_complaints(page)
+            outcome = browse.read_outcome(body, did=record.get("button", "submit"),
+                                          title=title, url=landed, complaints=complaints)
         page.close()
     # Never "done" without something that says so. A click that produced
     # no confirmation is a click, not an application — and a page that
@@ -2057,9 +2117,41 @@ def _refill_and_submit(record: dict) -> dict:
     # silence. `browse.read_outcome` is the one place that knows the
     # difference, so this and the general web loop cannot drift on it.
     return {"url": landed, "title": title,
-            "evidence": body[:600], "screenshot": str(shot), "settled": settled,
-            **browse.read_outcome(body, did=record.get("button", "submit"),
-                                  title=title, url=landed, complaints=complaints)}
+            "evidence": body[:600], "screenshot": str(shot), "settled": settled, **outcome}
+
+
+_TRY_AGAIN_SOON = re.compile(
+    r"\b(?:updating your application|still uploading|upload(?:ing)? (?:is|are) (?:still )?in progress|"
+    r"please try again when|try again (?:when|once|after) (?:they|it|the upload)|files? (?:is|are) (?:still )?(?:uploading|being uploaded)|"
+    r"wait (?:for|until) (?:the )?(?:upload|file))\b", re.I)
+
+
+def asks_to_try_again(complaints: list[str], body: str = "") -> bool:
+    """Did the page refuse only because a file was still going up? Its own
+    words say "try again when finished"; that is a moment, not a correction."""
+    said = " ".join(str(c) for c in (complaints or [])) + " " + str(body or "")[:2000]
+    return bool(_TRY_AGAIN_SOON.search(said))
+
+
+UPLOAD_FINISH_MS = 20_000
+
+
+def _wait_for_uploads(page, *, budget_ms: int = UPLOAD_FINISH_MS) -> str:
+    """Until every upload box on the page holds its file with nothing still
+    at work beside it. Returns why it stopped. Never raises."""
+    wait = getattr(page, "wait_for_timeout", None)
+    if wait is None:
+        return "no browser"
+    for _ in range(max(1, budget_ms // 500)):
+        try:
+            state = _upload_state(page)
+        except Exception:
+            return "no reading"
+        if state == "held":
+            wait(1200)                    # the widget settles a beat after the spinner goes
+            return "the upload finished"
+        wait(500)
+    return "still uploading after the wait"
 
 
 #: How long a pressed Submit is given to finish before the page is read.
