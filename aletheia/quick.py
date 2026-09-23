@@ -238,8 +238,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"how (?:did|has) (?:it|things) (?:go|gone) with|"
         r"anything (?:new |back )?from|any(?:thing| word| reply| response| answer) (?:back )?from|"
         r"(?:have (?:you|u|we|i) )?heard (?:anything |back )?from|did (?:you|u|we|i) hear (?:anything |back )?from)"
-        r" (?:the |my )?(?P<what>[a-z0-9][a-z0-9 .&'-]{1,40}?)(?: yet)?\s*\??$"
-        r"|^(?:did|has|have) (?:the )?(?P<what2>[a-z0-9][a-z0-9 .&'-]{1,40}?)"
+        # "anything from anyone" / "did any employers reply" name nobody in
+        # particular and stay with the replies shape below
+        r" (?:the |my )?(?!(?:any|anyone|anybody|someone|somebody|they|them|people|employers?|companies|recruiters|jobs|work)\b)"
+        r"(?P<what>[a-z0-9][a-z0-9 .&'-]{1,40}?)(?: yet)?\s*\??$"
+        r"|^(?:did|has|have) (?:the )?(?!(?:any|anyone|anybody|someone|somebody|they|them|people|employers?|companies|recruiters)\b)"
+        r"(?P<what2>[a-z0-9][a-z0-9 .&'-]{1,40}?)"
         r" (?:replied|reply|responded|respond|get back|gotten back|written back|write back|answered|answer)"
         r"(?: yet| to me| to us| back)?\s*\??$")),
     # "What companies have I applied to" came back from her own model as
