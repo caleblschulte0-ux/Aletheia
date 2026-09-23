@@ -1754,9 +1754,9 @@ def _applied_in_window(window: str) -> str:
         if now < since:
             since -= dt.timedelta(days=1)
     elif window in ("last night", "overnight"):
+        # From ten last night, whatever the hour now: asked at eleven at
+        # night it still means the night that has passed plus this evening.
         since = (now - dt.timedelta(days=1)).replace(hour=22, minute=0, second=0, microsecond=0)
-        if now.hour >= 22:
-            since = now.replace(hour=22, minute=0, second=0, microsecond=0)
     elif window == "this morning":
         since = now.replace(hour=5, minute=0, second=0, microsecond=0)
     if since is not None:
@@ -1820,8 +1820,6 @@ def _overnight() -> str:
     tz = localtime.operator_tz()
     now = dt.datetime.now(tz)
     since = (now - dt.timedelta(days=1)).replace(hour=22, minute=0, second=0, microsecond=0)
-    if now.hour >= 22:
-        since = now.replace(hour=22, minute=0, second=0, microsecond=0)
     hours = max(1.0, (now - since).total_seconds() / 3600.0 + 0.1)
     parts = []
     try:
