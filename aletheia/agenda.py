@@ -73,6 +73,8 @@ FORBIDDEN_KINDS = {
     "approve", "deny",
     # a kill switch the agent can lift is decoration
     "halt", "resume", "restart", "update_now",
+    # a second send is his say-so, never a mission's
+    "apply_retry",
     # "stop applying" is his word, never an agenda's guess
     "apply_pause",
     # ...and neither is an off switch it can press. `close` stops the Core,
@@ -116,6 +118,7 @@ REFUSAL_REASON = {
     "resume": "she does not get to touch her own off switch",
     "restart": "she does not get to restart herself mid-mission",
     "update_now": "pulling her own code is his tap, never a mission's",
+    "apply_retry": "sending an application again is his say-so, never a mission's",
     "intent": "an agenda filing intents that file intents is a loop",
     "rule": "a standing rule outlives this mission's budget",
     "dispatch": "that runs a workflow in another repository",

@@ -103,6 +103,11 @@ def _sayable(text: str) -> str:
     return said if said.strip() else str(text or "")
 
 
+#: Forbidden to a planner and still one tap of HIS: the switches, a decision,
+#: a second send. A notice may offer these and nothing else a plan may not.
+HIS_TAP_KINDS = ("approve", "deny", "resume", "restart", "update_now", "open", "mic_on", "apply_retry")
+
+
 def action_shape(action: object) -> dict:
     """{"label", "kind", "args"} or ValueError. The one command a notice asks
     of him, for the page to put a button on; nothing a page could turn into
@@ -114,7 +119,7 @@ def action_shape(action: object) -> dict:
     if not label or not kind or not isinstance(args, dict):
         raise ValueError("action needs a label, a kind and an object of args")
     from aletheia import intercom
-    if kind not in intercom.KIND_ARGS or kind in intercom.PLANNER_FORBIDDEN and kind not in ("approve", "deny", "resume", "restart", "open", "mic_on"):
+    if kind not in intercom.KIND_ARGS or kind in intercom.PLANNER_FORBIDDEN and kind not in HIS_TAP_KINDS:
         raise ValueError(f"action kind {kind!r} is not one a notice may offer")
     return {"label": label[:40], "kind": kind, "args": {str(k): v for k, v in args.items()}}
 

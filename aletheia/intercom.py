@@ -175,6 +175,8 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # What an employer DID about one he sent. His words, 2026-09-11: "it
     # should track the application as well not just apply".
     "apply_outcome": ({"which", "outcome"}, {"note"}),
+    # 2026-09-23: "Try it again" on the notice that says a send failed.
+    "apply_retry":   ({"which"}, set()),
     # The catch-all for "go do this on a website" — any number of steps.
     "web_task":      ({"goal"}, {"url", "budget"}),
     # "try that again" after a site refused one — the ONLY case where
@@ -507,6 +509,11 @@ KIND_NOTES: dict[str, str] = {
         'until he says start applying again. Not the kill switch - everything '
         'else keeps going, and a batch already running finishes. reason is '
         'optional ("for today"). Only his own words say it.'),
+    "apply_retry": (
+        'Try a failed application again: it goes back to waiting with a fresh '
+        'approval and the next beat sends it. which is the employer, the job or '
+        'the record as she names it. Twice at most; then it needs his eyes. '
+        'His tap or his words, never a plan step.'),
     "apply_outcome": (
         'What an employer did about an application he already sent. which names '
         'it the way he does (the employer, the job, or the application id); '
@@ -925,6 +932,7 @@ def _steps_of(cmd: dict):
 PLANNER_FORBIDDEN = frozenset({
     "halt", "resume",      # a kill switch a compiler can trip is decoration
     "restart",             # and so is a restart button
+    "apply_retry",         # a second send is his tap, never a plan's guess
     "update_now",          # and a pull of her own code is his tap, not a plan step
     "apply_pause",         # "stop applying" is his word, never a compiler's guess
     "approve", "deny",     # self-authorization, from an ambiguous word
@@ -2224,6 +2232,21 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return ("Okay — no more applications until you say start applying"
                 + (f" ({held['reason']})" if held.get("reason") else "")
                 + (". The batch already running finishes first." if running_batch else "."))
+    if kind == "apply_retry":
+        from aletheia import apply_run
+        if rehearsing():
+            return "This is a rehearsal, so I didn't change any application."
+        matches = [m for m in apply_run.find(cmd["which"]) if m.get("state") == "FAILED"] or apply_run.find(cmd["which"])
+        if not matches:
+            return f"I don't have an application matching {cmd['which']!r}."
+        if len(matches) > 1:
+            return ("More than one matches — "
+                    + speech.or_list([apply_run.describe(m) for m in matches[:4]]) + "?")
+        try:
+            record = apply_run.retry(matches[0]["id"], via=ACTOR)
+        except apply_run.ApplyError as exc:
+            raise act.Refused(speech.plainly(str(exc)))
+        return f"I'll try {apply_run.describe(record)} again on the next beat."
     if kind == "apply_outcome":
         from aletheia import apply_run
         matches = apply_run.find(cmd["which"])
