@@ -352,6 +352,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^when (?:did|were) (?:you|u) last (?:update|updated|upgrade|upgraded)(?: yourself)?$"
         r"|^(?:are|is) (?:you|u|your code) (?:up to date|current|on the (?:latest|newest)(?: code)?)$"
         r"|^when was your last update$")),
+    # HIS DAY'S TWO ENDS AND ITS DOOR (2026-09-23): "morning thea" waited
+    # 91 s on her own model; "I'm leaving for work" and "going to bed" were
+    # planned as steps ("I will let you know when you're ready to go").
+    ("good_morning", re.compile(
+        r"^(?:good morning|morning|mornin'?|good morning thea|morning thea|hey good morning|"
+        r"top of the morning|rise and shine)(?:,? thea)?(?: !)?$")),
     ("today", re.compile(
         r"^what (?:did|have) (?:you|u) (?:do|done)(?: today)?$"
         r"|^what have (?:you|u) been doing$"
@@ -563,8 +569,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("arrival", re.compile(
         r"^(?:i'?m|im|i am) (?:home|back|here|in)(?: now)?$|^(?:just )?got (?:home|back|in)$")),
     ("farewell", re.compile(
-        r"^(?P<night>good ?night|night night|sleep well|i'?m going to (?:bed|sleep))$"
-        r"|^(?:i'?m|im|i am) (?:leaving|heading out|going out|off|out)(?: now)?$"
+        # "Going to bed" and "I'm leaving for work" were planned as steps
+        # ("I will let you know when you're ready to go", 2026-09-23).
+        r"^(?P<night>good ?night|night night|sleep well|(?:i'?m |im |i am )?(?:going to|off to|heading to) (?:bed|sleep)"
+        r"|turning in|see you tomorrow|talk tomorrow)(?:,? thea)?(?: now)?$"
+        r"|^(?:(?:i'?m|im|i am) )?(?:leaving|heading out|heading off|going out|off|out|off to work|going to work|"
+        r"heading to work|leaving for work|back later|be back later)(?: now| for work| for the day| for a bit)?$"
         r"|^(?:see (?:you|ya)(?: later)?|bye|goodbye|later|talk later|catch you later)$")),
     # Replies from employers, from the application records.
     ("replies", re.compile(
@@ -2235,7 +2245,25 @@ def _windows() -> str:
     return f"Open right now: {said}{more}."
 
 
+def _good_morning() -> str:
+    """The first sentence of his day, the way a person who worked all night
+    says it: what went out, what came back, what needs him, what is first.
+    "Good morning" answered "I'm here. Nothing is waiting on you."
+    (2026-09-23) - true, and not what a morning is for."""
+    parts = ["Good morning."]
+    night = _overnight()
+    if night and not night.startswith("A quiet night"):
+        parts.append(night)
+    else:
+        parts.append("A quiet night.")
+    focus = _focus()
+    if focus and "the day is yours" not in focus:
+        parts.append(focus)
+    return " ".join(parts)
+
+
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
+           "good_morning": lambda rest: _good_morning(),
            "status": lambda rest: _status(),
            "focus": lambda rest: _focus(),
            "outcomes": _outcomes,
