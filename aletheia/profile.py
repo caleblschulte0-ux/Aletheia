@@ -355,6 +355,62 @@ def questions_on_file() -> list[dict]:
             for k, v in sorted(_load_asked().items()) if isinstance(v, dict)]
 
 
+#: What the job hunt steers by, in his words: settable by voice and page
+#: (`preference_set`), read back the same way (`preferences`). Night sweep
+#: 2026-09-23: "only apply to remote jobs", "don't apply to part-time jobs",
+#: "raise my minimum salary to 110k" each went to a planner nobody could
+#: run, for a store one line of his settles.
+PREFERENCE_FIELDS = ("work_wanted", "work_not_wanted", "desired_pay", "notice_period", "willing_to_relocate")
+_PREFERENCE_WORDS = {"work_wanted": "the work you want", "work_not_wanted": "the work you won't do",
+                     "desired_pay": "what you want to be paid", "notice_period": "when you could start",
+                     "willing_to_relocate": "whether you'd relocate"}
+
+
+def steer_by(field: str, value, *, quote: str = "") -> str:
+    """Change one thing the hunt steers by, in his words; say what it is now.
+
+    The two lists (wanted, not wanted) ACCUMULATE - "only remote" and then
+    "no cold calling" are both true - and a repeat is not said twice. The
+    single facts (pay, start, relocation) are replaced."""
+    field = str(field or "").strip()
+    if field not in PREFERENCE_FIELDS:
+        raise ValueError(f"{field!r} is not something the hunt steers by")
+    said = " ".join(str(value or "").split()).strip(" .")
+    if not said:
+        raise ValueError("nothing to steer by")
+    if field in ("work_wanted", "work_not_wanted"):
+        before = str(answer(field) or "").strip(" .")
+        parts = [p.strip() for p in before.split(";") if p.strip()]
+        if said.casefold() not in (p.casefold() for p in parts):
+            parts.append(said)
+        now = "; ".join(parts)
+    else:
+        now = said
+    set_answer(field, now, source="operator" + (f": {quote[:80]}" if quote else ""))
+    try:
+        from aletheia import job_fit
+        job_fit.preferences_changed()
+    except Exception:
+        pass
+    lead = {"work_wanted": "From now on I'll look for", "work_not_wanted": "From now on I'll leave out",
+            "desired_pay": "Your minimum pay is now", "notice_period": "You can start",
+            "willing_to_relocate": "Relocation is now"}[field]
+    return f"{lead} {now}."
+
+
+def preferences_words() -> str:
+    """What the hunt steers by, read back in his own words."""
+    known_now = known()
+    lines = []
+    for field in PREFERENCE_FIELDS:
+        value = str(known_now.get(field) or "").strip()
+        if value:
+            lines.append(f"{_PREFERENCE_WORDS[field]}: {value.rstrip('.')}")
+    if not lines:
+        return "You haven't told me what to steer by yet - what work you want or won't do, your minimum pay, when you could start."
+    return "I steer by " + "; ".join(lines) + "."
+
+
 def set_answer(field: str, value, *, source: str = "operator") -> dict:
     """One answer, with where it came from. Provenance matters here: a
     thing she read off a resume is not the same as a thing he told her."""
