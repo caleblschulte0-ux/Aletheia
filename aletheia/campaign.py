@@ -1927,9 +1927,19 @@ def _summary(out: dict) -> tuple[str, str]:
     required = [q["label"] for q in (out.get("questions") or []) if q.get("required")]
     if required and out.get("blocked"):
         body += " To finish the rest, tell me: " + "; ".join(required[:6]) + "."
-    title = ("Applications ready to approve" if out.get("ready")
-             else "Job applications need you")
+    title = (("Applications going out" if _no_tap() else "Applications ready to approve")
+             if out.get("ready") else "Job applications need you")
     return title, body
+
+
+def _no_tap() -> bool:
+    """Is the jobs grant live, so a filled application goes without him?
+    Fails closed: a store she cannot read means "he confirms"."""
+    try:
+        from aletheia import standing
+        return bool(standing.jobs_status().get("granted"))
+    except Exception:
+        return False
 
 
 def spoken(out: dict) -> str:
@@ -1937,8 +1947,12 @@ def spoken(out: dict) -> str:
                               len(out.get("failed", [])))
     said = []
     if ready:
-        said.append(f"{ready} application{'s' if ready != 1 else ''} filled in and "
-                    "waiting for you to confirm")
+        # "Waiting for you to confirm" reached his screen on every batch of
+        # the night of 2026-09-23 while the grant sent every one of them
+        # untouched. The sentence follows the grant.
+        said.append(f"{ready} application{'s' if ready != 1 else ''} filled in"
+                    + ("; they go out on the next beat without a tap" if _no_tap()
+                       else " and waiting for you to confirm"))
     if blocked:
         questions = out.get("questions") or []
         # What stops them, not every optional box on the page.
