@@ -45,7 +45,14 @@ def fresh(minutes_ago: float) -> str:
         cap = since_midnight if cap is None else min(cap, since_midnight)
     room = max(0.0, (cap or 0.0) - 1.0)
     if minutes_ago > room:
-        minutes_ago = room * (minutes_ago / max(minutes_ago, 240.0))
+        # NOT SQUEEZED. Squeezing the offset into the young day turned
+        # "30 minutes ago" into "1 minute ago" and put Figma after Stripe,
+        # and six pull requests went red between midnight and 02:20
+        # Central (2026-09-23). A fixture that cannot be today is a test
+        # that cannot run yet, and it says so.
+        import unittest
+        raise unittest.SkipTest(f"the day is {cap:.0f} minutes old in one of his zones; a fixture "
+                                f"{minutes_ago:.0f} minutes old would be yesterday - rerun later")
     return (now - dt.timedelta(minutes=minutes_ago)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
