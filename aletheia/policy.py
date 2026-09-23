@@ -191,8 +191,19 @@ def decide(aid: str, decision: str, via: str, because: str = "") -> dict:
     approval["decided_at"] = _now()
     approval["decided_via"] = via
     save(approval)
+    # A SENTENCE, because this line is read back to him: "What she's done"
+    # on the Thea page showed "approval:ap-1: APPROVED" - an id and a
+    # state word - the first time a real approval was tapped there
+    # (2026-09-23). The label is the same one the page offered him.
+    try:
+        from aletheia import voice
+        label = voice.approval_label(approval)
+    except Exception:
+        label = ""
+    word = "Approved" if decision == "APPROVED" else "Refused"
     journal.append("decision", f"approval:{aid}",
-                   f"{decision}" + (f" — {because}" if because else ""), actor=via)
+                   word + (f": {label}" if label else "") + (f" — {because}" if because else ""),
+                   actor=via)
     return approval
 
 

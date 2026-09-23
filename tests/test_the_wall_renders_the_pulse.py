@@ -16,6 +16,7 @@ optional dependency's absence must never fail the suite.
 import functools
 import http.server
 import json
+import re
 import shutil
 import tempfile
 import threading
@@ -92,6 +93,11 @@ class TheWallCase(unittest.TestCase):
             page.goto(cls.url)
             page.wait_for_timeout(2000)
             body = page.inner_text("body")
+            # Where a click goes: every href on the page, and the panels.
+            cls.links = page.evaluate(
+                "() => [...document.querySelectorAll('a[href]')].map(a => a.getAttribute('href'))")
+            cls.panels = page.evaluate(
+                "() => [...document.querySelectorAll('.panel')].map(p => p.dataset.repo)")
             browser.close()
         return body, errors
 
@@ -122,6 +128,50 @@ class TheWallCase(unittest.TestCase):
 
     def test_what_needs_him_is_named(self):
         self.assertIn("File a GitHub issue", self.body)
+
+    # ---- everything he would click goes somewhere (2026-09-23) ------------
+    def test_every_repository_on_the_wall_is_a_link_into_the_thea_page(self):
+        """His words: "if I click on shorts pipeline, something should pop
+        up." A panel, its node on the map and its line in the ticker all
+        land on that repository's card on the Thea page."""
+        self.assertTrue(self.panels, "no repository panels rendered")
+        for repo in self.panels:
+            with self.subTest(repo=repo):
+                self.assertIn(f"thea.html#repo={repo}", self.links)
+
+    def test_a_fault_is_a_link_to_that_fault(self):
+        pulse = json.loads((REPO / "state" / "pulse" / "latest.json").read_text(encoding="utf-8"))
+        for alert in pulse.get("alerts") or []:
+            with self.subTest(repo=alert.get("repo")):
+                self.assertIn(f"thea.html#fault={alert['repo']}", self.links)
+
+    def test_what_is_waiting_on_him_links_to_where_he_answers_it(self):
+        self.assertTrue(any(h.startswith("thea.html#need") for h in self.links), self.links)
+
+    def test_no_link_on_the_wall_is_root_absolute(self):
+        """The wall is also published on GitHub Pages under a project path,
+        where "/interface/..." is a 404. The one link it used to have was."""
+        for href in self.links:
+            with self.subTest(href=href):
+                self.assertFalse(href.startswith("/"), href)
+
+    def test_the_wall_has_no_capability_the_thea_page_lacks(self):
+        """A control on the wall would be one. Every link goes to the Thea
+        page; there is no form and no POST here apart from the shared
+        push-to-talk pill, which the Thea page has too."""
+        for href in self.links:
+            with self.subTest(href=href):
+                self.assertTrue(href.startswith("thea.html"), href)
+        self.assertNotIn("<form", (REPO / "interface" / "wall.html").read_text(encoding="utf-8"))
+
+    def test_the_published_copy_carries_the_scripts_it_loads(self):
+        """pages.yml copied wall.html and not voice.js, so the published
+        wall requested a script that was not there."""
+        wall = (REPO / "interface" / "wall.html").read_text(encoding="utf-8")
+        pages = (REPO / ".github" / "workflows" / "pages.yml").read_text(encoding="utf-8")
+        for script in re.findall(r'<script src="([^"]+)"', wall):
+            with self.subTest(script=script):
+                self.assertIn(script, pages)
 
 
 if __name__ == "__main__":

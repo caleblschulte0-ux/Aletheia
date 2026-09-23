@@ -41,6 +41,7 @@ jobs:
         run: |
           mkdir -p site/interface site/state/pulse
           cp interface/wall.html site/interface/index.html
+          cp interface/voice.js site/interface/voice.js
           cp state/pulse/latest.json site/state/pulse/latest.json
           # root redirect so the bare Pages URL lands on the wall
           cat > site/index.html <<'HTML'

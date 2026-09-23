@@ -182,6 +182,13 @@
   .ticker::after  { right: 0; background: linear-gradient(-90deg, var(--bg), transparent); }
   .ticker-track { display: inline-flex; gap: 3.5rem; white-space: nowrap; animation: ticker 90s linear infinite; will-change: transform; }
   @keyframes ticker { to { transform: translateX(-50%); } }
+  /* Links that look like what they always looked like: the wall is for
+     show, and a click is the one thing added to it. */
+  a.chip, a.tick, a.stub, a.name-link, a.alert-link, a.headline-link, a.node-link, #home-link {
+    color: inherit; text-decoration: none; cursor: pointer; }
+  a.chip:hover, a.stub:hover, a.name-link:hover, a.alert-link:hover { outline: 1px solid var(--line-bright); outline-offset: 2px; }
+  a.name-link .name:hover, a.headline-link:hover { text-decoration: underline; text-underline-offset: 4px; }
+  a.node-link:hover circle { stroke-width: 2.5; }
   .tick { font-family: var(--mono); font-size: 0.7rem; color: var(--muted); }
   .tick .repo { color: var(--accent); letter-spacing: 0.1em; }
   .tick .ago { color: var(--faint); }
@@ -253,7 +260,7 @@
     <!-- The ambient screen, not the product. Everything Caleb DOES is on the
          Thea page; this is the fleet, across a room, for when he wants to
          look at it. One way back, so it is never a dead end. -->
-    <a class="greek" href="/interface/thea.html" style="text-decoration:none">← THEA</a></div>
+    <a class="greek" id="home-link" href="thea.html" style="text-decoration:none">← THEA</a></div>
   <div class="clock"><div class="time" id="time">--:--<span class="sec">:--</span></div><div class="date" id="date">&nbsp;</div></div>
   <div class="pulse-meta">
     <div class="live" id="live"><span class="beat"></span><span id="live-word">ACQUIRING</span></div>
@@ -285,6 +292,24 @@
 const SRC = new URLSearchParams(location.search).get("src") || "../state/pulse/latest.json";
 const REFRESH_MS = 5 * 60 * 1000;
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* EVERYTHING HE WOULD CLICK GOES SOMEWHERE. His ruling (2026-09-23): the
+   wall is for show, but a repository, a fault or a thing waiting on him is
+   a link into the Thea page, which is where anything is DONE — the wall
+   has no capability that page lacks. RELATIVE, because this file is also
+   published on GitHub Pages under a project path where "/interface/..."
+   is a 404. On Pages there is no Core and no Thea page, so the links say
+   so instead of dead-ending. */
+const ON_PAGES = /\.github\.io$/i.test(location.hostname);
+const HOME = "thea.html";
+const link = (hash, inner, cls) => ON_PAGES
+  ? `<span class="${cls || ""}" title="open on the PC to act on this">${inner}</span>`
+  : `<a class="${cls || ""}" href="${HOME}#${hash}">${inner}</a>`;
+if (ON_PAGES) {
+  const home = document.getElementById("home-link");
+  home.removeAttribute("href");
+  home.title = "the Thea page lives on the PC";
+}
 
 /* status vocabulary: a word always rides with the color */
 const STATUS = {
@@ -328,7 +353,7 @@ function tickClock() {
 setInterval(tickClock, 1000); tickClock();
 
 /* ---------- panels ---------- */
-function panelHTML(r) {
+function panelHTML(id, r) {
   const st = STATUS[r.health] || STATUS.unknown;
   const vitals = (r.vitals || []).map(v => {
     const f = fmtVital(v);
@@ -341,8 +366,8 @@ function panelHTML(r) {
     return `<span class="wf ${w.conclusion ? (ok ? "ok" : "fail") : "na"}"><span class="dot"></span>${esc(short)}</span>`;
   }).join("");
   const c = r.commit;
-  return `<section class="panel">
-    <div class="head"><span class="name">${esc(r.github)}</span><span class="role">${esc(r.role)}</span></div>
+  return `<section class="panel" data-repo="${esc(id)}">
+    <div class="head">${link("repo=" + encodeURIComponent(id), `<span class="name">${esc(r.github)}</span>`, "name-link")}<span class="role">${esc(r.role)}</span></div>
     <div class="statusline ${st.cls}"><span class="dot"></span>${st.word}</div>
     ${r.error ? `<div class="errline">SIGNAL LOST · ${esc(r.error)}</div>` : ""}
     ${vitals ? `<div class="vitals">${vitals}</div>` : ""}
@@ -382,16 +407,18 @@ function orbitSVG(pulse) {
     if (bright) s += `<line class="flow" x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="var(--accent)" stroke-width="1.2" opacity="0.5"/>`;
   }
   /* nodes */
-  for (const [, rec, x, y] of place(actives, 150)) {
+  for (const [id, rec, x, y] of place(actives, 150)) {
     const col = COLOR[rec.health];
     const st = STATUS[rec.health] || STATUS.unknown;
-    s += `<g><circle cx="${x}" cy="${y}" r="14" fill="var(--bg)" stroke="${col}" stroke-width="1.5"/>
+    const open = ON_PAGES ? "<g>" : `<a href="${HOME}#repo=${encodeURIComponent(id)}" class="node-link">`;
+    const close = ON_PAGES ? "</g>" : "</a>";
+    s += `${open}<circle cx="${x}" cy="${y}" r="14" fill="var(--bg)" stroke="${col}" stroke-width="1.5"/>
       <circle cx="${x}" cy="${y}" r="6" fill="${col}"><animate attributeName="opacity" values="1;0.45;1" dur="2.6s" repeatCount="indefinite"/></circle>
       <circle cx="${x}" cy="${y}" r="20" fill="none" stroke="${col}" stroke-width="0.6" opacity="0.35"/>`;
     const above = y <= cy;
     const ty = above ? y - 32 : y + 40;
     s += `<text class="node-label" x="${x}" y="${ty}" text-anchor="middle">${esc(rec.github.toUpperCase())}</text>
-      <text class="node-sub" x="${x}" y="${ty + 11}" text-anchor="middle" fill="${col}">${st.word}</text></g>`;
+      <text class="node-sub" x="${x}" y="${ty + 11}" text-anchor="middle" fill="${col}">${st.word}</text>${close}`;
   }
   for (const [, rec, x, y] of place(stubs, 228)) {
     s += `<g opacity="0.55"><circle cx="${x}" cy="${y}" r="4.5" fill="var(--bg)" stroke="var(--warn)" stroke-width="1"/>
@@ -418,14 +445,15 @@ function orbitSVG(pulse) {
 /* ---------- ticker ---------- */
 function tickerHTML(pulse) {
   const items = [];
-  for (const r of Object.values(pulse.repos)) {
+  for (const [id, r] of Object.entries(pulse.repos)) {
     for (const c of r.commits || []) {
-      items.push({ repo: r.github, msg: c.message, date: c.date });
+      items.push({ id, repo: r.github, msg: c.message, date: c.date });
     }
   }
   items.sort((a, b) => new Date(b.date) - new Date(a.date));
   const html = items.slice(0, 24).map(i =>
-    `<span class="tick"><span class="repo">${esc(i.repo.toUpperCase())}</span> ${esc(i.msg)} <span class="ago">· ${ago(i.date)}</span></span>`
+    link("repo=" + encodeURIComponent(i.id),
+      `<span class="repo">${esc(i.repo.toUpperCase())}</span> ${esc(i.msg)} <span class="ago">· ${ago(i.date)}</span>`, "tick")
   ).join("");
   /* duplicated for a seamless loop */
   document.getElementById("ticker").innerHTML = html + html;
@@ -439,9 +467,11 @@ function render(pulse) {
   left.innerHTML = ""; right.innerHTML = "";
   /* hub panel rides last so the working repos lead */
   const ordered = [...actives.filter(([id]) => id !== "aletheia"), ...actives.filter(([id]) => id === "aletheia")];
-  ordered.forEach(([, r], i) => (i % 2 ? right : left).insertAdjacentHTML("beforeend", panelHTML(r)));
-  document.getElementById("stubs").innerHTML = stubs.map(r =>
-    `<span class="stub"><span class="dot"></span>${esc(r.github)} · dormant</span>`).join("");
+  ordered.forEach(([id, r], i) => (i % 2 ? right : left).insertAdjacentHTML("beforeend", panelHTML(id, r)));
+  document.getElementById("stubs").innerHTML = Object.entries(pulse.repos)
+    .filter(([, r]) => r.status === "stub")
+    .map(([id, r]) => link("repo=" + encodeURIComponent(id),
+      `<span class="dot"></span>${esc(r.github)} · dormant`, "stub")).join("");
   orbitSVG(pulse);
   tickerHTML(pulse);
 
@@ -451,7 +481,7 @@ function render(pulse) {
   bar.classList.toggle("show", alerts.length > 0);
   bar.innerHTML = alerts.map(a => {
     const why = a.failing ? a.failing.join(", ") : (a.error ? "unreachable" : (a.missing ? "missing state" : "fault"));
-    return `⚠ ${esc(a.github.toUpperCase())} — ${esc(why)}`;
+    return link("fault=" + encodeURIComponent(a.repo || ""), `⚠ ${esc(a.github.toUpperCase())} — ${esc(why)}`, "alert-link");
   }).join('<span class="sep">│</span>');
 
   /* ---- HER, not the fleet (§88) ----------------------------------------
@@ -487,41 +517,44 @@ function presenceHTML(now) {
   if (!now) { host.innerHTML = ""; host.classList.remove("show"); return; }
   host.classList.add("show");
   const waiting = now.waiting_on_you || [];
-  const chip = (label, cls) => `<span class="chip ${cls}">${esc(label)}</span>`;
+  /* Every chip is a link to the place on the Thea page where it is
+     answered: a decision to its own row, the rest to their section. */
+  const chip = (label, cls, hash) => link(hash || "needs", esc(label), `chip ${cls}`);
   const parts = [];
   parts.push(`<div class="headline ${waiting.length ? "needs" : ""}">${
-    esc(now.headline || "All quiet")}</div>`);
+    link("needs", esc(now.headline || "All quiet"), "headline-link")}</div>`);
   const rows = [];
   if (waiting.length) {
     rows.push(`<div class="prow"><b>waiting on you</b>${
-      waiting.map(a => chip(a.label, "needs")).join("")}</div>`);
+      waiting.map(a => chip(a.label, "needs",
+        a.id ? "need=" + encodeURIComponent(a.id) : "needs")).join("")}</div>`);
   }
   if (now.next_appointment) {
     rows.push(`<div class="prow"><b>next</b>${
-      chip(`${now.next_appointment.title} — ${now.next_appointment.when}`, "")}</div>`);
+      chip(`${now.next_appointment.title} — ${now.next_appointment.when}`, "", "work")}</div>`);
   }
   if ((now.meetings || []).length) {
     rows.push(`<div class="prow"><b>arranging</b>${
-      now.meetings.map(m => chip(`${m.person}: ${m.state.toLowerCase()}`, "")).join("")}</div>`);
+      now.meetings.map(m => chip(`${m.person}: ${m.state.toLowerCase()}`, "", "work")).join("")}</div>`);
   }
   if ((now.working || []).length) {
     rows.push(`<div class="prow"><b>working</b>${
-      now.working.map(w => chip(w.what, "")).join("")}</div>`);
+      now.working.map(w => chip(w.what, "", "work")).join("")}</div>`);
   }
   const notices = (now.notifications || []).filter(
     n => n.priority === "URGENT" || n.priority === "IMPORTANT");
   if (notices.length) {
     rows.push(`<div class="prow"><b>unread</b>${
       notices.map(n => chip(n.says || n.title,
-        n.priority === "URGENT" ? "needs" : "")).join("")}</div>`);
+        n.priority === "URGENT" ? "needs" : "", "needs")).join("")}</div>`);
   }
   /* At most three rows. The band is ordered most-urgent-first, so a busy
      day shows what needs him and stops — rather than growing until it
-     clips the stage below. The rest is in the Command Center. */
+     clips the stage below. The rest is on the Thea page, one tap away. */
   const shown = rows.slice(0, 3);
   if (rows.length > shown.length) {
-    shown.push(`<div class="prow"><b></b><span class="chip">` +
-               `+${rows.length - shown.length} more in the command center</span></div>`);
+    shown.push(`<div class="prow"><b></b>` +
+               link("needs", `+${rows.length - shown.length} more on the Thea page`, "chip") + `</div>`);
   }
   parts.push(shown.join(""));
   host.innerHTML = parts.join("");

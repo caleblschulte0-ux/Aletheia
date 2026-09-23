@@ -173,6 +173,46 @@ class OnePageCase(unittest.TestCase):
                 page.click(".fold > summary")
                 page.wait_for_timeout(300)
                 out[name]["opened"] = page.inner_text("#needs")
+                # THE FLEET IS HERE, folded (2026-09-23): the wall's every
+                # element links into this page, so this page must hold
+                # what the wall shows.
+                out[name]["fleet_folded"] = page.evaluate(
+                    "() => !document.getElementById('fleetFold').open")
+                # A tap that changes only what is SHOWN repaints in the
+                # same frame, with no request: "what exactly?" used to pay
+                # a four-request round trip.
+                out[name]["requests_on_open"] = page.evaluate("""() => {
+                    const before = performance.getEntriesByType('resource').length;
+                    const btn = document.querySelector('[data-open]');
+                    if (!btn) return -1;
+                    btn.click();
+                    return performance.getEntriesByType('resource').length - before; }""")
+                out[name]["peeked"] = page.evaluate(
+                    "() => !!document.querySelector('.peeked')")
+                # A decision leaves the screen the instant he taps it.
+                # The LAST row, an application: the first is the one
+                # decision unlike the others, which later tests read.
+                # Another row fills the slot, so the check is that THIS
+                # one is gone, not that the count fell.
+                out[name]["approve_gone_at_once"] = page.evaluate("""() => {
+                    const all = document.querySelectorAll('[data-approve]');
+                    const btn = all[all.length - 1];
+                    if (!btn) return null;
+                    const id = btn.dataset.approve;
+                    btn.click();
+                    return !document.querySelector('[data-approve="' + CSS.escape(id) + '"]'); }""")
+                page.wait_for_timeout(600)
+                # A link from the wall lands on one repository's card, open.
+                page.goto(cls.url + "interface/thea.html#repo=aletheia")
+                page.wait_for_function(
+                    "() => document.querySelector('[data-repo=\"aletheia\"]')", timeout=20000)
+                page.wait_for_timeout(300)
+                out[name]["linked"] = page.evaluate("""() => {
+                    const card = document.querySelector('[data-repo="aletheia"]');
+                    return { fold_open: document.getElementById('fleetFold').open,
+                             card_open: !!card && card.open,
+                             text: document.getElementById('fleet').innerText,
+                             url: location.href }; }""")
                 page.close()
             browser.close()
         return out
@@ -366,6 +406,39 @@ class OnePageCase(unittest.TestCase):
             for who, seen in self.seen.items():
                 with self.subTest(name=name, at=who):
                     self.assertNotIn(name, seen["body"].lower())
+
+    # ---- the wall lands here, and a tap answers at once (2026-09-23) -----
+    def test_the_fleet_is_on_the_page_and_folded(self):
+        """His ruling: the wall may have no capability this page lacks, so
+        the repositories the wall shows are here — folded, because they
+        are the weather and not the day, and the phone budget is real."""
+        for name, seen in self.seen.items():
+            with self.subTest(name):
+                self.assertTrue(seen["fleet_folded"])
+                self.assertIn("The fleet", seen["body"])
+
+    def test_a_link_from_the_wall_opens_that_repository(self):
+        for name, seen in self.seen.items():
+            with self.subTest(name):
+                linked = seen["linked"]
+                self.assertTrue(linked["fold_open"], linked)
+                self.assertTrue(linked["card_open"], linked)
+                self.assertIn("Aletheia", linked["text"])
+                # No developer words on the card either: the sha and the
+                # branch stay one tap down, inside "Latest change".
+                for word in ("{", "}", "/api/", "claude/"):
+                    self.assertNotIn(word, linked["text"])
+
+    def test_what_exactly_repaints_without_a_request(self):
+        for name, seen in self.seen.items():
+            with self.subTest(name):
+                self.assertEqual(seen["requests_on_open"], 0)
+                self.assertTrue(seen["peeked"])
+
+    def test_a_decision_leaves_the_screen_the_instant_he_taps(self):
+        for name, seen in self.seen.items():
+            with self.subTest(name):
+                self.assertTrue(seen["approve_gone_at_once"])
 
     def test_this_file_puts_the_stores_back(self):
         """A test about isolation that leaks its own redirection would
