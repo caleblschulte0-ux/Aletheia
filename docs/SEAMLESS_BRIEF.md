@@ -66,6 +66,45 @@ adding architecture. The architecture build is finished
 
 ## Where it stands (kept honest, newest first)
 
+- **2026-09-23, overnight (his brief: "work nonstop through the night...
+  hardening, more like Jarvis, handle more when the frontier models are out,
+  UX, design like a designer").** What landed, each measured on his PC:
+  - *The no-frontier floor was broken two silent ways.* The local-run ring
+    (`state/private/local-ai/recent.json`) showed every pursuit pass answering
+    in 145-511 s until 01:44Z and every one failing at ~15 s after: with the
+    frontier "available" but answering nothing, the gateway handed her own
+    model the leftover of a frontier-shaped budget (#158, `last_rung_s`:
+    background always gets the background ceiling). And the pool's failover
+    was fast->deep, so the 27b that never fits was tried and the 4b never
+    was (#157, down the rungs). 97 "nobody could think" events in one night.
+  - *Jobs without his tap.* His words: "this can apply to jobs without my
+    permission... that's the whole point." The 09-12 grant had expired 09-19
+    in silence and the beat's claim id was one the store refuses (#148);
+    `standing jobs on` at his keyboard, a year, his words on the grant; a
+    missing grant is said once with the command. Live since 03:15Z.
+  - *The wall is links, the Thea page is the place, a tap answers now* (#147);
+    *one click on every sentence that names a problem* (#149: `restart`,
+    banner/health/notice/mission-card actions, answer box on a form's
+    question); *one box never two* (#159); *design pass 1 and 2* from
+    screenshots (#151, #156).
+  - *Form reading:* a website's menu is never a question (#150); a page that
+    was never a form is CLOSED not FAILED, and the brief carries the job
+    hunt (#154).
+  - *Sentences swept with every frontier off:* morning shapes (#152),
+    three verbs (#153), status/focus/outcomes (#155), small facts and a
+    refusal in words (#156), what her model was doing (#160), four more
+    doors - order more, do-not-disturb, a lost object, the calendar (#162),
+    good morning as the night then the day (#165).
+  - *Also found from his records:* a known resume asked a model to read it
+    every batch (#161); a filled application whose yes had expired was
+    claimed on the grant every beat and never sent (#164); a fixture that
+    cannot be today skips rather than squeezing into a young day (#163).
+  - *Not done, said plainly:* Lever `/apply` pages fill nothing and stop on
+    "resume upload did not finish" (unprobed); `update_now`, `apply_retry`,
+    `apply_questions`, `frontier_on` still need a kind; the poll interval and
+    the Core's per-poll recompute; a multi-day unattended stretch has not
+    been observed since these landed.
+
 - **2026-09-23 — the wall is links, the Thea page is the place.** His
   words: *"if I click on shorts pipeline, something should pop up... [the
   wall] shouldn't have any capability that the command center doesn't...
