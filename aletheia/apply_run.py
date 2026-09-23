@@ -1359,6 +1359,41 @@ def retry(run_id: str, *, via: str = "operator") -> dict:
                    actor=via)
     return load_run(run_id)
 
+def renew_approval(run_id: str) -> str:
+    """A fresh approval for a filled application whose yes went cold.
+
+    An approval is a yes to an irreversible thing and expires in a day
+    (`policy.APPROVED_TTL_HOURS`); a filled form does not. On his PC
+    2026-09-23 seven filled applications sat with EXPIRED approvals while
+    the beat spent a grant use on each of them every beat and failed to
+    confirm - eleven claims, nothing sent. The same page, the same steps,
+    the same consequence: a new approval object bound to the same digest,
+    numbered so the record's history keeps every one.
+    """
+    from aletheia import browse
+    record = load_run(run_id)
+    if record.get("state") in PRESSED_STATES:
+        raise ApplyError(f"{run_id} already went to the employer")
+    steps = list(record.get("steps") or [])
+    url = str(record.get("url") or "")
+    n = int(record.get("approval_renewals") or 0) + 1
+    approval_id = f"{run_id}-submit-r{n}"
+    policy.request(
+        approval_id, browse.approval_action(url, steps),
+        reason=str(record.get("note") or f"Submit an application at {url}"),
+        consequence=("It sends your application to this employer under your "
+                     "name. There is no undo."),
+        reversible=False,
+        capability=None if waits_for_his_ok(record) else "application.submit")
+    record["approval"] = approval_id
+    record["approval_renewals"] = n
+    record.setdefault("history", []).append(
+        {"at": stateio.utcnow(), "what": f"approval renewed as {approval_id}: the earlier yes expired"})
+    stateio.write_json_atomic(_record_path(run_id), record)
+    journal.append("action", "apply", f"{run_id}: approval renewed ({describe(record)}) - the earlier one expired",
+                   actor=ACTOR)
+    return approval_id
+
 
 def confirm(run_id: str, *, via: str = "operator", because: str = "") -> dict:
     """He said yes here, at a keyboard. Grants the approval, sends nothing."""
