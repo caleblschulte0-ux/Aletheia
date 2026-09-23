@@ -388,7 +388,15 @@ def _draft_sha(d: dict) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def draft(to: str, subject: str, body: str, requested_via: str = "voice") -> dict:
+def draft(to: str, subject: str, body: str, requested_via: str = "voice", *, held: bool = False) -> dict:
+    """A draft, and the approval that sends it - or, `held`, a draft alone.
+
+    His words, 2026-09-23: "she should be allowed to draft emails ...
+    Sending them yet? Not yet, because I don't know what she's drafting."
+    A held draft asks for nothing: no approval, no row under "needs you",
+    nothing `send_approved` will ever pick up. It waits in the store for him
+    to read ("what have you drafted") and, one day, to say send.
+    """
     addr, name = resolve_address(to)
     if addr is None:
         # A QUESTION, not a command with three placeholders in it. She can
@@ -409,6 +417,12 @@ def draft(to: str, subject: str, body: str, requested_via: str = "voice") -> dic
         "via": requested_via,
     }
     MAIL_DIR.mkdir(parents=True, exist_ok=True)
+    if held:
+        d["held"] = True
+        (MAIL_DIR / f"{d['id']}.json").write_text(json.dumps(d, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        journal.append("action", "mail:draft",
+                       f"drafted {subject!r} to {name} - held, not sent until he says", actor=ACTOR)
+        return d
     (MAIL_DIR / f"{d['id']}.json").write_text(json.dumps(d, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     policy.request(d["id"], f"email.send:{_draft_sha(d)}",
                    reason=f"send email {subject!r} to {name}",
@@ -434,6 +448,8 @@ def send_approved(transport: MailTransport | None = None) -> list[dict]:
         if path.with_suffix(".sent.json").exists() or path.with_suffix(".refused.json").exists():
             continue
         d = json.loads(path.read_text(encoding="utf-8"))
+        if d.get("held"):
+            continue                      # his to send, one day; never this loop's
         try:
             ap = policy.load(d["id"])
         except Exception:
@@ -460,6 +476,36 @@ def send_approved(transport: MailTransport | None = None) -> list[dict]:
         journal.append("action", "mail:send", f"{result['outcome']} — {result['detail']}", actor=ACTOR)
         results.append(result)
     return results
+
+
+def held_drafts() -> list[dict]:
+    """The drafts waiting on nothing but his word, newest first."""
+    if not MAIL_DIR.is_dir():
+        return []
+    out = []
+    for path in MAIL_DIR.glob("mail-*.json"):
+        if path.name.endswith((".sent.json", ".refused.json")):
+            continue
+        try:
+            d = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(d, dict) and d.get("held") and not path.with_suffix(".sent.json").exists():
+            out.append(d)
+    return sorted(out, key=lambda d: str(d.get("created") or ""), reverse=True)
+
+
+def held_drafts_words() -> str:
+    from aletheia import speech
+    rows = held_drafts()
+    if not rows:
+        return "No drafts waiting. When I draft something for you it's held here until you say send."
+    said = [f"{d.get('subject', '')!r} to {d.get('to_name') or d.get('to')} ({speech.humanize_time(d.get('created', ''))})"
+            for d in rows[:4]]
+    out = f"{speech.count_phrase(len(rows), 'draft')} held, not sent: " + "; ".join(said)
+    if len(rows) > 4:
+        out += f"; and {len(rows) - 4} more"
+    return out + "."
 
 
 def check_unread(limit: int = CHECK_LIMIT, transport: MailTransport | None = None) -> str:

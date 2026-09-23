@@ -381,6 +381,7 @@ def _job_reply(event: dict) -> dict | None:
                 _heard_back(entry.get("id"), subject, "noted")
                 return {"application": entry.get("id"), "outcome": "noted"}
         _heard_back(entry.get("id"), subject, "wants_time")
+        _consider_interview(event, entry, subject)
         notifications.publish(
             f"{entry.get('company') or 'An employer'} wants to talk",
             f"{subject} — about {entry.get('job_title') or 'your application'}, "
@@ -423,6 +424,23 @@ def _his_own_mail(event: dict) -> bool:
     except Exception:
         return False
     return bool(mine) and sender == mine
+
+
+def _consider_interview(event: dict, entry: dict, subject: str) -> None:
+    """When his interview switch is on: pick the time, draft the reply, hold
+    it (`interviews`). Off, nothing; and never breaks the beat."""
+    try:
+        from aletheia import interviews
+        if not interviews.status()["on"]:
+            return
+        text = ""
+        try:
+            text = str(mail.read_body(subject).get("text") or "")
+        except Exception:
+            text = ""
+        interviews.consider(event, entry, subject=subject, text=text)
+    except Exception:
+        pass
 
 
 def _heard_back(application_id: str, subject: str, outcome: str) -> None:
