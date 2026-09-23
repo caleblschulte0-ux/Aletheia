@@ -166,6 +166,19 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
     def remaining() -> float:
         return max(0.0, total_budget - (time.monotonic() - started))
 
+    def last_rung_s() -> float:
+        """How long her own model gets as the LAST thinker. Attended: what is
+        left of the budget. Background: the background ceiling, whatever the
+        frontier spent first - nobody is waiting, and the frontier's failed
+        attempt is not a reason to fail the only rung that could answer.
+        Measured on his PC 2026-09-23: with the frontier "available" but
+        answering nothing, every background local run died at ~15 s, the
+        leftover of a frontier-shaped budget; before 01:44 the same runs
+        answered in 145-511 s."""
+        if attention == work_states.BACKGROUND:
+            return local_ceiling_s(attention)
+        return min(local_ceiling_s(attention), max(0.5, remaining()))
+
     # Configured is not running. With Ollama configured but stopped, the
     # subscription was capped to a 45 s slice "to leave room" for a model
     # that would never answer, and a long plan for a rant-shaped ask died at
@@ -178,6 +191,7 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
         if local_enabled:
             try:
                 slice_s = (max(0.5, remaining()) if alone
+                           else last_rung_s() if attention == work_states.BACKGROUND
                            else min(_local_slice(local_timeout_s), max(0.5, remaining())))
                 local = local_model_pool.auto_json(
                     system_prompt, text, context=ctx, validator=checked,
@@ -258,7 +272,7 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
                 preferred_role=("deep" if local_model_pool.room_for_role("deep").get("fits")
                                 else (reasoner.local_role_that_fits()[0] or "fast")),
                 allow_failover=True,
-                timeout_s=min(local_ceiling_s(attention), max(0.5, remaining())),
+                timeout_s=last_rung_s(),
                 attention=attention,
             )
             return GatewayResult(
