@@ -195,8 +195,12 @@ class OnePageCase(unittest.TestCase):
                 # Another row fills the slot, so the check is that THIS
                 # one is gone, not that the count fell.
                 out[name]["approve_gone_at_once"] = page.evaluate("""() => {
-                    const all = document.querySelectorAll('[data-approve]');
-                    const btn = all[all.length - 1];
+                    // An APPLICATION row, by its own words: "the last button" picked
+                    // the landlord row when timestamps tied, and the desk pass then
+                    // could not find it (2026-09-23).
+                    const rows = [...document.querySelectorAll('.row-ask')]
+                      .filter(r => (r.querySelector('.what') || {}).textContent.trim().startsWith('Apply'));
+                    const btn = rows.length ? rows[rows.length - 1].querySelector('[data-approve]') : null;
                     if (!btn) return null;
                     const id = btn.dataset.approve;
                     btn.click();
