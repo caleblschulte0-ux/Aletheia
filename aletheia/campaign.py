@@ -1926,6 +1926,15 @@ def _notify(title: str, body: str, key: str,
         pass
 
 
+def worth_a_notice(out: dict) -> bool:
+    """A batch that filled nothing, asks nothing and found no site wanting an
+    account has nothing for him: live 2026-09-23 "Job applications need you -
+    2 I could not reach a form on. Nothing has been sent." reached his
+    desktop every seventeen minutes through the night. The journal and the
+    page's "what she's done" still carry the batch; only the interruption goes."""
+    return bool(out.get("ready") or out.get("blocked") or out.get("needs_account") or out.get("questions"))
+
+
 def _summary(out: dict) -> tuple[str, str]:
     body = spoken(out)
     required = [q["label"] for q in (out.get("questions") or []) if q.get("required")]
@@ -2033,7 +2042,7 @@ def _main(args, stamp: str) -> int:
             finally:
                 if args.notify:
                     _release(owner=os.getpid())
-            if args.notify:
+            if args.notify and worth_a_notice(out):
                 title, body = _summary(out)
                 _notify(title, body, f"campaign:{stamp}")
             print(spoken(out))
