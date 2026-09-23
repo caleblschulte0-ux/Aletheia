@@ -969,6 +969,12 @@ def _interpret(transcript: str) -> dict:
                     r"|restart (?:her|it)( please)?|(?:please )?restart", low):
         return {"command": {"kind": "restart", "reason": f"by voice: {transcript!r}"},
                 "say": None}
+    # "UPDATE YOURSELF" is one beat of her sync loop, now, and what happened.
+    if re.fullmatch(r"(?:update|upgrade) (?:yourself|your code|thea|aletheia)(?: now)?"
+                    r"|(?:check for|pull|get|grab|fetch) (?:the )?(?:latest|newest|new) (?:code|version|update|updates)"
+                    r"|(?:try (?:the|to) update|update now|check for updates|pull the update)(?: now)?", low):
+        return {"command": {"kind": "update_now", "reason": f"by voice: {transcript!r}"}, "say": None}
+
     # CLOSING HER IS NOT HALTING HER, and until 2026-09-07 voice could
     # reach `halt` and had no way at all to reach this one. So "turn
     # yourself off" went to the planner, which is forbidden from emitting
@@ -3045,6 +3051,8 @@ def spoken_reply(kind: str, outcome: str, detail: str) -> str:
         return "Resumed."
     if kind == "restart":
         return "Restarting. I'll be back in about a minute."
+    if kind == "update_now":
+        return detail[0].upper() + detail[1:] + "." if detail else "I tried the update."
     if kind == "browse_read":
         # detail is "read <url> — <title> :: <excerpt>" — speak title + excerpt
         return detail.split("read ", 1)[-1].replace(" :: ", ". ", 1)

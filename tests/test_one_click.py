@@ -101,8 +101,8 @@ class TheHealthLineCarriesItsClickCase(unittest.TestCase):
             self.assertEqual(running.action(self._state(running_old_code=True))["kind"], "restart")
             self.assertEqual(running.action(self._state())["kind"], "mic_on")
             self.assertEqual(running.action(self._state(listening=True)), {})
-            # A stuck update is the one a restart would not fix: no button.
-            self.assertEqual(running.action(self._state(update_stuck={"for_s": 4000, "waiting": 3})), {})
+            # A stuck update is the one a restart would not fix: its button tries the pull now.
+            self.assertEqual(running.action(self._state(update_stuck={"for_s": 4000, "waiting": 3}))["kind"], "update_now")
         nothing_up = [{"part": p["part"], "up": False} for p in self._state()["parts"]]
         for state in (self._state(closed=True, parts=nothing_up), self._state(halted=True), self._state()):
             with self.subTest(state=state):

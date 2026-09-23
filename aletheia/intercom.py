@@ -103,6 +103,9 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # heartbeat is old. Exits the way a code update does and the
     # supervisor brings her back; unsupervised, she hands off to one.
     "restart":       (set(), {"reason"}),
+    # 2026-09-23: "Try the update now" on the health line that says she is
+    # behind. One beat of her own sync loop, and what happened in words.
+    "update_now":    (set(), {"reason"}),
     "resume":        (set(), set()),
     # The WINDOW BUTTON, which is not the kill switch. `halt` keeps her
     # running and refusing to act; this stops the Core, the room
@@ -491,6 +494,10 @@ KIND_NOTES: dict[str, str] = {
         'background and tells him when the applications are ready. Prefer '
         'this over apply_prepare, which only writes a packet and does not '
         'touch the form.'),
+    "update_now": (
+        'Try to update her code now - his tap on "Try the update now" when the '
+        'health line says she has been behind for a while. One beat of the sync '
+        'loop; says whether it took. Only his own words or his own tap say it.'),
     "restart": (
         'Restart the Core - his tap on "Restart her" when the page says her '
         'heartbeat is old or newer code is on disk. Back in about a minute. '
@@ -918,6 +925,7 @@ def _steps_of(cmd: dict):
 PLANNER_FORBIDDEN = frozenset({
     "halt", "resume",      # a kill switch a compiler can trip is decoration
     "restart",             # and so is a restart button
+    "update_now",          # and a pull of her own code is his tap, not a plan step
     "apply_pause",         # "stop applying" is his word, never a compiler's guess
     "approve", "deny",     # self-authorization, from an ambiguous word
     # Same rule, same reason. "Close the browser tab", "open my resume"
@@ -2011,6 +2019,12 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "resume":
         policy.resume(via=ACTOR)
         return "resumed"
+    if kind == "update_now":
+        from aletheia import core as _core
+        ok, said = _core.request_update_now(cmd.get("reason") or "asked through the intercom")
+        if not ok and said.startswith("nothing is running"):
+            raise act.Refused(said)
+        return said
     if kind == "restart":
         from aletheia import core as _core
         if not _core.request_restart(cmd.get("reason") or "asked through the intercom"):
