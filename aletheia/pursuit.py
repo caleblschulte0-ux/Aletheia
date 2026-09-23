@@ -473,7 +473,12 @@ def validate(proposal: dict, record: dict, *, quoting: bool = False) -> tuple[di
             kind = "suggest"
         move = {"kind": kind, "why": why, "cites": cites, "detail": {}}
         if kind == "look":
-            url = _clean(detail.get("url"), 500)
+            # ONE address. Live 2026-09-23 a model wrote "https://www.linkedin.com/
+            # company/alphasense/ or https://www.alphasense.com/careers" in the
+            # url field; the browser walked the whole string and landed on
+            # LinkedIn's sign-in form.
+            found = re.search(r"https?://[^\s'\"<>]+", str(detail.get("url") or ""))
+            url = _clean(found.group(0) if found else "", 500)
             query = _clean(detail.get("query"), 200)
             if not (url.startswith("http") or query):
                 dropped.append({"kind": kind, "why": "it names nothing to read or search"})
@@ -651,11 +656,44 @@ def _spend(record: dict, seconds: float, now: dt.datetime) -> None:
     effort["spent_s"] = float(effort.get("spent_s") or 0.0) + float(seconds)
 
 
+_SIGN_IN_PATH = re.compile(r"/(?:login|log-in|signin|sign-in|uas/login|auth(?:orize)?|sso)(?:[/?#]|$)", re.I)
+_SIGN_IN_WORDS = re.compile(r"\b(?:sign in|log in|login|sign-in)\b", re.I)
+_PASSWORD = re.compile(r"\bpassword\b", re.I)
+
+
+def sign_in_wall(url: str, page: dict) -> str:
+    """Words for a page that is a sign-in form, or "" when it is a page.
+
+    LinkedIn's company page, read without an account, IS its login form:
+    live 2026-09-23 "Sign in ... Email or phone ... Password ... Join now"
+    was kept as evidence about AlphaSense and shown to the next pass as what
+    the employer's page says. A wall is a boundary, not a fact about them.
+    """
+    final = str(page.get("url") or url or "")
+    title = str(page.get("title") or "")
+    text = str(page.get("text") or "")
+    head = text[:1500]
+    walled = (bool(_SIGN_IN_PATH.search(final.split("?", 1)[0]))
+              or (bool(_SIGN_IN_WORDS.search(title)) and bool(_PASSWORD.search(head)))
+              or (len(text) < 1500 and bool(_PASSWORD.search(head)) and bool(_SIGN_IN_WORDS.search(head))))
+    if not walled:
+        return ""
+    from urllib.parse import urlsplit
+    host = urlsplit(final or url).hostname or "that site"
+    return f"{host} wants a sign-in before it shows anything; nothing there can be read without an account"
+
+
 def _do_look(record: dict, move: dict, now: dt.datetime) -> dict:
     detail = move["detail"]
     if detail.get("url"):
         from aletheia import browse
         page = browse.read_page(detail["url"])
+        wall = sign_in_wall(detail["url"], page)
+        if wall:
+            # TRUSTED: the boundary is hers to state; the form's words are not kept.
+            eid = add_evidence(record, "boundary", wall, source=detail["url"], provenance=TRUSTED, now=now)
+            return {"state": "done", "evidence": eid,
+                    "effect": f"{wall} - kept as a boundary ({eid}), not as what the page says"}
         text = f"{page.get('title', '')}\n{page.get('text', '')}".strip()
         source = detail["url"]
     else:
