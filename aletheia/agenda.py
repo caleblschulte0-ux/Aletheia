@@ -72,7 +72,7 @@ FORBIDDEN_KINDS = {
     # self-authorization: the hole that would undo every other refusal here
     "approve", "deny",
     # a kill switch the agent can lift is decoration
-    "halt", "resume",
+    "halt", "resume", "restart",
     # "stop applying" is his word, never an agenda's guess
     "apply_pause",
     # ...and neither is an off switch it can press. `close` stops the Core,
@@ -114,6 +114,7 @@ REFUSAL_REASON = {
     "deny": "an agenda that can decide approvals can decide its own",
     "halt": "she does not get to touch her own off switch",
     "resume": "she does not get to touch her own off switch",
+    "restart": "she does not get to restart herself mid-mission",
     "intent": "an agenda filing intents that file intents is a loop",
     "rule": "a standing rule outlives this mission's budget",
     "dispatch": "that runs a workflow in another repository",

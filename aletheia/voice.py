@@ -962,6 +962,13 @@ def _interpret(transcript: str) -> dict:
                     r"(lift|cancel|clear) the halt|"
                     r"turn yourself back on)", low):
         return {"command": {"kind": "resume"}, "say": None}
+    # RESTARTING HER is the third switch. "Restart yourself" reached the
+    # planner, which is forbidden from emitting it, so it compiled
+    # something else. Whole sentences only, and never "restart the music".
+    if re.fullmatch(r"(?:restart|reboot|relaunch|reload) (?:yourself|aletheia|thea|the core|yourself please)"
+                    r"|restart (?:her|it)( please)?|(?:please )?restart", low):
+        return {"command": {"kind": "restart", "reason": f"by voice: {transcript!r}"},
+                "say": None}
     # CLOSING HER IS NOT HALTING HER, and until 2026-09-07 voice could
     # reach `halt` and had no way at all to reach this one. So "turn
     # yourself off" went to the planner, which is forbidden from emitting
@@ -2993,6 +3000,8 @@ def spoken_reply(kind: str, outcome: str, detail: str) -> str:
         return "Halted. Nothing acts until you say resume."
     if kind == "resume":
         return "Resumed."
+    if kind == "restart":
+        return "Restarting. I'll be back in about a minute."
     if kind == "browse_read":
         # detail is "read <url> — <title> :: <excerpt>" — speak title + excerpt
         return detail.split("read ", 1)[-1].replace(" :: ", ". ", 1)

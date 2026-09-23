@@ -405,6 +405,35 @@ A real tap in that test found the next lie: "What she's done" said
 ("Approved: <what it was>") and `recollection` lets the subject speak for
 itself, because every journal line is read back to him somewhere.
 
+## A sentence that names a problem carries its one click
+
+His words, 2026-09-23: *"the core's heartbeat is 19 minutes old... and
+then that's all it tells you. There should be like a link afterwards to
+like restart stuff... Everything should be one click. Pretend you're an
+old lady using it. Or a busy guy who doesn't have time to be doing all
+this stupid shit."* So:
+
+- **The Core says what to do, the page puts a button on it.** The mission
+  header's `banner` carries an `action` (`{"label", "kind"}`) and the page
+  renders it as a button that sends that command through `/api/command`
+  like every other tap. A stale heartbeat carries `restart`. The words and
+  the choice of action stay in the collector (§88); the page never decides
+  what a problem needs.
+- **`restart` is the third switch** beside `halt` and `resume`: his tap or
+  his own sentence, never a plan step (`PLANNER_FORBIDDEN`,
+  `agenda.FORBIDDEN_KINDS`). It goes through the same door a code update
+  uses (`core.request_restart` -> the supervisor relaunches her; unsupervised,
+  she hands off to one), and when nothing is running that could restart it
+  says so rather than pretending.
+- **A question a form asked is answered on its row.** The needs row carries
+  the `question` verbatim and the page shows a box and a Send button that
+  go through `apply_answer` - the room's own verb - instead of "answer it
+  and I'll finish the form" with nowhere to.
+
+The test for this class is a walk, not a unit: read every sentence the
+page can show and ask "what do I do next?" - if the answer is a command
+or a trip to the PC, it is a defect in this section's terms.
+
 ## Storage & branch discipline
 
 Small JSON/markdown only, nothing over 256KB, no media, no secrets in

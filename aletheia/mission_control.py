@@ -551,15 +551,21 @@ def header(agent: dict, *, now: dt.datetime, core: dict, missions: Iterable[dict
                  else "the Core has never recorded a heartbeat"),
     }] + [dict(s) for s in signals if isinstance(s, dict)]
     banner = ""
+    # A sentence that names a problem carries what to DO about it (his
+    # words, 2026-09-23: "there should be like a link afterwards to like
+    # restart stuff... Everything should be one click"). The page renders
+    # the action as a button that sends this command; the words stay here.
+    action: dict = {}
     if not core_ok:
         banner = ("The Core's heartbeat is " + (f"{duration_words(age)} old" if age is not None else "missing")
                   + ": this screen may be out of date and nothing may be running.")
+        action = {"label": "Restart her", "kind": "restart"}
     else:
         banner = next((str(s["banner"]) for s in all_signals if s.get("banner")), "")
     today = today or {}
     done, problems = int(today.get("done") or 0), int(today.get("problems") or 0)
     return {"state": state, "doing": doing, "next": nxt, "since": agent.get("since"),
-            "mission": mission, "stale": not core_ok, "banner": banner,
+            "mission": mission, "stale": not core_ok, "banner": banner, "action": action,
             # Who is thinking, and how that is going (current_state.brains_words).
             "brains": _words(brains, 240),
             "signals": [{k: v for k, v in s.items() if k != "banner"} for s in all_signals],

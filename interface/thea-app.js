@@ -136,9 +136,20 @@
   // banner shows only while the health line has nothing to say.
   let healthSaid = false;
   let bannerText = "";
+  let bannerAction = null;
+  // A sentence that names a problem carries its one click (his words,
+  // 2026-09-23: "there should be like a link afterwards to like restart
+  // stuff"). The label and the command come from the Core; the page only
+  // puts a button on them.
   function paintBanner() {
     const show = bannerText && !healthSaid;
-    $("banner").textContent = show ? bannerText : "";
+    setHTML("banner", show
+      ? "<span>" + T.esc(bannerText) + "</span>" +
+        (bannerAction && bannerAction.kind
+          ? ' <button class="act" data-act="' + T.esc(bannerAction.kind) + '">' +
+            T.esc(bannerAction.label || "Fix it") + "</button>"
+          : "")
+      : "");
     $("banner").hidden = !show;
   }
 
@@ -150,6 +161,7 @@
     $("today").textContent = (h.today && h.today.said) || "";
     $("brains").textContent = h.brains || "";
     bannerText = h.banner || "";
+    bannerAction = h.action || null;
     paintBanner();
     return word;
   }
@@ -177,14 +189,26 @@
    * There is deliberately no bulk control. Every one of these is bound to
    * its own hash and stays its own yes; what changed is how much of the
    * screen it takes to say no to it. */
+  /* A QUESTION IS ANSWERED ON ITS ROW. "Ramp asks: what is your percentage
+   * attainment to goal?" used to end with "answer it and I'll finish the
+   * form" and no way to - he had to go and type it somewhere. The answer
+   * goes through the same `apply_answer` the room takes. */
+  function answerBox(n) {
+    return '<form class="answer" data-answer="' + T.esc(n.id) + '" data-question="' +
+      T.esc(n.question) + '"><input name="answer" placeholder="Your answer" autocomplete="off" required>' +
+      '<button class="yes" type="submit">Send</button></form>';
+  }
+
   function decisionRow(n, lead) {
     const which = n.which || (lead ? "" : n.what);
     const decidable = n.kind === "approval";
+    const askable = n.kind === "application" && n.question;
     return '<div class="row-ask">' +
       '<div class="what clamp" data-unclamp>' + T.esc(which || n.what) + "</div>" +
       '<div class="meta">' + T.esc(T.clock(n.since)) +
         ' · <button class="link" data-open="' + T.esc(n.id) + '">what exactly?</button></div>' +
       (decidable ? decisionButtons(n.id) : "") +
+      (askable ? answerBox(n) : "") +
       (opened.has(n.id)
         ? '<div class="peeked">' + facts([
             ["It will", n.what],
@@ -802,6 +826,45 @@
     } catch (err) {
       e.target.disabled = false;
       if (id) { decided.delete(id); repaint(); }
+      toast("That didn't go through.");
+    }
+  });
+
+  // The banner's one click, and the answer box's one click.
+  document.addEventListener("click", async (e) => {
+    const act = e.target.closest("[data-act]");
+    if (!act) return;
+    act.disabled = true;
+    const kind = act.dataset.act;
+    try {
+      await T.command({ kind, reason: "his tap on the Thea page" });
+      if (kind === "restart") {
+        toast("Restarting — back in about a minute");
+        paintWhere("trouble", { head: "Restarting…", tail: "back in about a minute" });
+        setTimeout(refresh, 8000);
+      } else {
+        toast("Done");
+        refresh();
+      }
+    } catch { act.disabled = false; toast("That didn't go through."); }
+  });
+  document.addEventListener("submit", async (e) => {
+    const form = e.target.closest("[data-answer]");
+    if (!form) return;
+    e.preventDefault();
+    const answer = (form.answer.value || "").trim();
+    if (!answer) return;
+    const id = form.dataset.answer;
+    form.querySelector("button").disabled = true;
+    decided.add(id);
+    repaint();
+    try {
+      await T.command({ kind: "apply_answer", question: form.dataset.question, answer });
+      toast("Answered — she'll finish the form");
+      refresh();
+    } catch {
+      decided.delete(id);
+      repaint();
       toast("That didn't go through.");
     }
   });
