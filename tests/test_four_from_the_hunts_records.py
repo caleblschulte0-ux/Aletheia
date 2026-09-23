@@ -48,10 +48,12 @@ class ToAnswerCase(unittest.TestCase):
 
 class FoundCase(unittest.TestCase):
     def test_openings_found_today(self):
-        with mock.patch("aletheia.current_state.job_hunt", return_value={"today": {"discovered": 17, "qualified": 12, "sent": 3}}):
+        # The staged count is what she FILLED IN, said as such; what the hunt
+        # SAW comes from its own note (test_the_live_answers_2026_09_23).
+        with mock.patch("aletheia.journal.entries", return_value=[]),              mock.patch("aletheia.current_state.job_hunt", return_value={"today": {"discovered": 17, "qualified": 12, "sent": 3}}):
             self.assertEqual(quick.answer("how many jobs have you found today"),
-                             "17 openings found today, 12 worth applying to, 3 sent.")
-        with mock.patch("aletheia.current_state.job_hunt", return_value={"today": {}}):
+                             "17 openings filled in today, 3 sent.")
+        with mock.patch("aletheia.journal.entries", return_value=[]),              mock.patch("aletheia.current_state.job_hunt", return_value={"today": {}}):
             self.assertIn("No openings found today", quick.answer("how many jobs have you found"))
 
 
