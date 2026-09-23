@@ -209,12 +209,16 @@ class TheBriefDoesNotCrashOnAnUnpulsedMachineCase(unittest.TestCase):
     """"give me the brief" -> "I couldn't: 'generated_at'." A bare KeyError,
     read out loud, from a pulse that had never been collected."""
 
-    def test_no_pulse_says_so_and_names_the_command(self):
+    def test_no_pulse_says_so_and_names_no_command(self):
+        """It used to name `python -m aletheia.pulse`; a command read out
+        loud in a room is not an answer (2026-09-23). The reading comes on
+        its own, and the sentence says that."""
         with mock.patch("aletheia.pulse.PULSE_DIR", __import__("pathlib").Path("/nowhere")):
             said = intercom.execute_command({"kind": "brief"}, {"repos": {}},
                                             quote="q")
-        self.assertIn("haven't collected a pulse", said)
-        self.assertIn("aletheia.pulse", said)
+        self.assertIn("no brief to give you", said)
+        self.assertNotIn("python", said)
+        self.assertNotIn("aletheia.pulse", said)
 
     def test_previous_pulse_tolerates_a_pulse_with_no_timestamp(self):
         from aletheia import brief
