@@ -54,5 +54,15 @@ class TheRoomsTranscriptsAreNotNotes(unittest.TestCase):
             self.assertEqual(quick.answer("what notes do you have"), "1 note: my landlord is Mr Okafor.")
 
 
+class AnythingFromThemSaysWhenAndWhetherTheyWroteBack(unittest.TestCase):
+    def test_sent_when_and_no_reply_yet(self):
+        rec = {"id": "apply-1", "state": "SUBMITTED", "company": "Vanta", "job_title": "CSM",
+               "submitted_at": (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=2)).isoformat().replace("+00:00", "Z")}
+        with mock.patch("aletheia.pursuit.search", return_value=[]),              mock.patch("aletheia.apply_run.find", return_value=[rec]),              mock.patch("aletheia.apply_run.describe", return_value="CSM — Vanta"),              mock.patch("aletheia.mission_jobs.stage_of", return_value="sent"):
+            said = quick.answer("anything from Vanta")
+        self.assertTrue(said.startswith("CSM — Vanta: sent "), said)
+        self.assertTrue(said.endswith("; no reply yet."), said)
+
+
 if __name__ == "__main__":
     unittest.main()

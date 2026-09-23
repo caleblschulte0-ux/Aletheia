@@ -2190,6 +2190,12 @@ def _opportunity(rest: str) -> str | None:
         record = sorted(records, key=lambda r: r.get("submitted_at") or r.get("staged_at") or "",
                         reverse=True)[0]
         stage = mission_jobs.stage_of(record).replace("_", " ").casefold()
+        if record.get("state") == "SUBMITTED" and record.get("submitted_at"):
+            # "anything from Vanta" -> "...: sent." said nothing about WHEN,
+            # or whether anyone has written back (live 2026-09-23).
+            heard = record.get("outcome") or record.get("heard_back") or record.get("reply")
+            return (f"{apply_run.describe(record)}: sent {speech.humanize_time(str(record['submitted_at']))}"
+                    + (f"; {heard}" if isinstance(heard, str) and heard else "; no reply yet") + ".")
         return f"{apply_run.describe(record)}: {stage}." + (
             f" {record['say']}" if record.get("say") else "")
     return f"I don't have an application to {words}."
