@@ -668,11 +668,16 @@ class TheWiderLaneCase(unittest.TestCase):
 
     def test_no_pulse_at_all_is_not_reported_as_green(self):
         """A missing file means she does not know, and "everything is
-        fine" is the worst available guess."""
+        fine" is the worst available guess. Handing it to a model was the
+        second worst (2026-09-23: "No vehicle is being tracked yet"), so she
+        says there is no reading - and never that it is green."""
         def boom(self, **kw):
             raise OSError("no pulse yet")
         with mock.patch("pathlib.Path.read_text", boom):
-            self.assertIsNone(quick.answer("any alerts"))
+            said = quick.answer("any alerts")
+        self.assertIn("No fleet reading", said)
+        self.assertNotIn("green", said.casefold())
+        self.assertNotIn("nothing red", said.casefold())
 
     def test_the_shopping_list_is_the_intercom_sentence(self):
         """Written once. `quick` and the `shopping_list` command must not
