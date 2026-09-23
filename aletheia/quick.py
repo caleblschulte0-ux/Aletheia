@@ -319,11 +319,31 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # The third question. It has a `recollection` pattern for the model's
     # context and no fast answer, so "what went wrong today" paid a round
     # trip to read out alerts that are a file read away.
+    # FOUR MORE FROM THE JOB HUNT'S OWN RECORDS (2026-09-23 night sweep):
+    # "why didn't the Datadog one go", "anything I need to answer", "how
+    # many jobs have you found" and "show me the fleet" each waited two
+    # minutes on her own model for a store she holds.
+    ("why_not", re.compile(
+        r"^why (?:didn'?t|did not|hasn'?t|has not|wasn'?t|was not|isn'?t|is not) (?:the )?(?P<why_not>[a-z0-9][a-z0-9 .&'-]{1,40}?(?: one| application| app)?)"
+        r" (?:go|sent|send|go out|go through|get sent|work|submitted|submit|apply)(?: yet| through| out)?$"
+        r"|^why did (?:the )?(?P<why_not2>[a-z0-9][a-z0-9 .&'-]{1,40}?(?: one| application| app)?) (?:fail|not go|get stuck|stop)$"
+        r"|^what happened (?:with|to) (?:the )?(?P<why_not3>[a-z0-9][a-z0-9 .&'-]{1,40}?(?: one| application| app))$")),
+    ("to_answer", re.compile(
+        r"^(?:is there )?anything (?:i|that i) (?:need|have) to answer(?: for you)?$"
+        r"|^what (?:questions|do you need answered|do (?:you|u) need me to answer|needs answering)(?: do (?:you|u) have)?(?: for me)?$"
+        r"|^(?:any|what) questions(?: for me)?$|^what are (?:you|u) (?:stuck on|waiting on me for)$")),
+    ("found", re.compile(
+        r"^how many (?:jobs|openings|postings|roles|positions) (?:have (?:you|u)|did (?:you|u)|have we) (?:found|find|come across|turned up|discovered)"
+        r"(?: today| so far| tonight)?$|^what (?:jobs|openings) (?:have (?:you|u)|did (?:you|u)) (?:found|find)(?: today)?$")),
+    ("fleet", re.compile(
+        r"^(?:show me |what(?:'s| is) |how(?:'s| is) )?(?:the )?fleet(?: doing| status| looking| look)?$"
+        r"|^how are (?:my|the) (?:other )?(?:projects|repos|repositories)(?: doing)?$"
+        r"|^(?:what(?:'s| is) the )?fleet status$|^any faults(?: in the fleet)?$")),
     ("wrong", re.compile(
-        r"^what went wrong(?: today| so far today)?$"
+        r"^what went wrong(?: today| tonight| so far today| overnight)?$"
         r"|^what(?:'s| is|s)? (?:broken|failing|stuck)(?: today)?$"
-        r"|^(?:did|has) anything (?:fail|failed|go wrong|gone wrong|break|broken)(?: today)?$"
-        r"|^what failed(?: today)?$|^any (?:errors|failures|problems)(?: today)?$")),
+        r"|^(?:did|has) anything (?:fail|failed|go wrong|gone wrong|break|broken)(?: today| tonight| overnight| last night)?$"
+        r"|^what failed(?: today| tonight)?$|^any (?:errors|failures|problems)(?: today| tonight)?$")),
     # "What's the last thing you did" paid a model to read the newest
     # line of a journal she holds (2026-09-22).
     ("last", re.compile(
@@ -469,8 +489,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("alerts", re.compile(
         r"^(?:are there |is there )?any(?:thing)? (?:alerts|broken|wrong|failing)$"
         r"|^any alerts$|^is anything broken$|^anything broken$"
-        r"|^how(?:'s| is) the fleet$|^is everything (?:ok|green|fine)$"
-        r"|^fleet status$")),
+        r"|^is everything (?:ok|green|fine)$")),
     ("repos", re.compile(
         r"^how many repos (?:are )?(?:you|u) (?:watching|watch|track|tracking)$"
         r"|^how many repos do (?:you|u) watch$"
@@ -672,9 +691,10 @@ def match(question: str) -> tuple[str, str] | None:
                                            "weather2", "weather3",
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5",
-                                           "until", "until2", "day8", "day9")
+                                           "until", "until2", "day8", "day9",
+                                           "why_not", "why_not2", "why_not3")
                      if captured.get(k)), "")
-        if name in ("opportunity", "opportunity_loose", "applied_when", "person"):
+        if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
             # name he said is read back to him: "nowhere inc" is not what
             # he said. His capitals, put back from the sentence itself.
@@ -816,6 +836,108 @@ def _until(words: str) -> str | None:
     if days == 1:
         return f"Tomorrow, {said}."
     return f"{days} days, {said}."
+
+
+_STATE_WORDS = {"SUBMITTED": "it went", "SUBMITTING": "it is going out now",
+                "AWAITING_YOU": "it is filled and waiting to go out on the next beat",
+                "NEEDS_YOU": "it stopped on a question only you can answer",
+                "NEEDS_ACCOUNT": "the site wants an account before it will take an application",
+                "REJECTED": "the site refused the form", "FAILED": "it would not send",
+                "CLOSED": "I set it aside"}
+
+
+def _why_not(words: str) -> str | None:
+    """Why one application did or did not go, from its own record."""
+    from aletheia import apply_run, speech
+    named_one = bool(re.search(r" (?:one|application|app)$", words))
+    words = re.sub(r" (?:one|application|app)$", "", words).strip()
+    try:
+        matches = apply_run.find(words)
+    except Exception:
+        return None
+    if not matches:
+        # "the Datadog ONE" names an application outright; no record for it
+        # is a fact on disk. "why didn't the meeting go" names nothing of
+        # hers, so it is left for a model.
+        if named_one:
+            return f"I have no application matching {words!r} - nothing was ever staged for it through me."
+        return None
+    if len(matches) > 1:
+        return "More than one matches - " + speech.or_list([apply_run.describe(m) for m in matches[:4]]) + "?"
+    r = matches[0]
+    state = str(r.get("state") or "")
+    said = f"{apply_run.describe(r)}: {_STATE_WORDS.get(state, state.lower() or 'no record of its state')}"
+    if state == "SUBMITTED" and r.get("submitted_at"):
+        said += f" {speech.humanize_time(str(r['submitted_at']))}"
+    reason = str(r.get("failure") or r.get("closed_because") or "")
+    if state in ("FAILED", "REJECTED", "NEEDS_ACCOUNT", "CLOSED") and reason:
+        said += " - " + speech.plainly(reason)[:200].rstrip(".")
+    if state == "NEEDS_YOU":
+        asks = [str(q.get("label") if isinstance(q, dict) else q) for q in (r.get("not_filled") or [])][:3]
+        if asks:
+            said += ": " + speech.and_list(asks)
+        elif r.get("why"):
+            # a record stopped by the page itself (an hCaptcha check) says so
+            said += " - " + speech.plainly(str(r["why"]))[:200].rstrip(".")
+    return said + "."
+
+
+def _to_answer() -> str:
+    """The questions forms have asked that only he can answer."""
+    from aletheia import needs_you, speech
+    try:
+        rows = [n for n in needs_you.items() if n.get("kind") == "application"]
+    except Exception:
+        return "I can't read my application records right now."
+    if not rows:
+        return "Nothing to answer - no application is waiting on a question of yours."
+    said = speech.and_list([str(n.get("what") or "") for n in rows[:3]])
+    more = f", and {len(rows) - 3} more" if len(rows) > 3 else ""
+    return f"{speech.count_phrase(len(rows), 'question')} waiting on you: {said}{more}."
+
+
+def _found() -> str:
+    """Openings found today, from the hunt's own reading."""
+    from aletheia import current_state, speech
+    try:
+        hunt = current_state.job_hunt() or {}
+    except Exception:
+        return "I can't read my application records right now."
+    today = hunt.get("today") or {}
+    found = int(today.get("discovered") or 0)
+    if not found:
+        return "No openings found today yet."
+    fit = int(today.get("qualified") or 0)
+    sent = int(today.get("sent") or 0)
+    return (f"{speech.count_phrase(found, 'opening')} found today, {fit} worth applying to"
+            + (f", {sent} sent" if sent else "") + ".")
+
+
+def _fleet() -> str:
+    """The fleet in one breath, from the pulse the wall and the page read.
+    `_alerts` answers "is anything broken"; this answers "how is the fleet"."""
+    import json
+    from aletheia import pulse, speech
+    try:
+        fleet = json.loads((pulse.PULSE_DIR / "latest.json").read_text(encoding="utf-8"))
+    except Exception:
+        # Not "all green" - and not a model's guess either (asked with every
+        # frontier off, one said "No vehicle is being tracked yet").
+        return "No fleet reading yet - the pulse hasn't been written on this machine."
+    repos = fleet.get("repos") or {}
+    if not repos:
+        return "No fleet reading yet."
+    active = [r for r in repos.values() if r.get("status") == "active"]
+    dormant = [r for r in repos.values() if r.get("status") != "active"]
+    faults = []
+    for a in fleet.get("alerts") or []:
+        name = (repos.get(a.get("repo")) or {}).get("github") or a.get("github") or a.get("repo")
+        why = (", ".join(f.replace(".yml", "") for f in a.get("failing") or []) + " failing") if a.get("failing") \
+            else ("missing " + ", ".join(a["missing"])) if a.get("missing")             else ("can't be read" if a.get("error") else "a fault")
+        faults.append(f"{name} ({why})")
+    said = f"{speech.count_phrase(len(active), 'project')} active" + (f", {len(dormant)} dormant" if dormant else "")
+    said += (f"; {speech.count_phrase(len(faults), 'fault')}: " + speech.and_list(faults)) if faults else "; no faults"
+    return said + "."
 
 
 def _status() -> str:
@@ -2265,6 +2387,10 @@ def _good_morning() -> str:
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "good_morning": lambda rest: _good_morning(),
            "status": lambda rest: _status(),
+           "why_not": _why_not,
+           "to_answer": lambda rest: _to_answer(),
+           "found": lambda rest: _found(),
+           "fleet": lambda rest: _fleet(),
            "focus": lambda rest: _focus(),
            "outcomes": _outcomes,
            "until": _until,
