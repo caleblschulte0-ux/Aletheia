@@ -424,13 +424,14 @@ class OnePageCase(unittest.TestCase):
                 for wf in (repo.get("workflows") or {}).values():
                     self.assertIn("url", wf)
 
-    def test_the_fleet_is_on_the_page_and_folded(self):
+    def test_the_fleet_is_on_the_page_folded_on_a_phone_open_on_a_desk(self):
         """His ruling: the wall may have no capability this page lacks, so
-        the repositories the wall shows are here — folded, because they
-        are the weather and not the day, and the phone budget is real."""
+        the repositories the wall shows are here. Folded on a phone, because
+        the phone budget is real; open on a desk, where the right lane had
+        room to spare (design pass 3, 2026-09-23)."""
         for name, seen in self.seen.items():
             with self.subTest(name):
-                self.assertTrue(seen["fleet_folded"])
+                self.assertEqual(seen["fleet_folded"], name == "phone")
                 self.assertIn("The fleet", seen["body"])
 
     def test_a_link_from_the_wall_opens_that_repository(self):
