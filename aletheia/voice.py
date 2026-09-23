@@ -2643,6 +2643,13 @@ def _interpret(transcript: str) -> dict:
                  r"note that|note|write down that|write down|log)\s+(.+)", low)
     if m:
         return {"command": {"kind": "note", "text": m.group(1).strip()}, "say": None}
+    # "Remember that my landlord is Mr Okafor" is the same note. With every
+    # frontier off (2026-09-23) it was compiled by a rule into a plan that
+    # waited for his approve - to write one line in her own store. "Remember
+    # to call mom" is a reminder and stays with the reminder shapes above.
+    m = re.match(r"remember(?: that|:)?\s+(?!to\b|me\b)(.+)", low)
+    if m and not re.match(r"(?:the |my )?(?:last|previous|earlier)\b", m.group(1)):
+        return {"command": {"kind": "note", "text": m.group(1).strip()}, "say": None}
 
     # Unrecognized by the patterns above — which is not the same as
     # unrecognizable. Until 2026-08-27 this branch journaled the sentence

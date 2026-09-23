@@ -722,12 +722,40 @@ def _address_of(to: str) -> tuple[str, str]:
         return "", to
 
 
+def _his_own(address: str) -> bool:
+    """Is this address his? A note the model addressed to HIM is not mail to
+    send in his name: live 2026-09-23 it drafted "GitLab CompAE Application -
+    Verify Accessibility Question Status" to his own inbox and asked his yes
+    to send it. A note to him is a suggestion he hears."""
+    if not address:
+        return False
+    try:
+        from aletheia import profile
+        mine = {str(profile.known().get("email") or "").casefold()}
+    except Exception:
+        mine = set()
+    try:
+        from aletheia import mail
+        mine.add(str(getattr(mail, "account_address", lambda: "")() or "").casefold())
+    except Exception:
+        pass
+    return str(address).casefold() in (mine - {""})
+
+
 def _do_note(record: dict, move: dict, now: dt.datetime) -> dict:
     detail = move["detail"]
     address, name = _address_of(detail["to"])
     grounded = ", ".join(detail.get("grounded_on", []))
     from aletheia import mail
     ok, why = mail.available()
+    if _his_own(address):
+        from aletheia import notifications
+        notifications.publish(
+            f"A note for you about {record['subject'].get('name', 'this')}",
+            f"{detail['text']}\n\n— {move['why']}",
+            priority="NORMAL", source="pursuit", dedupe_key=f"pursuit-note:{record['id']}:{move['id']}",
+            related={"opportunity": record["id"]})
+        return {"state": "handed to him", "effect": "the note was for him, so he has it - nothing to send"}
     if address and ok:
         subject = detail.get("subject") or f"About {record['subject'].get('name', 'this')}"
         draft = mail.draft(address, subject, detail["text"], requested_via="pursuit")
