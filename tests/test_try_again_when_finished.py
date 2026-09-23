@@ -78,5 +78,16 @@ class NamedIsNotFinished(unittest.TestCase):
         page.close()
 
 
+class ARecordRefusedForAMomentIsReadAgain(unittest.TestCase):
+    def test_tenexs_record_is_read_again_and_a_real_refusal_is_not(self):
+        from aletheia import campaign
+        moment = {"id": "apply-t", "state": "REJECTED", "url": "https://x/t",
+                  "failure": "the site refused it: The site handed it back rather than accepting it - it says "
+                             "\"We're updating your application (e.g. uploading files), please try again when they're finished.\""}
+        self.assertTrue(campaign.refused_submit(moment))
+        self.assertFalse(campaign.refused_submit({**moment, "failure": "the site refused it: it says 'Phone must be 10 digits'"}))
+        self.assertFalse(campaign.refused_submit({**moment, "stagings": 3}))
+
+
 if __name__ == "__main__":
     unittest.main()

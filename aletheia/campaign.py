@@ -1626,9 +1626,13 @@ def refused_submit(record: dict) -> bool:
     never read, Submit refused, and the record sat FAILED while the reader
     was fixed that night. A refused form is a form to read again with what
     she knows now, exactly as a NEEDS_YOU one is - not a form to replay."""
-    if record.get("state") != "FAILED":
-        return False
-    if "would not take a click" not in str(record.get("failure") or ""):
+    state, failure = record.get("state"), str(record.get("failure") or "")
+    if state == "REJECTED":
+        # The site asked for a moment, not a correction ("please try again
+        # when they're finished" - Tenex, 2026-09-23): read it again and send.
+        if not apply_run.asks_to_try_again([failure]):
+            return False
+    elif state != "FAILED" or "would not take a click" not in failure:
         return False
     evidence = record.get("click_evidence") if isinstance(record.get("click_evidence"), dict) else {}
     # A challenge SHOWN in front of the button is not a reading problem. An
