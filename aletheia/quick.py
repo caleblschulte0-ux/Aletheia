@@ -254,6 +254,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:what|which) (?:companies|employers|places|jobs) have i applied (?:to|for)(?: so far| this week| today)?$"
         r"|^where have i applied(?: so far| this week| today)?$"
         r"|^(?:who|what) have (?:you|u) applied (?:to|for)(?: for me)?(?: so far| this week| today)?$"
+        r"|^(?:what|who|where) did (?:you|u|we) apply(?: (?:to|for))?(?: for me)?(?: today| this week| tonight| so far)?$"
         r"|^(?:list|show me|name) (?:the |my )?(?:companies|employers|places) (?:i|you|u|we)(?:'ve| have)? applied to$")),
     ("applied_when", re.compile(
         r"^when did (?:i|you|u|we) apply (?:to|for|at) (?:the |my )?(?P<what>[a-z0-9][a-z0-9 .&'-]{1,40}?)"
@@ -380,9 +381,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how (?:did|was) (?:the night|last night|overnight)(?: go)?$")),
     # "When did you last update" was answered by her own model from the
     # journal ("no record of that") - git and `running.version` know.
+    ("up_to_date", re.compile(
+        r"^(?:are|is) (?:you|u|your code) (?:up to date|current|on the (?:latest|newest)(?: code)?)(?: right now| now)?$"
+        r"|^(?:are|is) (?:you|u) (?:behind|running old code|out of date)$")),
     ("updated", re.compile(
         r"^when (?:did|were) (?:you|u) last (?:update|updated|upgrade|upgraded)(?: yourself)?$"
-        r"|^(?:are|is) (?:you|u|your code) (?:up to date|current|on the (?:latest|newest)(?: code)?)$"
         r"|^when was your last update$")),
     # HIS DAY'S TWO ENDS AND ITS DOOR (2026-09-23): "morning thea" waited
     # 91 s on her own model; "I'm leaving for work" and "going to bed" were
@@ -408,6 +411,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What did you send today" waited two minutes on her own model; the
     # applications she sent today are records, and she sends nothing else
     # without his yes on each.
+    # "how many did you send this week" went to a planner nobody could run
+    # (2026-09-23 night sweep); the records carry the dates.
+    ("sent_count", re.compile(
+        r"^how many (?:applications |apps |jobs )?(?:did|have) (?:you|u|we) (?:send|sent|submit|submitted|apply to|applied to|put in)(?: out)?"
+        r"(?: (?P<sent_window>today|tonight|this week|so far this week|this month|yesterday|last week|so far|in total|altogether|overall|ever))?\s*\??$")),
     ("sent_today", re.compile(
         r"^what (?:did|have) (?:you|u) (?:send|sent)(?: out)?(?: today| so far today)?$"
         r"|^what (?:applications|apps|emails|messages) (?:did|have) (?:you|u) (?:send|sent)(?: out)?(?: today)?$"
@@ -501,6 +509,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("alerts", re.compile(
         r"^(?:are there |is there )?any(?:thing)? (?:alerts|broken|wrong|failing)$"
         r"|^any alerts$|^is anything broken$|^anything broken$"
+        r"|^what(?:'s| is|s)? (?:broken|failing|wrong|red|down) (?:in|with|on|across) (?:the |my )?fleet$"
         r"|^is everything (?:ok|green|fine)$")),
     ("repos", re.compile(
         r"^how many repos (?:are )?(?:you|u) (?:watching|watch|track|tracking)$"
@@ -704,7 +713,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5",
                                            "until", "until2", "day8", "day9",
-                                           "why_not", "why_not2", "why_not3")
+                                           "why_not", "why_not2", "why_not3", "sent_window")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
@@ -1681,7 +1690,9 @@ def _alerts() -> str | None:
         latest = json.loads((pulse.PULSE_DIR / "latest.json")
                             .read_text(encoding="utf-8"))
     except Exception:
-        return None                 # no pulse written yet is not "all green"
+        # Not "all green" - and not a model's guess either: with the pulse
+        # unwritten this went to a model, which had nothing to read (2026-09-23).
+        return "No fleet reading yet - the pulse hasn't been written on this machine, so I can't say what's red."
     alerts = [a for a in (latest.get("alerts") or []) if isinstance(a, dict)]
     if not alerts:
         return "Nothing red. The fleet is green."
@@ -2023,6 +2034,53 @@ def _opportunity(rest: str) -> str | None:
     return f"I don't have an application to {words}."
 
 
+_WINDOW_DAYS = {"today": 0, "tonight": 0, "so far": 0, "yesterday": 1, "this week": 7, "so far this week": 7,
+                "last week": 14, "this month": 30}
+
+
+def _sent_count(window: str) -> str | None:
+    """How many applications went out in a window, counted from the records."""
+    import datetime as dt
+    from aletheia import apply_run, speech
+    window = " ".join(str(window or "today").split()).casefold()
+    try:
+        rows = apply_run.all_runs("SUBMITTED")
+    except Exception:
+        return "I can't read my application records right now, so I can't say."
+    now = dt.datetime.now(dt.timezone.utc)
+    days = _WINDOW_DAYS.get(window)
+    if days is None:                           # in total / altogether / ever
+        count, span = len(rows), "in all"
+    elif days == 0:
+        today = now.astimezone().date()
+        count = sum(1 for r in rows if _local_day(r.get("submitted_at")) == today)
+        span = "today"
+    else:
+        since = now - dt.timedelta(days=days)
+        count = sum(1 for r in rows if _stamp_of(r.get("submitted_at")) and _stamp_of(r.get("submitted_at")) >= since)
+        span = window if window != "so far this week" else "this week"
+        if window == "yesterday":
+            yesterday = (now.astimezone() - dt.timedelta(days=1)).date()
+            count = sum(1 for r in rows if _local_day(r.get("submitted_at")) == yesterday)
+    if not count:
+        return f"None {span} - no applications went out{' ' + span if span != 'in all' else ' at all'}."
+    return f"{speech.count_phrase(count, 'application')} sent {span}."
+
+
+def _stamp_of(value) -> "dt.datetime | None":
+    import datetime as dt
+    try:
+        when = dt.datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return when if when.tzinfo else when.replace(tzinfo=dt.timezone.utc)
+
+
+def _local_day(value):
+    when = _stamp_of(value)
+    return when.astimezone().date() if when else None
+
+
 def _sent_today() -> str | None:
     """What went out today: the applications, by name, from the records."""
     try:
@@ -2179,7 +2237,7 @@ def _overnight() -> str:
     return "Overnight: " + ". ".join(parts) + "."
 
 
-def _updated() -> str:
+def _updated(asked_yes_no: bool = False) -> str:
     """When her code last changed and whether it is the newest - from git and
     `running.version`, never a guess ("no record of that in the journal")."""
     from aletheia import proc, running, speech
@@ -2204,6 +2262,15 @@ def _updated() -> str:
         said += f". {speech.count_phrase(int(info['behind_count']), 'newer change')} waiting; I try to update every minute"
     elif info.get("running_old_code") is False:
         said += ", and that's the code I'm running"
+    # "Are you up to date" is a yes-or-no question, and "my code last changed
+    # at 3:17 am" answers a different one (2026-09-23 night sweep).
+    if asked_yes_no:
+        if info.get("running_old_code") or info.get("behind_count"):
+            said = "No. " + said
+        elif info.get("running_old_code") is False:
+            said = "Yes. " + said
+        else:
+            said = "I can't tell whether that's the newest. " + said
     return said + "."
 
 
@@ -2400,6 +2467,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "good_morning": lambda rest: _good_morning(),
            "status": lambda rest: _status(),
            "why_not": _why_not,
+           "sent_count": _sent_count,
+           "up_to_date": lambda rest: _updated(asked_yes_no=True),
            "to_answer": lambda rest: _to_answer(),
            "found": lambda rest: _found(),
            "fleet": lambda rest: _fleet(),

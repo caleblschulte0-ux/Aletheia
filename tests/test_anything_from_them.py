@@ -31,5 +31,47 @@ class AnythingFromThemCase(unittest.TestCase):
             self.assertIsNone(quick.answer("anything from the plumber"))
 
 
+class ThreeMoreFromTheSecondSweep(unittest.TestCase):
+    """"what did you apply to today", "how many did you send this week" and
+    "are you up to date" (answered with when the code last changed) - the
+    2026-09-23 night sweep, every frontier off."""
+
+    def test_what_did_you_apply_to_today_is_the_records(self):
+        self.assertEqual(quick.match("what did you apply to today")[0], "applied_to")
+        self.assertEqual(quick.match("where did we apply this week")[0], "applied_to")
+
+    def test_how_many_did_you_send_counts_the_records_in_the_window(self):
+        import datetime as dt
+        now = dt.datetime.now(dt.timezone.utc)
+        rows = [{"state": "SUBMITTED", "submitted_at": (now - dt.timedelta(hours=1)).isoformat()},
+                {"state": "SUBMITTED", "submitted_at": (now - dt.timedelta(days=3)).isoformat()},
+                {"state": "SUBMITTED", "submitted_at": (now - dt.timedelta(days=20)).isoformat()}]
+        with mock.patch("aletheia.apply_run.all_runs", return_value=rows):
+            self.assertEqual(quick.answer("how many did you send this week"), "2 applications sent this week.")
+            self.assertEqual(quick.answer("how many applications have you sent in total"), "3 applications sent in all.")
+            self.assertIn("sent today", quick.answer("how many did you send today"))
+        with mock.patch("aletheia.apply_run.all_runs", return_value=[]):
+            self.assertTrue(quick.answer("how many did you send this week").startswith("None this week"))
+
+    def test_are_you_up_to_date_is_answered_yes_or_no(self):
+        done = mock.Mock(returncode=0, stdout="2026-09-23T03:17:00+00:00\n")
+        with mock.patch("aletheia.proc.run", return_value=done), \
+             mock.patch("aletheia.running.version", return_value={"running_old_code": False, "behind_count": 0}):
+            self.assertTrue(quick.answer("are you up to date").startswith("Yes. "))
+        with mock.patch("aletheia.proc.run", return_value=done), \
+             mock.patch("aletheia.running.version", return_value={"running_old_code": False, "behind_count": 3}):
+            said = quick.answer("are you up to date")
+            self.assertTrue(said.startswith("No. "), said)
+            self.assertIn("3 newer changes", said)
+        with mock.patch("aletheia.proc.run", return_value=done), \
+             mock.patch("aletheia.running.version", return_value={"running_old_code": False, "behind_count": 0}):
+            self.assertFalse(quick.answer("when did you last update").startswith("Yes"),
+                             "a when-question is not answered yes or no")
+
+    def test_whats_broken_in_the_fleet_is_the_alerts_shape(self):
+        self.assertEqual(quick.match("what's broken in the fleet")[0], "alerts")
+        self.assertEqual(quick.match("what is failing across the fleet")[0], "alerts")
+
+
 if __name__ == "__main__":
     unittest.main()
