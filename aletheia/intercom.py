@@ -2762,8 +2762,10 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         if not current.get("repos"):
             # An unpulsed machine. It used to reach `compose` and raise a
             # bare KeyError, which he heard as "I couldn't: 'generated_at'".
-            return ("I haven't collected a pulse yet, so there is no brief to "
-                    "give you. `python -m aletheia.pulse` builds one.")
+            # No command out loud: the reading comes on its own, every few
+            # hours, from the fleet's own workflow.
+            return ("I haven't got a fleet reading yet, so there is no brief to "
+                    "give you. One comes on its own within a few hours.")
         return brief.compose(current, brief.previous_pulse(current),
                              _j.since(24), 0)
     if kind == "handle":

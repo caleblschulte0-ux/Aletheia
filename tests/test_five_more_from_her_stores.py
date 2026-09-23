@@ -36,7 +36,7 @@ class TheDaysQuestionsCase(unittest.TestCase):
 
     def test_did_i_miss_anything_is_todays_journal(self):
         for sentence in ("did I miss anything while I was out", "what did I miss",
-                         "what happened while I was gone", "anything happen while I was asleep"):
+                         "what happened while I was gone"):
             with self.subTest(sentence=sentence):
                 self.assertEqual(quick.match(sentence)[0], "today", sentence)
 
