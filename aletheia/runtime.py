@@ -769,6 +769,14 @@ def _say_the_grant_is_missing() -> None:
         dedupe_key="apply-grant-missing")
 
 
+def leave_walls() -> int:
+    """Walls the general browser cannot pass are left, and their records
+    closed, on every beat (2026-09-23: 72 "waiting for you" cards)."""
+    from aletheia import apply_run, browser_mission
+    left = browser_mission.leave_walls()
+    return apply_run.close_left_missions(left) if left else 0
+
+
 def send_approved_applications() -> list[dict]:
     """Send what he authorized, once each.
 
@@ -1148,6 +1156,7 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # APPROVED, and each is sent exactly once.
     stuck_submits = guarded("stuck_submits", _settle_stuck_submits)
     applications_sent = guarded("applications", send_approved_applications)
+    guarded("walls", leave_walls)
     web_tasks_pressed = guarded("web_tasks", press_approved_web_tasks)
     # A subscription is CANCELLED when the merchant says so, not when we
     # pressed a button — and believing otherwise costs him a charge a
