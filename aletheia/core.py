@@ -259,6 +259,32 @@ RESTART_EXIT_CODE = 42  # tells the supervisor: relaunch me, this is not a crash
 #: restart stuff"), and the only restart was a terminal on the PC.
 _RESTART_HOOK: dict = {"fn": None}
 
+#: Set by `start_sync_loop`: one beat of the sync loop, on demand. "I haven't
+#: managed to update myself for 40 minutes" on the page had no next step
+#: (2026-09-23): a restart picks up nothing while the pull is refused, and
+#: the loop tries again by itself every minute - but a tap that tries NOW
+#: and says what happened is what he asked for ("everything should be one
+#: click"). The loop and the tap share one lock, so two beats never race.
+_UPDATE_HOOK: dict = {"fn": None}
+_TICK_LOCK = threading.Lock()
+
+
+def request_update_now(why: str) -> tuple[bool, str]:
+    """Pull now. (ok, what happened in words). False when nothing is running
+    that could, or the pull is still refused - with the reason in words."""
+    fn = _UPDATE_HOOK.get("fn")
+    if fn is None:
+        return False, "nothing is running that could update - start her from the PC"
+    journal.append("event", "core:sync", f"update tried now - {why}", actor=ACTOR)
+    with _TICK_LOCK:
+        fn()
+    pull = SYNC_STATUS.get("pull") or {}
+    if pull.get("ok"):
+        return True, "up to date" if not SYNC_STATUS.get("restarting") else "updated - restarting to run it"
+    from aletheia import speech
+    detail = speech.tidy(speech.strip_ids(str(pull.get("detail") or "the pull was refused")))[:160]
+    return False, f"still stuck: {detail}"
+
 
 def request_restart(why: str) -> bool:
     """Restart this Core in a moment, the way a code update does. False when
@@ -1356,9 +1382,15 @@ def start_sync_loop(fleet: dict, interval_s: float = SYNC_INTERVAL_S,
                        "will wait until the Core runs inside a cloned repo", actor=ACTOR)
         return stop
 
+    def beat():
+        core_tick(syncer, fleet, on_code_update=on_code_update)
+
+    _UPDATE_HOOK["fn"] = beat
+
     def loop():
         while not stop.is_set():
-            core_tick(syncer, fleet, on_code_update=on_code_update)
+            with _TICK_LOCK:
+                beat()
             stop.wait(interval_s)
 
     threading.Thread(target=loop, name="core-sync", daemon=True).start()

@@ -596,7 +596,7 @@ def action(state: dict) -> dict:
         return {"label": "Let her start again", "kind": "resume"}
     if _every_expected_part_is_up(state):
         if state.get("update_stuck"):
-            return {}
+            return {"label": "Try the update now", "kind": "update_now"}
         if state.get("running_old_code"):
             return {"label": "Restart her", "kind": "restart"}
         if not state.get("listening", False):
