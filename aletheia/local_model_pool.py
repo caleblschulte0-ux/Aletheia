@@ -274,41 +274,35 @@ def auto_json(system_prompt: str, text: str, *, context: dict | None = None,
     first = preferred_role or choose_role(text, context)
     if first not in model_pool_config.ROLES:
         raise ValueError("preferred_role must be fast, deep or small")
-    # the other way round for fast/deep; the small rung's second is fast
-    second = {"fast": "deep", "deep": "fast", "small": "fast"}[first]
-    try:
-        return run_json(
-            system_prompt, text, context=context, role=first,
-            validator=validator, timeout_s=timeout_s,
-            require_enabled=require_enabled, attention=attention,
-        )
-    except LocalPoolYielded:
-        # He is talking. The second role would take the queue straight back.
-        raise
-    except LocalPoolUnavailable as first_failure:
-        if not allow_failover:
-            raise
+    # DOWN THE RUNGS, never only across. The chain used to be fast -> deep,
+    # and on his 16 GB laptop with 2 GB free (2026-09-23, 97 "nobody could
+    # think" events in one night) the 8b failed for memory and the 27b -
+    # which never fits - was the only other thing tried; the 4b that would
+    # have run was never asked. From deep: fast, then small; from fast:
+    # small; from small: fast (the one rung up, when memory came back).
+    chain = {"deep": ("fast", "small"), "fast": ("small",), "small": ("fast",)}[first]
+    failures: list[str] = []
+    for role in (first, *chain):
         try:
             return run_json(
-                system_prompt, text, context=context, role=second,
+                system_prompt, text, context=context, role=role,
                 validator=validator, timeout_s=timeout_s,
                 require_enabled=require_enabled, attention=attention,
             )
         except LocalPoolYielded:
-            # The same on the way back: a yield is "he is talking", and rolling
-            # it into "neither local model could run" tells the caller its work
-            # failed when the work is simply waiting its turn.
+            # He is talking. The next role would take the queue straight
+            # back; a yield is "waiting its turn", never a failure.
             raise
-        except LocalPoolUnavailable as second_failure:
-            # BOTH REASONS, not a shrug. "Both local reasoning roles are
-            # unavailable" told him nothing and the two halves usually
-            # fail for different reasons — one model too big for the
-            # machine, the other Ollama not running — with different
-            # fixes. Collapsing them is how an actionable failure becomes
-            # a sentence he can only reply "okay" to.
-            raise LocalPoolUnavailable(
-                f"neither local model could run. {first} — {first_failure}; "
-                f"{second} — {second_failure}") from None
+        except LocalPoolUnavailable as failure:
+            failures.append(f"{role} — {failure}")
+            if not allow_failover:
+                raise
+    # EVERY REASON, not a shrug. "Both local reasoning roles are unavailable"
+    # told him nothing and the halves usually fail for different reasons -
+    # one model too big for the machine, the other Ollama not running - with
+    # different fixes. Collapsing them is how an actionable failure becomes a
+    # sentence he can only reply "okay" to.
+    raise LocalPoolUnavailable("neither local model could run. " + "; ".join(failures)) from None
 
 
 # Reachability, cached: the answer changes when he starts or stops

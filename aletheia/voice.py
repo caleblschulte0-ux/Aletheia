@@ -2095,9 +2095,43 @@ def _interpret(transcript: str) -> dict:
 
     # email patterns run BEFORE the browse verbs: "check my email" must
     # never be parsed as "check <website>"
-    if re.fullmatch(r"(?:check (?:my )?e?mail|any (?:new )?e?mail|"
-                    r"do i have (?:any )?e?mail|what's in my inbox)", low):
+    # "Who emailed me today" and "what's the last email I got" were answered
+    # "I haven't checked your inbox yet - want me to?" (2026-09-23). A
+    # question about the inbox IS the ask to look; she looks.
+    if re.fullmatch(r"(?:check (?:my )?e?mail|any (?:new )?e?mails?|"
+                    r"do i have (?:any )?(?:new )?e?mails?|what's in my inbox|"
+                    r"who (?:e?mailed|has e?mailed|wrote to) me(?: today| this morning| overnight)?|"
+                    r"(?:did|has) (?:anyone|anybody|somebody) (?:e?mail|e?mailed|written to) me(?: today)?|"
+                    r"what(?:'s| is|s)? (?:the |my )?(?:last|latest|newest|most recent) e?mail(?: i got| i received)?|"
+                    r"anything (?:new )?in (?:my|the) inbox)", low):
         return {"command": {"kind": "email_check"}, "say": None}
+
+    # AN HOURLY REMINDER is a door she does not have (daily and weekly she
+    # does). "Remind me to drink water every hour" planned for a hundred
+    # seconds on her own model (2026-09-23); the honest answer is a sentence.
+    m = (re.fullmatch(r"remind me (?:to |that )?(?P<what>.+?) every (?:(?:\d+|few|couple of|half an?|other) )?"
+                      r"(?:hour|hours|minutes?|mins?|half hour)(?: or so)?", low)
+         or re.fullmatch(r"remind me every (?:(?:\d+|few|couple of|half an?|other) )?(?:hour|hours|minutes?|mins?|half hour)"
+                         r"(?: or so)? (?:to |that )(?P<what>.+)", low))
+    if m:
+        what = _as_he_said(transcript, m.group("what"))
+        return {"command": None,
+                "say": f"I can't repeat a reminder within the day yet - daily and weekly I can. "
+                       f"Say 'remind me every day at 9 to {what}' and I'll set that."}
+
+    # "DELETE THE LAST TASK" planned for a minute on her own model for want
+    # of a verb: the newest open task, cancelled, said back by name.
+    m = re.fullmatch(r"(?:delete|remove|drop|cancel|scrap|get rid of) (?:the |my )?(?:last|latest|newest|most recent) task", low)
+    if m:
+        from aletheia import contracts   # `tasks` is already this module's
+        rows = [t for t in tasks.all_tasks() if str(t.get("status")) not in contracts.TASK_TERMINAL]
+        rows.sort(key=lambda t: str(t.get("created_at") or ""), reverse=True)
+        if not rows:
+            return {"command": None, "say": "There's no open task to remove."}
+        newest = rows[0]
+        return {"command": {"kind": "task_status", "id": str(newest["id"]), "state": "CANCELLED",
+                            "note": "he asked to remove the last task"},
+                "say": None}
 
     # SHE CAN BE TOLD TO STOP LISTENING, and cannot be told to start.
     # Turning it on is a button (intercom `mic_on`, and PLANNER_FORBIDDEN
