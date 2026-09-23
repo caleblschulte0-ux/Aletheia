@@ -1617,6 +1617,29 @@ def _where_found(stage, found_on: str) -> dict:
     return {"found_on": found_on} if takes and found_on else {}
 
 
+def refused_submit(record: dict) -> bool:
+    """A FAILED record whose Submit would not take a click - and nothing in
+    evidence says a CAPTCHA challenge was in front of it - with fillings left
+    (`apply_run.MAX_STAGINGS_AFTER_FAILURE`; `stage` counts every rebuild).
+
+    Vanta, 2026-09-23: thirteen fields went in, the required Location box was
+    never read, Submit refused, and the record sat FAILED while the reader
+    was fixed that night. A refused form is a form to read again with what
+    she knows now, exactly as a NEEDS_YOU one is - not a form to replay."""
+    if record.get("state") != "FAILED":
+        return False
+    if "would not take a click" not in str(record.get("failure") or ""):
+        return False
+    evidence = record.get("click_evidence") if isinstance(record.get("click_evidence"), dict) else {}
+    # A challenge SHOWN in front of the button is not a reading problem. An
+    # invisible check merely loaded on the form is not that: 57 Greenhouse
+    # sends went through with one, and Vanta's "may be what held it" was a
+    # selector that matched nothing.
+    if evidence.get("captcha"):
+        return False
+    return int(record.get("stagings") or 0) < apply_run.MAX_STAGINGS_AFTER_FAILURE
+
+
 def retry_waiting(*, resume: str = "", stager=None, json_think=None, writer=None,
                   limit: int = 60, fit_think=None, describer=None) -> dict:
     """Every application waiting on him, read again with what she knows NOW.
@@ -1647,7 +1670,9 @@ def retry_waiting(*, resume: str = "", stager=None, json_think=None, writer=None
     describe = describer or (jobs.posting_text if judge_with is not False else None)
     known = profile.known()
     early = bool(_seniority_to_leave_out(known))
-    for record in list(apply_run.all_runs("NEEDS_YOU"))[:max(0, int(limit))]:
+    waiting = list(apply_run.all_runs("NEEDS_YOU"))
+    waiting += [r for r in apply_run.all_runs("FAILED") if refused_submit(r)]
+    for record in waiting[:max(0, int(limit))]:
         policy.ensure_not_halted()
         url = record.get("url") or ""
         if judge_with is not False and not job_fit.fit_is_current(record.get("fit")):

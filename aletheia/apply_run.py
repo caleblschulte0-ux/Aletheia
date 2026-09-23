@@ -454,7 +454,10 @@ REMEMBERED = ("job_title", "company", "posting", "found_on", "answered_for_you",
               "employment",
               # What the opening was WORTH and why (`job_value`), so "why this
               # one?" is answered from the record.
-              "value", "queue", "why_she_liked_it", "why_not")
+              "value", "queue", "why_she_liked_it", "why_not",
+              # How many times this form has been filled in (`stage` counts every
+              # rebuild), so a form that refused is not rebuilt every batch for ever.
+              "stagings")
 # What an employer did about an application he sent, in his words. "No
 # answer yet" is not one: that is the absence of an outcome, not an outcome.
 OUTCOMES = ("replied", "interview", "offer", "rejected", "closed")
@@ -547,12 +550,32 @@ def _submit_selector(buttons: list[dict]) -> str | None:
 
 BUTTONS_JS = r"""() => {
   const out = [];
+  // A selector that RESOLVES. Ashby's buttons carry no type attribute - a
+  // <button> is a submit by default, so el.type says "submit" while
+  // button[type="submit"] matches NOTHING - and live 2026-09-23 every Ashby
+  // send (Vanta, Spekit; thirteen fields filled) waited on a locator no
+  // element answered to and reported "the Submit button would not take a
+  // click". A structural path (tag:nth-of-type up to the nearest steady id,
+  // or body) names one element and survives a reload of the same form.
+  const path = (el) => {
+    const parts = [];
+    for (let node = el; node && node.nodeType === 1 && node !== document.body; node = node.parentElement) {
+      if (node.id && !/\d{6,}|[A-Za-z0-9]{16,}/.test(node.id)) { parts.unshift(`#${CSS.escape(node.id)}`); break; }
+      const tag = node.tagName.toLowerCase();
+      const same = [...node.parentElement.children].filter(c => c.tagName === node.tagName);
+      parts.unshift(same.length > 1 ? `${tag}:nth-of-type(${same.indexOf(node) + 1})` : tag);
+    }
+    const css = parts.join(' > ');
+    return document.querySelectorAll(css).length === 1 ? css : null;
+  };
   const sel = (el) => el.id ? `#${CSS.escape(el.id)}`
     : (el.name ? `${el.tagName.toLowerCase()}[name="${CSS.escape(el.name)}"]` : null);
   for (const el of document.querySelectorAll(
       'button, input[type=submit], [role=button]')) {
-    const selector = sel(el) || (el.type === 'submit'
-      ? `${el.tagName.toLowerCase()}[type="submit"]` : null);
+    const tag = el.tagName.toLowerCase();
+    const typed = el.getAttribute('type') === 'submit'
+      && document.querySelectorAll(`${tag}[type="submit"]`).length === 1;
+    const selector = sel(el) || (typed ? `${tag}[type="submit"]` : path(el));
     if (!selector) continue;
     out.push({selector, text: (el.innerText || el.value || '').trim().slice(0, 80)});
   }
@@ -618,8 +641,13 @@ def _unpicked(fill: list[dict], chosen: dict, fields: list[dict],
         field = by_selector.get(selector, {})
         # THE PAGE'S VERDICT decides, as everywhere else here: a dropdown left
         # empty that the page does not complain about is not stopping anything,
-        # and it is simply not listed as filled.
-        if not any(_same_question(s.get("label", ""), row.get("label", "")) for s in stopped):
+        # and it is simply not listed as filled - UNLESS the form read it as
+        # required. A widget that blocks its own submit in a script complains
+        # to nobody: once "Location" was hers to fill and none of the choices
+        # was his city (2026-09-23), the form went to AWAITING_YOU with the
+        # required box empty, to be pressed into a silent refusal.
+        if not (field.get("required") or row.get("required")) and \
+                not any(_same_question(s.get("label", ""), row.get("label", "")) for s in stopped):
             continue
         question = {"selector": selector, "label": row.get("label", ""),
                     "required": True, "type": field.get("type") or "text",
@@ -668,6 +696,11 @@ def _choices_of(field: dict) -> list[str]:
 
 #: The facts every real application asks for at least one of.
 _IDENTITY = frozenset({"email", "first_name", "last_name", "legal_name", "preferred_name", "phone"})
+
+
+#: How many times a form whose Submit refused may be filled in before it is
+#: left for him. See `stage`.
+MAX_STAGINGS_AFTER_FAILURE = 3
 
 
 def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = None,
@@ -724,6 +757,14 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
     # employer and the posting the campaign had attached — and the tracker
     # was left naming the application after the form's page title.
     kept_job = {name: before[name] for name in REMEMBERED if before.get(name)}
+    # A form that REFUSED, rebuilt every batch for ever: Vanta and Spekit were
+    # each filled, renewed and refused four times in one night (2026-09-23), a
+    # browser session and a grant use apiece. Three fillings carry every fix
+    # to the reader since the first; a fourth is his eyes, not another go.
+    if before.get("state") == "FAILED" and int(before.get("stagings") or 0) >= MAX_STAGINGS_AFTER_FAILURE:
+        raise ApplyError(f"{run_id} has been filled in and refused {before.get('stagings')} times "
+                         f"({describe(before)}) - it needs your eyes, not another go")
+    kept_job["stagings"] = int(before.get("stagings") or 0) + 1
     # WHICH ENGINE filled it, on every record this writes (see `ENGINE_*`).
     kept_job["engine"] = ENGINE_FORMFILL
     for field, value in (extra or {}).items():
@@ -1055,8 +1096,17 @@ UPLOADED_JS = r"""(name) => {
 # on too, not given up at once: the verdict can arrive after the input clears.
 UPLOAD_SETTLED_JS = r"""() => {
   const text = (document.body && document.body.innerText) || '';
-  if (/\b(uploading|analyzing|analysing|processing file|please wait)\b/i.test(text))
-    return 'working';
+  // A page AT WORK says so in a short status line a person can see. The
+  // whole body was searched until 2026-09-23, and Lever's AI notice
+  // ("...reviewing applications, analyzing resumes, or assessing
+  // responses...") kept every Voltus upload "working" for the full budget
+  // with "Success!" showing beside the file, so two applications waited on
+  // him for "Resume/CV". A paragraph is not a progress message.
+  const busyWords = /\b(uploading|analyzing|analysing|processing file|please wait)\b/i;
+  const atWork = [...document.querySelectorAll('body *')].some(el =>
+    !el.children.length && el.offsetParent !== null
+    && (el.textContent || '').trim().length <= 60 && busyWords.test(el.textContent || ''));
+  if (atWork) return 'working';
   const shown = (el) => !!el && el.offsetParent !== null && (el.innerText || '').trim();
   const verdict = [...document.querySelectorAll(
       '[class*="resume-upload-success"], [class*="resume-upload-failure"]')].some(shown)
@@ -1901,6 +1951,11 @@ def _refill_and_submit(record: dict) -> dict:
                 "she could not find the button that submits this form — "
                 "nothing was pressed. It may be a multi-step application, "
                 "which she does not drive yet.")
+        # A selector nothing answers to is said as such, not waited on for
+        # five seconds and called "never became clickable" (2026-09-23).
+        if getattr(page, "query_selector", None) and page.query_selector(button) is None:
+            raise ApplyError("the Submit button she read does not answer to its own "
+                             "selector on this page - nothing was pressed")
         # The instant the button is pressed: any verification code this page
         # wants is emailed AFTER this, and anything older belongs to an
         # earlier attempt.

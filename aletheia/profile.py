@@ -155,7 +155,11 @@ FIELDS: dict[str, dict] = {
                                 "18 years old", "years old or older"),
                        "means": "whether he is at least 18"},
     "notice_period":  {"asks": ("notice period", "start date", "available to start",
-                                "earliest start"),
+                                "earliest start",
+                                # Tenex: "What's the earliest date you can begin at
+                                # Tenex?" went to him with the answer on file (2026-09-23).
+                                "earliest date", "can begin", "can you start", "could you start",
+                                "when can you begin", "date you can", "date can you"),
                        "means": "when he could start"},
     # "What are your salary EXPECTATIONS?" is not "salary expectation" as
     # words, so LeafLink's box never reached the answer he had given.

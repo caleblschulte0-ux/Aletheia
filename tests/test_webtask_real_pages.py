@@ -594,17 +594,37 @@ class ThePagesOwnVerdictOnWhetherItWillGO(RealPageCase):
 
     def test_it_refuses_to_STAGE_a_form_that_cannot_go(self):
         """Everything she could answer, answered — and the form still
-        will not go, because the location was never picked. That is a
-        question, not an approval waiting for him."""
+        will not go, because the location could not be picked: his city is
+        not one the typeahead offers. That is a question WITH the choices,
+        not an approval waiting for him. (Until 2026-09-23 "Location" was a
+        box she could not tell the meaning of; now it is his city, and the
+        widget's own script - not the page's validation - is what refuses.)"""
+        from aletheia import apply_run
+        profile.set_answer("work_authorization", "Yes", source="operator")
+        profile.set_answer("city", "Hartford", source="operator")
+        profile.set_answer("state", "SD", source="operator")
+        with mock.patch.object(apply_run, "staged_dir",
+                               lambda: Path(self.tmp.name) / "applications"):
+            (Path(self.tmp.name) / "applications").mkdir(exist_ok=True)
+            record = apply_run.stage(self.base + "/widget")
+        self.assertEqual(record["state"], "NEEDS_YOU", record.get("say"))
+        self.assertEqual(record["approval"], "")
+        self.assertIn("will not go", record["say"])
+        asked = next(q for q in record["not_filled"] if q["label"].startswith("Location"))
+        self.assertTrue(asked.get("required"), asked)
+        self.assertIn("Hartford", asked.get("why", ""), "it says which answer of his no option offered")
+
+    def test_it_STAGES_the_form_when_his_city_is_one_the_typeahead_offers(self):
+        """The same widget, his city among its choices: picked, and the form
+        is ready for the grant - the box he could not have typed into."""
         from aletheia import apply_run
         profile.set_answer("work_authorization", "Yes", source="operator")
         with mock.patch.object(apply_run, "staged_dir",
                                lambda: Path(self.tmp.name) / "applications"):
             (Path(self.tmp.name) / "applications").mkdir(exist_ok=True)
             record = apply_run.stage(self.base + "/widget")
-        self.assertEqual(record["state"], "NEEDS_YOU")
-        self.assertEqual(record["approval"], "")
-        self.assertIn("will not go", record["say"])
+        self.assertEqual(record["state"], "AWAITING_YOU", record.get("say"))
+        self.assertIn("Austin, TX", [f.get("value") for f in record["filled"]])
 
 
 @needs_browser
