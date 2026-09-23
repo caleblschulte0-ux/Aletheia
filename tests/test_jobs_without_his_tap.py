@@ -22,7 +22,7 @@ class TheJobsGrantCase(unittest.TestCase):
     def test_the_grant_is_spent_by_the_beats_own_check(self):
         self.assertIsNone(standing.jobs_active())
         grant = standing.jobs_enable(quote="this can apply to jobs without my permission")
-        self.assertEqual(grant["capability_ids"], ["application.submit"])
+        self.assertEqual(grant["capability_ids"], list(standing.JOBS_CAPABILITIES))
         self.assertTrue(standing.jobs_status()["granted"])
         # The exact call the beat makes, and it now finds something.
         self.assertEqual(authority.satisfy("application.submit", "apply-1-submit"), grant["id"])

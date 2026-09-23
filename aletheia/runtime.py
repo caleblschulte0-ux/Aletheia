@@ -949,6 +949,11 @@ def send_approved_applications() -> list[dict]:
     return sent
 
 
+def _approve_job_missions() -> list[dict]:
+    from aletheia import jobs_grant
+    return jobs_grant.approve_under_the_grant()
+
+
 def _held_live(record: dict) -> bool:
     import datetime as _dt
     until = str(record.get("held_live_until") or "")
@@ -1175,6 +1180,11 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     stuck_submits = guarded("stuck_submits", _settle_stuck_submits)
     applications_sent = guarded("applications", send_approved_applications)
     guarded("walls", leave_walls)
+    # A job mission's held button - the account a site wants, the send it
+    # comes down to - is approved under the jobs grant BEFORE the press
+    # loop looks, so his 2026-09-23 ruling ("it can make its own accounts")
+    # takes one beat, not a tap.
+    guarded("job_missions", _approve_job_missions)
     web_tasks_pressed = guarded("web_tasks", press_approved_web_tasks)
     # A subscription is CANCELLED when the merchant says so, not when we
     # pressed a button — and believing otherwise costs him a charge a
