@@ -773,13 +773,25 @@ def _do_note(record: dict, move: dict, now: dt.datetime) -> dict:
     from aletheia import mail
     ok, why = mail.available()
     if _his_own(address):
+        # His ruling the next morning: "she should be allowed to draft emails
+        # to the [openrangeinteractive] inbox ... just to make sure the
+        # workflow is always working. Sending them yet? Not yet." So: a real
+        # draft, held - no approval to tap, nothing sent - and one notice.
         from aletheia import notifications
+        try:
+            held = mail.draft(address, detail.get("subject") or f"About {record['subject'].get('name', 'this')}",
+                              detail["text"], requested_via="pursuit", held=True)
+        except Exception:
+            held = None
         notifications.publish(
             f"A note for you about {record['subject'].get('name', 'this')}",
-            f"{detail['text']}\n\n— {move['why']}",
+            f"{detail['text']}\n\n— {move['why']}"
+            + ("\n\n(Drafted to your inbox and held; it goes only when you say send.)" if held else ""),
             priority="NORMAL", source="pursuit", dedupe_key=f"pursuit-note:{record['id']}:{move['id']}",
-            related={"opportunity": record["id"]})
-        return {"state": "handed to him", "effect": "the note was for him, so he has it - nothing to send"}
+            related={"opportunity": record["id"], "draft": (held or {}).get("id", "")})
+        return {"state": "handed to him", "handle": (held or {}).get("id", ""),
+                "effect": ("drafted it to his own inbox and held it - nothing sent" if held
+                           else "the note was for him, so he has it - nothing to send")}
     if address and ok:
         subject = detail.get("subject") or f"About {record['subject'].get('name', 'this')}"
         draft = mail.draft(address, subject, detail["text"], requested_via="pursuit")

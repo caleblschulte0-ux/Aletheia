@@ -714,6 +714,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "what's my landlord's name", "what did I tell you about the car",
     # "when is my lease up" and "what notes do you have" each waited on a
     # model for a store she holds).
+    # The drafts she holds for his send (mail.draft held=True): his 2026-09-23
+    # ruling lets her draft to his own inbox and not send, so "what have you
+    # drafted" has to have an answer from the store.
+    ("drafts", re.compile(
+        r"^(?:what|which)(?: emails?| notes?)? (?:have (?:you|u)|did (?:you|u)) draft(?:ed)?(?: for me)?\s*\??$"
+        r"|^(?:any|what|list|show me|read me) (?:my |your |the )?drafts?(?: (?:do (?:you|u) have|waiting|for me|held))?\s*\??$"
+        r"|^what(?:'s| is|s) (?:in|on) (?:my |your |the )?drafts?\s*\??$")),
     ("notes_list", re.compile(
         r"^what notes do (?:you|u) have(?: for me)?$|^(?:list|read me|read back|show me) (?:my |your |the )?notes$"
         r"|^what have i told (?:you|u)(?: to remember)?$|^what have (?:you|u) noted(?: down)?$")),
@@ -2158,6 +2165,11 @@ def _notes(limit: int = 200) -> list[dict]:
     return list(reversed(rows))[:limit]
 
 
+def _drafts() -> str:
+    from aletheia import mail
+    return mail.held_drafts_words()
+
+
 def _notes_list() -> str:
     from aletheia import speech
     rows = _notes()
@@ -2861,6 +2873,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "greeting": lambda rest: _greeting(),
            "home": lambda rest: _home(),
            "notes_list": lambda rest: _notes_list(),
+           "drafts": lambda rest: _drafts(),
            "recall": _recall,
            "friction": lambda rest: _friction(),
            "replies": lambda rest: _replies(),
