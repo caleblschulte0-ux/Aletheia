@@ -876,6 +876,9 @@ def _why_not(words: str) -> str | None:
         asks = [str(q.get("label") if isinstance(q, dict) else q) for q in (r.get("not_filled") or [])][:3]
         if asks:
             said += ": " + speech.and_list(asks)
+        elif r.get("why"):
+            # a record stopped by the page itself (an hCaptcha check) says so
+            said += " - " + speech.plainly(str(r["why"]))[:200].rstrip(".")
     return said + "."
 
 
