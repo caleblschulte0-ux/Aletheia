@@ -189,7 +189,9 @@ SUBJECT_KINDS = {"memory": "remember", "task": "task_new"}
 # prefix, which is why this is a list rather than a rule.
 # `approval` too (2026-09-23): a decision's line is "Approved: <what it was>"
 # and its subject is an id he must never hear.
-SPEAKS_FOR_ITSELF = ("planner", "intent", "scheduling", "applications", "work", "approval")
+# ...and `session` (2026-09-23): "session: Answered, from boards.example.com"
+# is a prefix a person never says.
+SPEAKS_FOR_ITSELF = ("planner", "intent", "scheduling", "applications", "work", "approval", "session")
 
 #: A line that labels itself. "Did it:" is how the planner marks a finished
 #: plan on a SCREEN, where the label is doing work. Read back in answer to

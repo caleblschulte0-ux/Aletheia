@@ -647,7 +647,9 @@
     paintWhere(haltedNow ? "trouble" : count ? "needs" : "here", {
       head: haltedNow ? "Stopped" : word || "Here",
       tail: haltedNow ? ((status && status.halted && status.halted.reason) || "")
-        : count ? count + (count === 1 ? " thing needs you" : " things need you") : "",
+        // "Needs you · 41 things need you" said the word twice (design pass,
+        // 2026-09-23); the head already says who, the tail says how many.
+        : count ? (count === 1 ? "1 thing" : count + " things") : "",
     });
   }
 

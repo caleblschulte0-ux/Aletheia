@@ -202,7 +202,9 @@ def decide(aid: str, decision: str, via: str, because: str = "") -> dict:
         label = ""
     word = "Approved" if decision == "APPROVED" else "Refused"
     journal.append("decision", f"approval:{aid}",
-                   word + (f": {label}" if label else "") + (f" — {because}" if because else ""),
+                   # No trailing stop on the label: the list that reads this
+                   # back adds its own, and "no undo.." reached the page.
+                   word + (f": {label.rstrip('.')}" if label else "") + (f" — {because}" if because else ""),
                    actor=via)
     return approval
 
