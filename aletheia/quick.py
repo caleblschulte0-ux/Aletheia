@@ -91,7 +91,8 @@ _STATUS = re.compile(
     r"tonight|last night|overnight|this evening|this morning))?$"
     r"|^how many (?:have|did) (?:you|u) (?P<count2>apply to|send(?: out)?|submit|get through)"
     r"(?P<count2_total> (?:in total|total|overall|so far|ever))?"
-    r"(?P<count2_window> (?:this week|this month|yesterday|last week|tonight))?(?: today)?$"
+    r"(?P<count2_window> (?:this week|this month|yesterday|last week|tonight|last night|overnight|this morning|this evening"
+    r"|while i (?:was asleep|slept|was sleeping)))?(?: today)?$"
     # when was the last one
     r"|^when (?:was|did) (?:the |your |my |her )?(?:last|latest|most recent) "
     r"(?P<last_when>application|one|job application|job|submission)"
@@ -375,8 +376,21 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"valentine'?s(?: day)?|easter|the fourth of july|july 4th|independence day)$")),
     # THE FIRST THING HE ASKS IN THE MORNING (2026-09-23): sent overnight
     # and done overnight, from the records.
+    # THE MORNING AFTER (2026-09-23 night sweep): "how did the job hunt go
+    # last night", "what jobs did you send overnight", "did anything get sent
+    # while I slept", "which companies did you apply to last night" and "any
+    # replies overnight" each went to a planner nobody could run - the first
+    # things he says when he wakes.
+    ("sent_window", re.compile(
+        r"^(?:what|which)(?: jobs| applications| companies| employers| ones)? (?:did|have) (?:you|u|we) "
+        r"(?:send|sent|apply to|applied to|put in|submit|submitted)(?: out)?(?: to)? "
+        r"(?P<sent_window>last night|overnight|tonight|this morning|this evening|yesterday|this week|last week|this month"
+        r"|while i (?:was asleep|slept|was sleeping))\s*\??$"
+        r"|^(?:did )?anything (?:get |go |went )?(?:sent|out)(?: out)? (?P<sent_window2>last night|overnight|tonight|this morning|yesterday"
+        r"|while i (?:was asleep|slept|was sleeping))\s*\??$")),
     ("overnight", re.compile(
-        r"^what happened (?:overnight|last night|tonight|while i (?:was asleep|slept|was sleeping|was out))$"
+        r"^how (?:did|was) (?:the )?(?:job hunt|hunt|job search|applications|applying) (?:go |do )?(?:last night|overnight|tonight)$"
+        r"|^what happened (?:overnight|last night|tonight|while i (?:was asleep|slept|was sleeping|was out))$"
         r"|^what did (?:you|u) (?:do|get done) (?:overnight|last night|while i (?:was asleep|slept|was sleeping))$"
         r"|^(?:did )?anything (?:happen )?(?:overnight|last night|while i (?:was asleep|slept))$"
         r"|^how (?:did|was) (?:the night|last night|overnight)(?: go)?$")),
@@ -636,7 +650,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("replies", re.compile(
         r"^(?:did|have) i (?:get|got|gotten|receive|received|hear) (?:any |anything )?(?:replies|responses|"
         r"back|any(?:thing)? back)(?: yet| today| from anyone)?$"
-        r"|^any (?:replies|responses|word|news)(?: from (?:employers|anyone|the jobs))?(?: yet| today)?$"
+        r"|^any (?:replies|responses|word|news)(?: from (?:employers|anyone|the jobs))?(?: yet| today| overnight| last night| this morning)?$"
         r"|^(?:anything|any word|any news|anything new) from (?:the )?(?:employers|recruiters|companies|jobs)"
         r"(?: yet| today| overnight| this morning)?$"
         r"|^did any (?:employers?|companies|recruiters) (?:reply|write back|get back|respond)(?: to me)?(?: yet)?$"
@@ -757,6 +771,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5",
                                            "until", "until2", "day8", "day9",
                                            "why_not", "why_not2", "why_not3",
+                                           "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "date_of", "date_of2", "date_of3",
                                            "recall", "recall2", "recall3", "recall4")
@@ -2438,6 +2453,12 @@ def _sent_records():
     return rows
 
 
+def _night_words(window: str) -> str:
+    """"while I slept" is last night."""
+    w = " ".join(str(window or "").casefold().split())
+    return "last night" if w.startswith("while i") else w
+
+
 def _applied_in_window(window: str) -> str:
     """Applications sent this week, this month, yesterday or last week."""
     import datetime as dt
@@ -2785,6 +2806,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "focus": lambda rest: _focus(),
            "outcomes": _outcomes,
            "until": _until,
+           "sent_window": lambda rest: _applied_in_window(_night_words(rest)),
            "time_in": _time_in,
            "date_of": _date_of,
            "overnight": lambda rest: _overnight(),
