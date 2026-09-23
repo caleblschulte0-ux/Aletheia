@@ -2647,6 +2647,31 @@ def _interpret(transcript: str) -> dict:
     # frontier off (2026-09-23) it was compiled by a rule into a plan that
     # waited for his approve - to write one line in her own store. "Remember
     # to call mom" is a reminder and stays with the reminder shapes above.
+    # WHAT THE HUNT STEERS BY, in his words (2026-09-23 night sweep: each of
+    # these went to a planner nobody could run). A sentence about what he
+    # wants, will not do, wants to be paid, or when he could start is one
+    # line in his profile, and the reply says what she steers by now.
+    if re.fullmatch(r"what (?:do|are) (?:you|u) (?:steer(?:ing)? by|going by|going on|looking for now|looking for these days)"
+                    r"|what are my (?:job )?preferences|what have i told (?:you|u) to (?:look for|avoid|leave out)"
+                    r"|what am i (?:looking for|after)(?: now)?", low):
+        return {"command": {"kind": "preferences"}, "say": None}
+    m = re.match(r"(?:only (?:apply (?:to|for)|look for|look at|go for|go after|take|consider|send me) |i only want )(.+)", low)
+    if m and not m.group(1).startswith(("if ", "when ")):
+        return {"command": {"kind": "preference_set", "field": "work_wanted",
+                            "value": "only " + m.group(1).strip()}, "say": None}
+    m = re.match(r"(?:don'?t|do not|never|no longer|stop) (?:apply (?:to|for)|applying (?:to|for)|look at|go for|send me|consider) (.+)"
+                 r"|no more (.+?)(?: jobs| roles| positions| work)?$", low)
+    if m and (m.group(1) or m.group(2)) and not re.fullmatch(r"(?:jobs|anything|work|things|for (?:today|now)|today|now)", (m.group(1) or m.group(2)).strip()):
+        return {"command": {"kind": "preference_set", "field": "work_not_wanted",
+                            "value": (m.group(1) or m.group(2)).strip()}, "say": None}
+    m = re.match(r"(?:raise|set|change|make|put|bump|lower|drop) my (?:minimum|min|floor|lowest|base)? ?(?:salary|pay|comp|compensation)(?: floor| minimum)? to (.+)"
+                 r"|my (?:minimum|min|lowest) (?:salary|pay) is (?:now )?(.+)", low)
+    if m:
+        return {"command": {"kind": "preference_set", "field": "desired_pay",
+                            "value": (m.group(1) or m.group(2)).strip()}, "say": None}
+    m = re.match(r"(?:i can start|i could start|i(?:'m| am) (?:free|available) to start|i(?:'m| am) available from|my notice period is|my start date is|i(?:'m| am) available) (.+)", low)
+    if m:
+        return {"command": {"kind": "preference_set", "field": "notice_period", "value": m.group(1).strip()}, "say": None}
     m = re.match(r"remember(?: that|:)?\s+(?!to\b|me\b)(.+)", low)
     if m and not re.match(r"(?:the |my )?(?:last|previous|earlier)\b", m.group(1)):
         return {"command": {"kind": "note", "text": m.group(1).strip()}, "say": None}
