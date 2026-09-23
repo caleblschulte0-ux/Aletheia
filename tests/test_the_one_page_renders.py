@@ -408,6 +408,18 @@ class OnePageCase(unittest.TestCase):
                     self.assertNotIn(name, seen["body"].lower())
 
     # ---- the wall lands here, and a tap answers at once (2026-09-23) -----
+    def test_the_fleet_route_carries_the_links_so_the_page_holds_no_host(self):
+        """`test_no_host_is_hard_coded`: every URL in the page is relative.
+        A repository's home on GitHub is the collector's fact, served ready."""
+        import json, urllib.request
+        got = json.load(urllib.request.urlopen(self.url + "api/fleet", timeout=20))
+        self.assertIn("repos", got)
+        for rid, repo in got["repos"].items():
+            with self.subTest(repo=rid):
+                self.assertIn("url", repo)
+                for wf in (repo.get("workflows") or {}).values():
+                    self.assertIn("url", wf)
+
     def test_the_fleet_is_on_the_page_and_folded(self):
         """His ruling: the wall may have no capability this page lacks, so
         the repositories the wall shows are here — folded, because they
