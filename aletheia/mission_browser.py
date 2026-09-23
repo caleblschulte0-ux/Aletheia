@@ -46,6 +46,8 @@ KIND_WORDS = {"CAPTCHA": "a CAPTCHA", "SIGN_IN": "a sign-in", "QUESTIONS": "ques
 
 #: What each mission state means on a card.
 WAITS_ON_HIM = ("NEEDS_YOU", "AWAITING_APPROVAL", "SUBMITTED_UNCONFIRMED")
+_HIS_KINDS = ("CAPTCHA", "SIGN_IN", "QUESTIONS", "WAITING_FOR_CODE", "NO_VAULT",
+              "ACCOUNT_CREATION_APPROVAL")
 STOPPED_STATES = ("REFUSED", "MANUAL_ONLY", "REJECTED")
 
 
@@ -77,6 +79,13 @@ def card(record: dict, now: dt.datetime, *, stale_min: int = 20) -> dict | None:
         return None
     state = str(record.get("state") or "")
     boundary = record.get("boundary") or {}
+    # A wall she left is history, and a wall that is not his never carried
+    # a thing to press (2026-09-23: 72 cards "waiting for you", 55 of them
+    # for boundaries no tap of his could move).
+    if state == "LEFT":
+        return None
+    if state == "NEEDS_YOU" and str(boundary.get("kind") or "UNKNOWN") not in _HIS_KINDS:
+        return None
     goal = " ".join(str(record.get("goal") or "").split())
     site = _site(boundary.get("url") or record.get("start_url"))
     last = str(record.get("last_checkpoint") or "")

@@ -2348,6 +2348,43 @@ def stage_via_loop(url: str, *, resume: str = "", note: str = "", extra: dict | 
                                found_on=found_on or before.get("found_on") or "", kept_job=kept_job)
 
 
+def _loop_line(url: str, state: str, boundary: dict, mission: dict) -> str:
+    from urllib.parse import urlsplit
+    from aletheia import browser_mission as bm
+    host = (urlsplit(str(url or "")).hostname or "the site").removeprefix("www.")
+    kind = str(boundary.get("kind") or mission.get("state") or "")
+    if state in ("SUBMITTED", "SUBMITTING"):
+        return f"{host}: sent through the general browser"
+    if state == REJECTED:
+        return f"{host}: the site refused it"
+    if state == "NEEDS_ACCOUNT":
+        return f"{host}: the site wants an account first"
+    if state == "NEEDS_YOU":
+        words = bm.kind_words(kind)
+        return f"{host}: stopped at {words}" + (" - left for you" if kind in bm.HIS_KINDS else "")
+    return f"{host}: {state.replace('_', ' ').casefold()}"
+
+
+def close_left_missions(left: list[dict]) -> int:
+    """The application records behind missions she left: closed quietly,
+    each saying why, no journal line apiece (the sweep wrote one)."""
+    closed = 0
+    for mission in left or []:
+        run_id = f"apply-{_tag(str(mission.get('start_url') or ''))}"
+        try:
+            record = load_run(run_id)
+        except (OSError, ValueError, KeyError):
+            continue
+        if record.get("state") in PRESSED_STATES or record.get("state") == CLOSED:
+            continue
+        because = str(mission.get("left_because") or "the general browser could not finish it")
+        record.update({"state": CLOSED, "closed_at": stateio.utcnow(), "closed_because": because,
+                       "closed_kind": "left", "closed_by": ACTOR})
+        stateio.write_json_atomic(_record_path(run_id), record)
+        closed += 1
+    return closed
+
+
 def record_from_mission(run_id: str, url: str, mission: dict, *, note: str = "", resume: str = "",
                         found_on: str = "", kept_job: dict | None = None) -> dict:
     """The application record a browser mission stands for. The mission is
@@ -2380,9 +2417,9 @@ def record_from_mission(run_id: str, url: str, mission: dict, *, note: str = "",
     if state in ("SUBMITTED", "SUBMITTING"):
         # Pressed, confirmed or not: into the ledger, so no engine sends it again.
         remember_sent(record)
-    journal.append("action", "apply",
-                   f"browser loop: {url} is {state} ({boundary.get('kind') or mission.get('state')})",
-                   actor=ACTOR)
+    # A SENTENCE, not a state code: "browser loop: <url> is NEEDS_YOU
+    # (CAPTCHA)" was read back to him under "what she's done" (2026-09-23).
+    journal.append("action", "apply", _loop_line(url, state, boundary, mission), actor=ACTOR)
     try:
         from aletheia import demand
         if state in ("NEEDS_YOU", "NEEDS_ACCOUNT"):
