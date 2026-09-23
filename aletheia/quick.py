@@ -656,8 +656,23 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how many (?P<to2>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c) (?:is|are|in|make|equals?|to) (?P<n2>[\d.,]+|a|an|one) ?(?P<from2>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c)$")),
     ("mine", re.compile(
         r"^what(?:'s| is|s)? my (?P<mine>email(?: address)?|phone(?: number)?"
-        r"|number|city|town|name|first name|last name|full name)$"
+        r"|number|city|town|name|first name|last name|full name"
+        r"|minimum salary|salary(?: floor| requirement| expectation| expectations)?|desired (?:pay|salary)"
+        r"|asking (?:pay|salary|price)|pay(?: expectation| expectations)?|notice period|start date)$"
         r"|^who am i$")),
+    # WHAT SHE HUNTS FOR (2026-09-23 night sweep): "what roles are you looking
+    # for", "what are you applying to" and "what's my minimum salary" each
+    # waited on a model for stores she holds.
+    ("hunting_for", re.compile(
+        r"^what (?:roles|jobs|titles|kind of (?:jobs|roles|work|positions)|positions) (?:are (?:you|u)|r u|are we|am i) "
+        r"(?:looking for|hunting for|searching for|applying (?:to|for)|going after|after|targeting)(?: for me)?\s*\??$"
+        r"|^what are (?:you|u|we) applying (?:to|for)(?: right now| these days)?\s*\??$"
+        r"|^what(?:'s| is) the (?:job )?(?:search|hunt) (?:for|looking for|after)\s*\??$")),
+    ("work_wants", re.compile(
+        r"^what (?:kind of |sort of )?(?:work|jobs) (?:do i|don't i|do i not|won't i|will i not) (?:want|do|take)(?: to do)?\s*\??$"
+        r"|^what (?:have i|did i) (?:told|tell) (?:you|u) (?:i|that i) (?:want|don't want|do not want|won't do|will not do)\s*\??$"
+        r"|^what (?:am i|are we|are you) not applying (?:to|for)\s*\??$"
+        r"|^what(?:'s| is) off the table\s*\??$")),
     ("home", re.compile(
         r"^where do i live$|^what city do i live in$"
         r"|^what town do i live in$|^where(?:'s| is) home$")),
@@ -1797,7 +1812,13 @@ _MINE = {"email": ("email",), "email address": ("email",),
          "name": ("preferred_name", "first_name", "legal_name"),
          "first name": ("first_name", "preferred_name"),
          "last name": ("last_name",),
-         "full name": ("legal_name", "full_name")}
+         "full name": ("legal_name", "full_name"),
+         "minimum salary": ("desired_pay",), "salary": ("desired_pay",), "salary floor": ("desired_pay",),
+         "salary requirement": ("desired_pay",), "salary expectation": ("desired_pay",),
+         "salary expectations": ("desired_pay",), "desired pay": ("desired_pay",),
+         "desired salary": ("desired_pay",), "asking pay": ("desired_pay",), "asking salary": ("desired_pay",),
+         "asking price": ("desired_pay",), "pay": ("desired_pay",), "pay expectation": ("desired_pay",),
+         "pay expectations": ("desired_pay",), "notice period": ("notice_period",), "start date": ("notice_period",)}
 
 # "Who am I" has no captured word to look up, so it names its own.
 _WHO_AM_I = "name"
@@ -1815,6 +1836,52 @@ def _running() -> str | None:
         return running.headline(running.snapshot(include_tasks=False))
     except Exception:
         return None             # she does not know; the planner may look
+
+
+def _hunting_for() -> str:
+    """The roles she hunts for, from the roles read off his resume, and the
+    kinds of work he said he wants and will not do."""
+    from aletheia import campaign, profile, speech
+    roles = None
+    try:
+        _path, text = campaign.read_resume("")
+        roles = campaign.roles_remembered(text)
+    except Exception:
+        roles = None
+    wanted, unwanted = "", ""
+    try:
+        known = profile.known()
+        wanted, unwanted = str(known.get("work_wanted") or ""), str(known.get("work_not_wanted") or "")
+    except Exception:
+        pass
+    parts = []
+    if roles:
+        parts.append("Looking for " + speech.and_list([str(r) for r in roles[:6]]) + ", off your resume")
+    else:
+        parts.append("I read the roles off your resume each time I search; none are remembered yet")
+    if wanted:
+        parts.append("you want " + wanted.rstrip("."))
+    if unwanted:
+        parts.append("not " + unwanted.rstrip("."))
+    return ". ".join(parts) + "."
+
+
+def _work_wants() -> str:
+    """What he said he wants and will not do, verbatim from his profile."""
+    from aletheia import profile
+    try:
+        known = profile.known()
+    except Exception:
+        return "I can't read your profile right now."
+    wanted, unwanted = str(known.get("work_wanted") or ""), str(known.get("work_not_wanted") or "")
+    if not wanted and not unwanted:
+        return "You haven't told me what work you want or won't do; tell me and I'll steer by it."
+    said = []
+    if wanted:
+        said.append("You want " + wanted.rstrip("."))
+    if unwanted:
+        said.append("You won't do " + unwanted.rstrip("."))
+    return ". ".join(said) + "."
 
 
 def _mine(what: str) -> str | None:
@@ -2468,6 +2535,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "next_meeting": lambda rest: _next_meeting(),
            "running": lambda rest: _running(),
            "mine": _mine,
+           "hunting_for": lambda rest: _hunting_for(),
+           "work_wants": lambda rest: _work_wants(),
            "weather": lambda rest: _weather(rest),
            "greeting": lambda rest: _greeting(),
            "home": lambda rest: _home(),
