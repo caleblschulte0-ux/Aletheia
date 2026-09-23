@@ -1152,10 +1152,19 @@ UPLOAD_SETTLED_JS = r"""() => {
   // 2026-09-23).
   const busy = [...document.querySelectorAll(
       '[role=progressbar], progress, [class*="progress"], [class*="uploading"], '
-      + '[class*="upload-working"], [class*="loading"], [class*="spinner" i]')]
-    .some(el => (seen(el) || (el.offsetParent !== null && /spinner|loading|uploading/i.test(el.className || '')))
-                && !/complete|success|done/i.test(el.className || ''));
-  return busy ? 'working' : 'held';
+      + '[class*="upload-working"], [class*="loading"]')]
+    .some(el => seen(el) && !/complete|success|done/i.test(el.className || ''));
+  if (busy) return 'working';
+  // A BARE SPINNER counts only beside the file that is going up: Ashby's
+  // "Autofill from resume" widget carries an idle spinner before any file
+  // is chosen, and it would have read every Ashby form as working for ever.
+  const spinning = [...document.querySelectorAll('input[type=file]')]
+    .filter(i => i.files && i.files.length > 0)
+    .some(i => {
+      const box = i.closest('[class*="fieldEntry" i], [data-field-path], [class*="field" i], li, fieldset') || i.parentElement;
+      return !!box && [...box.querySelectorAll('[class*="spinner" i]')].some(s => s.offsetParent !== null);
+    });
+  return spinning ? 'working' : 'held';
 }"""
 
 
@@ -1199,12 +1208,21 @@ def _resume_landed(page, resume: str, *, wait_ms: int | None = None) -> bool:
             # under the spinner is refused (Tenex, 2026-09-23). Named, and
             # nothing still at work, is landed.
             extra = 0 if wait is None or wait_ms is not None else UPLOAD_WORKING_MS
+            calm = 0
             for _ in range(max(1, extra // 500)):
                 if _upload_state(page) != "working":
-                    return True
+                    calm += 1
+                    # TWO CALM READINGS A BEAT APART. The spinner appears a
+                    # moment after the file is handed over; one reading taken
+                    # in that moment said "held" while the upload had not
+                    # begun (Tenex, live 2026-09-23, 0.3 s after attaching).
+                    if calm >= 2 or wait is None or not extra:
+                        return True
+                else:
+                    calm = 0
                 if wait is None or not extra:
                     break
-                wait(500)
+                wait(700)
             return _upload_state(page) != "working"
         if wait is None:
             break
