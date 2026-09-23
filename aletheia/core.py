@@ -95,6 +95,9 @@ RETIRED_PAGES = frozenset({
 })
 ACTOR = "operator-local-core"
 DEFAULT_PORT = 8777
+#: POSTs that only consume something already delivered. Refused, they cost
+#: nothing but a stale notice, and are journaled as events, never alerts.
+BOOKKEEPING_POSTS = ("/api/voice/followup/ack", "/api/notifications/ack")
 MAX_BODY_BYTES = 64 * 1024
 SYNC_INTERVAL_S = 60
 
@@ -761,8 +764,16 @@ class Handler(BaseHTTPRequestHandler):
             # wave's, and the method and route moved into the SUBJECT, which
             # nothing renders — so it is still there for whoever is debugging
             # and never on his screen.
+            # WHICH client, on record where it is debugged: 360 of these lines
+            # sat in his journal by 2026-09-23 (six that night alone) and not
+            # one said who had asked. A refused ACK of a follow-up or a notice
+            # is bookkeeping - the answer stays collectable, nothing was
+            # asked of her - so it is an EVENT; a refused command is an alert.
+            client = (f"from {address} ua={str(self.headers.get('User-Agent') or '-')[:60]!r}"
+                      f" ref={str(self.headers.get('Referer') or '-')[:80]!r}")
             journal.append(
-                "alert", f"access:{self.command} {path}",
+                "event" if path in BOOKKEEPING_POSTS else "alert",
+                f"access:{self.command} {path} {client}",
                 "I turned away something on this computer that asked me to "
                 "act without proving it was you",
                 actor="aletheia-access")

@@ -112,6 +112,22 @@ class LoopbackWriteCase(unittest.TestCase):
         self.assertGreater(len(line["text"].split()), 8)
         # and nothing is lost: the method and the path are still on record
         self.assertIn("/api/command", line["subject"])
+        self.assertEqual(line["kind"], "alert", "a refused COMMAND is an alert")
+
+    def test_a_refused_ack_is_bookkeeping_and_names_its_client(self):
+        """360 of these lines sat in his journal by 2026-09-23, six that
+        night, and not one said who had asked. A refused ACK of a follow-up
+        costs nothing but a stale notice: an event, never an alert - and the
+        subject names the client, where it is debugged."""
+        from aletheia import journal
+        self.assertEqual(self.post({"User-Agent": "Wall/1.0", "Referer": "http://127.0.0.1/interface/wall.html"},
+                                   path="/api/voice/followup/ack"), 401)
+        line = next(e for e in reversed(journal.entries())
+                    if str(e.get("subject", "")).startswith("access:POST /api/voice/followup/ack"))
+        self.assertEqual(line["kind"], "event")
+        self.assertIn("Wall/1.0", line["subject"])
+        self.assertIn("wall.html", line["subject"])
+        self.assertNotIn("Wall", line["text"], "the sentence is still his")
 
     def test_the_served_page_carries_the_secret_so_the_wall_still_works(self):
         with urllib.request.urlopen(self.url("/"), timeout=5) as r:
