@@ -14,6 +14,7 @@ Skips when there is no browser, like every other browser test here: an
 optional dependency's absence must never fail the suite.
 """
 import functools
+import os
 import http.server
 import json
 import re
@@ -93,6 +94,12 @@ class TheWallCase(unittest.TestCase):
             page.goto(cls.url)
             page.wait_for_timeout(2000)
             body = page.inner_text("body")
+            # A picture, for a designer's eyes: the render is the only way to
+            # see what the wall actually looks like without a projector.
+            shots = os.environ.get("ALETHEIA_SHOTS")
+            if shots:
+                Path(shots).mkdir(parents=True, exist_ok=True)
+                page.screenshot(path=str(Path(shots) / "wall.png"))
             # Where a click goes: every href on the page, and the panels.
             cls.links = page.evaluate(
                 "() => [...document.querySelectorAll('a[href]')].map(a => a.getAttribute('href'))")

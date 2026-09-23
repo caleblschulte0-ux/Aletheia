@@ -100,6 +100,12 @@ main{display:grid;gap:0 26px;max-width:1180px;margin:0 auto}
 .now .banner{margin:14px 0 0;padding:12px 14px;border-radius:12px;
   background:#1a1011;border:1px solid #4a2523;color:#f0c0bc;
   font-size:14px;line-height:1.5}
+/* The sentence, then its one click on its own line, right where the
+   thumb ends up - not wedged into the middle of the sentence. */
+.now .banner,.now .health{display:flex;flex-wrap:wrap;align-items:center;
+  justify-content:space-between;gap:8px 12px}
+.now .banner>span,.now .health>span{flex:1 1 220px;min-width:0}
+.now .banner button.act,.now .health button.act{margin-left:auto;flex:none}
 
 /* ---- asking her ------------------------------------------------------ */
 .thread{display:flex;flex-direction:column;gap:12px;margin-bottom:14px;
@@ -224,7 +230,12 @@ button.link{color:var(--warm-dim);text-decoration:underline;
 .note .when{font-size:12.5px;color:var(--warm-faint)}
 .note .seen{font-size:14px;color:var(--warm-dim);padding:10px 14px;min-height:44px;
   border-radius:11px;border:1px solid var(--line-2)}
-.more{font-size:14px;color:var(--warm-dim);padding:10px 2px;min-height:44px}
+/* "Show the other 36" is a control, and looked like a stray line of text
+   (design pass, 2026-09-23): a quiet full-width pill says "tap me". */
+.more{display:block;width:100%;text-align:center;font-size:14.5px;color:var(--warm-dim);
+  padding:0 14px;min-height:44px;margin-top:10px;border-radius:12px;
+  border:1px solid var(--line-2);background:var(--ink-2)}
+.more:active{background:var(--ink-3)}
 
 /* ---- what she is working on ----------------------------------------- */
 .job{background:var(--ink-2);border:1px solid var(--line);border-radius:16px;
