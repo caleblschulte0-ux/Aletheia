@@ -332,6 +332,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what did (?:you|u) just do$"
         r"|^what was (?:your|the) (?:last|most recent) (?:action|thing)$"
         r"|^what(?:'s| is|s)? the (?:last|latest|most recent) thing (?:you|u)(?:'ve| have)? done$")),
+    # "How many days until Christmas" paid a model for arithmetic on a
+    # calendar (2026-09-23). Weekdays, named days and a month-and-day.
+    ("until", re.compile(
+        r"^how (?:many days|long) (?:until|till|to|before) (?:the )?(?!(?:you|u|i|we|she|it|they|he) )"
+        r"(?P<until>[a-z][a-z' ]{2,30}?)(?: is it)?$"
+        r"|^(?:when is|when's) (?P<until2>christmas|new year(?:'s)?(?: day| eve)?|halloween|thanksgiving|"
+        r"valentine'?s(?: day)?|easter|the fourth of july|july 4th|independence day)$")),
     # THE FIRST THING HE ASKS IN THE MORNING (2026-09-23): sent overnight
     # and done overnight, from the records.
     ("overnight", re.compile(
@@ -650,7 +657,8 @@ def match(question: str) -> tuple[str, str] | None:
                                            "down", "down2", "weather",
                                            "weather2", "weather3",
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
-                                           "outcome", "outcome2", "outcome3", "outcome4", "outcome5")
+                                           "outcome", "outcome2", "outcome3", "outcome4", "outcome5",
+                                           "until", "until2")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
@@ -732,6 +740,68 @@ def _waiting() -> str:
                      f"{speech.count_phrase(len(notices), 'thing')} "
                      "I wanted to tell you about")
     return ". ".join(parts) + "."
+
+
+_NAMED_DAYS = {"christmas": (12, 25), "christmas day": (12, 25), "christmas eve": (12, 24),
+               "new year": (1, 1), "new year's": (1, 1), "new year's day": (1, 1), "new years": (1, 1),
+               "new year's eve": (12, 31), "new years eve": (12, 31), "halloween": (10, 31),
+               "valentine's": (2, 14), "valentine's day": (2, 14), "valentines day": (2, 14),
+               "the fourth of july": (7, 4), "fourth of july": (7, 4), "july 4th": (7, 4), "july fourth": (7, 4),
+               "independence day": (7, 4)}
+_MONTHS = ("january", "february", "march", "april", "may", "june", "july", "august",
+           "september", "october", "november", "december")
+
+
+def _named_date(words: str, today):
+    """The next date these words name, or None: a weekday, a named day, a
+    month and day in either order, or a Thanksgiving."""
+    import datetime as dt
+    import re as _re
+    w = " ".join(words.casefold().split()).strip(" ?.")
+    if w in _NAMED_DAYS:
+        month, day = _NAMED_DAYS[w]
+        when = dt.date(today.year, month, day)
+        return when if when >= today else dt.date(today.year + 1, month, day)
+    if w == "thanksgiving":
+        for year in (today.year, today.year + 1):
+            first = dt.date(year, 11, 1)
+            thursday = first + dt.timedelta(days=(3 - first.weekday()) % 7)
+            when = thursday + dt.timedelta(weeks=3)
+            if when >= today:
+                return when
+    days = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+    if w in days:
+        ahead = (days.index(w) - today.weekday()) % 7
+        return today + dt.timedelta(days=ahead or 7)
+    m = (_re.fullmatch(r"(?:the )?(\d{1,2})(?:st|nd|rd|th)? (?:of )?([a-z]+)", w)
+         or _re.fullmatch(r"([a-z]+) (?:the )?(\d{1,2})(?:st|nd|rd|th)?", w))
+    if m:
+        a, b = m.group(1), m.group(2)
+        day, month = (a, b) if a.isdigit() else (b, a)
+        if month in _MONTHS:
+            try:
+                when = dt.date(today.year, _MONTHS.index(month) + 1, int(day))
+            except ValueError:
+                return None
+            return when if when >= today else dt.date(today.year + 1, _MONTHS.index(month) + 1, int(day))
+    return None
+
+
+def _until(words: str) -> str | None:
+    """Days until a date he named, from the calendar and nothing else."""
+    import datetime as dt
+    from aletheia import localtime
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    when = _named_date(words, today)
+    if when is None:
+        return None            # a thing, not a date: the model may think
+    days = (when - today).days
+    said = when.strftime("%A %d %B").replace(" 0", " ")
+    if days == 0:
+        return f"That's today, {said}."
+    if days == 1:
+        return f"Tomorrow, {said}."
+    return f"{days} days, {said}."
 
 
 def _status() -> str:
@@ -2165,6 +2235,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "status": lambda rest: _status(),
            "focus": lambda rest: _focus(),
            "outcomes": _outcomes,
+           "until": _until,
            "overnight": lambda rest: _overnight(),
            "updated": lambda rest: _updated(),
            "last": lambda rest: _last(),
