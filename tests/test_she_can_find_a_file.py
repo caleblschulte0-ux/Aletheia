@@ -273,7 +273,10 @@ class WhoseFilesCase(unittest.TestCase):
     """"my files" is his; "your files" is hers; "my keys" is neither."""
 
     def _kind(self, said):
-        return (voice._interpret(said) or {}).get("command", {}).get("kind")
+        # A sentence answered outright has no command at all (2026-09-23:
+        # "find my keys" is said - she has no eyes in the room), and that is
+        # the opposite of `file_find`, not an error.
+        return ((voice._interpret(said) or {}).get("command") or {}).get("kind")
 
     def test_his_files_are_his(self):
         for said in ("list my files", "what files do i have", "show me my files"):
