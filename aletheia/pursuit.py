@@ -473,10 +473,10 @@ def validate(proposal: dict, record: dict, *, quoting: bool = False) -> tuple[di
             kind = "suggest"
         move = {"kind": kind, "why": why, "cites": cites, "detail": {}}
         if kind == "look":
-            # ONE address. Live 2026-09-23 a model wrote "https://www.linkedin.com/
-            # company/alphasense/ or https://www.alphasense.com/careers" in the
-            # url field; the browser walked the whole string and landed on
-            # LinkedIn's sign-in form.
+            # ONE address. Live 2026-09-23 a model wrote "<a networking site's
+            # company page> or <the employer's careers page>" in the url field;
+            # the browser walked the whole string and landed on the networking
+            # site's sign-in form.
             found = re.search(r"https?://[^\s'\"<>]+", str(detail.get("url") or ""))
             url = _clean(found.group(0) if found else "", 500)
             query = _clean(detail.get("query"), 200)
@@ -664,10 +664,10 @@ _PASSWORD = re.compile(r"\bpassword\b", re.I)
 def sign_in_wall(url: str, page: dict) -> str:
     """Words for a page that is a sign-in form, or "" when it is a page.
 
-    LinkedIn's company page, read without an account, IS its login form:
-    live 2026-09-23 "Sign in ... Email or phone ... Password ... Join now"
-    was kept as evidence about AlphaSense and shown to the next pass as what
-    the employer's page says. A wall is a boundary, not a fact about them.
+    A networking site's company page, read without an account, IS its login
+    form: live 2026-09-23 "Sign in ... Email or phone ... Password ... Join
+    now" was kept as evidence about an employer and shown to the next pass as
+    what the employer's page says. A wall is a boundary, not a fact about them.
     """
     final = str(page.get("url") or url or "")
     title = str(page.get("title") or "")
