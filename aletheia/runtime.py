@@ -819,6 +819,24 @@ def send_approved_applications() -> list[dict]:
                          "args": {"id": str(record.get("approval"))}}
                         if record.get("approval") else None))
             continue
+        if approval.get("state") == "EXPIRED":
+            # A YES THAT WENT COLD IS ASKED AGAIN, not spent on. The grant was
+            # claimed every beat for an application whose approval had
+            # expired, and `confirm` then failed on it: eleven claims,
+            # nothing sent (2026-09-23). Renew first; then the grant.
+            try:
+                apply_run.renew_approval(record["id"])
+                record = apply_run.load_run(record["id"])
+                approval = policy.load(record["approval"])
+            except Exception as exc:
+                notifications.publish(
+                    "An application could not be sent",
+                    _why_not(record, exc),
+                    priority="IMPORTANT", source="apply", about=notifications.FAILED,
+                    dedupe_key=f"apply-renew-failed:{record['id']}")
+                continue
+        if approval.get("state") == "DENIED":
+            continue                      # he said no; the grant never overrides him
         if approval.get("state") != "APPROVED":
             # His standing grant. The action id names THIS application, so
             # the receipt says what the use was spent on — a probe with a
