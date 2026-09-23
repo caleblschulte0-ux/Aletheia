@@ -32,7 +32,7 @@ class TheLastRungCase(unittest.TestCase):
         # The gateway journals a real "nobody could think" alert; in the suite's
         # shared journal that reached a later test as today's latest alert.
         with mock.patch("aletheia.journal.append"), \
-        with mock.patch.object(reasoning_gateway.model_pool_config, "enabled", return_value=True), \
+             mock.patch.object(reasoning_gateway.model_pool_config, "enabled", return_value=True), \
              mock.patch.object(reasoning_gateway.local_model_pool, "reachable", return_value=True), \
              mock.patch.object(reasoning_gateway, "frontier_available", return_value=True), \
              mock.patch.object(reasoning_gateway, "_subscription_json", side_effect=slow_frontier), \
