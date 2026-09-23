@@ -138,9 +138,15 @@ class HeDoesNotTapApproveOnEveryJobCase(unittest.TestCase):
         question with no per-employer answer, and the grant's use count
         meaningless."""
         runtime.send_approved_applications()
-        self.assertEqual(self.claimed,
-                         [("application.submit", "apply:apply-1"),
-                          ("application.submit", "apply:apply-2")])
+        # The id NAMES the application and is one the claim store takes:
+        # this test used to freeze "apply:apply-1", which `safe_id` refuses
+        # (no colon), so with a live grant the real beat claimed nothing
+        # while this passed against a mock (found 2026-09-23).
+        from aletheia import stateio
+        self.assertEqual([c[0] for c in self.claimed], ["application.submit"] * 2)
+        for (_cap, action_id), run in zip(self.claimed, ("apply-1", "apply-2")):
+            self.assertIn(run, action_id)
+            self.assertEqual(stateio.safe_id(action_id, name="action id"), action_id)
 
     def test_the_approval_is_granted_so_the_later_checks_still_pass(self):
         """`accept` and `submit` re-check `policy.usable`. Leaving the
