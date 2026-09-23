@@ -654,13 +654,16 @@ def employer_openings(roles: list[str], *, limit: int = 10, country: str = "", e
         pass
     try:
         from aletheia import journal, speech
+        # A sentence, not a report card ("0 searches named 0 employers, The
+        # Muse named 60, 0 new; crawled 6 employers for 50 openings, 0 fit his
+        # roles; stopped: ..." reached his screen, live 2026-09-23). The
+        # counts stay in `report`.
+        crawled = len(report["crawled"])
         journal.append("action", "jobs",
-                       f"employer discovery: {speech.count_phrase(report.get('searches', 0), 'search')} "
-                       f"named {report.get('named', 0)} employers, The Muse named "
-                       f"{report.get('muse_employers', 0)}, {len(new)} new; crawled "
-                       f"{speech.count_phrase(len(report['crawled']), 'employer')} for "
-                       f"{speech.count_phrase(len(found), 'opening')}, {len(out)} fit his roles"
-                       + (f"; stopped: {report['stopped']}" if report.get("stopped") else ""),
+                       f"looked at {speech.count_phrase(crawled, 'employer')}' own sites: "
+                       f"{speech.count_phrase(len(found), 'opening')}, "
+                       + (f"{len(out)} fit your roles" if out else "none fit your roles")
+                       + (f"; {len(new)} new employer{'s' if len(new) != 1 else ''} found" if new else ""),
                        actor=ACTOR)
     except Exception:
         pass
