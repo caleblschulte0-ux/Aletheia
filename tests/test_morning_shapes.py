@@ -61,17 +61,19 @@ class EmployersCase(unittest.TestCase):
 class UpdatedCase(unittest.TestCase):
     def test_when_she_last_updated_is_git_and_version(self):
         done = mock.Mock(returncode=0, stdout="2026-09-23T02:39:00+00:00\n")
-        with mock.patch("subprocess.run", return_value=done), \
+        with mock.patch("aletheia.proc.run", return_value=done), \
              mock.patch("aletheia.running.version", return_value={"running_old_code": False, "behind_count": 0}):
             said = quick.answer("when did you last update")
         self.assertTrue(said.startswith("My code last changed"), said)
         self.assertIn("that's the code I'm running", said)
-        with mock.patch("subprocess.run", return_value=done), \
+        with mock.patch("aletheia.proc.run", return_value=done), \
              mock.patch("aletheia.running.version", return_value={"running_old_code": False, "behind_count": 3}):
             self.assertIn("3 newer changes waiting", quick.answer("are you up to date"))
-        with mock.patch("subprocess.run", return_value=done), \
+        with mock.patch("aletheia.proc.run", return_value=done), \
              mock.patch("aletheia.running.version", return_value={"running_old_code": True}):
-            self.assertIn("restart me", quick.answer("what version are you running"))
+            self.assertIn("restart me", quick.answer("when was your last update"))
+        # "What version are you on" stays the version shape, which says the commit.
+        self.assertNotEqual(quick.match("what version are you on")[0], "updated")
 
 
 class BriefWithoutAReadingCase(unittest.TestCase):

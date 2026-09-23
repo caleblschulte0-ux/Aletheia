@@ -320,7 +320,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("updated", re.compile(
         r"^when (?:did|were) (?:you|u) last (?:update|updated|upgrade|upgraded)(?: yourself)?$"
         r"|^(?:are|is) (?:you|u|your code) (?:up to date|current|on the (?:latest|newest)(?: code)?)$"
-        r"|^what (?:version|code) are (?:you|u) (?:on|running)$|^when was your last update$")),
+        r"|^when was your last update$")),
     ("today", re.compile(
         r"^what (?:did|have) (?:you|u) (?:do|done)(?: today)?$"
         r"|^what have (?:you|u) been doing$"
@@ -1852,13 +1852,13 @@ def _overnight() -> str:
 def _updated() -> str:
     """When her code last changed and whether it is the newest - from git and
     `running.version`, never a guess ("no record of that in the journal")."""
-    import datetime as dt
-    import subprocess
-    from aletheia import running, speech
+    from aletheia import proc, running, speech
     from aletheia.fleet import REPO_ROOT
     try:
-        done = subprocess.run(["git", "-C", str(REPO_ROOT), "log", "-1", "--format=%cI"],
-                              capture_output=True, text=True, timeout=10)
+        # `proc.run`, never bare subprocess: a console window flashing on
+        # his desktop for a git read is the night-of-the-console-windows bug.
+        done = proc.run(["git", "-C", str(REPO_ROOT), "log", "-1", "--format=%cI"],
+                        capture_output=True, text=True, timeout=10)
         stamp = done.stdout.strip() if done.returncode == 0 else ""
     except Exception:
         stamp = ""
