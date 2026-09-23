@@ -53,7 +53,7 @@ BOARDS_PATH = REPO_ROOT / "config" / "job_boards.json"
 TIMEOUT_S = 20.0
 MAX_BYTES = 12_000_000
 MAX_WORKERS = 8
-MAX_RESULTS = 60
+MAX_RESULTS = 90
 UA = "Mozilla/5.0 (compatible; Aletheia/1.0; personal job search)"
 
 # Words that carry no signal in a job title and would match everything.
@@ -112,6 +112,31 @@ MAX_LEARNED_BOARDS = 400
 
 def _learned_path():
     return stateio.private_dir("jobs") / "learned_boards.json"
+
+
+def _rotation_path():
+    return stateio.private_dir("jobs") / "rotation.json"
+
+
+def _rotated(queues: list) -> list:
+    """The per-employer queues, started one further along than last time,
+    so a batch's window opens on a different employer each time. The cursor
+    lives beside the learned boards; a store that cannot be read or written
+    leaves the order alone."""
+    if len(queues) < 2:
+        return queues
+    try:
+        cursor = int((json.loads(_rotation_path().read_text(encoding="utf-8")) or {}).get("cursor") or 0)
+    except (OSError, ValueError, TypeError, AttributeError):
+        cursor = 0
+    start = cursor % len(queues)
+    try:
+        path = _rotation_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        stateio.write_json_atomic(path, {"cursor": (cursor + 1) % 1_000_000})
+    except OSError:
+        pass
+    return queues[start:] + queues[:start]
 
 
 def _learned_boards() -> list[dict]:
@@ -721,6 +746,12 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
     for _v, job in found:
         queues.setdefault(str(job.get("company") or "").casefold(), []).append(job)
     board, waiting = [], list(queues.values())
+    if fetcher is None:
+        # And a different employer LEADS each batch. The queues came out in
+        # score order every time, so the same fifteen names filled the
+        # window every five minutes (his words, 2026-09-23: "it keeps
+        # getting cycled back to these couple companies").
+        waiting = _rotated(waiting)
     while waiting:
         board += [queue.pop(0) for queue in waiting]
         waiting = [queue for queue in waiting if queue]
