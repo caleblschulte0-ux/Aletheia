@@ -1962,10 +1962,11 @@ def _refill_and_submit(record: dict) -> dict:
         asked_at = time.time()
         _press(page, record, button)
         page.wait_for_load_state("domcontentloaded")
-        try:
-            page.wait_for_timeout(1500)     # let a confirmation render
-        except Exception:
-            pass
+        # UNTIL THE SEND HAS SETTLED, not for a second and a half. Live
+        # 2026-09-23 Sleeper's Submit was still spinning in the picture, the
+        # page still showed the form, and a field label ("City, State (must
+        # be in US)*") read as the site's refusal.
+        settled = _settled_after_press(page, button)
         # THE WHOLE PAGE for the decision, a slice of it for the record.
         # Live 2026-09-12 this read `[:4000]` and the check below never once
         # fired on a real form: a Greenhouse application runs to six thousand
@@ -2020,6 +2021,7 @@ def _refill_and_submit(record: dict) -> dict:
         page.screenshot(path=str(shot), full_page=True)
         landed = page.url
         title = page.title()
+        complaints = _page_complaints(page)
         page.close()
     # Never "done" without something that says so. A click that produced
     # no confirmation is a click, not an application — and a page that
@@ -2027,9 +2029,81 @@ def _refill_and_submit(record: dict) -> dict:
     # silence. `browse.read_outcome` is the one place that knows the
     # difference, so this and the general web loop cannot drift on it.
     return {"url": landed, "title": title,
-            "evidence": body[:600], "screenshot": str(shot),
+            "evidence": body[:600], "screenshot": str(shot), "settled": settled,
             **browse.read_outcome(body, did=record.get("button", "submit"),
-                                  title=title, url=landed)}
+                                  title=title, url=landed, complaints=complaints)}
+
+
+#: How long a pressed Submit is given to finish before the page is read.
+SUBMIT_SETTLE_MS = 12_000
+#: One reading per beat: is the button still busy, is the form gone, and
+#: does the page say it went through - so a test double's page sequence is
+#: never consumed by the wait, and a real page is asked one question.
+_SETTLE_JS = r"""([sel, words]) => {
+  const b = sel ? document.querySelector(sel) : null;
+  const text = ((document.body && document.body.innerText) || '').toLowerCase();
+  const confirmed = (words || []).some(w => text.includes(w));
+  if (!b) return {state: 'gone', confirmed};
+  const busy = b.getAttribute('aria-busy') === 'true' || b.disabled
+    || /\b(loading|spinner|busy|submitting|pending)\b/i.test(String(b.className || ''))
+    || !!b.querySelector('[class*="spinner" i], [class*="loading" i], [aria-busy="true"]');
+  return {state: busy ? 'busy' : 'free', confirmed};
+}"""
+_COMPLAINTS_JS = r"""() => {
+  const shown = (el) => !!el && el.offsetParent !== null && (el.innerText || '').trim();
+  const out = [];
+  for (const el of document.querySelectorAll('[role=alert], [aria-live="assertive"], [class*="error" i]:not(input):not(form), [class*="invalid" i]:not(input)')) {
+    if (!shown(el)) continue;
+    const t = (el.innerText || '').replace(/\s+/g, ' ').trim();
+    if (t && t.length <= 240 && !out.includes(t)) out.push(t);
+  }
+  for (const el of document.querySelectorAll('[aria-invalid="true"]')) {
+    const id = el.getAttribute('aria-describedby');
+    const said = id && document.getElementById(id);
+    const t = said ? (said.innerText || '').replace(/\s+/g, ' ').trim() : '';
+    if (t && !out.includes(t)) out.push(t);
+  }
+  return out.slice(0, 6);
+}"""
+
+
+def _settled_after_press(page, button: str, *, budget_ms: int = SUBMIT_SETTLE_MS) -> str:
+    """Wait until the send has visibly finished: the address changed, the page
+    says it went through, the form is gone, or the button is no longer busy.
+    Returns why it stopped waiting. Never raises."""
+    wait = getattr(page, "wait_for_timeout", None)
+    if wait is None:
+        return "no browser"
+    start_url = str(getattr(page, "url", "") or "")
+    for _ in range(max(1, budget_ms // 400)):
+        try:
+            if str(getattr(page, "url", "") or "") != start_url:
+                wait(800)
+                return "the address changed"
+            got = page.evaluate(_SETTLE_JS, [button, list(browse.CONFIRMED_WORDS)])
+        except Exception:
+            return "no reading"
+        if not isinstance(got, dict):
+            return "no reading"
+        if got.get("confirmed"):
+            return "the page says it went through"
+        if got.get("state") == "gone":
+            wait(800)
+            return "the form is gone"
+        if got.get("state") == "free":
+            wait(600)               # a verdict renders a beat after the spinner
+            return "the button is free"
+        wait(400)
+    return "still busy after the wait"
+
+
+def _page_complaints(page) -> list[str]:
+    """What the page itself complains of, visibly - alerts and invalid fields."""
+    try:
+        got = page.evaluate(_COMPLAINTS_JS)
+    except Exception:
+        return []
+    return [c for c in (got or []) if isinstance(c, str)] if isinstance(got, list) else []
 
 
 def _click_never_landed(exc: BaseException) -> str:
