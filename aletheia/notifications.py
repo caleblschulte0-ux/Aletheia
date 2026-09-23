@@ -103,9 +103,25 @@ def _sayable(text: str) -> str:
     return said if said.strip() else str(text or "")
 
 
+def action_shape(action: object) -> dict:
+    """{"label", "kind", "args"} or ValueError. The one command a notice asks
+    of him, for the page to put a button on; nothing a page could turn into
+    a second command path - it is sent through /api/command like a tap."""
+    if not isinstance(action, dict):
+        raise ValueError("action must be an object")
+    label, kind = str(action.get("label") or "").strip(), str(action.get("kind") or "").strip()
+    args = action.get("args") or {}
+    if not label or not kind or not isinstance(args, dict):
+        raise ValueError("action needs a label, a kind and an object of args")
+    from aletheia import intercom
+    if kind not in intercom.KIND_ARGS or kind in intercom.PLANNER_FORBIDDEN and kind not in ("approve", "deny", "resume", "restart", "open", "mic_on"):
+        raise ValueError(f"action kind {kind!r} is not one a notice may offer")
+    return {"label": label[:40], "kind": kind, "args": {str(k): v for k, v in args.items()}}
+
+
 def publish(title: str, body: str, *, priority: str = "NORMAL", source: str = "aletheia",
             dedupe_key: str | None = None, related: dict | None = None,
-            about: str = "") -> dict:
+            about: str = "", action: dict | None = None) -> dict:
     """File a notice. `about` decides whether it may interrupt him.
 
     The policy is applied HERE rather than at each call site, because a
@@ -140,6 +156,12 @@ def publish(title: str, body: str, *, priority: str = "NORMAL", source: str = "a
         if not isinstance(related, dict):
             raise ValueError("related must be an object")
         value["related"] = related
+    if action is not None:
+        # The button on the notice (2026-09-23): "Got it" was every
+        # notice's only control, while fifteen bodies told him to do
+        # something. Validated here so a stored notice never carries a
+        # command the page would send blind.
+        value["action"] = action_shape(action)
     validate(value)
     write_json_atomic(path, value)
     return value

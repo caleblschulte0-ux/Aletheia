@@ -148,7 +148,9 @@ class TheHeaderSaysWhatSheIsDoing(unittest.TestCase):
 
 class EveryMissionIsOneCardShape(unittest.TestCase):
     KEYS = {"id", "type", "title", "goal", "status", "step", "next", "blockers", "stuck", "needs",
-            "needs_count", "progress", "counts", "receipts", "updated", "detail", "in_browser", "source"}
+            "needs_count", "progress", "counts", "receipts", "updated", "detail", "in_browser", "source",
+            # 2026-09-23: the one command the card's own sentence asks of him
+            "action"}
 
     def test_why_stuck_comes_from_recorded_blockers(self):
         self.assertEqual(mc.why_stuck("BLOCKED", [{"said": "the build machine is offline."}], []),

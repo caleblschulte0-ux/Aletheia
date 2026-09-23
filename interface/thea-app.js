@@ -141,14 +141,25 @@
   // 2026-09-23: "there should be like a link afterwards to like restart
   // stuff"). The label and the command come from the Core; the page only
   // puts a button on them.
+  // One button shape for every sentence that carries an action: the Core
+  // says {label, kind, args}; the page sends exactly that command.
+  function actButton(action, ack) {
+    if (!action || !action.kind) return "";
+    return ' <button class="act" data-act="' + T.esc(action.kind) + '" data-args=\'' +
+      T.esc(JSON.stringify(action.args || {})) + "'" +
+      (ack ? ' data-ack="' + T.esc(ack) + '"' : "") + ">" +
+      T.esc(action.label || "Fix it") + "</button>";
+  }
+
+  let healthAction = null;
   function paintBanner() {
-    const show = bannerText && !healthSaid;
+    // The health line wins when both say the same thing; a banner that
+    // carries an action the health line does not is still shown, because
+    // hiding it hid the one Restart button (found 2026-09-23).
+    const same = bannerAction && healthAction && bannerAction.kind === healthAction.kind;
+    const show = bannerText && (!healthSaid || (bannerAction && bannerAction.kind && !same));
     setHTML("banner", show
-      ? "<span>" + T.esc(bannerText) + "</span>" +
-        (bannerAction && bannerAction.kind
-          ? ' <button class="act" data-act="' + T.esc(bannerAction.kind) + '">' +
-            T.esc(bannerAction.label || "Fix it") + "</button>"
-          : "")
+      ? "<span>" + T.esc(bannerText) + "</span>" + actButton(bannerAction)
       : "");
     $("banner").hidden = !show;
   }
@@ -226,9 +237,12 @@
     // question on every form, twelve lines of it, and three of them made
     // the page longer than everything he can actually act on. Tapping it
     // opens the whole thing; nothing is hidden, it just is not shouted.
+    // A notice that asks him to DO something carries the button for it;
+    // "Got it" alone was every notice's only control (2026-09-23).
     return '<div class="note"><h3>' + T.esc(heading) + "</h3>" +
       (under ? '<p class="clamp" data-unclamp>' + T.esc(under) + "</p>" : "") +
       '<div class="row"><span class="when">' + T.esc(T.clock(n.created_at)) + "</span>" +
+      actButton(n.action, n.id) +
       '<button class="seen" data-seen="' + T.esc(n.id) + '">Got it</button></div></div>';
   }
 
@@ -344,7 +358,9 @@
       (c.goal && c.goal !== c.title ? "<p>" + T.esc(c.goal) + "</p>" : "") +
       (step ? "<p>" + T.esc(step) + "</p>" : "") +
       (c.stuck ? '<p class="why clamp" data-unclamp>' + T.esc(c.stuck) + "</p>" : "") +
-      (once(c.next) ? "<p>" + T.esc(c.next) + "</p>" : "") + bar +
+      (once(c.next) ? "<p>" + T.esc(c.next) + "</p>" : "") +
+      // "Nothing moves until you do this" carried no way to say he did.
+      (c.action && c.action.kind ? '<div class="acts">' + actButton(c.action) + "</div>" : "") + bar +
       (receipt && receipt.id ? peek("How did it get here?", receipt.id, receipt.kind) : "") +
       "</div>";
   }
@@ -528,12 +544,14 @@
     healthAt = Date.now();
     try {
       const h = await T.api("/api/health");
-      $("health").textContent = h.well ? "" : (h.says || "");
+      healthAction = (!h.well && h.action && h.action.kind) ? h.action : null;
+      setHTML("health", h.well ? "" : "<span>" + T.esc(h.says || "") + "</span>" + actButton(healthAction));
       $("health").hidden = !!h.well || !h.says;
       healthSaid = !h.well && !!h.says;
     } catch {
       $("health").hidden = true;   // the rail already says she is unreachable
       healthSaid = false;
+      healthAction = null;
     }
     paintBanner();
   }
@@ -836,8 +854,19 @@
     if (!act) return;
     act.disabled = true;
     const kind = act.dataset.act;
+    let args = {};
+    try { args = JSON.parse(act.dataset.args || "{}"); } catch { args = {}; }
     try {
-      await T.command({ kind, reason: "his tap on the Thea page" });
+      const cmd = Object.assign({ kind }, args);
+      if (kind === "restart" || kind === "halt") cmd.reason = "his tap on the Thea page";
+      await T.command(cmd);
+      if (act.dataset.ack) {
+        // The notice asked for this; done, it is read.
+        try { await T.api("/api/notifications/ack", { method: "POST",
+          body: JSON.stringify({ id: act.dataset.ack }) }); } catch {}
+        last.notices = last.notices.filter((n) => n.id !== act.dataset.ack);
+        repaint();
+      }
       if (kind === "restart") {
         toast("Restarting — back in about a minute");
         paintWhere("trouble", { head: "Restarting…", tail: "back in about a minute" });
@@ -933,9 +962,12 @@
 
   function paintDrawer(m, status) {
     const code = (m && m.code) || {};
-    $("codeLine").textContent = code.readable === false ? "not readable"
-      : [code.branch, code.commit, code.subject].filter(Boolean).join(" · ") +
-        (code.running_old_code ? " · newer code is on disk than this process is running" : "");
+    setHTML("codeLine", code.readable === false ? "not readable"
+      : T.esc([code.branch, code.commit, code.subject].filter(Boolean).join(" · ")) +
+        (code.running_old_code
+          ? " · newer code is on disk than this process is running" +
+            actButton({ label: "Restart her", kind: "restart" })
+          : ""));
     $("linkState").textContent = T.getToken()
       ? "Linked. The code is stored on this device only."
       : (T.onHisPC()

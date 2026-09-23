@@ -232,8 +232,14 @@ def mission_card(*, id: str, type: str, title: str, status: str, goal: str = "",
                  next: str = "", blockers: Iterable[dict] = (), needs: Iterable[dict] = (),
                  needs_count: int | None = None, progress: dict | None = None,
                  counts: Iterable[dict] = (), receipts: Iterable[dict] = (), updated: object = None,
-                 detail: bool = False, in_browser: bool = False, source: str = "") -> dict:
-    """The one shape every mission takes on the home screen. Pure."""
+                 detail: bool = False, in_browser: bool = False, source: str = "",
+                 action: dict | None = None) -> dict:
+    """The one shape every mission takes on the home screen. Pure.
+
+    `action` is the one command the card's own sentence asks of him
+    ({"label", "kind", "args"}), for the page to put a button on
+    (2026-09-23: "Nothing moves until you do this" carried no way to say
+    he did)."""
     if status not in STATUSES:
         status = "OPEN"
     blockers = [dict(b) for b in blockers if isinstance(b, dict)]
@@ -247,6 +253,7 @@ def mission_card(*, id: str, type: str, title: str, status: str, goal: str = "",
         "progress": progress, "counts": [dict(c) for c in counts],
         "receipts": [dict(r) for r in receipts], "updated": updated, "detail": bool(detail),
         "in_browser": bool(in_browser), "source": source,
+        "action": dict(action) if isinstance(action, dict) and action.get("kind") else {},
     }
 
 
@@ -329,6 +336,7 @@ def plan_mission(plan: dict, tasks: Iterable[dict] = ()) -> dict | None:
     doing = next((s for s in steps if s.get("state") == "doing"), None)
     hers, his = doable("thea"), doable("caleb")
     running_task = any(str(t.get("status")) == "RUNNING" for t in tasks)
+    action: dict = {}
     if his is not None:
         needs.append({"said": f"step {his.get('n')} is yours: {_words(his.get('text'), 160)}",
                       "blocking": hers is None and doing is None,
@@ -339,6 +347,8 @@ def plan_mission(plan: dict, tasks: Iterable[dict] = ()) -> dict | None:
         needs.insert(0, {"said": "it waits for your yes before anything works on it", "blocking": False,
                          "receipt": {"kind": "plan", "id": plan["slug"]}})
         step, nxt = "", "Nothing works on it until you say yes."
+        action = {"label": "Yes, start it", "kind": "plan_set",
+                  "args": {"slug": plan["slug"], "state": "open", "because": "he said yes on the Thea page"}}
     elif doing is not None or running_task:
         status = "RUNNING"
         step = _words((doing or {}).get("text"), 200) or "a task under it is running"
@@ -352,6 +362,9 @@ def plan_mission(plan: dict, tasks: Iterable[dict] = ()) -> dict | None:
         step = ""
         first = next(n for n in needs if n.get("blocking"))
         nxt = f"Nothing moves until you do this: {first['said']}."
+        if his is not None and his.get("n") is not None:
+            action = {"label": "I did it", "kind": "plan_step",
+                      "args": {"slug": plan["slug"], "n": int(his["n"]), "state": "done"}}
     elif hers is not None:
         status = "OPEN"
         step = ""
@@ -369,7 +382,7 @@ def plan_mission(plan: dict, tasks: Iterable[dict] = ()) -> dict | None:
         receipts=[{"kind": "plan", "id": plan["slug"], "label": "plan"}]
         + [{"kind": "task", "id": t.get("id"), "label": f"task {t.get('id')}"} for t in tasks[:3]],
         updated=max([str(t.get("updated_at") or "") for t in tasks] + [str(plan.get("created") or "")]) or None,
-        source=f"plans/{plan['slug']}.json")
+        source=f"plans/{plan['slug']}.json", action=action)
 
 
 TASK_STATUS = {"RUNNING": "RUNNING", "WAITING_OPERATOR": "NEEDS YOU", "BLOCKED": "BLOCKED",
@@ -400,6 +413,9 @@ def task_mission(task: dict, index: dict | None = None) -> dict | None:
         # The description is the ask; `result` is the history of how it got here.
         needs.append({"said": _words(task.get("description") or task.get("result"), 200), "blocking": True,
                       "receipt": {"kind": "task", "id": task["id"]}})
+    action = ({"label": "I did it", "kind": "task_done",
+               "args": {"which": str(task.get("description") or task["id"])}}
+              if raw == "WAITING_OPERATOR" else {})
     nxt = {"RUNNING": "Finish it.", "NEEDS YOU": "Nothing moves until you do your part.",
            "BLOCKED": "Nothing moves until the blocker clears.",
            "WAITING": "Pick it up when what it waits on arrives.",
@@ -410,7 +426,7 @@ def task_mission(task: dict, index: dict | None = None) -> dict | None:
         id=f"task:{task['id']}", type="task", title=str(task.get("description") or task["id"]),
         goal=str(task.get("goal") or ""), status=status, step="", next=nxt, blockers=blockers, needs=needs,
         receipts=[{"kind": "task", "id": task["id"], "label": f"task {task['id']}"}],
-        updated=task.get("updated_at"), source="state/tasks")
+        updated=task.get("updated_at"), source="state/tasks", action=action)
 
 
 def generic_missions(*, mission_record: dict | None, plans: Iterable[dict], tasks: Iterable[dict],
@@ -561,7 +577,9 @@ def header(agent: dict, *, now: dt.datetime, core: dict, missions: Iterable[dict
                   + ": this screen may be out of date and nothing may be running.")
         action = {"label": "Restart her", "kind": "restart"}
     else:
-        banner = next((str(s["banner"]) for s in all_signals if s.get("banner")), "")
+        loud = next((s for s in all_signals if s.get("banner")), None)
+        banner = str(loud["banner"]) if loud else ""
+        action = dict(loud.get("action") or {}) if loud else {}
     today = today or {}
     done, problems = int(today.get("done") or 0), int(today.get("problems") or 0)
     return {"state": state, "doing": doing, "next": nxt, "since": agent.get("since"),

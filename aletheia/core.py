@@ -918,6 +918,7 @@ class Handler(BaseHTTPRequestHandler):
             want_tasks = parse_qs(url.query).get("tasks", ["0"])[0] == "1"
             state = _running.snapshot(include_tasks=want_tasks)
             state["says"] = _running.headline(state)
+            state["action"] = _running.action(state)
             # `well` is what the page hides itself on, and it comes from
             # `running` rather than from the page re-deriving it: a health
             # strip that stays quiet while the sentence says the Core is

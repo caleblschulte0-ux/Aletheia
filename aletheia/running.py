@@ -576,6 +576,39 @@ def headline(state: dict) -> str:
     return said + (f" {fix[0].upper()}{fix[1:]}." if fix else "")
 
 
+def action(state: dict) -> dict:
+    """What the health line's sentence asks him to DO, as one command the page
+    can put a button on: {"label", "kind"} or {}.
+
+    His words, 2026-09-23: "the core's heartbeat is 19 minutes old... and
+    then that's all it tells you. There should be like a link afterwards to
+    like restart stuff." Six of `headline`'s sentences named an action and
+    none carried one. Where nothing honest can be pressed (a stuck update
+    that a restart would not fix, the watchdog already on its way) there is
+    no button, on purpose.
+    """
+    up = [p for p in state.get("parts") or [] if p.get("up")]
+    if state.get("closed"):
+        return {"label": "Open her", "kind": "open"}
+    if not up:
+        return {}
+    if state.get("halted"):
+        return {"label": "Let her start again", "kind": "resume"}
+    if _every_expected_part_is_up(state):
+        if state.get("update_stuck"):
+            return {}
+        if state.get("running_old_code"):
+            return {"label": "Restart her", "kind": "restart"}
+        if not state.get("listening", False):
+            return {"label": "Turn her microphone on", "kind": "mic_on"}
+        return {}
+    expected = [p for p in state["parts"] if not _by_design(state, p)]
+    down = [p for p in expected if not p.get("up")]
+    if down and down[0].get("part") == "voice":
+        return {"label": "Turn her microphone on", "kind": "mic_on"}
+    return {}
+
+
 #: The part, named the way he would name it rather than by its module.
 _PART_WORDS = {"supervisor": "the thing that keeps me alive",
                "core": "the part that answers you",

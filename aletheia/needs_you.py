@@ -109,9 +109,10 @@ def _approvals() -> list[dict]:
             if_ignored="nothing happens",
             which=voice.approval_about(approval),
             since=str(approval.get("requested_at") or ""),
-            how=("say approve and I'll do it" if routine
-                 else "say yes on your phone or at the keyboard and I'll "
-                      "do it")))
+            # The buttons are beside it; the words used to describe the
+            # spoken path instead ("say approve and I'll do it").
+            how=("tap Approve and I'll do it" if routine
+                 else "tap Approve here or on your phone and I'll do it")))
     return out
 
 
