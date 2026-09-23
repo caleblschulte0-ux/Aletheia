@@ -2655,6 +2655,13 @@ def _interpret(transcript: str) -> dict:
                     r"|what are my (?:job )?preferences|what have i told (?:you|u) to (?:look for|avoid|leave out)"
                     r"|what am i (?:looking for|after)(?: now)?", low):
         return {"command": {"kind": "preferences"}, "say": None}
+    # "Add Sales Engineer to the roles" / "also look for sales engineer jobs":
+    # a role he names is hunted for beside the ones his resume is for.
+    m = re.fullmatch(r"(?:add|put|include) (.+?) (?:to|in|on) (?:the |my )?(?:roles|role list|list of roles|job roles|hunt|job hunt|search)"
+                     r"|(?:also|and also|and) (?:look for|apply (?:to|for)|hunt for|go after|search for|consider|try) (.+?) (?:roles|jobs|positions|openings)", low)
+    if m and (m.group(1) or m.group(2)):
+        return {"command": {"kind": "preference_set", "field": "roles_added",
+                            "value": (m.group(1) or m.group(2)).strip()}, "say": None}
     m = re.match(r"(?:only (?:apply (?:to|for)|look for|look at|go for|go after|take|consider|send me) |i only want )(.+)", low)
     if m and not m.group(1).startswith(("if ", "when ")):
         return {"command": {"kind": "preference_set", "field": "work_wanted",

@@ -145,6 +145,9 @@ FIELDS: dict[str, dict] = {
     # calling."
     "work_wanted":     {"asks": (), "means": "the kinds of work he wants"},
     "work_not_wanted": {"asks": (), "means": "the kinds of work he will not do"},
+    # "Add Sales Engineer to the roles" (2026-09-23): the roles come off his
+    # resume, and a role he names is hunted for beside them. No form asks it.
+    "roles_added":    {"asks": (), "means": "roles he named to hunt for, beside the ones his resume is for"},
     # 2026-09-13, his words: "I'm at least eighteen." Coinbase stopped a real
     # application on "Are you at least 18 years of age?" with nothing on file
     # to say so, and a model told never to invent a fact rightly left it.
@@ -360,10 +363,15 @@ def questions_on_file() -> list[dict]:
 #: 2026-09-23: "only apply to remote jobs", "don't apply to part-time jobs",
 #: "raise my minimum salary to 110k" each went to a planner nobody could
 #: run, for a store one line of his settles.
-PREFERENCE_FIELDS = ("work_wanted", "work_not_wanted", "desired_pay", "notice_period", "willing_to_relocate")
+PREFERENCE_FIELDS = ("work_wanted", "work_not_wanted", "desired_pay", "notice_period", "willing_to_relocate",
+                     "roles_added")
 _PREFERENCE_WORDS = {"work_wanted": "the work you want", "work_not_wanted": "the work you won't do",
                      "desired_pay": "what you want to be paid", "notice_period": "when you could start",
-                     "willing_to_relocate": "whether you'd relocate"}
+                     "willing_to_relocate": "whether you'd relocate",
+                     # "Add Sales Engineer to the roles" (2026-09-23): the roles come off
+                     # his resume, and a role he names is hunted for beside them.
+                     "roles_added": "roles you added"}
+_LIST_FIELDS = ("work_wanted", "work_not_wanted", "roles_added")
 
 
 def steer_by(field: str, value, *, quote: str = "") -> str:
@@ -378,7 +386,7 @@ def steer_by(field: str, value, *, quote: str = "") -> str:
     said = " ".join(str(value or "").split()).strip(" .")
     if not said:
         raise ValueError("nothing to steer by")
-    if field in ("work_wanted", "work_not_wanted"):
+    if field in _LIST_FIELDS:
         before = str(answer(field) or "").strip(" .")
         parts = [p.strip() for p in before.split(";") if p.strip()]
         if said.casefold() not in (p.casefold() for p in parts):
@@ -394,8 +402,14 @@ def steer_by(field: str, value, *, quote: str = "") -> str:
         pass
     lead = {"work_wanted": "From now on I'll look for", "work_not_wanted": "From now on I'll leave out",
             "desired_pay": "Your minimum pay is now", "notice_period": "You can start",
-            "willing_to_relocate": "Relocation is now"}[field]
+            "willing_to_relocate": "Relocation is now",
+            "roles_added": "Besides what your resume is for, I'll hunt for"}[field]
     return f"{lead} {now}."
+
+
+def roles_added() -> list[str]:
+    """The roles he named himself, beside the ones his resume is for."""
+    return [p.strip() for p in str(answer("roles_added") or "").split(";") if p.strip()]
 
 
 def preferences_words() -> str:

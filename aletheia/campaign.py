@@ -509,14 +509,30 @@ def roles_for(text: str, *, think=None) -> list[str]:
         # send her hunting for it.
         kept = [r for r in roles if not job_fit.unwanted_reason(r, "", known)]
         if kept:
-            return kept
+            return _with_his_roles(kept, known)
         raise ValueError("every role was work he will not do")
     except Exception:
         title = profile.known().get("current_title")
         if title and not job_fit.unwanted_reason(str(title), "", known):
-            return [str(title)]
+            return _with_his_roles([str(title)], known)
+        his = _with_his_roles([], known)
+        if his:
+            return his
         raise CampaignError("she could not tell from the resume what jobs it is for; "
                             "say the kind of job") from None
+
+
+def _with_his_roles(roles: list[str], known: dict) -> list[str]:
+    """The roles a resume is for, plus the ones he named ("add Sales Engineer
+    to the roles", 2026-09-23) - never twice, never work he refused."""
+    out = list(roles)
+    have = {r.casefold() for r in out}
+    for role in profile.roles_added():
+        if role.casefold() in have or job_fit.unwanted_reason(role, "", known):
+            continue
+        out.append(role)
+        have.add(role.casefold())
+    return out
 
 
 ANSWER_BRIEF = """You answer the questions on ONE online job application for the applicant whose facts and resume you are given.
