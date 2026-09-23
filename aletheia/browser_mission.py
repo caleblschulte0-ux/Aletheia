@@ -38,7 +38,7 @@ import datetime as dt
 import hashlib
 import re
 
-from aletheia import stateio
+from aletheia import journal, stateio
 
 RUNNING = "RUNNING"
 NEEDS_YOU = "NEEDS_YOU"              # a boundary only he can pass: named exactly
@@ -49,8 +49,76 @@ DONE = "DONE"
 REFUSED = "REFUSED"                 # spending, or something never allowed
 MANUAL_ONLY = "MANUAL_ONLY"         # the site's terms forbid automation
 REJECTED = "REJECTED"               # the site handed it back: proof it failed
+LEFT = "LEFT"                       # she left it: nothing more she could do, or he never came
 STATES = (RUNNING, NEEDS_YOU, AWAITING_APPROVAL, SUBMITTING, SUBMITTED_UNCONFIRMED,
-          DONE, REFUSED, MANUAL_ONLY, REJECTED)
+          DONE, REFUSED, MANUAL_ONLY, REJECTED, LEFT)
+
+#: Boundaries that are HERS, not his: nothing he does from a phone changes
+#: them. Live 2026-09-23 his page carried 72 "waiting for you" cards from
+#: the general browser - 30 with no way forward, 16 where he had already
+#: said no, 3 whose posting had closed, 11 where she ran out of steps, went
+#: in circles or hit an error - each saying "it carries on when you do your
+#: part", with nothing to press. A wall she cannot pass is a wall she leaves.
+NOT_HIS = ("NO_WAY_FORWARD", "APPROVAL_DENIED", "POSTING_CLOSED", "OUT_OF_STEPS",
+           "GOING_IN_CIRCLES", "ERROR", "UNKNOWN")
+#: Boundaries that ARE his - a human check, a sign-in, a question, a code -
+#: wait this long for him and are then left too, said as such.
+HIS_KINDS = ("CAPTCHA", "SIGN_IN", "QUESTIONS", "WAITING_FOR_CODE", "NO_VAULT",
+             "ACCOUNT_CREATION_APPROVAL")
+LEAVE_AFTER_S = 48 * 3600
+_KIND_WORDS = {"NO_WAY_FORWARD": "no way forward on the page", "APPROVAL_DENIED": "you said no",
+               "POSTING_CLOSED": "the posting closed", "OUT_OF_STEPS": "she ran out of steps",
+               "GOING_IN_CIRCLES": "she was going in circles", "ERROR": "the page broke",
+               "UNKNOWN": "it stopped without saying why", "CAPTCHA": "a human check",
+               "SIGN_IN": "a sign-in", "QUESTIONS": "questions only you can answer",
+               "WAITING_FOR_CODE": "a verification code", "NO_VAULT": "an account she has no way into",
+               "ACCOUNT_CREATION_APPROVAL": "an account to create first"}
+
+
+def kind_words(kind: str) -> str:
+    return _KIND_WORDS.get(str(kind or ""), str(kind or "").replace("_", " ").casefold() or "a boundary")
+
+
+def leave_walls(now: dt.datetime | None = None) -> list[dict]:
+    """Leave every NEEDS_YOU mission that is not his to pass, and every one
+    of his that has waited LEAVE_AFTER_S. Returns what was left. One journal
+    line for the sweep, never one per mission; nothing is pressed."""
+    from collections import Counter
+    now = now or dt.datetime.now(dt.timezone.utc)
+    left, why_counts = [], Counter()
+    for record in all_missions(NEEDS_YOU):
+        boundary = record.get("boundary") or {}
+        kind = str(boundary.get("kind") or "UNKNOWN")
+        if kind in NOT_HIS:
+            because = f"nothing more she could do here: {kind_words(kind)}"
+        else:
+            age = _age_s(boundary.get("at") or record.get("beat"), now)
+            if age is None or age < LEAVE_AFTER_S:
+                continue
+            because = f"waited two days for {kind_words(kind)} and you did not come"
+        record["state"] = LEFT
+        record["left_because"] = because
+        record["left_at"] = stateio.utcnow()
+        save(record)
+        why_counts[kind_words(kind)] += 1
+        left.append(record)
+    if left:
+        said = ", ".join(f"{n} where {w}" if not w.startswith(("she", "you", "it")) else f"{n} where {w}"
+                         for w, n in why_counts.most_common())
+        journal.append("action", "browser",
+                       f"left {len(left)} application{'s' if len(left) != 1 else ''} the general browser "
+                       f"could not finish ({said})", actor="aletheia-browser")
+    return left
+
+
+def _age_s(stamp, now: dt.datetime) -> float | None:
+    try:
+        when = dt.datetime.fromisoformat(str(stamp or "").replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=dt.timezone.utc)
+    return (now - when).total_seconds()
 
 OBSERVED = "observed"
 FILLED = "filled"

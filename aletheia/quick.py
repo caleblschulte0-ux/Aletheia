@@ -675,6 +675,18 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("home", re.compile(
         r"^where do i live$|^what city do i live in$"
         r"|^what town do i live in$|^where(?:'s| is) home$")),
+    # WHAT HE TOLD HER, read back without a model (2026-09-23 night sweep:
+    # "what's my landlord's name", "what did I tell you about the car",
+    # "when is my lease up" and "what notes do you have" each waited on a
+    # model for a store she holds).
+    ("notes_list", re.compile(
+        r"^what notes do (?:you|u) have(?: for me)?$|^(?:list|read me|read back|show me) (?:my |your |the )?notes$"
+        r"|^what have i told (?:you|u)(?: to remember)?$|^what have (?:you|u) noted(?: down)?$")),
+    ("recall", re.compile(
+        r"^what did i (?:tell|say to) (?:you|u) about (?:the |my )?(?P<recall>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
+        r"|^what(?:'s| is|s)? my (?P<recall2>[a-z0-9][a-z0-9 '-]{1,30}?)(?:'s)? (?:name|number|address|email|birthday|code|password|pin)\s*\??$"
+        r"|^when (?:is|does|was) (?:my |the )?(?P<recall3>[a-z0-9][a-z0-9 '-]{1,30}?) (?:up|due|over|expiring|expire|ending|end|starting|start|renewing|renew|coming up)\s*\??$"
+        r"|^(?:do (?:you|u) )?(?:remember|know) (?:anything about |what i said about )?(?:the |my )?(?P<recall4>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$")),
     ("can_you", re.compile(
         r"^(?:can|could) (?:you|u) (?P<what>.{3,120})$"
         r"|^(?:are|r) (?:you|u) able to (?P<what2>.{3,120})$"
@@ -724,7 +736,8 @@ def match(question: str) -> tuple[str, str] | None:
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5",
                                            "until", "until2", "day8", "day9",
                                            "why_not", "why_not2", "why_not3",
-                                           "sent_window", "sent_window2")
+                                           "sent_window", "sent_window2",
+                                           "recall", "recall2", "recall3", "recall4")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
@@ -1857,6 +1870,69 @@ def _mine(what: str) -> str | None:
             "Tell me and I'll remember it.")
 
 
+_STOP_WORDS = {"the", "a", "an", "my", "his", "her", "our", "that", "this", "is", "are", "was", "of",
+               "to", "for", "and", "about", "up", "on", "in", "at", "it", "me", "you"}
+
+
+def _notes(limit: int = 200) -> list[dict]:
+    """His notes, newest first: the journal lines `note` writes."""
+    from aletheia import journal
+    try:
+        rows = [e for e in journal.entries() if e.get("kind") == "note" and e.get("subject") == "operator"]
+    except Exception:
+        return []
+    return list(reversed(rows))[:limit]
+
+
+def _notes_list() -> str:
+    from aletheia import speech
+    rows = _notes()
+    if not rows:
+        return "No notes yet. Say \"note that\" or \"remember that\" and I'll keep it."
+    said = [str(r.get("text") or "").strip().rstrip(".") for r in rows[:5]]
+    out = f"{speech.count_phrase(len(rows), 'note')}: " + "; ".join(said)
+    if len(rows) > 5:
+        out += f"; and {len(rows) - 5} more"
+    return out + "."
+
+
+def _recall(words: str) -> str | None:
+    """What he told her about `words`: his notes and her memory, by the
+    words themselves. Nothing matching is said as nothing - never guessed."""
+    from aletheia import memory, speech
+    wanted = [w for w in re.findall(r"[a-z0-9']+", str(words or "").casefold()) if w not in _STOP_WORDS]
+    if not wanted:
+        return None
+    stems = [w[:-1] if len(w) > 4 and w.endswith("s") else w for w in wanted]
+
+    def hit(text: str) -> bool:
+        low = str(text or "").casefold()
+        return any(s in low for s in stems)
+
+    found: list[str] = []
+    for row in _notes():
+        if hit(row.get("text")):
+            found.append(f"you told me: {str(row.get('text')).strip().rstrip('.')}")
+        if len(found) >= 3:
+            break
+    try:
+        remembered = memory.everything(max_chars=8000)
+    except Exception:
+        remembered = {}
+    for domain, entries in remembered.items():
+        for key, held in entries.items():
+            value = held.get("value")
+            text = value if isinstance(value, str) else str(value)
+            if hit(key) or hit(text):
+                found.append(f"{key.replace('_', ' ')}: {text}")
+            if len(found) >= 5:
+                break
+    if not found:
+        return f"I have nothing about {words} on file - tell me and I'll remember it."
+    said = speech.and_list(found[:4])
+    return said[:1].upper() + said[1:] + "."
+
+
 def _home() -> str | None:
     """Where he lives — the city AND the state, which is how it is said.
 
@@ -2493,6 +2569,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "weather": lambda rest: _weather(rest),
            "greeting": lambda rest: _greeting(),
            "home": lambda rest: _home(),
+           "notes_list": lambda rest: _notes_list(),
+           "recall": _recall,
            "friction": lambda rest: _friction(),
            "replies": lambda rest: _replies(),
            "slow": lambda rest: _slow(),

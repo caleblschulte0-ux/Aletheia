@@ -624,8 +624,27 @@ DID_IT = {
 }
 
 
+def _a_label_not_a_complaint(line: str, word: str) -> bool:
+    """"City, State (must be in US)*" is a LABEL that happens to hold a
+    refusal word. Live 2026-09-23 it made two fully filled, mid-submit
+    Sleeper applications read as refused by the site."""
+    line = line.strip()
+    if line.endswith("*"):
+        return True
+    inside = re.findall(r"\(([^()]*)\)", line)
+    return any(word in part.casefold() for part in inside)
+
+
+def _line_with(text: str, word: str) -> str:
+    for line in str(text or "").splitlines():
+        if word in line.casefold():
+            return " ".join(line.split())[:160]
+    return word
+
+
 def read_outcome(body: str, *, did: str = "",
-                 form_still_there: bool = False, title: str = "", url: str = "") -> dict:
+                 form_still_there: bool = False, title: str = "", url: str = "",
+                 complaints: list[str] | None = None) -> dict:
     """CONFIRMED, REJECTED or UNCONFIRMED — never just "pressed".
 
     A press is an action; whether it worked is a different question, and
@@ -649,11 +668,20 @@ def read_outcome(body: str, *, did: str = "",
             or _CONFIRMED_URL.search(str(url or ""))):
         return {"verdict": "confirmed",
                 "note": "The site moved to its confirmation page."}
-    hit = next((word for word in REJECTED_WORDS if word in text), "")
+    # WHAT THE PAGE COMPLAINED OF, in its own words, before a scan of the
+    # whole body: a visible alert or an invalid field is the site's verdict.
+    said = [" ".join(str(c).split())[:160] for c in (complaints or []) if str(c).strip()]
+    if said:
+        return {"verdict": "rejected",
+                "note": ("The site handed it back rather than accepting it — "
+                         f"it says {said[0]!r}. Nothing was accepted; read what it "
+                         "wants and I will fix it and try again.")}
+    hit = next((word for word in REJECTED_WORDS
+                if word in text and not _a_label_not_a_complaint(_line_with(body, word), word)), "")
     if hit:
         return {"verdict": "rejected",
                 "note": ("The site handed it back rather than accepting it — "
-                         f"it says {hit!r}. Nothing was accepted; read what it "
+                         f"it says {_line_with(body, hit)!r}. Nothing was accepted; read what it "
                          "wants and I will fix it and try again.")}
     verb = (did or "").casefold()
     for word, saids in DID_IT.items():

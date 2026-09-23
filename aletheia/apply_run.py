@@ -173,6 +173,14 @@ def _role_key(company: str, job_title: str) -> str:
         title = re.sub(r"\s*[—–\-|]\s*" + re.escape(company) + r"\s*$", "",
                        title, flags=re.I)
     title = re.sub(r"[^a-z0-9]+", " ", title.casefold()).strip()
+    # ONE ROLE POSTED THREE WAYS. Live 2026-09-23 Taranis got three
+    # applications in one night for "Remote / Hybrid / On-site Associate
+    # Customer Success Representative": how the seat is worked is not what
+    # the job is. Words that only say where the desk is come off. A level
+    # or a region ("Technical Account Manager 3 - East") stays: those are
+    # different jobs.
+    title = re.sub(r"\b(?:remote|hybrid|on ?site|in office|in person|work from home|wfh|fully remote)\b", " ", title)
+    title = " ".join(title.split())
     return f"{company.casefold()}|{title}"
 
 
@@ -1982,10 +1990,11 @@ def _refill_and_submit(record: dict) -> dict:
         asked_at = time.time()
         _press(page, record, button)
         page.wait_for_load_state("domcontentloaded")
-        try:
-            page.wait_for_timeout(1500)     # let a confirmation render
-        except Exception:
-            pass
+        # UNTIL THE SEND HAS SETTLED, not for a second and a half. Live
+        # 2026-09-23 Sleeper's Submit was still spinning in the picture, the
+        # page still showed the form, and a field label ("City, State (must
+        # be in US)*") read as the site's refusal.
+        settled = _settled_after_press(page, button)
         # THE WHOLE PAGE for the decision, a slice of it for the record.
         # Live 2026-09-12 this read `[:4000]` and the check below never once
         # fired on a real form: a Greenhouse application runs to six thousand
@@ -2040,6 +2049,7 @@ def _refill_and_submit(record: dict) -> dict:
         page.screenshot(path=str(shot), full_page=True)
         landed = page.url
         title = page.title()
+        complaints = _page_complaints(page)
         page.close()
     # Never "done" without something that says so. A click that produced
     # no confirmation is a click, not an application — and a page that
@@ -2047,9 +2057,81 @@ def _refill_and_submit(record: dict) -> dict:
     # silence. `browse.read_outcome` is the one place that knows the
     # difference, so this and the general web loop cannot drift on it.
     return {"url": landed, "title": title,
-            "evidence": body[:600], "screenshot": str(shot),
+            "evidence": body[:600], "screenshot": str(shot), "settled": settled,
             **browse.read_outcome(body, did=record.get("button", "submit"),
-                                  title=title, url=landed)}
+                                  title=title, url=landed, complaints=complaints)}
+
+
+#: How long a pressed Submit is given to finish before the page is read.
+SUBMIT_SETTLE_MS = 12_000
+#: One reading per beat: is the button still busy, is the form gone, and
+#: does the page say it went through - so a test double's page sequence is
+#: never consumed by the wait, and a real page is asked one question.
+_SETTLE_JS = r"""([sel, words]) => {
+  const b = sel ? document.querySelector(sel) : null;
+  const text = ((document.body && document.body.innerText) || '').toLowerCase();
+  const confirmed = (words || []).some(w => text.includes(w));
+  if (!b) return {state: 'gone', confirmed};
+  const busy = b.getAttribute('aria-busy') === 'true' || b.disabled
+    || /\b(loading|spinner|busy|submitting|pending)\b/i.test(String(b.className || ''))
+    || !!b.querySelector('[class*="spinner" i], [class*="loading" i], [aria-busy="true"]');
+  return {state: busy ? 'busy' : 'free', confirmed};
+}"""
+_COMPLAINTS_JS = r"""() => {
+  const shown = (el) => !!el && el.offsetParent !== null && (el.innerText || '').trim();
+  const out = [];
+  for (const el of document.querySelectorAll('[role=alert], [aria-live="assertive"], [class*="error" i]:not(input):not(form), [class*="invalid" i]:not(input)')) {
+    if (!shown(el)) continue;
+    const t = (el.innerText || '').replace(/\s+/g, ' ').trim();
+    if (t && t.length <= 240 && !out.includes(t)) out.push(t);
+  }
+  for (const el of document.querySelectorAll('[aria-invalid="true"]')) {
+    const id = el.getAttribute('aria-describedby');
+    const said = id && document.getElementById(id);
+    const t = said ? (said.innerText || '').replace(/\s+/g, ' ').trim() : '';
+    if (t && !out.includes(t)) out.push(t);
+  }
+  return out.slice(0, 6);
+}"""
+
+
+def _settled_after_press(page, button: str, *, budget_ms: int = SUBMIT_SETTLE_MS) -> str:
+    """Wait until the send has visibly finished: the address changed, the page
+    says it went through, the form is gone, or the button is no longer busy.
+    Returns why it stopped waiting. Never raises."""
+    wait = getattr(page, "wait_for_timeout", None)
+    if wait is None:
+        return "no browser"
+    start_url = str(getattr(page, "url", "") or "")
+    for _ in range(max(1, budget_ms // 400)):
+        try:
+            if str(getattr(page, "url", "") or "") != start_url:
+                wait(800)
+                return "the address changed"
+            got = page.evaluate(_SETTLE_JS, [button, list(browse.CONFIRMED_WORDS)])
+        except Exception:
+            return "no reading"
+        if not isinstance(got, dict):
+            return "no reading"
+        if got.get("confirmed"):
+            return "the page says it went through"
+        if got.get("state") == "gone":
+            wait(800)
+            return "the form is gone"
+        if got.get("state") == "free":
+            wait(600)               # a verdict renders a beat after the spinner
+            return "the button is free"
+        wait(400)
+    return "still busy after the wait"
+
+
+def _page_complaints(page) -> list[str]:
+    """What the page itself complains of, visibly - alerts and invalid fields."""
+    try:
+        got = page.evaluate(_COMPLAINTS_JS)
+    except Exception:
+        return []
+    return [c for c in (got or []) if isinstance(c, str)] if isinstance(got, list) else []
 
 
 def _click_never_landed(exc: BaseException) -> str:
@@ -2266,6 +2348,43 @@ def stage_via_loop(url: str, *, resume: str = "", note: str = "", extra: dict | 
                                found_on=found_on or before.get("found_on") or "", kept_job=kept_job)
 
 
+def _loop_line(url: str, state: str, boundary: dict, mission: dict) -> str:
+    from urllib.parse import urlsplit
+    from aletheia import browser_mission as bm
+    host = (urlsplit(str(url or "")).hostname or "the site").removeprefix("www.")
+    kind = str(boundary.get("kind") or mission.get("state") or "")
+    if state in ("SUBMITTED", "SUBMITTING"):
+        return f"{host}: sent through the general browser"
+    if state == REJECTED:
+        return f"{host}: the site refused it"
+    if state == "NEEDS_ACCOUNT":
+        return f"{host}: the site wants an account first"
+    if state == "NEEDS_YOU":
+        words = bm.kind_words(kind)
+        return f"{host}: stopped at {words}" + (" - left for you" if kind in bm.HIS_KINDS else "")
+    return f"{host}: {state.replace('_', ' ').casefold()}"
+
+
+def close_left_missions(left: list[dict]) -> int:
+    """The application records behind missions she left: closed quietly,
+    each saying why, no journal line apiece (the sweep wrote one)."""
+    closed = 0
+    for mission in left or []:
+        run_id = f"apply-{_tag(str(mission.get('start_url') or ''))}"
+        try:
+            record = load_run(run_id)
+        except (OSError, ValueError, KeyError):
+            continue
+        if record.get("state") in PRESSED_STATES or record.get("state") == CLOSED:
+            continue
+        because = str(mission.get("left_because") or "the general browser could not finish it")
+        record.update({"state": CLOSED, "closed_at": stateio.utcnow(), "closed_because": because,
+                       "closed_kind": "left", "closed_by": ACTOR})
+        stateio.write_json_atomic(_record_path(run_id), record)
+        closed += 1
+    return closed
+
+
 def record_from_mission(run_id: str, url: str, mission: dict, *, note: str = "", resume: str = "",
                         found_on: str = "", kept_job: dict | None = None) -> dict:
     """The application record a browser mission stands for. The mission is
@@ -2298,9 +2417,9 @@ def record_from_mission(run_id: str, url: str, mission: dict, *, note: str = "",
     if state in ("SUBMITTED", "SUBMITTING"):
         # Pressed, confirmed or not: into the ledger, so no engine sends it again.
         remember_sent(record)
-    journal.append("action", "apply",
-                   f"browser loop: {url} is {state} ({boundary.get('kind') or mission.get('state')})",
-                   actor=ACTOR)
+    # A SENTENCE, not a state code: "browser loop: <url> is NEEDS_YOU
+    # (CAPTCHA)" was read back to him under "what she's done" (2026-09-23).
+    journal.append("action", "apply", _loop_line(url, state, boundary, mission), actor=ACTOR)
     try:
         from aletheia import demand
         if state in ("NEEDS_YOU", "NEEDS_ACCOUNT"):
