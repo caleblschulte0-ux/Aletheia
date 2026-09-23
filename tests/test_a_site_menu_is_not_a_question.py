@@ -68,16 +68,24 @@ class TheSiteIsNotTheFormCase(unittest.TestCase):
     def tearDownClass(cls):
         Browser.close()
 
-    def test_nothing_in_the_chrome_is_read_as_a_field(self):
+    def test_nothing_in_the_chrome_is_asked_of_him(self):
+        """Read, flagged, never asked: the browser loop still needs a site's
+        header search box, so the rows exist and carry `chrome`; `plan`
+        drops them and the form's own questions stay."""
         page = Browser.page(PAGE)
         try:
-            labels = sorted(str(f.get("label") or f.get("question") or "") for f in formfill.read_all(page))
+            fields = formfill.read_all(page)
         finally:
             page.close()
-        for word in ("Toggle navigation menu", "Platform", "Solutions", "Subscribe", "US", "EU"):
+        flagged = {str(f.get("label") or f.get("question") or ""): bool(f.get("chrome")) for f in fields}
+        for word in ("Toggle navigation menu", "Platform", "Solutions", "Subscribe"):
             with self.subTest(word=word):
-                self.assertFalse(any(word in l for l in labels), labels)
-        self.assertTrue(any("First Name" in l for l in labels), labels)
+                self.assertTrue(any(word in l and c for l, c in flagged.items()), flagged)
+        self.assertTrue(any("First Name" in l and not c for l, c in flagged.items()), flagged)
+        asked = [str(a.get("label") or "") for a in formfill.plan(fields)["ask"]]
+        for word in ("Toggle navigation menu", "Platform", "Solutions", "Subscribe", "US", "EU"):
+            with self.subTest(asked=word):
+                self.assertFalse(any(word in l for l in asked), asked)
 
     def test_nothing_in_the_chrome_blocks_the_form(self):
         page = Browser.page(PAGE)

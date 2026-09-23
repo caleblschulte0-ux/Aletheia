@@ -310,7 +310,6 @@ READ_FORM_JS = r"""() => {
   };
   const out = [];
   for (const el of document.querySelectorAll('input, select, textarea')) {
-    if (el.closest(SITE_CHROME)) continue;
     const tag = el.tagName.toLowerCase();
     const type = (tag === 'input' ? (el.type || 'text') : tag).toLowerCase();
     const selector = selectorFor(el);
@@ -338,6 +337,10 @@ READ_FORM_JS = r"""() => {
       // a hidden native radio behind a styled label is still the real control.
       hidden: unseen(el),
       readonly: !!el.readOnly,
+      // Inside the website's menu/header/footer, not the form. Kept for the
+      // browser loop (a site's search box lives in its header); dropped by
+      // `plan` and never a blocker (READY_JS).
+      chrome: !!el.closest(SITE_CHROME),
       // A COOKIE BANNER'S TOGGLES are not questions on the page (live 2026-09-17,
       // Paylocity: OneTrust's "Targeting Cookies" boxes made a job posting a form).
       consent: !!el.closest('#onetrust-consent-sdk, #onetrust-pc-sdk, #CybotCookiebotDialog, #usercentrics-root, #truste-consent-track, #didomi-host, .osano-cm-window, .cc-window, [id*="cookie" i], [class*="cookie" i], [aria-label*="cookie" i], [id*="consent-banner" i], [class*="consent-banner" i], [id*="tracking-consent" i], [class*="tracking-consent" i]'),
@@ -1444,6 +1447,9 @@ def _money_choice(value, options: list[str]) -> str | None:
 
 def plan(fields: list[dict], *, answers: dict | None = None, found_on: str = "") -> dict:
     """Split a form into what she can fill and what he has to answer."""
+    # THE SITE IS NOT THE FORM (2026-09-23): a menu's toggles and a header's
+    # search box are read (the browser loop needs them) and never asked.
+    fields = [f for f in fields if not (isinstance(f, dict) and f.get("chrome"))]
     answers = known = (answers if answers is not None else profile.known())
     fields, choices = _group_choices(list(fields)[:MAX_FIELDS])
     fill, ask, skipped = [], [], []
@@ -2283,7 +2289,6 @@ READ_ARIA_JS = r"""() => {
   const out = [];
   let n = 0;
   for (const group of document.querySelectorAll('[role=radiogroup], [role=listbox]')) {
-    if (group.closest(SITE_CHROME)) continue;
     const question = named(group);
     if (!question) continue;
     const key = `aria:${n++}`;
@@ -2301,7 +2306,7 @@ READ_ARIA_JS = r"""() => {
       const innerRequired = !!(inner && (inner.required || inner.getAttribute('aria-required') === 'true'))
         || opt.getAttribute('aria-required') === 'true';
       out.push({
-        selector, tag: 'aria', type: 'radio', name: '', id: '',
+        selector, tag: 'aria', type: 'radio', name: '', id: '', chrome: !!group.closest(SITE_CHROME),
         group: key, question: question.slice(0, 110),
         option: (opt.innerText || '').trim().slice(0, 70),
         label: (opt.innerText || '').trim().slice(0, 70),
@@ -2316,7 +2321,6 @@ READ_ARIA_JS = r"""() => {
   // answer - Ashby's yes/no questions. The question is the label that names
   // the checkbox (by id or by name) or the heading of the block it sits in.
   for (const box of document.querySelectorAll('input[type=checkbox]')) {
-    if (box.closest(SITE_CHROME)) continue;
     const holder = box.parentElement;
     const buttons = holder ? [...holder.querySelectorAll('button[aria-pressed]')] : [];
     if (buttons.length < 2) continue;
@@ -2333,7 +2337,7 @@ READ_ARIA_JS = r"""() => {
       const selector = path(b);
       if (!selector) continue;
       const text = (b.innerText || '').trim().slice(0, 70);
-      out.push({selector, tag: 'aria', type: 'radio', name: '', id: '', group: key,
+      out.push({selector, tag: 'aria', type: 'radio', name: '', id: '', group: key, chrome: !!box.closest(SITE_CHROME),
                 question: question.slice(0, 110), option: text, label: text, required,
                 value: '', checked: b.getAttribute('aria-pressed') === 'true'});
     }
