@@ -158,6 +158,11 @@ def is_widget_furniture(field: dict) -> bool:
 # sees, so the label matters more than the name attribute: `q_31415926` is
 # what Workday calls "Are you legally authorized to work?".
 READ_FORM_JS = r"""() => {
+  // THE SITE IS NOT THE FORM. A careers page inside an employer's own website
+  // carries the website's menu, and Navan's hamburger checkbox, its menu-group
+  // toggles and its region picker reached him as required questions on three
+  // applications (live 2026-09-22). Nothing inside the site's chrome is a field.
+  const SITE_CHROME = 'nav, header, footer, [role=navigation], [role=banner], [role=contentinfo], [aria-label*="navigation" i], [class*="navbar" i], [id*="navbar" i], [class*="site-header" i], [class*="site-footer" i]';
   // An id a script MINTED for this page load ("cedfyMSPdOianhkc"). Workable
   // issues new ones on every render, so a selector read in one browser and
   // typed in the next found nothing: live 2026-09-13 the fill of Hugging
@@ -305,6 +310,7 @@ READ_FORM_JS = r"""() => {
   };
   const out = [];
   for (const el of document.querySelectorAll('input, select, textarea')) {
+    if (el.closest(SITE_CHROME)) continue;
     const tag = el.tagName.toLowerCase();
     const type = (tag === 'input' ? (el.type || 'text') : tag).toLowerCase();
     const selector = selectorFor(el);
@@ -2208,6 +2214,11 @@ def read_form(url: str, *, reader=None) -> list[dict]:
 
 
 READ_ARIA_JS = r"""() => {
+  // THE SITE IS NOT THE FORM. A careers page inside an employer's own website
+  // carries the website's menu, and Navan's hamburger checkbox, its menu-group
+  // toggles and its region picker reached him as required questions on three
+  // applications (live 2026-09-22). Nothing inside the site's chrome is a field.
+  const SITE_CHROME = 'nav, header, footer, [role=navigation], [role=banner], [role=contentinfo], [aria-label*="navigation" i], [class*="navbar" i], [id*="navbar" i], [class*="site-header" i], [class*="site-footer" i]';
   // The questions the browser knows nothing about. On a modern form the
   // "Yes" you click is a <div role=radio> and the city you pick is an
   // <li role=option>: no id, no name, not an <input>, invisible to
@@ -2272,6 +2283,7 @@ READ_ARIA_JS = r"""() => {
   const out = [];
   let n = 0;
   for (const group of document.querySelectorAll('[role=radiogroup], [role=listbox]')) {
+    if (group.closest(SITE_CHROME)) continue;
     const question = named(group);
     if (!question) continue;
     const key = `aria:${n++}`;
@@ -2304,6 +2316,7 @@ READ_ARIA_JS = r"""() => {
   // answer - Ashby's yes/no questions. The question is the label that names
   // the checkbox (by id or by name) or the heading of the block it sits in.
   for (const box of document.querySelectorAll('input[type=checkbox]')) {
+    if (box.closest(SITE_CHROME)) continue;
     const holder = box.parentElement;
     const buttons = holder ? [...holder.querySelectorAll('button[aria-pressed]')] : [];
     if (buttons.length < 2) continue;
@@ -2331,6 +2344,11 @@ READ_ARIA_JS = r"""() => {
 
 
 READY_JS = r"""() => {
+  // THE SITE IS NOT THE FORM. A careers page inside an employer's own website
+  // carries the website's menu, and Navan's hamburger checkbox, its menu-group
+  // toggles and its region picker reached him as required questions on three
+  // applications (live 2026-09-22). Nothing inside the site's chrome is a field.
+  const SITE_CHROME = 'nav, header, footer, [role=navigation], [role=banner], [role=contentinfo], [aria-label*="navigation" i], [class*="navbar" i], [id*="navbar" i], [class*="site-header" i], [class*="site-footer" i]';
   // WILL THIS FORM ACTUALLY GO? Two different answers, because forms
   // refuse in two different ways.
   const label = (el) => {
@@ -2384,6 +2402,7 @@ READY_JS = r"""() => {
   const invalid = [];
   const groupsAsked = new Set();
   for (const el of document.querySelectorAll('input, select, textarea')) {
+    if (el.closest(SITE_CHROME)) continue;
     if (typeof el.checkValidity !== 'function') continue;
     const scripted = (el.getAttribute('data-required_mark') === 'required' || el.getAttribute('data-required') === 'true')
       && !/^(?:radio|checkbox)$/.test(el.type) && !String(el.value || '').trim();
@@ -2444,6 +2463,7 @@ READY_JS = r"""() => {
   // question — because these carry no `required` attribute to check.
   const groups = [];
   for (const g of document.querySelectorAll('[role=radiogroup], [role=listbox]')) {
+    if (g.closest(SITE_CHROME)) continue;
     let question = g.getAttribute('aria-label') || '';
     const by = g.getAttribute('aria-labelledby');
     if (!question && by) {
