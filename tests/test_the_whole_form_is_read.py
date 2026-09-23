@@ -181,7 +181,7 @@ class AFormWhoseSubmitRefusedIsReadAgainAndNotForEver(unittest.TestCase):
             calls.append(url)
             return {"id": "apply-v", "url": url, "state": "AWAITING_YOU", "questions": []}
         with mock.patch.object(apply_run, "all_runs",
-                               side_effect=lambda state=None: [self.REFUSED] if state == "FAILED" else []), \
+                               side_effect=lambda state=None: [self.REFUSED] if state in (None, "FAILED") else []), \
              mock.patch.object(campaign, "read_resume", return_value=("C:/r.pdf", "resume text")), \
              mock.patch.object(campaign.policy, "ensure_not_halted"), \
              mock.patch.object(campaign.journal, "append"):
