@@ -60,8 +60,10 @@ class TheClearClick(Isolated):
         waiting = self.mission("bm-apply-for-this-job-cccc", "QUESTIONS")
         card = mission_browser.card(waiting, NOW)
         self.assertEqual(card["status"], "NEEDS YOU")
-        self.assertEqual(card["actions"], [{"label": "Clear", "kind": "mission_leave",
-                                            "args": {"which": "bm-apply-for-this-job-cccc"}}])
+        # Open it (the page holds his part) first, then Clear - both his clicks.
+        self.assertEqual([a["label"] for a in card["actions"]], ["Open it", "Clear"])
+        self.assertIn({"label": "Clear", "kind": "mission_leave", "args": {"which": "bm-apply-for-this-job-cccc"}},
+                      card["actions"])
         stopped = self.mission("bm-apply-for-this-job-eeee", "REJECTED", state=bm.REJECTED)
         self.assertEqual([a["label"] for a in mission_browser.card(stopped, NOW)["actions"]], ["Clear"])
         running = self.mission("bm-apply-for-this-job-ffff", "", state=bm.RUNNING,
