@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-24T03:40:32Z",
+  "generated_at": "2026-09-24T04:59:06Z",
   "fleet_revision": 5,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,58 +11,58 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
+          "sha": "6ac59d49505a",
+          "date": "2026-09-24T04:28:33Z",
+          "message": "Merge pull request #204 from caleblschulte0-ux/claude/needs-and-cards-agree"
+        },
+        {
+          "sha": "c7f9fc005d19",
+          "date": "2026-09-24T03:53:57Z",
+          "message": "The Core's launch keeps its visible-by-design marker where the Popen now lives"
+        },
+        {
+          "sha": "192ea12e0fa4",
+          "date": "2026-09-24T03:40:45Z",
+          "message": "pulse: 2026-09-24T03:40Z"
+        },
+        {
           "sha": "06e059a169a0",
           "date": "2026-09-24T03:38:38Z",
           "message": "Merge pull request #202 from caleblschulte0-ux/claude/what-the-fault-is"
         },
         {
-          "sha": "fbbe2159e793",
-          "date": "2026-09-24T03:02:18Z",
-          "message": "Merge origin/live into claude/what-the-fault-is (fault_ack + mission_leave, by union)"
-        },
-        {
-          "sha": "5e029c172354",
-          "date": "2026-09-24T02:56:45Z",
-          "message": "ci: nudge - GitHub created no check suite for 1b8b56696"
-        },
-        {
-          "sha": "1b8b56696a5d",
-          "date": "2026-09-24T02:15:27Z",
-          "message": "The late-call budget is capped at the deadline itself, not at a float a hair over it"
-        },
-        {
-          "sha": "70f6db447c13",
-          "date": "2026-09-24T02:13:38Z",
-          "message": "Merge pull request #203 from caleblschulte0-ux/claude/clear-it"
+          "sha": "374954c03510",
+          "date": "2026-09-24T03:20:44Z",
+          "message": "A sign-in page after the press is not a refusal"
         }
       ],
       "commit": {
-        "sha": "06e059a169a0",
-        "date": "2026-09-24T03:38:38Z",
-        "message": "Merge pull request #202 from caleblschulte0-ux/claude/what-the-fault-is"
+        "sha": "6ac59d49505a",
+        "date": "2026-09-24T04:28:33Z",
+        "message": "Merge pull request #204 from caleblschulte0-ux/claude/needs-and-cards-agree"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-09-24T03:40:29Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/35952425806"
+          "updated_at": "2026-09-24T04:59:03Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/35957938965"
         },
         "ci.yml": {
-          "status": "in_progress",
-          "conclusion": null,
-          "updated_at": "2026-09-24T03:38:45Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/35952306166"
+          "status": "completed",
+          "conclusion": "success",
+          "updated_at": "2026-09-24T04:49:50Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/35955802563"
         }
       },
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 20123
+          "bytes": 20413
         }
       },
-      "health": "unknown"
+      "health": "green"
     },
     "shorts_pipeline": {
       "github": "Shorts-pipeline",
@@ -70,6 +70,16 @@
       "status": "active",
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
+        {
+          "sha": "102d3d17dbd2",
+          "date": "2026-09-24T04:47:45Z",
+          "message": "claim: mailbox verdicts 2026-09-24T04:47Z [skip ci]"
+        },
+        {
+          "sha": "c379fb2fd13a",
+          "date": "2026-09-24T03:47:55Z",
+          "message": "claim: mailbox verdicts 2026-09-24T03:47Z [skip ci]"
+        },
         {
           "sha": "9e3d162e3758",
           "date": "2026-09-24T02:48:54Z",
@@ -84,22 +94,12 @@
           "sha": "69a47d7d354a",
           "date": "2026-09-24T01:48:06Z",
           "message": "claim: mailbox verdicts 2026-09-24T01:48Z [skip ci]"
-        },
-        {
-          "sha": "0e7e7e5d7de0",
-          "date": "2026-09-24T01:37:38Z",
-          "message": "Explainer: ElevenLabs narrates first, when it can \u2014 and every video says which voice it got (#444)"
-        },
-        {
-          "sha": "640e4e407e6f",
-          "date": "2026-09-24T00:48:11Z",
-          "message": "claim: mailbox verdicts 2026-09-24T00:48Z [skip ci]"
         }
       ],
       "commit": {
-        "sha": "9e3d162e3758",
-        "date": "2026-09-24T02:48:54Z",
-        "message": "story_forge + longform: install pycairo's build libs before pip (#445)"
+        "sha": "102d3d17dbd2",
+        "date": "2026-09-24T04:47:45Z",
+        "message": "claim: mailbox verdicts 2026-09-24T04:47Z [skip ci]"
       },
       "vitals": [
         {
@@ -140,9 +140,9 @@
         },
         "story_forge.yml": {
           "status": "completed",
-          "conclusion": "failure",
-          "updated_at": "2026-09-23T20:29:18Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35916182651"
+          "conclusion": "success",
+          "updated_at": "2026-09-24T03:43:58Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35952493768"
         },
         "third.yml": {
           "status": "completed",
@@ -159,8 +159,8 @@
         "retro.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-24T01:22:11Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35942593011"
+          "updated_at": "2026-09-24T04:55:44Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35957710947"
         },
         "doctor.yml": {
           "status": "completed",
@@ -502,13 +502,7 @@
     {
       "repo": "aletheia",
       "github": "Aletheia",
-      "from": "green",
-      "to": "unknown"
-    },
-    {
-      "repo": "schwab_trader",
-      "github": "schwab-trader",
-      "from": "red",
+      "from": "unknown",
       "to": "green"
     }
   ],
@@ -518,8 +512,7 @@
       "github": "Shorts-pipeline",
       "health": "red",
       "failing": [
-        "daily.yml",
-        "story_forge.yml"
+        "daily.yml"
       ]
     }
   ],
@@ -559,18 +552,13 @@
     ]
   },
   "tasks": {
-    "live": 5,
+    "live": 4,
     "by_status": {
       "COMPLETED": 13,
       "QUEUED": 4,
-      "WAITING_OPERATOR": 1
+      "CANCELLED": 1
     },
     "items": [
-      {
-        "id": "operator-setup",
-        "status": "WAITING_OPERATOR",
-        "description": "Operator: create the ChatGPT Project + scheduled task for the intercom relay (docs/SETUP.md step 4) \u2014 the last unfinished setup step; merge, FLEET_TOKEN, Pages and the running Core are all done"
-      },
       {
         "id": "shorts-daily-authoring-outage",
         "status": "QUEUED",

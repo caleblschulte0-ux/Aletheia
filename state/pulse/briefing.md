@@ -1,22 +1,22 @@
 # Fleet briefing
 
-Generated 2026-09-24T03:40:32Z from fleet registry rev 5 via GitHubSource.
+Generated 2026-09-24T04:59:06Z from fleet registry rev 5 via GitHubSource.
 
-## ⚪ `Aletheia` — hub (active)
+## 🟢 `Aletheia` — hub (active)
 
 The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.
 
-Last commit `06e059a169a0` at 2026-09-24T03:38:38Z: Merge pull request #202 from caleblschulte0-ux/claude/what-the-fault-is
+Last commit `6ac59d49505a` at 2026-09-24T04:28:33Z: Merge pull request #204 from caleblschulte0-ux/claude/needs-and-cards-agree
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-09-24T03:40:29Z
-- `ci.yml`: in_progress at 2026-09-24T03:38:45Z
+- `pulse.yml`: in_progress at 2026-09-24T04:59:03Z
+- `ci.yml`: success at 2026-09-24T04:49:50Z
 
 ## 🔴 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `9e3d162e3758` at 2026-09-24T02:48:54Z: story_forge + longform: install pycairo's build libs before pip (#445)
+Last commit `102d3d17dbd2` at 2026-09-24T04:47:45Z: claim: mailbox verdicts 2026-09-24T04:47Z [skip ci]
 
 Vitals — trending posted: 347 · explainer posted: 266 · third posted: 635 · curiosity posted: 1
 
@@ -24,10 +24,10 @@ Watched workflows:
 - `daily.yml`: failure at 2026-09-23T15:49:48Z
 - `exchange_phase_a.yml`: success at 2026-09-24T02:49:18Z
 - `exchange_phase_b.yml`: success at 2026-09-23T18:28:58Z
-- `story_forge.yml`: failure at 2026-09-23T20:29:18Z
+- `story_forge.yml`: success at 2026-09-24T03:43:58Z
 - `third.yml`: success at 2026-09-23T15:32:11Z
 - `explainer.yml`: success at 2026-09-23T20:36:32Z
-- `retro.yml`: success at 2026-09-24T01:22:11Z
+- `retro.yml`: success at 2026-09-24T04:55:44Z
 - `doctor.yml`: success at 2026-09-23T09:56:30Z
 
 ## 🟢 `schwab-trader` — trading-bot (active)
