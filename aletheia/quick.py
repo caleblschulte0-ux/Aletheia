@@ -343,6 +343,17 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r" (?:go|sent|send|go out|go through|get sent|work|submitted|submit|apply)(?: yet| through| out)?$"
         r"|^why did (?:the )?(?P<why_not2>[a-z0-9][a-z0-9 .&'-]{1,40}?(?: one| application| app)?) (?:fail|not go|get stuck|stop)$"
         r"|^what happened (?:with|to) (?:the )?(?P<why_not3>[a-z0-9][a-z0-9 .&'-]{1,40}?(?: one| application| app))$")),
+    # WHY THE HUNT IS NOT MOVING, from its own switches: his stop, a pause,
+    # the grant, who can think, the browser. Offline (2026-09-24) "why can't
+    # you apply to jobs right now" was "I couldn't look into that just now".
+    ("hunt_why", re.compile(
+        r"^why (?:can'?t|cannot|aren'?t|are not|won'?t|will not|don'?t|do not) (?:you|u) "
+        r"(?:apply|applying|apply to jobs|applying to jobs|apply for jobs|applying for jobs|"
+        r"send (?:any )?applications|sending (?:any )?applications|do (?:the )?(?:job )?(?:hunt|applications))"
+        r"(?: right now| now| anymore| any more| today| at the moment)?\s*\??$"
+        r"|^why (?:is|has) the (?:job )?(?:hunt|search) (?:stopped|paused|stuck|not (?:running|moving|going))\s*\??$"
+        r"|^why (?:aren'?t|are no|have no) (?:applications|jobs) (?:going|gone) out(?: today)?\s*\??$"
+        r"|^(?:is|are) (?:the )?(?:job hunt|applications) (?:still )?(?:running|going|moving)(?: right now| now)?\s*\??$")),
     ("to_answer", re.compile(
         r"^(?:is there )?anything (?:i|that i) (?:need|have) to answer(?: for you)?$"
         r"|^what (?:questions|do you need answered|do (?:you|u) need me to answer|needs answering)(?: do (?:you|u) have)?(?: for me)?$"
@@ -2298,6 +2309,72 @@ def _asked_on(rest) -> str:
     return said + "."
 
 
+def _hunt_why() -> str:
+    """Why the job hunt is or is not moving, from its own switches, in order:
+    his stop, his pause, the grant, who can think, the browser - then
+    "nothing is stopping it" with the day's numbers. Every line names a
+    fact on disk; nothing here guesses."""
+    from aletheia import policy
+    try:
+        halt = policy.halted()
+    except Exception:
+        halt = None
+    if halt:
+        return ("Because you stopped everything" + (f" ({halt.get('reason')})" if isinstance(halt, dict) and halt.get("reason") else "")
+                + ". Say resume and the hunt picks back up.")
+    try:
+        from aletheia import apply_forever
+        held = apply_forever.paused()
+    except Exception:
+        held = None
+    if held:
+        return ("Because you said stop applying" + (f" ({held.get('reason')})" if held.get("reason") else "")
+                + ". Say start applying and it picks back up.")
+    parts = []
+    try:
+        from aletheia import standing
+        grant = standing.jobs_status()
+        if not grant.get("granted"):
+            parts.append("filled applications wait for your tap, because the standing grant to send them "
+                         "is not on")
+    except Exception:
+        pass
+    try:
+        from aletheia import apply_forever
+        ok, why = apply_forever._another_mind()
+        from aletheia import reasoner
+        resting = reasoner.resting_until()
+        if resting is not None and not ok:
+            parts.append(f"nobody can judge a job right now - Claude is resting and {why}; the hunt waits for a model")
+    except Exception:
+        pass
+    try:
+        from aletheia import browse
+        ok, why = browse.available()
+        if not ok:
+            parts.append(f"her browser is not ready ({why})")
+    except Exception:
+        pass
+    try:
+        from aletheia import campaign
+        live = campaign.running()
+    except Exception:
+        live = None
+    try:
+        from aletheia import current_state
+        today = current_state.job_hunt_words()
+    except Exception:
+        today = ""
+    if parts:
+        return "The hunt is held up: " + "; ".join(parts) + "." + (f" {today}" if today else "")
+    if live:
+        return ("Nothing is stopping it - a batch is running right now"
+                + (f", started {str(live.get('started_at') or '')[11:16]}Z" if live.get("started_at") else "")
+                + "." + (f" {today}" if today else ""))
+    return ("Nothing is stopping it: the loop starts a batch of eight within five minutes of the last."
+            + (f" {today}" if today else ""))
+
+
 def _memory_free() -> str:
     """Her machine's free memory, and which of her own models fits in it."""
     try:
@@ -3024,6 +3101,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "sending": lambda rest: _sending(),
            "applied_on": _applied_on,
            "asked_on": _asked_on,
+           "hunt_why": lambda rest: _hunt_why(),
            "memory_free": lambda rest: _memory_free(),
            "recall": _recall,
            "friction": lambda rest: _friction(),

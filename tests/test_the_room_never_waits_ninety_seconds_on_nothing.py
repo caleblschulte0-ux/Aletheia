@@ -208,5 +208,57 @@ class WhatHeAskedIsAStoreSheCanReadBack(unittest.TestCase):
         self.assertEqual(quick.answer("what did I tell you yesterday"), "Nothing from you yesterday that I wrote down.")
 
 
+class WhyTheHuntIsNotMovingIsReadOffItsSwitches(unittest.TestCase):
+    """"Why can't you apply to jobs right now" (offline: "I couldn't look
+    into that just now") is a question about her own switches, in order:
+    his stop, his pause, the grant, who can think, the browser."""
+
+    def _ask(self, **state):
+        patches = [
+            mock.patch("aletheia.policy.halted", return_value=state.get("halt")),
+            mock.patch("aletheia.apply_forever.paused", return_value=state.get("paused")),
+            mock.patch("aletheia.standing.jobs_status", return_value={"granted": state.get("granted", True)}),
+            mock.patch("aletheia.apply_forever._another_mind", return_value=state.get("mind", (True, "codex"))),
+            mock.patch("aletheia.reasoner.resting_until", return_value=state.get("resting")),
+            mock.patch("aletheia.browse.available", return_value=state.get("browser", (True, ""))),
+            mock.patch("aletheia.campaign.running", return_value=state.get("running")),
+            mock.patch("aletheia.current_state.job_hunt_words", return_value="3 sent today."),
+        ]
+        for p in patches:
+            p.start(); self.addCleanup(p.stop)
+        return quick.answer("why can't you apply to jobs right now")
+
+    def test_his_stop_comes_first(self):
+        said = self._ask(halt={"reason": "you said stop everything"}, paused={"reason": "x"})
+        self.assertTrue(said.startswith("Because you stopped everything"), said)
+        self.assertIn("resume", said)
+
+    def test_then_his_pause(self):
+        said = self._ask(paused={"reason": "hold on a sec"})
+        self.assertIn("stop applying", said)
+        self.assertIn("start applying", said)
+
+    def test_then_the_things_that_hold_it_up_each_named(self):
+        said = self._ask(granted=False, mind=(False, "Codex is not on this PC; my own model needs 6 GB free"),
+                         resting=dt.datetime.now(dt.timezone.utc), browser=(False, "playwright is not installed"))
+        self.assertTrue(said.startswith("The hunt is held up:"), said)
+        self.assertIn("standing grant", said)
+        self.assertIn("nobody can judge a job", said)
+        self.assertIn("browser is not ready", said)
+        self.assertIn("3 sent today", said)
+
+    def test_nothing_stopping_it_says_so_with_the_days_numbers(self):
+        said = self._ask()
+        self.assertTrue(said.startswith("Nothing is stopping it"), said)
+        self.assertIn("3 sent today", said)
+        running = self._ask(running={"started_at": "2026-09-24T15:02:00Z", "pid": 1})
+        self.assertIn("a batch is running right now", running)
+
+    def test_the_phrasings_he_uses_reach_it(self):
+        for s in ("why aren't you applying", "why is the job hunt stuck", "is the job hunt still running",
+                  "why aren't applications going out today"):
+            self.assertEqual((quick.match(s) or ("",))[0], "hunt_why", s)
+
+
 if __name__ == "__main__":
     unittest.main()
