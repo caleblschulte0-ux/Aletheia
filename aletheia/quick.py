@@ -200,9 +200,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"situation report)(?: please)?$"
         r"|^(?:how are things|how(?:'s| is) everything|how(?:'s| is) it going|what(?:'s| is) (?:going on|the situation|the status))"
         r"(?: today| right now| with you)?$"
-        r"|^(?:catch me up|fill me in|bring me up to speed|where are we)(?: please)?$")),
+        r"|^(?:catch me up|fill me in|bring me up to speed|where are we)(?: please)?$"
+        # "Are we good", "summarize today", "how was your day": the rundown
+        # (bottom rung 2026-09-24: a repo lookup for "we", and nobody).
+        r"|^(?:are we good|is everything (?:ok|okay|alright|fine|good)|all good|everything good)(?: today)?\s*\??$"
+        r"|^(?:summari[sz]e|recap|sum up) (?:today|my day|the day|things)(?: for me)?\s*\??$"
+        r"|^how (?:was|did) (?:your|the|my) day(?: go)?\s*\??$")),
     ("focus", re.compile(
-        r"^what should i (?:focus on|do|work on|prioriti[sz]e|tackle|start with)(?: today| first| right now| this morning| now)?$"
+        r"^what should i (?:focus on|do|work on|prioriti[sz]e|tackle|start with)(?: today| first| right now| this morning| now| next)?$"
         r"|^(?:plan|organi[sz]e|map out|lay out) my day$|^what(?:'s| is) (?:the )?(?:most important|top priority|priority)"
         r"(?: thing)?(?: today| right now)?$|^what(?:'s| is) on (?:my|the) plate(?: today)?$"
         r"|^what do i need to (?:do|get done)(?: today)?$")),
@@ -387,6 +392,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what (?:jobs|openings) (?:have (?:you|u)|did (?:you|u)) (?:found|find)(?: today)?$")),
     # WHO IS WAITING ON HIM in his conversations: a reply nothing of his has
     # answered, or a follow-up that is due (bottom rung 2026-09-24).
+    ("applications_waiting", re.compile(
+        r"^how many (?:applications|apps|jobs) (?:are )?(?:waiting|pending|stuck|held up)(?: on me| for me| on you| to go out| on my tap)?\s*\??$"
+        r"|^how many (?:are )?(?:waiting|pending) (?:on me|for me|to go out)\s*\??$"
+        r"|^how many (?:applications|apps) need (?:me|my answer|my tap|a tap)\s*\??$")),
     ("follow_ups", re.compile(
         r"^what (?:should|do) i (?:need to )?follow up on\s*\??$"
         r"|^who do i (?:need|have|owe) (?:to )?(?:write|get|reply|respond) back to\s*\??$"
@@ -3262,6 +3271,29 @@ def _newest_application() -> str:
     return "The newest is " + _application_line(newest)
 
 
+def _applications_waiting() -> str:
+    """"How many applications are waiting": the filled ones not yet sent,
+    and how many of those wait on a question only he can answer."""
+    from aletheia import apply_run, speech
+    try:
+        waiting = apply_run.all_runs("AWAITING_YOU")
+    except Exception:
+        return "I can't read my application records right now."
+    if not waiting:
+        return "None waiting: every filled application has gone out or been closed."
+    try:
+        from aletheia import campaign
+        questions = campaign.open_questions()
+    except Exception:
+        questions = []
+    on_questions = len({j for q in questions for j in (q.get("jobs") or [])})
+    said = f"{speech.count_phrase(len(waiting), 'application')} waiting"
+    if on_questions:
+        said += (f": {on_questions} on {speech.count_phrase(len(questions), 'question')} only you can answer"
+                 + (f", {len(waiting) - on_questions} on the next beat" if len(waiting) > on_questions else ""))
+    return said + "."
+
+
 def _follow_ups_due() -> str:
     """"What should I follow up on" / "who do I need to write back to": the
     conversations where somebody replied and nothing of his has gone back,
@@ -3685,6 +3717,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_answer": lambda rest: _to_answer(),
            "found": lambda rest: _found(rest),
            "follow_ups": lambda rest: _follow_ups_due(),
+           "applications_waiting": lambda rest: _applications_waiting(),
            "newest_application": lambda rest: _newest_application(),
            "fleet": lambda rest: _fleet(),
            "focus": lambda rest: _focus(),

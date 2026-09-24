@@ -813,6 +813,24 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
                 intercom.execute_command({"kind": "screen_ask", "question": "what's on my screen"}, {}, quote="t")
         self.assertNotIn("NotGranted", str(ctx.exception))
 
+    def test_the_fifteenth_battery_the_rundown(self):
+        """Casual asks at the bottom rung (2026-09-24): "are we good" looked
+        up a repo called "we"; "summarize today", "how was your day", "what
+        should I do next" and "how many applications are waiting" went to
+        nobody."""
+        for s, name in (("are we good", "status"), ("is everything ok", "status"), ("summarize today", "status"),
+                        ("how was your day", "status"), ("what should I do next", "focus"),
+                        ("how many applications are waiting", "applications_waiting"),
+                        ("how many are waiting on me", "applications_waiting")):
+            self.assertEqual((quick.match(s) or ("",))[0], name, s)
+        rows = [{"id": "a1", "state": "AWAITING_YOU"}, {"id": "a2", "state": "AWAITING_YOU"}, {"id": "a3", "state": "AWAITING_YOU"}]
+        with mock.patch("aletheia.apply_run.all_runs", side_effect=lambda state=None: rows if state == "AWAITING_YOU" else []), \
+                mock.patch("aletheia.campaign.open_questions", return_value=[{"label": "Shift?", "jobs": ["a1", "a2"]}]):
+            said = quick.answer("how many applications are waiting")
+        self.assertEqual(said, "3 applications waiting: 2 on 1 question only you can answer, 1 on the next beat.")
+        with mock.patch("aletheia.apply_run.all_runs", return_value=[]):
+            self.assertTrue(quick.answer("how many applications are waiting").startswith("None waiting"))
+
     def test_what_did_i_say_about_is_his_note(self):
         with mock.patch.object(quick, "_notes", return_value=[
                 {"ts": "2026-09-24T20:00:00Z", "text": "the rent is due on the first"}]), \
