@@ -273,6 +273,13 @@ button.link{color:var(--warm-dim);text-decoration:underline;
   flex:none;min-width:58px}
 .lately span{flex:1;min-width:0;font-size:14.5px;color:var(--warm-dim);
   line-height:1.45;overflow-wrap:anywhere}
+/* The outcome tag on a row ("went wrong", "reached someone else") is an
+   <i class="note"> and was picking up the NOTICE CARD's box above - a
+   bordered pill that sat on top of the row's third line (seen 2026-09-24
+   on a spam-refusal row). It is a quiet word after the sentence. */
+.lately .li i.note{display:inline;background:none;border:0;border-radius:0;padding:0;
+  margin:0 0 0 6px;font-style:normal;font-size:12.5px;color:var(--warm-faint);white-space:nowrap}
+.lately .li.alert i.note{color:var(--amber)}
 .lately .li.alert span{color:#f0c0bc}
 .lately .note{font-style:normal;color:var(--warm-faint);font-size:12.5px}
 .calm{color:var(--warm-faint);font-size:14.5px;padding:6px 2px}
