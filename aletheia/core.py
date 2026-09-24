@@ -958,7 +958,8 @@ class Handler(BaseHTTPRequestHandler):
                                "says": _needs.spoken(rows),
                                # TODAY, the same window and reader the header counts
                                # from, so "N problems" opens N rows.
-                               "activity": _needs.activity(hours=_needs.today_hours(), limit=200),
+                               "activity": _needs.for_the_page(
+                                   _needs.activity(hours=_needs.today_hours(), limit=500)),
                                "drafts": drafts[:60],
                                "mail_hold": {"on": bool(hold.get("on")), "since": str(hold.get("since") or "")}})
         if url.path == "/api/fleet":

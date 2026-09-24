@@ -310,6 +310,25 @@ def today_tally(rows: list[dict] | None = None) -> dict:
             "problems": sum(1 for r in rows if r.get("outcome") == "failed")}
 
 
+#: How many of today's ordinary rows travel to the page beside every problem.
+PAGE_ROWS = 60
+
+
+def for_the_page(rows: list[dict], keep: int = PAGE_ROWS) -> list[dict]:
+    """Today's rows as the page carries them: EVERY problem, and the newest
+    `keep` of the rest, in the order they came. Measured 2026-09-24: 200 rows
+    by mid-afternoon, 4 of them problems - the tap on "4 problems" has to
+    find all four, and a phone need not download two hundred lines to."""
+    out, ordinary = [], 0
+    for row in rows:
+        if row.get("outcome") == "failed":
+            out.append(row)
+        elif ordinary < keep:
+            out.append(row)
+            ordinary += 1
+    return out
+
+
 def activity(*, hours: float = ACTIVITY_HOURS, limit: int = 30) -> list[dict]:
     """One history view: {"at", "what", "outcome"}, newest first.
 

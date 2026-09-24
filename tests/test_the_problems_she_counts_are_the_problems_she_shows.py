@@ -66,6 +66,14 @@ class TheHeaderCountsWhatTheListShows(unittest.TestCase):
             just_after = dt.datetime(2026, 9, 24, 0, 0, 30, tzinfo=dt.timezone.utc)
             self.assertGreater(needs_you.today_hours(just_after), 0)
 
+    def test_the_page_carries_every_problem_and_the_newest_of_the_rest(self):
+        rows = ([{"at": f"Wed 2{i%10}:00", "what": f"ok {i}", "outcome": "finished"} for i in range(100)]
+                + [{"at": "Wed 09:00", "what": "old problem", "outcome": "failed"}])
+        page = needs_you.for_the_page(rows, keep=60)
+        self.assertEqual(len(page), 61)
+        self.assertEqual(page[-1]["what"], "old problem", "a problem older than the newest sixty still travels")
+        self.assertEqual(needs_you.today_tally(page)["problems"], needs_you.today_tally(rows)["problems"])
+
     def test_the_readers_are_asked_for_the_days_worth_not_fourteen(self):
         asked = {}
         def day(hours, limit=None):
