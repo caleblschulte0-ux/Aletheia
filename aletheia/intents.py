@@ -817,10 +817,26 @@ _A_QUESTION = re.compile(
     r"can|could|should|would|will|have|has|am|tell me|show me)\b", re.I)
 
 
+#: Sentences whose verb writes something down: a task, a reminder, a note,
+#: a list line. Anchored on the verb, so "buy me stamps and add it to the
+#: list" (an act with a note after it) still stops at the door.
+_RECORDS_NOT_ACTS = re.compile(
+    r"^(?:thea[,:]?\s+)?(?:please\s+)?"
+    r"(?:add|remind me|set (?:a |me a )?reminder|note|remember|write down|jot down|log|put|make a note|"
+    r"add a task|create a task|new task)\b")
+
+
 def _asks_to_spend(request: str) -> bool:
     """Is this an instruction that commits his money? Never raises."""
     text = " ".join(str(request or "").split())
     if not text or text.rstrip().endswith("?") or _A_QUESTION.match(text):
+        return False
+    # RECORDING IS NOT SPENDING. "Add buy stamps to my task list" was refused
+    # at the door as an instruction to spend (2026-09-24): the verb of that
+    # sentence is ADD, and what it adds is a line to his own list. A task, a
+    # reminder or a note that MENTIONS buying commits nothing; the money
+    # rule is about her acting, and these ask her to write something down.
+    if _RECORDS_NOT_ACTS.match(text.casefold()):
         return False
     try:
         from aletheia import webtask
