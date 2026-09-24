@@ -37,12 +37,13 @@ class TheNewestIdeaWins(unittest.TestCase):
                                (ramp, "m3", "read the job post again")):
             pursuit._do_suggest(opp, {"id": mid, "detail": {"idea": idea}, "why": "because"}, now)
         left = notifications.all_notifications(state="UNREAD", limit=500)
-        self.assertEqual(sorted(n["body"].split("\n")[0] for n in left),
+        # The speech door flattens the body to one line: "<idea> — <why>".
+        self.assertEqual(sorted(n["body"].split(" — ")[0] for n in left),
                          ["ask the recruiter", "read the job post again"])
         self.assertEqual({n["topic"] for n in left}, {"pursuit:opp-1:idea", "pursuit:opp-2:idea"})
         retired = [n for n in notifications.all_notifications(limit=500) if n["state"] == "READ"]
         self.assertEqual(len(retired), 1)
-        self.assertEqual(retired[0]["body"].split("\n")[0], "look at their blog")
+        self.assertTrue(retired[0]["body"].startswith("look at their blog"), retired[0]["body"])
 
 
 if __name__ == "__main__":
