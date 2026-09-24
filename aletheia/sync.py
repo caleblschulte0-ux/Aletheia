@@ -507,13 +507,19 @@ class GitSync:
         recovered, recovery_detail = self.recover_editor_only_upstream_merge()
         if recovered is False:
             return False, recovery_detail
+        # FETCH FIRST, whatever the tree is doing. A fetch touches no working
+        # file, and it is the only way the Core learns it is behind: live
+        # 2026-09-23 a tree refused as "a rebase in progress" was never
+        # fetched, `version()` counted against a remote ref six hours old,
+        # and the health line said everything was running while nine merges
+        # sat on the remote. Refused is refused; behind is still said.
+        code, out = _git(["fetch", self.remote, self.branch], self.root)
+        if code != 0:
+            return False, f"fetch failed: {out[-200:]}"
         healed = self.heal_owned_conflicts()
         blocked = self.blocking_reason()
         if blocked:
             return False, blocked
-        code, out = _git(["fetch", self.remote, self.branch], self.root)
-        if code != 0:
-            return False, f"fetch failed: {out[-200:]}"
         code, out = _git(
             ["rebase", "--autostash", f"{self.remote}/{self.branch}"], self.root)
         notes = cleared + ([recovery_detail] if recovered else [])
