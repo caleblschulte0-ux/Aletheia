@@ -745,6 +745,54 @@ def _might_be_several(text: str) -> bool:
     return "," in t or " and " in t or " & " in t or " plus " in t
 
 
+#: An item on "my list" that starts like this is a thing to DO, not to buy.
+_TASK_VERB = re.compile(
+    r"^(?:call|phone|ring|email|text|message|write to|pay|book|fix|send|check|finish|schedule|cancel|renew|"
+    r"return|pick up|drop off|clean|wash|mow|file|submit|apply|follow up|chase|ask|tell|remind|order|"
+    r"print|sign|read|review|update|install|set up|back up|look into|look up|talk to|meet|visit|water)\b")
+
+
+def _new_task(raw: str) -> dict:
+    """A task from his words: the description, a deadline if he named one,
+    and an id that does not collide with a task he already has."""
+    from aletheia import tasks
+    desc, deadline = _split_deadline(raw.strip())
+    slug = re.sub(r"[^a-z0-9]+", "-", desc.lower()).strip("-")[:40] or "voice-task"
+    if any(t["id"] == slug for t in tasks.all_tasks()):
+        slug = f"{slug}-2"
+    command = {"kind": "task_new", "id": slug, "description": desc}
+    if deadline:
+        command["deadline"] = deadline
+    return {"command": command, "say": None}
+
+
+def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time_words: str | None) -> dict | None:
+    """A calendar_hold command from a day, an optional part and time. A bare
+    hour on a calendar reads as a person means it: "dinner at 7" is the
+    evening, "the call at 10" the morning, noon is noon."""
+    import datetime as dt
+    from aletheia import localtime
+    day_iso = _spoken_day(day)
+    if not day_iso:
+        return None
+    if time_words:
+        hhmm = _spoken_time(time_words)
+        if not hhmm:
+            return None
+        hour, minute = map(int, hhmm.split(":"))
+        if _is_bare_hour(time_words) and 1 <= hour <= 7:
+            hour += 12
+        if part in ("evening", "night") and hour < 12:
+            hour += 12
+    else:
+        hour, minute = {"morning": (9, 0), "afternoon": (14, 0), "evening": (19, 0), "night": (21, 0)}.get(
+            part or "", (9, 0))
+    start = dt.datetime.combine(dt.date.fromisoformat(day_iso), dt.time(hour, minute),
+                                tzinfo=localtime.operator_tz())
+    return {"command": {"kind": "calendar_hold", "title": _as_he_said(transcript, title.strip()),
+                        "start": start.isoformat(), "minutes": 60}, "say": None}
+
+
 def _to_the_planner(text: str) -> dict:
     """Hand the sentence on rather than ending the turn on a parse error.
 
@@ -1860,6 +1908,10 @@ def _interpret(transcript: str) -> dict:
     # the spending door holds).
     m = re.match(r"(?:add|put|get|stick|throw) (.+?) (?:on|to) (?:the |my )?"
                  r"(?:shopping |grocery )?list$", low)
+    if m and not re.search(r"(?:shopping|grocery) list$", low) and _TASK_VERB.match(m.group(1)):
+        # "Add call the dentist to my list" went on the SHOPPING list
+        # (2026-09-24). A thing to do is a task; a thing to buy is a purchase.
+        return _new_task(m.group(1).strip())
     if m and _might_be_several(m.group(1)):
         # "Add eggs milk and bread to the shopping list" put ONE entry on
         # it called "eggs milk and bread". Splitting here would have to
@@ -2648,14 +2700,40 @@ def _interpret(transcript: str) -> dict:
 
     m = re.match(r"(?:add a task|new task|task)\s*(?:to|:)?\s+(.+)", low)
     if m:
-        desc, deadline = _split_deadline(m.group(1).strip())
-        slug = re.sub(r"[^a-z0-9]+", "-", desc.lower()).strip("-")[:40] or "voice-task"
-        if any(t["id"] == slug for t in tasks.all_tasks()):
-            slug = f"{slug}-2"
-        command = {"kind": "task_new", "id": slug, "description": desc}
-        if deadline:
-            command["deadline"] = deadline
-        return {"command": command, "say": None}
+        return _new_task(m.group(1).strip())
+
+    # ANNOUNCEMENTS ARE HER SWITCH (bottom rung, 2026-09-24: "turn
+    # announcements off" fell through to nobody).
+    m = re.fullmatch(r"(?:turn |switch )?(?:the )?announcements? (?P<on>on|off)"
+                     r"|(?P<start>start announcing(?: things)?|announce things again|announcements back on)"
+                     r"|(?P<stop>stop announcing(?: things)?|stop talking (?:to me )?unless i ask|no more announcements)", low)
+    if m:
+        on = (m.group("on") == "on") if m.group("on") else bool(m.group("start"))
+        return {"command": {"kind": "announce_set", "on": on}, "say": None}
+
+    # A HOLD ON HIS CALENDAR, in her own model: "put dinner with Sam on my
+    # calendar Friday at 7", "hold Friday at 10 for the tour". Nothing is
+    # sent and no live calendar is written; it is the reversible half.
+    _cal_days = r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today)"
+    m = (re.fullmatch(r"(?:put|add|pencil in|pencil|schedule|book) (?P<title>.+?) (?:on|in|to|into|onto) my calendar"
+                      r"(?: for| on| this)? ?(?P<day>" + _cal_days + r")?(?: (?P<part>morning|afternoon|evening|night))?"
+                      r"(?: at (?P<time>[\w: ]+?))?", low)
+         or re.fullmatch(r"hold (?:on |this )?(?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"
+                         r"(?: at (?P<time>[\w: ]+?))? for (?P<title>.+)", low))
+    if m and (m.group("day") or m.group("time")):
+        held = _calendar_hold(text, m.group("title"), m.group("day") or "today", m.group("part"), m.group("time"))
+        if held:
+            return held
+
+    # A FILE WITH TEXT HE ALREADY HAS: "write a file called notes.md with
+    # hello". Reversible, in her workspace; the planner is for authoring.
+    m = re.fullmatch(r"(?:write|create|make|save) (?:me )?(?:a |an )?(?:new )?(?:text )?file (?:called|named) "
+                     r"(?P<name>[\w][\w.-]{0,60}) (?:with|containing|that says|saying|with the text|that reads) "
+                     r"(?P<body>.+)", low)
+    if m:
+        name = m.group("name") if "." in m.group("name") else m.group("name") + ".txt"
+        return {"command": {"kind": "file_write", "path": name,
+                            "text": _as_he_said(text, m.group("body").strip())}, "say": None}
 
     # LONGEST ALTERNATIVE FIRST. Python's alternation takes the first that
     # matches, so "note" won and the note read "that Dana called".

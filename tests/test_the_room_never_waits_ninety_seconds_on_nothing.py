@@ -566,6 +566,46 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
         with mock.patch("aletheia.liveness.uptime_seconds", return_value=None):
             self.assertIn("heartbeat on record", quick.answer("how long has the core been running"))
 
+    def test_the_tenth_battery_orders_at_the_bottom_rung(self):
+        """Twenty-seven orders with every rung off (2026-09-24). Five had no
+        rule and went to nobody: a thing to do on "my list", the announcements
+        switch, a hold on his calendar, a file with text he already has - and
+        "am I free Friday evening" was answered about office hours."""
+        import datetime as dt
+        from aletheia import intercom, voice
+
+        def kind(s):
+            return voice.interpret(f"thea {s}").get("command") or {}
+        self.assertEqual(kind("add call the dentist to my list")["kind"], "task_new")
+        self.assertEqual(kind("add call the dentist to my list")["description"], "call the dentist")
+        self.assertEqual(kind("add milk to my list")["kind"], "shopping_add")
+        self.assertEqual(kind("add call the dentist to my shopping list")["kind"], "shopping_add")
+        self.assertEqual(kind("turn announcements off"), {"kind": "announce_set", "on": False})
+        self.assertEqual(kind("turn announcements on"), {"kind": "announce_set", "on": True})
+        self.assertEqual(kind("stop announcing things")["on"], False)
+        held = kind("put dinner with Sam on my calendar friday at 7")
+        self.assertEqual(held["kind"], "calendar_hold")
+        self.assertEqual(held["title"], "dinner with Sam")
+        start = dt.datetime.fromisoformat(held["start"])
+        self.assertEqual((start.strftime("%A"), start.hour), ("Friday", 19), held)
+        self.assertEqual(dt.datetime.fromisoformat(kind("hold friday at 10 for the tour")["start"]).hour, 10)
+        self.assertEqual(dt.datetime.fromisoformat(kind("add the dentist to my calendar tomorrow afternoon")["start"]).hour, 14)
+        self.assertEqual(kind("put dinner on my calendar")["kind"], "intent", "no day and no time is the planner's")
+        self.assertEqual(kind("write a file called notes.md with hello"),
+                         {"kind": "file_write", "path": "notes.md", "text": "hello"})
+        self.assertEqual(kind("write a file called todo with buy milk")["path"], "todo.txt")
+        # The evening is looked at as the evening.
+        seen = {}
+
+        def slots(day, **kw):
+            seen.update(kw)
+            return []
+        with mock.patch("aletheia.calendar.free_slots", side_effect=slots), \
+                mock.patch("aletheia.calendar.all_events", return_value=[{"start": "2026-09-01T09:00:00"}]):
+            said = intercom.free_time_answer({"kind": "free_time", "day": "2026-09-25", "part": "evening"})
+        self.assertEqual((seen["work_start"].hour, seen["work_end"].hour), (17, 22))
+        self.assertNotIn("working hours", said)
+
     def test_what_did_i_say_about_is_his_note(self):
         with mock.patch.object(quick, "_notes", return_value=[
                 {"ts": "2026-09-24T20:00:00Z", "text": "the rent is due on the first"}]), \

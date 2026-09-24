@@ -1548,7 +1548,15 @@ def free_time_answer(cmd: dict) -> str:
     minutes = int(cmd.get("minutes", 30))
     day = _dt.date.fromisoformat(cmd["day"])
     part = str(cmd.get("part") or "").strip().lower()
-    slots = cal.free_slots(day, duration_minutes=minutes, timezone=tz)
+    if part in ("evening", "tonight", "night"):
+        # "Am I free Friday evening" answered "nothing free - I only look at
+        # your working hours" (2026-09-24): a question about the evening,
+        # answered about the office. The evening is looked at as the evening.
+        low, high = cal.DAY_PARTS.get("evening", (17, 22))
+        slots = cal.free_slots(day, duration_minutes=minutes, timezone=tz,
+                               work_start=_dt.time(low, 0), work_end=_dt.time(high, 0))
+    else:
+        slots = cal.free_slots(day, duration_minutes=minutes, timezone=tz)
     # HE SAID "AFTERNOON". Dropping the qualifier and answering about
     # the whole day answers a different question than the one asked,
     # and he has no way to tell that it happened.
@@ -1792,8 +1800,6 @@ def _free_sentence(ranges: list, day, part: str) -> str:
         # day keeps its name ("tomorrow afternoon", "Friday morning").
         when = f"this {part}" if when == "today" else f"{when} {part}"
     if not ranges:
-        if part in ("evening", "tonight"):
-            return f"Nothing free {when} — {WORK_HOURS_NOTE}."
         return f"Nothing free {when}."
     said = speech.and_list([f"{clock(a)} to {clock(b)}" for a, b in ranges[:3]])
     more = ", and a couple more" if len(ranges) > 3 else ""
