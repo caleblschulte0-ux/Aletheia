@@ -94,6 +94,14 @@ main{display:grid;gap:0 26px;max-width:1180px;margin:0 auto}
 .now .doing{margin:0;font-size:19px;line-height:1.38;letter-spacing:-.01em}
 .now .next{margin:8px 0 0;font-size:14.5px;line-height:1.5;color:var(--warm-dim)}
 .now .today{margin:10px 0 0;font-size:13px;color:var(--warm-faint)}
+/* "24 problems" is a sentence naming a problem, so it carries its click
+   (his ruling, 2026-09-23): the whole line is one wide, quiet button. */
+.now .today button.today-tap{display:block;width:100%;text-align:left;font:inherit;
+  color:var(--warm-faint);background:none;border:0;padding:8px 0;min-height:40px;
+  border-radius:8px;cursor:pointer}
+.now .today button.today-tap b{color:var(--warm-dim);font-weight:600;white-space:nowrap}
+.now .today button.today-tap:active{background:var(--ink-2)}
+.more.inline{display:inline-block;width:auto;margin:6px 0 0;min-height:36px;padding:0 12px}
 .now .health{margin:12px 0 0;padding:11px 13px;border-radius:12px;
   background:var(--amber-deep);border:1px solid rgba(216,178,95,.38);
   color:#f2dca6;font-size:14px;line-height:1.5}
@@ -270,6 +278,13 @@ button.link{color:var(--warm-dim);text-decoration:underline;
   flex:none;min-width:58px}
 .lately span{flex:1;min-width:0;font-size:14.5px;color:var(--warm-dim);
   line-height:1.45;overflow-wrap:anywhere}
+/* The outcome tag on a row ("went wrong", "reached someone else") is an
+   <i class="note"> and was picking up the NOTICE CARD's box above - a
+   bordered pill that sat on top of the row's third line (seen 2026-09-24
+   on a spam-refusal row). It is a quiet word after the sentence. */
+.lately .li i.note{display:inline;background:none;border:0;border-radius:0;padding:0;
+  margin:0 0 0 6px;font-style:normal;font-size:12.5px;color:var(--warm-faint);white-space:nowrap}
+.lately .li.alert i.note{color:var(--amber)}
 .lately .li.alert span{color:#f0c0bc}
 .lately .note{font-style:normal;color:var(--warm-faint);font-size:12.5px}
 .calm{color:var(--warm-faint);font-size:14.5px;padding:6px 2px}

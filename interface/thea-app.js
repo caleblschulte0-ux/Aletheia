@@ -182,7 +182,21 @@
     const word = STATE_WORD[h.state] || "";
     $("doing").textContent = h.doing || "";
     $("next").textContent = h.next ? "Next: " + h.next : "";
-    $("today").textContent = (h.today && h.today.said) || "";
+    // "Today: 32 things done, 24 problems." with nothing to tap was the
+    // exact shape of his 2026-09-23 ruling ("there should be a link
+    // afterwards... everything should be one click"): a sentence naming
+    // a problem carries its click. With problems the line is one wide
+    // button that shows them, from the answer the page already holds.
+    const todaySaid = (h.today && h.today.said) || "";
+    const problems = Number(h.today && h.today.problems) || 0;
+    if (problems > 0) {
+      setHTML("today", '<button class="today-tap" data-problems="' +
+        (doneFilter === "failed" ? "all" : "failed") + '">' + T.esc(todaySaid) +
+        " <b>" + (doneFilter === "failed" ? "Show everything" : "Show the problems") +
+        " ›</b></button>");
+    } else {
+      $("today").textContent = todaySaid;
+    }
     $("brains").textContent = h.brains || "";
     bannerText = h.banner || "";
     bannerAction = h.action || null;
@@ -401,10 +415,19 @@
   const OUTCOME = { finished: "", failed: "went wrong", recovered: "working again",
                     unattended: "without asking you" };
 
-  function paintDone(rows) {
+  // "" for everything she did today, "failed" for only the problems - set by
+  // the tap on the "N problems" line and cleared by the same line.
+  let doneFilter = "";
+
+  function paintDone(all) {
     const open = expanded.has("done");
+    const rows = doneFilter === "failed" ? all.filter((r) => r.outcome === "failed") : all;
     const shown = open ? rows.slice(0, 40) : rows.slice(0, A_FEW);
-    setHTML("done", rows.length
+    const lead = doneFilter === "failed"
+      ? '<div class="calm">' + (rows.length ? "Only the problems." : "No problems recorded today.") +
+        ' <button class="more inline" data-problems="all">Show everything</button></div>'
+      : "";
+    setHTML("done", lead + (rows.length
       ? shown.map((r) => {
           const note = r.outward ? "reached someone else"
             : (OUTCOME[r.outcome] || "");
@@ -418,7 +441,7 @@
         (rows.length > shown.length
           ? '<button class="more" data-expand="done">Show more</button>'
           : (open ? '<button class="more" data-expand="done">Show fewer</button>' : ""))
-      : '<div class="calm">Nothing recorded yet today.</div>');
+      : (doneFilter === "failed" ? "" : '<div class="calm">Nothing recorded yet today.</div>')));
   }
 
   // ---- the fleet: what the wall shows, HERE, where he can act on it -------
@@ -817,6 +840,15 @@
 
   // ---- decisions ---------------------------------------------------------
   document.addEventListener("click", async (e) => {
+    const problems = e.target.closest("[data-problems]");
+    if (problems) {
+      // Changes only what is SHOWN: repainted from the last answer, no request.
+      doneFilter = problems.dataset.problems === "failed" ? "failed" : "";
+      if (doneFilter) expanded.add("done");
+      repaint();
+      if (doneFilter) reveal($("done"));
+      return;
+    }
     const expand = e.target.closest("[data-expand]");
     if (expand) {
       const key = expand.dataset.expand;

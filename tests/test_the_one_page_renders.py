@@ -106,6 +106,13 @@ class OnePageCase(unittest.TestCase):
         journal.append("action", "session",
                        "Answered with ollama:qwen3:8b on subscription.auto, "
                        "from https://boards.example.com/jobs/7?token=abc123")
+        # PROBLEMS today, so "Today: ... N problems" has something to tap
+        # and the tap has something to show (an empty day proves nothing).
+        for n in range(2):
+            journal.append("alert", "apply",
+                           f"apply-{n:04x} was refused by the site at "
+                           f"https://jobs.example.com/{n}/application - not counted "
+                           "as sent: flagged as possible spam")
         cls.srv = core.make_server(port=0)
         threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
         cls.url = f"http://127.0.0.1:{cls.srv.server_address[1]}/"
@@ -189,6 +196,27 @@ class OnePageCase(unittest.TestCase):
                     return performance.getEntriesByType('resource').length - before; }""")
                 out[name]["peeked"] = page.evaluate(
                     "() => !!document.querySelector('.peeked')")
+                # "Today: N things done, M problems." carries its click
+                # (2026-09-23: "everything should be one click"): the tap
+                # shows only the problems, from the answer the page already
+                # holds - no request - and the same line takes him back.
+                out[name]["problems_tap"] = page.evaluate("""() => {
+                    const today = document.getElementById('today').innerText;
+                    const btn = document.querySelector('[data-problems="failed"]');
+                    if (!btn) return { today, present: false };
+                    const before = performance.getEntriesByType('resource').length;
+                    btn.click();
+                    const rows = [...document.querySelectorAll('#done .li')];
+                    const back = document.querySelector('[data-problems="all"]');
+                    const out = { today, present: true,
+                      requests: performance.getEntriesByType('resource').length - before,
+                      rows: rows.length,
+                      only_problems: rows.every(r => r.classList.contains('alert')),
+                      back: !!back };
+                    if (back) back.click();
+                    out.restored = [...document.querySelectorAll('#done .li')].length >= rows.length
+                      && !document.querySelector('[data-problems="all"]');
+                    return out; }""")
                 # A decision leaves the screen the instant he taps it.
                 # The LAST row, an application: the first is the one
                 # decision unlike the others, which later tests read.
@@ -451,6 +479,23 @@ class OnePageCase(unittest.TestCase):
             with self.subTest(name):
                 self.assertEqual(seen["requests_on_open"], 0)
                 self.assertTrue(seen["peeked"])
+
+    def test_the_problems_count_is_one_tap_from_the_problems(self):
+        """A sentence naming a problem carries its click. "Today: 32
+        things done, 24 problems." sat on his page as plain text."""
+        import re
+        for name, seen in self.seen.items():
+            with self.subTest(name):
+                tap = seen["problems_tap"]
+                counted = re.search(r"\b(\d+) problems?\b", tap["today"] or "")
+                if not counted or counted.group(1) == "0":
+                    self.assertFalse(tap["present"], "a tap on nothing")
+                    continue
+                self.assertTrue(tap["present"], f"no tap on {tap['today']!r}")
+                self.assertEqual(tap["requests"], 0)
+                self.assertTrue(tap["only_problems"])
+                self.assertGreater(tap["rows"], 0)
+                self.assertTrue(tap["back"] and tap["restored"])
 
     def test_a_decision_leaves_the_screen_the_instant_he_taps(self):
         for name, seen in self.seen.items():

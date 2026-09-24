@@ -103,6 +103,48 @@ def _legacy_sent_path():
 PRESSED_STATES = ("SUBMITTED", "SUBMITTING")
 
 
+#: How many refusals from one site in a day before the next opening on it
+#: is left alone until tomorrow.
+HOST_REFUSALS_ENOUGH = 2
+HOST_REFUSAL_HOURS = 24.0
+
+
+def host_refusals(*, hours: float = HOST_REFUSAL_HOURS, runs: list[dict] | None = None) -> dict:
+    """{host: refusals in the last `hours`} from the REJECTED records.
+
+    Live 2026-09-23/24 the general browser was refused by salesforce's
+    Workday five times, henryschein's three and autodesk's twice in one
+    night - a different posting each time, the same site, the same answer
+    every hour. "Never the same job twice" held; nothing remembered the
+    SITE. A site that refused twice today refuses the third.
+    """
+    from urllib.parse import urlsplit
+    floor = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=float(hours))).strftime("%Y-%m-%dT%H:%M:%SZ")
+    out: dict[str, int] = {}
+    for record in (all_runs() if runs is None else runs):
+        if record.get("state") != REJECTED:
+            continue
+        when = str(record.get("rejected_at") or record.get("staged_at") or "")
+        if when < floor:
+            continue
+        host = (urlsplit(str(record.get("url") or "")).hostname or "").removeprefix("www.")
+        if host:
+            out[host] = out.get(host, 0) + 1
+    return out
+
+
+def refusing_host(url: str, *, at_least: int = HOST_REFUSALS_ENOUGH, hours: float = HOST_REFUSAL_HOURS,
+                  refusals: dict | None = None) -> str:
+    """Why an opening on this site is left alone today, or "" to go ahead."""
+    from urllib.parse import urlsplit
+    host = (urlsplit(str(url or "")).hostname or "").removeprefix("www.")
+    n = int((host_refusals(hours=hours) if refusals is None else refusals).get(host, 0)) if host else 0
+    if n < max(1, int(at_least)):
+        return ""
+    return (f"{host} refused {n} of her applications in the last {int(hours)} hours; "
+            "leaving that site alone until tomorrow")
+
+
 def already_sent() -> dict:
     """Every url an application went to, from EVERY place that says so.
 

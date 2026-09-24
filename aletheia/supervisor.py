@@ -137,6 +137,101 @@ def core_alive(port: int = DEFAULT_PORT) -> bool:
     return another_core_answering(port)
 
 
+#: The last lines the Core wrote to stderr before it died, kept so the
+#: crash line in the journal can say WHY. Live 2026-09-24 the journal held
+#: "Core died (exit 4294967295) after 85s" and nothing else: the Core's
+#: stderr went to a console nobody was looking at (or, under the hidden
+#: logon task, to nowhere), so a crash left no traceback anywhere on disk.
+STDERR_TAIL_LINES = 80
+CRASH_LOG_NAME = "core-last-crash.log"
+_last_stderr: dict = {"lines": []}
+
+
+def _tee_stderr(stream, keep: list[str]) -> None:
+    """Echo the Core's stderr to ours and keep the tail. Never raises."""
+    echo = getattr(sys, "stderr", None)
+    try:
+        for line in iter(stream.readline, ""):
+            keep.append(line.rstrip("\r\n"))
+            del keep[:-STDERR_TAIL_LINES]
+            if echo is not None:
+                try:
+                    echo.write(line)
+                    echo.flush()
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+
+def _launch_core(cmd: list[str]) -> int:
+    """Run the Core to exit, with its stderr TAILED as well as shown.
+
+    stdout still inherits this console (started from start-aletheia.bat he
+    is watching it); stderr is piped through a thread that echoes every line
+    to our own stderr and keeps the last STDERR_TAIL_LINES for the crash
+    line and the crash log.
+    """
+    import threading
+    keep: list[str] = []
+    # proc: visible-by-design — the Core INHERITS this console on purpose.
+    # Under the hidden logon task the parent is pythonw, so there is no
+    # window either way; started from start-aletheia.bat the operator
+    # deliberately opened a window to watch the Core, and hiding its
+    # output there would be worse than the flashing boxes the no-window
+    # rule exists to stop. Only stderr is piped, and it is echoed back.
+    proc = subprocess.Popen(cmd, cwd=str(REPO_ROOT), env=_child_env(),
+                            stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
+    pump = threading.Thread(target=_tee_stderr, args=(proc.stderr, keep), daemon=True)
+    pump.start()
+    code = proc.wait()
+    pump.join(timeout=5.0)
+    _last_stderr["lines"] = list(keep)
+    return code
+
+
+def last_crash_line() -> str:
+    """The most telling line of the Core's last stderr: the exception if
+    there was a traceback, else the last non-empty line, else nothing."""
+    lines = [l.strip() for l in _last_stderr.get("lines") or [] if l.strip()]
+    if not lines:
+        return ""
+    if any(l.startswith("Traceback") for l in lines):
+        for line in reversed(lines):
+            if not line.startswith(("File ", "Traceback", "^", "~")) and not line.startswith(" "):
+                return line[:200]
+    return lines[-1][:200]
+
+
+def _write_crash_log(code: int, alive_s: float) -> str:
+    """The tail on disk, in private state, overwritten each crash. Returns
+    the path, or "" when there was nothing to write or nowhere to write it."""
+    lines = _last_stderr.get("lines") or []
+    if not lines:
+        return ""
+    try:
+        from aletheia import stateio
+        path = stateio.private_dir("logs") / CRASH_LOG_NAME
+        path.parent.mkdir(parents=True, exist_ok=True)
+        head = (f"# Core exit {code} after {alive_s:.0f}s at {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}"
+                f" - last {len(lines)} stderr lines\n")
+        path.write_text(head + "\n".join(lines) + "\n", encoding="utf-8")
+        return str(path)
+    except Exception:
+        return ""
+
+
+def _crash_sentence(code: int, alive_s: float, backoff: float) -> str:
+    said = f"Core died (exit {code}) after {alive_s:.0f}s"
+    why = last_crash_line()
+    if why:
+        said += f" - its last words: {why}"
+    log = _write_crash_log(code, alive_s)
+    if log:
+        said += f" (the tail is in {CRASH_LOG_NAME})"
+    return said + f" — relaunching in {backoff:.0f}s"
+
+
 def _child_env() -> dict:
     """The marker telling the Core a supervisor is waiting to relaunch it,
     so on a code update it may exit RESTART_EXIT_CODE instead of having to
@@ -170,13 +265,8 @@ def run_forever(core_args: list[str] | None = None, launch=None,
         print("Aletheia is closed. `python -m aletheia.closed open` to change that.")
         return 0
     cmd = [sys.executable, "-m", "aletheia.core", *(core_args or [])]
-    # proc: visible-by-design — the Core INHERITS this console on purpose.
-    # Under the hidden logon task the parent is pythonw, so there is no
-    # window either way; started from start-aletheia.bat the operator
-    # deliberately opened a window to watch the Core, and hiding its output
-    # there would be worse than the flashing boxes this rule exists to stop.
-    launch = launch or (lambda: subprocess.run(
-        cmd, cwd=str(REPO_ROOT), env=_child_env()).returncode)
+    # The Core inherits this console on purpose (see `_launch_core`).
+    launch = launch or (lambda: _launch_core(cmd))
     backoff = BACKOFF_START_S
     runs = 0
     crashes = 0
@@ -225,9 +315,7 @@ def run_forever(core_args: list[str] | None = None, launch=None,
         crashes = crashes + 1 if alive_s < CRASH_LOOP_ALIVE_S else 1
         if crashes == CRASH_LOOP_AT:
             _say_crash_loop(code, crashes)
-        _journal("event", "supervisor",
-                 f"Core died (exit {code}) after {alive_s:.0f}s — "
-                 f"relaunching in {backoff:.0f}s")
+        _journal("event", "supervisor", _crash_sentence(code, alive_s, backoff))
         sleep(backoff)
         backoff = min(backoff * 2, BACKOFF_MAX_S)
     return 1  # only reachable in tests via max_runs

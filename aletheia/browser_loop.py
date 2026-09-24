@@ -2160,6 +2160,9 @@ def _sleep(seconds: float) -> None:
 #: (Greenhouse: "enter the security code we emailed" on the same form, then
 #: Submit again). Not confirmed, and not proof it failed.
 VERIFICATION_REQUIRED = "verification_required"
+#: The press was answered with the site's sign-in door: not accepted, not
+#: refused; the button may be pressed again once she is in (`bm.NOTHING_WAS_SENT`).
+SIGN_IN_AFTER_PRESS = bm.SIGN_IN_AFTER_PRESS
 #: Where the press paths get a code when nobody handed them a source. A module
 #: attribute so a test can point it at a fake mailbox.
 code_source_factory: Callable | None = None
@@ -2313,6 +2316,25 @@ def after_press(webtask_record: dict, result: dict | None, error: BaseException 
     if result.get("page_state") in ps.STATES and after["state"] not in (ps.ERROR, ps.SUCCESS):
         after = {**after, "state": result["page_state"]}
     step_press = gate.get("kind") == ps.CREATE_ACCOUNT or bool(record.get("recovering"))
+    if verdict == "rejected" and not step_press and ps.reads_as_sign_in(evidence, str(result.get("title") or "")):
+        # THE SITE ANSWERED THE PRESS WITH ITS SIGN-IN DOOR, not a refusal.
+        # Live 2026-09-24 Workday met "Apply" with "Sign In / Create Account
+        # / Password", and "is required" on its password box read as the
+        # form being handed back: ten refusals on three hosts in a night,
+        # each "change what the site objected to" with nothing to change.
+        # Nothing was refused and nothing was accepted; the site wants an
+        # account first, which is the SIGN_IN boundary every other path
+        # already names.
+        note = ("The press led to the site's sign-in page: it wants an account before it takes an "
+                "application. Nothing was refused and nothing was accepted.")
+        result = {**result, "verdict": SIGN_IN_AFTER_PRESS, "note": note}
+        record = bm.end_submit(record, verdict=SIGN_IN_AFTER_PRESS, evidence=evidence,
+                               url=str(result.get("url") or ""), note=note)
+        record = bm.stop_at(record, bm.NEEDS_YOU, {
+            "kind": "SIGN_IN", "url": str(result.get("url") or gate.get("url") or ""),
+            "page_state": ps.ACCOUNT_LOGIN, "step": "sign in there, or let her make the account",
+            "say": note})
+        return result
     if verdict == VERIFICATION_REQUIRED and not step_press:
         # THE SITE HOLDS IT FOR A CODE. Not accepted, and not proof it failed:
         # the stop says which code and where, and the invariant still refuses a

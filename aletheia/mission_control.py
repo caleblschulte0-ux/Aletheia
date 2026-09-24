@@ -401,7 +401,8 @@ def task_mission(task: dict, index: dict | None = None) -> dict | None:
     if not isinstance(task, dict) or not task.get("id") or task.get("status") in TASK_TERMINAL:
         return None
     index = index or {}
-    raw = str(task.get("status") or "")
+    from aletheia import tasks as _tasks
+    raw = _tasks.effective_status(task)
     status = TASK_STATUS.get(raw, "OPEN")
     blockers: list[dict] = []
     needs: list[dict] = []
@@ -413,9 +414,15 @@ def task_mission(task: dict, index: dict | None = None) -> dict | None:
         blockers.append({"said": "waiting on " + ", ".join(waiting_on[:3]), "since": None, "source": "dependencies"})
         if status == "OPEN":
             status = "WAITING"
+    # The description is whoever filed the task, in their words: a session
+    # writes "Verify or repair capability reservation.book", and that id
+    # reached the page as the card's title (live 2026-09-24). The registry
+    # says what an id IS; that is what a card says above the drawer.
+    from aletheia import speech
+    description = speech.say_capabilities(str(task.get("description") or ""))
     if raw == "WAITING_OPERATOR":
         # The description is the ask; `result` is the history of how it got here.
-        needs.append({"said": _words(task.get("description") or task.get("result"), 200), "blocking": True,
+        needs.append({"said": _words(description or task.get("result"), 200), "blocking": True,
                       "receipt": {"kind": "task", "id": task["id"]}})
     action = ({"label": "I did it", "kind": "task_done",
                "args": {"which": str(task.get("description") or task["id"])}}
@@ -427,7 +434,7 @@ def task_mission(task: dict, index: dict | None = None) -> dict | None:
     if task.get("deadline"):
         nxt = (nxt + f" Due {task['deadline']}.").strip()
     return mission_card(
-        id=f"task:{task['id']}", type="task", title=str(task.get("description") or task["id"]),
+        id=f"task:{task['id']}", type="task", title=description or str(task["id"]),
         goal=str(task.get("goal") or ""), status=status, step="", next=nxt, blockers=blockers, needs=needs,
         receipts=[{"kind": "task", "id": task["id"], "label": f"task {task['id']}"}],
         updated=task.get("updated_at"), source="state/tasks", action=action)

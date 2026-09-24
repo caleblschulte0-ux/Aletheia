@@ -53,6 +53,24 @@ def save(task: dict) -> None:
         json.dumps(task, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
+def effective_status(task: dict) -> str:
+    """The status a reader should act on.
+
+    A "verify capability X" task whose tests pass was parked as
+    WAITING_OPERATOR until 2026-09-24, because the live proof reaches the
+    world and only he can start a real use. True - and it put "Verify or
+    repair capability reservation.book: needs you: I did it" on his page
+    for six days. A real use is not a chore he does; it is a day that comes
+    or does not, which is what WAITING_EXTERNAL means. `work_runners._verify`
+    writes that now; records written before it are read the same way here,
+    so the two readers (the needs list and the cards) cannot disagree.
+    """
+    status = str(task.get("status") or "")
+    if status == "WAITING_OPERATOR" and str(task.get("id") or "").startswith("verify-"):
+        return "WAITING_EXTERNAL"
+    return status
+
+
 def all_tasks() -> list[dict]:
     if not TASKS_DIR.is_dir():
         return []

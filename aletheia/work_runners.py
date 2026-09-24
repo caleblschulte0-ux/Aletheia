@@ -691,12 +691,16 @@ def _verify(it: dict, where: dict, now: dt.datetime) -> dict:
             moves = _what_moves_it(entry)
             note = (f"its tests pass here ({', '.join(modules)} in {result['seconds']:.0f} s); live evidence needs "
                     f"{moves}")
+            # A real use is not a chore he does; it is a day that comes or
+            # does not. Parked on HIM (WAITING_OPERATOR, BLOCKED_USER) this
+            # sat on his page as "Verify or repair capability
+            # reservation.book - needs you - I did it" for six days.
             if tid:
-                tasks.set_status(tid, "WAITING_OPERATOR", note)
-            return {"state": ws.BLOCKED_USER, "reason": note[:300], "kind": "verified",
-                    "next": "when Caleb authorizes that live use (it reaches the world, so it is his)",
+                tasks.set_status(tid, "WAITING_EXTERNAL", note)
+            return {"state": ws.BLOCKED_EXTERNAL, "reason": note[:300], "kind": "verified",
+                    "next": "the first real use he asks for (it reaches the world, so nothing starts one for him)",
                     "evidence": {"tests": check},
-                    "did": f"ran the tests for {cid} and they pass; the live proof is yours to authorize"}
+                    "did": f"ran the tests for {cid} and they pass; it stays experimental until a real use"}
         from aletheia import local_repair
         fleet_owner = _fleet_owner()
         run = local_repair.run(view["path"], repo=f"{fleet_owner}/Aletheia" if fleet_owner else "",

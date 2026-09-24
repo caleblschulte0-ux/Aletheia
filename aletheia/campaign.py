@@ -105,6 +105,62 @@ _FILLER = frozenset("a an the one to you your yes no is are do does did be have 
 RUN_DIR = stateio.private_dir("campaign")
 LOCK_PATH = RUN_DIR / "running.json"
 LOG_PATH = RUN_DIR / "last-run.log"
+#: Openings she could not reach a form on, {url: {"count", "last", "why"}},
+#: kept a day. Live 2026-09-24 Aptiv's J000698866 timed out on the same
+#: select box on every pass, every twelve minutes, all night.
+UNREACHABLE_PATH = RUN_DIR / "unreachable.json"
+UNREACHABLE_ENOUGH = 2
+UNREACHABLE_HOURS = 24.0
+
+
+def _stamp(now: dt.datetime | None = None) -> str:
+    return (now or dt.datetime.now(dt.timezone.utc)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _unreachable_read() -> dict:
+    """The store, or {} - a store that cannot be read costs nothing but memory."""
+    try:
+        value = json.loads(UNREACHABLE_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def remember_unreachable(rows: list[dict], *, now: dt.datetime | None = None) -> None:
+    """Count each url she could not reach this run; forget what is a day old.
+    Never raises: a memory that could fail a campaign is worse than none."""
+    rows = [r for r in rows if isinstance(r, dict) and str(r.get("url") or "").strip()]
+    if not rows:
+        return
+    try:
+        floor = _stamp((now or dt.datetime.now(dt.timezone.utc)) - dt.timedelta(hours=UNREACHABLE_HOURS))
+        store = {url: row for url, row in _unreachable_read().items()
+                 if isinstance(row, dict) and str(row.get("last") or "") >= floor}
+        for r in rows:
+            url = str(r["url"]).strip()
+            row = store.get(url) or {"count": 0}
+            row["count"] = int(row.get("count") or 0) + 1
+            row["last"] = _stamp(now)
+            row["why"] = " ".join(str(r.get("why") or "").split())[:160]
+            store[url] = row
+        UNREACHABLE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        stateio.write_json_atomic(UNREACHABLE_PATH, store)
+    except Exception:
+        pass
+
+
+def unreachable_today(url: str, *, store: dict | None = None, now: dt.datetime | None = None) -> str:
+    """Why this opening is left until tomorrow, or "" to try it."""
+    url = str(url or "").strip()
+    if not url:
+        return ""
+    row = (store if store is not None else _unreachable_read()).get(url)
+    if not isinstance(row, dict):
+        return ""
+    floor = _stamp((now or dt.datetime.now(dt.timezone.utc)) - dt.timedelta(hours=UNREACHABLE_HOURS))
+    if str(row.get("last") or "") < floor or int(row.get("count") or 0) < UNREACHABLE_ENOUGH:
+        return ""
+    return "could not reach a form on it twice today; leaving it until tomorrow"
 # A lock older than this is a run that died without cleaning up after itself,
 # or one that is hung (its process is stopped).
 STALE_LOCK = dt.timedelta(hours=3)
@@ -1180,6 +1236,12 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
     give_up_at = dt.datetime.now(dt.timezone.utc) + MAX_RUN
     roles_seen: set[str] = set()
     judged = 0
+    # Read once per run: which sites refused her today (never raises).
+    try:
+        refusing = apply_run.host_refusals()
+    except Exception:
+        refusing = {}
+    unreachable = _unreachable_read()
     for page in pages:
         # READY is what he asked for. A form still waiting on him is kept
         # and reported, and does not count toward the number.
@@ -1208,6 +1270,15 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
                                    "why": "the same job is already applied for or waiting"})
                 continue
             roles_seen.add(key)
+        # An opening she could not reach a form on twice today is left until
+        # tomorrow, before a page is loaded for it. Live 2026-09-24 Aptiv's
+        # J000698866 timed out on the same select box on every pass, every
+        # twelve minutes, all night, and "12 could not be reached" was mostly
+        # the same dozen pages.
+        left_for_today = unreachable_today(page["url"], store=unreachable)
+        if left_for_today:
+            failed.append({"url": page["url"], "title": title, "why": left_for_today, "remembered": True})
+            continue
         # A job already closed as not realistic stays closed. Live 2026-09-13
         # Dutchie "Account Manager, SMB" and impact.com "Creator Solutions
         # Account Manager" were closed, found again by the next batch at the
@@ -1217,6 +1288,13 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         if closed and str(closed.get("closed_at") or "") >= job_fit.preferences_changed_at():
             passed_over.append({"url": page["url"], "title": title,
                                 "why": closed.get("closed_because") or "closed as not realistic"})
+            continue
+        # A site that refused her twice today refuses the third - before any
+        # model is spent judging the job. Live 2026-09-24: three Workday
+        # hosts, ten refusals, one night, a fresh posting each time.
+        left_alone = apply_run.refusing_host(page["url"], refusals=refusing)
+        if left_alone:
+            failed.append({"url": page["url"], "title": title, "why": left_alone})
             continue
         # And only a job he could realistically get. Bounded, so a long list
         # of openings never turns into an hour of model calls - and a job the
@@ -1335,6 +1413,7 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
             continue
         (needs_you if record["state"] == "NEEDS_YOU" else staged).append(record)
 
+    remember_unreachable([row for row in failed if not row.get("remembered")])
     journal.append("action", "campaign",
                    f"{len(staged)} ready, {len(needs_you)} waiting on answers, "
                    f"{len(failed)} could not be reached, "

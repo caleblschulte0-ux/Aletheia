@@ -157,6 +157,7 @@ class TheActivityView(unittest.TestCase):
                {"at": "Fri 08:00", "kind": "alert", "what": "the sync broke"}]
         ledger = [{"at": "Fri 10:00", "said": "made a branch", "tool": "repo.branch"}]
         with mock.patch("aletheia.recollection.day", lambda **k: day), \
+             mock.patch("aletheia.recollection.trouble", lambda **k: []), \
              mock.patch("aletheia.autonomy.recent", lambda **k: ledger), \
              mock.patch("aletheia.autonomy.is_outward", lambda row: False):
             rows = needs_you.activity()

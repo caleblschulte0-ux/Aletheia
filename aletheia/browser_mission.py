@@ -167,6 +167,11 @@ CHECKPOINTS = (OBSERVED, FILLED, REVIEW_REACHED, SUBMIT_CLICKED, RECEIPT_VERIFIE
 
 #: Verdicts that PROVE a submission did not take.
 PROVEN_FAILED = frozenset({"rejected", "not_pressed"})
+#: The press was answered with the site's sign-in door (Workday, 2026-09-24):
+#: nothing was sent, so the button may be pressed again once she is in -
+#: but it is not a refusal, so the mission is not REJECTED for it.
+SIGN_IN_AFTER_PRESS = "sign_in_after_press"
+NOTHING_WAS_SENT = PROVEN_FAILED | frozenset({SIGN_IN_AFTER_PRESS})
 STALE_AFTER_MIN = 20
 MAX_CHECKPOINTS = 120
 MAX_EVENTS = 20
@@ -290,7 +295,7 @@ def may_submit(record: dict, *, button: str | None = None, url: str = "") -> tup
         if key is not None and attempt.get("key") not in (None, key):
             continue
         verdict = str(attempt.get("verdict") or "pending")
-        if verdict in PROVEN_FAILED:
+        if verdict in NOTHING_WAS_SENT:
             continue
         said = {"confirmed": "and the site confirmed it",
                 "pending": "and no verdict was ever recorded (it may have gone through)",

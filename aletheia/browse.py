@@ -642,6 +642,25 @@ def _line_with(text: str, word: str) -> str:
     return word
 
 
+#: A site refusing SOFTWARE, not a form. Ashby, live 2026-09-24 (Notion,
+#: CareerSwift): "Your application submission was flagged as possible spam."
+#: Nothing on the form was wrong, so "read what it wants and I will fix it
+#: and try again" was a promise about a correction that does not exist -
+#: and a re-read pass would have pressed the same form at the same guard.
+SPAM_FLAG_WORDS = ("flagged as possible spam", "flagged as spam", "possible spam",
+                   "detected as spam", "looks like spam")
+SPAM_FLAG_NOTE = ("The site refused it as possible spam - its own guard decided software "
+                  "sent it, not that anything on the form was wrong. Nothing was accepted, "
+                  "and pressing again will not change its mind; this one is yours to send "
+                  "by hand if you want it.")
+
+
+def flagged_as_spam(text: object) -> bool:
+    """Did the page refuse the SENDER rather than the form?"""
+    said = str(text or "").casefold()
+    return any(word in said for word in SPAM_FLAG_WORDS)
+
+
 def read_outcome(body: str, *, did: str = "",
                  form_still_there: bool = False, title: str = "", url: str = "",
                  complaints: list[str] | None = None) -> dict:
@@ -671,6 +690,8 @@ def read_outcome(body: str, *, did: str = "",
     # WHAT THE PAGE COMPLAINED OF, in its own words, before a scan of the
     # whole body: a visible alert or an invalid field is the site's verdict.
     said = [" ".join(str(c).split())[:160] for c in (complaints or []) if str(c).strip()]
+    if any(flagged_as_spam(c) for c in said) or flagged_as_spam(text):
+        return {"verdict": "rejected", "spam": True, "note": SPAM_FLAG_NOTE}
     if said:
         return {"verdict": "rejected",
                 "note": ("The site handed it back rather than accepting it — "
