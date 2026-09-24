@@ -1614,8 +1614,14 @@ def _interpret(transcript: str) -> dict:
     # is instant and honest instead of two minutes on her own model.
     m = re.fullmatch(
         r"(?:read|read me|open|show me|pull up|find)(?: me)? (?:the |my |that )?"
-        r"(?P<what>[a-z][a-z0-9 '-]{1,40}?) (?:note|draft|file|document|letter|memo|doc)s?\s*\??", low)
-    if m and not _not_a_file(m.group("what")):
+        # A bare possessive is not a name: "read me my notes" was a file
+        # search for "my" (15 files matching my, 2026-09-24) while the
+        # notes reader sat one rung down.
+        r"(?P<what>[a-z][a-z0-9 '-]{1,40}?) "
+        r"(?:note|draft|file|document|letter|memo|doc)s?\s*\??", low)
+    if m and not _not_a_file(m.group("what")) and any(
+            w not in ("me", "my", "your", "the", "all", "any", "those", "these", "our", "a")
+            for w in m.group("what").split()):
         return {"command": {"kind": "file_find",
                             "query": _as_he_said(transcript, m.group("what"))},
                 "say": None}

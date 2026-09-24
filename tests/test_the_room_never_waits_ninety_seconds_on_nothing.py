@@ -529,6 +529,25 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
             with mock.patch.object(pulse, "PULSE_DIR", d / "nowhere"):
                 self.assertTrue(quick.answer("did the shorts pipeline run today").startswith("No fleet reading yet"))
 
+    def test_the_ninth_battery_three_near_misses(self):
+        import datetime as dt
+        from aletheia import localtime, voice
+        # "what's the Barkly status" is the pulse's row, like "how's the trader".
+        for s in ("what's the barkly status", "barkly status", "what is the status of barkly"):
+            self.assertEqual(quick.status_of(s), ("repo", "barkly"), s)
+        # "what day is it tomorrow" is arithmetic, not a model.
+        tomorrow = dt.datetime.now(localtime.operator_tz()) + dt.timedelta(days=1)
+        said = quick.answer("what day is it tomorrow")
+        self.assertTrue(said.startswith(f"Tomorrow is {tomorrow.strftime('%A')} the"), said)
+        self.assertEqual(quick.match("what's tomorrow")[0], "date")
+        self.assertFalse(quick.answer("what day is it").startswith("Tomorrow"))
+        # "read me my notes" is the notes reader, not a file search for "my".
+        out = voice.interpret("thea read me my notes")
+        self.assertNotEqual((out.get("command") or {}).get("kind"), "file_find", out)
+        self.assertEqual(quick.match("read me my notes")[0], "notes_list")
+        out = voice.interpret("thea read me the positioning notes")
+        self.assertEqual((out.get("command") or {}).get("kind"), "file_find")
+
     def test_what_did_i_say_about_is_his_note(self):
         with mock.patch.object(quick, "_notes", return_value=[
                 {"ts": "2026-09-24T20:00:00Z", "text": "the rent is due on the first"}]), \

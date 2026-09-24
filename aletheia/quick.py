@@ -126,6 +126,10 @@ _STATUS = re.compile(
     r"(?: doing| going| looking| holding up| running)(?: today| now| lately| these days)?$"
     r"|^what(?:'s| is|s)? (?:the )?(?:status|state|health)(?: on| of)? (?:the |my )?"
     r"(?P<repo3>[a-z0-9][a-z0-9 _.-]{1,40}?)(?: pipeline| repo| project| bot)?$"
+    # "what's the Barkly status" / "Barkly status" (offline 2026-09-24: a model
+    # said "I have nothing on Barkly" while the pulse held its row)
+    r"|^(?:what(?:'s| is|s)? )?(?:the |my )?(?P<repo5>[a-z0-9][a-z0-9 _.-]{1,40}?)(?: pipeline| repo| project| bot)?"
+    r" (?:status|health)(?: today| now| right now)?$"
     r"|^why (?:is|are) (?:the |my )?(?P<repo4>[a-z0-9][a-z0-9 _.-]{1,40}?)(?: pipeline| repo| project| bot)?"
     r" (?:red|failing|broken|down|unhealthy|not healthy|in trouble)(?: right now| today)?$")
 
@@ -480,7 +484,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("date", re.compile(
         r"^what(?:'s| is|s)? (?:the |today'?s? )?date( today)?$"
         r"|^what day is it( today)?$|^what(?:'s| is|s)? today$"
-        r"|^what day of the week is it$")),
+        r"|^what day of the week is it$"
+        # "what day is it tomorrow" went to a model (2026-09-24).
+        r"|^what day (?:is it|will it be|is) (?P<date_ahead>tomorrow|the day after tomorrow)$"
+        r"|^what(?:'s| is|s)? (?P<date_ahead2>tomorrow|the day after tomorrow)(?:'s date)?$")),
     # NOT folded into "date": that sentence is "Monday the 7th of
     # September", which contains no year and buries the month. Answering
     # "what year is it" with it was a confident answer to a question he
@@ -903,6 +910,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "date_of", "date_of2", "date_of3",
                                            "recall", "recall2", "recall3", "recall4", "recall5", "ran",
+                                           "date_ahead", "date_ahead2",
                                            "applied_on", "applied_on2", "applied_on3",
                                            "asked_on", "asked_on2", "asked_on3", "day_part",
                                            "place", "place2", "place3")
@@ -1813,12 +1821,16 @@ def _clock() -> str:
     return f"{clock}, {now.strftime('%A')} the {_ordinal(now.day)} of {now.strftime('%B')}."
 
 
-def _date() -> str:
-    """"What day is it" — the day first, because that is what he asked."""
+def _date(ahead: str = "") -> str:
+    """"What day is it" — the day first, because that is what he asked.
+    `ahead` is "tomorrow" or "the day after tomorrow"."""
     import datetime as dt
     from aletheia import localtime
     now = dt.datetime.now(localtime.operator_tz())
-    return f"{now.strftime('%A')} the {_ordinal(now.day)} of {now.strftime('%B')}."
+    days = {"tomorrow": 1, "the day after tomorrow": 2}.get(str(ahead or "").strip(), 0)
+    then = now + dt.timedelta(days=days)
+    said = f"{then.strftime('%A')} the {_ordinal(then.day)} of {then.strftime('%B')}."
+    return f"{ahead[:1].upper() + ahead[1:]} is {said}" if days else said
 
 
 def _month() -> str:
@@ -3497,7 +3509,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "desktop_files": _desktop_files,
            "yesterday": lambda rest: _yesterday(),
            "clock": lambda rest: _clock(),
-           "date": lambda rest: _date(),
+           "date": lambda rest: _date(rest),
            "month": lambda rest: _month(),
            "year": lambda rest: _year(),
            "can_you": _can_you,
