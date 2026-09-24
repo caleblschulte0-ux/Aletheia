@@ -1180,6 +1180,11 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
     give_up_at = dt.datetime.now(dt.timezone.utc) + MAX_RUN
     roles_seen: set[str] = set()
     judged = 0
+    # Read once per run: which sites refused her today (never raises).
+    try:
+        refusing = apply_run.host_refusals()
+    except Exception:
+        refusing = {}
     for page in pages:
         # READY is what he asked for. A form still waiting on him is kept
         # and reported, and does not count toward the number.
@@ -1217,6 +1222,13 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         if closed and str(closed.get("closed_at") or "") >= job_fit.preferences_changed_at():
             passed_over.append({"url": page["url"], "title": title,
                                 "why": closed.get("closed_because") or "closed as not realistic"})
+            continue
+        # A site that refused her twice today refuses the third - before any
+        # model is spent judging the job. Live 2026-09-24: three Workday
+        # hosts, ten refusals, one night, a fresh posting each time.
+        left_alone = apply_run.refusing_host(page["url"], refusals=refusing)
+        if left_alone:
+            failed.append({"url": page["url"], "title": title, "why": left_alone})
             continue
         # And only a job he could realistically get. Bounded, so a long list
         # of openings never turns into an hour of model calls - and a job the
