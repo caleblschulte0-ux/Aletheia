@@ -50,7 +50,9 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import subprocess
+import time
 from pathlib import Path
 
 from aletheia.fleet import REPO_ROOT
@@ -62,6 +64,13 @@ PUSH_ATTEMPTS = 3
 #: Core gives up and aborts it. A checkpoint a minute for a day is far
 #: fewer than this; an endless loop is what the bound is for.
 REBASE_STEPS = 20
+#: A git operation that still held index.lock after this long is not running
+#: any more; nothing git does to one index takes ten minutes.
+LOCK_STALE_S = 600
+#: The files a rebase that is really in progress keeps. A `rebase-merge` or
+#: `rebase-apply` directory holding none of them is the husk an abort that
+#: could not finish leaves behind (with, at most, its `autostash`).
+_REBASE_LIVE = ("head-name", "git-rebase-todo", "done", "msgnum", "onto", "next", "last")
 
 # What the Core writes itself, and may therefore safely stash across a
 # rebase. Everything else in the tree belongs to a person.
@@ -243,6 +252,46 @@ class GitSync:
         if not line.lstrip().startswith("??"):
             return False
         return (self.root / path.rstrip("/") / ".git").exists()
+
+    def heal_stale_git_state(self) -> list[str]:
+        """The husk of an aborted rebase, and a lock nobody holds - cleared.
+
+        Live 2026-09-23, 17:34 on his PC: a pull's rebase failed on an
+        `index.lock` another git process held, the abort that followed
+        failed on the same lock, and what remained was `.git/rebase-merge/`
+        holding one file, `autostash`. `git status` read it as "You are
+        currently rebasing"; this class read it as somebody's work and left
+        it alone; for the next six hours every merge sat on the remote,
+        seven commits behind, and the page said everything was running.
+
+        A rebase directory with no head-name, no todo and no done is
+        nobody's rebase - a real one, a person's or her own, keeps them - and
+        a lock older than `LOCK_STALE_S` belongs to no process. Both are
+        cleared, and said. The husk's autostash held only files the Core
+        owns (a person's changes refuse the pull before any autostash), all
+        rewritten since; it is left as the dangling object git keeps anyway.
+        """
+        notes: list[str] = []
+        git_dir = self.root / ".git"
+        lock = git_dir / "index.lock"
+        try:
+            if lock.is_file():
+                age = time.time() - lock.stat().st_mtime
+                if age > LOCK_STALE_S:
+                    lock.unlink()
+                    notes.append(f"removed an index.lock nobody had held for {int(age // 60)} minutes")
+        except OSError:
+            pass
+        for name in ("rebase-merge", "rebase-apply"):
+            husk = git_dir / name
+            if not husk.is_dir() or any((husk / f).exists() for f in _REBASE_LIVE):
+                continue
+            _git(["rebase", "--abort"], self.root)      # git's own way first; a husk gives it nothing
+            if husk.is_dir():
+                shutil.rmtree(husk, ignore_errors=True)
+            if not husk.exists():
+                notes.append(f"cleared the husk of an aborted rebase ({name} held nothing to finish)")
+        return notes
 
     def merge_in_progress(self) -> bool:
         """Is a human (or an agent) part-way through a merge or rebase here?
@@ -454,6 +503,7 @@ class GitSync:
         narrow editor-only merge left by a prior plain ``git pull`` is first
         aborted safely, so the normal bounded rebase can resume unattended.
         """
+        cleared = self.heal_stale_git_state()
         recovered, recovery_detail = self.recover_editor_only_upstream_merge()
         if recovered is False:
             return False, recovery_detail
@@ -466,7 +516,7 @@ class GitSync:
             return False, f"fetch failed: {out[-200:]}"
         code, out = _git(
             ["rebase", "--autostash", f"{self.remote}/{self.branch}"], self.root)
-        notes = [recovery_detail] if recovered else []
+        notes = cleared + ([recovery_detail] if recovered else [])
         if code != 0:
             # An untracked file of its OWN that upstream has since added
             # (the Core filed a task; a session committed the same task)
@@ -514,6 +564,7 @@ class GitSync:
         # unmerged files" each time. Committing mid-merge would be worse than
         # the noise — `git add` on a conflicted path stages the conflict
         # markers as if they were resolved.
+        self.heal_stale_git_state()
         self.heal_owned_conflicts()
         if self.merge_in_progress():
             return True, "merge in progress — checkpoint skipped"
