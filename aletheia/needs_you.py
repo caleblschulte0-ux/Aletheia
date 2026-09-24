@@ -318,10 +318,27 @@ def _outcome_of(kind: object) -> str:
 
 
 def _finished_and_failed(hours: float) -> list[dict]:
+    """What she did AND what went wrong, from the two readers that know.
+
+    `recollection.day` is what she DID and drops alerts by design (they
+    are things that happened TO her), so until 2026-09-24 this view could
+    never hold a "failed" row however many the header counted: "Today: 32
+    things done, 24 problems" above a list with no problems in it.
+    `recollection.trouble` is the reader for what went wrong; both go in,
+    deduplicated on the sentence.
+    """
     from aletheia import recollection
-    return [{"at": str(row.get("at") or ""), "what": _said(row.get("what")),
-             "outcome": _outcome_of(row.get("kind"))}
-            for row in recollection.day(hours=hours)]
+    rows = list(recollection.day(hours=hours)) + list(recollection.trouble(hours=hours))
+    seen: set[tuple[str, str]] = set()
+    out = []
+    for row in rows:
+        key = (str(row.get("at") or ""), str(row.get("what") or ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({"at": key[0], "what": _said(row.get("what")),
+                    "outcome": _outcome_of(row.get("kind"))})
+    return out
 
 
 def _unattended(hours: float, limit: int) -> list[dict]:
