@@ -208,6 +208,19 @@ def _git_signature(repo_root) -> tuple:
             signed.append((name, (repo_root / ".git" / name).stat().st_mtime_ns))
         except OSError:
             signed.append((name, None))
+    # And the remote-tracking refs themselves. A fetch made from a worktree
+    # of this repository moves `refs/remotes/origin/<branch>` and nothing
+    # else here (its FETCH_HEAD is its own), so the count "behind" stayed
+    # cached at zero on 2026-09-23 while the ref was nine commits ahead.
+    newest = None
+    try:
+        for ref in (repo_root / ".git" / "refs" / "remotes").rglob("*"):
+            if ref.is_file():
+                stamp = ref.stat().st_mtime_ns
+                newest = stamp if newest is None or stamp > newest else newest
+    except OSError:
+        newest = None
+    signed.append(("refs/remotes", newest))
     return tuple(signed)
 
 

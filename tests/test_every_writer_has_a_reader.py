@@ -128,6 +128,10 @@ READER_FOR = {
     # A cleared browser mission is read back by "how are my missions": left,
     # with the reason he gave it.
     "mission_leave": "missions",
+    # "Open it" writes nothing of hers: a page opens on his own screen and
+    # the journal line ("opened jobs.example.com for ...") is what "what did
+    # you do" reads back. No store, so no reader to name.
+    "open_page": "",
 }
 
 

@@ -77,6 +77,8 @@ FORBIDDEN_KINDS = {
     "apply_retry",
     # clearing a card that waits on him is his tap
     "mission_leave",
+    # a page on his screen is his tap
+    "open_page",
     # what he wants is his to say, never a mission's
     "preference_set",
     # "stop applying" is his word, never an agenda's guess
@@ -125,6 +127,7 @@ REFUSAL_REASON = {
     "preference_set": "what he wants is his to say, never a mission's",
     "apply_retry": "sending an application again is his say-so, never a mission's",
     "mission_leave": "clearing a card that waits on him is his tap, never a mission's",
+    "open_page": "a page on his screen is his tap, never a mission's",
     "intent": "an agenda filing intents that file intents is a loop",
     "rule": "a standing rule outlives this mission's budget",
     "dispatch": "that runs a workflow in another repository",
