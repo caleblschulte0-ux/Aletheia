@@ -728,6 +728,53 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
                                      "text": "QUEUED -> COMPLETED — marked done: spoken to the wall: thea mark the first one done"})
         self.assertEqual(row["what"], "Marked done: renew the car insurance")
 
+    def test_the_thirteenth_battery_the_job_hunt_and_the_mail(self):
+        """Job-hunt, mail and interview questions at the bottom rung
+        (2026-09-24): the newest application, who is waiting on a reply
+        from him, the mail hold, what she is drafting, the interview switch,
+        "what happened with the job hunt overnight", openings this week."""
+        import datetime as dt
+        from aletheia import conversations, localtime
+        for s, name in (("what's the newest application", "newest_application"),
+                        ("which one did you apply to last", "newest_application"),
+                        ("what should I follow up on", "follow_ups"),
+                        ("who do I need to write back to", "follow_ups"),
+                        ("is the mail hold still on", "sending"),
+                        ("are you holding my emails", "sending"),
+                        ("what are you drafting", "drafts"),
+                        ("what's the interview switch set to", "interview_window"),
+                        ("are you booking interviews", "interview_window"),
+                        ("what happened with the job hunt overnight", "overnight"),
+                        ("what did the job hunt do while I was asleep", "overnight"),
+                        ("how many jobs did you find this week", "found")):
+            self.assertEqual((quick.match(s) or ("",))[0], name, s)
+        self.assertEqual(quick.match("how many jobs did you find this week")[1], "this week")
+        self.assertEqual(quick.match("how many jobs did you find today")[1], "")
+        rec = {"id": "apply-9", "state": "SUBMITTED", "company": "Vanta", "job_title": "CSM",
+               "submitted_at": "2026-09-24T06:00:00Z", "staged_at": "2026-09-24T05:00:00Z"}
+        old = {"id": "apply-1", "state": "AWAITING_YOU", "company": "Ramp", "job_title": "AE",
+               "staged_at": "2026-09-20T05:00:00Z"}
+        with mock.patch("aletheia.apply_run.all_runs", return_value=[old, rec]), \
+                mock.patch("aletheia.apply_run.describe", side_effect=lambda r: f"{r['job_title']} at {r['company']}"):
+            said = quick.answer("what's the newest application")
+        self.assertTrue(said.startswith("The newest is CSM at Vanta: sent"), said)
+        with mock.patch("aletheia.apply_run.all_runs", return_value=[]):
+            self.assertEqual(quick.answer("what's the newest application"), "No applications on record yet.")
+        with mock.patch("aletheia.conversations.all_threads", side_effect=lambda state=None: (
+                [{"id": "conv-1", "to": "dana@example.com", "name": "Dana"}] if state == conversations.REPLIED else [])), \
+                mock.patch("aletheia.conversations._name", return_value="Dana"):
+            said = quick.answer("who do I need to write back to")
+        self.assertEqual(said, "1 reply waiting on you: Dana.")
+        with mock.patch("aletheia.conversations.all_threads", return_value=[]):
+            self.assertTrue(quick.answer("what should I follow up on").startswith("Nobody is waiting"))
+        stamp = dt.datetime.now(dt.timezone.utc)
+        rows = [{"ts": (stamp - dt.timedelta(days=d)).strftime("%Y-%m-%dT%H:%M:%SZ"), "kind": "note",
+                 "actor": "aletheia-campaign", "subject": "jobs",
+                 "text": f"I found {100 + d} openings today, {10 + d} of them realistic"} for d in (0, 1, 2)]
+        with mock.patch("aletheia.journal.entries", return_value=list(reversed(rows))):
+            said = quick.answer("how many jobs did you find this week")
+        self.assertTrue(said.startswith("303 openings found this week over 3 days, 33 worth applying to."), said)
+
     def test_what_did_i_say_about_is_his_note(self):
         with mock.patch.object(quick, "_notes", return_value=[
                 {"ts": "2026-09-24T20:00:00Z", "text": "the rent is due on the first"}]), \

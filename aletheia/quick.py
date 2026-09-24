@@ -383,7 +383,19 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is) left to apply (?:to|for)\s*\??$")),
     ("found", re.compile(
         r"^how many (?:jobs|openings|postings|roles|positions) (?:have (?:you|u)|did (?:you|u)|have we) (?:found|find|come across|turned up|discovered)"
-        r"(?: today| so far| tonight)?$|^what (?:jobs|openings) (?:have (?:you|u)|did (?:you|u)) (?:found|find)(?: today)?$")),
+        r"(?: today| so far| tonight| (?P<found_window>this week|yesterday|last week))?$"
+        r"|^what (?:jobs|openings) (?:have (?:you|u)|did (?:you|u)) (?:found|find)(?: today)?$")),
+    # WHO IS WAITING ON HIM in his conversations: a reply nothing of his has
+    # answered, or a follow-up that is due (bottom rung 2026-09-24).
+    ("follow_ups", re.compile(
+        r"^what (?:should|do) i (?:need to )?follow up on\s*\??$"
+        r"|^who do i (?:need|have|owe) (?:to )?(?:write|get|reply|respond) back to\s*\??$"
+        r"|^who(?:'s| is) waiting (?:on|for) (?:a reply|an answer|a response) from me\s*\??$"
+        r"|^(?:which|what) (?:conversations|threads|emails) (?:need|are waiting on) (?:me|a reply)\s*\??$"
+        r"|^(?:any|do i have any) follow[ -]?ups? (?:due|to do|owed)?\s*\??$")),
+    ("newest_application", re.compile(
+        r"^what(?:'s| is|s)? (?:the |my )?(?:newest|latest|most recent|last) application\s*\??$"
+        r"|^(?:which|what) (?:job|one) did (?:you|u) (?:apply to|send) (?:last|most recently)\s*\??$")),
     ("fleet", re.compile(
         r"^(?:show me |what(?:'s| is) |how(?:'s| is) )?(?:the )?fleet(?: doing| status| looking| look)?$"
         r"|^how are (?:my|the) (?:other )?(?:projects|repos|repositories)(?: doing)?$"
@@ -423,7 +435,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:did )?anything (?:get |go |went )?(?:sent|out)(?: out)? (?P<sent_window2>last night|overnight|tonight|this morning|yesterday"
         r"|while i (?:was asleep|slept|was sleeping))\s*\??$")),
     ("overnight", re.compile(
-        r"^how (?:did|was) (?:the )?(?:job hunt|hunt|job search|applications|applying) (?:go |do )?(?:last night|overnight|tonight)$"
+        r"^how (?:did|was) (?:the )?(?:job hunt|hunt|job search|applications|applying) (?:go |do )?"
+        r"(?:last night|overnight|tonight|while i (?:was asleep|slept|was sleeping))$"
+        r"|^what happened (?:with|to|in) (?:the )?(?:job hunt|hunt|job search|applications) "
+        r"(?:last night|overnight|tonight|while i (?:was asleep|slept|was sleeping))$"
+        r"|^what did (?:the )?(?:job hunt|hunt|job search) (?:do|get done) "
+        r"(?:last night|overnight|tonight|while i (?:was asleep|slept|was sleeping))$"
         r"|^what happened (?:overnight|last night|tonight|while i (?:was asleep|slept|was sleeping|was out))$"
         r"|^what did (?:you|u) (?:do|get done) (?:overnight|last night|while i (?:was asleep|slept|was sleeping))$"
         r"|^(?:did )?anything (?:happen )?(?:overnight|last night|while i (?:was asleep|slept))$"
@@ -817,7 +834,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:are|do|will|can) (?:you|u) (?:sending|send|going to send) (?:any |out )?(?:emails?|mail|messages)"
         r"(?: right now| now| yet| for me)?\s*\??$"
         r"|^is (?:outward |outgoing )?(?:mail|email) (?:on hold|held|paused|stopped)\s*\??$"
-        r"|^(?:are|is) (?:emails?|mail) (?:on hold|held)\s*\??$")),
+        r"|^(?:are|is) (?:emails?|mail) (?:on hold|held)\s*\??$"
+        r"|^is (?:the )?(?:outward |outgoing )?(?:mail|email) hold (?:still )?(?:on|off|lifted|up)\s*\??$"
+        r"|^(?:are|is) (?:you|u) (?:still )?holding (?:my |the )?(?:emails?|mail|drafts)\s*\??$")),
     # WHICH JOBS TODAY. "Which jobs did you apply to today" went to a model
     # for a list that is in her own records (92 s, then nothing); the
     # all-time list ("applied_to", above) did not know the day words.
@@ -847,13 +866,17 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:any|what|list|show me|read me) (?:my |your |the )?drafts?(?: (?:do (?:you|u) have|waiting|for me|held))?\s*\??$"
         r"|^what(?:'s| is|s) (?:in|on) (?:my |your |the )?drafts?\s*\??$"
         r"|^how many (?:emails? |drafts? )?(?:are |do (?:you|u) have )?(?:in|on|held in) (?:my |the |your )?drafts?(?: folder)?\s*\??$"
-        r"|^how many drafts (?:do (?:you|u) have|are (?:there|held|waiting))\s*\??$")),
+        r"|^how many drafts (?:do (?:you|u) have|are (?:there|held|waiting))\s*\??$"
+        r"|^what are (?:you|u) drafting\s*\??$|^what have (?:you|u) (?:got )?drafted\s*\??$")),
     # HIS INTERVIEW WINDOW is a fact in her own store (offline 2026-09-24:
     # "I don't have your interview window on record" from a model, while
     # `interviews.status()` held 1 to 2:30 PM Central the whole time).
     ("interview_window", re.compile(
         r"^what(?:'s| is|s)? my interview (?:window|hours|times)\s*\??$"
         r"|^what times? (?:is|are) my interview (?:window|hours|times)\s*\??$"
+        r"|^what(?:'s| is) the interview (?:switch|booking) (?:set to|on|at)\s*\??$"
+        r"|^(?:is|are) interview (?:booking|bookings) (?:on|off|switched on|switched off)\s*\??$"
+        r"|^(?:are|will) (?:you|u) book(?:ing)? interviews(?: for me)?\s*\??$"
         r"|^when (?:can|do) i (?:do|take|have) interviews\s*\??$"
         r"|^what (?:hours|times) (?:are|do) (?:you|u) book(?:ing)? interviews(?: for| in)?\s*\??$")),
     # "Did the shorts pipeline run today" is the pulse's row for that repo,
@@ -925,7 +948,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "date_of", "date_of2", "date_of3",
                                            "recall", "recall2", "recall3", "recall4", "recall5", "ran",
-                                           "date_ahead", "date_ahead2",
+                                           "date_ahead", "date_ahead2", "found_window",
                                            "applied_on", "applied_on2", "applied_on3",
                                            "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part",
                                            "place", "place2", "place3")
@@ -1253,9 +1276,33 @@ def _to_answer() -> str:
     return f"{speech.count_phrase(len(rows), 'question')} waiting on you: {said}{more}."
 
 
-def _found() -> str:
-    """Openings found today, from the hunt's own reading."""
+def _found(window: str = "") -> str:
+    """Openings found today, from the hunt's own reading - or over a window
+    ("this week", "yesterday") from the note it writes each batch."""
     from aletheia import current_state, speech
+    window = str(window or "").strip()
+    if window:
+        days = {"this week": 7, "yesterday": 1, "last week": 14}.get(window, 7)
+        by_day = _hunt_saw_by_day(days)
+        if window == "yesterday":
+            import datetime as dt
+            from aletheia import localtime
+            y = (dt.datetime.now(localtime.operator_tz()).date() - dt.timedelta(days=1)).isoformat()
+            hit = by_day.get(y)
+            if not hit:
+                return "No openings on record for yesterday."
+            return f"{speech.count_phrase(hit[0], 'opening')} found yesterday, {hit[1]} worth applying to."
+        if window == "last week":
+            import datetime as dt
+            from aletheia import localtime
+            today = dt.datetime.now(localtime.operator_tz()).date()
+            start = today - dt.timedelta(days=today.weekday() + 7)
+            by_day = {d: v for d, v in by_day.items() if start.isoformat() <= d < (start + dt.timedelta(days=7)).isoformat()}
+        if not by_day:
+            return f"No openings on record {window}."
+        found, fit = sum(v[0] for v in by_day.values()), sum(v[1] for v in by_day.values())
+        return (f"{speech.count_phrase(found, 'opening')} found {window} over {speech.count_phrase(len(by_day), 'day')}, "
+                f"{fit} worth applying to.")
     try:
         hunt = current_state.job_hunt() or {}
     except Exception:
@@ -1278,6 +1325,29 @@ def _found() -> str:
 
 
 _HUNT_SAW = re.compile(r"I found (\d+) openings today, (\d+) of them realistic")
+
+
+def _hunt_saw_by_day(days: int) -> dict[str, tuple[int, int]]:
+    """The hunt's latest count for each of the last `days` days, by date."""
+    import datetime as dt
+    from aletheia import journal, localtime
+    out: dict[str, tuple[int, int]] = {}
+    try:
+        tz = localtime.operator_tz()
+        floor = dt.datetime.now(tz).date() - dt.timedelta(days=max(0, int(days)))
+        for entry in reversed(journal.entries()):
+            if entry.get("kind") != "note":
+                continue
+            hit = _HUNT_SAW.search(str(entry.get("text") or ""))
+            if not hit:
+                continue
+            when = dt.datetime.fromisoformat(str(entry.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+            if when < floor:
+                break
+            out.setdefault(when.isoformat(), (int(hit.group(1)), int(hit.group(2))))   # newest per day wins
+    except Exception:
+        return out
+    return out
 
 
 def _hunt_saw_today() -> tuple[int, int] | None:
@@ -3112,16 +3182,63 @@ def _opportunity(rest: str) -> str | None:
     if records:
         record = sorted(records, key=lambda r: r.get("submitted_at") or r.get("staged_at") or "",
                         reverse=True)[0]
-        stage = mission_jobs.stage_of(record).replace("_", " ").casefold()
-        if record.get("state") == "SUBMITTED" and record.get("submitted_at"):
-            # "anything from Vanta" -> "...: sent." said nothing about WHEN,
-            # or whether anyone has written back (live 2026-09-23).
-            heard = record.get("outcome") or record.get("heard_back") or record.get("reply")
-            return (f"{apply_run.describe(record)}: sent {speech.humanize_time(str(record['submitted_at']))}"
-                    + (f"; {heard}" if isinstance(heard, str) and heard else "; no reply yet") + ".")
-        return f"{apply_run.describe(record)}: {stage}." + (
-            f" {record['say']}" if record.get("say") else "")
+        return _application_line(record)
     return f"I don't have an application to {words}."
+
+
+def _application_line(record: dict) -> str:
+    """One application as a sentence: what it is, where it stands, when."""
+    from aletheia import apply_run, mission_jobs, speech
+    stage = mission_jobs.stage_of(record).replace("_", " ").casefold()
+    if record.get("state") == "SUBMITTED" and record.get("submitted_at"):
+        # "anything from Vanta" -> "...: sent." said nothing about WHEN,
+        # or whether anyone has written back (live 2026-09-23).
+        heard = record.get("outcome") or record.get("heard_back") or record.get("reply")
+        return (f"{apply_run.describe(record)}: sent {speech.humanize_time(str(record['submitted_at']))}"
+                + (f"; {heard}" if isinstance(heard, str) and heard else "; no reply yet") + ".")
+    return f"{apply_run.describe(record)}: {stage}." + (
+        f" {record['say']}" if record.get("say") else "")
+
+
+def _newest_application() -> str:
+    """"What's the newest application": the record with the latest stamp
+    (bottom rung 2026-09-24: it went to nobody)."""
+    from aletheia import apply_run
+    try:
+        records = [r for r in apply_run.all_runs() if r.get("submitted_at") or r.get("staged_at")]
+    except Exception:
+        return "I can't read my application records right now."
+    if not records:
+        return "No applications on record yet."
+    newest = sorted(records, key=lambda r: r.get("submitted_at") or r.get("staged_at") or "", reverse=True)[0]
+    return "The newest is " + _application_line(newest)
+
+
+def _follow_ups_due() -> str:
+    """"What should I follow up on" / "who do I need to write back to": the
+    conversations where somebody replied and nothing of his has gone back,
+    and the ones whose follow-up is due (bottom rung 2026-09-24)."""
+    from aletheia import conversations, speech
+    try:
+        replied = conversations.all_threads(conversations.REPLIED)
+        due = conversations.all_threads(conversations.FOLLOW_UP_DUE)
+    except Exception:
+        return "I can't read my conversations right now."
+
+    def who(thread: dict) -> str:
+        try:
+            return conversations._name(thread)
+        except Exception:
+            return str(thread.get("to") or thread.get("who") or "somebody")
+    parts = []
+    if replied:
+        parts.append(speech.count_phrase(len(replied), "reply") + " waiting on you: "
+                     + speech.and_list([who(t) for t in replied[:5]]))
+    if due:
+        parts.append("a follow-up due with " + speech.and_list([who(t) for t in due[:5]]))
+    if not parts:
+        return "Nobody is waiting on a reply from you, and no follow-up is due."
+    return "; ".join(parts) + "."
 
 
 def _sent_today() -> str | None:
@@ -3518,7 +3635,9 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "why_not": _why_not,
            "up_to_date": lambda rest: _updated(asked_yes_no=True),
            "to_answer": lambda rest: _to_answer(),
-           "found": lambda rest: _found(),
+           "found": lambda rest: _found(rest),
+           "follow_ups": lambda rest: _follow_ups_due(),
+           "newest_application": lambda rest: _newest_application(),
            "fleet": lambda rest: _fleet(),
            "focus": lambda rest: _focus(),
            "outcomes": _outcomes,
