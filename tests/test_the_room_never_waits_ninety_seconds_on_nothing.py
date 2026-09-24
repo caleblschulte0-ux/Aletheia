@@ -132,12 +132,15 @@ class ThreeAnswersSheHadAllAlong(unittest.TestCase):
         now = dt.datetime.now(tz)
         stamp = lambda d: d.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")  # noqa: E731
         rows = [{"state": "SUBMITTED", "company": "Acme", "job_title": "Account Executive", "submitted_at": stamp(now)},
+                {"state": "SUBMITTED", "company": "Okta", "job_title": "Customer Success Manager — Okta",
+                 "submitted_at": stamp(now)},
                 {"state": "SUBMITTED", "company": "Zeta", "job_title": "Partner Manager",
                  "submitted_at": stamp(now - dt.timedelta(days=1))}]
         with mock.patch("aletheia.apply_run.all_runs", lambda state=None: [r for r in rows if state in (None, r["state"])]):
             today = quick.answer("which jobs did you apply to today")
             yesterday = quick.answer("which jobs did you apply to yesterday")
-        self.assertIn("1 application went out today: Account Executive at Acme", today)
+        self.assertIn("2 applications went out today: Account Executive at Acme and Customer Success Manager — Okta", today)
+        self.assertNotIn("Okta at Okta", today, "a title that already names the employer is not read twice")
         # "yesterday" is already answered by an older reader that names the
         # employer; either reader is honest, and neither goes to a model.
         self.assertIn("Zeta", yesterday)

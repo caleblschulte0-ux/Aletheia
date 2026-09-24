@@ -2275,7 +2275,12 @@ def _applied_on(rest) -> str:
         return f"Nothing went out {when}."
     said = []
     for company, title in sent[:6]:
-        said.append(f"{title} at {company}" if company and title else (company or title or "one I did not name"))
+        # A stored title often already carries the employer ("Customer
+        # Success Manager — Okta"); "— Okta at Okta" is the record read twice.
+        if company and title and company.casefold() in title.casefold():
+            said.append(title)
+        else:
+            said.append(f"{title} at {company}" if company and title else (company or title or "one I did not name"))
     return (f"{speech.count_phrase(len(sent), 'application')} went out {when}: {speech.and_list(said)}"
             + (f", and {len(sent) - 6} more" if len(sent) > 6 else "") + ".")
 
