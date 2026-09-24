@@ -393,7 +393,8 @@ def spoken() -> str:
     if not state["on"]:
         return ("Interviews are yours to schedule; I only tell you when an employer asks. Switched on, I book "
                 f"a scheduling link they send at a time {window_words(state['window'])} on a weekday you're "
-                "free and put it on your calendar; no email goes out.")
+                "free and put it on your calendar; no email goes out. The switch is "
+                "'python -m aletheia.interviews on' at your keyboard.")
     return (f"When an employer sends a scheduling link I book it {window_words(state['window'])} on a weekday "
             "you're free and put it on your calendar. When they only ask for a time by email I pick one in "
             "that window, pencil it in and draft the reply - and outward mail is on hold, so nothing goes out "
