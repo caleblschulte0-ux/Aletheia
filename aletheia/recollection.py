@@ -332,7 +332,7 @@ SAID_NOT_DID = ("core:intent", "core:screen_ask", "core:brief",
                 # saying both — "Added a task: call the plumber; Added a
                 # task: t1". Same for memory, whose own line reads
                 # "Noted: landlord is Mr Okafor".
-                "core:task_new", "core:task_status",
+                "core:task_new", "core:task_status", "core:task_done",
                 # The workspace journals "workspace:write: wrote notes.md"
                 # and the command path journals the same act again
                 # (2026-09-24: "wrote notes.md; wrote notes.md").
