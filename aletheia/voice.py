@@ -1139,6 +1139,16 @@ def _interpret(transcript: str) -> dict:
                 "say": f"Say just \u201c{word}\u201d and I'll do it — I won't "
                        "guess at anything else for the kill switch."}
 
+    # THE MACHINE'S OWN POWER is not hers: "shut down the computer" went to
+    # nobody at the bottom rung (2026-09-24). Said plainly, never compiled.
+    if re.fullmatch(r"(?:shut ?down|turn off|power off|restart|reboot|log off|sign out of|lock)"
+                    r" (?:the |my |this )?(?:computer|pc|machine|laptop|desktop|windows)(?: now| please)?", low):
+        act_word = "lock" if low.startswith("lock") else "restart" if low.startswith(("restart", "reboot")) \
+            else "sign out of" if low.startswith(("log off", "sign out")) else "shut down"
+        return {"command": None,
+                "say": f"I don't {act_word} this PC - that's yours at the keyboard. "
+                       "I keep running, and everything I hold is saved as I go."}
+
     # Apostrophes optional: speech-to-text drops them far more often than it
     # keeps them, and "whats going on" was falling past the instant local
     # answer into the planner — twenty seconds for a question worth 50ms.
@@ -1377,8 +1387,10 @@ def _interpret(transcript: str) -> dict:
     # "Do I have any reminders set" waited two minutes on her own model
     # for a store this branch reads (2026-09-22): the question in the
     # shape of a yes/no is the same question.
-    if re.fullmatch(r"(what|which) reminders? (do i have|are set|have i got)"
+    if re.fullmatch(r"(what|which) (?:reminders?|timers?|alarms?) (do i have|are set|have i got|are running)"
                     r"|what am i being reminded (of|about)"
+                    # A timer is a reminder with a countdown (bottom rung 2026-09-24).
+                    r"|(?:any|do i have any|list (?:my )?|my )?(?:timers?|alarms?)(?: running| set| going)?"
                     r"|(do i have|have i got|are there|is there) (any |a )?reminders?( set| pending| coming up)?"
                     r"|any reminders( set| pending| coming up)?"
                     r"|list (my )?reminders|my reminders|reminders"

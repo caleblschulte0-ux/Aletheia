@@ -786,6 +786,33 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
         self.assertEqual(voice.interpret("thea reply to Dana saying see you at 6")["command"]["kind"], "email_draft")
         self.assertNotEqual((voice.interpret("thea read me the last email").get("command") or {}).get("which"), "last")
 
+    def test_the_fourteenth_battery_her_machine(self):
+        """Her own machine at the bottom rung (2026-09-24): "20 percent of 45
+        dollars", "how much memory are you using", "what's using the CPU",
+        "what timers do I have", "shut down the computer", and the eyes'
+        NotGranted read out with its class name."""
+        from aletheia import act, eyes, intercom, voice
+        self.assertEqual(quick.answer("what's 20 percent of 45 dollars"), "$9.")
+        self.assertEqual(quick.answer("what's 15 percent of 80"), "12.")
+        for s, name in (("how much memory are you using", "memory_free"),
+                        ("what's using the cpu", "cpu"), ("why is my pc so slow", "cpu"), ("what's the cpu at", "cpu")):
+            self.assertEqual((quick.match(s) or ("",))[0], name, s)
+        self.assertIn((quick.match("how much ram is in use") or ("",))[0], ("memory_free", "machine"))
+        said = quick.answer("what's using the cpu")
+        self.assertTrue(said.startswith(("The processor is at", "I can't read this machine's processor")), said)
+        self.assertNotIn("System Idle Process", said)
+        self.assertEqual((voice.interpret("thea what timers do I have").get("command") or {}).get("kind"), "reminders")
+        for s in ("shut down the computer", "lock the pc", "restart the computer", "turn off my laptop"):
+            out = voice.interpret(f"thea {s}")
+            self.assertIsNone(out["command"], s)
+            self.assertIn("yours at the keyboard", out["say"])
+        self.assertEqual(voice.interpret("thea restart yourself")["command"]["kind"], "restart")
+        with mock.patch("aletheia.eyes.answer", side_effect=eyes.NotGranted("looking at the actual picture of your screen is switched off")), \
+                mock.patch("aletheia.perception.window_named", return_value=None, create=True):
+            with self.assertRaises(act.Refused) as ctx:
+                intercom.execute_command({"kind": "screen_ask", "question": "what's on my screen"}, {}, quote="t")
+        self.assertNotIn("NotGranted", str(ctx.exception))
+
     def test_what_did_i_say_about_is_his_note(self):
         with mock.patch.object(quick, "_notes", return_value=[
                 {"ts": "2026-09-24T20:00:00Z", "text": "the rent is due on the first"}]), \

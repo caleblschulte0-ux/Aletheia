@@ -2952,7 +2952,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return f"reminder surfaced: {notice['id']}"
     if kind == "watch_email_from":
         from aletheia import events as bus, mail as mail_mod
-        _mail_or_refuse(mail_mod)
+        # Not gated on mail being set up: a watch is a standing rule that
+        # starts working the moment the inbox is reachable.
         addr, name = mail_mod.resolve_address(cmd["who"])
         if addr is None:
             return (f"I don't know an address for {name!r} — say "
@@ -2992,7 +2993,14 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             return perception.describe(cmd["question"], window=window)["answer"]
         # The ladder: read it as text, and look at the picture only if
         # that genuinely could not answer and he has switched looking on.
-        answer = eyes.answer(cmd["question"])
+        try:
+            answer = eyes.answer(cmd["question"])
+        except eyes.EyesUnavailable as exc:
+            # "NotGranted: I couldn't read that from the screen text, and
+            # looking at the actual picture is switched off" reached the
+            # room with the class name in front (2026-09-24). A switch
+            # that is off is a refusal, said in its own words.
+            raise act.Refused(str(exc)) from None
         said = answer["answer"]
         if answer.get("could_look") is False:
             # Do not leave him wondering why she was vague.

@@ -21,10 +21,10 @@ class MailNotSetUpIsARefusal(unittest.TestCase):
     def test_every_mail_kind_refuses_at_the_door(self):
         with mock.patch("aletheia.mail.available", return_value=(False, WHY)), \
                 mock.patch("aletheia.mail.check_unread", side_effect=AssertionError("must not be reached")):
-            # A draft is deliberately not here: it is held in her ledger
-            # whether or not the inbox is reachable.
-            for cmd in ({"kind": "email_check"}, {"kind": "email_read", "which": "Stripe"},
-                        {"kind": "watch_email_from", "who": "Stripe"}):
+            # A draft and a watch are deliberately not here: the draft is held
+            # in her ledger, and a watch is a standing rule that starts working
+            # the moment the inbox is reachable.
+            for cmd in ({"kind": "email_check"}, {"kind": "email_read", "which": "Stripe"}):
                 with self.subTest(kind=cmd["kind"]):
                     with self.assertRaises(act.Refused) as ctx:
                         intercom.execute_command(cmd, {}, quote="test")

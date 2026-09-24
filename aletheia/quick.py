@@ -791,7 +791,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how long (?:until|till|before) (?:you|u) can think (?:properly|normally|again|with the big models)(?: again)?$")),
     # Sums he would otherwise wait a minute for.
     ("math", re.compile(
-        r"^what(?:'s| is|s)? (?P<pct>[\d.]+) ?(?:%|percent) of (?P<of>[\d.,]+)$"
+        r"^what(?:'s| is|s)? (?P<pct>[\d.]+) ?(?:%|percent) of (?:\$)?(?P<of>[\d.,]+)(?P<pct_money> dollars| bucks)?$"
         r"|^what(?:'s| is|s)? (?P<a>[\d.,]+) (?P<op>plus|minus|times|divided by|over|x|\+|-|\*|/) (?P<b>[\d.,]+)$"
         r"|^(?:convert |what(?:'s| is|s)? )?(?P<n>[\d.,]+) (?P<from>miles?|km|kilometers?|kilometres?|pounds?|lbs?|"
         r"kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c)"
@@ -861,7 +861,16 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("memory_free", re.compile(
         r"^how much (?:memory|ram) (?:do (?:you|u) have|is|have (?:you|u) got) (?:free|left|available)\s*\??$"
         r"|^how much free (?:memory|ram) (?:do (?:you|u) have|is there)\s*\??$"
+        r"|^how much (?:memory|ram) (?:are (?:you|u)|is (?:the pc|this pc|the computer|this machine)) (?:using|taking)\s*\??$"
+        r"|^how much (?:memory|ram) is (?:in use|used|taken)\s*\??$"
         r"|^(?:what(?:'s| is)|how(?:'s| is)) (?:your|the) (?:free )?(?:memory|ram)(?: (?:situation|looking))?\s*\??$")),
+    # WHAT IS USING THE CPU is a number this machine can read (psutil), not a
+    # thought (bottom rung 2026-09-24: "I can't think just now").
+    ("cpu", re.compile(
+        r"^what(?:'s| is|s)? (?:using|eating|hogging|taking) (?:the |my |all the )?(?:cpu|processor)\s*\??$"
+        r"|^(?:why is|why's) (?:the |my |this )?(?:pc|computer|machine) (?:so )?slow\s*\??$"
+        r"|^how busy is (?:the |my |this )?(?:cpu|processor|pc|computer)\s*\??$"
+        r"|^what(?:'s| is|s)? (?:the )?cpu (?:at|usage|load)\s*\??$")),
     ("drafts", re.compile(
         r"^(?:what|which)(?: emails?| notes?)? (?:have (?:you|u)|did (?:you|u)) draft(?:ed)?(?: for me)?\s*\??$"
         r"|^(?:any|what|list|show me|read me) (?:my |your |the )?drafts?(?: (?:do (?:you|u) have|waiting|for me|held))?\s*\??$"
@@ -2312,7 +2321,8 @@ def _math(text: str) -> str | None:
         return f"{v:.10g}" if abs(v - round(v)) > 1e-9 else f"{int(round(v)):,}"
     try:
         if "pct" in g:
-            return f"{said(num(g['pct']) * num(g['of']) / 100)}."
+            # "20 percent of 45 dollars" went to a model for the word "dollars".
+            return f"{'$' if g.get('pct_money') else ''}{said(num(g['pct']) * num(g['of']) / 100)}."
         if "op" in g:
             a, b = num(g["a"]), num(g["b"])
             op = g["op"]
@@ -2920,6 +2930,38 @@ def _offline_can() -> str:
             "something new, judging a job, writing prose and reading a page I've never seen" + (f" - {own}." if own else "."))
 
 
+def _cpu() -> str:
+    """The processor right now and the three things using most of it.
+    About a second: two samples, because a process's share is measured
+    between them."""
+    try:
+        import psutil
+        procs = []
+        for p in psutil.process_iter(["name"]):
+            try:
+                p.cpu_percent(None)
+                procs.append(p)
+            except Exception:
+                continue
+        load = psutil.cpu_percent(interval=0.7)
+        shares: dict[str, float] = {}
+        for p in procs:
+            try:
+                name = p.info["name"] or "?"
+                if name.casefold() == "system idle process":     # the idle share is not a user
+                    continue
+                shares[name] = shares.get(name, 0.0) + p.cpu_percent(None)
+            except Exception:
+                continue
+    except Exception:
+        return "I can't read this machine's processor right now."
+    cores = max(1, psutil.cpu_count() or 1)
+    top = sorted(shares.items(), key=lambda kv: kv[1], reverse=True)[:3]
+    named = [f"{n.removesuffix('.exe')} ({v / cores:.0f}%)" for n, v in top if v / cores >= 1]
+    said = f"The processor is at {load:.0f}%."
+    return said + (" Most of it: " + ", ".join(named) + "." if named else " Nothing is working it hard.")
+
+
 def _memory_free() -> str:
     """Her machine's free memory, and which of her own models fits in it."""
     try:
@@ -2928,7 +2970,7 @@ def _memory_free() -> str:
         free, total = vm.available / 1e9, vm.total / 1e9
     except Exception:
         return "I can't read this machine's memory right now."
-    said = f"{free:.1f} GB free of {total:.0f}."
+    said = f"{free:.1f} GB free of {total:.0f}, {total - free:.1f} in use."
     try:
         from aletheia import reasoner
         role, why = reasoner.local_role_that_fits()
@@ -3672,6 +3714,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "interview_window": lambda rest: _interview_window(),
            "jobs_left": lambda rest: _jobs_left(),
            "notify_count": lambda rest: _notify_count(),
+           "cpu": lambda rest: _cpu(),
            "ran_today": lambda rest: _ran_today(rest),
            "plan_today": lambda rest: _plan_today(),
            "stuck": lambda rest: _stuck(),
