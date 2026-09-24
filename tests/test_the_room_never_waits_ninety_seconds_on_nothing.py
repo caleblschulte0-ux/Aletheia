@@ -469,5 +469,73 @@ class TheFifthBatteryFallThroughs(unittest.TestCase):
                 self.assertIn("can't see a downloads folder", quick.answer("what files are on my downloads"))
 
 
+class TheEighthBatteryFallThroughs(unittest.TestCase):
+    """Seven everyday sentences that a store settles went to a model
+    (2026-09-24, every rung off): his interview window ("I don't have your
+    interview window on record" - it was 1 to 2:30 PM Central the whole
+    time), whether a repo ran today, "what did I say about the rent", the
+    drafts count, "what questions do you need me to answer", "the next
+    thing on my calendar" and "what did you fix today"."""
+
+    def test_the_sentences_land_on_their_stores(self):
+        for s, name in (("what questions do you need me to answer", "to_answer"),
+                        ("what do you need answers to", "to_answer"),
+                        ("what's the next thing on my calendar", "next_meeting"),
+                        ("what did I say about the rent", "recall"),
+                        ("what did you fix today", "changed_today"),
+                        ("did you fix anything today", "changed_today"),
+                        ("how many emails are in the drafts folder", "drafts"),
+                        ("how many drafts do you have", "drafts"),
+                        ("what's my interview window", "interview_window"),
+                        ("when can I do interviews", "interview_window"),
+                        ("did the shorts pipeline run today", "ran_today")):
+            self.assertEqual((quick.match(s) or ("",))[0], name, s)
+        self.assertEqual(quick.match("what did I say about the rent")[1], "rent")
+        self.assertEqual(quick.match("did the shorts pipeline run today")[1], "shorts")
+
+    def test_his_interview_window_is_her_own_switch(self):
+        window = {"start": "13:00", "end": "14:30", "timezone": "America/Chicago"}
+        with mock.patch("aletheia.interviews.status", return_value={"on": True, "window": window, "quote": "", "command": "x"}):
+            said = quick.answer("what's my interview window")
+        self.assertTrue(said.startswith("1 PM to 2:30 PM Central, on weekdays."), said)
+        self.assertIn("I book inside that", said)
+        with mock.patch("aletheia.interviews.status", return_value={"on": False, "window": window, "quote": "", "command": "x"}):
+            said = quick.answer("what's my interview window")
+        self.assertIn("switched off", said)
+
+    def test_did_a_repo_run_today_is_the_pulses_own_times(self):
+        import datetime as dt
+        import json
+        from aletheia import pulse
+        today = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d")
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            (d / "latest.json").write_text(json.dumps({"repos": {
+                "shorts_pipeline": {"github": "Shorts-pipeline", "health": "red", "workflows": {
+                    "daily.yml": {"conclusion": "failure", "updated_at": f"{today}T15:49:38Z"},
+                    "third.yml": {"conclusion": "success", "updated_at": f"{today}T15:57:20Z"},
+                    "retro.yml": {"conclusion": "success", "updated_at": "2026-09-20T04:55:44Z"}}},
+                "barkly": {"github": "Barkly", "health": "green", "workflows": {
+                    "ci.yml": {"conclusion": "success", "updated_at": "2026-09-20T04:55:44Z"}}}}}), encoding="utf-8")
+            with mock.patch.object(pulse, "PULSE_DIR", d):
+                said = quick.answer("did the shorts pipeline run today")
+                self.assertTrue(said.startswith("Yes. Shorts-pipeline today: third green at"), said)
+                self.assertIn("daily red at", said)
+                self.assertNotIn("retro", said)
+                said = quick.answer("did barkly run today")
+                self.assertTrue(said.startswith("Not today. The last run of Barkly was ci, green,"), said)
+                # A name the pulse does not know is a model's question, never a guess.
+                self.assertIsNone(quick.answer("did the trader run today"))
+            with mock.patch.object(pulse, "PULSE_DIR", d / "nowhere"):
+                self.assertTrue(quick.answer("did the shorts pipeline run today").startswith("No fleet reading yet"))
+
+    def test_what_did_i_say_about_is_his_note(self):
+        with mock.patch.object(quick, "_notes", return_value=[
+                {"ts": "2026-09-24T20:00:00Z", "text": "the rent is due on the first"}]), \
+                mock.patch("aletheia.memory.everything", return_value={}):
+            said = quick.answer("what did I say about the rent") or ""
+        self.assertIn("rent is due on the first", said)
+
+
 if __name__ == "__main__":
     unittest.main()

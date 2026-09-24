@@ -1109,11 +1109,12 @@ def blocking_words(hunt: dict | None = None) -> str:
     return ". ".join(p[0].upper() + p[1:] for p in parts) + "."
 
 
-def repo_words(name: str) -> str | None:
-    """"Is the Shorts pipeline running?" - that repo's row of the pulse, or None
-    when the pulse does not know a repo by that name."""
+def repo_row(name: str) -> dict | None:
+    """The pulse's row for the repo he calls `name`, or None when the pulse
+    does not know one by that name. "shorts" is the Shorts-pipeline; "it"
+    is nothing: the name he says has to be the slug, or how it starts."""
     import json
-    from aletheia import pulse, speech
+    from aletheia import pulse
     try:
         latest = json.loads((pulse.PULSE_DIR / "latest.json").read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001
@@ -1124,8 +1125,6 @@ def repo_words(name: str) -> str | None:
         return None
 
     def known_as(row: dict, slug: str) -> bool:
-        # "shorts" is the Shorts-pipeline; "it" is nothing. The name he
-        # says has to be the slug, or how the slug starts.
         for said in (slug, str(row.get("github") or "")):
             plain = "".join(ch for ch in said.casefold() if ch.isalnum())
             if plain == key or plain.startswith(key) or (len(key) >= 5 and key in plain):
@@ -1133,7 +1132,15 @@ def repo_words(name: str) -> str | None:
         return False
 
     row = next((r for slug, r in repos.items() if isinstance(r, dict) and known_as(r, slug)), None)
-    if not isinstance(row, dict):
+    return row if isinstance(row, dict) else None
+
+
+def repo_words(name: str) -> str | None:
+    """"Is the Shorts pipeline running?" - that repo's row of the pulse, or None
+    when the pulse does not know a repo by that name."""
+    from aletheia import speech
+    row = repo_row(name)
+    if row is None:
         return None
     said = str(row.get("github") or name)
     health = str(row.get("health") or "unknown")

@@ -363,7 +363,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("to_answer", re.compile(
         r"^(?:is there )?anything (?:i|that i) (?:need|have) to answer(?: for you)?$"
         r"|^what (?:questions|do you need answered|do (?:you|u) need me to answer|needs answering)(?: do (?:you|u) have)?(?: for me)?$"
-        r"|^(?:any|what) questions(?: for me)?$|^what are (?:you|u) (?:stuck on|waiting on me for)$")),
+        r"|^(?:any|what) questions(?: for me)?$|^what are (?:you|u) (?:stuck on|waiting on me for)$"
+        r"|^what questions do (?:you|u) (?:need|want) me to answer\s*\??$"
+        r"|^what do (?:you|u) need answers? (?:to|for)\s*\??$")),
     ("found", re.compile(
         r"^how many (?:jobs|openings|postings|roles|positions) (?:have (?:you|u)|did (?:you|u)|have we) (?:found|find|come across|turned up|discovered)"
         r"(?: today| so far| tonight)?$|^what (?:jobs|openings) (?:have (?:you|u)|did (?:you|u)) (?:found|find)(?: today)?$")),
@@ -624,6 +626,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^when(?:'s| is)? my next (?:meeting|appointment|event)$"
         r"|^do i have (?:any )?(?:meetings|appointments)(?: coming up| today)?$"
         r"|^what(?:'s| is|s)? (?:next |coming up )?on my calendar$"
+        r"|^what(?:'s| is|s)? the next thing (?:on|in) my (?:calendar|schedule|day)\s*\??$"
+        r"|^what(?:'s| is|s)? next (?:on|in) my (?:schedule|day)\s*\??$"
         r"|^(?:my )?next (?:meeting|appointment)$"
         r"|^what(?:'s| is|s)? my schedule(?: today)?$")),
     ("version", re.compile(
@@ -663,8 +667,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # WHAT SHE CHANGED, LEARNED AND WROTE TODAY - three journal reads that
     # went to a model (fifth battery, 2026-09-24).
     ("changed_today", re.compile(
-        r"^what (?:did|have) (?:you|u) (?:change|changed|update|updated)(?: today| on yourself| in your code)?\s*\??$"
-        r"|^(?:did|have) (?:you|u) (?:change|update|changed|updated) (?:anything|yourself|your code)(?: today)?\s*\??$")),
+        r"^what (?:did|have) (?:you|u) (?:change|changed|update|updated|fix|fixed|repair|repaired)(?: today| on yourself| in your code)?\s*\??$"
+        r"|^(?:did|have) (?:you|u) (?:change|update|changed|updated|fix|fixed) (?:anything|yourself|your code)(?: today)?\s*\??$")),
     ("learned_today", re.compile(
         r"^what (?:did|have) (?:you|u) (?:learn|learned|learnt|find out|figure out)(?: about me)?(?: today| so far)?\s*\??$"
         r"|^(?:did|have) (?:you|u) (?:learn|learned) anything(?: new)?(?: today)?\s*\??$")),
@@ -820,7 +824,22 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("drafts", re.compile(
         r"^(?:what|which)(?: emails?| notes?)? (?:have (?:you|u)|did (?:you|u)) draft(?:ed)?(?: for me)?\s*\??$"
         r"|^(?:any|what|list|show me|read me) (?:my |your |the )?drafts?(?: (?:do (?:you|u) have|waiting|for me|held))?\s*\??$"
-        r"|^what(?:'s| is|s) (?:in|on) (?:my |your |the )?drafts?\s*\??$")),
+        r"|^what(?:'s| is|s) (?:in|on) (?:my |your |the )?drafts?\s*\??$"
+        r"|^how many (?:emails? |drafts? )?(?:are |do (?:you|u) have )?(?:in|on|held in) (?:my |the |your )?drafts?(?: folder)?\s*\??$"
+        r"|^how many drafts (?:do (?:you|u) have|are (?:there|held|waiting))\s*\??$")),
+    # HIS INTERVIEW WINDOW is a fact in her own store (offline 2026-09-24:
+    # "I don't have your interview window on record" from a model, while
+    # `interviews.status()` held 1 to 2:30 PM Central the whole time).
+    ("interview_window", re.compile(
+        r"^what(?:'s| is|s)? my interview (?:window|hours|times)\s*\??$"
+        r"|^when (?:can|do) i (?:do|take|have) interviews\s*\??$"
+        r"|^what (?:hours|times) (?:are|do) (?:you|u) book(?:ing)? interviews(?: for| in)?\s*\??$")),
+    # "Did the shorts pipeline run today" is the pulse's row for that repo,
+    # the same reader "how's the trader" uses. Late in the table on purpose:
+    # an application's "did the Stripe one go through" is claimed above.
+    ("ran_today", re.compile(
+        r"^(?:did|has) (?:the )?(?P<ran>[a-z0-9][a-z0-9 .'-]{1,40}?)(?: pipeline| workflow| repo| project)? "
+        r"(?:run|ran|been run|build|built|go|gone)(?: today| yet| this morning| tonight| this week)?\s*\??$")),
     ("notes_list", re.compile(
         r"^what notes do (?:you|u) have(?: for me)?$|^(?:list|read me|read back|show me) (?:my |your |the )?notes$"
         r"|^what (?:have|did) i (?:told|tell) (?:you|u)(?: to remember| to note)?\s*\??$|^what have (?:you|u) noted(?: down)?$"
@@ -829,7 +848,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what did i (?:tell|say to) (?:you|u) about (?:the |my )?(?P<recall>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         r"|^what(?:'s| is|s)? my (?P<recall2>[a-z0-9][a-z0-9 '-]{1,30}?)(?:'s)? (?:name|number|address|email|birthday|code|password|pin)\s*\??$"
         r"|^when (?:is|does|was) (?:my |the )?(?P<recall3>[a-z0-9][a-z0-9 '-]{1,30}?) (?:up|due|over|expiring|expire|ending|end|starting|start|renewing|renew|coming up)\s*\??$"
-        r"|^(?:do (?:you|u) )?(?:remember|know) (?:anything about |what i said about )?(?:the |my )?(?P<recall4>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$")),
+        r"|^(?:do (?:you|u) )?(?:remember|know) (?:anything about |what i said about )?(?:the |my )?(?P<recall4>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
+        r"|^what did i say about (?:the |my )?(?P<recall5>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$")),
     ("can_you", re.compile(
         r"^(?:can|could) (?:you|u) (?P<what>.{3,120})$"
         r"|^(?:are|r) (?:you|u) able to (?P<what2>.{3,120})$"
@@ -882,7 +902,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "date_of", "date_of2", "date_of3",
-                                           "recall", "recall2", "recall3", "recall4",
+                                           "recall", "recall2", "recall3", "recall4", "recall5", "ran",
                                            "applied_on", "applied_on2", "applied_on3",
                                            "asked_on", "asked_on2", "asked_on3", "day_part",
                                            "place", "place2", "place3")
@@ -2685,6 +2705,57 @@ def _hunt_why() -> str:
     return None
 
 
+def _interview_window() -> str:
+    """His interview window, from her own switch: the hours, and whether
+    she books inside them on her own or only tells him."""
+    from aletheia import interviews
+    state = interviews.status()
+    when = interviews.window_words(state["window"])
+    if state["on"]:
+        return (f"{when}, on weekdays. When an employer sends a scheduling link I book inside that "
+                "and put it on your calendar; no email goes out.")
+    return (f"{when}, on weekdays - but interview booking is switched off, so I only tell you when an "
+            "employer asks. The switch is 'python -m aletheia.interviews on' at your keyboard.")
+
+
+def _ran_today(name: str) -> str | None:
+    """"Did the shorts pipeline run today": the pulse's row for that repo.
+    A name the pulse does not know is left to a model, never guessed."""
+    import datetime as dt
+    from aletheia import current_state, speech
+    words = re.sub(r"\s+", " ", str(name or "")).strip()
+    if not words:
+        return None
+    if _no_pulse():
+        return "No fleet reading yet - the pulse hasn't been written on this machine, so I can't say."
+    try:
+        row = current_state.repo_row(words)
+    except Exception:
+        row = None
+    if row is None:
+        return None
+    said = str(row.get("github") or words)
+    flows = row.get("workflows") if isinstance(row.get("workflows"), dict) else {}
+    runs = sorted(((str(w.get("updated_at") or ""), n, w) for n, w in flows.items()
+                   if isinstance(w, dict) and w.get("updated_at")), reverse=True)
+    if not runs:
+        return f"The pulse has no runs on record for {said}."
+
+    def verdict(w: dict) -> str:
+        c = str(w.get("conclusion") or "")
+        return {"success": "green", "failure": "red", "cancelled": "cancelled", "skipped": "skipped"}.get(
+            c, c or str(w.get("status") or "still going"))
+    today = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d")
+    ran = [(s, n, w) for s, n, w in runs if s[:10] == today]
+    if ran:
+        named = [f"{n.replace('.yml', '')} {verdict(w)} {speech.humanize_time(s).replace('today at ', 'at ')}"
+                 for s, n, w in ran[:4]]
+        more = f", and {len(ran) - 4} more" if len(ran) > 4 else ""
+        return f"Yes. {said} today: " + "; ".join(named) + more + "."
+    s, n, w = runs[0]
+    return f"Not today. The last run of {said} was {n.replace('.yml', '')}, {verdict(w)}, {speech.humanize_time(s)}."
+
+
 def _who_are_you() -> str:
     """Who she is, in one breath. A fact about herself, not a thought."""
     return ("I'm Thea - Aletheia - Caleb's own assistant, running on this PC. I keep his tasks, "
@@ -3415,6 +3486,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "wrong": lambda rest: _wrong(),
            "today": lambda rest: _today(rest),
            "interview_when": lambda rest: _interview_when(),
+           "interview_window": lambda rest: _interview_window(),
+           "ran_today": lambda rest: _ran_today(rest),
            "plan_today": lambda rest: _plan_today(),
            "stuck": lambda rest: _stuck(),
            "bare_yes_no": lambda rest: _bare_yes_no(),
