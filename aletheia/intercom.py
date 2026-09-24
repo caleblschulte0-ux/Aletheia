@@ -302,6 +302,10 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "notify_clear":    (set(), set()),
     # His "undo that": `which` is optional words naming the act; nothing means the newest.
     "undo":            (set(), {"which"}),
+    # His interview window ("set my interview window to 2 to 4"): his words
+    # only, never a compiler's guess at his hours. `interview_status` reads it.
+    "interview_window_set": ({"start", "end"}, {"timezone"}),
+    "interview_status":     (set(), set()),
     # Instagram (his words, 2026-09-24: "automatically post stuff to Instagram").
     # A post reaches the world, so it is world-tier and an approval of his.
     "instagram_post":  ({"image_url", "caption"}, set()),
@@ -382,6 +386,12 @@ KIND_NOTES: dict[str, str] = {
     "instagram_posts": (
         'What she has posted to Instagram, newest first, from her own ledger - "what have you '
         'posted to Instagram", "did the post go out".'),
+    "interview_window_set": (
+        'His interview hours: start and end as "HH:MM" on his clock (timezone optional). Never '
+        'compiled by a planner - only his own sentence sets it.'),
+    "interview_status": (
+        'Whether she books interviews on her own and in what hours - "what\'s my interview '
+        'window", "are you booking interviews".'),
     "undo": (
         'His "undo that" / "take that back": reverse the newest thing she did on her own '
         '(a task she added, a note, a file version, a branch). Only her own reversible acts; '
@@ -690,6 +700,8 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                "undo",
                # the Instagram token is in the PC's vault; the ledger beside it
                "instagram_post", "instagram_posts",
+               # his interview switch and window live in the PC's private state
+               "interview_window_set", "interview_status",
                # a recording is a process and a file on this PC
                "screen_record", "screen_record_stop", "recording",
                # the workspace is a directory on his PC
@@ -744,7 +756,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
 # approval — asking him to authorise "tell me the time" is how an approval
 # queue becomes noise he stops reading.
 READ_ONLY_KINDS = frozenset({
-    "instagram_posts",
+    "instagram_posts", "interview_status",
     # Asking whether she is on changes nothing and must stay answerable
     # while she is halted, closed, or halfway between the two.
     "running",
@@ -802,6 +814,8 @@ ROUTINE_KINDS = frozenset({
     # Taking back one of her own reversible acts reaches nobody; the act
     # itself was routine, and only his word gets here (PLANNER_FORBIDDEN).
     "undo",
+    # His interview hours, in his own store; reversible by saying another.
+    "interview_window_set",
     # His "handled" on a red project: one private row beside the pulse.
     "fault_ack",
     # His "Clear" on a browser mission: its record left, nothing pressed.
@@ -1011,6 +1025,7 @@ PLANNER_FORBIDDEN = frozenset({
     "fault_ack",           # a fault marked handled by a model is a fault hidden
     "mission_leave",       # clearing a card that waits on him is his tap
     "undo",                # taking back one of her own acts is his word, never a compiler's
+    "interview_window_set",  # his hours are his to say; a guess here books interviews at the wrong time
     "open_page",           # a page on his screen is his tap, never a compiler's
     "apply_pause",         # "stop applying" is his word, never a compiler's guess
     "approve", "deny",     # self-authorization, from an ambiguous word
@@ -3286,6 +3301,18 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "instagram_posts":
         from aletheia import instagram
         return instagram.spoken_posts()
+    if kind == "interview_window_set":
+        from aletheia import interviews
+        try:
+            interviews.set_window(str(cmd["start"]), str(cmd["end"]), cmd.get("timezone") or None)
+        except ValueError as exc:
+            raise act.Refused(str(exc)) from None
+        state = interviews.status()
+        return (f"Interviews go {interviews.window_words(state['window'])} on weekdays now"
+                + ("." if state["on"] else ", once booking is switched on."))
+    if kind == "interview_status":
+        from aletheia import interviews
+        return interviews.spoken()
     if kind == "notify_clear":
         from aletheia import notifications
         unread = notifications.all_notifications(state="UNREAD")

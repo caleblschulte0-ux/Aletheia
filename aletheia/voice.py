@@ -817,6 +817,22 @@ def _previous_ask() -> str:
     return ""
 
 
+def _interview_hours(a: str, b: str) -> tuple[str, str] | None:
+    """Two spoken times -> ("13:00", "14:30"), read as interview hours: a
+    bare 1 to 7 is the afternoon, 8 to 11 the morning, 12 noon. None when
+    either does not read or the end is not after the start."""
+    out = []
+    for words in (a, b):
+        hhmm = _spoken_time(words)
+        if not hhmm:
+            return None
+        hour, minute = map(int, hhmm.split(":"))
+        if _is_bare_hour(words) and 1 <= hour <= 7:
+            hour += 12
+        out.append(f"{hour:02d}:{minute:02d}")
+    return (out[0], out[1]) if out[0] < out[1] else None
+
+
 def _last_ask_is_undoable() -> bool:
     """Was his last ask a task, a list item, a reminder, a hold or a file -
     the things "cancel it" can take straight back?"""
@@ -2811,6 +2827,29 @@ def _interpret(transcript: str) -> dict:
     m = re.match(r"(?:add a task|new task|task)\s*(?:to|:)?\s+(.+)", low)
     if m:
         return _new_task(m.group(1).strip())
+
+    # "SET MY INTERVIEW WINDOW TO 2 TO 4": his hours, in his own words only.
+    # A bare hour reads as an interview hour: 1 to 7 is the afternoon, 8 to
+    # 11 the morning, 12 noon.
+    m = (re.fullmatch(r"(?:set|make|change|move) (?:my )?interview (?:window|hours|times) (?:to |as |from )?"
+                      r"(?P<a>[\w:]+(?: ?[ap]m)?) (?:to|until|till|-|and) (?P<b>[\w:]+(?: ?[ap]m)?)"
+                      r"(?: (?P<tz>central|eastern|mountain|pacific))?", low)
+         or re.fullmatch(r"(?:i can (?:do |take |have )?interviews?|interviews? (?:are|is) (?:ok|fine|good)|"
+                         r"i(?:'m| am) (?:free|available) for interviews?) (?:from |between )?"
+                         r"(?P<a>[\w:]+(?: ?[ap]m)?) (?:to|until|till|-|and) (?P<b>[\w:]+(?: ?[ap]m)?)"
+                         r"(?: (?P<tz>central|eastern|mountain|pacific))?", low))
+    if m:
+        window = _interview_hours(m.group("a"), m.group("b"))
+        if window:
+            command = {"kind": "interview_window_set", "start": window[0], "end": window[1]}
+            zone = {"central": "America/Chicago", "eastern": "America/New_York", "mountain": "America/Denver",
+                    "pacific": "America/Los_Angeles"}.get(m.group("tz") or "")
+            if zone:
+                command["timezone"] = zone
+            return {"command": command, "say": None}
+    if re.fullmatch(r"what(?:'s| is) my interview (?:window|hours|times)(?: set to)?|are (?:you|u) booking interviews"
+                    r"|what(?:'s| is) the interview (?:switch|booking) set to", low):
+        return {"command": {"kind": "interview_status"}, "say": None}
 
     # "POST <picture address> TO INSTAGRAM SAYING ...": one post, his approval
     # (instagram_post is world-tier). "What have you posted to Instagram" is
