@@ -285,16 +285,43 @@ def spoken(rows: list[dict] | None = None) -> str:
 ACTIVITY_HOURS = 24.0
 
 
+def today_hours(now: dt.datetime | None = None) -> float:
+    """Hours since midnight on HIS clock - the window "today" means.
+
+    The header counted the day from midnight while the list carried the
+    last 30 rows of 24 hours, so "24 problems" opened 14 rows
+    (2026-09-24). One window for both, and it is his calendar day.
+    """
+    try:
+        from aletheia import localtime
+        zone = localtime.operator_tz()
+    except Exception:
+        zone = dt.timezone.utc
+    now = (now or dt.datetime.now(dt.timezone.utc)).astimezone(zone)
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return max(0.05, (now - midnight).total_seconds() / 3600.0)
+
+
+def today_tally(rows: list[dict] | None = None) -> dict:
+    """{"done", "problems"} for today, from the SAME rows the page lists -
+    so the count on the header and the rows behind the tap are one reader."""
+    rows = activity(hours=today_hours(), limit=500) if rows is None else rows
+    return {"done": sum(1 for r in rows if r.get("outcome") in ("finished", "unattended")),
+            "problems": sum(1 for r in rows if r.get("outcome") == "failed")}
+
+
 def activity(*, hours: float = ACTIVITY_HOURS, limit: int = 30) -> list[dict]:
     """One history view: {"at", "what", "outcome"}, newest first.
 
     `outcome` is one of "finished", "failed" or "unattended" — the three
     things he actually asks about ("what did you do", "did anything
     break", "what did you do without asking me"), each answered from the
-    store that really knows.
+    store that really knows. `limit` bounds the rows returned AND how many
+    each reader is asked for: the readers cap at fourteen on their own,
+    and a day with twenty-four problems has to be able to show them.
     """
     rows: list[dict] = []
-    for row in _safe(lambda: _finished_and_failed(hours), []):
+    for row in _safe(lambda: _finished_and_failed(hours, limit), []):
         rows.append(row)
     for row in _safe(lambda: _unattended(hours, limit), []):
         rows.append(row)
@@ -317,7 +344,7 @@ def _outcome_of(kind: object) -> str:
     return "recovered" if kind in _RECOVERED_KINDS else "finished"
 
 
-def _finished_and_failed(hours: float) -> list[dict]:
+def _finished_and_failed(hours: float, limit: int = 30) -> list[dict]:
     """What she did AND what went wrong, from the two readers that know.
 
     `recollection.day` is what she DID and drops alerts by design (they
@@ -328,7 +355,8 @@ def _finished_and_failed(hours: float) -> list[dict]:
     deduplicated on the sentence.
     """
     from aletheia import recollection
-    rows = list(recollection.day(hours=hours)) + list(recollection.trouble(hours=hours))
+    each = max(int(limit or 30), 30)
+    rows = list(recollection.day(hours=hours, limit=each)) + list(recollection.trouble(hours=hours, limit=each))
     seen: set[tuple[str, str]] = set()
     out = []
     for row in rows:

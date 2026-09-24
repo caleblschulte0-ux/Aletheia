@@ -866,7 +866,15 @@ def gather(now: dt.datetime | None = None, *, fresh: bool = False,
     lines = attempt("the activity ribbon", lambda: ribbon(
         journal_entries=entries, sessions=_sessions(), extra=extra, skip_subjects=skip, labels=labels,
         limit=None), [])
-    today = today_tally(lines, ctx["today_floor"])
+    # ONE READER for the header's count and the rows behind the tap: the
+    # page's "What she's done" is `needs_you.activity`, so the day's tally is
+    # counted from the same rows over the same window (2026-09-24: "24
+    # problems" opened 14 rows, counted from the ribbon since midnight while
+    # the list carried the last 30 rows of 24 hours).
+    def _today_from_activity() -> dict:
+        from aletheia import needs_you
+        return needs_you.today_tally()
+    today = attempt("today's tally", _today_from_activity, today_tally(lines, ctx["today_floor"]))
     value = {
         "version": 2,
         "as_of": _stamp(now),
