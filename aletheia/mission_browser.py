@@ -92,6 +92,7 @@ def card(record: dict, now: dt.datetime, *, stale_min: int = 20) -> dict | None:
     age = _age_s(record.get("beat"), now)
     needs: list[dict] = []
     blockers: list[dict] = []
+    action = None
     receipt = {"kind": "browser_mission", "id": record["id"]}
     in_browser = False
     if state in ("RUNNING", "SUBMITTING") and not _crashed(record, now, stale_min):
@@ -126,6 +127,10 @@ def card(record: dict, now: dt.datetime, *, stale_min: int = 20) -> dict | None:
         needs.append({"said": said, "blocking": True, "receipt": receipt})
         step = stop
         nxt = "It carries on from here when you do your part; nothing already done is redone."
+        if state != "AWAITING_APPROVAL":
+            # His part is on the page: one click opens it in his browser.
+            from aletheia import open_it
+            action = open_it.action_for(record)
     elif state in STOPPED_STATES:
         if age is not None and age > KEEP_S:
             return None
@@ -149,7 +154,7 @@ def card(record: dict, now: dt.datetime, *, stale_min: int = 20) -> dict | None:
         status=status, step=step, next=nxt, blockers=blockers, needs=needs,
         progress={"done": len(names), "total": 6, "unit": "checkpoints"} if names else None,
         receipts=[{**receipt, "label": "browser mission record"}], updated=record.get("beat"),
-        in_browser=in_browser, source="state/private/browser-missions"
+        in_browser=in_browser, action=action, source="state/private/browser-missions"
         + (f" - {record.get('skill')} skill" if record.get("skill") else ""))
 
 

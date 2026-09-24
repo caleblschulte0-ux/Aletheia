@@ -243,6 +243,8 @@ CONSEQUENCE_OF: dict[str, str] = {
     "screen_record": OUTWARD, "screen_record_stop": OUTWARD,
     # Pressing play reaches the room he is in.
     "music": VISIBLE_TO_HIM,
+    # A page opened on his own screen reaches him and nobody else.
+    "open_page": VISIBLE_TO_HIM,
     # A watcher only ever adds a row she reads later.
     "watch_email_from": REVERSIBLE_LOCAL,
     # A picture and a document she made: files on his disk, nothing sent.
@@ -708,7 +710,7 @@ SPOKEN_GROUPS_BY_NAME: dict[str, tuple[str, ...]] = {
                    "compose"),
     "looking things up on the web": ("browse_read", "browse_shot", "research",
                                      "web_task", "web_task_answer",
-                                     "web_task_retry"),
+                                     "web_task_retry", "open_page"),
     "driving your computer": ("computer_do", "computer_observe", "screen_ask",
                               "screenshot", "screen_record", "screen_record_stop",
                               "recording"),

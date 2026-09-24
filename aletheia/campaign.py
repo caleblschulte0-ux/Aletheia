@@ -509,14 +509,30 @@ def roles_for(text: str, *, think=None) -> list[str]:
         # send her hunting for it.
         kept = [r for r in roles if not job_fit.unwanted_reason(r, "", known)]
         if kept:
-            return kept
+            return _with_his_roles(kept, known)
         raise ValueError("every role was work he will not do")
     except Exception:
         title = profile.known().get("current_title")
         if title and not job_fit.unwanted_reason(str(title), "", known):
-            return [str(title)]
+            return _with_his_roles([str(title)], known)
+        his = _with_his_roles([], known)
+        if his:
+            return his
         raise CampaignError("she could not tell from the resume what jobs it is for; "
                             "say the kind of job") from None
+
+
+def _with_his_roles(roles: list[str], known: dict) -> list[str]:
+    """The roles a resume is for, plus the ones he named ("add Sales Engineer
+    to the roles", 2026-09-23) - never twice, never work he refused."""
+    out = list(roles)
+    have = {r.casefold() for r in out}
+    for role in profile.roles_added():
+        if role.casefold() in have or job_fit.unwanted_reason(role, "", known):
+            continue
+        out.append(role)
+        have.add(role.casefold())
+    return out
 
 
 ANSWER_BRIEF = """You answer the questions on ONE online job application for the applicant whose facts and resume you are given.
@@ -1679,6 +1695,12 @@ def retry_waiting(*, resume: str = "", stager=None, json_think=None, writer=None
     # ("try again when finished") is REJECTED, and live 2026-09-23 Tenex's
     # sat that way through three re-read passes because only FAILED was read.
     waiting += [r for r in apply_run.all_runs() if r.get("state") in ("FAILED", "REJECTED") and refused_submit(r)]
+    # A record the general browser holds is the loop's: its mission is the
+    # truth and it resumes on its own path. The form filler cannot read a
+    # page that never had a form for it - live 2026-09-23 Aptiv's was "read
+    # again" every twelve minutes, all day, and "could not be read" every time.
+    the_loops = [r for r in waiting if r.get("engine") == apply_run.ENGINE_LOOP]
+    waiting = [r for r in waiting if r.get("engine") != apply_run.ENGINE_LOOP]
     for record in waiting[:max(0, int(limit))]:
         policy.ensure_not_halted()
         url = record.get("url") or ""
@@ -1729,9 +1751,11 @@ def retry_waiting(*, resume: str = "", stager=None, json_think=None, writer=None
                    f"read {speech.count_phrase(len(ready) + len(blocked), 'waiting application')} "
                    f"again: {len(ready)} ready, {len(blocked)} still waiting on him, "
                    f"{len(failed)} could not be read, {len(closed)} closed as not realistic, "
-                   f"{len(left)} left unjudged; nothing submitted", actor=ACTOR)
+                   f"{len(left)} left unjudged"
+                   + (f", {len(the_loops)} in the general browser's hands" if the_loops else "")
+                   + "; nothing submitted", actor=ACTOR)
     return {"ready": ready, "blocked": blocked, "failed": failed,
-            "closed": closed, "left": left,
+            "closed": closed, "left": left, "the_loops": [r.get("id") for r in the_loops],
             "questions": open_questions(), "submitted": 0, "roles": [], "role": ""}
 
 

@@ -255,6 +255,11 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # the next reading shows a DIFFERENT fault. His tap; a model that could
     # mark faults handled is a model that can hide them.
     "fault_ack":     ({"repo"}, set()),
+    # "Open it": the page a browser mission stopped on (a CAPTCHA, a sign-in,
+    # a question only he can answer), opened in HIS browser on his PC so he
+    # can do his part. `which` is the mission or the application, never a
+    # free address - nothing a model says can open a page on his screen.
+    "open_page":     ({"which"}, set()),
     # Looking at the actual PICTURE of his screen, rather than reading it
     # as text. A screenshot cannot be redacted the way perception.screen
     # redacts a window title, so it gets the microphone's treatment: off
@@ -514,6 +519,12 @@ KIND_NOTES: dict[str, str] = {
         'the fleet. repo names the project as the page does. It stays quiet '
         'while the readings show the same fault and is said again the moment '
         'a different one appears. His own tap or words only, never a plan step.'),
+    "open_page": (
+        'Open, in his own browser on his PC, the page a browser mission stopped '
+        'on - a CAPTCHA, a sign-in, a question only he can answer - so he can do '
+        'his part; she carries on from where it stopped. which is the mission or '
+        'the application as the page names it. His tap on "Open it", never a '
+        'plan step, and never a free address.'),
     "update_now": (
         'Try to update her code now - his tap on "Try the update now" when the '
         'health line says she has been behind for a while. One beat of the sync '
@@ -756,6 +767,8 @@ ROUTINE_KINDS = frozenset({
     "preference_set",
     # His "handled" on a red project: one private row beside the pulse.
     "fault_ack",
+    # A page opened in his own browser, on his PC, from a record she holds.
+    "open_page",
     # Starting and stopping a capped recording of one window, to a file on
     # his PC that goes nowhere.
     "screen_record", "screen_record_stop",
@@ -957,6 +970,7 @@ PLANNER_FORBIDDEN = frozenset({
     "apply_retry",         # a second send is his tap, never a plan's guess
     "update_now",          # and a pull of her own code is his tap, not a plan step
     "fault_ack",           # a fault marked handled by a model is a fault hidden
+    "open_page",           # a page on his screen is his tap, never a compiler's
     "apply_pause",         # "stop applying" is his word, never a compiler's guess
     "approve", "deny",     # self-authorization, from an ambiguous word
     # Same rule, same reason. "Close the browser tab", "open my resume"
@@ -2520,6 +2534,15 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             return faults.ack(cmd["repo"], quote=quote)
         except ValueError as exc:
             raise act.Refused(str(exc))
+    if kind == "open_page":
+        from aletheia import open_it
+        if rehearsing():
+            return "This is a rehearsal, so I didn't open anything."
+        try:
+            opened = open_it.open_for(cmd["which"])
+        except open_it.NothingToOpen as exc:
+            raise act.Refused(str(exc))
+        return opened["said"]
     if kind == "mic_on":
         from aletheia import ears
         ears.turn_on(via=f"command centre: {quote[:60]}" if quote else "command centre")
