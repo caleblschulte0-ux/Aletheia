@@ -1552,6 +1552,15 @@ def _shopping_items() -> list[dict]:
             if str(w.get("state", "")).upper() in SHOPPING_OPEN]
 
 
+def _mail_or_refuse(mail_mod) -> None:
+    """Mail that is not set up is a REFUSAL, said with the setup words -
+    not "That failed: ..." (bottom rung 2026-09-24). A draft is not gated
+    here: it is held in her ledger whether or not the inbox is reachable."""
+    ok, why = mail_mod.available()
+    if not ok:
+        raise act.Refused(str(why))
+
+
 def _undo_answer(cmd: dict) -> str:
     """"Undo that": the newest thing she did on her own that can be taken
     back, or the one his words name. Only her own reversible acts; an
@@ -2564,9 +2573,11 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return f"read {page['url']} — {page['title'][:100]} :: {excerpt}"
     if kind == "email_check":
         from aletheia import mail
+        _mail_or_refuse(mail)
         return mail.check_unread()
     if kind == "email_read":
         from aletheia import mail
+        _mail_or_refuse(mail)
         message = mail.read_body(cmd["which"])
         body = " ".join(message["text"].split())[:1500] or "(no readable text)"
         return f"From {message['from']} — {message['subject']}: {body}"
@@ -2941,6 +2952,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return f"reminder surfaced: {notice['id']}"
     if kind == "watch_email_from":
         from aletheia import events as bus, mail as mail_mod
+        _mail_or_refuse(mail_mod)
         addr, name = mail_mod.resolve_address(cmd["who"])
         if addr is None:
             return (f"I don't know an address for {name!r} — say "
