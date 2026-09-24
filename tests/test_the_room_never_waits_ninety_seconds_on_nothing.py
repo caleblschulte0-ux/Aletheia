@@ -548,6 +548,24 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
         out = voice.interpret("thea read me the positioning notes")
         self.assertEqual((out.get("command") or {}).get("kind"), "file_find")
 
+    def test_the_whole_replay_at_the_true_bottom_rung(self):
+        """135 sentences replayed with the Claude CLI actually hidden
+        (patched, not a PATH strip): four fell through that a store settles."""
+        for s, name in (("what did we talk about earlier", "asked_on"),
+                        ("what have we discussed today", "asked_on"),
+                        ("what's the wifi password", "recall"),
+                        ("how many jobs are left to apply to", "jobs_left"),
+                        ("what's left to apply for", "jobs_left")):
+            self.assertEqual((quick.match(s) or ("",))[0], name, s)
+        self.assertEqual(quick.match("what did we talk about earlier")[1], "earlier")
+        self.assertEqual(quick.match("what's the wifi password")[1], "wifi")
+        with mock.patch("aletheia.current_state.job_hunt_words", return_value="Today: 4 found, 2 sent."):
+            said = quick.answer("how many jobs are left to apply to")
+        self.assertTrue(said.startswith("There's no queue to work down"), said)
+        self.assertIn("2 sent", said)
+        with mock.patch("aletheia.liveness.uptime_seconds", return_value=None):
+            self.assertIn("heartbeat on record", quick.answer("how long has the core been running"))
+
     def test_what_did_i_say_about_is_his_note(self):
         with mock.patch.object(quick, "_notes", return_value=[
                 {"ts": "2026-09-24T20:00:00Z", "text": "the rent is due on the first"}]), \

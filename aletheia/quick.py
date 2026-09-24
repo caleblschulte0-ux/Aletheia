@@ -370,6 +370,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:any|what) questions(?: for me)?$|^what are (?:you|u) (?:stuck on|waiting on me for)$"
         r"|^what questions do (?:you|u) (?:need|want) me to answer\s*\??$"
         r"|^what do (?:you|u) need answers? (?:to|for)\s*\??$")),
+    # "How many jobs are left to apply to": there is no queue, and saying so
+    # with the day's numbers is a fact (bottom rung, 2026-09-24).
+    ("jobs_left", re.compile(
+        r"^how many (?:jobs|openings|applications) (?:are |do (?:you|u) have )?(?:left|remaining|still)"
+        r"(?: to (?:apply to|apply for|do|send|go))?\s*\??$"
+        r"|^what(?:'s| is) left to apply (?:to|for)\s*\??$")),
     ("found", re.compile(
         r"^how many (?:jobs|openings|postings|roles|positions) (?:have (?:you|u)|did (?:you|u)|have we) (?:found|find|come across|turned up|discovered)"
         r"(?: today| so far| tonight)?$|^what (?:jobs|openings) (?:have (?:you|u)|did (?:you|u)) (?:found|find)(?: today)?$")),
@@ -821,7 +827,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what (?:did|have) i (?:ask|asked|tell|told|say to|said to) (?:you|u)(?: to do| for| about)?"
         r" (?P<asked_on>yesterday|today|this morning|last night|earlier|earlier today|so far today)\s*\??$"
         r"|^what (?:did|have) i (?:ask|asked) (?:you|u) (?:for|to do) (?P<asked_on2>yesterday|today)\s*\??$"
-        r"|^what (?:have|did) i (?:been asking|asked) (?:you|u) (?:for )?(?P<asked_on3>today|yesterday)\s*\??$")),
+        r"|^what (?:have|did) i (?:been asking|asked) (?:you|u) (?:for )?(?P<asked_on3>today|yesterday)\s*\??$"
+        # "what did we talk about earlier" is the same store (bottom rung, 2026-09-24).
+        r"|^what (?:did|have) we (?:talk|talked|chat|chatted) about (?P<asked_on4>earlier|today|yesterday|this morning|last night|so far today)\s*\??$"
+        r"|^what (?:did|have) we (?:discuss|discussed|cover|covered) (?P<asked_on5>earlier|today|yesterday|this morning|last night)\s*\??$")),
     # HER OWN MACHINE. "How much memory do you have free" is a number she
     # can read in a millisecond, and it says which of her own models fits.
     ("memory_free", re.compile(
@@ -853,7 +862,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what (?:have|did) i (?:asked|ask) (?:you|u) to remember\s*\??$")),
     ("recall", re.compile(
         r"^what did i (?:tell|say to) (?:you|u) about (?:the |my )?(?P<recall>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
-        r"|^what(?:'s| is|s)? my (?P<recall2>[a-z0-9][a-z0-9 '-]{1,30}?)(?:'s)? (?:name|number|address|email|birthday|code|password|pin)\s*\??$"
+        r"|^what(?:'s| is|s)? (?:my |the )(?P<recall2>[a-z0-9][a-z0-9 '-]{1,30}?)(?:'s)? (?:name|number|address|email|birthday|code|password|pin)\s*\??$"
         r"|^when (?:is|does|was) (?:my |the )?(?P<recall3>[a-z0-9][a-z0-9 '-]{1,30}?) (?:up|due|over|expiring|expire|ending|end|starting|start|renewing|renew|coming up)\s*\??$"
         r"|^(?:do (?:you|u) )?(?:remember|know) (?:anything about |what i said about )?(?:the |my )?(?P<recall4>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         r"|^what did i say about (?:the |my )?(?P<recall5>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$")),
@@ -912,7 +921,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "recall", "recall2", "recall3", "recall4", "recall5", "ran",
                                            "date_ahead", "date_ahead2",
                                            "applied_on", "applied_on2", "applied_on3",
-                                           "asked_on", "asked_on2", "asked_on3", "day_part",
+                                           "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part",
                                            "place", "place2", "place3")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not"):
@@ -2428,8 +2437,21 @@ def _uptime() -> str | None:
     from aletheia import liveness
     seconds = liveness.uptime_seconds()
     if seconds is None:
-        return None                 # she does not know; do not invent one
+        # No heartbeat on record is a fact; a model cannot know it either.
+        return "I don't have a heartbeat on record for this run, so I can't say how long."
     return f"Up {liveness.spoken_duration(seconds)}."
+
+
+def _jobs_left() -> str:
+    """No queue to count down: each batch finds openings fresh. The day's
+    numbers are what there is to say."""
+    from aletheia import current_state
+    try:
+        today = current_state.job_hunt_words()
+    except Exception:
+        today = ""
+    return ("There's no queue to work down - each batch finds openings fresh and applies to what fits "
+            "your resume." + (f" {today}" if today else ""))
 
 
 # What he calls it -> what the profile calls it.
@@ -3499,6 +3521,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "today": lambda rest: _today(rest),
            "interview_when": lambda rest: _interview_when(),
            "interview_window": lambda rest: _interview_window(),
+           "jobs_left": lambda rest: _jobs_left(),
            "ran_today": lambda rest: _ran_today(rest),
            "plan_today": lambda rest: _plan_today(),
            "stuck": lambda rest: _stuck(),
