@@ -181,6 +181,75 @@ def jobs_enable(*, days: int = DEFAULT_JOB_DAYS, uses: int = DEFAULT_JOB_USES,
     return grant
 
 
+#: His words, 2026-09-24: "If someone sends us a Calendly link, she can put 1
+#: to 2.30 p.m. Central on there. And as long as she puts it on the calendar,
+#: the Open Range Interactive Calendar, I'm fine with that." Two outward acts
+#: and nothing else: the Schedule press on a scheduling page, and the entry
+#: on his live calendar.
+INTERVIEW_CAPABILITIES = ("interview.book", "calendar.write")
+INTERVIEWS_GRANT_ID = "standing-interviews"
+DEFAULT_INTERVIEW_DAYS = 365
+DEFAULT_INTERVIEW_USES = 200
+
+
+def interviews_active() -> dict | None:
+    for grant in authority.active_grants():
+        if "interview.book" in grant.get("capability_ids", []):
+            return grant
+    return None
+
+
+def interviews_enable(*, days: int = DEFAULT_INTERVIEW_DAYS, uses: int = DEFAULT_INTERVIEW_USES,
+                      via: str = "operator", quote: str = "") -> dict:
+    """Book a scheduling link in his window and put it on his calendar,
+    without a tap, on his say-so at the keyboard."""
+    if not 1 <= int(days) <= 365:
+        raise ValueError("days must be 1..365")
+    existing = interviews_active()
+    if existing and all(cid in existing.get("capability_ids", []) for cid in INTERVIEW_CAPABILITIES):
+        return existing
+    if existing:
+        authority.revoke(existing["id"])
+    import uuid
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:4]
+    approval_id = f"{INTERVIEWS_GRANT_ID}-{stamp}"
+    policy.request(
+        approval_id,
+        requested_action=f"standing authority over {', '.join(INTERVIEW_CAPABILITIES)}",
+        reason="book an employer's scheduling link in his interview window and put the interview on his calendar",
+        consequence=(f"when an employer sends a scheduling link she books the first open weekday slot in his "
+                     f"window under his name and puts it on his live calendar, for {days} days or {uses} uses; "
+                     "no email is sent - outward mail stays on hold"),
+        reversible=True)
+    policy.decide(approval_id, "APPROVED", via=via,
+                  because=("granted at the command line by the operator" + (f" - his words: {quote}" if quote else "")))
+    grant = authority.create(
+        approval_id[:60], capability_ids=list(INTERVIEW_CAPABILITIES), approval_id=approval_id,
+        expires=_expiry(int(days)), max_uses=int(uses),
+        note="interviews: book a scheduling link in his window and put it on his calendar"
+             + (f" - his words: {quote}" if quote else ""))
+    journal.append("decision", "authority",
+                   f"standing authority granted over {', '.join(INTERVIEW_CAPABILITIES)} for {days} days / "
+                   f"{uses} uses" + (f" - his words: {quote}" if quote else ""), actor=ACTOR)
+    return grant
+
+
+def interviews_disable(via: str = "operator") -> bool:
+    grant = interviews_active()
+    if not grant:
+        return False
+    authority.revoke(grant["id"])
+    journal.append("decision", "authority", "standing authority over interview.book revoked", actor=via)
+    return True
+
+
+def interviews_status() -> dict:
+    grant = interviews_active()
+    used = len(authority._claims(grant["id"])) if grant else 0
+    return {"granted": bool(grant), "uses_left": (int(grant.get("max_uses") or 0) - used) if grant else 0,
+            "expires": grant.get("expires") if grant else "", "command": "python -m aletheia.interviews on"}
+
+
 def jobs_disable(via: str = "operator") -> bool:
     grant = jobs_active()
     if not grant:
@@ -288,9 +357,23 @@ def main(argv: list[str] | None = None) -> int:
     jobs.add_argument("--days", type=int, default=DEFAULT_JOB_DAYS)
     jobs.add_argument("--uses", type=int, default=DEFAULT_JOB_USES)
     jobs.add_argument("--quote", default="", help="his own words, kept on the approval")
+    iv = sub.add_parser("interviews", help="booking a scheduling link in his window and putting it on his calendar")
+    iv.add_argument("what", choices=("on", "off", "status"))
+    iv.add_argument("--days", type=int, default=DEFAULT_INTERVIEW_DAYS)
+    iv.add_argument("--uses", type=int, default=DEFAULT_INTERVIEW_USES)
+    iv.add_argument("--quote", default="", help="his own words, kept on the approval")
     args = ap.parse_args(argv)
 
     try:
+        if args.cmd == "interviews":
+            if args.what == "on":
+                grant = interviews_enable(days=args.days, uses=args.uses, quote=args.quote)
+                print(f"Granted until {grant['expires']} ({grant['max_uses']} uses).")
+            elif args.what == "off":
+                print("Revoked." if interviews_disable() else "There was no interviews grant.")
+            else:
+                print(json.dumps(interviews_status(), indent=2))
+            return 0
         if args.cmd == "jobs":
             if args.what == "on":
                 grant = jobs_enable(days=args.days, uses=args.uses, quote=args.quote)

@@ -23,6 +23,11 @@ class Isolated(unittest.TestCase):
                                     (journal, "JOURNAL_PATH", root / "journal.jsonl")):
             p = mock.patch.object(module, attr, value)
             p.start(); self.addCleanup(p.stop)
+        # A fresh private root is under his 2026-09-24 outward-mail hold (no
+        # file means on); these tests are about what an ORDINARY draft does
+        # once he has lifted it. The hold's own tests are in
+        # test_outward_mail_is_on_hold.
+        mail.lift_hold(via="test")
 
 
 class AHeldDraft(Isolated):

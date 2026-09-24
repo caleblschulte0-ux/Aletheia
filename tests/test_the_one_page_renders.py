@@ -106,6 +106,14 @@ class OnePageCase(unittest.TestCase):
         journal.append("action", "session",
                        "Answered with ollama:qwen3:8b on subscription.auto, "
                        "from https://boards.example.com/jobs/7?token=abc123")
+        # A DRAFT SHE HOLDS (his 2026-09-24 ruling: outward mail is on hold and
+        # the drafts are tracked, in order), so the folded ledger has a row.
+        from aletheia import mail
+        mail.draft("hr@acme.example", "Re: Account Executive", "Thanks for the note.", held=True, about="apply-9")
+        # The suite's shared private root starts with the hold LIFTED (see
+        # tests/__init__); on his PC it is on. The page says whichever is
+        # true, so the test asks the same reader the Core does.
+        cls.hold_on = bool(mail.outward_hold().get("on"))
         # PROBLEMS today, so "Today: ... N problems" has something to tap
         # and the tap has something to show (an empty day proves nothing).
         for n in range(2):
@@ -200,6 +208,16 @@ class OnePageCase(unittest.TestCase):
                 # (2026-09-23: "everything should be one click"): the tap
                 # shows only the problems, from the answer the page already
                 # holds - no request - and the same line takes him back.
+                # The drafts she holds are on the page, folded, counted, and
+                # never with a button that could send one.
+                out[name]["drafts_fold"] = page.evaluate("""() => {
+                    const fold = document.getElementById('draftsFold');
+                    const summary = document.getElementById('draftsSum').innerText;
+                    return { open: fold.open, summary,
+                             rows: document.querySelectorAll('#drafts .li').length,
+                             buttons: document.querySelectorAll('#drafts button').length,
+                             // textContent: the fold is closed, so innerText is empty by design
+                             text: document.getElementById('drafts').textContent }; }""")
                 out[name]["problems_tap"] = page.evaluate("""() => {
                     const today = document.getElementById('today').innerText;
                     const btn = document.querySelector('[data-problems="failed"]');
@@ -479,6 +497,21 @@ class OnePageCase(unittest.TestCase):
             with self.subTest(name):
                 self.assertEqual(seen["requests_on_open"], 0)
                 self.assertTrue(seen["peeked"])
+
+    def test_the_drafts_she_holds_are_on_the_page_folded_and_without_a_send(self):
+        """His words, 2026-09-24: outward mail is on hold, "and she should be
+        tracking the drafts right now, too, and keeping all those in order"."""
+        for name, seen in self.seen.items():
+            with self.subTest(name):
+                fold = seen["drafts_fold"]
+                self.assertFalse(fold["open"], "folded: hers to keep, his to read when he wants")
+                self.assertIn("Drafts she's holding · 1", fold["summary"])
+                self.assertEqual("on hold" in fold["summary"], self.hold_on,
+                                 "the fold says the hold exactly when the Core's reader says it")
+                self.assertEqual(fold["rows"], 1)
+                self.assertEqual(fold["buttons"], 0, "nothing on this page sends a draft")
+                self.assertIn("Re: Account Executive", fold["text"])
+                self.assertNotIn("Thanks for the note", fold["text"], "the body stays in the store")
 
     def test_the_problems_count_is_one_tap_from_the_problems(self):
         """A sentence naming a problem carries its click. "Today: 32

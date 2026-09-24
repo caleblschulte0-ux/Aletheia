@@ -285,6 +285,8 @@ button.link{color:var(--warm-dim);text-decoration:underline;
 .lately .li i.note{display:inline;background:none;border:0;border-radius:0;padding:0;
   margin:0 0 0 6px;font-style:normal;font-size:12.5px;color:var(--warm-faint);white-space:nowrap}
 .lately .li.alert i.note{color:var(--amber)}
+/* A draft a newer one has replaced stays in the ledger, quieter. */
+.lately .li.faint span{color:var(--warm-faint)}
 .lately .li.alert span{color:#f0c0bc}
 .lately .note{font-style:normal;color:var(--warm-faint);font-size:12.5px}
 .calm{color:var(--warm-faint);font-size:14.5px;padding:6px 2px}
@@ -445,6 +447,14 @@ button.link{color:var(--warm-dim);text-decoration:underline;
     <section id="doneSec">
       <h2>What she's done</h2>
       <div id="done" class="lately"></div>
+      <!-- THE DRAFTS SHE HOLDS, in order. His words (2026-09-24): outward
+           mail is on hold, "and she should be tracking the drafts right
+           now, too, and keeping all those in order." Folded: they are hers
+           to keep, his to read when he wants. -->
+      <details class="fold" id="draftsFold">
+        <summary id="draftsSum">Drafts she's holding</summary>
+        <div id="drafts" class="lately"></div>
+      </details>
     </section>
 
     <!-- THE FLEET, here, where he can act on it. His ruling (2026-09-23):

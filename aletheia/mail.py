@@ -69,6 +69,57 @@ NETWORK_TIMEOUT_S = 15     # a hung socket must never hang the runtime
 
 SECRET_NAME = "mail.password"
 
+#: OUTWARD MAIL IS ON HOLD. His words, 2026-09-24: "she shouldn't send
+#: anything to outside correspondence yet. Yes, that is on hold. And she
+#: should be tracking the drafts right now, too, and keeping all those in
+#: order." While the hold stands nothing here sends: every draft is held
+#: whoever asked for it, `send_approved` delivers nothing, and only his
+#: keyboard lifts it (`python -m aletheia.mail hold off`). NO FILE MEANS
+#: ON - a ruling stands until he lifts it, not until somebody remembers to
+#: write it down on every machine.
+HOLD_RULING = ("she shouldn't send anything to outside correspondence yet. Yes, that is on hold. "
+               "And she should be tracking the drafts right now, too, and keeping all those in order.")
+HOLD_SINCE = "2026-09-24T05:00:00Z"
+
+
+def _hold_path() -> Path:
+    from aletheia import stateio
+    return stateio.private_dir("mail") / "hold.json"
+
+
+def outward_hold() -> dict:
+    """Whether outward mail is on hold, and in whose words."""
+    try:
+        raw = json.loads(_hold_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raw = None
+    if not isinstance(raw, dict) or "on" not in raw:
+        return {"on": True, "quote": HOLD_RULING, "since": HOLD_SINCE,
+                "command": "python -m aletheia.mail hold off"}
+    return {"on": bool(raw.get("on")), "quote": str(raw.get("quote") or ""),
+            "since": str(raw.get("since") or ""), "command": "python -m aletheia.mail hold off"}
+
+
+def _write_hold(state: dict) -> None:
+    from aletheia import stateio
+    path = _hold_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    stateio.write_json_atomic(path, state)
+
+
+def hold_outward(*, quote: str = "", via: str = "operator") -> dict:
+    _write_hold({"on": True, "quote": quote or HOLD_RULING,
+                 "since": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")})
+    journal.append("decision", "mail", "outward mail ON HOLD: drafts are kept and nothing is sent"
+                   + (f" - his words: {quote}" if quote else ""), actor=via)
+    return outward_hold()
+
+
+def lift_hold(*, via: str = "operator") -> dict:
+    _write_hold({"on": False, "quote": "", "since": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")})
+    journal.append("decision", "mail", "outward mail hold LIFTED: an approved draft sends again", actor=via)
+    return outward_hold()
+
 
 def stored_password() -> str:
     """The app password out of the DPAPI vault, or "" if it is not there.
@@ -388,7 +439,8 @@ def _draft_sha(d: dict) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def draft(to: str, subject: str, body: str, requested_via: str = "voice", *, held: bool = False) -> dict:
+def draft(to: str, subject: str, body: str, requested_via: str = "voice", *, held: bool = False,
+          about: str = "") -> dict:
     """A draft, and the approval that sends it - or, `held`, a draft alone.
 
     His words, 2026-09-23: "she should be allowed to draft emails ...
@@ -396,7 +448,15 @@ def draft(to: str, subject: str, body: str, requested_via: str = "voice", *, hel
     A held draft asks for nothing: no approval, no row under "needs you",
     nothing `send_approved` will ever pick up. It waits in the store for him
     to read ("what have you drafted") and, one day, to say send.
+
+    While outward mail is ON HOLD (`outward_hold`, his 2026-09-24 ruling)
+    every draft is held, whoever asked for it. `about` names what the draft
+    is for - an application id, an opportunity - so the ledger can keep the
+    drafts in order and a newer one about the same thing supersedes it.
     """
+    on_hold = False
+    if not held and outward_hold()["on"]:
+        held = on_hold = True
     addr, name = resolve_address(to)
     if addr is None:
         # A QUESTION, not a command with three placeholders in it. She can
@@ -416,12 +476,17 @@ def draft(to: str, subject: str, body: str, requested_via: str = "voice", *, hel
         "created": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "via": requested_via,
     }
+    if about:
+        d["about"] = str(about)[:120]
     MAIL_DIR.mkdir(parents=True, exist_ok=True)
     if held:
         d["held"] = True
+        if on_hold:
+            d["held_by_ruling"] = True
         (MAIL_DIR / f"{d['id']}.json").write_text(json.dumps(d, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         journal.append("action", "mail:draft",
-                       f"drafted {subject!r} to {name} - held, not sent until he says", actor=ACTOR)
+                       f"drafted {subject!r} to {name} - held, not sent until he says"
+                       + (" (outward mail is on hold)" if on_hold else ""), actor=ACTOR)
         return d
     (MAIL_DIR / f"{d['id']}.json").write_text(json.dumps(d, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     policy.request(d["id"], f"email.send:{_draft_sha(d)}",
@@ -435,6 +500,10 @@ def draft(to: str, subject: str, body: str, requested_via: str = "voice", *, hel
 
 def send_approved(transport: MailTransport | None = None) -> list[dict]:
     if not MAIL_DIR.is_dir():
+        return []
+    if outward_hold()["on"]:
+        # His ruling, not a switch of hers: an approved draft from before the
+        # hold waits with the rest until he lifts it at the keyboard.
         return []
     if (os.environ.get("ALETHEIA_REHEARSAL", "").strip().lower() in ("1", "true", "yes")
             and not getattr(transport, "rehearsal_safe", False)):
@@ -491,21 +560,63 @@ def held_drafts() -> list[dict]:
         except (OSError, ValueError):
             continue
         if isinstance(d, dict) and d.get("held") and not path.with_suffix(".sent.json").exists():
+            # `created` is to the second; two drafts in one second (a pursuit
+            # pass writes several) are ordered by the file's own clock.
+            try:
+                d["_written"] = path.stat().st_mtime_ns
+            except OSError:
+                d["_written"] = 0
             out.append(d)
-    return sorted(out, key=lambda d: str(d.get("created") or ""), reverse=True)
+    return sorted(out, key=lambda d: (str(d.get("created") or ""), int(d.get("_written") or 0)), reverse=True)
+
+
+def _subject_key(subject: str) -> str:
+    """"Re: Re: Mercury AE" and "Mercury AE" are one thread."""
+    s = str(subject or "").casefold()
+    s = re.sub(r"^(?:\s*(?:re|fwd?|aw)\s*:\s*)+", "", s)
+    return " ".join(re.sub(r"[^a-z0-9 ]", " ", s).split())
+
+
+def drafts_ledger() -> list[dict]:
+    """Every held draft, newest first, in order: who it is to, what it is
+    about, when, and whether a newer draft to the same person about the same
+    thing has SUPERSEDED it. His words, 2026-09-24: "she should be tracking
+    the drafts right now, too, and keeping all those in order."
+    """
+    latest: dict[tuple[str, str], str] = {}
+    out = []
+    for d in held_drafts():
+        key = (str(d.get("to") or "").casefold(),
+               str(d.get("about") or "") or _subject_key(str(d.get("subject") or "")))
+        row = {"id": str(d.get("id") or ""), "to": str(d.get("to") or ""),
+               "to_name": str(d.get("to_name") or d.get("to") or ""),
+               "subject": str(d.get("subject") or ""), "created": str(d.get("created") or ""),
+               "via": str(d.get("via") or ""), "about": str(d.get("about") or ""),
+               "superseded_by": latest.get(key, "")}
+        latest.setdefault(key, row["id"])
+        out.append(row)
+    return out
 
 
 def held_drafts_words() -> str:
     from aletheia import speech
-    rows = held_drafts()
+    rows = drafts_ledger()
+    hold = outward_hold()
     if not rows:
-        return "No drafts waiting. When I draft something for you it's held here until you say send."
-    said = [f"{d.get('subject', '')!r} to {d.get('to_name') or d.get('to')} ({speech.humanize_time(d.get('created', ''))})"
-            for d in rows[:4]]
-    out = f"{speech.count_phrase(len(rows), 'draft')} held, not sent: " + "; ".join(said)
-    if len(rows) > 4:
-        out += f"; and {len(rows) - 4} more"
-    return out + "."
+        return ("No drafts waiting. When I draft something for you it's held here until you say send."
+                + (" Outward mail is on hold, so nothing goes out until you lift it." if hold["on"] else ""))
+    current = [r for r in rows if not r["superseded_by"]]
+    older = len(rows) - len(current)
+    said = [f"{r['subject']!r} to {r['to_name']} ({speech.humanize_time(r['created'])})" for r in current[:4]]
+    out = f"{speech.count_phrase(len(current), 'draft')} held, not sent: " + "; ".join(said)
+    if len(current) > 4:
+        out += f"; and {len(current) - 4} more"
+    if older:
+        out += f"; {speech.count_phrase(older, 'older draft')} replaced by a newer one"
+    out += "."
+    if hold["on"]:
+        out += " Outward mail is on hold, so nothing goes out until you lift it."
+    return out
 
 
 def check_unread(limit: int = CHECK_LIMIT, transport: MailTransport | None = None) -> str:
@@ -731,3 +842,40 @@ def _observe(message: dict, fp: str) -> list[dict]:
         actions.append({"action": "ambiguous", "event": ambiguous["event"]["id"],
                         "matches": len(candidates)})
     return actions
+
+
+def main(argv: list[str] | None = None) -> int:
+    """`python -m aletheia.mail hold on|off|status` and `... drafts`.
+
+    The hold is his ruling and lifts only here, at his keyboard - never by a
+    plan step, a model, or a tap on a page.
+    """
+    import argparse
+    ap = argparse.ArgumentParser(description="Aletheia mail: the outward hold and the drafts she keeps")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    hold = sub.add_parser("hold", help="outward mail on hold: on, off or status")
+    hold.add_argument("state", choices=["on", "off", "status"])
+    hold.add_argument("--quote", default="", help="his words, kept on the decision")
+    sub.add_parser("drafts", help="the drafts she is holding, in order")
+    args = ap.parse_args(argv)
+    if args.cmd == "hold":
+        if args.state == "on":
+            state = hold_outward(quote=args.quote)
+        elif args.state == "off":
+            state = lift_hold()
+        else:
+            state = outward_hold()
+        print(("Outward mail is ON HOLD" + (f" - his words: {state['quote']}" if state["quote"] else "")
+               + f". Lift it with: {state['command']}") if state["on"]
+              else "Outward mail is not on hold: an approved draft sends.")
+        return 0
+    for row in drafts_ledger():
+        flag = f"  (replaced by {row['superseded_by']})" if row["superseded_by"] else ""
+        print(f"{row['created'][:16]}  {row['id']}  to {row['to_name']} - {row['subject']!r}"
+              + (f"  about {row['about']}" if row["about"] else "") + flag)
+    print(held_drafts_words())
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

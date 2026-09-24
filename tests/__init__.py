@@ -60,6 +60,14 @@ from aletheia import policy  # noqa: E402  (ordering is the safety mechanism)
 policy.APPROVALS_DIR = _suite_root / "approvals"
 policy.HALT_PATH = _suite_root / "halt.json"
 
+# Outward mail is ON HOLD by his 2026-09-24 ruling (aletheia.mail.outward_hold:
+# no file means on). The suite tests the send paths as they behave once he
+# lifts it, so the throwaway root starts lifted; the hold's own tests use a
+# private root of their own, where no file means on.
+_mail_root = _suite_root / "mail"
+_mail_root.mkdir(parents=True, exist_ok=True)
+(_mail_root / "hold.json").write_text('{"on": false, "quote": "", "since": "suite"}\n', encoding="utf-8")
+
 if _created_suite_state:
     @atexit.register
     def _cleanup() -> None:

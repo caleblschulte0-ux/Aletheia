@@ -124,6 +124,10 @@ class Sandbox(unittest.TestCase):
             self.addCleanup(patcher.stop)
         wr.forget()
         self.addCleanup(wr.forget)
+        # A fresh private root is under his 2026-09-24 outward-mail hold; these
+        # tests are about what a send does once he has lifted it.
+        from aletheia import mail as _mail
+        _mail.lift_hold(via="test")
 
     def at(self, **delta):
         return NOW + dt.timedelta(**delta)
