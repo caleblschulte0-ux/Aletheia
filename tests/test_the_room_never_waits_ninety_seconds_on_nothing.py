@@ -680,6 +680,42 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
                 mock.patch("aletheia.autonomy.recent", return_value=[]):
             self.assertTrue(intercom.execute_command({"kind": "undo"}, {}, quote="undo that").startswith("Nothing to undo"))
 
+    def test_the_twelfth_battery_follow_ups(self):
+        """"And Friday?", "what about next week", "read them", "make that 4",
+        "cancel it": six follow-up turns went to nobody at the bottom rung
+        (2026-09-24). The previous sentence is rebuilt and asked again."""
+        import datetime as dt
+        from aletheia import intercom, localtime, voice
+
+        def after(prev):
+            return mock.patch("aletheia.converse.recent", return_value=[{"he_asked": prev, "she_answered": "x"}])
+        with after("what's on my calendar tomorrow"), mock.patch("aletheia.calendar.all_events", return_value=[]):
+            self.assertEqual(quick.answer("and friday"), "Nothing on your calendar Friday.")
+            self.assertEqual(quick.answer("what about next week"), "Nothing on your calendar next week.")
+        with after("is the trader running"), \
+                mock.patch("aletheia.current_state.repo_words", side_effect=lambda n: f"{n} is healthy." if "shorts" in n else None), \
+                mock.patch.object(quick, "_no_pulse", return_value=False):
+            self.assertEqual(quick.answer("and the shorts pipeline"), "shorts is healthy.")
+        with after("how many tasks do I have"), mock.patch("aletheia.tasks.all_tasks", return_value=[]):
+            said = quick.answer("read them")
+            self.assertIsNotNone(said)
+            self.assertIn("task", said.lower())
+        with after("what time is it"):
+            self.assertIsNone(quick.answer("and friday"), "nothing to rebuild from a question with no day")
+            self.assertIsNone(quick.answer("read them"))
+        # "Make that 4" moves the reminder he just set; "cancel it" takes it back.
+        with after("remind me at 3 to call the dentist"):
+            moved = voice.interpret("thea make that 4")["command"]
+            self.assertEqual((moved["kind"], moved["text"], moved["replaces"]),
+                             ("remind_at", "call the dentist", "call the dentist"))
+            self.assertEqual(dt.datetime.fromisoformat(moved["at"]).astimezone(localtime.operator_tz()).hour, 16)
+            with mock.patch("aletheia.policy.all_approvals", return_value=[]):
+                self.assertEqual(voice.interpret("thea cancel it")["command"], {"kind": "undo"})
+        with after("what time is it"), mock.patch("aletheia.policy.all_approvals", return_value=[]):
+            self.assertIsNone(voice.interpret("thea cancel it")["command"])
+            self.assertEqual(voice.interpret("thea make that 4")["command"]["kind"], "intent")
+        self.assertIn("replaces", intercom.KIND_ARGS["remind_at"][1])
+
     def test_what_did_i_say_about_is_his_note(self):
         with mock.patch.object(quick, "_notes", return_value=[
                 {"ts": "2026-09-24T20:00:00Z", "text": "the rent is due on the first"}]), \

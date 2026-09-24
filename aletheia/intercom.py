@@ -275,7 +275,8 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "agent_stop":    ({"which"}, set()),
     "agents_pause":  (set(), set()),
     # personal-OS verbs (2026-08-26): PC-private state, so all LOCAL_KINDS
-    "remind_at":       ({"at", "text"}, set()),
+    # `replaces` is the text of the reminder this one moves ("make that 4").
+    "remind_at":       ({"at", "text"}, {"replaces"}),
     "remind_daily":    ({"time", "text"}, {"tz"}),
     # "every Monday at 8, take the bins out". `scheduler` has had a
     # `weekly` kind since it was written and the GRAMMAR could not say it,
@@ -2870,10 +2871,18 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "remind_at":
         from aletheia import scheduler
         import re as _re, uuid as _uuid
+        moved = ""
+        if cmd.get("replaces"):
+            # "Make that 4": the old reminder goes off (never deleted) before
+            # the new one is set, so he is not reminded twice.
+            found, _why = _one_reminder(str(cmd["replaces"]))
+            if found is not None:
+                scheduler.set_enabled(found["id"], False)
+                moved = " (moved)"
         sid = "remind-" + _uuid.uuid4().hex[:8]
         scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
                          kind="once", at=cmd["at"])
-        return f"reminder {sid} set for {cmd['at']} — {cmd['text'][:80]!r}"
+        return f"reminder {sid} set for {cmd['at']} — {cmd['text'][:80]!r}{moved}"
     if kind == "remind_daily":
         from aletheia import scheduler
         import uuid as _uuid

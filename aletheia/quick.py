@@ -2133,7 +2133,8 @@ def _agenda(day: str = "today") -> str | None:
                 rows.append((start, str(event.get("title") or "something")[:80]))
     except Exception:
         return None                  # no calendar mirror: the model may know more
-    label = ("Today" if first == last == now.date()
+    label = (first.strftime("%A") if day in _WEEKDAYS      # he said Friday; say Friday
+             else "Today" if first == last == now.date()
              else "Tomorrow" if first == last and first == now.date() + dt.timedelta(days=1)
              else first.strftime("%A") if first == last
              else "This week" if day == "this week" else "Next week")
@@ -3638,6 +3639,89 @@ def warm() -> None:
             pass
 
 
+_DAY_PHRASE = re.compile(
+    r"\b(?:today|tomorrow|yesterday|tonight|this morning|this afternoon|this evening|this week|next week|"
+    r"last week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b")
+_FOLLOW_UP = re.compile(r"^(?:and|what about|how about|and what about|and how about)(?: on| for)?\s+(?P<x>.+?)$")
+_LIST_THEM = re.compile(r"^(?:read|list|show|name)(?: me)? (?:them|those|these)(?: out| to me| all)?$"
+                        r"|^(?:what|which) (?:are they|ones(?: are they)?)$")
+#: A follow-up "read them" after a turn about one of these stores.
+_STORE_QUESTION = {
+    "tasks": "what's on my task list", "task_new": "what's on my task list", "task_done": "what's on my task list",
+    "reminders": "what reminders do I have", "remind_at": "what reminders do I have",
+    "remind_daily": "what reminders do I have", "remind_weekly": "what reminders do I have",
+    "shopping_list": "what's on the shopping list", "shopping_add": "what's on the shopping list",
+    "notes_list": "read me my notes", "note": "read me my notes", "drafts": "what drafts do you have",
+    "applied_to": "what did you apply to", "applied_on": "what did you apply to",
+    "notify_count": "what's waiting on me", "outcomes": "what did you apply to",
+}
+
+
+def _previous_ask(skip_follow_ups: bool = True) -> str:
+    """His last full sentence from the thread (never a follow-up itself)."""
+    try:
+        from aletheia import converse
+        turns = converse.recent(limit=4)
+    except Exception:
+        return ""
+    for turn in reversed(turns or []):
+        said = _tidy(str(turn.get("he_asked") or ""))
+        said = re.sub(r"^(?:thea|aletheia)[,]?\s+", "", said)
+        if not said:
+            continue
+        if skip_follow_ups and (_FOLLOW_UP.match(said) or _LIST_THEM.match(said)):
+            continue
+        return said
+    return ""
+
+
+def _follow_up(question: str) -> str | None:
+    """"And Friday?" after "what's on my calendar tomorrow"; "read them"
+    after "how many tasks do I have". The previous sentence is rebuilt
+    with the new day or subject and asked again HERE, so the answer is
+    still a store's - and it names the day or the thing, so a wrong
+    rebuild would be heard. Anything that does not rebuild into a
+    question a store answers stays with a model (bottom rung 2026-09-24:
+    six of these went to nobody)."""
+    q = _tidy(question)
+    if _LIST_THEM.match(q):
+        prev = _previous_ask()
+        found = match(prev) if prev else None
+        name = found[0] if found else ""
+        if not name:
+            try:
+                from aletheia import voice
+                name = str(((voice.interpret(f"thea {prev}") or {}).get("command") or {}).get("kind") or "")
+            except Exception:
+                name = ""
+        ask = _STORE_QUESTION.get(name)
+        return answer(ask) if ask else None
+    m = _FOLLOW_UP.match(q)
+    if not m:
+        return None
+    new_words = m.group("x").strip()
+    prev = _previous_ask()
+    if not prev:
+        return None
+    rebuilt = ""
+    if _DAY_PHRASE.fullmatch(new_words):
+        days = list(_DAY_PHRASE.finditer(prev))
+        if days:
+            last = days[-1]
+            rebuilt = prev[:last.start()] + new_words + prev[last.end():]
+    if not rebuilt:
+        shape = status_of(prev)
+        subject = shape[1] if shape and shape[0] == "repo" else ""
+        if not subject:
+            found = match(prev)
+            subject = found[1] if found and found[1] and found[1] != prev else ""
+        if subject and subject in prev:
+            rebuilt = prev.replace(subject, re.sub(r"^(?:the |my )", "", new_words), 1)
+    if not rebuilt or rebuilt == prev or not match(rebuilt):
+        return None
+    return answer(rebuilt)
+
+
 def answer(question: str) -> str | None:
     """An answer from her own stores, or None to go and think.
 
@@ -3647,7 +3731,7 @@ def answer(question: str) -> str | None:
     try:
         found = match(question)
         if not found:
-            return None
+            return _follow_up(question)
         name, rest = found
         said = ANSWERS[name](rest)
         # `str(None)` is the four-character string "None", which is truthy

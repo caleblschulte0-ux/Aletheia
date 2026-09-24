@@ -793,6 +793,56 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
                         "start": start.isoformat(), "minutes": 60}, "say": None}
 
 
+def _previous_ask() -> str:
+    """His last sentence from the conversation thread, wake word gone."""
+    try:
+        from aletheia import converse
+        turns = converse.recent(limit=3)
+    except Exception:
+        return ""
+    for turn in reversed(turns or []):
+        said = " ".join(str(turn.get("he_asked") or "").split())
+        said = re.sub(r"^(?:thea|aletheia)[,]?\s+", "", said, flags=re.IGNORECASE)
+        if said:
+            return said
+    return ""
+
+
+def _last_ask_is_undoable() -> bool:
+    """Was his last ask a task, a list item, a reminder, a hold or a file -
+    the things "cancel it" can take straight back?"""
+    prev = _previous_ask()
+    if not prev:
+        return False
+    try:
+        from aletheia import intercom
+        previous = (interpret(f"thea {prev}") or {}).get("command") or {}
+        return str(previous.get("kind") or "") in intercom.UNDOES_HIS_ASK
+    except Exception:
+        return False
+
+
+def _moved_reminder(transcript: str, time_words: str) -> dict | None:
+    """"Make that 4": the reminder he just set, at the new time, replacing
+    the old one. None unless his last ask was a one-off reminder and the
+    time reads."""
+    prev = _previous_ask()
+    if not prev:
+        return None
+    try:
+        previous = (interpret(f"thea {prev}") or {}).get("command") or {}
+    except Exception:
+        return None
+    if previous.get("kind") != "remind_at" or not previous.get("text"):
+        return None
+    hhmm = _spoken_time(time_words)
+    if not hhmm:
+        return None
+    at = _next_occurrence_iso(hhmm, bare_hour=_is_bare_hour(time_words))
+    return {"command": {"kind": "remind_at", "at": at, "text": previous["text"],
+                        "replaces": previous["text"]}, "say": None}
+
+
 def _to_the_planner(text: str) -> dict:
     """Hand the sentence on rather than ending the turn on a parse error.
 
@@ -2675,6 +2725,13 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "deny", "id": pending[0]["id"],
                                 "because": "denied by voice"}, "say": None}
         if not pending:
+            # "Cancel it" right after "remind me at 3" means the reminder,
+            # not the approval queue (bottom rung 2026-09-24: "Nothing is
+            # waiting for approval" after setting one). His last ask, if it
+            # can be taken back, is what he means.
+            if asked_to_cancel and re.fullmatch(r"(?:cancel|scrap|drop)\s+(?:that|it)", low) \
+                    and _last_ask_is_undoable():
+                return {"command": {"kind": "undo"}, "say": None}
             # BOTH things are true and he needs both. A bare "Okay."
             # leaves him believing he just cancelled something, and a bare
             # "Nothing is waiting for approval" answers a question he did
@@ -2701,6 +2758,17 @@ def _interpret(transcript: str) -> dict:
     m = re.match(r"(?:add a task|new task|task)\s*(?:to|:)?\s+(.+)", low)
     if m:
         return _new_task(m.group(1).strip())
+
+    # "MAKE THAT 4" after "remind me at 3 to call the dentist": the same
+    # reminder, moved. The previous ask is read back from the thread and
+    # re-interpreted; only a reminder is moved this way (bottom rung
+    # 2026-09-24: it went to nobody).
+    m = re.fullmatch(r"(?:make (?:that|it)|change (?:that|it) to|move (?:that|it) to|actually,? make (?:that|it)|"
+                     r"no,? make (?:that|it))\s+(?:at )?(?P<time>[\w: ]+?)(?: instead| please)?", low)
+    if m:
+        moved = _moved_reminder(text, m.group("time"))
+        if moved:
+            return moved
 
     # "UNDO THAT" is his word over her own ledger (bottom rung, 2026-09-24:
     # it went to nobody). A study verdict's "undo the change" is matched
