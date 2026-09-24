@@ -140,7 +140,10 @@ def control(what: str, *, sleep=time.sleep) -> str:
 
     # EVERY key in KEYS has a sentence: "turn the volume up" pressed the key
     # and then said "That failed: KeyError: 'volume_up'" (2026-09-22).
-    said = {"play": "Play.", "pause": "Paused.", "next": "Skipped.",
+    # "Play." out loud, as the whole answer to "play some music", read as
+    # a stutter (2026-09-24). The sentence says what she did - pressed the
+    # key - because nothing confirms the player acted.
+    said = {"play": "Pressed play.", "pause": "Paused.", "next": "Skipped.",
             "previous": "Back one.", "stop": "Stopped.", "volume_up": "Louder.",
             "volume_down": "Quieter.", "mute": "Sound off — say it again to bring it back."}
     said = said.get(what, f"Pressed {what.replace('_', ' ')}.")

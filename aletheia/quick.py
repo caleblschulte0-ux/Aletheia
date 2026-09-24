@@ -661,6 +661,21 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # never "approve", "deny", "go ahead", "do it": those are verbs the
         # decision rules own, and real work is never claimed here
         r"^(?:no|nope|nah|yes|yeah|yep|ok|okay|sure|fine)\s*[.!]?$")),
+    # WHAT SHE CHANGED, LEARNED AND WROTE TODAY - three journal reads that
+    # went to a model (fifth battery, 2026-09-24).
+    ("changed_today", re.compile(
+        r"^what (?:did|have) (?:you|u) (?:change|changed|update|updated)(?: today| on yourself| in your code)?\s*\??$"
+        r"|^(?:did|have) (?:you|u) (?:change|update|changed|updated) (?:anything|yourself|your code)(?: today)?\s*\??$")),
+    ("learned_today", re.compile(
+        r"^what (?:did|have) (?:you|u) (?:learn|learned|learnt|find out|figure out)(?: about me)?(?: today| so far)?\s*\??$"
+        r"|^(?:did|have) (?:you|u) (?:learn|learned) anything(?: new)?(?: today)?\s*\??$")),
+    ("last_written", re.compile(
+        r"^(?:read me|read back|show me|what(?:'s| is|s)) (?:the )?last (?:thing|file|document|note) (?:you|u) (?:wrote|made|created|saved)\s*\??$"
+        r"|^what (?:did|have) (?:you|u) (?:write|written)(?: today| lately| recently)?\s*\??$")),
+    ("desktop_files", re.compile(
+        r"^what(?:'s| is|s)? (?:files? (?:are|is) )?on my (?P<place>desktop|downloads|documents)(?: folder)?\s*\??$"
+        r"|^what files (?:are|do i have) (?:on|in) (?:my )?(?P<place2>desktop|downloads|documents)(?: folder)?\s*\??$"
+        r"|^(?:list|show me) (?:my )?(?P<place3>desktop|downloads|documents)(?: folder| files)?\s*\??$")),
     ("stuck", re.compile(
         r"^(?:are|r) (?:you|u) (?:stuck|blocked|held up|waiting on (?:something|anything))(?: right now| now)?\s*\??$"
         r"|^is (?:anything|something) (?:stuck|blocked|held up)\s*\??$")),
@@ -870,7 +885,8 @@ def match(question: str) -> tuple[str, str] | None:
                                            "time_in3", "date_of", "date_of2", "date_of3",
                                            "recall", "recall2", "recall3", "recall4",
                                            "applied_on", "applied_on2", "applied_on3",
-                                           "asked_on", "asked_on2", "asked_on3", "day_part")
+                                           "asked_on", "asked_on2", "asked_on3", "day_part",
+                                           "place", "place2", "place3")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
@@ -1594,6 +1610,120 @@ def _plan_today() -> str:
         parts.append(hunt)
     parts = [p for p in parts if p]
     return " ".join(parts) if parts else "Nothing on your calendar, nothing on your task list, and no applications yet today."
+
+
+def _journal_today(test) -> list[dict]:
+    """Today's journal lines (his clock) that `test(entry)` keeps, oldest first."""
+    import datetime as dt
+    from aletheia import journal, localtime, recollection
+    tz = localtime.operator_tz()
+    date = dt.datetime.now(tz).strftime("%Y-%m-%d")
+    try:
+        return [e for e in journal.entries()
+                if recollection._local_date(str(e.get("ts") or "")) == date and test(e)]
+    except Exception:
+        return []
+
+
+def _changed_today() -> str:
+    """Her own code updates and the files she wrote today, from the journal."""
+    from aletheia import speech
+    updates = _journal_today(lambda e: e.get("subject") == "core:sync"
+                             and str(e.get("text") or "").startswith("code updated"))
+    wrote = _journal_today(lambda e: " wrote " in f" {e.get('text') or ''}" and "workspace" in str(e.get("text") or ""))
+    parts = []
+    if updates:
+        last = updates[-1]
+        m = re.search(r"code updated \((\d+) file", str(last.get("text") or ""))
+        parts.append(f"I updated my own code {speech.count_phrase(len(updates), 'time')} today, "
+                     f"the last {speech.humanize_time(str(last.get('ts') or ''))}"
+                     + (f" ({m.group(1)} files)" if m else ""))
+    if wrote:
+        names = []
+        for e in wrote:
+            m = re.search(r"wrote ([^\s]+)", str(e.get("text") or ""))
+            if m and m.group(1) not in names:
+                names.append(m.group(1))
+        parts.append(f"wrote {speech.count_phrase(len(names), 'file')} in my workspace: {speech.and_list(names[:4])}"
+                     + (f" and {len(names) - 4} more" if len(names) > 4 else ""))
+    if not parts:
+        return "Nothing changed today: no code update on this PC and nothing written to my workspace."
+    return "; ".join(parts).capitalize() + "."
+
+
+def _learned_today() -> str:
+    """What she remembered about him today: profile answers and facts."""
+    from aletheia import speech
+    rows = _journal_today(lambda e: e.get("kind") == "note"
+                          and str(e.get("actor") or "").startswith("aletheia")
+                          and (" is on file" in str(e.get("text") or "") or str(e.get("text") or "").startswith("set ")
+                               or str(e.get("text") or "").startswith("remembered")))
+    if not rows:
+        return "Nothing new about you today. Tell me things and I remember them."
+    said = []
+    for e in rows:
+        line = " ".join(str(e.get("text") or "").split())
+        line = re.sub(r"^set identity\.", "", line)
+        line = re.sub(r" \(inferred\)$| \(from operator\)$", "", line)
+        line = re.sub(r"^his answer to (.+) is on file$", r"your answer to \1", line)
+        line = re.sub(r"^(\w+) is on file$", r"your \1", line).replace("_", " ")
+        if line and line not in said:
+            said.append(_shortened(line))
+    return f"Today I learned {speech.count_phrase(len(said), 'thing')}: " + "; ".join(said[-5:]) + "."
+
+
+def _last_written() -> str:
+    """The last file she wrote in her workspace, read back - the start of it."""
+    from aletheia import speech, workspace
+    wrote = _journal_today(lambda e: " wrote " in f" {e.get('text') or ''}" and "workspace" in str(e.get("text") or ""))
+    if not wrote:
+        try:
+            root = workspace.root()
+            files = sorted((p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in (".md", ".txt", ".docx")),
+                           key=lambda p: p.stat().st_mtime, reverse=True)
+        except Exception:
+            files = []
+        if not files:
+            return "I haven't written anything in my workspace yet."
+        path = files[0]
+    else:
+        m = re.search(r"wrote ([^\s]+)", str(wrote[-1].get("text") or ""))
+        name = m.group(1) if m else ""
+        try:
+            root = workspace.root()
+            found = [p for p in root.rglob(name)] if name else []
+        except Exception:
+            found = []
+        if not found:
+            return f"The last thing I wrote was {name or 'a file'} in my workspace, but I can't find it to read now."
+        path = found[0]
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace") if path.suffix.lower() != ".docx" else ""
+    except OSError:
+        text = ""
+    head = " ".join(text.split())[:300]
+    return (f"The last thing I wrote was {path.name}" + (f": {head}" if head else " - a Word file; open it to read it") + ".")
+
+
+def _desktop_files(rest) -> str:
+    """The newest files in a named place, by name - never the whole disk."""
+    from pathlib import Path
+    from aletheia import files, speech
+    want = str(rest or "desktop").casefold()
+    folder = next((p for name, p in files.places() if name.casefold().split("/")[-1] == want and p.is_dir()), None)
+    if folder is None:
+        return f"I can't see a {want} folder on this PC."
+    try:
+        # "~$leb_Schulte_resume.docx" is Word's lock file, not a thing of his.
+        rows = sorted((p for p in folder.iterdir() if not p.name.startswith((".", "~$"))),
+                      key=lambda p: p.stat().st_mtime, reverse=True)
+    except OSError:
+        return f"I can't read your {want} folder right now."
+    if not rows:
+        return f"Your {want} is empty."
+    names = [p.name for p in rows[:8]]
+    return (f"{speech.count_phrase(len(rows), 'thing')} on your {want}, newest first: {speech.and_list(names)}"
+            + (f", and {len(rows) - 8} more" if len(rows) > 8 else "") + ".")
 
 
 def _bare_yes_no() -> str | None:
@@ -3282,6 +3412,10 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "plan_today": lambda rest: _plan_today(),
            "stuck": lambda rest: _stuck(),
            "bare_yes_no": lambda rest: _bare_yes_no(),
+           "changed_today": lambda rest: _changed_today(),
+           "learned_today": lambda rest: _learned_today(),
+           "last_written": lambda rest: _last_written(),
+           "desktop_files": _desktop_files,
            "yesterday": lambda rest: _yesterday(),
            "clock": lambda rest: _clock(),
            "date": lambda rest: _date(),

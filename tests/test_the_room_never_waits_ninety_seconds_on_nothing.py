@@ -392,5 +392,69 @@ class TheFourthBatteryFallThroughs(unittest.TestCase):
         self.assertEqual(quick.match("what did i tell you to remember")[0], "notes_list")
 
 
+class TheFifthBatteryFallThroughs(unittest.TestCase):
+    """What she changed, learned and wrote today, and what is on his desktop:
+    journal and disk reads that went to a model (2026-09-24)."""
+
+    def _entries(self, rows):
+        import datetime as dt
+        stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return [{"ts": stamp, **r} for r in rows]
+
+    def test_what_changed_today_is_her_code_updates_and_her_files(self):
+        rows = self._entries([
+            {"kind": "event", "actor": "operator-local-core", "subject": "core:sync",
+             "text": "code updated (3 file(s), now at 6023566a0c) — restarting to run it"},
+            {"kind": "action", "actor": "aletheia-pursuit", "subject": "opportunity",
+             "text": "write — wrote positioning-notes.md in the workspace"}])
+        with mock.patch("aletheia.journal.entries", return_value=rows):
+            said = quick.answer("what did you change today")
+        self.assertIn("updated my own code 1 time today", said)
+        self.assertIn("positioning-notes.md", said)
+        with mock.patch("aletheia.journal.entries", return_value=[]):
+            self.assertTrue(quick.answer("what did you change today").startswith("Nothing changed today"))
+
+    def test_what_she_learned_today_is_his_facts_in_words(self):
+        rows = self._entries([
+            {"kind": "note", "actor": "aletheia-profile", "subject": "profile",
+             "text": "his answer to 'What % of travel are you open to?' is on file"},
+            {"kind": "note", "actor": "aletheia", "subject": "identity", "text": 'set identity.home_city = "Hartford, SD" (inferred)'},
+            {"kind": "note", "actor": "operator", "subject": "operator", "text": "note that Dana called"}])
+        with mock.patch("aletheia.journal.entries", return_value=rows):
+            said = quick.answer("what did you learn today")
+        self.assertTrue(said.startswith("Today I learned 2 things:"), said)
+        self.assertIn("your answer to 'What % of travel are you open to?'", said)
+        self.assertIn('home city = "Hartford, SD"', said)
+        self.assertNotIn("Dana called", said, "his own note is not something she learned")
+
+    def test_the_last_thing_she_wrote_is_read_back_from_the_workspace(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "notes.md").write_text("# Notes\nHello there.", encoding="utf-8")
+            rows = self._entries([{"kind": "action", "actor": "aletheia-pursuit", "subject": "opportunity",
+                                   "text": "write — wrote notes.md in the workspace"}])
+            with mock.patch("aletheia.journal.entries", return_value=rows), \
+                    mock.patch("aletheia.workspace.root", return_value=root):
+                said = quick.answer("read me the last thing you wrote")
+            self.assertIn("notes.md", said)
+            self.assertIn("Hello there", said)
+            with mock.patch("aletheia.journal.entries", return_value=[]), \
+                    mock.patch("aletheia.workspace.root", return_value=root / "empty"):
+                self.assertEqual(quick.answer("what did you write today"), "I haven't written anything in my workspace yet.")
+
+    def test_what_is_on_my_desktop_is_the_newest_names_never_the_disk(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            desk = Path(tmp) / "Desktop"
+            desk.mkdir()
+            for name in ("a.txt", "b.pdf"):
+                (desk / name).write_text("x", encoding="utf-8")
+            with mock.patch("aletheia.files.places", return_value=[("Desktop", desk)]):
+                said = quick.answer("what's on my desktop")
+            self.assertIn("2 things on your desktop", said)
+            self.assertIn("a.txt", said)
+            with mock.patch("aletheia.files.places", return_value=[]):
+                self.assertIn("can't see a downloads folder", quick.answer("what files are on my downloads"))
+
+
 if __name__ == "__main__":
     unittest.main()
