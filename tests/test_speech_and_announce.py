@@ -97,8 +97,12 @@ APPROVALS = [
     {"id": "mail-a1e1957d0f", "state": "PENDING", "capability": "email.send",
      "requested_action": "email.send:abc", "reason": "send email to Dana Okafor",
      "requested_at": _JUST_ASKED},
-    {"id": "book-meet-dana", "state": "PENDING", "capability": "calendar.write",
-     "requested_action": "calendar.write:abc", "requested_at": _JUST_ASKED},
+    # A HIGH-RISK thing, refused by voice. This was calendar.write until
+    # 2026-09-24, when his words moved a calendar entry to a grantable
+    # medium risk; sending mail in his name is still operator_always.
+    {"id": "buy-monitor", "state": "PENDING", "capability": "purchase.execute",
+     "requested_action": "purchase.execute:abc", "reason": "the purchase of a monitor",
+     "requested_at": _JUST_ASKED},
 ]
 LOW_RISK = {"id": "note-plants", "state": "PENDING", "capability": "journal.append",
             "requested_action": "note: water the plants",
@@ -139,7 +143,7 @@ class ApprovalByVoiceCase(unittest.TestCase):
         said = self.approve("approve")["say"]
         self.assertIn("3 things waiting", said)
         self.assertIn("the email to Dana Okafor", said)
-        self.assertIn("the calendar booking", said)
+        self.assertIn("the purchase of a monitor", said)
         # the old dead end sent him to a browser
         self.assertNotIn("Command Center", said)
 

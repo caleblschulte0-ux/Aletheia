@@ -34,6 +34,11 @@ class Isolated(unittest.TestCase):
         for name in ("ALETHEIA_REHEARSAL", "ALETHEIA_FRONTIER_OFF"):
             os.environ.pop(name, None)
         base = root / "private"
+        # A fresh private root is under his 2026-09-24 outward-mail hold (no
+        # file means on). These tests are about what a conversation does once
+        # he has lifted it; the hold itself is tested in test_outward_mail_is_on_hold.
+        from aletheia import mail as _mail
+        _mail.lift_hold(via="test")
         for module, attr, value in (
                 (journal, "JOURNAL_PATH", root / "journal.jsonl"),
                 (policy, "APPROVALS_DIR", root / "approvals"),

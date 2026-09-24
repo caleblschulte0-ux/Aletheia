@@ -444,6 +444,31 @@
       : (doneFilter === "failed" ? "" : '<div class="calm">Nothing recorded yet today.</div>')));
   }
 
+  // ---- the drafts she holds, in order ------------------------------------
+  // His words, 2026-09-24: outward mail is on hold "and she should be
+  // tracking the drafts right now, too, and keeping all those in order."
+  // The ledger is the Core's (`mail.drafts_ledger`): newest first, a newer
+  // draft to the same person about the same thing marks the older one
+  // replaced. Nothing here is a button: they go nowhere until he lifts
+  // the hold at his keyboard, and this page never sends.
+  function paintDrafts(rows, hold) {
+    const current = rows.filter((r) => !r.superseded_by).length;
+    const older = rows.length - current;
+    const held = hold && hold.on;
+    $("draftsSum").textContent = (current
+      ? "Drafts she's holding · " + current + (older ? " (" + older + " older, replaced)" : "")
+      : "No drafts held") + (held ? " · outward mail on hold" : "");
+    setHTML("drafts", rows.length
+      ? rows.slice(0, 40).map((r) =>
+          '<div class="li' + (r.superseded_by ? " faint" : "") + '"><em>' + T.esc(T.clock(r.created) || r.created) +
+          "</em><span>" + T.esc(r.subject) + " to " + T.esc(r.to_name) +
+          (r.superseded_by ? ' <i class="note">replaced by a newer one</i>' : "") +
+          "</span></div>").join("")
+      : '<div class="calm">' + (held
+          ? "Nothing drafted yet. Outward mail is on hold: anything she drafts is kept here until you lift it."
+          : "Nothing drafted yet.") + "</div>");
+  }
+
   // ---- the fleet: what the wall shows, HERE, where he can act on it -------
   /* His ruling, 2026-09-23: "if I click on shorts pipeline, something
    * should pop up... [the wall] shouldn't have any capability that the
@@ -701,6 +726,7 @@
     const count = paintNeeds(last.needs, last.notices);
     paintWork(m);
     paintDone(last.needs.activity || []);
+    paintDrafts(last.needs.drafts || [], last.needs.mail_hold || null);
     paintWhere(haltedNow ? "trouble" : count ? "needs" : "here", {
       head: haltedNow ? "Stopped" : word || "Here",
       tail: haltedNow ? ((status && status.halted && status.halted.reason) || "")

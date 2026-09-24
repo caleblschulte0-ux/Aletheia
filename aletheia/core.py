@@ -943,10 +943,22 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError:
                 asked = _needs.MAX_ITEMS
             rows = _needs.items(limit=200)
+            # THE DRAFTS SHE HOLDS, in order (his words, 2026-09-24: "she
+            # should be tracking the drafts right now, too, and keeping all
+            # those in order"), and whether outward mail is on hold - read
+            # here so the page and the spoken answer cannot disagree.
+            from aletheia import mail as _mail
+            try:
+                drafts = _mail.drafts_ledger()
+                hold = _mail.outward_hold()
+            except Exception:
+                drafts, hold = [], {"on": True, "quote": "", "since": "", "command": ""}
             return self._json({"needs": rows[:max(1, min(asked, 200))],
                                "total": len(rows),
                                "says": _needs.spoken(rows),
-                               "activity": _needs.activity()})
+                               "activity": _needs.activity(),
+                               "drafts": drafts[:60],
+                               "mail_hold": {"on": bool(hold.get("on")), "since": str(hold.get("since") or "")}})
         if url.path == "/api/fleet":
             # The pulse the wall reads, with the links a card needs already
             # on it. Built HERE because the page may hold no absolute URL

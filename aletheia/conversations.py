@@ -528,6 +528,11 @@ def send_approved(*, transport=None, now: dt.datetime | None = None, only_thread
     results: list[dict] = []
     if policy.halted() is not None:
         return [{"outcome": "halted", "detail": "Aletheia is halted; nothing is sent"}]
+    from aletheia import mail as _mail
+    if _mail.outward_hold()["on"]:
+        # His 2026-09-24 ruling covers every outward message, not only the
+        # mail store's: a conversation's turn waits with the drafts.
+        return [{"outcome": "held", "detail": "outward mail is on hold; nothing is sent"}]
     for thread in all_threads():
         if only_thread and thread["id"] != only_thread:
             continue

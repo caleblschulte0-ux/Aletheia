@@ -72,13 +72,28 @@ def _save(state: dict) -> None:
 
 
 def enable(*, quote: str = "", via: str = "operator") -> dict:
+    """ON, and the standing grant with it: one command at his keyboard.
+
+    The switch says she acts on an employer's ask for time; the grant
+    (`standing.interviews_enable`) is what lets the one outward press - the
+    Schedule button on a scheduling page - and the entry on his live
+    calendar happen without a tap. His words ride on both.
+    """
     state = status()
     state.pop("command", None)
     state.update({"on": True, "quote": quote, "since": stateio.utcnow()})
     _save(state)
     journal.append("decision", "interviews",
-                   "interview scheduling ON: an employer's ask for time gets a chosen slot in his window, "
-                   "a held reply and a pencilled hold" + (f" - his words: {quote}" if quote else ""), actor=via)
+                   "interview scheduling ON: a scheduling link is booked in his window and put on his calendar; "
+                   "an ask for time by email gets a chosen slot and a held reply"
+                   + (f" - his words: {quote}" if quote else ""), actor=via)
+    try:
+        from aletheia import standing
+        standing.interviews_enable(via=via, quote=quote)
+    except Exception as exc:
+        journal.append("alert", "interviews",
+                       f"the interviews grant could not be created ({type(exc).__name__}); booking will stop "
+                       "on the filled page until it exists", actor=via)
     return status()
 
 
@@ -88,6 +103,11 @@ def disable(*, via: str = "operator") -> dict:
     state["on"] = False
     _save(state)
     journal.append("decision", "interviews", "interview scheduling OFF", actor=via)
+    try:
+        from aletheia import standing
+        standing.interviews_disable(via=via)
+    except Exception:
+        pass
     return status()
 
 
@@ -215,8 +235,77 @@ def reply_text(*, his_name: str, company: str, chosen: dict | None, offers: list
 
 # ---- the act ---------------------------------------------------------------------
 
+def _book_the_link(url: str, event: dict, entry: dict, *, company: str, window: dict, busy, now: dt.datetime,
+                   known: dict, marker=None, notify=None, booker=None, calendar_writer=None) -> dict:
+    """Book the employer's scheduling link in his window; put it on his
+    calendars; tell him in one sentence. Every outcome is said, none is a
+    draft. Never raises past `consider`'s own guard."""
+    from aletheia import calendar as cal, calendly, mail, notifications
+    name = str(known.get("full_name") or known.get("name") or "").strip()
+    address = ""
+    try:
+        address = str(mail._config().get("address") or "").strip()
+    except Exception:
+        pass
+    address = address or str(known.get("email") or "").strip()
+    booker = booker or calendly.book
+    if not name or not address:
+        booking = {"state": "failed", "why": "his name or the Open Range address is not on file"}
+    else:
+        booking = booker(url, name=name, email=address, window=window, busy=busy, now=now, minutes=DURATION_MIN)
+    state = str(booking.get("state") or "failed")
+    chosen = booking.get("chosen") or {}
+    hold = None
+    live = {"state": "skipped", "say": ""}
+    if state == "booked":
+        eid = f"interview-{re.sub(r'[^a-z0-9]+', '-', company.casefold())[:30]}-{str(chosen.get('start', ''))[:10]}"
+        try:
+            hold = cal.create(eid, f"Interview: {company}", chosen["start"], chosen["end"], source="interviews",
+                              status="CONFIRMED", movable=False)
+        except FileExistsError:
+            hold = {"id": eid}
+        except Exception:
+            hold = None
+        live = (calendar_writer or calendly.put_on_his_calendar)(title=f"Interview: {company}",
+                                                                 start=chosen["start"], end=chosen["end"])
+        try:
+            from aletheia import apply_run
+            (marker or apply_run.mark)(entry["id"], "interview",
+                                       note=f"booked {said_when(chosen['start'], window)} on their scheduling page")
+        except Exception:
+            pass
+        sentence = (f"{company} sent a scheduling link. I booked {said_when(chosen['start'], window)} on it"
+                    + (" and it is on your calendar" if hold else "")
+                    + (f"; {live['say']}" if live.get("say") and live.get("state") != "written" else
+                       ("; " + live["say"] if live.get("say") else ""))
+                    + ".")
+    elif state == "needs_grant":
+        sentence = (f"{company} sent a scheduling link and {said_when(chosen['start'], window)} is open in your "
+                    f"window. Booking it needs your word once, at your keyboard: python -m aletheia.interviews on. "
+                    "The filled page is waiting; nothing was pressed.")
+    elif state == "no_slot":
+        sentence = (f"{company} sent a scheduling link, but none of their open times fall "
+                    f"{window_words(window)} on a weekday in the next {calendly.LOOK_AHEAD_DAYS} days. "
+                    f"The link is yours: {url}")
+    elif state == "unconfirmed":
+        sentence = (f"{company} sent a scheduling link. I pressed Schedule for "
+                    f"{said_when(chosen['start'], window)} and the page did not say it went through - "
+                    f"check the link before anything else is pressed: {url}")
+    else:
+        why = str(booking.get("why") or "the page did not behave like a booking page")
+        sentence = f"{company} sent a scheduling link and I could not book it ({why}). The link is yours: {url}"
+    (notify or notifications.publish)(
+        f"{company} wants to talk", sentence, priority="IMPORTANT", source="interviews",
+        about=notifications.CHANGED, dedupe_key=f"interview:{entry.get('id')}:{event.get('id')}",
+        related={"application": entry.get("id"), "event": (hold or {}).get("id", ""), "url": url})
+    journal.append("action" if state == "booked" else "event", "interviews", sentence, actor=ACTOR)
+    return {"state": state, "chosen": chosen or None, "hold": (hold or {}).get("id"), "live": live.get("state"),
+            "url": url}
+
+
 def consider(event: dict, entry: dict, *, subject: str, text: str = "", now: dt.datetime | None = None,
-             busy=None, drafter=None, holder=None, marker=None, notify=None, known: dict | None = None) -> dict:
+             busy=None, drafter=None, holder=None, marker=None, notify=None, known: dict | None = None,
+             booker=None, calendar_writer=None) -> dict:
     """An employer's ask for time, acted on when the switch is on. Never raises."""
     state = status()
     if not state["on"]:
@@ -230,6 +319,18 @@ def consider(event: dict, entry: dict, *, subject: str, text: str = "", now: dt.
             from aletheia import profile
             known = profile.known()
         company = str(entry.get("company") or "the employer")
+        # A SCHEDULING LINK IS BOOKED, NOT ANSWERED. His words, 2026-09-24:
+        # "If someone sends us a Calendly link, she can put 1 to 2.30 p.m.
+        # Central on there. And as long as she puts it on the calendar, the
+        # Open Range Interactive Calendar, I'm fine with that. She shouldn't
+        # send anything to outside correspondence yet." The site confirms
+        # the booking itself, so no reply is drafted for it.
+        from aletheia import calendly
+        links = calendly.find_scheduling_links(text) if text else []
+        if links:
+            return _book_the_link(links[0], event, entry, company=company, window=window, busy=busy,
+                                  now=now, known=known, marker=marker, notify=notify, booker=booker,
+                                  calendar_writer=calendar_writer)
         proposed: list[dict] = []
         if text:
             from aletheia import reply_understanding as ru
