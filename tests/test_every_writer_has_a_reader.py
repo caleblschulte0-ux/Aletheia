@@ -128,6 +128,9 @@ READER_FOR = {
     # His "handled" on a red project is read back by the brief and by "is
     # anything broken": the fault is said as handled, not as red.
     "fault_ack": "brief",
+    # A cleared browser mission is read back by "how are my missions": left,
+    # with the reason he gave it.
+    "mission_leave": "missions",
     # "Open it" writes nothing of hers: a page opens on his own screen and
     # the journal line ("opened jobs.example.com for ...") is what "what did
     # you do" reads back. No store, so no reader to name.

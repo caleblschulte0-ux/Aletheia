@@ -66,6 +66,10 @@ NOT_HIS = ("NO_WAY_FORWARD", "APPROVAL_DENIED", "POSTING_CLOSED", "OUT_OF_STEPS"
 HIS_KINDS = ("CAPTCHA", "SIGN_IN", "QUESTIONS", "WAITING_FOR_CODE", "NO_VAULT",
              "ACCOUNT_CREATION_APPROVAL")
 LEAVE_AFTER_S = 48 * 3600
+#: Of his kinds, the ones that on a JOB application are not his after all: a
+#: human check and a sign-in are walls she cannot pass, and he is not
+#: going to pass them for her one job at a time (2026-09-23).
+NOT_HIS_ON_A_JOB = ("CAPTCHA", "SIGN_IN")
 _KIND_WORDS = {"NO_WAY_FORWARD": "no way forward on the page", "APPROVAL_DENIED": "you said no",
                "POSTING_CLOSED": "the posting closed", "OUT_OF_STEPS": "she ran out of steps",
                "GOING_IN_CIRCLES": "she was going in circles", "ERROR": "the page broke",
@@ -77,6 +81,31 @@ _KIND_WORDS = {"NO_WAY_FORWARD": "no way forward on the page", "APPROVAL_DENIED"
 
 def kind_words(kind: str) -> str:
     return _KIND_WORDS.get(str(kind or ""), str(kind or "").replace("_", " ").casefold() or "a boundary")
+
+
+def _is_job(record: dict) -> bool:
+    try:
+        from aletheia import jobs_grant
+        return jobs_grant.is_job_mission(record)
+    except Exception:
+        return str(record.get("id") or "").startswith("bm-apply-for-this-job")
+
+
+def leave(mid: str, because: str, *, via: str = "operator") -> dict:
+    """His "Clear" on one mission: left, said, and never pressed again.
+    Raises KeyError when there is no such mission."""
+    if not exists(mid):
+        raise KeyError(mid)
+    record = load(mid)
+    if record.get("state") in (LEFT, DONE):
+        return record
+    record["state"] = LEFT
+    record["left_because"] = because
+    record["left_at"] = stateio.utcnow()
+    save(record)
+    goal = " ".join(str(record.get("goal") or mid).split())[:80]
+    journal.append("action", "browser", f"cleared: {goal} - {because}", actor=via)
+    return record
 
 
 def leave_walls(now: dt.datetime | None = None) -> list[dict]:
@@ -91,6 +120,14 @@ def leave_walls(now: dt.datetime | None = None) -> list[dict]:
         kind = str(boundary.get("kind") or "UNKNOWN")
         if kind in NOT_HIS:
             because = f"nothing more she could do here: {kind_words(kind)}"
+        elif kind in NOT_HIS_ON_A_JOB and _is_job(record):
+            # His words, 2026-09-23 evening, about a page of "needs you" cards
+            # stopped at CAPTCHAs on job applications: "If I wanted a bot to
+            # take me to websites where the jobs are and not actually apply
+            # to them for me, I wouldn't be here." A human check or a sign-in
+            # on a job application is not his to do; it is left now and the
+            # next opening is tried.
+            because = f"{kind_words(kind)} on a job application, which is not yours to do"
         else:
             age = _age_s(boundary.get("at") or record.get("beat"), now)
             if age is None or age < LEAVE_AFTER_S:
