@@ -2566,9 +2566,18 @@ def _notify_count() -> str:
         return "I can't read my notifications right now."
     if not rows:
         return "No unread notifications."
-    named = [speech.notice_line(n) for n in rows[:3]]
-    return (f"{speech.count_phrase(len(rows), 'unread notification')}: " + "; ".join(named)
-            + (f"; and {len(rows) - 3} more" if len(rows) > 3 else "") + ".")
+    # BY STORY, not one by one: live 2026-09-24 this said "500 unread
+    # notifications: ...; and 497 more". The page folds the same way.
+    folded = notifications.folded(rows)
+    named = []
+    for n in folded[:4]:
+        line = speech.notice_line(n)
+        count = int(n.get("count") or 1)
+        named.append(f"{line} and {count - 1} more like it" if count > 1 and not n.get("stale")
+                     else f"{count} older ones you never opened" if n.get("stale") else line)
+    total = f"at least {len(rows)}" if len(rows) >= 500 else str(len(rows))
+    return (f"{total} unread notification{'s' if len(rows) != 1 else ''}: " + "; ".join(named)
+            + (f"; and {len(folded) - 4} more" if len(folded) > 4 else "") + ".")
 
 
 def _jobs_left() -> str:

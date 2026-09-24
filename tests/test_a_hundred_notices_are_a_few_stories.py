@@ -41,6 +41,28 @@ class AStoryIsOneRow(unittest.TestCase):
         self.assertEqual((idea["count"], idea["ids"]), (3, ["notice-0001", "notice-0003", "notice-0004"]))
         self.assertNotIn("count", out[1], "two of a kind are still two rows")
 
+    def test_everything_older_than_a_week_is_one_last_row(self):
+        rows = [_n(1, "An idea for Stripe", "pursuit:opp-1:idea", "2026-09-24T10:00:00Z"),
+                _n(2, "Reminder", "", "2026-09-01T10:00:00Z"),
+                _n(3, "Application sent", "", "2026-08-30T10:00:00Z"),
+                _n(4, "An idea for Ramp", "pursuit:opp-2:idea", "2026-09-23T10:00:00Z")]
+        out = notifications.folded(rows, now="2026-09-24T12:00:00Z")
+        self.assertEqual([r["id"] for r in out], ["notice-0001", "notice-0004", "notice-0002"])
+        old = out[-1]
+        self.assertEqual((old["title"], old["count"], old["ids"], old["stale"]),
+                         (notifications.STALE_TITLE, 2, ["notice-0002", "notice-0003"], True))
+        self.assertNotIn("count", out[0])
+
+    def test_the_count_is_said_by_story(self):
+        from aletheia import quick
+        rows = [_n(i, f"An idea for Company {i}", f"pursuit:opp-{i}:idea", "2026-09-24T10:00:00Z") for i in range(1, 8)]
+        rows.append(_n(9, "Reminder", "", "2026-09-24T11:00:00Z"))
+        with mock.patch("aletheia.notifications.all_notifications", return_value=rows), \
+                mock.patch("aletheia.notifications.utcnow", return_value="2026-09-24T12:00:00Z"):
+            said = quick.answer("how many notifications do I have")
+        # "Reminder" is a category title, so the line is its body.
+        self.assertEqual(said, "8 unread notifications: An idea for Company 1 and 6 more like it; body 9.")
+
     def test_the_route_folds_and_counts_the_whole_list(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)

@@ -207,16 +207,38 @@ def story_of(notice: dict) -> str:
     return stem or title
 
 
-def folded(rows: list[dict], at: int = FOLD_AT) -> list[dict]:
+#: A notice nobody opened in this many days is not news any more; the page
+#: shows those as one row at the end rather than hundreds of cards.
+STALE_DAYS = 7
+STALE_TITLE = "Older things you never opened"
+
+
+def folded(rows: list[dict], at: int = FOLD_AT, *, stale_days: int = STALE_DAYS,
+           now: str | None = None) -> list[dict]:
     """The page's list: notices of one story, `at` or more of them, become
     ONE row - the newest, carrying `count` and every `ids` it stands for.
     Live, 2026-09-24: "100 things worth seeing", sixty of them "An idea
-    for ..." from the pursuit. Order is kept; a story's row sits where its
-    newest notice was."""
+    for ..." from the pursuit - and 500 unread underneath, most of them
+    weeks old. Order is kept; a story's row sits where its newest notice
+    was; everything older than `stale_days` is one last row."""
+    import datetime as dt
+    cutoff = ""
+    if stale_days:
+        moment = dt.datetime.strptime(now or utcnow(), "%Y-%m-%dT%H:%M:%SZ") - dt.timedelta(days=int(stale_days))
+        cutoff = moment.strftime("%Y-%m-%dT%H:%M:%SZ")
+    stale = [r for r in rows if cutoff and str(r.get("created_at") or "") < cutoff]
+    rows = [r for r in rows if not (cutoff and str(r.get("created_at") or "") < cutoff)]
     groups: dict[str, list[dict]] = {}
     for row in rows:
         groups.setdefault(story_of(row), []).append(row)
     out, seen = [], set()
+    if stale:
+        old = dict(stale[0])
+        old.update({"title": STALE_TITLE, "says": STALE_TITLE, "body": "", "count": len(stale),
+                    "ids": [str(m.get("id") or "") for m in stale], "stale": True})
+        tail = [old]
+    else:
+        tail = []
     for row in rows:
         story = story_of(row)
         if story in seen:
@@ -230,7 +252,7 @@ def folded(rows: list[dict], at: int = FOLD_AT) -> list[dict]:
         first["count"] = len(members)
         first["ids"] = [str(m.get("id") or "") for m in members]
         out.append(first)
-    return out
+    return out + tail
 
 
 def supersede(topic: str, *, by: str, keys: tuple[str, ...] = ()) -> list[str]:
