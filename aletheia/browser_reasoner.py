@@ -61,6 +61,40 @@ class BrowserReasonerUnavailable(RuntimeError):
     pass
 
 
+#: After a failed attempt the browser path is not tried again for this long.
+#: Like `reasoner.ClaudeResting`: the failure is remembered, not re-learned
+#: one round trip per question.
+REST_S = 10 * 60
+
+
+def _rest_path():
+    from aletheia import stateio
+    return stateio.private_dir("browser_reasoner") / "rest.json"
+
+
+def resting_until() -> str:
+    """The stamp the browser path rests until, or "" when it may be asked."""
+    try:
+        raw = json.loads(_rest_path().read_text(encoding="utf-8"))
+        until = str(raw.get("until") or "")
+    except (OSError, ValueError, AttributeError):
+        return ""
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    return until if until > now else ""
+
+
+def rest(*, why: str = "", seconds: float = REST_S) -> None:
+    """Remember that the browser path just failed. Never raises."""
+    try:
+        from aletheia import stateio
+        path = _rest_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        until = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + float(seconds)))
+        stateio.write_json_atomic(path, {"until": until, "why": str(why)[:200]})
+    except Exception:
+        pass
+
+
 def operator_lease_enabled() -> bool:
     """Whether THIS process was explicitly allowed to open visible ChatGPT.
 
@@ -408,6 +442,13 @@ def infer_json(system_prompt: str, text: str, *, context: dict | None = None,
     ok, why = browse.available()
     if not ok:
         raise BrowserReasonerUnavailable(f"browser unavailable ({why})")
+    rested = resting_until()
+    if rested:
+        # It failed a moment ago; asking again pays the whole round trip -
+        # Chrome up, chatgpt.com loaded, the editor waited for - to learn
+        # the same thing, and every question in the room waits behind it.
+        raise BrowserReasonerUnavailable(f"ChatGPT in the browser could not answer a moment ago; "
+                                         f"not asking it again until {rested[11:16]}Z")
     prompt = _compose(system_prompt, text, context)
     try:
         with _subscription_session() as ctx:
@@ -435,7 +476,9 @@ def infer_json(system_prompt: str, text: str, *, context: dict | None = None,
                 return _infer_page(page, prompt, timeout_s=response_budget)
             finally:
                 page.close()
-    except BrowserReasonerUnavailable:
+    except BrowserReasonerUnavailable as exc:
+        rest(why=str(exc))
         raise
     except Exception:
+        rest(why="ChatGPT browser reasoning failed locally")
         raise BrowserReasonerUnavailable("ChatGPT browser reasoning failed locally") from None

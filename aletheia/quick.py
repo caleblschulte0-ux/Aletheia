@@ -256,7 +256,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:what|which) (?:companies|employers|places|jobs) have i applied (?:to|for)(?: so far| this week| today)?$"
         r"|^where have i applied(?: so far| this week| today)?$"
         r"|^(?:who|what) have (?:you|u) applied (?:to|for)(?: for me)?(?: so far| this week| today)?$"
-        r"|^(?:what|who|where) did (?:you|u|we) apply(?: (?:to|for))?(?: for me)?(?: today| this week| tonight| so far)?$"
+        r"|^(?:what|who|where) did (?:you|u|we) apply(?: (?:to|for))?(?: for me)?(?: this week| so far)?$"
         r"|^(?:list|show me|name) (?:the |my )?(?:companies|employers|places) (?:i|you|u|we)(?:'ve| have)? applied to$")),
     ("applied_when", re.compile(
         r"^when did (?:i|you|u|we) apply (?:to|for|at) (?:the |my )?(?P<what>[a-z0-9][a-z0-9 .&'-]{1,40}?)"
@@ -717,6 +717,28 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # The drafts she holds for his send (mail.draft held=True): his 2026-09-23
     # ruling lets her draft to his own inbox and not send, so "what have you
     # drafted" has to have an answer from the store.
+    # OUTWARD MAIL IS ON HOLD (his 2026-09-24 ruling). "Are you sending
+    # emails" waited 92 s on a model that could not answer and then said
+    # "I could not plan that"; the answer is a file she holds.
+    ("sending", re.compile(
+        r"^(?:are|do|will|can) (?:you|u) (?:sending|send|going to send) (?:any |out )?(?:emails?|mail|messages)"
+        r"(?: right now| now| yet| for me)?\s*\??$"
+        r"|^is (?:outward |outgoing )?(?:mail|email) (?:on hold|held|paused|stopped)\s*\??$"
+        r"|^(?:are|is) (?:emails?|mail) (?:on hold|held)\s*\??$")),
+    # WHICH JOBS TODAY. "Which jobs did you apply to today" went to a model
+    # for a list that is in her own records (92 s, then nothing); the
+    # all-time list ("applied_to", above) did not know the day words.
+    ("applied_on", re.compile(
+        r"^(?:which|what) (?:jobs|applications|companies|employers|roles|positions) (?:did|have) (?:you|u|we) "
+        r"(?:apply|applied)(?: to| for)?(?: for me)? (?P<applied_on>today|yesterday|so far today|tonight)\s*\??$"
+        r"|^(?:who|where|what) (?:did|have) (?:you|u|we) (?:apply|applied)(?: to| for)?(?: for me)? (?P<applied_on2>today|yesterday|tonight)\s*\??$"
+        r"|^(?:list|show me|read me) (?P<applied_on3>today'?s?|yesterday'?s?) (?:applications|jobs)\s*\??$")),
+    # HER OWN MACHINE. "How much memory do you have free" is a number she
+    # can read in a millisecond, and it says which of her own models fits.
+    ("memory_free", re.compile(
+        r"^how much (?:memory|ram) (?:do (?:you|u) have|is|have (?:you|u) got) (?:free|left|available)\s*\??$"
+        r"|^how much free (?:memory|ram) (?:do (?:you|u) have|is there)\s*\??$"
+        r"|^(?:what(?:'s| is)|how(?:'s| is)) (?:your|the) (?:free )?(?:memory|ram)(?: (?:situation|looking))?\s*\??$")),
     ("drafts", re.compile(
         r"^(?:what|which)(?: emails?| notes?)? (?:have (?:you|u)|did (?:you|u)) draft(?:ed)?(?: for me)?\s*\??$"
         r"|^(?:any|what|list|show me|read me) (?:my |your |the )?drafts?(?: (?:do (?:you|u) have|waiting|for me|held))?\s*\??$"
@@ -781,7 +803,8 @@ def match(question: str) -> tuple[str, str] | None:
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "date_of", "date_of2", "date_of3",
-                                           "recall", "recall2", "recall3", "recall4")
+                                           "recall", "recall2", "recall3", "recall4",
+                                           "applied_on", "applied_on2", "applied_on3")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
@@ -2190,6 +2213,73 @@ def _drafts() -> str:
     return mail.held_drafts_words()
 
 
+def _sending() -> str:
+    """Whether outward mail goes out right now, from the hold she keeps."""
+    from aletheia import mail, speech
+    hold = mail.outward_hold()
+    try:
+        held = [r for r in mail.drafts_ledger() if not r.get("superseded_by")]
+    except Exception:
+        held = []
+    if hold["on"]:
+        return ("No. Outward mail is on hold since you said so - I draft and keep, nothing goes out"
+                + (f"; {speech.count_phrase(len(held), 'draft')} held" if held else "")
+                + ". Lifting it is yours, at the keyboard.")
+    return ("Yes, when you approve one: an approved draft goes out on my next beat"
+            + (f"; {speech.count_phrase(len(held), 'draft')} still held" if held else "") + ".")
+
+
+def _applied_on(rest) -> str:
+    """Which jobs went out today (or yesterday), from her own records."""
+    import datetime as dt
+    from aletheia import apply_run, localtime, speech
+    when = "yesterday" if "yesterday" in str(rest or "").casefold() else "today"
+    tz = localtime.operator_tz()
+    day = (dt.datetime.now(tz) - dt.timedelta(days=1 if when == "yesterday" else 0)).date()
+    try:
+        rows = apply_run.all_runs("SUBMITTED")
+    except Exception:
+        return "I can't read my application records right now."
+    sent = []
+    for r in rows:
+        stamp = str(r.get("submitted_at") or "")
+        try:
+            local = dt.datetime.fromisoformat(stamp.replace("Z", "+00:00")).astimezone(tz).date()
+        except ValueError:
+            continue
+        if local != day:
+            continue
+        company = " ".join(str(r.get("company") or "").split())
+        title = " ".join(str(r.get("job_title") or r.get("title") or "").split())
+        sent.append((company, title))
+    if not sent:
+        return f"Nothing went out {when}."
+    said = []
+    for company, title in sent[:6]:
+        said.append(f"{title} at {company}" if company and title else (company or title or "one I did not name"))
+    return (f"{speech.count_phrase(len(sent), 'application')} went out {when}: {speech.and_list(said)}"
+            + (f", and {len(sent) - 6} more" if len(sent) > 6 else "") + ".")
+
+
+def _memory_free() -> str:
+    """Her machine's free memory, and which of her own models fits in it."""
+    try:
+        import psutil
+        vm = psutil.virtual_memory()
+        free, total = vm.available / 1e9, vm.total / 1e9
+    except Exception:
+        return "I can't read this machine's memory right now."
+    said = f"{free:.1f} GB free of {total:.0f}."
+    try:
+        from aletheia import reasoner
+        role, why = reasoner.local_role_that_fits()
+        said += (f" My {'bigger' if role == 'fast' else 'smaller'} model fits right now." if role
+                 else f" Neither of my own models fits right now ({why}).")
+    except Exception:
+        pass
+    return said
+
+
 def _notes_list() -> str:
     from aletheia import speech
     rows = _notes()
@@ -2894,6 +2984,9 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "home": lambda rest: _home(),
            "notes_list": lambda rest: _notes_list(),
            "drafts": lambda rest: _drafts(),
+           "sending": lambda rest: _sending(),
+           "applied_on": _applied_on,
+           "memory_free": lambda rest: _memory_free(),
            "recall": _recall,
            "friction": lambda rest: _friction(),
            "replies": lambda rest: _replies(),

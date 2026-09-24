@@ -47,6 +47,9 @@ from aletheia.fleet import REPO_ROOT
 
 PROFILE_DIR = REPO_ROOT / "cache" / "browser-profile"
 DEFAULT_TIMEOUT_MS = 20_000
+#: How long a session's close may take before the browser is killed instead
+#: (measured 2026-09-24: a close that waited 90 s for Chrome to go away).
+CLOSE_TIMEOUT_S = 10.0
 MAX_TEXT = 20_000
 
 # steps interact() accepts; anything else is refused before the browser opens
@@ -480,6 +483,31 @@ class _Session:
             raise
         return self.context
 
+    def _close_bounded(self) -> None:
+        """`context.close()`, but never for long.
+
+        Measured 2026-09-24 with the frontier hidden: a ChatGPT-browser
+        attempt that failed in 0.2 s spent 90 s in this close - Chrome not
+        going away, Playwright waiting for it - and every question in the
+        room waited those 90 s behind it. The close gets CLOSE_TIMEOUT_S;
+        past that the browser in this profile is killed (we hold the
+        profile lock, so it is nobody's) and the session moves on.
+        """
+        import threading
+        # Playwright's sync objects belong to the thread that made them, so
+        # the close itself stays HERE; the watchdog only kills processes,
+        # which any thread may do. A killed Chrome makes the close return
+        # with a "browser has been closed" error, which is the outcome
+        # wanted and is read as closed by the caller.
+        profile = self.profile
+        watchdog = threading.Timer(CLOSE_TIMEOUT_S, lambda: _close_orphans(profile))
+        watchdog.daemon = True
+        watchdog.start()
+        try:
+            self.context.close()
+        finally:
+            watchdog.cancel()
+
     def _abandon(self) -> None:
         pw, self._pw = self._pw, None
         if pw:
@@ -493,7 +521,7 @@ class _Session:
         try:
             if self.context:
                 try:
-                    self.context.close()
+                    self._close_bounded()
                 except Exception as close_exc:
                     if not _closed_browser_error(close_exc):
                         raise
