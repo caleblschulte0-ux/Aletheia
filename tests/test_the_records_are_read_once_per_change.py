@@ -26,8 +26,8 @@ class ReadOncePerChange(unittest.TestCase):
         self.d = Path(tmp.name)
         env = mock.patch.dict(os.environ, {"ALETHEIA_PRIVATE_STATE": str(self.d)})
         env.start(); self.addCleanup(env.stop)
-        apply_run._RUNS_CACHE.update({"key": None, "rows": [], "checked": 0.0})
-        self.addCleanup(lambda: apply_run._RUNS_CACHE.update({"key": None, "rows": [], "checked": 0.0}))
+        apply_run._RUNS_CACHE.update({"key": None, "rows": []})
+        self.addCleanup(lambda: apply_run._RUNS_CACHE.update({"key": None, "rows": []}))
 
     def _drop(self, run_id: str, state: str = "AWAITING_YOU") -> None:
         d = apply_run.staged_dir()
@@ -47,11 +47,10 @@ class ReadOncePerChange(unittest.TestCase):
         apply_run._write_record("apply-2", {"id": "apply-2", "state": "SUBMITTED"})
         self.assertEqual(sorted(r["id"] for r in apply_run.all_runs()), ["apply-1", "apply-2"])
 
-    def test_another_processes_write_is_seen_once_the_trust_window_passes(self):
+    def test_another_processes_write_is_seen_at_once(self):
         self._drop("apply-1")
         apply_run.all_runs()
-        self._drop("apply-3")
-        apply_run._RUNS_CACHE["checked"] -= 10.0          # the two seconds have passed
+        self._drop("apply-3")                               # a new file moves the directory's mtime
         self.assertEqual(sorted(r["id"] for r in apply_run.all_runs()), ["apply-1", "apply-3"])
 
     def test_a_caller_editing_a_row_does_not_edit_the_cache(self):

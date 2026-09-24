@@ -707,8 +707,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("bare_yes_no", re.compile(
         # never "approve", "deny", "go ahead", "do it": those are verbs the
         # decision rules own, and real work is never claimed here
-        # "ok", "sure" and "fine" are filler, left alone (test_filler_and_nudges).
-        r"^(?:no|nope|nah|yes|yeah|yep)\s*[.!]?$")),
+        # "ok", "sure", "fine", "yeah", "yep" are filler or television, left
+        # alone (test_filler_and_nudges, test_she_says_nothing_to_the_television).
+        r"^(?:no|yes)\s*[.!]?$")),
     # WHAT SHE CHANGED, LEARNED AND WROTE TODAY - three journal reads that
     # went to a model (fifth battery, 2026-09-24).
     ("changed_today", re.compile(

@@ -30,8 +30,9 @@ class ANounPhraseIsNotAVerb(unittest.TestCase):
         self.assertEqual(said, "I can't look at the desktop yet.")
 
     def test_an_unknown_id_is_never_read_out_raw(self):
-        self.assertEqual(intents._in_english("social.publish"), "a way to publish social")
-        self.assertNotIn("social.publish", intents._in_english("social.publish"))
+        # An id the registry has never heard of (social.publish is in it now).
+        self.assertEqual(intents._in_english("moon.landing"), "a way to landing moon")
+        self.assertNotIn("moon.landing", intents._in_english("moon.landing"))
 
 
 if __name__ == "__main__":

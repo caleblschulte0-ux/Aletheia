@@ -282,8 +282,11 @@ def _row(entry: dict) -> dict:
                 else f"{subject}: {said}")
     what = _SELF_LABEL.sub("", what).strip() or what
     what = _whole_words(what, TEXT_CHARS)
-    if what[:1].islower():
-        what = what[:1].upper() + what[1:]     # a row is a sentence, not a fragment
+    if head in ("apply", "jobs") and what[:1].islower():
+        # Their lines start mid-sentence ("was refused by the site at ...");
+        # every other subject keeps its own first word - "refused — no
+        # address" and "repo:aletheia: ..." are read exactly as written.
+        what = what[:1].upper() + what[1:]
     return {"at": _local(entry.get("ts", "")),
             "kind": entry.get("kind", ""),
             "who": entry.get("actor", ""),

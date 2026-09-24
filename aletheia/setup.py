@@ -125,6 +125,14 @@ def _room() -> tuple[str, str]:
     return (OK, detail[:160]) if reachable else (BROKEN, detail[:160])
 
 
+def _instagram() -> tuple[str, str]:
+    """Checked from the stores: the user id and the token's NAME in the
+    vault. Never a call to Instagram - that is a post, and a post is his."""
+    from aletheia import instagram
+    ok, why = instagram.available()
+    return (OK, why[:160]) if ok else (MISSING, why[:160])
+
+
 def _remote() -> tuple[str, str]:
     """Two topologies reach the phone, and the check must know both.
 
@@ -444,6 +452,18 @@ def steps() -> list[Step]:
               "If you do not run one, this is not a five-minute task — it is "
               "installing a home automation platform. Skip it until you want one."],
              _room, optional=True),
+        Step("social.publish", "Instagram", 20,
+             "Posting pictures to your Instagram on her own - his words, 2026-09-24. "
+             "Three things are yours: the account has to be a professional account, a Meta "
+             "developer app has to hold the instagram_content_publish permission for it, and "
+             "the token and user id go here once.",
+             ["In the Instagram app: Settings -> Account type and tools -> Switch to professional account.",
+              "At developers.facebook.com: create an app with the Instagram API use case, add the "
+              "instagram_content_publish permission, generate a long-lived access token.",
+              "  python -m aletheia.secret_store put instagram.token --provider instagram --kind api_token",
+              "  python -m aletheia.instagram configure <instagram-user-id> --username <handle>",
+              "Then: python -m aletheia.instagram status"],
+             _instagram, optional=True),
         Step("access.remote", "Your phone reaching me", 10,
              "The phone surface has existed since Phase 21 and no phone could "
              "load it.",
@@ -611,6 +631,7 @@ _SAID_AS = {
     "access.remote": ("phone", "iphone", "tailscale", "remote"),
     "phone.call": ("call", "calls", "calling"),
     "room.scene": ("lights", "room", "home assistant", "scenes"),
+    "social.publish": ("instagram", "posting", "meta", "posts"),
     "media.edit": ("video", "ffmpeg", "media"),
     "reason.chatgpt_browser": ("chatgpt", "backup brain"),
     "voice.wall": ("microphone", "mic", "ears", "voice"),

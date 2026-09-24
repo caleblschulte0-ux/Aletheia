@@ -311,42 +311,30 @@ def load_run(run_id: str) -> dict:
 #: 3.7 s and 3.4 s a request - and the page said "Reconnecting…" over a
 #: Core that was fine. The fingerprint is the file count and the newest
 #: mtime, which every write and delete moves; a thousand stats cost 20 ms.
-_RUNS_CACHE: dict = {"key": None, "rows": [], "checked": 0.0}
-#: How long the fingerprint itself is trusted: a thousand stats cost 0.17 s
-#: on his disk, and the page's four requests land within a second of each
-#: other. Her own writes in this process forget the cache at once
-#: (`_write_record`); another process's write is seen within this long.
-_RUNS_TRUST_S = 2.0
+_RUNS_CACHE: dict = {"key": None, "rows": []}
 
 
 def _write_record(run_id: str, record: dict) -> None:
     stateio.write_json_atomic(_record_path(run_id), record)
-    _RUNS_CACHE["key"], _RUNS_CACHE["checked"] = None, 0.0
+    _RUNS_CACHE["key"] = None
 
 
 def _fingerprint(directory) -> tuple:
-    newest, count = 0, 0
-    for path in directory.glob("*.json"):
-        count += 1
-        try:
-            stamp = path.stat().st_mtime_ns
-        except OSError:
-            continue
-        if stamp > newest:
-            newest = stamp
-    return (str(directory), count, newest)
+    """ONE stat: every record is written by `write_json_atomic`, which renames
+    a temp file into place, and a rename, a create or a delete moves the
+    directory's own mtime. A thousand per-file stats cost 0.17 s on his disk;
+    this costs nothing, and a write by another process is seen at once."""
+    try:
+        return (str(directory), directory.stat().st_mtime_ns)
+    except OSError:
+        return (str(directory), 0)
 
 
 def all_runs(state: str | None = None) -> list[dict]:
-    import time as _time
     directory = staged_dir()
     if not directory.is_dir():
         return []
-    now = _time.monotonic()
-    fresh = (_RUNS_CACHE["key"] is not None and _RUNS_CACHE["key"][0] == str(directory)
-             and now - _RUNS_CACHE["checked"] < _RUNS_TRUST_S)
-    key = _RUNS_CACHE["key"] if fresh else _fingerprint(directory)
-    _RUNS_CACHE["checked"] = now
+    key = _fingerprint(directory)
     if _RUNS_CACHE["key"] != key:
         rows = []
         for path in sorted(directory.glob("*.json")):
