@@ -1284,6 +1284,31 @@ def _reminder_list_words(rows: list) -> str:
     return f"{lead} {speech.and_list(said)}{tail}."
 
 
+#: The subject a forgotten note's tombstone carries. `quick._notes` skips a
+#: note whose text a later tombstone names.
+FORGOTTEN_SUBJECT = "operator:forgotten"
+
+
+def _forget_note(about: str) -> str:
+    """Tombstone the newest note that says what `about` names; return its
+    text, or "" when no note matches. Never raises."""
+    try:
+        from aletheia import journal, quick
+        words = [w for w in re.findall(r"[a-z0-9']+", str(about or "").casefold())
+                 if w not in ("my", "the", "about", "what", "you", "know", "everything")]
+        if not words:
+            return ""
+        for row in quick._notes():
+            text = str(row.get("text") or "")
+            low = text.casefold()
+            if all(w in low for w in words):
+                journal.append("note", FORGOTTEN_SUBJECT, text[:300], actor="operator")
+                return " ".join(text.split())[:160]
+    except Exception:
+        return ""
+    return ""
+
+
 def _remembered_matching(about: str, domain: str | None = None):
     """(domain, key, value) for everything she has that he could mean.
 
@@ -2278,6 +2303,14 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         about = " ".join(str(cmd.get("about") or "").split())
         hits = _remembered_matching(about, cmd.get("domain"))
         if not hits:
+            # A NOTE IS FORGETTABLE TOO. "Remember that my sister's name is
+            # Dana" is kept as a note, "what's my sister's name" reads it
+            # back, and "forget my sister's name" said she had nothing
+            # (2026-09-24). The journal is append-only, so a forgotten note
+            # gets a tombstone line the readers honour.
+            gone = _forget_note(about)
+            if gone:
+                return f"Forgotten: {gone}."
             # AN EMPTY ANSWER STILL PROVES THE STORE, and here it matters
             # twice: "I forgot it" about something she never had would
             # leave him believing a fact is gone that is still there.

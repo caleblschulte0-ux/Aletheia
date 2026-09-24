@@ -82,7 +82,12 @@ def said(alert: dict, repo: dict | None = None, *, now: dt.datetime | None = Non
             wf = workflows.get(name) if isinstance(workflows.get(name), dict) else {}
             verdict = str(wf.get("conclusion") or "failed").replace("_", " ")
             when = _ago(str(wf.get("updated_at") or ""), now)
-            bits.append(f"{short} {verdict if verdict != 'failure' else 'failed'}" + (f" {when}" if when else ""))
+            # The run's own words, when the pulse caught them: "partial day
+            # (4 uploaded) - run is RED for repair visibility" says more than
+            # "failed" ever will.
+            own = " ".join(str(wf.get("said") or "").split())
+            bits.append(f"{short} {verdict if verdict != 'failure' else 'failed'}" + (f" {when}" if when else "")
+                        + (f" - {own[:160].rstrip('.')}" if own else ""))
         parts.append("; ".join(bits))
     missing = [str(m) for m in alert.get("missing") or []]
     if missing:

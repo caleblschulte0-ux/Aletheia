@@ -190,3 +190,6 @@
 {"ts": "2026-09-24T03:40:44Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:schwab_trader", "text": "health red -> green"}
 {"ts": "2026-09-24T04:59:20Z", "kind": "event", "actor": "aletheia", "subject": "repo:aletheia", "text": "health unknown -> green"}
 {"ts": "2026-09-24T15:40:03Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-09-24"}
+{"ts": "2026-09-24T21:34:50Z", "kind": "event", "actor": "aletheia", "subject": "repo:aletheia", "text": "health green -> unknown"}
+{"ts": "2026-09-24T21:34:50Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:shorts_pipeline", "text": "health red -> green"}
+{"ts": "2026-09-24T21:34:51Z", "kind": "recovery", "actor": "aletheia", "subject": "sentinel", "text": "fleet recovered — alert issue closed"}

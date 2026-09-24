@@ -1,32 +1,32 @@
 # Fleet briefing
 
-Generated 2026-09-24T17:16:52Z from fleet registry rev 5 via GitHubSource.
+Generated 2026-09-24T21:34:39Z from fleet registry rev 5 via GitHubSource.
 
-## 🟢 `Aletheia` — hub (active)
+## ⚪ `Aletheia` — hub (active)
 
 The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.
 
-Last commit `131e9fe60404` at 2026-09-24T15:40:05Z: brief: 2026-09-24
+Last commit `4caa04f0ed02` at 2026-09-24T17:17:08Z: pulse: 2026-09-24T17:17Z
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-09-24T17:16:47Z
-- `ci.yml`: success at 2026-09-24T15:35:53Z
+- `pulse.yml`: in_progress at 2026-09-24T21:34:37Z
+- `ci.yml`: in_progress at 2026-09-24T21:33:54Z
 
-## 🔴 `Shorts-pipeline` — youtube-automation (active)
+## 🟢 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `acafbe0e8718` at 2026-09-24T17:08:17Z: watchdog: chatgpt task verdicts 20260924 [skip ci]
+Last commit `6ff5bf5a5f28` at 2026-09-24T21:30:56Z: deadman: repaired 2026-09-24 [skip ci]
 
-Vitals — trending posted: 351 · explainer posted: 270 · third posted: 653 · curiosity posted: 1
+Vitals — trending posted: 351 · explainer posted: 270 · third posted: 661 · curiosity posted: 1
 
 Watched workflows:
-- `daily.yml`: failure at 2026-09-24T15:49:38Z
+- `daily.yml`: in_progress at 2026-09-24T21:31:00Z
 - `exchange_phase_a.yml`: success at 2026-09-24T14:25:40Z
-- `exchange_phase_b.yml`: success at 2026-09-24T14:46:52Z
-- `story_forge.yml`: success at 2026-09-24T10:11:27Z
-- `third.yml`: success at 2026-09-24T15:57:20Z
-- `explainer.yml`: success at 2026-09-24T14:40:58Z
+- `exchange_phase_b.yml`: success at 2026-09-24T18:30:14Z
+- `story_forge.yml`: success at 2026-09-24T20:37:41Z
+- `third.yml`: in_progress at 2026-09-24T21:30:57Z
+- `explainer.yml`: success at 2026-09-24T20:43:56Z
 - `retro.yml`: success at 2026-09-24T04:55:44Z
 - `doctor.yml`: success at 2026-09-24T09:56:56Z
 
@@ -34,7 +34,7 @@ Watched workflows:
 
 Guardrailed paper-trading system. The SELL brain and executor watchdog are active; the subscription-backed BUY brain and trade executor are intentionally paused until the operator resumes them.
 
-Last commit `ad2d7df07b68` at 2026-09-24T11:51:35Z: Merge pull request #21 from caleblschulte0-ux/claude/schwab-trading-integration-wRfeP
+Last commit `a47211bd3f39` at 2026-09-24T21:28:53Z: bot: daily snapshot [skip ci]
 Vitals withheld (5, on his own screen): realized P&L, win rate, closed trades, open positions, cash
 
 Watched workflows:

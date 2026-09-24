@@ -127,11 +127,22 @@ def action_shape(action: object) -> dict:
 
 def publish(title: str, body: str, *, priority: str = "NORMAL", source: str = "aletheia",
             dedupe_key: str | None = None, related: dict | None = None,
-            about: str = "", action: dict | None = None) -> dict:
+            about: str = "", action: dict | None = None, topic: str = "",
+            topic_keys: tuple[str, ...] = ()) -> dict:
     """File a notice. `about` decides whether it may interrupt him.
 
     The policy is applied HERE rather than at each call site, because a
     rule 42 callers have to remember is a rule that holds in 41 places.
+
+    `topic` names a running story ("jobs.batch"): a new notice on a topic
+    SUPERSEDES every unread one before it on the same topic, which is
+    marked READ with `superseded_by`. Live, 2026-09-24: sixty unread
+    notices, forty of them "Job applications need you" and twenty
+    "Applications going out", each one true when it was filed and every
+    one but the last stale the moment the next batch ran. A page saying
+    "100 things worth seeing" is a page he stops reading. `topic_keys` are
+    the dedupe-key prefixes the story used before it had a topic, so the
+    sixty already on his page are retired by the next line and not by hand.
     """
     priority = loudness(priority, about)
     # AND EVERY BODY GOES THROUGH THE SPEECH DOOR, for the same reason the
@@ -168,9 +179,37 @@ def publish(title: str, body: str, *, priority: str = "NORMAL", source: str = "a
         # something. Validated here so a stored notice never carries a
         # command the page would send blind.
         value["action"] = action_shape(action)
+    if topic:
+        value["topic"] = str(topic)
     validate(value)
+    if topic:
+        supersede(str(topic), by=notice_id, keys=tuple(topic_keys))
     write_json_atomic(path, value)
     return value
+
+
+def supersede(topic: str, *, by: str, keys: tuple[str, ...] = ()) -> list[str]:
+    """Mark every UNREAD notice on `topic` READ, naming the notice that
+    replaced it. Returns the ids it retired. A notice he ACKNOWLEDGED is
+    left alone (it is his record of having seen it), and a notice with no
+    topic is never touched - unless its dedupe key starts with one of
+    `keys`, the story's names from before it had a topic. Only a story
+    supersedes its own earlier lines."""
+    retired = []
+    for old in all_notifications(state="UNREAD", limit=500):
+        if old["id"] == by:
+            continue
+        mine = (old.get("topic") == topic
+                or (not old.get("topic") and bool(keys)
+                    and str(old.get("dedupe_key") or "").startswith(keys)))
+        if not mine:
+            continue
+        old["state"] = "READ"
+        old["superseded_by"] = by
+        old["updated_at"] = utcnow()
+        write_json_atomic(_path(old["id"]), old)
+        retired.append(old["id"])
+    return retired
 
 
 def load(notice_id: str) -> dict:

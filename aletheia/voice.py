@@ -2472,11 +2472,18 @@ def _interpret(transcript: str) -> dict:
     # every other switch here.
     if re.fullmatch(r"(?:you can )?use (?:my )?chat ?gpt(?: for this| too| as well)?"
                     r"|(?:ask|check with) chat ?gpt (?:too|as well|for a second opinion)"
-                    r"|turn on chat ?gpt|enable chat ?gpt", low):
+                    r"|turn on chat ?gpt|enable chat ?gpt"
+                    # "You can open ChatGPT again" - the words he uses to lift his own stop
+                    r"|(?:you can |it'?s (?:ok|okay|fine) to )?open(?:ing)? chat ?gpt(?: windows)? (?:again|is fine|is ok|is okay)"
+                    r"|chat ?gpt (?:windows )?(?:are|is) (?:fine|ok|okay)(?: again)?", low):
         return {"command": {"kind": "chatgpt_on"}, "say": None}
     if re.fullmatch(r"(?:stop|quit|don'?t) using (?:my )?chat ?gpt"
                     r"|turn off chat ?gpt|disable chat ?gpt"
-                    r"|(?:stop|no more) chat ?gpt", low):
+                    r"|(?:stop|no more) chat ?gpt"
+                    # His words, 2026-09-12, twice: "stop opening up ChatGPT windows". They
+                    # reached the planner with every model off (2026-09-24 battery).
+                    r"|(?:stop|quit|don'?t keep|don'?t|no more|i said stop) opening(?: up)? (?:the |my )?chat ?gpt(?: windows?| tabs?)?"
+                    r"|no (?:more )?chat ?gpt windows", low):
         return {"command": {"kind": "chatgpt_off"}, "say": None}
     if re.fullmatch(r"(?:are|r) (?:you|u) using (?:my )?chat ?gpt"
                     r"|chat ?gpt status|(?:can|could) (?:you|u) use "
