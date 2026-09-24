@@ -331,6 +331,22 @@ _SUCCESS = re.compile(
 _SIGN_IN_WALL = re.compile(
     r"(?:please |you must |you need to )?(?:sign|log) in to (?:continue|apply|proceed|view)|"
     r"sign in to your account|welcome back", re.I)
+def reads_as_sign_in(text: str, title: str = "") -> bool:
+    """Is this page the site's sign-in door, by its words alone?
+
+    For a page read AFTER a press, where there are no controls to classify
+    by. Live 2026-09-24 Workday answered "Apply" with its sign-in page -
+    "Sign In ... Create Account ... Email Address ... Password" - and the
+    press was recorded as a refusal, ten times on three hosts, because
+    "is required" sat on the password box.
+    """
+    head = f"{title or ''} {str(text or '')[:2500]}"
+    if _SIGN_IN_WALL.search(head):
+        return True
+    return bool(_SIGN_IN.search(head)
+                and (_SIGNUP_WORDS.search(head) or re.search(r"\bpassword\b", head, re.I)))
+
+
 _SIGNUP_WORDS = re.compile(
     r"create (?:an |your |a )?(?:new )?account|sign up|register(?:ing)? for|"
     r"create (?:a |your )?(?:candidate )?profile|set (?:up|a) password|new (?:user|member)", re.I)
