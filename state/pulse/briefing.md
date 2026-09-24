@@ -1,47 +1,45 @@
 # Fleet briefing
 
-Generated 2026-09-23T21:33:46Z from fleet registry rev 5 via GitHubSource.
+Generated 2026-09-24T03:40:32Z from fleet registry rev 5 via GitHubSource.
 
-## 🟢 `Aletheia` — hub (active)
+## ⚪ `Aletheia` — hub (active)
 
 The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.
 
-Last commit `4accfae75936` at 2026-09-23T19:16:32Z: Merge pull request #192 from caleblschulte0-ux/claude/a-note-names-a-person
+Last commit `06e059a169a0` at 2026-09-24T03:38:38Z: Merge pull request #202 from caleblschulte0-ux/claude/what-the-fault-is
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-09-23T21:33:41Z
-- `ci.yml`: success at 2026-09-23T19:36:15Z
+- `pulse.yml`: in_progress at 2026-09-24T03:40:29Z
+- `ci.yml`: in_progress at 2026-09-24T03:38:45Z
 
 ## 🔴 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `2e0405c3f60d` at 2026-09-23T21:06:54Z: exchange: phase A bundle for 20260923 [skip ci]
+Last commit `9e3d162e3758` at 2026-09-24T02:48:54Z: story_forge + longform: install pycairo's build libs before pip (#445)
 
 Vitals — trending posted: 347 · explainer posted: 266 · third posted: 635 · curiosity posted: 1
 
 Watched workflows:
 - `daily.yml`: failure at 2026-09-23T15:49:48Z
-- `exchange_phase_a.yml`: success at 2026-09-23T21:07:00Z
+- `exchange_phase_a.yml`: success at 2026-09-24T02:49:18Z
 - `exchange_phase_b.yml`: success at 2026-09-23T18:28:58Z
 - `story_forge.yml`: failure at 2026-09-23T20:29:18Z
 - `third.yml`: success at 2026-09-23T15:32:11Z
 - `explainer.yml`: success at 2026-09-23T20:36:32Z
-- `retro.yml`: success at 2026-09-23T04:48:12Z
+- `retro.yml`: success at 2026-09-24T01:22:11Z
 - `doctor.yml`: success at 2026-09-23T09:56:30Z
 
-## 🔴 `schwab-trader` — trading-bot (active)
+## 🟢 `schwab-trader` — trading-bot (active)
 
 Guardrailed paper-trading system. The SELL brain and executor watchdog are active; the subscription-backed BUY brain and trade executor are intentionally paused until the operator resumes them.
 
-Last commit `e239f4bea87a` at 2026-09-23T02:15:25Z: bot: daily snapshot [skip ci]
+Last commit `eb037c1f0c2c` at 2026-09-23T23:00:30Z: Merge pull request #20 from caleblschulte0-ux/claude/schwab-trading-integration-wRfeP
 Vitals withheld (5, on his own screen): realized P&L, win rate, closed trades, open positions, cash
 
 Watched workflows:
 - `sell-brain.yml`: success at 2026-09-22T18:37:07Z
-- `watchdog.yml`: success at 2026-09-22T23:05:15Z
-
-**Missing watched state files:** `signals/paper_account.json`
+- `watchdog.yml`: success at 2026-09-23T23:52:28Z
 
 ## 🟢 `Money_Machine` — product-ventures (active)
 
@@ -69,5 +67,5 @@ Last commit `41ea84afb060` at 2026-06-03T15:08:19Z: Initial commit
 - **Barkly** (`Money_Machine` @ `claude/barkley-mvp-mobile-qbegtj`, low risk): 0/8 steps; last human or builder commit 2026-09-23T14:39:43Z; next step 1 (thea): Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push
 - **Holdco platform** (`Money_Machine` @ `claude/ai-holdco-master-playbook-i5q80w`, low risk): 0/5 steps; last human or builder commit 2026-08-06T02:51:23Z; next step 1 (caleb): Pick the one offer to test first and write it as one sentence in docs/NEXT_OFFER.md on the holdco branch (or tell any Claude session to)
 - **Open Range demo films** (`Money_Machine` @ `claude/open-range-promo-video-4n7k7o`, low risk): 0/4 steps; last human or builder commit 2026-09-23T12:07:14Z; next step 1 (thea): Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open
-- **Schwab trader** (`schwab-trader` @ `main`, high risk): 0/5 steps; last human or builder commit 2026-09-23T02:14:41Z; next step 1 (caleb): Answer the sell approval waiting since June 26 (schwab-trader issue #5): comment approve, hold, or close it
+- **Schwab trader** (`schwab-trader` @ `main`, high risk): 0/5 steps; last human or builder commit 2026-09-23T23:00:30Z; next step 1 (caleb): Answer the sell approval waiting since June 26 (schwab-trader issue #5): comment approve, hold, or close it
 
