@@ -774,6 +774,14 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
         with mock.patch("aletheia.journal.entries", return_value=list(reversed(rows))):
             said = quick.answer("how many jobs did you find this week")
         self.assertTrue(said.startswith("303 openings found this week over 3 days, 33 worth applying to."), said)
+        # The mail verbs he says in the other word order.
+        from aletheia import voice
+        self.assertEqual(voice.interpret("thea read me the email from Stripe")["command"],
+                         {"kind": "email_read", "which": "Stripe"})
+        self.assertEqual(voice.interpret("thea draft a reply to Stripe saying thanks for the call")["command"],
+                         {"kind": "email_draft", "to": "Stripe", "body": "thanks for the call"})
+        self.assertEqual(voice.interpret("thea reply to Dana saying see you at 6")["command"]["kind"], "email_draft")
+        self.assertNotEqual((voice.interpret("thea read me the last email").get("command") or {}).get("which"), "last")
 
     def test_what_did_i_say_about_is_his_note(self):
         with mock.patch.object(quick, "_notes", return_value=[

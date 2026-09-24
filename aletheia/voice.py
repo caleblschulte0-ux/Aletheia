@@ -1924,8 +1924,11 @@ def _interpret(transcript: str) -> dict:
                 "say": None}
 
     # "Read me the DevRev email": the unread message that names them.
-    m = re.fullmatch(r"(?:read me|read|open|show me) (?:the |that |my )?(?P<which>[a-z0-9][a-z0-9 .&'-]{1,40}?) "
-                     r"(?:email|e-mail|mail|message from them)", low)
+    m = (re.fullmatch(r"(?:read me|read|open|show me) (?:the |that |my )?(?P<which>[a-z0-9][a-z0-9 .&'-]{1,40}?) "
+                      r"(?:email|e-mail|mail|message from them)", low)
+         # "Read me the email FROM Stripe" (bottom rung 2026-09-24: to nobody).
+         or re.fullmatch(r"(?:read me|read|open|show me) (?:the |that |my )?(?:email|e-mail|mail|message) from "
+                         r"(?P<which>[a-z0-9][a-z0-9 .&'-]{1,40}?)", low))
     if m and m.group("which") not in ("latest", "last", "newest", "first", "new", "unread"):
         return {"command": {"kind": "email_read", "which": _as_he_said(transcript, m.group("which"))},
                 "say": None}
@@ -2558,7 +2561,11 @@ def _interpret(transcript: str) -> dict:
     # "Send an email to dana@example.com saying thanks for the call" went to
     # the planner - and with every frontier off, to her own model for two
     # minutes - because only "email X saying Y" was a shape (2026-09-22).
-    m = re.match(r"(?:send (?:an? |the )?e?mail(?: to)?|e?mail|write (?:an? )?e?mail to|draft (?:an? |the )?e?mail(?: to)?)\s+"
+    m = re.match(r"(?:send (?:an? |the )?e?mail(?: to)?|e?mail|write (?:an? )?e?mail to|draft (?:an? |the )?e?mail(?: to)?"
+                 # "Draft a reply to Stripe saying thanks" / "reply to Stripe saying
+                 # thanks" / "write back to Stripe saying ..." - a reply is a
+                 # draft to them, held like every other (bottom rung 2026-09-24).
+                 r"|draft (?:a |the )?reply to|reply to|write back to|answer)\s+"
                  r"(.+?)\s+(?:that says|that|saying|and say|telling (?:him|her|them)|:)\s+(.+)", low)
     if m:
         return {"command": {"kind": "email_draft", "to": m.group(1).strip(),
