@@ -2812,6 +2812,63 @@ def _interpret(transcript: str) -> dict:
     if m:
         return _new_task(m.group(1).strip())
 
+    # "OPEN YOUTUBE" / "open the Thea page": a page on his screen is his tap
+    # (open_page), and a site he names by one word is in a small table -
+    # nothing else is guessed into an address (bottom rung 2026-09-24:
+    # the rules compiled "Open youtube in the browser" for approval).
+    m = re.fullmatch(r"(?:open|open up|go to|bring up|pull up|launch) (?P<site>[a-z][a-z ]{1,24}?)"
+                     r"(?: for me| please| in the browser| in a tab)?", low)
+    if m:
+        try:
+            from aletheia import open_it as _open
+            known = m.group("site").strip().casefold()
+            if known in _open.KNOWN_SITES or known.removeprefix("the ").strip() in _open.KNOWN_SITES:
+                return {"command": {"kind": "open_page", "which": known}, "say": None}
+        except Exception:
+            pass
+
+    # "CANCEL THE PASSPORT TASK": a task he named, cancelled - the same
+    # lookup "mark the passport one done" uses (bottom rung: no verb).
+    m = re.fullmatch(r"(?:cancel|drop|scrap|remove|delete|kill) (?:the |my )?(?P<what>.+?)(?: task| one| item)"
+                     r"(?: from (?:my|the) (?:task )?list)?", low)
+    if m and m.group("what") not in ("that", "it", "this"):
+        try:
+            from aletheia import intercom as _ic
+            found, why = _ic._one_task(_as_he_said(text, m.group("what")))
+        except Exception:
+            found, why = None, ""
+        if found is not None:
+            return {"command": {"kind": "task_status", "id": str(found["id"]), "state": "CANCELLED",
+                                "note": "cancelled by voice"}, "say": None}
+        if why:
+            return {"command": None, "say": str(why)}
+
+    # "MOVE THE DENTIST TO 4": the reminder he named, at the new time.
+    m = re.fullmatch(r"(?:move|push|change|shift) (?:the |my )?(?P<what>.+?)(?: reminder)? to (?:at )?(?P<time>[\w: ]+?)"
+                     r"(?: instead| please)?", low)
+    if m and m.group("what") not in ("that", "it", "this"):
+        hhmm = _spoken_time(m.group("time"))
+        try:
+            from aletheia import intercom as _ic
+            found, _why = _ic._one_reminder(_as_he_said(text, m.group("what")))
+        except Exception:
+            found = None
+        if hhmm and found is not None:
+            said_text = str((found.get("command") or {}).get("text") or m.group("what"))
+            return {"command": {"kind": "remind_at", "at": _next_occurrence_iso(hhmm, bare_hour=_is_bare_hour(m.group("time"))),
+                                "text": said_text, "replaces": said_text}, "say": None}
+
+    # "MAKE ME A WORD DOCUMENT CALLED NOTES WITH THE TEXT HELLO": a document
+    # with words he already has (doc_make; the planner is for authoring).
+    m = re.fullmatch(r"(?:make|create|write|save)(?: me)? (?:a |an )?(?:new )?(?:word |text )?(?:document|doc) "
+                     r"(?:called|named) (?P<name>[\w][\w .-]{0,60}?) (?:with the text|with the words|with|containing|that says|saying) "
+                     r"(?P<body>.+)", low)
+    if m:
+        name = m.group("name").strip()
+        path = name if name.lower().endswith((".docx", ".txt", ".md")) else f"{name}.docx"
+        return {"command": {"kind": "doc_make", "path": path,
+                            "content": [_as_he_said(text, m.group("body").strip())]}, "say": None}
+
     # "MAKE THAT 4" after "remind me at 3 to call the dentist": the same
     # reminder, moved. The previous ask is read back from the thread and
     # re-interpreted; only a reminder is moved this way (bottom rung

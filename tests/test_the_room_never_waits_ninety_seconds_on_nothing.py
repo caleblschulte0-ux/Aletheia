@@ -866,6 +866,34 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
         self.assertIn("yours, at the keyboard", out["say"])
         self.assertIn("mail hold off", out["say"])
 
+    def test_the_seventeenth_battery_four_orders_from_the_whole_replay(self):
+        """247 sentences replayed at the floor: "cancel the passport task"
+        (no verb), "move the dentist to 4" (a named reminder), "make me a
+        word document called notes with the text hello", and "open youtube"
+        (compiled for approval as a browser task)."""
+        import datetime as dt
+        from aletheia import localtime, open_it, voice
+        with mock.patch("aletheia.intercom._one_task", return_value=({"id": "renew-passport", "description": "renew the passport"}, "")):
+            self.assertEqual(voice.interpret("thea cancel the passport task")["command"],
+                             {"kind": "task_status", "id": "renew-passport", "state": "CANCELLED", "note": "cancelled by voice"})
+        with mock.patch("aletheia.intercom._one_task", return_value=(None, "You have no task about the passport.")):
+            out = voice.interpret("thea cancel the passport task")
+            self.assertIsNone(out["command"])
+            self.assertIn("no task", out["say"])
+        with mock.patch("aletheia.intercom._one_reminder", return_value=({"id": "r1", "command": {"text": "call the dentist"}}, "")):
+            moved = voice.interpret("thea move the dentist to 4")["command"]
+        self.assertEqual((moved["kind"], moved["text"], moved["replaces"]), ("remind_at", "call the dentist", "call the dentist"))
+        self.assertEqual(dt.datetime.fromisoformat(moved["at"]).astimezone(localtime.operator_tz()).hour, 16)
+        made = voice.interpret("thea make me a word document called notes with the text hello there")["command"]
+        self.assertEqual(made, {"kind": "doc_make", "path": "notes.docx", "content": ["hello there"]})
+        self.assertEqual(voice.interpret("thea open youtube")["command"], {"kind": "open_page", "which": "youtube"})
+        self.assertEqual(voice.interpret("thea open the thea page")["command"], {"kind": "open_page", "which": "the thea page"})
+        self.assertEqual(open_it.page_for("youtube")[1], "YouTube")
+        self.assertEqual(open_it.page_for("the Thea page")[0], "http://127.0.0.1:8777/")
+        self.assertNotEqual((voice.interpret("thea open my resume").get("command") or {}).get("kind"), "open_page",
+                            "a word not in the table is never guessed into an address")
+        self.assertEqual(voice.interpret("thea open thea")["command"]["kind"], "open", "her own switch keeps its word")
+
     def test_what_did_i_say_about_is_his_note(self):
         with mock.patch.object(quick, "_notes", return_value=[
                 {"ts": "2026-09-24T20:00:00Z", "text": "the rent is due on the first"}]), \
