@@ -698,7 +698,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("bare_yes_no", re.compile(
         # never "approve", "deny", "go ahead", "do it": those are verbs the
         # decision rules own, and real work is never claimed here
-        r"^(?:no|nope|nah|yes|yeah|yep|ok|okay|sure|fine)\s*[.!]?$")),
+        # "ok", "sure" and "fine" are filler, left alone (test_filler_and_nudges).
+        r"^(?:no|nope|nah|yes|yeah|yep)\s*[.!]?$")),
     # WHAT SHE CHANGED, LEARNED AND WROTE TODAY - three journal reads that
     # went to a model (fifth battery, 2026-09-24).
     ("changed_today", re.compile(
@@ -2524,8 +2525,7 @@ def _uptime() -> str | None:
     from aletheia import liveness
     seconds = liveness.uptime_seconds()
     if seconds is None:
-        # No heartbeat on record is a fact; a model cannot know it either.
-        return "I don't have a heartbeat on record for this run, so I can't say how long."
+        return None                 # she does not know; do not invent one (test_liveness)
     return f"Up {liveness.spoken_duration(seconds)}."
 
 

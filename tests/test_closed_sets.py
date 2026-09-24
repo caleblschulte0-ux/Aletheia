@@ -192,6 +192,8 @@ class TheKillSwitchIsNotSomethingASENTENCECanTrip(unittest.TestCase):
                                     "fault_ack",
                                     # 2026-09-23: clearing a card that waits on him is his tap
                                     "mission_leave",
+                                    # 2026-09-24: taking back one of her own acts is his word
+                                    "undo",
                                     # 2026-09-23: a page on his screen is his tap
                                     "open_page"}))
 

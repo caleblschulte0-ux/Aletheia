@@ -95,11 +95,14 @@ class TheSentenceCase(unittest.TestCase):
                                "2026-09-07T17:00:00-05:00")])
         self.assertIn("9 am to 11 am and 1 pm to 5 pm", said)
 
-    def test_an_empty_evening_says_why_it_is_empty(self):
-        """"Nothing free this evening" alone is misleading — she only ever
-        looks at working hours, so of course the evening is empty."""
+    def test_an_empty_evening_is_the_evening_looked_at(self):
+        """It used to say "I only look at your working hours, nine to five"
+        - which was true, and was the bug: "am I free Friday evening" was
+        answered about the office. The evening is examined as the evening
+        now (intercom.free_time_answer), so an empty one is simply empty."""
         said = self.sentence([], "evening")
-        self.assertIn("nine to five", said)
+        self.assertTrue(said.startswith("Nothing free"), said)
+        self.assertNotIn("nine to five", said)
 
     def test_an_empty_afternoon_does_not_blame_the_work_window(self):
         said = self.sentence([], "afternoon")

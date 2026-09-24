@@ -396,7 +396,9 @@ class TheFourthBatteryFallThroughs(unittest.TestCase):
         with mock.patch("aletheia.policy.all_approvals", return_value=[]), \
                 mock.patch("aletheia.needs_you.items", return_value=[]):
             self.assertEqual(quick.answer("no"), "Nothing is waiting for a yes or no right now.")
-            self.assertEqual(quick.answer("ok"), "Nothing is waiting for a yes or no right now.")
+            self.assertEqual(quick.answer("yes"), "Nothing is waiting for a yes or no right now.")
+            # "ok" is filler and left alone (test_filler_and_nudges).
+            self.assertIsNone(quick.answer("ok"))
         with mock.patch("aletheia.policy.all_approvals", return_value=[{"id": "a", "state": "PENDING"}]):
             self.assertIsNone(quick.answer("no"))
 
@@ -564,7 +566,8 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
         self.assertTrue(said.startswith("There's no queue to work down"), said)
         self.assertIn("2 sent", said)
         with mock.patch("aletheia.liveness.uptime_seconds", return_value=None):
-            self.assertIn("heartbeat on record", quick.answer("how long has the core been running"))
+            # No heartbeat on record: the fast lane declines rather than invents (test_liveness).
+            self.assertIsNone(quick.answer("how long has the core been running"))
 
     def test_the_tenth_battery_orders_at_the_bottom_rung(self):
         """Twenty-seven orders with every rung off (2026-09-24). Five had no
