@@ -2061,6 +2061,9 @@ def _plainly_said(exc: BaseException) -> str:
 #: the only one still true: "Applications going out" at 9 supersedes
 #: "Job applications need you" from 8, and the next one supersedes both.
 BATCH_TOPIC = "jobs.batch"
+#: The story's dedupe keys from before it had a topic (61 unread on his page
+#: the day this was written); the next batch retires them.
+BATCH_KEYS = ("campaign:", "campaign-answer:", "campaign-retry:", "campaign-failed:")
 
 
 def _notify(title: str, body: str, key: str,
@@ -2071,7 +2074,7 @@ def _notify(title: str, body: str, key: str,
                               speech.for_the_room(body)[:900],
                               priority="IMPORTANT", source="apply",
                               about=about or notifications.NEEDS_YOU,
-                              dedupe_key=key, topic=BATCH_TOPIC)
+                              dedupe_key=key, topic=BATCH_TOPIC, topic_keys=BATCH_KEYS)
     except Exception:
         pass
 

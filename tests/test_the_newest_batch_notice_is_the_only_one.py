@@ -82,6 +82,21 @@ class TheNewestLineOfAStoryIsTheOnlyUnreadOne(NoticeStore):
 
 
 class TheJobHuntsNoticesAreOneStory(NoticeStore):
+    def test_the_lines_filed_before_topics_existed_are_retired_by_the_next_one(self):
+        # 61 unread "campaign:<stamp>" notices on his page, none with a topic.
+        for n in range(3):
+            notifications.publish("Job applications need you", f"{n} need answers.", source="apply",
+                                  dedupe_key=f"campaign:2026-09-24T0{n}")
+        other = notifications.publish("Reminder", "call the dentist", dedupe_key="reminder:1")
+        campaign._notify("Applications going out", "4 filled in.", "campaign:2026-09-24T09")
+        left = self.unread()
+        self.assertEqual(sorted(n["title"] for n in left), ["Applications going out", "Reminder"])
+        self.assertEqual(other["id"], [n for n in left if n["title"] == "Reminder"][0]["id"])
+        retired = [n for n in notifications.all_notifications(limit=500) if n["state"] == "READ"]
+        self.assertEqual(len(retired), 3)
+        self.assertTrue(all(n["superseded_by"] == [n for n in left if n["title"] != "Reminder"][0]["id"]
+                            for n in retired))
+
     def test_every_campaign_notice_carries_the_batch_topic(self):
         campaign._notify("Job applications need you", "3 need answers.", "campaign:1")
         campaign._notify("The job applications stopped", "The browser would not start.", "campaign-failed:2",
