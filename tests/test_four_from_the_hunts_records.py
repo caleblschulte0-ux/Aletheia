@@ -64,8 +64,8 @@ class FleetCase(unittest.TestCase):
                  "alerts": [{"repo": "s", "failing": ["daily.yml"]}]}
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(pulse, "PULSE_DIR", pathlib.Path(tmp)):
             (pathlib.Path(tmp) / "latest.json").write_text(json.dumps(fleet), encoding="utf-8")
-            self.assertEqual(quick.answer("show me the fleet"), "2 projects active, 1 dormant; 1 fault: Shorts-pipeline (daily failing).")
-            self.assertEqual(quick.answer("any faults"), "2 projects active, 1 dormant; 1 fault: Shorts-pipeline (daily failing).")
+            self.assertEqual(quick.answer("show me the fleet"), "2 projects active, 1 dormant; 1 fault: Shorts-pipeline (daily failed).")
+            self.assertEqual(quick.answer("any faults"), "2 projects active, 1 dormant; 1 fault: Shorts-pipeline (daily failed).")
             (pathlib.Path(tmp) / "latest.json").write_text(json.dumps({"repos": {}}), encoding="utf-8")
             self.assertIn("No fleet reading", quick.answer("how's the fleet"))
             (pathlib.Path(tmp) / "latest.json").unlink()
