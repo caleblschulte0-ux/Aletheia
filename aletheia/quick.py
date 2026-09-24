@@ -204,7 +204,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:how many|any|do i have any|did i get any|have i (?:got|gotten|had) any|what) (?P<outcome>interviews?|offers?|"
         r"rejections?)(?: (?:do i have|have i got|so far|yet|lined up|coming up|today|this week))*$"
         r"|^(?:who|which (?:companies|employers|jobs)) (?:(?P<outcome2>rejected) me|(?P<outcome3>turned) me down|"
-        r"made (?:me )?an (?P<outcome4>offer)|(?:wants?|asked) (?:to |an |for an )?(?P<outcome5>interview|talk))$")),
+        r"made (?:me )?an (?P<outcome4>offer)|(?:wants?|asked) (?:to |an |for an )?(?P<outcome5>interview|talk))$"
+        # "Did I get an interview" (2026-09-24, offline: "I could not plan that")
+        r"|^(?:did|have) i (?:get|got|gotten|land|landed|receive|received) (?:an |any |a )?(?P<outcome6>interviews?|offers?|rejections?)"
+        r"(?: yet| today| this week| so far)?\s*\??$")),
     ("job_hunt", re.compile(
         r"^how (?:did|have|are) (?:the )?(?:job )?(?:applications|apps|job hunt|hunt|job search)"
         r" (?:go|gone|going)(?: today| so far| so far today)?$"
@@ -434,6 +437,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what (?:did|have) (?:you|u) (?:do|done)(?: today)?$"
         r"|^what have (?:you|u) been doing$"
         r"|^what did (?:you|u) get done(?: today)?$"
+        # A part of the day (2026-09-24, offline: "I can't think just now")
+        r"|^what (?:did|have) (?:you|u) (?:do|done|get done|been doing) (?P<day_part>this morning|this afternoon|this evening|tonight|earlier|earlier today|so far today)$"
         # "Show me the journal" went to the planner, which compiled
         # `recall` and answered "I don't have anything remembered about
         # 'journal entries'" — a lookup in the wrong store.
@@ -600,7 +605,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # cannot parse, and the planner is better at them than a regex.
     ("free", re.compile(
         r"^am i free(?: (?P<free>today|tomorrow))?$"
-        r"|^(?:do i|have i) (?:have|got) (?:anything|any plans|much) on"
+        # "Do I have anything tomorrow" (no "on") went to the FILE finder
+        # (2026-09-24): "I could not find anything matching anything tomorrow".
+        r"|^(?:do i|have i) (?:have|got) (?:anything|any plans|much|something)(?: on| planned| scheduled| going on)?"
         r"(?: (?P<free2>today|tomorrow))?$"
         r"|^is my (?P<free3>today|tomorrow) free$")),
     # Already computed every beat for the wall (`next_appointment`), and
@@ -630,6 +637,20 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # WHO SHE IS and WHAT WORKS WITHOUT A MODEL: two questions a person asks
     # a new assistant, both answered offline with "I can't think just now"
     # (2026-09-24). Neither needs thinking; both are facts about herself.
+    # THE NEXT INTERVIEW, from her calendar store (2026-09-24, offline:
+    # "I can't think just now").
+    ("interview_when", re.compile(
+        r"^(?:what time|when) (?:is|'s) (?:my|the) (?:next )?interview(?: with [a-z0-9 .&'-]{1,40})?\s*\??$"
+        r"|^(?:do i have|is there) an interview (?:coming up|scheduled|booked)(?: today| tomorrow| this week)?\s*\??$"
+        r"|^when(?:'s| is) my next interview\s*\??$")),
+    # THE DAY AS SHE HOLDS IT: calendar, tasks, the hunt.
+    ("plan_today", re.compile(
+        r"^what(?:'s| is|s)? (?:the |my )?plan (?:for )?(?:today|this morning|this afternoon)\s*\??$"
+        r"|^what(?:'s| is|s)? (?:on )?(?:for |the plan for )?today\s*\??$|^what (?:am i|are we) doing today\s*\??$"
+        r"|^what(?:'s| is|s)? (?:my|the) day (?:look like|looking like)(?: today)?\s*\??$")),
+    ("stuck", re.compile(
+        r"^(?:are|r) (?:you|u) (?:stuck|blocked|held up|waiting on (?:something|anything))(?: right now| now)?\s*\??$"
+        r"|^is (?:anything|something) (?:stuck|blocked|held up)\s*\??$")),
     ("who_are_you", re.compile(
         r"^(?:who|what) (?:are|r) (?:you|u)(?: exactly| anyway)?\s*\??$"
         r"|^what(?:'s| is|s) your name\s*\??$|^introduce yourself\s*\.?$|^tell me about yourself\s*\.?$")),
@@ -827,7 +848,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "down", "down2", "weather",
                                            "weather2", "weather3",
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
-                                           "outcome", "outcome2", "outcome3", "outcome4", "outcome5",
+                                           "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
@@ -835,7 +856,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "time_in3", "date_of", "date_of2", "date_of3",
                                            "recall", "recall2", "recall3", "recall4",
                                            "applied_on", "applied_on2", "applied_on3",
-                                           "asked_on", "asked_on2", "asked_on3")
+                                           "asked_on", "asked_on2", "asked_on3", "day_part")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
@@ -1476,14 +1497,110 @@ def _last() -> str:
     return "Nothing in my journal for today or yesterday."
 
 
-def _today() -> str:
+#: A part of the day, by the hour on his clock: [from, to).
+_DAY_PARTS = {"this morning": (0, 12), "this afternoon": (12, 17), "this evening": (17, 24), "tonight": (17, 24)}
+
+
+def _today(part: str = "") -> str:
     # A CALENDAR day, not the last 24 hours. Asked at nine in the morning,
     # a rolling window is mostly yesterday — and it would report the same
     # evening twice, once here and once under "yesterday".
     rows = _on_day(0)
+    part = " ".join(str(part or "").casefold().split())
+    hours = _DAY_PARTS.get(part)
+    if hours:
+        # "Thu 09:12" is the row's own clock, on his zone.
+        def hour_of(row: dict) -> int | None:
+            m = re.search(r"\b(\d{1,2}):\d{2}\b", str(row.get("at") or ""))
+            return int(m.group(1)) if m else None
+        rows = [r for r in rows if (h := hour_of(r)) is not None and hours[0] <= h < hours[1]]
+    when = part or "today"
     if not rows:
-        return "Nothing yet today."
-    return _listed(rows, "today")
+        return f"Nothing {when}." if hours else "Nothing yet today."
+    return _listed(rows, when)
+
+
+def _interview_when() -> str:
+    """The next interview on her calendar store, or that there is none."""
+    import datetime as dt
+    from aletheia import calendar, localtime
+    try:
+        tz = localtime.operator_tz()
+        now = dt.datetime.now(tz)
+        coming = []
+        for event in calendar.all_events():
+            if event.get("status") == "CANCELLED":
+                continue
+            title = str(event.get("title") or "")
+            if not re.match(r"\s*interview\b", title, re.I):
+                continue
+            try:
+                start = calendar.parse_time(event["start"]).astimezone(tz)
+            except (KeyError, ValueError, TypeError):
+                continue
+            if start >= now - dt.timedelta(hours=1):
+                coming.append((start, title))
+    except Exception:
+        return "I can't read your calendar right now."
+    if not coming:
+        return "No interview on your calendar. When one is booked it goes there and I tell you."
+    coming.sort()
+    start, title = coming[0]
+    who = re.sub(r"^\s*interview\s*[:with-]*\s*", "", title, flags=re.I).strip() or "them"
+    day = "today" if start.date() == now.date() else "tomorrow" if start.date() == now.date() + dt.timedelta(days=1) \
+        else start.strftime("%A")
+    clock = start.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+    said = f"Your interview with {who} is {day} at {clock}."
+    if len(coming) > 1:
+        said += f" There {'is' if len(coming) == 2 else 'are'} {len(coming) - 1} more after it."
+    return said
+
+
+def _plan_today() -> str:
+    """The day as she holds it: the calendar, the open tasks, the hunt."""
+    from aletheia import speech
+    parts = []
+    agenda = _agenda("today")
+    if agenda:
+        parts.append(agenda)
+    try:
+        parts.append(_tasks())
+    except Exception:
+        pass
+    hunt = _job_hunt()
+    if hunt:
+        parts.append(hunt)
+    parts = [p for p in parts if p]
+    return " ".join(parts) if parts else "Nothing on your calendar, nothing on your task list, and no applications yet today."
+
+
+def _stuck() -> str:
+    """Whether anything of hers is stuck, from the work engine and what
+    needs him - never a mood."""
+    from aletheia import speech
+    blocked = executable = 0
+    try:
+        from aletheia import work_engine
+        inv = work_engine.inventory(probe=False)
+        items = inv.get("items") or []
+        blocked = sum(1 for i in items if str(i.get("state") or "").startswith("BLOCKED"))
+        executable = int(inv.get("executable_total") or 0)
+    except Exception:
+        pass
+    try:
+        from aletheia import needs_you
+        waiting = len(needs_you.items())
+    except Exception:
+        waiting = 0
+    if not blocked and not waiting:
+        return "No, nothing is stuck." + (f" {speech.count_phrase(executable, 'thing')} in my queue." if executable else "")
+    said = []
+    if waiting:
+        said.append(f"{speech.count_phrase(waiting, 'thing')} wait on you - say what needs me")
+    if blocked:
+        said.append(f"{speech.count_phrase(blocked, 'piece')} of work {'is' if blocked == 1 else 'are'} blocked - "
+                    "say what's blocked and I'll list them")
+    return "Not stuck, but " + " and ".join(said) + "."
 
 
 def _yesterday() -> str:
@@ -2617,6 +2734,12 @@ def _status_of(text: str) -> str | None:
         return None
     shape, subject = found
     if shape == "repo":
+        # "What's the status of the Human Interest ONE" names an
+        # application, the way "the Datadog one" does everywhere else here;
+        # it went to the fleet and answered about the pulse (2026-09-24).
+        named_one = re.search(r"\s(?:one|application|app)$", subject)
+        if named_one:
+            return _opportunity(subject[:named_one.start()].strip()) or None
         # "Is the job hunt running" arrives here when its subject was said
         # in a way _JOB does not list; the pulse will not know it either.
         if _JOB_RE.fullmatch(subject):
@@ -3114,7 +3237,10 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "doing": lambda rest: _doing(),
            "job_hunt": lambda rest: _job_hunt(),
            "wrong": lambda rest: _wrong(),
-           "today": lambda rest: _today(),
+           "today": lambda rest: _today(rest),
+           "interview_when": lambda rest: _interview_when(),
+           "plan_today": lambda rest: _plan_today(),
+           "stuck": lambda rest: _stuck(),
            "yesterday": lambda rest: _yesterday(),
            "clock": lambda rest: _clock(),
            "date": lambda rest: _date(),

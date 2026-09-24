@@ -266,3 +266,77 @@
 {"ts": "2026-09-24T20:25:18Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I can't think just now: Claude and ChatGPT are both out and my own model isn't running, so I can't answer that one. Signing in to Claude on the PC fixes it. Everything that doesn't need thinking still works."}
 {"ts": "2026-09-24T20:25:18Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "who are you"}
 {"ts": "2026-09-24T20:25:18Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-788403108b: READY"}
+{"ts": "2026-09-24T20:31:38Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "thea what's going on"}
+{"ts": "2026-09-24T20:31:42Z", "kind": "event", "actor": "aletheia-core", "subject": "quick", "text": "answered from her own stores: thea anything I should know"}
+{"ts": "2026-09-24T20:31:42Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "anything I should know"}
+{"ts": "2026-09-24T20:31:46Z", "kind": "event", "actor": "aletheia-core", "subject": "quick", "text": "answered from her own stores: thea give me the rundown"}
+{"ts": "2026-09-24T20:31:46Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "give me the rundown"}
+{"ts": "2026-09-24T20:31:50Z", "kind": "event", "actor": "aletheia-core", "subject": "quick", "text": "answered from her own stores: thea how's it going"}
+{"ts": "2026-09-24T20:31:50Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "how's it going"}
+{"ts": "2026-09-24T20:31:53Z", "kind": "event", "actor": "aletheia-core", "subject": "quick", "text": "answered from her own stores: thea what happened while I was gone"}
+{"ts": "2026-09-24T20:31:53Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "what happened while I was gone"}
+{"ts": "2026-09-24T20:31:56Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-6cd72c44c2: PENDING"}
+{"ts": "2026-09-24T20:31:56Z", "kind": "alert", "actor": "aletheia-converse", "subject": "converse", "text": "nobody could think for 'what did you do this morning\\n\\n--- WHAT I ACTUALLY DID (my journal, read just now': both subscription paths are unavailable: the Claude CLI could not answer and the browser session could not either (BrowserReasonerUnavailable)"}
+{"ts": "2026-09-24T20:31:56Z", "kind": "event", "actor": "aletheia-intent", "subject": "intent", "text": "answered without planning: what did you do this morning"}
+{"ts": "2026-09-24T20:31:56Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I can't think just now: Claude and ChatGPT are both out and my own model isn't running, so I can't answer that one. Signing in to Claude on the PC fixes it. Everything that doesn't need thinking still works."}
+{"ts": "2026-09-24T20:31:56Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "what did you do this morning"}
+{"ts": "2026-09-24T20:31:56Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-6cd72c44c2: READY"}
+{"ts": "2026-09-24T20:32:00Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-1b66a8d65b: PENDING"}
+{"ts": "2026-09-24T20:32:00Z", "kind": "event", "actor": "aletheia-planner", "subject": "planner", "text": "her own model could not plan it either: local reasoning is disabled"}
+{"ts": "2026-09-24T20:32:00Z", "kind": "task", "actor": "aletheia-work", "subject": "work", "text": "kept “anything from Okta” for later, until a model is back"}
+{"ts": "2026-09-24T20:32:00Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I could not plan that: neither Claude nor the ChatGPT browser could answer just now; local reasoning is unavailable too: local reasoning is disabled. It's on my list, and I'll pick it up when the big models are back."}
+{"ts": "2026-09-24T20:32:00Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "anything from Okta"}
+{"ts": "2026-09-24T20:32:00Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-1b66a8d65b: READY"}
+{"ts": "2026-09-24T20:32:04Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-a684541fdb: PENDING"}
+{"ts": "2026-09-24T20:32:04Z", "kind": "event", "actor": "aletheia-planner", "subject": "planner", "text": "her own model could not plan it either: local reasoning is disabled"}
+{"ts": "2026-09-24T20:32:04Z", "kind": "task", "actor": "aletheia-work", "subject": "work", "text": "kept “did I get an interview” for later, until a model is back"}
+{"ts": "2026-09-24T20:32:04Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I could not plan that: neither Claude nor the ChatGPT browser could answer just now; local reasoning is unavailable too: local reasoning is disabled. It's on my list, and I'll pick it up when the big models are back."}
+{"ts": "2026-09-24T20:32:04Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "did I get an interview"}
+{"ts": "2026-09-24T20:32:04Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-a684541fdb: READY"}
+{"ts": "2026-09-24T20:32:08Z", "kind": "event", "actor": "aletheia-core", "subject": "quick", "text": "answered from her own stores: thea what's the status of the Human Interest one"}
+{"ts": "2026-09-24T20:32:08Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "what's the status of the Human Interest one"}
+{"ts": "2026-09-24T20:32:11Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-53566a2f6b: PENDING"}
+{"ts": "2026-09-24T20:32:12Z", "kind": "event", "actor": "aletheia-planner", "subject": "planner", "text": "her own model could not plan it either: local reasoning is disabled"}
+{"ts": "2026-09-24T20:32:12Z", "kind": "task", "actor": "aletheia-work", "subject": "work", "text": "kept “cancel the passport task” for later, until a model is back"}
+{"ts": "2026-09-24T20:32:12Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I could not plan that: neither Claude nor the ChatGPT browser could answer just now; local reasoning is unavailable too: local reasoning is disabled. It's on my list, and I'll pick it up when the big models are back."}
+{"ts": "2026-09-24T20:32:12Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "cancel the passport task"}
+{"ts": "2026-09-24T20:32:12Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-53566a2f6b: READY"}
+{"ts": "2026-09-24T20:32:15Z", "kind": "action", "actor": "operator-local-core", "subject": "core:task_done", "text": "done — Nothing open matching 'passport'."}
+{"ts": "2026-09-24T20:32:15Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "mark the passport task done"}
+{"ts": "2026-09-24T20:32:18Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-60aab0ed79: PENDING"}
+{"ts": "2026-09-24T20:32:19Z", "kind": "event", "actor": "aletheia-planner", "subject": "planner", "text": "her own model could not plan it either: local reasoning is disabled"}
+{"ts": "2026-09-24T20:32:19Z", "kind": "task", "actor": "aletheia-work", "subject": "work", "text": "kept “I did it” for later, until a model is back"}
+{"ts": "2026-09-24T20:32:19Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I could not plan that: neither Claude nor the ChatGPT browser could answer just now; local reasoning is unavailable too: local reasoning is disabled. It's on my list, and I'll pick it up when the big models are back."}
+{"ts": "2026-09-24T20:32:19Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "I did it"}
+{"ts": "2026-09-24T20:32:19Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-60aab0ed79: READY"}
+{"ts": "2026-09-24T20:32:23Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-a16028a0e1: PENDING"}
+{"ts": "2026-09-24T20:32:23Z", "kind": "alert", "actor": "aletheia-converse", "subject": "converse", "text": "nobody could think for 'what time is my interview\\n\\n--- WHAT I CAN DO (my registry, read just now — quote': both subscription paths are unavailable: the Claude CLI could not answer and the browser session could not either (BrowserReasonerUnavailable)"}
+{"ts": "2026-09-24T20:32:23Z", "kind": "event", "actor": "aletheia-intent", "subject": "intent", "text": "answered without planning: what time is my interview"}
+{"ts": "2026-09-24T20:32:23Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I can't think just now: Claude and ChatGPT are both out and my own model isn't running, so I can't answer that one. Signing in to Claude on the PC fixes it. Everything that doesn't need thinking still works."}
+{"ts": "2026-09-24T20:32:23Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "what time is my interview"}
+{"ts": "2026-09-24T20:32:23Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-a16028a0e1: READY"}
+{"ts": "2026-09-24T20:32:27Z", "kind": "event", "actor": "operator-local-core", "subject": "core:file_find", "text": "done — I could not find anything matching anything tomorrow. I looked in Desktop, Documents, Downloads, Pictures and my workspace."}
+{"ts": "2026-09-24T20:32:27Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "do I have anything tomorrow"}
+{"ts": "2026-09-24T20:32:30Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-050c25d2d5: PENDING"}
+{"ts": "2026-09-24T20:32:30Z", "kind": "alert", "actor": "aletheia-converse", "subject": "converse", "text": "nobody could think for \"what's the plan for today\\n\\n--- WHAT I CAN DO (my registry, read just now — quote\": both subscription paths are unavailable: the Claude CLI could not answer and the browser session could not either (BrowserReasonerUnavailable)"}
+{"ts": "2026-09-24T20:32:30Z", "kind": "event", "actor": "aletheia-intent", "subject": "intent", "text": "answered without planning: what's the plan for today"}
+{"ts": "2026-09-24T20:32:30Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I can't think just now: Claude and ChatGPT are both out and my own model isn't running, so I can't answer that one. Signing in to Claude on the PC fixes it. Everything that doesn't need thinking still works."}
+{"ts": "2026-09-24T20:32:30Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "what's the plan for today"}
+{"ts": "2026-09-24T20:32:30Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-050c25d2d5: READY"}
+{"ts": "2026-09-24T20:32:33Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-e4ed8cc597: PENDING"}
+{"ts": "2026-09-24T20:32:34Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "how many jobs are left to apply to"}
+{"ts": "2026-09-24T20:32:34Z", "kind": "event", "actor": "aletheia-investigate", "subject": "intent", "text": "looked into a question with my tools (0 lookups)"}
+{"ts": "2026-09-24T20:32:34Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I couldn't look into that just now: The big models can't answer right now, and my own model is switched off. Ask me again in a bit."}
+{"ts": "2026-09-24T20:32:34Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-e4ed8cc597: READY"}
+{"ts": "2026-09-24T20:32:38Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-4f75a3d710: PENDING"}
+{"ts": "2026-09-24T20:32:38Z", "kind": "event", "actor": "aletheia-planner", "subject": "planner", "text": "her own model could not plan it either: local reasoning is disabled"}
+{"ts": "2026-09-24T20:32:38Z", "kind": "task", "actor": "aletheia-work", "subject": "work", "text": "kept “are you stuck” for later, until a model is back"}
+{"ts": "2026-09-24T20:32:38Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I could not plan that: neither Claude nor the ChatGPT browser could answer just now; local reasoning is unavailable too: local reasoning is disabled. It's on my list, and I'll pick it up when the big models are back."}
+{"ts": "2026-09-24T20:32:38Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "are you stuck"}
+{"ts": "2026-09-24T20:32:38Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-4f75a3d710: READY"}
+{"ts": "2026-09-24T20:32:42Z", "kind": "event", "actor": "aletheia-core", "subject": "quick", "text": "answered from her own stores: thea what's broken"}
+{"ts": "2026-09-24T20:32:42Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "what's broken"}
+{"ts": "2026-09-24T20:32:45Z", "kind": "action", "actor": "operator-local-core", "subject": "core:restart", "text": "refused — this is a rehearsal — restart is gated as world-touching, so it was not run. Everything local happened for real."}
+{"ts": "2026-09-24T20:32:45Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "restart"}
+{"ts": "2026-09-24T20:32:48Z", "kind": "action", "actor": "operator-local-core", "subject": "core:forget", "text": "done — I have nothing remembered about the landlord."}
+{"ts": "2026-09-24T20:32:48Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "forget the landlord"}

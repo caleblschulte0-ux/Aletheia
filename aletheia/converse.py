@@ -868,8 +868,12 @@ def answer(question: str, *, think=None, include_thread: bool = True,
             # local deep reasoning are unavailable (subscription: neither
             # Claude nor ..." - a log line, on his phone, as her answer.
             try:
+                # HIS QUESTION, not the composed prompt: the prompt carries
+                # the context sections, and "what's broken" read the first
+                # eighty characters of "--- WHAT I CAN DO" back to him
+                # (2026-09-24). The journal line is read out loud.
                 journal.append("alert", "converse",
-                               f"nobody could think for {prompt[:80]!r}: {why[:300]}",
+                               f"nobody could think for {' '.join(str(question).split())[:80]!r}: {why[:300]}",
                                actor="aletheia-converse")
             except Exception:  # noqa: BLE001
                 pass

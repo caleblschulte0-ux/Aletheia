@@ -287,5 +287,61 @@ class TwoQuestionsAboutHerselfNeedNoThinking(unittest.TestCase):
             self.assertEqual(quick.answer("how long has the core been running"), "Up an hour.")
 
 
+class TheThirdBatteryFallThroughs(unittest.TestCase):
+    """Twenty everyday sentences with every model rung off (2026-09-24)."""
+
+    def test_two_near_misses_no_longer_answer_a_different_question(self):
+        # a calendar question went to the FILE finder; an application went to the fleet
+        self.assertEqual(quick.match("do i have anything tomorrow")[0], "free")
+        found = quick.match("what's the status of the human interest one")
+        self.assertEqual(found[0], "status_of")
+        with mock.patch("aletheia.quick._opportunity", return_value="Account Manager — Human Interest: sent.") as opp:
+            self.assertEqual(quick.answer("what's the status of the human interest one"),
+                             "Account Manager — Human Interest: sent.")
+            self.assertEqual(opp.call_args.args[0], "human interest")
+
+    def test_a_part_of_the_day_is_her_journal_filtered_by_the_hour(self):
+        rows = [{"at": "Thu 09:12", "what": "read your email"}, {"at": "Thu 14:40", "what": "sent an application"}]
+        with mock.patch("aletheia.quick._on_day", return_value=rows):
+            morning = quick.answer("what did you do this morning")
+            afternoon = quick.answer("what did you do this afternoon")
+            night = quick.answer("what did you do tonight")
+        self.assertIn("read your email", morning)
+        self.assertNotIn("sent an application", morning)
+        self.assertIn("sent an application", afternoon)
+        self.assertEqual(night, "Nothing tonight.")
+
+    def test_did_i_get_an_interview_reads_the_records(self):
+        self.assertEqual(quick.match("did i get an interview")[0], "outcomes")
+        with mock.patch("aletheia.apply_run.all_runs", return_value=[]):
+            self.assertEqual(quick.answer("did i get an interview"), "No interviews on record.")
+
+    def test_the_next_interview_comes_from_her_calendar(self):
+        soon = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=26)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        events = [{"title": "Interview: Acme", "start": soon, "end": soon, "status": "CONFIRMED"}]
+        with mock.patch("aletheia.calendar.all_events", return_value=events):
+            said = quick.answer("what time is my interview")
+        self.assertTrue(said.startswith("Your interview with Acme is"), said)
+        with mock.patch("aletheia.calendar.all_events", return_value=[]):
+            self.assertTrue(quick.answer("when is my next interview").startswith("No interview on your calendar"))
+
+    def test_the_plan_for_today_and_whether_she_is_stuck_are_her_stores(self):
+        with mock.patch("aletheia.quick._agenda", return_value="Nothing on your calendar today."), \
+                mock.patch("aletheia.quick._tasks", return_value="Nothing open on your task list."), \
+                mock.patch("aletheia.quick._job_hunt", return_value="3 applications sent today."):
+            said = quick.answer("what's the plan for today")
+        self.assertIn("Nothing on your calendar today.", said)
+        self.assertIn("3 applications sent today.", said)
+        with mock.patch("aletheia.work_engine.inventory", return_value={"items": [], "executable_total": 2}), \
+                mock.patch("aletheia.needs_you.items", return_value=[]):
+            self.assertEqual(quick.answer("are you stuck"), "No, nothing is stuck. 2 things in my queue.")
+        with mock.patch("aletheia.work_engine.inventory", return_value={"items": [{"state": "BLOCKED_EXTERNAL"}], "executable_total": 0}), \
+                mock.patch("aletheia.needs_you.items", return_value=[{"what": "x"}]):
+            said = quick.answer("are you stuck")
+        self.assertTrue(said.startswith("Not stuck, but"), said)
+        self.assertIn("1 thing wait", said)
+        self.assertIn("1 piece of work is blocked", said)
+
+
 if __name__ == "__main__":
     unittest.main()
