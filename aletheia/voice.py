@@ -2812,6 +2812,21 @@ def _interpret(transcript: str) -> dict:
     if m:
         return _new_task(m.group(1).strip())
 
+    # "POST <picture address> TO INSTAGRAM SAYING ...": one post, his approval
+    # (instagram_post is world-tier). "What have you posted to Instagram" is
+    # her own ledger.
+    m = re.fullmatch(r"(?:post|publish|put) (?P<url>https?://\S+) (?:to|on) instagram"
+                     r"(?: (?:saying|with the caption|captioned|with the words|with) (?P<cap>.+))?", low)
+    if m:
+        url = re.search(r"https?://\S+", text, flags=re.IGNORECASE)
+        command = {"kind": "instagram_post", "image_url": url.group(0) if url else m.group("url"),
+                   "caption": _as_he_said(text, m.group("cap").strip()) if m.group("cap") else ""}
+        return {"command": command, "say": None}
+    if re.fullmatch(r"what (?:have (?:you|u)|did (?:you|u)) post(?:ed)? (?:to|on) instagram(?: today| lately| so far)?"
+                    r"|(?:did|has) (?:the |my )?(?:instagram )?post go (?:out|up)(?: on instagram)?"
+                    r"|what(?:'s| is) (?:been )?posted (?:to|on) instagram", low):
+        return {"command": {"kind": "instagram_posts"}, "say": None}
+
     # "OPEN YOUTUBE" / "open the Thea page": a page on his screen is his tap
     # (open_page), and a site he names by one word is in a small table -
     # nothing else is guessed into an address (bottom rung 2026-09-24:

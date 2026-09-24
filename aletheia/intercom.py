@@ -302,6 +302,10 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "notify_clear":    (set(), set()),
     # His "undo that": `which` is optional words naming the act; nothing means the newest.
     "undo":            (set(), {"which"}),
+    # Instagram (his words, 2026-09-24: "automatically post stuff to Instagram").
+    # A post reaches the world, so it is world-tier and an approval of his.
+    "instagram_post":  ({"image_url", "caption"}, set()),
+    "instagram_posts": (set(), set()),
     "announce_set":    ({"on"}, {"quiet_from", "quiet_until"}),
     # `part` is morning/afternoon/evening. He says it constantly and it
     # used to be dropped in silence — see `_free_sentence`.
@@ -369,6 +373,15 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # generated from KIND_ARGS and these together, so the model learns the
 # shape of a step list from the registry rather than from a guess.
 KIND_NOTES: dict[str, str] = {
+    "instagram_post": (
+        'Publish ONE picture with a caption to his Instagram account through the Graph API: '
+        'image_url is a public https address of the picture, caption the words under it (2200 '
+        'characters at most). It reaches the world, so it always waits for his approval; refused '
+        'in words when Instagram is not set up yet (the setup is his: professional account, Meta '
+        'developer app, token in the vault).'),
+    "instagram_posts": (
+        'What she has posted to Instagram, newest first, from her own ledger - "what have you '
+        'posted to Instagram", "did the post go out".'),
     "undo": (
         'His "undo that" / "take that back": reverse the newest thing she did on her own '
         '(a task she added, a note, a file version, a branch). Only her own reversible acts; '
@@ -675,6 +688,8 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                "apply_pause",
                # her unattended ledger, and the stores an undo reverses, are on the PC
                "undo",
+               # the Instagram token is in the PC's vault; the ledger beside it
+               "instagram_post", "instagram_posts",
                # a recording is a process and a file on this PC
                "screen_record", "screen_record_stop", "recording",
                # the workspace is a directory on his PC
@@ -729,6 +744,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
 # approval — asking him to authorise "tell me the time" is how an approval
 # queue becomes noise he stops reading.
 READ_ONLY_KINDS = frozenset({
+    "instagram_posts",
     # Asking whether she is on changes nothing and must stay answerable
     # while she is halted, closed, or halfway between the two.
     "running",
@@ -3255,6 +3271,21 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return announce.spoken()
     if kind == "undo":
         return _undo_answer(cmd)
+    if kind == "instagram_post":
+        from aletheia import instagram
+        # (A rehearsal never reaches here: the world-tier gate above refuses
+        # first, so a sandbox cannot post.)
+        ready, why = instagram.available()
+        if not ready:
+            raise act.Refused(why)
+        try:
+            row = instagram.publish(cmd["image_url"], cmd.get("caption") or "")
+        except RuntimeError as exc:
+            raise act.Refused(str(exc)) from None
+        return "Posted to Instagram" + (f": {row['caption'][:80]}" if row.get("caption") else " (a picture).")
+    if kind == "instagram_posts":
+        from aletheia import instagram
+        return instagram.spoken_posts()
     if kind == "notify_clear":
         from aletheia import notifications
         unread = notifications.all_notifications(state="UNREAD")

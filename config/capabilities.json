@@ -1312,6 +1312,18 @@
       "verification": "tests/test_secret_store.py: the sealed blob contains no plaintext, journal entries carry names only"
     },
     {
+      "id": "social.publish",
+      "description": "Post a picture with a caption to your Instagram account through the Instagram Graph API - one post per approval, never on its own",
+      "provider": "aletheia.local",
+      "status": "NEEDS_CONFIGURATION",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "python -m aletheia.instagram status|configure|post|posts; the instagram_post kind (world-tier, OUTWARD_ALWAYS) and instagram_posts (read-only) through intercom.execute_command",
+      "module": "aletheia.instagram",
+      "notes": "His words, 2026-09-24: 'I need an app or API or whatever it requires to automatically post stuff to Instagram. I need her to set that up.' Handed the project, she found no door - this is it. NEEDS_CONFIGURATION until three things only he can do are done: the Instagram account is a professional account; a Meta developer app holds the instagram_content_publish permission for it; and the long-lived access token is in the DPAPI vault as instagram.token with the Instagram user id configured. The token is read by name and never written to the journal, a receipt or a ledger. Video and carousel posts are not built.",
+      "verification": "tests/test_instagram_posting.py: two Graph calls in order, the token never reaches the journal, not set up is a refusal naming what is his, a rehearsal posts nothing, the kind is world-tier and outward"
+    },
+    {
       "id": "secret.fill",
       "description": "Fill a stored secret into a page's form field under a standing local grant, without the value passing through a model, a log or a screenshot",
       "provider": "aletheia.local",
