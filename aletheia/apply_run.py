@@ -305,23 +305,63 @@ def load_run(run_id: str) -> dict:
     return stateio.read_json(_record_path(run_id))
 
 
+#: The records, read once per change of the directory rather than once per
+#: request. Measured on his PC 2026-09-24: a thousand application files,
+#: read in full by every /api/status, /api/mission and /api/needs - 2.4 s,
+#: 3.7 s and 3.4 s a request - and the page said "Reconnecting…" over a
+#: Core that was fine. The fingerprint is the file count and the newest
+#: mtime, which every write and delete moves; a thousand stats cost 20 ms.
+_RUNS_CACHE: dict = {"key": None, "rows": [], "checked": 0.0}
+#: How long the fingerprint itself is trusted: a thousand stats cost 0.17 s
+#: on his disk, and the page's four requests land within a second of each
+#: other. Her own writes in this process forget the cache at once
+#: (`_write_record`); another process's write is seen within this long.
+_RUNS_TRUST_S = 2.0
+
+
+def _write_record(run_id: str, record: dict) -> None:
+    stateio.write_json_atomic(_record_path(run_id), record)
+    _RUNS_CACHE["key"], _RUNS_CACHE["checked"] = None, 0.0
+
+
+def _fingerprint(directory) -> tuple:
+    newest, count = 0, 0
+    for path in directory.glob("*.json"):
+        count += 1
+        try:
+            stamp = path.stat().st_mtime_ns
+        except OSError:
+            continue
+        if stamp > newest:
+            newest = stamp
+    return (str(directory), count, newest)
+
+
 def all_runs(state: str | None = None) -> list[dict]:
-    out = []
+    import time as _time
     directory = staged_dir()
     if not directory.is_dir():
-        return out
-    for path in sorted(directory.glob("*.json")):
-        try:
-            value = stateio.read_json(path)
-        except (OSError, ValueError):
-            continue
-        # The old sent ledger still sits in this directory on his PC, and it
-        # is a map of urls, not an application.
-        if not isinstance(value, dict) or "state" not in value:
-            continue
-        if state is None or value.get("state") == state:
-            out.append(value)
-    return out
+        return []
+    now = _time.monotonic()
+    fresh = (_RUNS_CACHE["key"] is not None and _RUNS_CACHE["key"][0] == str(directory)
+             and now - _RUNS_CACHE["checked"] < _RUNS_TRUST_S)
+    key = _RUNS_CACHE["key"] if fresh else _fingerprint(directory)
+    _RUNS_CACHE["checked"] = now
+    if _RUNS_CACHE["key"] != key:
+        rows = []
+        for path in sorted(directory.glob("*.json")):
+            try:
+                value = stateio.read_json(path)
+            except (OSError, ValueError):
+                continue
+            # The old sent ledger still sits in this directory on his PC, and it
+            # is a map of urls, not an application.
+            if not isinstance(value, dict) or "state" not in value:
+                continue
+            rows.append(value)
+        _RUNS_CACHE["key"], _RUNS_CACHE["rows"] = key, rows
+    # Copies, so a caller that edits a row cannot edit the cache.
+    return [dict(r) for r in _RUNS_CACHE["rows"] if state is None or r.get("state") == state]
 
 
 #: An application she decided not to send — a duplicate, or a job that is
@@ -419,7 +459,7 @@ def _not_a_form(run_id: str, url: str, failure: str, *, resume: str, kept_job: d
               "approval": "", "steps": [], "filled": [], "not_filled": list(not_filled or []),
               "skipped": list(skipped or []), "resume": resume,
               "staged_at": stateio.utcnow(), **kept_job}
-    stateio.write_json_atomic(_record_path(run_id), record)
+    _write_record(run_id, record)
     return record
 
 
@@ -437,7 +477,7 @@ def close(run_id: str, why: str, *, via: str = "aletheia") -> dict:
     reason = " ".join(str(why or "").split())[:300]
     record.update({"state": CLOSED, "closed_at": stateio.utcnow(),
                    "closed_because": reason, "closed_by": via})
-    stateio.write_json_atomic(_record_path(run_id), record)
+    _write_record(run_id, record)
     journal.append("decision", "apply",
                    f"closed {run_id} without applying ({describe(record)}): {reason}",
                    actor=ACTOR)
@@ -494,7 +534,7 @@ def reopen(run_id: str, why: str) -> dict:
                    "closed_before": record.get("closed_because", "")})
     for key in ("closed_at", "closed_because", "closed_by", "closed_kind"):
         record.pop(key, None)
-    stateio.write_json_atomic(_record_path(run_id), record)
+    _write_record(run_id, record)
     journal.append("decision", "apply",
                    f"reopened {run_id} ({describe(record)}): {reason}", actor=ACTOR)
     return record
@@ -536,7 +576,7 @@ def remember(run_id: str, **fields) -> dict:
             raise ApplyError(f"an application record does not keep {name!r}")
         if value not in (None, ""):
             record[name] = value
-    stateio.write_json_atomic(_record_path(run_id), record)
+    _write_record(run_id, record)
     return record
 
 
@@ -550,7 +590,7 @@ def mark(run_id: str, outcome: str, *, note: str = "", when: str = "") -> dict:
              "at": when or stateio.utcnow()}
     record.setdefault("outcomes", []).append(entry)
     record["outcome"] = key
-    stateio.write_json_atomic(_record_path(run_id), record)
+    _write_record(run_id, record)
     journal.append("note", "apply",
                    f"{run_id}: {key}" + (f" — {entry['note']}" if entry["note"] else ""),
                    actor=ACTOR)
@@ -866,7 +906,7 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
                          "application",
                   "not_filled": [], "skipped": [], "filled": [],
                   "staged_at": stateio.utcnow(), **kept_job}
-        stateio.write_json_atomic(_record_path(run_id), record)
+        _write_record(run_id, record)
         journal.append("action", "apply",
                        f"{url} wants an account before it will take an "
                        f"application ({decision.get('state')})", actor=ACTOR)
@@ -955,7 +995,7 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
                   "say": (f"{speech.count_phrase(len(blocking), 'thing')} on that form only you can "
                           "answer. Tell me those and I will fill the rest and "
                           "bring it back to you to confirm.")}
-        stateio.write_json_atomic(_record_path(run_id), record)
+        _write_record(run_id, record)
         return record
 
     shot = staged_dir() / f"{run_id}.png"
@@ -990,7 +1030,7 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
                           "go without: "
                           + "; ".join(i["label"] for i in stopped[:5])
                           + ". Tell me those and I will finish it.")}
-        stateio.write_json_atomic(_record_path(run_id), record)
+        _write_record(run_id, record)
         journal.append("action", "apply",
                        f"held an application at {url} — the form will not go "
                        f"yet ({speech.count_phrase(len(stopped), 'thing')} outstanding)", actor=ACTOR)
@@ -1034,7 +1074,7 @@ def stage(url: str, *, resume: str = "", note: str = "", extra: dict | None = No
               "page_title": filled.get("title", ""),
               "answers_given": per_form, **kept_job, **captcha,
               "staged_at": stateio.utcnow()}
-    stateio.write_json_atomic(_record_path(run_id), record)
+    _write_record(run_id, record)
     journal.append("action", "apply",
                    f"staged an application at {url} — {speech.count_phrase(len(steps), 'field')} "
                    f"filled, awaiting his confirmation", actor=ACTOR)
@@ -1482,7 +1522,7 @@ def accept(run_id: str) -> dict:
         raise ApplyError(why)
     record["state"] = "APPROVED"
     record["confirmed_at"] = stateio.utcnow()
-    stateio.write_json_atomic(_record_path(run_id), record)
+    _write_record(run_id, record)
     return record
 
 
@@ -1512,7 +1552,7 @@ def retry(run_id: str, *, via: str = "operator") -> dict:
     record.pop("failure", None)
     record.setdefault("history", []).append(
         {"at": stateio.utcnow(), "what": f"tried again ({tried + 1} of {MAX_RETRIES}) on his say-so"})
-    stateio.write_json_atomic(_record_path(run_id), record)
+    _write_record(run_id, record)
     renew_approval(run_id)
     journal.append("decision", "apply", f"{run_id}: trying the send again ({describe(record)}), {tried + 1} of {MAX_RETRIES}",
                    actor=via)
@@ -1548,7 +1588,7 @@ def renew_approval(run_id: str) -> str:
     record["approval_renewals"] = n
     record.setdefault("history", []).append(
         {"at": stateio.utcnow(), "what": f"approval renewed as {approval_id}: the earlier yes expired"})
-    stateio.write_json_atomic(_record_path(run_id), record)
+    _write_record(run_id, record)
     journal.append("action", "apply", f"{run_id}: approval renewed ({describe(record)}) - the earlier one expired",
                    actor=ACTOR)
     return approval_id
@@ -2514,7 +2554,7 @@ def close_left_missions(left: list[dict]) -> int:
         because = str(mission.get("left_because") or "the general browser could not finish it")
         record.update({"state": CLOSED, "closed_at": stateio.utcnow(), "closed_because": because,
                        "closed_kind": "left", "closed_by": ACTOR})
-        stateio.write_json_atomic(_record_path(run_id), record)
+        _write_record(run_id, record)
         closed += 1
     return closed
 
@@ -2547,7 +2587,7 @@ def record_from_mission(run_id: str, url: str, mission: dict, *, note: str = "",
                                   "evidence": last.get("evidence", "")}})
     if state == REJECTED:
         record["failure"] = f"the site refused it: {boundary.get('say', '')}"[:300]
-    stateio.write_json_atomic(_record_path(run_id), record)
+    _write_record(run_id, record)
     if state in ("SUBMITTED", "SUBMITTING"):
         # Pressed, confirmed or not: into the ledger, so no engine sends it again.
         remember_sent(record)

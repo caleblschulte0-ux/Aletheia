@@ -78,6 +78,12 @@ def _system_chrome_path() -> str | None:
         return pinned
     if os.name != "nt":
         return None
+    # Where Chrome is changes when he installs something, not per request:
+    # `shutil.which` walked the PATH three times a snapshot (0.44 s, 2026-09-24).
+    import time as _time
+    cached = _CHROME_PATH_CACHE.get("at")
+    if cached is not None and _time.monotonic() - cached < 60.0:
+        return _CHROME_PATH_CACHE.get("path")
 
     candidates: list[Path] = []
     for root_name in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
@@ -87,10 +93,12 @@ def _system_chrome_path() -> str | None:
     which = shutil.which("chrome.exe") or shutil.which("chrome")
     if which:
         candidates.append(Path(which))
-    for candidate in candidates:
-        if candidate.is_file():
-            return str(candidate)
-    return None
+    found = next((str(c) for c in candidates if c.is_file()), None)
+    _CHROME_PATH_CACHE.update({"at": _time.monotonic(), "path": found})
+    return found
+
+
+_CHROME_PATH_CACHE: dict = {}
 
 
 def _browser_executable() -> str | None:

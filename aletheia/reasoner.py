@@ -237,8 +237,21 @@ def _raise_if_limited(text: str) -> None:
         raise ClaudeResting(until)
 
 
+#: `shutil.which` walks the whole PATH (0.07 s each on his PC, six times a
+#: snapshot); the answer changes when he installs something, not per request.
+_WHICH_TTL_S = 30.0
+_which_cache: dict[str, tuple[float, str | None]] = {}
+
+
 def cli_path() -> str | None:
-    return shutil.which(CLI)
+    import time as _time
+    now = _time.monotonic()
+    cached = _which_cache.get(CLI)
+    if cached and now - cached[0] < _WHICH_TTL_S:
+        return cached[1]
+    found = shutil.which(CLI)
+    _which_cache[CLI] = (now, found)
+    return found
 
 
 def available() -> tuple[bool, str]:
