@@ -1679,6 +1679,12 @@ def retry_waiting(*, resume: str = "", stager=None, json_think=None, writer=None
     # ("try again when finished") is REJECTED, and live 2026-09-23 Tenex's
     # sat that way through three re-read passes because only FAILED was read.
     waiting += [r for r in apply_run.all_runs() if r.get("state") in ("FAILED", "REJECTED") and refused_submit(r)]
+    # A record the general browser holds is the loop's: its mission is the
+    # truth and it resumes on its own path. The form filler cannot read a
+    # page that never had a form for it - live 2026-09-23 Aptiv's was "read
+    # again" every twelve minutes, all day, and "could not be read" every time.
+    the_loops = [r for r in waiting if r.get("engine") == apply_run.ENGINE_LOOP]
+    waiting = [r for r in waiting if r.get("engine") != apply_run.ENGINE_LOOP]
     for record in waiting[:max(0, int(limit))]:
         policy.ensure_not_halted()
         url = record.get("url") or ""
@@ -1729,9 +1735,11 @@ def retry_waiting(*, resume: str = "", stager=None, json_think=None, writer=None
                    f"read {speech.count_phrase(len(ready) + len(blocked), 'waiting application')} "
                    f"again: {len(ready)} ready, {len(blocked)} still waiting on him, "
                    f"{len(failed)} could not be read, {len(closed)} closed as not realistic, "
-                   f"{len(left)} left unjudged; nothing submitted", actor=ACTOR)
+                   f"{len(left)} left unjudged"
+                   + (f", {len(the_loops)} in the general browser's hands" if the_loops else "")
+                   + "; nothing submitted", actor=ACTOR)
     return {"ready": ready, "blocked": blocked, "failed": failed,
-            "closed": closed, "left": left,
+            "closed": closed, "left": left, "the_loops": [r.get("id") for r in the_loops],
             "questions": open_questions(), "submitted": 0, "roles": [], "role": ""}
 
 
