@@ -1139,6 +1139,24 @@ def _interpret(transcript: str) -> dict:
                 "say": f"Say just \u201c{word}\u201d and I'll do it — I won't "
                        "guess at anything else for the kill switch."}
 
+    # THE OUTWARD MAIL HOLD is lifted at his keyboard, never from a sentence
+    # anything in the room could say (his 2026-09-24 ruling put it on; a
+    # voice rule that lifts it would be a bypass). Said plainly, with where.
+    if re.fullmatch(r"(?:lift|remove|take off|turn off|end|drop|release) (?:the )?(?:outward |outgoing )?"
+                    r"(?:mail|email) hold(?: now| please)?"
+                    r"|(?:let|allow) (?:the )?(?:emails?|mail) (?:go )?out(?: again| now)?"
+                    r"|(?:start|resume) sending (?:emails?|mail)(?: again)?"
+                    r"|(?:stop|quit) holding (?:my |the )?(?:emails?|mail|drafts)", low):
+        try:
+            from aletheia import mail as _mail
+            where = str(_mail.outward_hold().get("command") or "")
+        except Exception:
+            where = ""
+        return {"command": None,
+                "say": ("Lifting the mail hold is yours, at the keyboard - not something I do from a sentence. "
+                        "Until then I draft and keep, and nothing goes out."
+                        + (f" The switch is '{where}'." if where else ""))}
+
     # THE MACHINE'S OWN POWER is not hers: "shut down the computer" went to
     # nobody at the bottom rung (2026-09-24). Said plainly, never compiled.
     if re.fullmatch(r"(?:shut ?down|turn off|power off|restart|reboot|log off|sign out of|lock)"

@@ -831,6 +831,41 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
         with mock.patch("aletheia.apply_run.all_runs", return_value=[]):
             self.assertTrue(quick.answer("how many applications are waiting").startswith("None waiting"))
 
+    def test_the_sixteenth_battery_the_drafts_ledger(self):
+        """His 2026-09-24 ruling: she tracks the drafts and keeps them in
+        order. At the bottom rung "read me the draft to Stripe" went to
+        nobody, "is the mail hold on" answered "No." while it was on, and
+        "lift the mail hold" went to nobody (it is his, at the keyboard)."""
+        from aletheia import voice
+        drafts = [{"id": "mail-2", "to": "jobs@stripe.com", "to_name": "Stripe", "subject": "Thanks for the call",
+                   "body": "Thanks for the call today. I enjoyed it.", "created": "2026-09-24T20:00:00Z", "held": True},
+                  {"id": "mail-1", "to": "dana@example.com", "to_name": "Dana", "subject": "Dinner",
+                   "body": "See you at six.", "created": "2026-09-24T18:00:00Z", "held": True}]
+        with mock.patch("aletheia.mail.held_drafts", return_value=drafts):
+            said = quick.answer("read me the draft to Stripe")
+            self.assertTrue(said.startswith("To Stripe, drafted"), said)
+            self.assertIn("'Thanks for the call': Thanks for the call today.", said)
+            self.assertIn("See you at six", quick.answer("what did you draft for Dana"))
+            self.assertEqual(quick.answer("what's in the draft to Nobody"), "I have no draft to Nobody.")
+        for s in ("who have you drafted to today", "what did you draft today"):
+            self.assertEqual(quick.match(s)[0], "drafts", s)
+        on = {"on": True, "quote": "q", "since": "", "command": "python -m aletheia.mail hold off"}
+        off = {"on": False, "quote": "", "since": "", "command": "python -m aletheia.mail hold off"}
+        with mock.patch("aletheia.mail.outward_hold", return_value=on), mock.patch("aletheia.mail.drafts_ledger", return_value=[]):
+            self.assertTrue(quick.answer("is the mail hold on").startswith("Yes."))
+            self.assertTrue(quick.answer("are you holding my emails").startswith("Yes."))
+            self.assertTrue(quick.answer("is the mail hold off").startswith("No, it's still on."))
+            self.assertTrue(quick.answer("are you sending emails").startswith("No."))
+        with mock.patch("aletheia.mail.outward_hold", return_value=off), mock.patch("aletheia.mail.drafts_ledger", return_value=[]):
+            self.assertTrue(quick.answer("is the mail hold on").startswith("No, the hold is lifted"))
+            self.assertTrue(quick.answer("is the mail hold lifted").startswith("Yes, the hold is lifted"))
+            self.assertTrue(quick.answer("are you sending emails").startswith("Yes,"))
+        with mock.patch("aletheia.mail.outward_hold", return_value=on):
+            out = voice.interpret("thea lift the mail hold")
+        self.assertIsNone(out["command"])
+        self.assertIn("yours, at the keyboard", out["say"])
+        self.assertIn("mail hold off", out["say"])
+
     def test_what_did_i_say_about_is_his_note(self):
         with mock.patch.object(quick, "_notes", return_value=[
                 {"ts": "2026-09-24T20:00:00Z", "text": "the rent is due on the first"}]), \

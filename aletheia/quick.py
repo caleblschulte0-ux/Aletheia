@@ -843,10 +843,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("sending", re.compile(
         r"^(?:are|do|will|can) (?:you|u) (?:sending|send|going to send) (?:any |out )?(?:emails?|mail|messages)"
         r"(?: right now| now| yet| for me)?\s*\??$"
-        r"|^is (?:outward |outgoing )?(?:mail|email) (?:on hold|held|paused|stopped)\s*\??$"
-        r"|^(?:are|is) (?:emails?|mail) (?:on hold|held)\s*\??$"
-        r"|^is (?:the )?(?:outward |outgoing )?(?:mail|email) hold (?:still )?(?:on|off|lifted|up)\s*\??$"
-        r"|^(?:are|is) (?:you|u) (?:still )?holding (?:my |the )?(?:emails?|mail|drafts)\s*\??$")),
+        # The hold-phrased shapes capture a word so the answer's first word
+        # fits the question: "is the mail hold on" is "Yes", not "No" (2026-09-24).
+        r"|^is (?:outward |outgoing )?(?:mail|email) (?P<hold_q>on hold|held|paused|stopped)\s*\??$"
+        r"|^(?:are|is) (?:emails?|mail) (?P<hold_q2>on hold|held)\s*\??$"
+        r"|^is (?:the )?(?:outward |outgoing )?(?:mail|email) hold (?:still )?(?P<hold_q3>on|off|lifted|up)\s*\??$"
+        r"|^(?:are|is) (?:you|u) (?:still )?(?P<hold_q4>holding) (?:my |the )?(?:emails?|mail|drafts)\s*\??$")),
     # WHICH JOBS TODAY. "Which jobs did you apply to today" went to a model
     # for a list that is in her own records (92 s, then nothing); the
     # all-time list ("applied_to", above) did not know the day words.
@@ -886,7 +888,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s) (?:in|on) (?:my |your |the )?drafts?\s*\??$"
         r"|^how many (?:emails? |drafts? )?(?:are |do (?:you|u) have )?(?:in|on|held in) (?:my |the |your )?drafts?(?: folder)?\s*\??$"
         r"|^how many drafts (?:do (?:you|u) have|are (?:there|held|waiting))\s*\??$"
-        r"|^what are (?:you|u) drafting\s*\??$|^what have (?:you|u) (?:got )?drafted\s*\??$")),
+        r"|^what are (?:you|u) drafting\s*\??$|^what have (?:you|u) (?:got )?drafted\s*\??$"
+        r"|^who have (?:you|u) drafted (?:to|for)(?: today)?\s*\??$|^what did (?:you|u) draft(?: today| so far)?\s*\??$")),
+    # ONE DRAFT, read back: "read me the draft to Stripe" (bottom rung 2026-09-24).
+    ("draft_to", re.compile(
+        r"^(?:read me |read |show me |open )?(?:the |my |your )?draft (?:to|for) (?P<draft_to>[a-z0-9][a-z0-9 .&'-]{1,40}?)\s*\??$"
+        r"|^what did (?:you|u) draft (?:to|for) (?P<draft_to2>[a-z0-9][a-z0-9 .&'-]{1,40}?)\s*\??$"
+        r"|^what(?:'s| is|s)? in (?:the |my |your )?draft (?:to|for) (?P<draft_to3>[a-z0-9][a-z0-9 .&'-]{1,40}?)\s*\??$")),
     # HIS INTERVIEW WINDOW is a fact in her own store (offline 2026-09-24:
     # "I don't have your interview window on record" from a model, while
     # `interviews.status()` held 1 to 2:30 PM Central the whole time).
@@ -968,11 +976,13 @@ def match(question: str) -> tuple[str, str] | None:
                                            "time_in3", "date_of", "date_of2", "date_of3",
                                            "recall", "recall2", "recall3", "recall4", "recall5", "ran",
                                            "date_ahead", "date_ahead2", "found_window",
+                                           "hold_q", "hold_q2", "hold_q3", "hold_q4",
+                                           "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3",
                                            "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part",
                                            "place", "place2", "place3")
                      if captured.get(k)), "")
-        if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not"):
+        if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not", "draft_to"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
             # name he said is read back to him: "nowhere inc" is not what
             # he said. His capitals, put back from the sentence itself.
@@ -2709,19 +2719,50 @@ def _drafts() -> str:
     return mail.held_drafts_words()
 
 
-def _sending() -> str:
-    """Whether outward mail goes out right now, from the hold she keeps."""
+def _draft_to(name: str) -> str:
+    """The newest held draft to `name`, read back: who, when, subject, words."""
+    from aletheia import mail, speech
+    who = " ".join(str(name or "").split()).casefold()
+    if not who:
+        return "Who is the draft to?"
+    try:
+        rows = mail.held_drafts()
+    except Exception:
+        return "I can't read my drafts right now."
+    hit = next((d for d in rows if who in str(d.get("to_name") or "").casefold()
+                or who in str(d.get("to") or "").casefold()), None)
+    if hit is None:
+        return f"I have no draft to {name}."
+    body = " ".join(str(hit.get("body") or "").split())
+    if len(body) > 300:
+        body = body[:300].rsplit(" ", 1)[0] + "…"
+    when = speech.humanize_time(str(hit.get("created") or "")) if hit.get("created") else ""
+    to = str(hit.get("to_name") or hit.get("to") or name)
+    subject = str(hit.get("subject") or "").strip()
+    return (f"To {to}" + (f", drafted {when}" if when else "") + (f", '{subject}'" if subject else "")
+            + f": {body}" if body else f"To {to}" + (f", drafted {when}" if when else "") + ": no words in it yet.")
+
+
+def _sending(asked: str = "") -> str:
+    """Whether outward mail goes out right now, from the hold she keeps.
+    `asked` is the hold word he used ("on hold", "off", "holding"), so a
+    yes-or-no fits HIS question: "is the mail hold on" is "Yes"."""
     from aletheia import mail, speech
     hold = mail.outward_hold()
     try:
         held = [r for r in mail.drafts_ledger() if not r.get("superseded_by")]
     except Exception:
         held = []
+    asked = str(asked or "").strip().casefold()
+    about_hold = bool(asked)
+    asked_if_lifted = asked in ("off", "lifted")
     if hold["on"]:
-        return ("No. Outward mail is on hold since you said so - I draft and keep, nothing goes out"
+        first = ("No, it's still on" if asked_if_lifted else "Yes" if about_hold else "No")
+        return (f"{first}. Outward mail is on hold since you said so - I draft and keep, nothing goes out"
                 + (f"; {speech.count_phrase(len(held), 'draft')} held" if held else "")
                 + ". Lifting it is yours, at the keyboard.")
-    return ("Yes, when you approve one: an approved draft goes out on my next beat"
+    first = ("Yes, the hold is lifted" if asked_if_lifted else "No, the hold is lifted" if about_hold else "Yes")
+    return (f"{first}, so an approved draft goes out on my next beat"
             + (f"; {speech.count_phrase(len(held), 'draft')} still held" if held else "") + ".")
 
 
@@ -3792,7 +3833,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "home": lambda rest: _home(),
            "notes_list": lambda rest: _notes_list(),
            "drafts": lambda rest: _drafts(),
-           "sending": lambda rest: _sending(),
+           "sending": lambda rest: _sending(rest),
+           "draft_to": lambda rest: _draft_to(rest),
            "applied_on": _applied_on,
            "asked_on": _asked_on,
            "hunt_why": lambda rest: _hunt_why(),
