@@ -1671,7 +1671,16 @@ def _apply(page, hands, fill: list[dict], route: list[dict], attached: list[dict
             if action == "type":
                 hands.fill(selector, value)
             elif action == "select":
-                hands.select_option(selector, label=value)
+                try:
+                    hands.select_option(selector, label=value)
+                except Exception:
+                    # The list says it another way ("United States of
+                    # America" for United States): the option that MEANS
+                    # the answer, or the page's verdict makes it a question.
+                    chosen = formfill.select_like(page, selector, value)
+                    if not chosen:
+                        raise
+                    value = chosen        # the list's own words, for the replay
             elif action == "check":
                 hands.check(selector)
             elif action == "uncheck":

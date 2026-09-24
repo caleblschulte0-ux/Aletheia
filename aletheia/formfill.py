@@ -2912,6 +2912,45 @@ def _best_option(value, options: list[str], known: dict | None = None) -> str | 
     return words[0] if len(words) == 1 else None
 
 
+_OPTIONS_JS = """(css) => {
+  const el = document.querySelector(css);
+  if (!el || !el.options) return [];
+  return Array.from(el.options).map(o => ({text: (o.textContent || '').trim(), value: o.value}));
+}"""
+
+
+def select_like(page, selector: str, value, *, known: dict | None = None) -> str:
+    """Choose, in a <select>, the option that MEANS `value`, and return its words.
+
+    "United States" against a list that says "United States of America" (or
+    "USA", or "US") threw, was caught, and reached him as "Country dropdown
+    (the page would not take the answer I have)" - live 2026-09-23, Aptiv,
+    on a fact he had given her the first day. The list's own options are
+    read and the one that is the answer is chosen by the same reading a
+    typeahead gets (`_option_for`: value, words, prefix, then `_best_option`
+    with its country and state names). Nothing clearly the answer: "", and
+    the page's own verdict makes it a question."""
+    value = str(value or "").strip()
+    if not value:
+        return ""
+    try:
+        where, css = resolve(page, selector)
+        options = [o for o in (where.evaluate(_OPTIONS_JS, css) or [])
+                   if isinstance(o, dict) and str(o.get("value") or "").strip()]
+    except Exception:
+        return ""
+    if not options:
+        return ""
+    chosen = _option_for({"options": options}, value)
+    if chosen is None:
+        return ""
+    try:
+        where.select_option(css, chosen)
+    except Exception:
+        return ""
+    return next((o["text"] for o in options if o["value"] == chosen), chosen)
+
+
 def is_combobox(page, selector: str) -> bool:
     try:
         where, css = resolve(page, selector)
