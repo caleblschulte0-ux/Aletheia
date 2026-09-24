@@ -54,11 +54,12 @@ class TransportNeedsNoKeyCase(MusicCase):
 
     def test_it_claims_only_what_it_did(self):
         """A media key is fire-and-forget: Windows gives no acknowledgement
-        that any application acted on it. "Play." is honest; "it's
-        playing" is the sentence he cannot check."""
+        that any application acted on it. "Pressed play." is honest; "it's
+        playing" is the sentence he cannot check. (It was "Play.", which
+        read as a stutter out loud - 2026-09-24.)"""
         with mock.patch.object(music, "press", return_value=True), \
              mock.patch.object(music, "player_running", return_value=True):
-            for action, expected in (("play", "Play."), ("pause", "Paused."),
+            for action, expected in (("play", "Pressed play."), ("pause", "Paused."),
                                      ("next", "Skipped."),
                                      ("previous", "Back one.")):
                 with self.subTest(action=action):

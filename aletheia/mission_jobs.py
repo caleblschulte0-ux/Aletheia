@@ -518,7 +518,9 @@ def build(reading: dict, ctx: dict) -> dict:
                 for r in sorted(records, key=_last_moved, reverse=True)[:3] if r.get("id")]
     out["missions"].append(mission_card(
         id=MISSION_ID, type=TYPE, title="Job hunt",
-        goal="Find openings that fit his resume and apply, one approval each",
+        # Said to HIM, on his page: "his resume" was a developer's sentence,
+        # and "one approval each" stopped being true with the jobs grant.
+        goal="Find openings that fit your resume and apply",
         status=status, step=_words(step, 180), next=_next(status, hunt=hunt, loop=loop, say_time=say_time),
         blockers=blockers, needs=needs, needs_count=int(waiting["count"] or 0), counts=counts,
         receipts=receipts, updated=newest or loop.get("last_seen"), detail=True,

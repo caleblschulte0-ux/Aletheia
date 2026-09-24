@@ -23,6 +23,7 @@ Read-only throughout: nothing here resumes, presses or approves.
 from __future__ import annotations
 
 import datetime as dt
+import re
 from typing import Any
 
 from aletheia.mission_control import RECENT_S, Provider, _age_s, _words, duration_words, mission_card
@@ -57,6 +58,47 @@ def _site(url: object) -> str:
         return urlparse(str(url or "")).netloc
     except ValueError:
         return ""
+
+
+#: Job systems whose first path segment (or `for=`) is the employer.
+_ATS_HOSTS = ("ashbyhq.com", "greenhouse.io", "lever.co", "workable.com", "smartrecruiters.com",
+              "recruitee.com", "jobs.lever.co")
+
+
+def employer_from_url(url: object) -> str:
+    """The employer a job URL is for, said plainly: "Notion" from
+    jobs.ashbyhq.com/notion/..., "Salesforce" from salesforce.wd12.myworkdayjobs.com,
+    "spacex" from boards.greenhouse.io/embed/job_app?for=spacex, else the site.
+    Never raises."""
+    from urllib.parse import parse_qs, urlparse
+    try:
+        parts = urlparse(str(url or ""))
+    except ValueError:
+        return ""
+    host = (parts.netloc or "").casefold().removeprefix("www.")
+    if not host:
+        return ""
+    if "myworkdayjobs.com" in host or "myworkdaysite.com" in host:
+        return host.split(".")[0].replace("-", " ").title()
+    if any(host == h or host.endswith("." + h) for h in _ATS_HOSTS):
+        for_ = parse_qs(parts.query).get("for", [""])[0]
+        segments = [s for s in parts.path.split("/") if s and s not in ("embed", "job_app", "jobs", "o", "j")]
+        slug = for_ or (segments[0] if segments else "")
+        if slug and not re.fullmatch(r"[0-9a-f-]{8,}", slug):
+            return slug.replace("-", " ").replace("_", " ").title()
+    return host
+
+
+def named_goal(record: dict) -> str:
+    """The card's title: the goal, and for the job hunt's generic goal
+    ("apply for this job") the employer too. Live 2026-09-24 his page held
+    twenty cards all titled "apply for this job"."""
+    goal = " ".join(str(record.get("goal") or "").split())
+    if goal.casefold() == "apply for this job":
+        who = employer_from_url(record.get("start_url"))
+        if who:
+            return f"Apply at {who}"
+    return goal
 
 
 def named_stop(record: dict) -> str:
@@ -157,7 +199,7 @@ def card(record: dict, now: dt.datetime, *, stale_min: int = 20) -> dict | None:
         if c.get("name") not in names:
             names.append(c.get("name"))
     return mission_card(
-        id=f"browser:{record['id']}", type=TYPE, title=_words(goal or record["id"], 100), goal=goal,
+        id=f"browser:{record['id']}", type=TYPE, title=_words(named_goal(record) or record["id"], 100), goal=goal,
         status=status, step=step, next=nxt, blockers=blockers, needs=needs,
         progress={"done": len(names), "total": 6, "unit": "checkpoints"} if names else None,
         receipts=[{**receipt, "label": "browser mission record"}], updated=record.get("beat"),

@@ -77,6 +77,18 @@ class FakePage:
 
 
 class BrowserReasonerCase(unittest.TestCase):
+    def setUp(self):
+        # A failed attempt RESTS the browser path for ten minutes (a real
+        # rule). The rest is a file in private state, which every test in
+        # this class would otherwise inherit from the one before it.
+        import tempfile
+        from pathlib import Path
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        rest = Path(tmp.name) / "rest.json"
+        p = mock.patch.object(browser_reasoner, "_rest_path", lambda: rest)
+        p.start(); self.addCleanup(p.stop)
+
     def leased(self):
         return mock.patch.dict(
             os.environ, {browser_reasoner.ALLOW_ENV: "1"}, clear=False

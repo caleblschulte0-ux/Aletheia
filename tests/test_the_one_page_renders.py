@@ -528,6 +528,8 @@ class OnePageCase(unittest.TestCase):
                 self.assertEqual(tap["requests"], 0)
                 self.assertTrue(tap["only_problems"])
                 self.assertGreater(tap["rows"], 0)
+                # "N problems" opens N rows: one reader, one window.
+                self.assertEqual(tap["rows"], int(counted.group(1)), tap)
                 self.assertTrue(tap["back"] and tap["restored"])
 
     def test_a_decision_leaves_the_screen_the_instant_he_taps(self):

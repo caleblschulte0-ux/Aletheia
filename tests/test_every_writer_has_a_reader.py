@@ -104,6 +104,10 @@ READER_FOR = {
     "notify_operator": "notify_check",
     "notify_clear": "notify_check",
     "notify_snooze": "notify_check",
+    # An undo changes the store the act had touched (a task, the list, a
+    # reminder, a hold, a file), each readable above; the act itself is
+    # read back by "what did you do today" and the unattended ledger.
+    "undo": "tasks",
     # He is the one being told. "What are you announcing" is answered
     # from the announce setting itself, which `setup_status` carries.
     "announce_set": "setup_status",

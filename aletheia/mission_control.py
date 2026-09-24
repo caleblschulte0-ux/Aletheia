@@ -465,9 +465,54 @@ def generic_missions(*, mission_record: dict | None, plans: Iterable[dict], task
     return out
 
 
+#: Fewer alike WAITING cards than this stay as they are.
+FOLD_ALIKE_AT = 3
+
+
+def fold_alike(missions: Iterable[dict]) -> list[dict]:
+    """Cards that WAIT the same way become one card that says how many.
+
+    Live 2026-09-24 his page held "Show the other 19": twenty cards, each
+    "apply for this job - waiting - pressed; the site did not say whether
+    it went through - Nothing: it is never pressed twice", nothing to do
+    on any of them. Honest, and seven screens of the same sentence. A
+    card that needs nothing from him and waits like its neighbours is
+    folded into one that names them; anything that needs him, is stuck or
+    is moving stays its own card. Pure.
+    """
+    rows = [m for m in missions if isinstance(m, dict)]
+    alike: dict[tuple[str, str], list[dict]] = {}
+    for m in rows:
+        if m.get("status") == "WAITING" and not m.get("needs") and not m.get("blockers"):
+            alike.setdefault((str(m.get("type") or ""), str(m.get("next") or "")), []).append(m)
+    out: list[dict] = []
+    folded: set[int] = set()
+    for group in alike.values():
+        if len(group) < FOLD_ALIKE_AT:
+            continue
+        for m in group:
+            folded.add(id(m))
+        names = []
+        for m in group:
+            title = " ".join(str(m.get("title") or "").split())
+            if title and title not in names:
+                names.append(title)
+        first = group[0]
+        said = ", ".join(names[:4]) + (f" and {len(group) - 4} more" if len(group) > 4 else "")
+        out.append(mission_card(
+            id=f"fold:{first.get('type')}:waiting", type=str(first.get("type") or ""),
+            title=f"{len(group)} {'things' if not first.get('type') else 'applications'} are waiting to hear back",
+            goal="", status="WAITING", step=said,
+            next=str(first.get("next") or ""),
+            updated=max((str(m.get("updated") or "") for m in group), default=None),
+            source=str(first.get("source") or "")))
+    kept = [m for m in rows if id(m) not in folded]
+    return kept + out
+
+
 def order_missions(missions: Iterable[dict]) -> list[dict]:
     """What needs him, what is stuck, what is moving; newest first within each."""
-    rows = sorted(missions, key=lambda m: str(m.get("updated") or ""), reverse=True)
+    rows = sorted(fold_alike(missions), key=lambda m: str(m.get("updated") or ""), reverse=True)
     return sorted(rows, key=lambda m: STATUSES.index(m["status"]) if m.get("status") in STATUSES else len(STATUSES))
 
 
@@ -821,7 +866,15 @@ def gather(now: dt.datetime | None = None, *, fresh: bool = False,
     lines = attempt("the activity ribbon", lambda: ribbon(
         journal_entries=entries, sessions=_sessions(), extra=extra, skip_subjects=skip, labels=labels,
         limit=None), [])
-    today = today_tally(lines, ctx["today_floor"])
+    # ONE READER for the header's count and the rows behind the tap: the
+    # page's "What she's done" is `needs_you.activity`, so the day's tally is
+    # counted from the same rows over the same window (2026-09-24: "24
+    # problems" opened 14 rows, counted from the ribbon since midnight while
+    # the list carried the last 30 rows of 24 hours).
+    def _today_from_activity() -> dict:
+        from aletheia import needs_you
+        return needs_you.today_tally()
+    today = attempt("today's tally", _today_from_activity, today_tally(lines, ctx["today_floor"]))
     value = {
         "version": 2,
         "as_of": _stamp(now),

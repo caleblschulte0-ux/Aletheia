@@ -275,7 +275,8 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "agent_stop":    ({"which"}, set()),
     "agents_pause":  (set(), set()),
     # personal-OS verbs (2026-08-26): PC-private state, so all LOCAL_KINDS
-    "remind_at":       ({"at", "text"}, set()),
+    # `replaces` is the text of the reminder this one moves ("make that 4").
+    "remind_at":       ({"at", "text"}, {"replaces"}),
     "remind_daily":    ({"time", "text"}, {"tz"}),
     # "every Monday at 8, take the bins out". `scheduler` has had a
     # `weekly` kind since it was written and the GRAMMAR could not say it,
@@ -299,6 +300,8 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "notify_operator": ({"text"}, {"priority"}),
     "notify_check":    (set(), set()),
     "notify_clear":    (set(), set()),
+    # His "undo that": `which` is optional words naming the act; nothing means the newest.
+    "undo":            (set(), {"which"}),
     "announce_set":    ({"on"}, {"quiet_from", "quiet_until"}),
     # `part` is morning/afternoon/evening. He says it constantly and it
     # used to be dropped in silence — see `_free_sentence`.
@@ -366,6 +369,11 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # generated from KIND_ARGS and these together, so the model learns the
 # shape of a step list from the registry rather than from a guess.
 KIND_NOTES: dict[str, str] = {
+    "undo": (
+        'His "undo that" / "take that back": reverse the newest thing she did on her own '
+        '(a task she added, a note, a file version, a branch). Only her own reversible acts; '
+        'his decisions and anything that reached the world are refused by name. Never compiled '
+        'by a planner - it is forbidden there; only his words reach it.'),
     "preference_set": (
         'Change one thing the job hunt steers by, in his words: field is one of '
         'work_wanted, work_not_wanted, desired_pay, notice_period, willing_to_relocate; '
@@ -665,6 +673,8 @@ KIND_NOTES: dict[str, str] = {
 LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email_read", "email_draft",
                # the job hunt's pause marker lives in the PC's private state
                "apply_pause",
+               # her unattended ledger, and the stores an undo reverses, are on the PC
+               "undo",
                # a recording is a process and a file on this PC
                "screen_record", "screen_record_stop", "recording",
                # the workspace is a directory on his PC
@@ -773,6 +783,9 @@ READ_ONLY_KINDS = frozenset({
 ROUTINE_KINDS = frozenset({
     "task_new", "task_status", "plan_new", "plan_add_step", "plan_step",
     "preference_set",
+    # Taking back one of her own reversible acts reaches nobody; the act
+    # itself was routine, and only his word gets here (PLANNER_FORBIDDEN).
+    "undo",
     # His "handled" on a red project: one private row beside the pulse.
     "fault_ack",
     # His "Clear" on a browser mission: its record left, nothing pressed.
@@ -981,6 +994,7 @@ PLANNER_FORBIDDEN = frozenset({
     "update_now",          # and a pull of her own code is his tap, not a plan step
     "fault_ack",           # a fault marked handled by a model is a fault hidden
     "mission_leave",       # clearing a card that waits on him is his tap
+    "undo",                # taking back one of her own acts is his word, never a compiler's
     "open_page",           # a page on his screen is his tap, never a compiler's
     "apply_pause",         # "stop applying" is his word, never a compiler's guess
     "approve", "deny",     # self-authorization, from an ambiguous word
@@ -1563,6 +1577,121 @@ def _shopping_items() -> list[dict]:
             if str(w.get("state", "")).upper() in SHOPPING_OPEN]
 
 
+def _undo_answer(cmd: dict) -> str:
+    """"Undo that": the newest thing she did on her own that can be taken
+    back, or the one his words name. Only her own reversible acts; an
+    outward one and a decision of his are refused by name (autonomy.undo).
+    Bottom rung, 2026-09-24: "undo that" went to nobody."""
+    from aletheia import autonomy, speech
+    which = " ".join(str(cmd.get("which") or "").split()).casefold()
+    # HIS OWN LAST ASK FIRST. "Add a task to call the plumber" then "undo
+    # that" means the task, not the ledger of what she did unasked.
+    if not which or which in ("that", "it", "the last thing", "the last one", "last"):
+        taken = _undo_his_last_ask()
+        if taken:
+            return taken
+    rows = [r for r in autonomy.recent(hours=48, limit=50)
+            if not r.get("undone") and (r.get("undo") or {}).get("how") not in (None, autonomy.NONE)
+            and not str(r.get("decided_by") or "").strip() and not autonomy.is_outward(r)]
+    if which and which not in ("that", "it", "the last thing", "the last one", "last"):
+        words = [w for w in re.findall(r"[a-z0-9']+", which) if len(w) > 2]
+        rows = [r for r in rows if any(w in autonomy.said_line(r).casefold() for w in words)] or []
+        if not rows:
+            return f"I have nothing of my own to take back that matches {which}."
+    if not rows:
+        return ("Nothing to undo: I haven't done anything on my own in the last two days that I could "
+                "take back.")
+    row = rows[0]
+    try:
+        out = autonomy.undo(str(row["id"]), via="operator-via-intercom")
+    except autonomy.UndoRefused as exc:
+        return f"I can't take that one back: {speech.plainly(str(exc))}"
+    said = str(out.get("said") or "").rstrip(".")
+    return f"Undone: {said}." if out.get("undone") else str(out.get("said") or "Nothing changed.")
+
+
+#: What he asks for by voice that can be taken straight back, by kind.
+UNDOES_HIS_ASK = ("task_new", "shopping_add", "remind_at", "remind_daily", "remind_weekly",
+                  "calendar_hold", "file_write", "note")
+
+
+def _undo_his_last_ask() -> str | None:
+    """Reverse the last thing HE asked for, read back from the thread and
+    re-interpreted by the same deterministic layer that ran it: a task is
+    cancelled, a list item taken off, a reminder switched off, a hold
+    released, a written file put back. None when his last turn was not one
+    of those (the caller then looks at her own unattended ledger)."""
+    try:
+        from aletheia import converse, voice
+        turns = converse.recent(limit=4)
+    except Exception:
+        return None
+    for turn in reversed(turns or []):
+        said = " ".join(str(turn.get("he_asked") or "").split())
+        if not said:
+            continue
+        try:
+            command = (voice.interpret(f"thea {said}") or {}).get("command") or {}
+        except Exception:
+            return None
+        kind = str(command.get("kind") or "")
+        if kind == "undo":
+            continue                        # his previous undo; look one further back
+        if kind not in UNDOES_HIS_ASK:
+            return None
+        return _reverse_his_ask(kind, command)
+    return None
+
+
+def _reverse_his_ask(kind: str, command: dict) -> str:
+    from aletheia import speech
+    if kind == "task_new":
+        from aletheia import tasks
+        desc = str(command.get("description") or "").strip()
+        match = [t for t in tasks.all_tasks()
+                 if str(t.get("description") or "").strip().casefold() == desc.casefold()
+                 and t.get("status") not in ("DONE", "CANCELLED")]
+        if not match:
+            return f"That task ({desc}) is already gone."
+        tasks.set_status(match[-1]["id"], "CANCELLED", "undone: you took it back")
+        return f"Undone: cancelled the task {desc}."
+    if kind == "shopping_add":
+        item = str(command.get("item") or "").strip()
+        try:
+            execute_command({"kind": "shopping_off", "item": item}, {}, quote="undo that")
+        except act.Refused as exc:
+            return f"I couldn't take {item} off the list: {speech.plainly(str(exc))}"
+        return f"Undone: took {item} back off the shopping list."
+    if kind in ("remind_at", "remind_daily", "remind_weekly"):
+        from aletheia import scheduler
+        text = str(command.get("text") or "").strip()
+        found, why = _one_reminder(text)
+        if found is None:
+            return f"I couldn't find that reminder to switch off: {speech.plainly(str(why))}"
+        scheduler.set_enabled(found["id"], False)
+        return f"Undone: the reminder to {text} is off."
+    if kind == "calendar_hold":
+        from aletheia import calendar_reasoning
+        title, start = str(command.get("title") or ""), str(command.get("start") or "")
+        try:
+            calendar_reasoning.release_hold(calendar_reasoning.hold_id(title, start), why="undone: you took it back")
+        except Exception as exc:  # noqa: BLE001
+            return f"I couldn't release that hold: {speech.plainly(str(exc))}"
+        return f"Undone: released the hold for {title}."
+    if kind == "file_write":
+        from aletheia import workspace
+        path = str(command.get("path") or "")
+        kept = workspace.versions(path)
+        if len(kept) > 1:
+            workspace.restore(kept[-1])
+            return f"Undone: put back the version of {path} from before."
+        workspace.remove(path, why="undone: you took it back")
+        return f"Undone: removed {path}; a copy is kept if you want it back."
+    if kind == "note":
+        return "A note I can't take back in one word yet - say 'forget' and what it was about, and I'll drop it."
+    return "Nothing to undo."
+
+
 def free_time_answer(cmd: dict) -> str:
     """When he is free, as one sentence. Public because `quick` answers
     the same question from the same feed, and the sentence should be
@@ -1573,7 +1702,15 @@ def free_time_answer(cmd: dict) -> str:
     minutes = int(cmd.get("minutes", 30))
     day = _dt.date.fromisoformat(cmd["day"])
     part = str(cmd.get("part") or "").strip().lower()
-    slots = cal.free_slots(day, duration_minutes=minutes, timezone=tz)
+    if part in ("evening", "tonight", "night"):
+        # "Am I free Friday evening" answered "nothing free - I only look at
+        # your working hours" (2026-09-24): a question about the evening,
+        # answered about the office. The evening is looked at as the evening.
+        low, high = cal.DAY_PARTS.get("evening", (17, 22))
+        slots = cal.free_slots(day, duration_minutes=minutes, timezone=tz,
+                               work_start=_dt.time(low, 0), work_end=_dt.time(high, 0))
+    else:
+        slots = cal.free_slots(day, duration_minutes=minutes, timezone=tz)
     # HE SAID "AFTERNOON". Dropping the qualifier and answering about
     # the whole day answers a different question than the one asked,
     # and he has no way to tell that it happened.
@@ -1817,8 +1954,6 @@ def _free_sentence(ranges: list, day, part: str) -> str:
         # day keeps its name ("tomorrow afternoon", "Friday morning").
         when = f"this {part}" if when == "today" else f"{when} {part}"
     if not ranges:
-        if part in ("evening", "tonight"):
-            return f"Nothing free {when} — {WORK_HOURS_NOTE}."
         return f"Nothing free {when}."
     said = speech.and_list([f"{clock(a)} to {clock(b)}" for a, b in ranges[:3]])
     more = ", and a couple more" if len(ranges) > 3 else ""
@@ -2382,8 +2517,9 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         from aletheia import workspace
         if kind == "file_write":
             out = workspace.write(cmd["path"], cmd["text"], why=cmd.get("why", ""))
-            return (f"wrote {out['path']} ({out['chars']:,} chars)"
-                    + ("" if out["created"] else " — previous version kept"))
+            # A sentence, not a receipt: "wrote notes.md (5 chars)" was read out.
+            return (f"Wrote {out['path']} in my workspace"
+                    + ("." if out["created"] else "; the previous version is kept."))
         if kind == "file_edit":
             out = workspace.edit(cmd["path"], cmd["find"], cmd["replace"],
                                  why=cmd.get("why", ""))
@@ -2768,10 +2904,18 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "remind_at":
         from aletheia import scheduler
         import re as _re, uuid as _uuid
+        moved = ""
+        if cmd.get("replaces"):
+            # "Make that 4": the old reminder goes off (never deleted) before
+            # the new one is set, so he is not reminded twice.
+            found, _why = _one_reminder(str(cmd["replaces"]))
+            if found is not None:
+                scheduler.set_enabled(found["id"], False)
+                moved = " (moved)"
         sid = "remind-" + _uuid.uuid4().hex[:8]
         scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
                          kind="once", at=cmd["at"])
-        return f"reminder {sid} set for {cmd['at']} — {cmd['text'][:80]!r}"
+        return f"reminder {sid} set for {cmd['at']} — {cmd['text'][:80]!r}{moved}"
     if kind == "remind_daily":
         from aletheia import scheduler
         import uuid as _uuid
@@ -3089,6 +3233,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             announce.set_quiet_hours(cmd["quiet_from"], cmd["quiet_until"],
                                      via="operator-via-intercom")
         return announce.spoken()
+    if kind == "undo":
+        return _undo_answer(cmd)
     if kind == "notify_clear":
         from aletheia import notifications
         unread = notifications.all_notifications(state="UNREAD")

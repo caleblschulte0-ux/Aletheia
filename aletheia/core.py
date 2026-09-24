@@ -956,7 +956,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"needs": rows[:max(1, min(asked, 200))],
                                "total": len(rows),
                                "says": _needs.spoken(rows),
-                               "activity": _needs.activity(),
+                               # TODAY, the same window and reader the header counts
+                               # from, so "N problems" opens N rows.
+                               "activity": _needs.for_the_page(
+                                   _needs.activity(hours=_needs.today_hours(), limit=500)),
                                "drafts": drafts[:60],
                                "mail_hold": {"on": bool(hold.get("on")), "since": str(hold.get("since") or "")}})
         if url.path == "/api/fleet":

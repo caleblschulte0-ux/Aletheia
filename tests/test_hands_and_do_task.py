@@ -249,7 +249,7 @@ class TheIntercomKnowsBothKinds(Isolated):
         answer = intercom.execute_command(
             {"kind": "file_write", "path": "b.md", "text": "hello"}, FLEET)
         self.assertIsInstance(answer, str)
-        self.assertIn("wrote", answer)
+        self.assertIn("wrote", answer.lower())
 
     def test_a_missing_tool_is_unavailable_not_an_error(self):
         from aletheia import media

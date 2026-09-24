@@ -274,6 +274,8 @@ OUTWARD_ALWAYS = frozenset({
     # authority, and the switches that are authority
     "approve", "deny", "resume", "halt", "close", "open", "rule", "apply_pause",
     "restart", "update_now", "study_decide", "study_confirm", "mission_confirm",
+    # taking one of her acts back is his decision; she never undoes herself unasked
+    "undo",
     # his desktop, and a new worker with capacity of its own
     "computer_do", "agent_new",
 })
@@ -743,6 +745,8 @@ INTERNAL_KINDS = frozenset({
     "mission_leave",
     "running", "brief", "setup_status", "notify_check", "notify_clear",
     "notify_snooze", "notify_operator", "announce_set", "rule",
+    # His "undo that": a decision over her own ledger, like approve.
+    "undo",
     "authority_status", "mic", "mic_on", "mic_off",
     # A recurring schedule's own verb for a long mission; nothing he says means it.
     "mission_activity",
