@@ -149,7 +149,12 @@ class TheRunners(Isolated):
         self.assertEqual(out["state"], ws.DONE)
         self.assertEqual(set_status.call_args.args[:2], ("verify-x", "COMPLETED"))
 
-    def test_an_experimental_capability_runs_its_tests_and_hands_the_live_proof_to_him(self):
+    def test_an_experimental_capability_runs_its_tests_and_waits_for_a_real_use(self):
+        """The live proof reaches the world, so nothing starts one for him -
+        and a real use is a day that comes, not a chore of his. Until
+        2026-09-24 this parked the task on HIM, and "Verify or repair
+        capability reservation.book - needs you - I did it" sat on his page
+        for six days."""
         from aletheia import capabilities, project_checkout, tasks
         it = we.item("task:verify-m", "tasks", "Verify or repair capability message.send", ws.READY,
                      payload={"task": "verify-m", "description": "Verify or repair capability message.send"})
@@ -163,9 +168,10 @@ class TheRunners(Isolated):
                                                                    "command": "python -m unittest tests.test_messages"}), \
                 mock.patch.object(tasks, "set_status") as set_status:
             out = runners.run(it, NOW)
-        self.assertEqual(out["state"], ws.BLOCKED_USER)
+        self.assertEqual(out["state"], ws.BLOCKED_EXTERNAL)
         self.assertIn("supervised live send", out["reason"])
-        self.assertEqual(set_status.call_args.args[1], "WAITING_OPERATOR")
+        self.assertEqual(set_status.call_args.args[1], "WAITING_EXTERNAL")
+        self.assertNotIn("yours", out["did"])
 
     def compose_catalog(self):
         read = tools.declare("look.it.up", description="Look up the status summary of something and report it",

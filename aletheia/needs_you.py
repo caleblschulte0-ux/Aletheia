@@ -175,7 +175,42 @@ def _applications() -> list[dict]:
     return out
 
 
-SOURCES = {"approval": _approvals, "work": _work, "application": _applications}
+#: Task statuses that mean the task sits on HIM. WAITING_EXTERNAL is the
+#: world's and BLOCKED is a blocker's; neither of those is Caleb.
+HIS_TASK_STATUSES = ("WAITING_OPERATOR",)
+
+
+def _tasks() -> list[dict]:
+    """Durable tasks whose status says they wait on him.
+
+    Live 2026-09-24: two task cards on the page said "needs you", each with
+    an "I did it" button under it, while the Needs list beside them said
+    "Nothing needs you right now." The cards read `state/tasks`; this list
+    read three other stores and not that one. Two surfaces, two answers,
+    which is the failure this list was built to end.
+    """
+    from aletheia import speech, tasks
+    out = []
+    for task in tasks.all_tasks():
+        if tasks.effective_status(task) not in HIS_TASK_STATUSES:
+            continue
+        # A task's description is whoever filed it, in their words - a
+        # session writes "Verify or repair capability reservation.book". The
+        # registry says what an id IS, and that is what he reads.
+        what = speech.say_capabilities(str(task.get("description") or task.get("id") or ""))
+        out.append(_row(
+            id=str(task.get("id") or ""),
+            kind="task",
+            what=what,
+            why="only you can do this step",
+            if_ignored="it stays where it is until you get to it",
+            since=str(task.get("updated_at") or task.get("created_at") or ""),
+            how="tap I did it on its card once it is done"))
+    return out
+
+
+SOURCES = {"approval": _approvals, "work": _work, "application": _applications,
+           "task": _tasks}
 
 
 # ------------------------------------------------------------------ list
