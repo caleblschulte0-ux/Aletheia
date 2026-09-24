@@ -372,6 +372,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what do (?:you|u) need answers? (?:to|for)\s*\??$")),
     # "How many jobs are left to apply to": there is no queue, and saying so
     # with the day's numbers is a fact (bottom rung, 2026-09-24).
+    # A count of unread notices is a number in her store (bottom rung 2026-09-24).
+    ("notify_count", re.compile(
+        r"^how many (?:unread )?notifications? (?:do i have|are there|are waiting|have i got|do (?:you|u) have for me)"
+        r"(?: unread)?\s*\??$"
+        r"|^(?:any|do i have any) (?:unread |new )?notifications?(?: for me)?\s*\??$")),
     ("jobs_left", re.compile(
         r"^how many (?:jobs|openings|applications) (?:are |do (?:you|u) have )?(?:left|remaining|still)"
         r"(?: to (?:apply to|apply for|do|send|go))?\s*\??$"
@@ -546,8 +551,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # HIS DAY, from the calendar mirror she already holds.
     ("agenda", re.compile(
         r"^what(?:'s| is|s)? on (?:my |the )?(?:calendar|schedule|agenda|plate)"
-        r"(?: for)? (?P<day>today|tomorrow|this week|next week)$"
-        r"|^what (?:do i have|have i got|is there|am i doing) (?:on )?(?P<day2>today|tomorrow|this week|next week)$"
+        r"(?: for)?(?: on| this)? (?P<day>today|tomorrow|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
+        r"|^what (?:do i have|have i got|is there|am i doing) (?:on )?(?P<day2>today|tomorrow|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
         r"|^(?:my |the )?(?:calendar|schedule|agenda) (?:for )?(?P<day3>today|tomorrow|this week|next week)$"
         r"|^what(?:'s| is|s)? (?P<day4>today|tomorrow)(?:'s| like)?(?: looking like| look like)?$"
         r"|^(?:what(?:'s| is|s)? (?:on|happening|coming up)|anything (?:on|happening|coming up)|what have i got on"
@@ -848,6 +853,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # `interviews.status()` held 1 to 2:30 PM Central the whole time).
     ("interview_window", re.compile(
         r"^what(?:'s| is|s)? my interview (?:window|hours|times)\s*\??$"
+        r"|^what times? (?:is|are) my interview (?:window|hours|times)\s*\??$"
         r"|^when (?:can|do) i (?:do|take|have) interviews\s*\??$"
         r"|^what (?:hours|times) (?:are|do) (?:you|u) book(?:ing)? interviews(?: for| in)?\s*\??$")),
     # "Did the shorts pipeline run today" is the pulse's row for that repo,
@@ -2091,6 +2097,9 @@ def _cannot() -> str | None:
     return ". ".join(parts) + ". Ask about any one and I'll say exactly where it stands."
 
 
+_WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+
+
 def _agenda(day: str = "today") -> str | None:
     day = "this week" if day == "week" else day
     """"What's on my calendar today?" - the day's events from the calendar
@@ -2106,6 +2115,10 @@ def _agenda(day: str = "today") -> str | None:
         elif day == "next week":
             first = now.date() + dt.timedelta(days=7 - now.weekday())
             last = first + dt.timedelta(days=6)
+        elif day in _WEEKDAYS:
+            # "What's on my calendar Monday": the coming one (today if it is today).
+            ahead = (_WEEKDAYS.index(day) - now.weekday()) % 7
+            first = last = now.date() + dt.timedelta(days=ahead)
         else:
             first = last = now.date() + dt.timedelta(days=1 if day == "tomorrow" else 0)
         rows = []
@@ -2120,10 +2133,13 @@ def _agenda(day: str = "today") -> str | None:
                 rows.append((start, str(event.get("title") or "something")[:80]))
     except Exception:
         return None                  # no calendar mirror: the model may know more
-    label = ("Today" if first == last == now.date() else "Tomorrow" if first == last
+    label = ("Today" if first == last == now.date()
+             else "Tomorrow" if first == last and first == now.date() + dt.timedelta(days=1)
+             else first.strftime("%A") if first == last
              else "This week" if day == "this week" else "Next week")
+    when_said = label.lower() if label in ("Today", "Tomorrow", "This week", "Next week") else label
     if not rows:
-        return f"Nothing on your calendar {label.lower()}."
+        return f"Nothing on your calendar {when_said}."
     rows.sort(key=lambda r: r[0])
     many_days = first != last
     said = [(f"{title} {start.strftime('%A')} at " if many_days else f"{title} at ")
@@ -2440,6 +2456,19 @@ def _uptime() -> str | None:
         # No heartbeat on record is a fact; a model cannot know it either.
         return "I don't have a heartbeat on record for this run, so I can't say how long."
     return f"Up {liveness.spoken_duration(seconds)}."
+
+
+def _notify_count() -> str:
+    from aletheia import notifications, speech
+    try:
+        rows = notifications.all_notifications(state="UNREAD", limit=500)
+    except Exception:
+        return "I can't read my notifications right now."
+    if not rows:
+        return "No unread notifications."
+    named = [speech.notice_line(n) for n in rows[:3]]
+    return (f"{speech.count_phrase(len(rows), 'unread notification')}: " + "; ".join(named)
+            + (f"; and {len(rows) - 3} more" if len(rows) > 3 else "") + ".")
 
 
 def _jobs_left() -> str:
@@ -3522,6 +3551,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "interview_when": lambda rest: _interview_when(),
            "interview_window": lambda rest: _interview_window(),
            "jobs_left": lambda rest: _jobs_left(),
+           "notify_count": lambda rest: _notify_count(),
            "ran_today": lambda rest: _ran_today(rest),
            "plan_today": lambda rest: _plan_today(),
            "stuck": lambda rest: _stuck(),

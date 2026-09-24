@@ -214,7 +214,11 @@ def _row(entry: dict) -> dict:
     subject = str(entry.get("subject", ""))
     text = str(entry.get("text", ""))
     head = subject.split(":")[0]
-    if head in SUBJECT_KINDS:
+    if subject == "operator" and entry.get("kind") == "note":
+        # His own words, kept: "operator: my landlord's name is Dana" was
+        # read out as something she did (2026-09-24). Noting it is the act.
+        what = "Noted: " + speech.tidy(speech.strip_ids(text))
+    elif head in SUBJECT_KINDS:
         said = speech.spoken_receipt(SUBJECT_KINDS[head], text)
         what = said if said != text else speech.tidy(speech.strip_ids(text))
     elif subject.startswith(RECEIPT_SUBJECTS):
@@ -306,6 +310,8 @@ SAID_NOT_DID = ("core:intent", "core:screen_ask", "core:brief",
                 # and the command path journals the same act again
                 # (2026-09-24: "wrote notes.md; wrote notes.md").
                 "core:file_write", "core:file_edit",
+                # and the note's receipt ("journaled") beside the note itself
+                "core:note",
                 "core:remember") + PLUMBING_SUBJECTS
 
 

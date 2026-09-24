@@ -639,6 +639,47 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
             self.assertTrue(intercom.execute_command({"kind": "undo"}, {}, quote="undo that")
                             .startswith("Nothing to undo"))
 
+    def test_the_eleventh_battery(self):
+        """"Undo that" after his own "add a task" said nothing to undo (the
+        ledger holds only what she did unasked); a weekday agenda, the
+        notification count and "what time is my interview window" went to
+        nobody; and his note read back as "operator: ..." among her acts."""
+        import datetime as dt
+        import os
+        from aletheia import intercom, localtime, recollection, tasks
+        for s, name in (("what's on my calendar monday", "agenda"), ("what do I have on friday", "agenda"),
+                        ("how many notifications do I have", "notify_count"),
+                        ("any new notifications", "notify_count"),
+                        ("what time is my interview window", "interview_window")):
+            self.assertEqual((quick.match(s) or ("",))[0], name, s)
+        now = dt.datetime.now(localtime.operator_tz())
+        monday = now.date() + dt.timedelta(days=(0 - now.weekday()) % 7)
+        with mock.patch("aletheia.calendar.all_events", return_value=[
+                {"title": "Dentist", "start": f"{monday.isoformat()}T14:00:00", "status": "CONFIRMED"}]), \
+                mock.patch("aletheia.calendar.parse_time", side_effect=lambda s: dt.datetime.fromisoformat(s).replace(tzinfo=localtime.operator_tz())):
+            said = quick.answer("what's on my calendar monday")
+        self.assertIn("Dentist at 2 pm", said, said)
+        with mock.patch("aletheia.notifications.all_notifications", return_value=[]):
+            self.assertEqual(quick.answer("how many notifications do I have"), "No unread notifications.")
+        row = recollection._row({"ts": "2026-09-24T20:00:00Z", "kind": "note", "actor": "operator-local-core",
+                                 "subject": "operator", "text": "my landlord's name is Dana"})
+        self.assertEqual(row["what"], "Noted: my landlord's name is Dana")
+        self.assertIn("core:note", recollection.SAID_NOT_DID)
+        # Undo his own last ask: the task he just added is cancelled.
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.dict(os.environ, {"ALETHEIA_PRIVATE_STATE": tmp}), \
+                mock.patch.object(tasks, "TASKS_DIR", Path(tmp) / "tasks"), \
+                mock.patch("aletheia.journal.append"), \
+                mock.patch("aletheia.converse.recent", return_value=[
+                    {"he_asked": "add a task to call the plumber", "she_said": "Added a task: call the plumber."}]):
+            tasks.create("call-the-plumber", "call the plumber", goal="voice")
+            said = intercom.execute_command({"kind": "undo"}, {}, quote="undo that")
+            self.assertEqual(said, "Undone: cancelled the task call the plumber.")
+            self.assertEqual(tasks.load("call-the-plumber")["status"], "CANCELLED")
+        with mock.patch("aletheia.converse.recent", return_value=[{"he_asked": "what time is it"}]), \
+                mock.patch("aletheia.autonomy.recent", return_value=[]):
+            self.assertTrue(intercom.execute_command({"kind": "undo"}, {}, quote="undo that").startswith("Nothing to undo"))
+
     def test_what_did_i_say_about_is_his_note(self):
         with mock.patch.object(quick, "_notes", return_value=[
                 {"ts": "2026-09-24T20:00:00Z", "text": "the rent is due on the first"}]), \

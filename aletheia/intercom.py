@@ -1558,6 +1558,12 @@ def _undo_answer(cmd: dict) -> str:
     Bottom rung, 2026-09-24: "undo that" went to nobody."""
     from aletheia import autonomy, speech
     which = " ".join(str(cmd.get("which") or "").split()).casefold()
+    # HIS OWN LAST ASK FIRST. "Add a task to call the plumber" then "undo
+    # that" means the task, not the ledger of what she did unasked.
+    if not which or which in ("that", "it", "the last thing", "the last one", "last"):
+        taken = _undo_his_last_ask()
+        if taken:
+            return taken
     rows = [r for r in autonomy.recent(hours=48, limit=50)
             if not r.get("undone") and (r.get("undo") or {}).get("how") not in (None, autonomy.NONE)
             and not str(r.get("decided_by") or "").strip() and not autonomy.is_outward(r)]
@@ -1576,6 +1582,88 @@ def _undo_answer(cmd: dict) -> str:
         return f"I can't take that one back: {speech.plainly(str(exc))}"
     said = str(out.get("said") or "").rstrip(".")
     return f"Undone: {said}." if out.get("undone") else str(out.get("said") or "Nothing changed.")
+
+
+#: What he asks for by voice that can be taken straight back, by kind.
+UNDOES_HIS_ASK = ("task_new", "shopping_add", "remind_at", "remind_daily", "remind_weekly",
+                  "calendar_hold", "file_write", "note")
+
+
+def _undo_his_last_ask() -> str | None:
+    """Reverse the last thing HE asked for, read back from the thread and
+    re-interpreted by the same deterministic layer that ran it: a task is
+    cancelled, a list item taken off, a reminder switched off, a hold
+    released, a written file put back. None when his last turn was not one
+    of those (the caller then looks at her own unattended ledger)."""
+    try:
+        from aletheia import converse, voice
+        turns = converse.recent(limit=4)
+    except Exception:
+        return None
+    for turn in reversed(turns or []):
+        said = " ".join(str(turn.get("he_asked") or "").split())
+        if not said:
+            continue
+        try:
+            command = (voice.interpret(f"thea {said}") or {}).get("command") or {}
+        except Exception:
+            return None
+        kind = str(command.get("kind") or "")
+        if kind == "undo":
+            continue                        # his previous undo; look one further back
+        if kind not in UNDOES_HIS_ASK:
+            return None
+        return _reverse_his_ask(kind, command)
+    return None
+
+
+def _reverse_his_ask(kind: str, command: dict) -> str:
+    from aletheia import speech
+    if kind == "task_new":
+        from aletheia import tasks
+        desc = str(command.get("description") or "").strip()
+        match = [t for t in tasks.all_tasks()
+                 if str(t.get("description") or "").strip().casefold() == desc.casefold()
+                 and t.get("status") not in ("DONE", "CANCELLED")]
+        if not match:
+            return f"That task ({desc}) is already gone."
+        tasks.set_status(match[-1]["id"], "CANCELLED", "undone: you took it back")
+        return f"Undone: cancelled the task {desc}."
+    if kind == "shopping_add":
+        item = str(command.get("item") or "").strip()
+        try:
+            execute_command({"kind": "shopping_off", "item": item}, {}, quote="undo that")
+        except act.Refused as exc:
+            return f"I couldn't take {item} off the list: {speech.plainly(str(exc))}"
+        return f"Undone: took {item} back off the shopping list."
+    if kind in ("remind_at", "remind_daily", "remind_weekly"):
+        from aletheia import scheduler
+        text = str(command.get("text") or "").strip()
+        found, why = _one_reminder(text)
+        if found is None:
+            return f"I couldn't find that reminder to switch off: {speech.plainly(str(why))}"
+        scheduler.set_enabled(found["id"], False)
+        return f"Undone: the reminder to {text} is off."
+    if kind == "calendar_hold":
+        from aletheia import calendar_reasoning
+        title, start = str(command.get("title") or ""), str(command.get("start") or "")
+        try:
+            calendar_reasoning.release_hold(calendar_reasoning.hold_id(title, start), why="undone: you took it back")
+        except Exception as exc:  # noqa: BLE001
+            return f"I couldn't release that hold: {speech.plainly(str(exc))}"
+        return f"Undone: released the hold for {title}."
+    if kind == "file_write":
+        from aletheia import workspace
+        path = str(command.get("path") or "")
+        kept = workspace.versions(path)
+        if len(kept) > 1:
+            workspace.restore(kept[-1])
+            return f"Undone: put back the version of {path} from before."
+        workspace.remove(path, why="undone: you took it back")
+        return f"Undone: removed {path}; a copy is kept if you want it back."
+    if kind == "note":
+        return "A note I can't take back in one word yet - say 'forget' and what it was about, and I'll drop it."
+    return "Nothing to undo."
 
 
 def free_time_answer(cmd: dict) -> str:
