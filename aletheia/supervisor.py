@@ -174,6 +174,12 @@ def _launch_core(cmd: list[str]) -> int:
     """
     import threading
     keep: list[str] = []
+    # proc: visible-by-design — the Core INHERITS this console on purpose.
+    # Under the hidden logon task the parent is pythonw, so there is no
+    # window either way; started from start-aletheia.bat the operator
+    # deliberately opened a window to watch the Core, and hiding its
+    # output there would be worse than the flashing boxes the no-window
+    # rule exists to stop. Only stderr is piped, and it is echoed back.
     proc = subprocess.Popen(cmd, cwd=str(REPO_ROOT), env=_child_env(),
                             stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
     pump = threading.Thread(target=_tee_stderr, args=(proc.stderr, keep), daemon=True)
@@ -259,11 +265,7 @@ def run_forever(core_args: list[str] | None = None, launch=None,
         print("Aletheia is closed. `python -m aletheia.closed open` to change that.")
         return 0
     cmd = [sys.executable, "-m", "aletheia.core", *(core_args or [])]
-    # proc: visible-by-design — the Core INHERITS this console on purpose.
-    # Under the hidden logon task the parent is pythonw, so there is no
-    # window either way; started from start-aletheia.bat the operator
-    # deliberately opened a window to watch the Core, and hiding its output
-    # there would be worse than the flashing boxes this rule exists to stop.
+    # The Core inherits this console on purpose (see `_launch_core`).
     launch = launch or (lambda: _launch_core(cmd))
     backoff = BACKOFF_START_S
     runs = 0
