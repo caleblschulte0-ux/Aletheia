@@ -788,6 +788,7 @@ def _do_note(record: dict, move: dict, now: dt.datetime) -> dict:
             f"{detail['text']}\n\n— {move['why']}"
             + ("\n\n(Drafted to your inbox and held; it goes only when you say send.)" if held else ""),
             priority="NORMAL", source="pursuit", dedupe_key=f"pursuit-note:{record['id']}:{move['id']}",
+            topic=f"pursuit:{record['id']}:note",
             related={"opportunity": record["id"], "draft": (held or {}).get("id", "")})
         return {"state": "handed to him", "handle": (held or {}).get("id", ""),
                 "effect": ("drafted it to his own inbox and held it - nothing sent" if held
@@ -804,6 +805,7 @@ def _do_note(record: dict, move: dict, now: dt.datetime) -> dict:
         f"A note worth sending to {name}",
         f"{detail['text']}\n\n— {move['why']} ({reason}, so it is yours to send.)",
         priority="NORMAL", source="pursuit", dedupe_key=f"pursuit-note:{record['id']}:{move['id']}",
+        topic=f"pursuit:{record['id']}:note",
         related={"opportunity": record["id"]})
     return {"state": "handed to him", "effect": f"could not send it myself ({reason}); left the words with him"}
 
@@ -850,6 +852,7 @@ def _do_suggest(record: dict, move: dict, now: dt.datetime) -> dict:
         f"An idea for {record['subject'].get('name', 'an opportunity')}",
         f"{move['detail']['idea']}\n\n— {move['why']}",
         priority="NORMAL", source="pursuit", dedupe_key=f"pursuit-idea:{record['id']}:{move['id']}",
+        topic=f"pursuit:{record['id']}:idea",
         related={"opportunity": record["id"]})
     return {"state": "handed to him", "effect": "told him the idea; it is his to take up"}
 
