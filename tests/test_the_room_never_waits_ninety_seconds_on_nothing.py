@@ -893,6 +893,11 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
         self.assertNotEqual((voice.interpret("thea open my resume").get("command") or {}).get("kind"), "open_page",
                             "a word not in the table is never guessed into an address")
         self.assertEqual(voice.interpret("thea open thea")["command"]["kind"], "open", "her own switch keeps its word")
+        # The rules never open a door, a window or his resume "in the browser".
+        from aletheia import rule_planner
+        for s in ("open the door", "open the window", "open my resume", "open the notes file"):
+            self.assertIsNone(rule_planner.match(s), s)
+        self.assertEqual(rule_planner.match("open hacker news")[0], "web_task")
 
     def test_what_did_i_say_about_is_his_note(self):
         with mock.patch.object(quick, "_notes", return_value=[
