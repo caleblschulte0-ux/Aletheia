@@ -251,6 +251,10 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "mic":           (set(), set()),
     "mic_on":        (set(), set()),
     "mic_off":       (set(), set()),
+    # "Handled": a red project he has dealt with stops being shouted until
+    # the next reading shows a DIFFERENT fault. His tap; a model that could
+    # mark faults handled is a model that can hide them.
+    "fault_ack":     ({"repo"}, set()),
     # Looking at the actual PICTURE of his screen, rather than reading it
     # as text. A screenshot cannot be redacted the way perception.screen
     # redacts a window title, so it gets the microphone's treatment: off
@@ -505,6 +509,11 @@ KIND_NOTES: dict[str, str] = {
         'background and tells him when the applications are ready. Prefer '
         'this over apply_prepare, which only writes a packet and does not '
         'touch the form.'),
+    "fault_ack": (
+        'Mark a red project handled - his tap on "Handled" beside a fault on '
+        'the fleet. repo names the project as the page does. It stays quiet '
+        'while the readings show the same fault and is said again the moment '
+        'a different one appears. His own tap or words only, never a plan step.'),
     "update_now": (
         'Try to update her code now - his tap on "Try the update now" when the '
         'health line says she has been behind for a while. One beat of the sync '
@@ -745,6 +754,8 @@ READ_ONLY_KINDS = frozenset({
 ROUTINE_KINDS = frozenset({
     "task_new", "task_status", "plan_new", "plan_add_step", "plan_step",
     "preference_set",
+    # His "handled" on a red project: one private row beside the pulse.
+    "fault_ack",
     # Starting and stopping a capped recording of one window, to a file on
     # his PC that goes nowhere.
     "screen_record", "screen_record_stop",
@@ -945,6 +956,7 @@ PLANNER_FORBIDDEN = frozenset({
     "restart",             # and so is a restart button
     "apply_retry",         # a second send is his tap, never a plan's guess
     "update_now",          # and a pull of her own code is his tap, not a plan step
+    "fault_ack",           # a fault marked handled by a model is a fault hidden
     "apply_pause",         # "stop applying" is his word, never a compiler's guess
     "approve", "deny",     # self-authorization, from an ambiguous word
     # Same rule, same reason. "Close the browser tab", "open my resume"
@@ -2500,6 +2512,14 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "mic":
         from aletheia import ears
         return ears.spoken()
+    if kind == "fault_ack":
+        from aletheia import faults
+        if rehearsing():
+            return "This is a rehearsal, so I didn't mark anything handled."
+        try:
+            return faults.ack(cmd["repo"], quote=quote)
+        except ValueError as exc:
+            raise act.Refused(str(exc))
     if kind == "mic_on":
         from aletheia import ears
         ears.turn_on(via=f"command centre: {quote[:60]}" if quote else "command centre")

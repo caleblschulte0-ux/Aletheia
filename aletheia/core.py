@@ -1290,7 +1290,10 @@ def fleet_payload() -> dict:
         for wf_name, wf in (repo.get("workflows") or {}).items():
             if isinstance(wf, dict):
                 wf["url"] = f"{home}/actions/workflows/{wf_name}" if home else ""
-    return pulse
+    # What is wrong, in a sentence, and whether he has said "handled":
+    # the collector's, never the page's (§88).
+    from aletheia import faults
+    return faults.decorate(pulse)
 
 
 def another_core_answering(port: int = DEFAULT_PORT, timeout_s: float = ALIVE_PROBE_S) -> bool:

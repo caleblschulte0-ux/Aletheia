@@ -189,6 +189,11 @@ button.link{color:var(--warm-dim);text-decoration:underline;
 .faults{display:flex;flex-direction:column;gap:8px;margin:4px 0 12px}
 .fault{text-align:left;min-height:44px;padding:10px 14px;border-radius:12px;
   border:1px solid var(--stop);color:var(--warm);font-size:14.5px;background:var(--ink-2)}
+/* A fault he marked handled is quiet, not gone: it waits for the next reading. */
+.fault.handled{border-color:var(--line);color:var(--dim)}
+.faultrow{display:flex;gap:8px;align-items:stretch}
+.faultrow .fault{flex:1}
+.faultrow .act{min-height:44px;white-space:nowrap}
 .repo{background:var(--ink-2);border:1px solid var(--line);border-radius:16px;
   padding:4px 14px;margin-top:10px}
 .repo > summary{cursor:pointer;list-style:none;min-height:44px;display:flex;

@@ -657,7 +657,10 @@ class TheWiderLaneCase(unittest.TestCase):
         with mock.patch("pathlib.Path.read_text", lambda self, **kw: payload):
             said = quick.answer("is anything broken")
         self.assertIn("shorts", said)
-        self.assertIn("daily.yml", said)
+        # The failing workflow is NAMED; ".yml" is a developer's suffix and is
+        # not said out loud (2026-09-23: "daily failed", not "daily.yml").
+        self.assertIn("daily", said)
+        self.assertNotIn(".yml", said)
 
     def test_a_green_fleet_says_green(self):
         import json

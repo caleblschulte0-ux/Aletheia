@@ -187,7 +187,9 @@ class TheKillSwitchIsNotSomethingASENTENCECanTrip(unittest.TestCase):
                                     # that stops the one thing he asked her to keep doing
                                     "apply_pause",
                                     # 2026-09-23: "Restart her" is his tap, never a plan step
-                                    "restart", "update_now", "apply_retry"}))
+                                    "restart", "update_now", "apply_retry",
+                                    # 2026-09-23: a fault marked handled by a compiler is a fault hidden
+                                    "fault_ack"}))
 
     def test_the_agenda_refuses_the_same_ones(self):
         """Two lists that disagree is one list that is wrong."""
