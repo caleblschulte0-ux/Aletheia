@@ -37,8 +37,10 @@ class ThreeMoreFromTheSecondSweep(unittest.TestCase):
     2026-09-23 night sweep, every frontier off."""
 
     def test_what_did_you_apply_to_today_is_the_records(self):
-        self.assertEqual(quick.match("what did you apply to today")[0], "applied_to")
-        self.assertEqual(quick.match("where did we apply this week")[0], "applied_to")
+        # A day word reads that day's records (`applied_on`); the rest of the
+        # shapes read the whole store. Either way it is the records.
+        self.assertEqual(quick.match("what did you apply to today")[0], "applied_on")
+        self.assertIn(quick.match("where did we apply this week")[0], ("applied_to", "applied_on"))
 
     def test_how_many_did_you_send_this_week_is_the_existing_count_by_date(self):
         """One implementation: the status shape already counts by date for

@@ -226,6 +226,9 @@ class WhyTheHuntIsNotMovingIsReadOffItsSwitches(unittest.TestCase):
             mock.patch("aletheia.browse.available", return_value=state.get("browser", (True, ""))),
             mock.patch("aletheia.campaign.running", return_value=state.get("running")),
             mock.patch("aletheia.current_state.job_hunt_words", return_value="3 sent today."),
+            mock.patch("aletheia.apply_run.all_runs", return_value=state.get("waiting", [
+                {"id": "run-1", "state": "AWAITING_YOU", "engine": "form"}])),
+            mock.patch("aletheia.apply_run.waits_for_his_ok", return_value=""),
         ]
         for p in patches:
             p.start(); self.addCleanup(p.stop)
@@ -245,22 +248,32 @@ class WhyTheHuntIsNotMovingIsReadOffItsSwitches(unittest.TestCase):
         said = self._ask(granted=False, mind=(False, "Codex is not on this PC; my own model needs 6 GB free"),
                          resting=dt.datetime.now(dt.timezone.utc), browser=(False, "playwright is not installed"))
         self.assertTrue(said.startswith("The hunt is held up:"), said)
+        self.assertIn("1 filled application waits for your tap", said)
         self.assertIn("standing grant", said)
         self.assertIn("nobody can judge a job", said)
         self.assertIn("browser is not ready", said)
         self.assertIn("3 sent today", said)
 
-    def test_nothing_stopping_it_says_so_with_the_days_numbers(self):
-        said = self._ask()
-        self.assertTrue(said.startswith("Nothing is stopping it"), said)
-        self.assertIn("3 sent today", said)
+    def test_the_grant_is_named_only_when_something_waits_on_it(self):
+        # "Filled applications wait for your tap" with nothing filled is a
+        # sentence about nothing; with no other switch on, it steps aside.
+        self.assertIsNone(self._ask(granted=False, waiting=[]))
+
+    def test_a_running_batch_is_the_answer_and_nothing_stopping_it_is_not_hers(self):
         running = self._ask(running={"started_at": "2026-09-24T15:02:00Z", "pid": 1})
         self.assertIn("a batch is running right now", running)
+        self.assertIn("3 sent today", running)
+        # No switch of hers explains it and nothing runs: the investigator's
+        # question (test_grounded_status_without_a_model), not a quick one.
+        self.assertIsNone(self._ask())
 
     def test_the_phrasings_he_uses_reach_it(self):
-        for s in ("why aren't you applying", "why is the job hunt stuck", "is the job hunt still running",
+        for s in ("why aren't you applying", "why is the job hunt stuck",
                   "why aren't applications going out today"):
             self.assertEqual((quick.match(s) or ("",))[0], "hunt_why", s)
+        # "Is the job hunt still running" has its own reader (the process,
+        # not the clock) and must not be swallowed by the why.
+        self.assertNotEqual((quick.match("is the job hunt still running") or ("",))[0], "hunt_why")
 
 
 class TwoQuestionsAboutHerselfNeedNoThinking(unittest.TestCase):

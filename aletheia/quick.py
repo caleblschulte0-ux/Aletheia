@@ -359,8 +359,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"send (?:any )?applications|sending (?:any )?applications|do (?:the )?(?:job )?(?:hunt|applications))"
         r"(?: right now| now| anymore| any more| today| at the moment)?\s*\??$"
         r"|^why (?:is|has) the (?:job )?(?:hunt|search) (?:stopped|paused|stuck|not (?:running|moving|going))\s*\??$"
-        r"|^why (?:aren'?t|are no|have no) (?:applications|jobs) (?:going|gone) out(?: today)?\s*\??$"
-        r"|^(?:is|are) (?:the )?(?:job hunt|applications) (?:still )?(?:running|going|moving)(?: right now| now)?\s*\??$")),
+        r"|^why (?:aren'?t|are no|have no) (?:applications|jobs) (?:going|gone) out(?: today)?\s*\??$")),
     ("to_answer", re.compile(
         r"^(?:is there )?anything (?:i|that i) (?:need|have) to answer(?: for you)?$"
         r"|^what (?:questions|do you need answered|do (?:you|u) need me to answer|needs answering)(?: do (?:you|u) have)?(?: for me)?$"
@@ -2636,11 +2635,16 @@ def _hunt_why() -> str:
                 + ". Say start applying and it picks back up.")
     parts = []
     try:
-        from aletheia import standing
+        from aletheia import apply_run, speech, standing
         grant = standing.jobs_status()
-        if not grant.get("granted"):
-            parts.append("filled applications wait for your tap, because the standing grant to send them "
-                         "is not on")
+        waiting = [r for r in apply_run.all_runs("AWAITING_YOU")
+                   if r.get("engine") != apply_run.ENGINE_LOOP and not apply_run.waits_for_his_ok(r)]
+        # Only when something IS waiting: "filled applications wait for
+        # your tap" with nothing filled is a sentence about nothing.
+        if waiting and not grant.get("granted"):
+            parts.append(f"{speech.count_phrase(len(waiting), 'filled application')} "
+                         f"wait{'s' if len(waiting) == 1 else ''} for your tap, "
+                         f"because the standing grant to send {'it' if len(waiting) == 1 else 'them'} is not on")
     except Exception:
         pass
     try:
@@ -2675,8 +2679,10 @@ def _hunt_why() -> str:
         return ("Nothing is stopping it - a batch is running right now"
                 + (f", started {str(live.get('started_at') or '')[11:16]}Z" if live.get("started_at") else "")
                 + "." + (f" {today}" if today else ""))
-    return ("Nothing is stopping it: the loop starts a batch of eight within five minutes of the last."
-            + (f" {today}" if today else ""))
+    # No switch of hers explains it and nothing is running: that is a "why"
+    # the investigator answers from the journal and the receipts. A quick
+    # "nothing is stopping it" here would remove that answer, not latency.
+    return None
 
 
 def _who_are_you() -> str:

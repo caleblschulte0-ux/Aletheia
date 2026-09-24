@@ -74,6 +74,11 @@ SANDBOX_STORES = (
     ("aletheia.pulse", "PULSE_DIR", "pulse"),
     ("aletheia.mail", "MAIL_DIR", "mail"),
     ("aletheia.journal", "REPO_JOURNAL_DIR", "journal"),
+    # Bound from ALETHEIA_JOURNAL_PATH at import, so the environment set
+    # above is dead for a caller that imported her before `main` - an
+    # in-process battery did exactly that on 2026-09-24 and left 287 lines
+    # of sandbox chatter in the tracked journal across five commits.
+    ("aletheia.journal", "JOURNAL_PATH", "journal/journal.jsonl"),
     # "remember person bob bob@example.com" writes a real file here.
     ("aletheia.memory", "MEMORY_DIR", "memory"),
     ("aletheia.suggestions", "SUGGESTIONS_DIR", "exchange/suggestions"),
