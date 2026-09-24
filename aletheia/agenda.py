@@ -79,6 +79,8 @@ FORBIDDEN_KINDS = {
     "fault_ack",
     # clearing a card that waits on him is his tap
     "mission_leave",
+    # taking back one of her own acts is his word, never a mission's
+    "undo",
     # a page on his screen is his tap
     "open_page",
     # what he wants is his to say, never a mission's
@@ -130,6 +132,7 @@ REFUSAL_REASON = {
     "apply_retry": "sending an application again is his say-so, never a mission's",
     "fault_ack": "a fault marked handled by a mission is a fault hidden",
     "mission_leave": "clearing a card that waits on him is his tap, never a mission's",
+    "undo": "taking back one of her own acts is his word, never a mission's",
     "open_page": "a page on his screen is his tap, never a mission's",
     "intent": "an agenda filing intents that file intents is a loop",
     "rule": "a standing rule outlives this mission's budget",

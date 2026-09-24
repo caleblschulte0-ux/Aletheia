@@ -606,6 +606,39 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
         self.assertEqual((seen["work_start"].hour, seen["work_end"].hour), (17, 22))
         self.assertNotIn("working hours", said)
 
+    def test_undo_that_is_his_word_over_her_own_ledger(self):
+        """"Undo that" went to nobody at the bottom rung (2026-09-24). It is a
+        kind now: his word, forbidden to every planner, over the newest
+        reversible act of her own; a decision of his and an outward act are
+        refused by name inside autonomy.undo."""
+        import os
+        from aletheia import agenda, autonomy, intercom, tasks, voice
+        self.assertIn("undo", intercom.PLANNER_FORBIDDEN)
+        self.assertIn("undo", agenda.FORBIDDEN_KINDS)
+        for s in ("undo that", "take that back", "undo the last thing you did", "undo"):
+            self.assertEqual(voice.interpret(f"thea {s}")["command"], {"kind": "undo"}, s)
+        self.assertEqual(voice.interpret("thea undo the task you added")["command"], {"kind": "undo", "which": "task"})
+        self.assertNotEqual((voice.interpret("thea undo the study change").get("command") or {}).get("kind"), "undo",
+                            "a study verdict keeps its own verb")
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.dict(os.environ, {"ALETHEIA_PRIVATE_STATE": tmp}), \
+                mock.patch.object(tasks, "TASKS_DIR", Path(tmp) / "tasks"), \
+                mock.patch("aletheia.journal.append"):
+            self.assertTrue(intercom.execute_command({"kind": "undo"}, {}, quote="undo that")
+                            .startswith("Nothing to undo"))
+            tasks.create("t-plumber", "call the plumber", goal="voice")
+            autonomy.record(tool="task_new", args={"id": "t-plumber"}, consequence="reversible_local",
+                            said="added a task: call the plumber",
+                            undo={"how": autonomy.TASK_CANCEL, "task": "t-plumber"})
+            autonomy.record(tool="email_draft", args={}, consequence="outward", said="drafted a note to Sam")
+            said = intercom.execute_command({"kind": "undo", "which": "email"}, {}, quote="undo the email")
+            self.assertTrue(said.startswith("I have nothing of my own to take back that matches email"), said)
+            said = intercom.execute_command({"kind": "undo"}, {}, quote="undo that")
+            self.assertTrue(said.startswith("Undone: cancelled the task I added"), said)
+            self.assertEqual(tasks.load("t-plumber")["status"], "CANCELLED")
+            self.assertTrue(intercom.execute_command({"kind": "undo"}, {}, quote="undo that")
+                            .startswith("Nothing to undo"))
+
     def test_what_did_i_say_about_is_his_note(self):
         with mock.patch.object(quick, "_notes", return_value=[
                 {"ts": "2026-09-24T20:00:00Z", "text": "the rent is due on the first"}]), \

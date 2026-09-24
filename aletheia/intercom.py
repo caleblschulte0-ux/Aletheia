@@ -299,6 +299,8 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "notify_operator": ({"text"}, {"priority"}),
     "notify_check":    (set(), set()),
     "notify_clear":    (set(), set()),
+    # His "undo that": `which` is optional words naming the act; nothing means the newest.
+    "undo":            (set(), {"which"}),
     "announce_set":    ({"on"}, {"quiet_from", "quiet_until"}),
     # `part` is morning/afternoon/evening. He says it constantly and it
     # used to be dropped in silence — see `_free_sentence`.
@@ -366,6 +368,11 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # generated from KIND_ARGS and these together, so the model learns the
 # shape of a step list from the registry rather than from a guess.
 KIND_NOTES: dict[str, str] = {
+    "undo": (
+        'His "undo that" / "take that back": reverse the newest thing she did on her own '
+        '(a task she added, a note, a file version, a branch). Only her own reversible acts; '
+        'his decisions and anything that reached the world are refused by name. Never compiled '
+        'by a planner - it is forbidden there; only his words reach it.'),
     "preference_set": (
         'Change one thing the job hunt steers by, in his words: field is one of '
         'work_wanted, work_not_wanted, desired_pay, notice_period, willing_to_relocate; '
@@ -665,6 +672,8 @@ KIND_NOTES: dict[str, str] = {
 LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email_read", "email_draft",
                # the job hunt's pause marker lives in the PC's private state
                "apply_pause",
+               # her unattended ledger, and the stores an undo reverses, are on the PC
+               "undo",
                # a recording is a process and a file on this PC
                "screen_record", "screen_record_stop", "recording",
                # the workspace is a directory on his PC
@@ -773,6 +782,9 @@ READ_ONLY_KINDS = frozenset({
 ROUTINE_KINDS = frozenset({
     "task_new", "task_status", "plan_new", "plan_add_step", "plan_step",
     "preference_set",
+    # Taking back one of her own reversible acts reaches nobody; the act
+    # itself was routine, and only his word gets here (PLANNER_FORBIDDEN).
+    "undo",
     # His "handled" on a red project: one private row beside the pulse.
     "fault_ack",
     # His "Clear" on a browser mission: its record left, nothing pressed.
@@ -981,6 +993,7 @@ PLANNER_FORBIDDEN = frozenset({
     "update_now",          # and a pull of her own code is his tap, not a plan step
     "fault_ack",           # a fault marked handled by a model is a fault hidden
     "mission_leave",       # clearing a card that waits on him is his tap
+    "undo",                # taking back one of her own acts is his word, never a compiler's
     "open_page",           # a page on his screen is his tap, never a compiler's
     "apply_pause",         # "stop applying" is his word, never a compiler's guess
     "approve", "deny",     # self-authorization, from an ambiguous word
@@ -1536,6 +1549,33 @@ def _shopping_items() -> list[dict]:
     from aletheia import shopping
     return [w for w in shopping.all_workflows()
             if str(w.get("state", "")).upper() in SHOPPING_OPEN]
+
+
+def _undo_answer(cmd: dict) -> str:
+    """"Undo that": the newest thing she did on her own that can be taken
+    back, or the one his words name. Only her own reversible acts; an
+    outward one and a decision of his are refused by name (autonomy.undo).
+    Bottom rung, 2026-09-24: "undo that" went to nobody."""
+    from aletheia import autonomy, speech
+    which = " ".join(str(cmd.get("which") or "").split()).casefold()
+    rows = [r for r in autonomy.recent(hours=48, limit=50)
+            if not r.get("undone") and (r.get("undo") or {}).get("how") not in (None, autonomy.NONE)
+            and not str(r.get("decided_by") or "").strip() and not autonomy.is_outward(r)]
+    if which and which not in ("that", "it", "the last thing", "the last one", "last"):
+        words = [w for w in re.findall(r"[a-z0-9']+", which) if len(w) > 2]
+        rows = [r for r in rows if any(w in autonomy.said_line(r).casefold() for w in words)] or []
+        if not rows:
+            return f"I have nothing of my own to take back that matches {which}."
+    if not rows:
+        return ("Nothing to undo: I haven't done anything on my own in the last two days that I could "
+                "take back.")
+    row = rows[0]
+    try:
+        out = autonomy.undo(str(row["id"]), via="operator-via-intercom")
+    except autonomy.UndoRefused as exc:
+        return f"I can't take that one back: {speech.plainly(str(exc))}"
+    said = str(out.get("said") or "").rstrip(".")
+    return f"Undone: {said}." if out.get("undone") else str(out.get("said") or "Nothing changed.")
 
 
 def free_time_answer(cmd: dict) -> str:
@@ -3063,6 +3103,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             announce.set_quiet_hours(cmd["quiet_from"], cmd["quiet_until"],
                                      via="operator-via-intercom")
         return announce.spoken()
+    if kind == "undo":
+        return _undo_answer(cmd)
     if kind == "notify_clear":
         from aletheia import notifications
         unread = notifications.all_notifications(state="UNREAD")

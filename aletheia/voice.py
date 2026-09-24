@@ -2702,6 +2702,20 @@ def _interpret(transcript: str) -> dict:
     if m:
         return _new_task(m.group(1).strip())
 
+    # "UNDO THAT" is his word over her own ledger (bottom rung, 2026-09-24:
+    # it went to nobody). A study verdict's "undo the change" is matched
+    # further down and is a different verb.
+    m = re.fullmatch(r"(?:undo|take back|reverse) (?:that|it|this|the last (?:thing|one)(?: you did)?)"
+                     r"|undo|take that back"
+                     r"|undo (?!(?:the |that |this )?(?:study |measured )?change\b)"
+                     r"(?:the |that |what you did with (?:the |my )?)(?P<which>[a-z0-9 '-]{2,40}?)"
+                     r"(?: you (?:added|made|wrote|did|noted))?", low)
+    if m:
+        command = {"kind": "undo"}
+        if m.group("which"):
+            command["which"] = _as_he_said(text, m.group("which").strip())
+        return {"command": command, "say": None}
+
     # ANNOUNCEMENTS ARE HER SWITCH (bottom rung, 2026-09-24: "turn
     # announcements off" fell through to nobody).
     m = re.fullmatch(r"(?:turn |switch )?(?:the )?announcements? (?P<on>on|off)"
