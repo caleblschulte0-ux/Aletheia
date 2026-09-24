@@ -2176,10 +2176,16 @@ def _notes(limit: int = 200) -> list[dict]:
     """His notes, newest first: the journal lines `note` writes."""
     from aletheia import journal
     try:
-        rows = [e for e in journal.entries() if e.get("kind") == "note" and e.get("subject") == "operator"
+        entries = journal.entries()
+        # A note he told her to forget carries a later tombstone
+        # (intercom.FORGOTTEN_SUBJECT); the journal is append-only, so this
+        # is how "forget my sister's name" takes effect on every reader.
+        forgotten = {str(e.get("text") or "")[:300] for e in entries if e.get("subject") == "operator:forgotten"}
+        rows = [e for e in entries if e.get("kind") == "note" and e.get("subject") == "operator"
                 # the room's unmatched transcripts are journaled as notes;
                 # "(voice, unmatched) north korea" is not a note of his
-                and not str(e.get("text") or "").startswith("(voice")]
+                and not str(e.get("text") or "").startswith("(voice")
+                and str(e.get("text") or "")[:300] not in forgotten]
     except Exception:
         return []
     return list(reversed(rows))[:limit]
