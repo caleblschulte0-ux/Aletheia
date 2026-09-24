@@ -2057,6 +2057,12 @@ def _plainly_said(exc: BaseException) -> str:
     return speech.plainly(str(exc)) or type(exc).__name__
 
 
+#: Every batch notice is one line of the same story, and the newest line is
+#: the only one still true: "Applications going out" at 9 supersedes
+#: "Job applications need you" from 8, and the next one supersedes both.
+BATCH_TOPIC = "jobs.batch"
+
+
 def _notify(title: str, body: str, key: str,
             about: str = "") -> None:
     try:
@@ -2065,7 +2071,7 @@ def _notify(title: str, body: str, key: str,
                               speech.for_the_room(body)[:900],
                               priority="IMPORTANT", source="apply",
                               about=about or notifications.NEEDS_YOU,
-                              dedupe_key=key)
+                              dedupe_key=key, topic=BATCH_TOPIC)
     except Exception:
         pass
 
