@@ -624,7 +624,19 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("uptime", re.compile(
         r"^how long have (?:you|u) been (?:up|running|on|awake|going)$"
         r"|^how long have (?:you|u) been here$"
+        r"|^how long has (?:the core|your core|thea|aletheia) been (?:up|running|on|going)(?: for)?\s*\??$"
+        r"|^when did (?:you|u|the core) (?:start|start up|come up|last restart)\s*\??$"
         r"|^what(?:'s| is|s)? your uptime$|^uptime$")),
+    # WHO SHE IS and WHAT WORKS WITHOUT A MODEL: two questions a person asks
+    # a new assistant, both answered offline with "I can't think just now"
+    # (2026-09-24). Neither needs thinking; both are facts about herself.
+    ("who_are_you", re.compile(
+        r"^(?:who|what) (?:are|r) (?:you|u)(?: exactly| anyway)?\s*\??$"
+        r"|^what(?:'s| is|s) your name\s*\??$|^introduce yourself\s*\.?$|^tell me about yourself\s*\.?$")),
+    ("offline_can", re.compile(
+        r"^what (?:can|do) (?:you|u) (?:still )?do (?:offline|without (?:the )?(?:internet|a model|the big models|claude|wifi))\s*\??$"
+        r"|^what (?:still )?works (?:offline|without (?:the )?(?:internet|a model|the big models|claude))\s*\??$"
+        r"|^(?:can|do) (?:you|u) (?:still )?work (?:offline|without (?:the )?(?:internet|a model|the big models|claude))\s*\??$")),
     # A greeting is not small talk to something that can see his day. It
     # cost 25-80 seconds to be greeted back, and the answer to "hey" that
     # is worth saying is what is waiting on him.
@@ -2380,6 +2392,36 @@ def _hunt_why() -> str:
             + (f" {today}" if today else ""))
 
 
+def _who_are_you() -> str:
+    """Who she is, in one breath. A fact about herself, not a thought."""
+    return ("I'm Thea - Aletheia - Caleb's own assistant, running on this PC. I keep his tasks, "
+            "reminders, lists, notes and calendar, read and draft his email, hunt and apply for jobs, "
+            "watch his projects, and I say plainly what I can't do. The big models help me think when "
+            "they're there; my own stores and my own model carry me when they're not.")
+
+
+def _offline_can() -> str:
+    """What works with no model at all: the fast lane and the rules.
+
+    Said from what is TRUE of the code, not from a model's guess: every
+    item here is a fast-lane or rule answer that runs with the frontier
+    hidden and her own model off (the 2026-09-24 battery).
+    """
+    from aletheia import reasoner
+    try:
+        role, why = reasoner.local_role_that_fits()
+    except Exception:
+        role, why = None, ""
+    own = ("and my own model can plan the rest, slowly" if role
+           else f"but my own model can't run right now ({why})" if why else "")
+    return ("Without the big models I still answer from what I hold: your tasks, reminders and lists; your "
+            "calendar and whether you're free; your notes and what I know about you; today's applications, "
+            "replies and interviews; what needs you, what went wrong, what I did and what you asked me; the "
+            "drafts I'm holding; whether I'm halted; the time, the date and the weather. Simple orders still "
+            "work - remind me, add a task, note this, stop applying, halt. What waits for a model is planning "
+            "something new, judging a job, writing prose and reading a page I've never seen" + (f" - {own}." if own else "."))
+
+
 def _memory_free() -> str:
     """Her machine's free memory, and which of her own models fits in it."""
     try:
@@ -3107,6 +3149,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "applied_on": _applied_on,
            "asked_on": _asked_on,
            "hunt_why": lambda rest: _hunt_why(),
+           "who_are_you": lambda rest: _who_are_you(),
+           "offline_can": lambda rest: _offline_can(),
            "memory_free": lambda rest: _memory_free(),
            "recall": _recall,
            "friction": lambda rest: _friction(),

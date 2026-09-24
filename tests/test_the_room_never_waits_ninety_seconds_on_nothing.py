@@ -263,5 +263,29 @@ class WhyTheHuntIsNotMovingIsReadOffItsSwitches(unittest.TestCase):
             self.assertEqual((quick.match(s) or ("",))[0], "hunt_why", s)
 
 
+class TwoQuestionsAboutHerselfNeedNoThinking(unittest.TestCase):
+    def test_who_are_you_is_one_breath_with_no_ids(self):
+        from aletheia import speech
+        said = quick.answer("who are you")
+        self.assertTrue(said.startswith("I'm Thea"), said)
+        self.assertEqual(speech.strip_ids(said), said)
+        self.assertEqual(quick.match("what's your name")[0], "who_are_you")
+
+    def test_what_works_offline_is_said_from_what_is_true(self):
+        with mock.patch("aletheia.reasoner.local_role_that_fits", return_value=(None, "only 3 GB of memory is free")):
+            said = quick.answer("what can you do offline")
+        self.assertIn("tasks, reminders and lists", said)
+        self.assertIn("What waits for a model", said)
+        self.assertIn("only 3 GB of memory is free", said)
+        for s in ("what still works without the internet", "can you work without claude"):
+            self.assertEqual(quick.match(s)[0], "offline_can", s)
+
+    def test_how_long_has_the_core_been_running_is_her_uptime(self):
+        self.assertEqual(quick.match("how long has the core been running")[0], "uptime")
+        with mock.patch("aletheia.liveness.uptime_seconds", return_value=3700.0), \
+                mock.patch("aletheia.liveness.spoken_duration", return_value="an hour"):
+            self.assertEqual(quick.answer("how long has the core been running"), "Up an hour.")
+
+
 if __name__ == "__main__":
     unittest.main()

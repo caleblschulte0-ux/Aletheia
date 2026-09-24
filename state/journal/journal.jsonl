@@ -201,3 +201,68 @@
 {"ts": "2026-09-24T20:13:47Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I couldn't look into that just now: The big models can't answer right now, and my own model is switched off. Ask me again in a bit."}
 {"ts": "2026-09-24T20:13:47Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-9955f4b348: READY"}
 {"ts": "2026-09-24T20:13:51Z", "kind": "event", "actor": "aletheia-core", "subject": "quick", "text": "answered from her own stores: thea what can you do"}
+{"ts": "2026-09-24T20:23:58Z", "kind": "event", "actor": "aletheia-core", "subject": "quick", "text": "answered from her own stores: thea what's my landlord's name"}
+{"ts": "2026-09-24T20:23:58Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "what's my landlord's name"}
+{"ts": "2026-09-24T20:24:02Z", "kind": "event", "actor": "aletheia-core", "subject": "quick", "text": "answered from her own stores: thea when is my lease up"}
+{"ts": "2026-09-24T20:24:02Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "when is my lease up"}
+{"ts": "2026-09-24T20:24:05Z", "kind": "event", "actor": "aletheia-core", "subject": "quick", "text": "answered from her own stores: thea what do you know about me"}
+{"ts": "2026-09-24T20:24:05Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "what do you know about me"}
+{"ts": "2026-09-24T20:24:08Z", "kind": "event", "actor": "aletheia-core", "subject": "quick", "text": "answered from her own stores: thea what did you do today"}
+{"ts": "2026-09-24T20:24:08Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "what did you do today"}
+{"ts": "2026-09-24T20:24:11Z", "kind": "event", "actor": "aletheia-core", "subject": "quick", "text": "answered from her own stores: thea what's next"}
+{"ts": "2026-09-24T20:24:11Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "what's next"}
+{"ts": "2026-09-24T20:24:14Z", "kind": "event", "actor": "operator-local-core", "subject": "core:watches", "text": "done — I'm not watching for anything at the moment."}
+{"ts": "2026-09-24T20:24:14Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "what are you waiting on"}
+{"ts": "2026-09-24T20:24:18Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-215fba78f0: PENDING"}
+{"ts": "2026-09-24T20:24:18Z", "kind": "alert", "actor": "aletheia-converse", "subject": "converse", "text": "nobody could think for 'how long has the core been running\\n\\n--- WHAT I CAN DO (my registry, read just no': both subscription paths are unavailable: the Claude CLI could not answer and the browser session could not either (BrowserReasonerUnavailable)"}
+{"ts": "2026-09-24T20:24:18Z", "kind": "event", "actor": "aletheia-intent", "subject": "intent", "text": "answered without planning: how long has the core been running"}
+{"ts": "2026-09-24T20:24:18Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I can't think just now: Claude and ChatGPT are both out and my own model isn't running, so I can't answer that one. Signing in to Claude on the PC fixes it. Everything that doesn't need thinking still works."}
+{"ts": "2026-09-24T20:24:18Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "how long has the core been running"}
+{"ts": "2026-09-24T20:24:18Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-215fba78f0: READY"}
+{"ts": "2026-09-24T20:24:21Z", "kind": "event", "actor": "aletheia-core", "subject": "quick", "text": "answered from her own stores: thea is anything broken"}
+{"ts": "2026-09-24T20:24:21Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "is anything broken"}
+{"ts": "2026-09-24T20:24:25Z", "kind": "event", "actor": "aletheia-core", "subject": "quick", "text": "answered from her own stores: thea what's the last thing you did"}
+{"ts": "2026-09-24T20:24:25Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "what's the last thing you did"}
+{"ts": "2026-09-24T20:24:28Z", "kind": "event", "actor": "operator-local-core", "subject": "core:tasks", "text": "done — Nothing on your list."}
+{"ts": "2026-09-24T20:24:28Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "what's on my list"}
+{"ts": "2026-09-24T20:24:31Z", "kind": "action", "actor": "operator-local-core", "subject": "core:reminder_off", "text": "refused — You have no reminders set."}
+{"ts": "2026-09-24T20:24:31Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "cancel the dentist reminder"}
+{"ts": "2026-09-24T20:24:34Z", "kind": "event", "actor": "operator-local-core", "subject": "core:reminders", "text": "done — You have no reminders set."}
+{"ts": "2026-09-24T20:24:34Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "what reminders do I have"}
+{"ts": "2026-09-24T20:24:37Z", "kind": "event", "actor": "aletheia-core", "subject": "quick", "text": "answered from her own stores: thea what's the date"}
+{"ts": "2026-09-24T20:24:37Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "what's the date"}
+{"ts": "2026-09-24T20:24:41Z", "kind": "event", "actor": "aletheia-core", "subject": "quick", "text": "answered from her own stores: thea what day is it"}
+{"ts": "2026-09-24T20:24:41Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "what day is it"}
+{"ts": "2026-09-24T20:24:44Z", "kind": "event", "actor": "operator-local-core", "subject": "core:missions", "text": "done — You haven't started a long mission yet."}
+{"ts": "2026-09-24T20:24:44Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "how are my missions"}
+{"ts": "2026-09-24T20:24:47Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-eb9d49f246: PENDING"}
+{"ts": "2026-09-24T20:24:48Z", "kind": "event", "actor": "aletheia", "subject": "approval:intent-46dfba8de4", "text": "requested — run 1 step(s): web_task"}
+{"ts": "2026-09-24T20:24:48Z", "kind": "plan", "actor": "aletheia-intent", "subject": "intent", "text": "intent-46dfba8de4: planned 1 step — Open the thea page in the browser"}
+{"ts": "2026-09-24T20:24:48Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — The big models can't answer right now, so I took this one literally, with no model. Here's what I'd do: Open the thea page in the browser. Say yes on your phone or at the keyboard and I'll do it. Nothing happens until you do."}
+{"ts": "2026-09-24T20:24:48Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "open the thea page"}
+{"ts": "2026-09-24T20:24:48Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-eb9d49f246: READY"}
+{"ts": "2026-09-24T20:24:51Z", "kind": "event", "actor": "aletheia-core", "subject": "quick", "text": "answered from her own stores: thea what's my phone number"}
+{"ts": "2026-09-24T20:24:51Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "what's my phone number"}
+{"ts": "2026-09-24T20:24:54Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "where do I live"}
+{"ts": "2026-09-24T20:24:58Z", "kind": "event", "actor": "aletheia-core", "subject": "quick", "text": "answered from her own stores: thea what jobs did you find today"}
+{"ts": "2026-09-24T20:24:58Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "what jobs did you find today"}
+{"ts": "2026-09-24T20:25:01Z", "kind": "event", "actor": "aletheia-core", "subject": "quick", "text": "answered from her own stores: thea how many applications have you sent this week"}
+{"ts": "2026-09-24T20:25:01Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "how many applications have you sent this week"}
+{"ts": "2026-09-24T20:25:04Z", "kind": "event", "actor": "aletheia-core", "subject": "quick", "text": "answered from her own stores: thea what companies have I applied to"}
+{"ts": "2026-09-24T20:25:04Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "what companies have I applied to"}
+{"ts": "2026-09-24T20:25:07Z", "kind": "event", "actor": "operator-local-core", "subject": "core:thread_status", "text": "done — I don't have an open conversation with stripe."}
+{"ts": "2026-09-24T20:25:07Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "did stripe get back to me"}
+{"ts": "2026-09-24T20:25:11Z", "kind": "event", "actor": "aletheia-core", "subject": "quick", "text": "answered from her own stores: thea what's waiting on me"}
+{"ts": "2026-09-24T20:25:11Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "what's waiting on me"}
+{"ts": "2026-09-24T20:25:14Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-c0a4c9f458: PENDING"}
+{"ts": "2026-09-24T20:25:14Z", "kind": "alert", "actor": "aletheia-converse", "subject": "converse", "text": "nobody could think for 'what can you do offline\\n\\n--- WHAT I CAN DO (my registry, read just now — quote i': both subscription paths are unavailable: the Claude CLI could not answer and the browser session could not either (BrowserReasonerUnavailable)"}
+{"ts": "2026-09-24T20:25:14Z", "kind": "event", "actor": "aletheia-intent", "subject": "intent", "text": "answered without planning: what can you do offline"}
+{"ts": "2026-09-24T20:25:14Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I can't think just now: Claude and ChatGPT are both out and my own model isn't running, so I can't answer that one. Signing in to Claude on the PC fixes it. Everything that doesn't need thinking still works."}
+{"ts": "2026-09-24T20:25:14Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "what can you do offline"}
+{"ts": "2026-09-24T20:25:14Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-c0a4c9f458: READY"}
+{"ts": "2026-09-24T20:25:18Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-788403108b: PENDING"}
+{"ts": "2026-09-24T20:25:18Z", "kind": "alert", "actor": "aletheia-converse", "subject": "converse", "text": "nobody could think for 'who are you\\n\\n--- CONTEXT (yours, not his — use only what is relevant) ---\\n{\\n \"no': both subscription paths are unavailable: the Claude CLI could not answer and the browser session could not either (BrowserReasonerUnavailable)"}
+{"ts": "2026-09-24T20:25:18Z", "kind": "event", "actor": "aletheia-intent", "subject": "intent", "text": "answered without planning: who are you"}
+{"ts": "2026-09-24T20:25:18Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I can't think just now: Claude and ChatGPT are both out and my own model isn't running, so I can't answer that one. Signing in to Claude on the PC fixes it. Everything that doesn't need thinking still works."}
+{"ts": "2026-09-24T20:25:18Z", "kind": "note", "actor": "operator", "subject": "operator:asked", "text": "who are you"}
+{"ts": "2026-09-24T20:25:18Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-788403108b: READY"}
