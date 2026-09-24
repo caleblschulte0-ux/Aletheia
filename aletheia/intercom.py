@@ -2355,8 +2355,9 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         from aletheia import workspace
         if kind == "file_write":
             out = workspace.write(cmd["path"], cmd["text"], why=cmd.get("why", ""))
-            return (f"wrote {out['path']} ({out['chars']:,} chars)"
-                    + ("" if out["created"] else " — previous version kept"))
+            # A sentence, not a receipt: "wrote notes.md (5 chars)" was read out.
+            return (f"Wrote {out['path']} in my workspace"
+                    + ("." if out["created"] else "; the previous version is kept."))
         if kind == "file_edit":
             out = workspace.edit(cmd["path"], cmd["find"], cmd["replace"],
                                  why=cmd.get("why", ""))
