@@ -482,7 +482,11 @@
   let fleetOpen = null;      // the repo id he asked for by link or tap
 
   function repoCard(fleet, id, r) {
-    const word = HEALTH_WORD[r.health] || "no signal";
+    // "No signal" while its checks are still running is a false alarm: the
+    // pulse says unknown until a run concludes (Aletheia itself, 2026-09-24).
+    const checking = r.health === "unknown" && Object.values(r.workflows || {})
+      .some((w) => !w.error && !w.conclusion && (w.status === "in_progress" || w.status === "queued"));
+    const word = checking ? "checking" : (HEALTH_WORD[r.health] || "no signal");
     const wfs = Object.entries(r.workflows || {}).map(([name, w]) => {
       const short = name.replace(/\.yml$/, "");
       const state = w.error ? "unknown" : (w.conclusion || w.status || "");

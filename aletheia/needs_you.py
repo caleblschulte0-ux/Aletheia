@@ -345,7 +345,29 @@ def activity(*, hours: float = ACTIVITY_HOURS, limit: int = 30) -> list[dict]:
     for row in _safe(lambda: _unattended(hours, limit), []):
         rows.append(row)
     rows.sort(key=lambda r: str(r.get("at") or ""), reverse=True)
-    return rows[:max(1, int(limit))]
+    return _said_once(rows)[:max(1, int(limit))]
+
+
+def _said_once(rows: list[dict]) -> list[dict]:
+    """A sentence repeated verbatim down the list is printed once, newest
+    kept, with how many times it happened (his page showed the same Ashby
+    refusal twice in a row, 2026-09-24)."""
+    from aletheia import speech
+    seen: dict[tuple[str, str], dict] = {}
+    out: list[dict] = []
+    for row in rows:
+        key = (str(row.get("what") or "").strip().casefold(), str(row.get("outcome") or ""))
+        if key in seen:
+            seen[key]["_times"] = seen[key].get("_times", 1) + 1
+            continue
+        copy = dict(row)
+        seen[key] = copy
+        out.append(copy)
+    for row in out:
+        times = row.pop("_times", 1)
+        if times > 1:
+            row["what"] = f"{row['what']} ({'twice' if times == 2 else speech.count_phrase(times, 'time')})"
+    return out
 
 
 #: Journal kinds that record something GOING WRONG, and the one that
