@@ -1274,7 +1274,9 @@ def _interpret(transcript: str) -> dict:
                     r"|what am i being reminded (of|about)"
                     r"|(do i have|have i got|are there|is there) (any |a )?reminders?( set| pending| coming up)?"
                     r"|any reminders( set| pending| coming up)?"
-                    r"|list (my )?reminders|my reminders|reminders", low):
+                    r"|list (my )?reminders|my reminders|reminders"
+                    # "When is my next reminder" (2026-09-24, offline: "I can't think just now")
+                    r"|(when|what time) (is|'s) (my|the) next reminder|what(?:'s| is) my next reminder", low):
         return {"command": {"kind": "reminders"}, "say": None}
     m = re.match(r"(?:cancel|stop|delete|turn off|remove) (?:the |my |that )?"
                  r"reminder (?:about |for |to )?(.+)", low)
@@ -1372,17 +1374,24 @@ def _interpret(transcript: str) -> dict:
     # the day is read from either end of the sentence. "Next friday" is
     # still asked about, as before.
     _days = r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today)"
-    m = (re.fullmatch(r"remind me (?:to|that) (?P<text>.+?),? (?:on |this )?(?P<day>" + _days + r")"
-                      r"(?: at (?P<time>[\w: ]+?))?", low)
-         or re.fullmatch(r"remind me (?:on |this )?(?P<day>" + _days + r")(?: at (?P<time>[\w: ]+?))? "
+    # "Remind me TOMORROW MORNING to email Dana": a part of the day is a time
+    # too (2026-09-24, offline: to the planner). Morning nine, afternoon two,
+    # evening seven, night nine.
+    _part = r"(?: (?P<part>morning|afternoon|evening|night))?"
+    m = (re.fullmatch(r"remind me (?:to|that) (?P<text>.+?),? (?:on |this )?(?P<day>" + _days + r")" + _part
+                      + r"(?: at (?P<time>[\w: ]+?))?", low)
+         or re.fullmatch(r"remind me (?:on |this )?(?P<day>" + _days + r")" + _part + r"(?: at (?P<time>[\w: ]+?))? "
                          r"(?:to|that) (?P<text>.+)", low)
-         or re.fullmatch(r"remind me at (?P<time>[\w: ]+?) (?:on |this )?(?P<day>" + _days + r") "
+         or re.fullmatch(r"remind me at (?P<time>[\w: ]+?) (?:on |this )?(?P<day>" + _days + r")" + _part + r" "
                          r"(?:to|that) (?P<text>.+)", low))
     if m:
         import datetime as dt
         from aletheia import localtime
         day_iso = _spoken_day(m.group("day"))
-        hhmm = _spoken_time(m.group("time")) if m.group("time") else DEFAULT_REMINDER_TIME
+        part_time = {"morning": "09:00", "afternoon": "14:00", "evening": "19:00", "night": "21:00"}.get(
+            m.group("part") or "")
+        hhmm = (_spoken_time(m.group("time")) if m.group("time")
+                else part_time or DEFAULT_REMINDER_TIME)
         if not day_iso or not hhmm:
             return _to_the_planner(text)
         hour, minute = map(int, hhmm.split(":"))
@@ -2432,9 +2441,16 @@ def _interpret(transcript: str) -> dict:
     # "Send an email to dana@example.com saying thanks for the call" went to
     # the planner - and with every frontier off, to her own model for two
     # minutes - because only "email X saying Y" was a shape (2026-09-22).
-    m = re.match(r"(?:send (?:an? |the )?e?mail(?: to)?|e?mail|write (?:an? )?e?mail to)\s+"
+    m = re.match(r"(?:send (?:an? |the )?e?mail(?: to)?|e?mail|write (?:an? )?e?mail to|draft (?:an? |the )?e?mail(?: to)?)\s+"
                  r"(.+?)\s+(?:that says|that|saying|and say|telling (?:him|her|them)|:)\s+(.+)", low)
     if m:
+        return {"command": {"kind": "email_draft", "to": m.group(1).strip(),
+                            "body": m.group(2).strip()}, "say": None}
+    # "Send DANA an email saying I'm running late" - the name before the
+    # noun, which is how he says it (2026-09-24, offline: to the planner).
+    m = re.match(r"(?:send|draft|write)\s+(.+?)\s+(?:an? |the )?e?mail\s+(?:that says|that|saying|and say|"
+                 r"telling (?:him|her|them)|:)\s+(.+)", low)
+    if m and not re.search(r"\b(?:remind|reminder)\b", low):
         return {"command": {"kind": "email_draft", "to": m.group(1).strip(),
                             "body": m.group(2).strip()}, "say": None}
 

@@ -343,5 +343,54 @@ class TheThirdBatteryFallThroughs(unittest.TestCase):
         self.assertIn("1 piece of work is blocked", said)
 
 
+class TheFourthBatteryFallThroughs(unittest.TestCase):
+    """Fifteen more sentences with every model rung off (2026-09-24)."""
+
+    def test_the_name_before_the_noun_is_still_an_email_and_draft_is_too(self):
+        from aletheia import voice
+        out = voice.interpret("thea send Dana an email saying I'm running late")
+        self.assertEqual(out["command"]["kind"], "email_draft")
+        self.assertEqual(out["command"]["to"], "Dana", "his capitals are put back")
+        self.assertEqual(out["command"]["body"], "I'm running late")
+        out = voice.interpret("thea draft an email to Dana saying I'm running late")
+        self.assertEqual(out["command"]["kind"], "email_draft")
+        self.assertEqual(out["command"]["to"], "Dana")
+        # a reminder that mentions email is still a reminder
+        out = voice.interpret("thea remind me to email bob at 3")
+        self.assertNotEqual(out["command"]["kind"], "email_draft")
+
+    def test_tomorrow_morning_is_a_time(self):
+        from aletheia import voice
+        out = voice.interpret("thea remind me tomorrow morning to email Dana")
+        self.assertEqual(out["command"]["kind"], "remind_at")
+        self.assertIn("T09:00", out["command"]["at"])
+        self.assertEqual(out["command"]["text"], "email Dana")
+        out = voice.interpret("thea remind me tomorrow evening to call mom")
+        self.assertIn("T19:00", out["command"]["at"])
+
+    def test_what_needs_me_right_now_and_the_first_thing_waiting(self):
+        for s in ("what needs me right now", "what's the first thing waiting on me", "anything need me"):
+            self.assertEqual(quick.match(s)[0], "waiting", s)
+
+    def test_how_long_until_my_interview_says_the_distance(self):
+        soon = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=50)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        with mock.patch("aletheia.calendar.all_events",
+                        return_value=[{"title": "Interview: Acme", "start": soon, "end": soon, "status": "CONFIRMED"}]):
+            said = quick.answer("how long until my interview")
+        self.assertIn("in 2 days", said)
+
+    def test_a_bare_no_with_nothing_pending_is_answered_and_with_something_pending_is_left_alone(self):
+        with mock.patch("aletheia.policy.all_approvals", return_value=[]), \
+                mock.patch("aletheia.needs_you.items", return_value=[]):
+            self.assertEqual(quick.answer("no"), "Nothing is waiting for a yes or no right now.")
+            self.assertEqual(quick.answer("ok"), "Nothing is waiting for a yes or no right now.")
+        with mock.patch("aletheia.policy.all_approvals", return_value=[{"id": "a", "state": "PENDING"}]):
+            self.assertIsNone(quick.answer("no"))
+
+    def test_how_many_things_on_my_task_list_and_what_did_i_tell_you_to_remember(self):
+        self.assertEqual(quick.match("how many things are on my task list")[0], "tasks")
+        self.assertEqual(quick.match("what did i tell you to remember")[0], "notes_list")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -149,8 +149,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:are|r) (?:you|u) (?:there|still there|still up)$"
         r"|^still (?:there|awake|up)$|^(?:you|u) still (?:there|up)$")),
     ("waiting", re.compile(
-        r"^what(?:'s| is|s)? waiting(?: on| for)? me$"
+        r"^what(?:'s| is|s)? waiting(?: on| for)? me(?: right now| now)?$"
         r"|^what(?:'s| is|s)? waiting$"
+        # "What needs me right now" / "the first thing waiting on me" (2026-09-24, offline)
+        r"|^what needs me(?: right now| now| today)?\s*\??$"
+        r"|^what(?:'s| is|s)? the (?:first|next|top) thing (?:waiting (?:on|for) me|i need to do|that needs me)\s*\??$"
+        r"|^(?:does )?anything need me(?: right now| now)?\s*\??$"
         r"|^(?:is there )?anything (?:waiting )?for me$"
         r"|^(?:do )?(?:you )?need anything(?: from me)?$"
         # "What do you need from me" is the fourth of the brief's four
@@ -491,6 +495,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what(?:'s| is|s)? on my task list$|^what are my tasks$"
         r"|^what tasks do i have(?: left| open| to do)?$"
         r"|^how many tasks (?:do i have|are there|have i got)(?: left| open| remaining| to do)?$"
+        r"|^how many (?:things|items|tasks) (?:are |have i got )?on my (?:task |to.?do )?list(?: left| open)?\s*\??$"
         r"|^what(?:'s| is|s)? left (?:on my list|to do)$|^how many things (?:do i have )?(?:left )?to do$"
         r"|^(?:my )?task list$|^my tasks$"
         r"|^what(?:'s| is|s)? my next task$|^what(?:'s| is|s)? next$")),
@@ -641,6 +646,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "I can't think just now").
     ("interview_when", re.compile(
         r"^(?:what time|when) (?:is|'s) (?:my|the) (?:next )?interview(?: with [a-z0-9 .&'-]{1,40})?\s*\??$"
+        r"|^how (?:long|many days|many hours) (?:until|till|before) (?:my|the) (?:next )?interview\s*\??$"
         r"|^(?:do i have|is there) an interview (?:coming up|scheduled|booked)(?: today| tomorrow| this week)?\s*\??$"
         r"|^when(?:'s| is) my next interview\s*\??$")),
     # THE DAY AS SHE HOLDS IT: calendar, tasks, the hunt.
@@ -648,6 +654,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what(?:'s| is|s)? (?:the |my )?plan (?:for )?(?:today|this morning|this afternoon)\s*\??$"
         r"|^what(?:'s| is|s)? (?:on )?(?:for |the plan for )?today\s*\??$|^what (?:am i|are we) doing today\s*\??$"
         r"|^what(?:'s| is|s)? (?:my|the) day (?:look like|looking like)(?: today)?\s*\??$")),
+    # A BARE YES OR NO with nothing pending went to the planner and, offline,
+    # to "I could not plan that". With something pending the approve/deny
+    # rules take it before this; here it is only ever the empty case.
+    ("bare_yes_no", re.compile(
+        # never "approve", "deny", "go ahead", "do it": those are verbs the
+        # decision rules own, and real work is never claimed here
+        r"^(?:no|nope|nah|yes|yeah|yep|ok|okay|sure|fine)\s*[.!]?$")),
     ("stuck", re.compile(
         r"^(?:are|r) (?:you|u) (?:stuck|blocked|held up|waiting on (?:something|anything))(?: right now| now)?\s*\??$"
         r"|^is (?:anything|something) (?:stuck|blocked|held up)\s*\??$")),
@@ -796,7 +809,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s) (?:in|on) (?:my |your |the )?drafts?\s*\??$")),
     ("notes_list", re.compile(
         r"^what notes do (?:you|u) have(?: for me)?$|^(?:list|read me|read back|show me) (?:my |your |the )?notes$"
-        r"|^what have i told (?:you|u)(?: to remember)?$|^what have (?:you|u) noted(?: down)?$")),
+        r"|^what (?:have|did) i (?:told|tell) (?:you|u)(?: to remember| to note)?\s*\??$|^what have (?:you|u) noted(?: down)?$"
+        r"|^what (?:have|did) i (?:asked|ask) (?:you|u) to remember\s*\??$")),
     ("recall", re.compile(
         r"^what did i (?:tell|say to) (?:you|u) about (?:the |my )?(?P<recall>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         r"|^what(?:'s| is|s)? my (?P<recall2>[a-z0-9][a-z0-9 '-]{1,30}?)(?:'s)? (?:name|number|address|email|birthday|code|password|pin)\s*\??$"
@@ -1100,6 +1114,9 @@ def _until(words: str) -> str | None:
     # (2026-09-23 night sweep: it fell through here to a model).
     if re.fullmatch(r"(?:my |the )?next (?:meeting|appointment|event)", " ".join(str(words or "").casefold().split())):
         return _next_meeting()
+    # "how long until my interview" is the calendar's too (2026-09-24)
+    if re.fullmatch(r"(?:my |the )?(?:next )?interview(?: with .+)?", " ".join(str(words or "").casefold().split())):
+        return _interview_when()
     today = dt.datetime.now(localtime.operator_tz()).date()
     when = _named_date(words, today)
     if when is None:
@@ -1550,7 +1567,12 @@ def _interview_when() -> str:
     day = "today" if start.date() == now.date() else "tomorrow" if start.date() == now.date() + dt.timedelta(days=1) \
         else start.strftime("%A")
     clock = start.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
-    said = f"Your interview with {who} is {day} at {clock}."
+    left = start - now
+    hours_left = left.total_seconds() / 3600.0
+    until = (f"in {int(round(hours_left * 60))} minutes" if hours_left < 1
+             else f"in {int(round(hours_left))} hours" if hours_left < 36
+             else f"in {int(round(hours_left / 24))} days")
+    said = f"Your interview with {who} is {day} at {clock}, {until}."
     if len(coming) > 1:
         said += f" There {'is' if len(coming) == 2 else 'are'} {len(coming) - 1} more after it."
     return said
@@ -1572,6 +1594,24 @@ def _plan_today() -> str:
         parts.append(hunt)
     parts = [p for p in parts if p]
     return " ".join(parts) if parts else "Nothing on your calendar, nothing on your task list, and no applications yet today."
+
+
+def _bare_yes_no() -> str | None:
+    """A bare yes or no with nothing pending. With something pending this
+    returns None and the approve/deny rules answer, as they always did."""
+    try:
+        from aletheia import policy
+        if any(a.get("state") == "PENDING" for a in policy.all_approvals()):
+            return None
+    except Exception:
+        return None
+    try:
+        from aletheia import needs_you
+        if needs_you.items():
+            return None
+    except Exception:
+        return None
+    return "Nothing is waiting for a yes or no right now."
 
 
 def _stuck() -> str:
@@ -3241,6 +3281,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "interview_when": lambda rest: _interview_when(),
            "plan_today": lambda rest: _plan_today(),
            "stuck": lambda rest: _stuck(),
+           "bare_yes_no": lambda rest: _bare_yes_no(),
            "yesterday": lambda rest: _yesterday(),
            "clock": lambda rest: _clock(),
            "date": lambda rest: _date(),
