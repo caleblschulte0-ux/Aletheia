@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-24T04:59:06Z",
+  "generated_at": "2026-09-24T11:54:34Z",
   "fleet_revision": 5,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -10,6 +10,11 @@
       "status": "active",
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
+        {
+          "sha": "cd6ba7882197",
+          "date": "2026-09-24T04:59:22Z",
+          "message": "pulse: 2026-09-24T04:59Z"
+        },
         {
           "sha": "6ac59d49505a",
           "date": "2026-09-24T04:28:33Z",
@@ -29,25 +34,20 @@
           "sha": "06e059a169a0",
           "date": "2026-09-24T03:38:38Z",
           "message": "Merge pull request #202 from caleblschulte0-ux/claude/what-the-fault-is"
-        },
-        {
-          "sha": "374954c03510",
-          "date": "2026-09-24T03:20:44Z",
-          "message": "A sign-in page after the press is not a refusal"
         }
       ],
       "commit": {
-        "sha": "6ac59d49505a",
-        "date": "2026-09-24T04:28:33Z",
-        "message": "Merge pull request #204 from caleblschulte0-ux/claude/needs-and-cards-agree"
+        "sha": "cd6ba7882197",
+        "date": "2026-09-24T04:59:22Z",
+        "message": "pulse: 2026-09-24T04:59Z"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-09-24T04:59:03Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/35957938965"
+          "updated_at": "2026-09-24T11:54:28Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/35995773070"
         },
         "ci.yml": {
           "status": "completed",
@@ -59,7 +59,7 @@
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 20413
+          "bytes": 19822
         }
       },
       "health": "green"
@@ -71,48 +71,48 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "102d3d17dbd2",
-          "date": "2026-09-24T04:47:45Z",
-          "message": "claim: mailbox verdicts 2026-09-24T04:47Z [skip ci]"
+          "sha": "cfe801c42eac",
+          "date": "2026-09-24T11:47:35Z",
+          "message": "claim: mailbox verdicts 2026-09-24T11:47Z [skip ci]"
         },
         {
-          "sha": "c379fb2fd13a",
-          "date": "2026-09-24T03:47:55Z",
-          "message": "claim: mailbox verdicts 2026-09-24T03:47Z [skip ci]"
+          "sha": "c2b4e16f0793",
+          "date": "2026-09-24T11:40:48Z",
+          "message": "daily: 2026-09-24 report + state [skip ci]"
         },
         {
-          "sha": "9e3d162e3758",
-          "date": "2026-09-24T02:48:54Z",
-          "message": "story_forge + longform: install pycairo's build libs before pip (#445)"
+          "sha": "3ae7d15807d5",
+          "date": "2026-09-24T11:38:12Z",
+          "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
         },
         {
-          "sha": "d51a4759c4c1",
-          "date": "2026-09-24T02:47:37Z",
-          "message": "claim: mailbox verdicts 2026-09-24T02:47Z [skip ci]"
+          "sha": "829fddd4fb7a",
+          "date": "2026-09-24T11:19:07Z",
+          "message": "deadman: repaired 2026-09-24 [skip ci]"
         },
         {
-          "sha": "69a47d7d354a",
-          "date": "2026-09-24T01:48:06Z",
-          "message": "claim: mailbox verdicts 2026-09-24T01:48Z [skip ci]"
+          "sha": "68ea93b8ca70",
+          "date": "2026-09-24T11:18:09Z",
+          "message": "explainer: update posted log + analytics [skip ci]"
         }
       ],
       "commit": {
-        "sha": "102d3d17dbd2",
-        "date": "2026-09-24T04:47:45Z",
-        "message": "claim: mailbox verdicts 2026-09-24T04:47Z [skip ci]"
+        "sha": "cfe801c42eac",
+        "date": "2026-09-24T11:47:35Z",
+        "message": "claim: mailbox verdicts 2026-09-24T11:47Z [skip ci]"
       },
       "vitals": [
         {
           "label": "trending posted",
-          "value": 347
+          "value": 349
         },
         {
           "label": "explainer posted",
-          "value": 266
+          "value": 269
         },
         {
           "label": "third posted",
-          "value": 635
+          "value": 642
         },
         {
           "label": "curiosity posted",
@@ -123,14 +123,14 @@
         "daily.yml": {
           "status": "completed",
           "conclusion": "failure",
-          "updated_at": "2026-09-23T15:49:48Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35881456578"
+          "updated_at": "2026-09-24T11:40:55Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35992316294"
         },
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-24T02:49:18Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35948834999"
+          "updated_at": "2026-09-24T10:30:30Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35987591700"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
@@ -141,20 +141,20 @@
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-24T03:43:58Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35952493768"
+          "updated_at": "2026-09-24T10:11:27Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35985576910"
         },
         "third.yml": {
-          "status": "completed",
-          "conclusion": "success",
-          "updated_at": "2026-09-23T15:32:11Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35881399199"
+          "status": "in_progress",
+          "conclusion": null,
+          "updated_at": "2026-09-24T11:19:11Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35992313420"
         },
         "explainer.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-23T20:36:32Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35915038312"
+          "updated_at": "2026-09-24T11:18:17Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35984475018"
         },
         "retro.yml": {
           "status": "completed",
@@ -165,22 +165,22 @@
         "doctor.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-23T09:56:30Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35845849996"
+          "updated_at": "2026-09-24T09:56:56Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35984308488"
         }
       },
       "state_files": {
         "state/posted_log.json": {
           "exists": true,
-          "bytes": 106856
+          "bytes": 107478
         },
         "state/explainer_posted_log.json": {
           "exists": true,
-          "bytes": 86824
+          "bytes": 89944
         },
         "state/third_posted_log.json": {
           "exists": true,
-          "bytes": 343978
+          "bytes": 347097
         },
         "state/curiosity_posted_log.json": {
           "exists": true,
@@ -188,7 +188,7 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 1549414
+          "bytes": 1581539
         },
         "config/channel_registry.json": {
           "exists": true,
@@ -204,6 +204,16 @@
       "summary": "Guardrailed paper-trading system. The SELL brain and executor watchdog are active; the subscription-backed BUY brain and trade executor are intentionally paused until the operator resumes them.",
       "commits": [
         {
+          "sha": "ad2d7df07b68",
+          "date": "2026-09-24T11:51:35Z",
+          "message": "Merge pull request #21 from caleblschulte0-ux/claude/schwab-trading-integration-wRfeP"
+        },
+        {
+          "sha": "babcd109d069",
+          "date": "2026-09-24T11:51:23Z",
+          "message": "Pre-open review fixes: simulator trades only on today's prices; skip news install once verdict exists"
+        },
+        {
           "sha": "eb037c1f0c2c",
           "date": "2026-09-23T23:00:30Z",
           "message": "Merge pull request #20 from caleblschulte0-ux/claude/schwab-trading-integration-wRfeP"
@@ -217,22 +227,12 @@
           "sha": "188cc7a8c696",
           "date": "2026-09-23T23:00:04Z",
           "message": "Trade whenever GitHub's late scheduler actually runs: 30-min crons, 360-min window"
-        },
-        {
-          "sha": "58c603e65f9f",
-          "date": "2026-09-23T22:28:00Z",
-          "message": "bot: daily snapshot [skip ci]"
-        },
-        {
-          "sha": "41035dbfdb2a",
-          "date": "2026-09-23T22:26:46Z",
-          "message": "bot: daily snapshot [skip ci]"
         }
       ],
       "commit": {
-        "sha": "eb037c1f0c2c",
-        "date": "2026-09-23T23:00:30Z",
-        "message": "Merge pull request #20 from caleblschulte0-ux/claude/schwab-trading-integration-wRfeP"
+        "sha": "ad2d7df07b68",
+        "date": "2026-09-24T11:51:35Z",
+        "message": "Merge pull request #21 from caleblschulte0-ux/claude/schwab-trading-integration-wRfeP"
       },
       "vitals": [],
       "private_vitals": [
@@ -481,9 +481,9 @@
           "n": 3,
           "text": "Make the watchdog say which of the two likely causes a stall is (no trigger runs at all, or runs that fail) so the next stall names itself"
         },
-        "last_progress_at": "2026-09-23T23:00:30Z",
+        "last_progress_at": "2026-09-24T11:51:35Z",
         "days_quiet": 0,
-        "commits_7d": 21,
+        "commits_7d": 23,
         "open_prs": [
           {
             "number": 16,
@@ -498,14 +498,7 @@
     ],
     "evidence": []
   },
-  "transitions": [
-    {
-      "repo": "aletheia",
-      "github": "Aletheia",
-      "from": "unknown",
-      "to": "green"
-    }
-  ],
+  "transitions": [],
   "alerts": [
     {
       "repo": "shorts_pipeline",
