@@ -715,6 +715,18 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
             self.assertIsNone(voice.interpret("thea cancel it")["command"])
             self.assertEqual(voice.interpret("thea make that 4")["command"]["kind"], "intent")
         self.assertIn("replaces", intercom.KIND_ARGS["remind_at"][1])
+        # "Cancel it" after "make that 4" still finds the reminder, not the move.
+        with mock.patch("aletheia.converse.recent", return_value=[
+                {"he_asked": "remind me at 3 to call the dentist"}, {"he_asked": "make that 4"}]), \
+                mock.patch("aletheia.policy.all_approvals", return_value=[]):
+            self.assertEqual(voice.interpret("thea cancel it")["command"], {"kind": "undo"})
+        # A task's state line reads as a sentence with the task's own words.
+        from aletheia import recollection
+        with mock.patch("aletheia.tasks.load", return_value={"description": "renew the car insurance"}):
+            row = recollection._row({"ts": "2026-09-24T20:00:00Z", "kind": "task", "actor": "aletheia-tasks",
+                                     "subject": "task:renew-the-car-insurance",
+                                     "text": "QUEUED -> COMPLETED — marked done: spoken to the wall: thea mark the first one done"})
+        self.assertEqual(row["what"], "Marked done: renew the car insurance")
 
     def test_what_did_i_say_about_is_his_note(self):
         with mock.patch.object(quick, "_notes", return_value=[

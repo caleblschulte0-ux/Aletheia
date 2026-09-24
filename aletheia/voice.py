@@ -793,17 +793,26 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
                         "start": start.isoformat(), "minutes": 60}, "say": None}
 
 
+#: A turn that only makes sense against the one before it. Skipped when
+#: looking for "his last ask", so "make that 4" then "cancel it" finds the
+#: reminder and not the move (and never re-reads itself).
+_IS_FOLLOW_UP = re.compile(
+    r"^(?:(?:make|change|move) (?:that|it)\b|(?:cancel|scrap|drop|undo) (?:that|it)$|undo$|take that back$|"
+    r"(?:and|what about|how about|also)\b|(?:read|list|show) (?:me )?(?:them|those)\b)")
+
+
 def _previous_ask() -> str:
-    """His last sentence from the conversation thread, wake word gone."""
+    """His last full sentence from the conversation thread, wake word gone
+    and follow-ups skipped."""
     try:
         from aletheia import converse
-        turns = converse.recent(limit=3)
+        turns = converse.recent(limit=4)
     except Exception:
         return ""
     for turn in reversed(turns or []):
         said = " ".join(str(turn.get("he_asked") or "").split())
         said = re.sub(r"^(?:thea|aletheia)[,]?\s+", "", said, flags=re.IGNORECASE)
-        if said:
+        if said and not _IS_FOLLOW_UP.match(said.casefold()):
             return said
     return ""
 

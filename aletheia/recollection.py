@@ -201,6 +201,26 @@ SPEAKS_FOR_ITSELF = ("planner", "intent", "scheduling", "applications", "work", 
 _SELF_LABEL = re.compile(r"^(?:did it|did|done)\s*[:—–-]\s*", re.I)
 
 
+_TASK_MOVE_WORDS = {"COMPLETED": "Marked done", "DONE": "Marked done", "CANCELLED": "Cancelled",
+                    "IN_PROGRESS": "Started", "BLOCKED": "Blocked", "QUEUED": "Queued",
+                    "WAITING_OPERATOR": "Waiting on you", "WAITING_EXTERNAL": "Waiting on the world",
+                    "FAILED": "Failed"}
+
+
+def _task_move(tid: str, after: str, note: str) -> str:
+    """"Marked done: renew the car insurance" from a task's state line."""
+    from aletheia import speech, tasks
+    try:
+        desc = str(tasks.load(tid).get("description") or "").strip()
+    except Exception:
+        desc = ""
+    word = _TASK_MOVE_WORDS.get(after, after.replace("_", " ").capitalize())
+    if desc:
+        return f"{word}: {desc}"
+    plain = speech.tidy(speech.strip_ids(note)) if note and not note.startswith(("marked done", "spoken to")) else ""
+    return f"{word}: {plain}" if plain else f"{word} a task"
+
+
 def _row(entry: dict) -> dict:
     """One journal line as something she could say out loud.
 
@@ -214,7 +234,14 @@ def _row(entry: dict) -> dict:
     subject = str(entry.get("subject", ""))
     text = str(entry.get("text", ""))
     head = subject.split(":")[0]
-    if subject == "operator" and entry.get("kind") == "note":
+    moved = re.match(r"^(?P<before>[A-Z_]+) -> (?P<after>[A-Z_]+)(?: — (?P<note>.*))?$", text) \
+        if head == "task" and ":" in subject else None
+    if moved:
+        # The task store journals "QUEUED -> COMPLETED — marked done: spoken
+        # to the wall: thea mark the first one done", and that was read out
+        # (2026-09-24). The state word and the task's own description.
+        what = _task_move(subject.split(":", 1)[1], moved.group("after"), moved.group("note") or "")
+    elif subject == "operator" and entry.get("kind") == "note":
         # His own words, kept: "operator: my landlord's name is Dana" was
         # read out as something she did (2026-09-24). Noting it is the act.
         what = "Noted: " + speech.tidy(speech.strip_ids(text))
