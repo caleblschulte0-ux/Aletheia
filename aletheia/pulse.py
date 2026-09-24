@@ -90,12 +90,40 @@ class GitHubSource:
         if not runs:
             return {"error": "never run"}
         r = runs[0]
-        return {
+        row = {
             "status": r["status"],
             "conclusion": r["conclusion"],
             "updated_at": r["updated_at"],
             "url": r["html_url"],
         }
+        if r.get("status") == "completed" and r.get("conclusion") not in (None, "success", "skipped"):
+            # THE RUN'S OWN WORDS. "Daily failed 11 hours ago" was the whole
+            # fault on his page (2026-09-24) while the run itself had said
+            # "partial day (4 uploaded) - run is RED for repair visibility,
+            # but a held video is the gate working". Two more reads, only
+            # on a failure, never a reason the pulse fails.
+            said = self._run_words(gh, r.get("id"))
+            if said:
+                row["said"] = said
+        return row
+
+    def _run_words(self, gh: str, run_id: object) -> str:
+        """The first warning or error a failed run annotated itself with, or ""."""
+        if not run_id:
+            return ""
+        try:
+            jobs = self._get(f"/repos/{self.owner}/{gh}/actions/runs/{run_id}/jobs?per_page=10").get("jobs") or []
+            failed = [j for j in jobs if j.get("conclusion") not in (None, "success", "skipped")] or jobs
+            for job in failed[:2]:
+                notes = self._get(f"/repos/{self.owner}/{gh}/check-runs/{job.get('id')}/annotations?per_page=20")
+                for note in notes or []:
+                    level = str(note.get("annotation_level") or "")
+                    message = " ".join(str(note.get("message") or "").split())
+                    if level in ("failure", "warning") and message and not message.startswith("Process completed"):
+                        return message[:240]
+        except Exception:  # noqa: BLE001 - a second read that fails costs the words, not the pulse
+            return ""
+        return ""
 
     def state_file(self, gh: str, path: str, branch: str) -> dict:
         try:
