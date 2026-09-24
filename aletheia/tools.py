@@ -737,6 +737,8 @@ SPOKEN_GROUPS_BY_NAME: dict[str, tuple[str, ...]] = {
 #: "somebody added a verb and forgot".
 INTERNAL_KINDS = frozenset({
     "halt", "resume", "close", "open", "restart", "update_now", "approve", "deny", "intent", "handle",
+    # His "Clear" on a card that waits on him: a tap, like a decision.
+    "mission_leave",
     "running", "brief", "setup_status", "notify_check", "notify_clear",
     "notify_snooze", "notify_operator", "announce_set", "rule",
     "authority_status", "mic", "mic_on", "mic_off",
