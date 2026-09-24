@@ -151,6 +151,12 @@
       T.esc(action.label || "Fix it") + "</button>";
   }
 
+  function acts(c) {
+    const list = (c.actions && c.actions.length) ? c.actions : (c.action && c.action.kind ? [c.action] : []);
+    const html = list.map((a) => actButton(a)).join("");
+    return html ? '<div class="acts">' + html + "</div>" : "";
+  }
+
   let healthAction = null;
   function paintBanner() {
     // The health line wins when both say the same thing; a banner that
@@ -366,8 +372,10 @@
       (step ? "<p>" + T.esc(step) + "</p>" : "") +
       (c.stuck ? '<p class="why clamp" data-unclamp>' + T.esc(c.stuck) + "</p>" : "") +
       (once(c.next) ? "<p>" + T.esc(c.next) + "</p>" : "") +
-      // "Nothing moves until you do this" carried no way to say he did.
-      (c.action && c.action.kind ? '<div class="acts">' + actButton(c.action) + "</div>" : "") + bar +
+      // "Nothing moves until you do this" carried no way to say he did; and
+      // "I need to be able to clear those" (2026-09-23) - every click the
+      // Core puts on the card is a button, not only the first.
+      acts(c) + bar +
       (receipt && receipt.id ? peek("How did it get here?", receipt.id, receipt.kind) : "") +
       "</div>";
   }

@@ -92,6 +92,7 @@ def card(record: dict, now: dt.datetime, *, stale_min: int = 20) -> dict | None:
     age = _age_s(record.get("beat"), now)
     needs: list[dict] = []
     blockers: list[dict] = []
+    actions: list[dict] = []
     receipt = {"kind": "browser_mission", "id": record["id"]}
     in_browser = False
     if state in ("RUNNING", "SUBMITTING") and not _crashed(record, now, stale_min):
@@ -126,6 +127,9 @@ def card(record: dict, now: dt.datetime, *, stale_min: int = 20) -> dict | None:
         needs.append({"said": said, "blocking": True, "receipt": receipt})
         step = stop
         nxt = "It carries on from here when you do your part; nothing already done is redone."
+        # His words, 2026-09-23: "I need to be able to clear those." A card
+        # that waits on him carries the click that says he will not.
+        actions.append(_clear(record))
     elif state in STOPPED_STATES:
         if age is not None and age > KEEP_S:
             return None
@@ -133,6 +137,7 @@ def card(record: dict, now: dt.datetime, *, stale_min: int = 20) -> dict | None:
         blockers.append({"said": _words(boundary.get("say") or named_stop(record), 200),
                          "since": boundary.get("at") or record.get("beat"), "source": "browser mission"})
         nxt = "Nothing: it stopped where it had to."
+        actions.append(_clear(record))
     elif state == "DONE":
         if age is not None and age > KEEP_S:
             return None
@@ -149,8 +154,12 @@ def card(record: dict, now: dt.datetime, *, stale_min: int = 20) -> dict | None:
         status=status, step=step, next=nxt, blockers=blockers, needs=needs,
         progress={"done": len(names), "total": 6, "unit": "checkpoints"} if names else None,
         receipts=[{**receipt, "label": "browser mission record"}], updated=record.get("beat"),
-        in_browser=in_browser, source="state/private/browser-missions"
+        in_browser=in_browser, actions=actions, source="state/private/browser-missions"
         + (f" - {record.get('skill')} skill" if record.get("skill") else ""))
+
+
+def _clear(record: dict) -> dict:
+    return {"label": "Clear", "kind": "mission_leave", "args": {"which": str(record["id"])}}
 
 
 def activity(records: list[dict]) -> list[dict]:

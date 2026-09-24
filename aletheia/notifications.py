@@ -105,7 +105,8 @@ def _sayable(text: str) -> str:
 
 #: Forbidden to a planner and still one tap of HIS: the switches, a decision,
 #: a second send. A notice may offer these and nothing else a plan may not.
-HIS_TAP_KINDS = ("approve", "deny", "resume", "restart", "update_now", "open", "mic_on", "apply_retry")
+HIS_TAP_KINDS = ("approve", "deny", "resume", "restart", "update_now", "open", "mic_on", "apply_retry",
+                 "mission_leave")
 
 
 def action_shape(action: object) -> dict:

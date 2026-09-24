@@ -251,6 +251,9 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "mic":           (set(), set()),
     "mic_on":        (set(), set()),
     "mic_off":       (set(), set()),
+    # "Clear": a browser mission stopped on him is left, on his tap. Never a
+    # model's - a model that can clear walls can clear his questions too.
+    "mission_leave": ({"which"}, set()),
     # Looking at the actual PICTURE of his screen, rather than reading it
     # as text. A screenshot cannot be redacted the way perception.screen
     # redacts a window title, so it gets the microphone's treatment: off
@@ -505,6 +508,11 @@ KIND_NOTES: dict[str, str] = {
         'background and tells him when the applications are ready. Prefer '
         'this over apply_prepare, which only writes a packet and does not '
         'touch the form.'),
+    "mission_leave": (
+        'Clear a browser mission that stopped on him - his tap on "Clear" on a '
+        'card that says stopped at a CAPTCHA, a sign-in, a question. It is left, '
+        'its application closed quietly, and never pressed again. which is the '
+        'mission as the page names it. His own tap or words only, never a plan step.'),
     "update_now": (
         'Try to update her code now - his tap on "Try the update now" when the '
         'health line says she has been behind for a while. One beat of the sync '
@@ -745,6 +753,8 @@ READ_ONLY_KINDS = frozenset({
 ROUTINE_KINDS = frozenset({
     "task_new", "task_status", "plan_new", "plan_add_step", "plan_step",
     "preference_set",
+    # His "Clear" on a browser mission: its record left, nothing pressed.
+    "mission_leave",
     # Starting and stopping a capped recording of one window, to a file on
     # his PC that goes nowhere.
     "screen_record", "screen_record_stop",
@@ -945,6 +955,7 @@ PLANNER_FORBIDDEN = frozenset({
     "restart",             # and so is a restart button
     "apply_retry",         # a second send is his tap, never a plan's guess
     "update_now",          # and a pull of her own code is his tap, not a plan step
+    "mission_leave",       # clearing a card that waits on him is his tap
     "apply_pause",         # "stop applying" is his word, never a compiler's guess
     "approve", "deny",     # self-authorization, from an ambiguous word
     # Same rule, same reason. "Close the browser tab", "open my resume"
@@ -2500,6 +2511,23 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "mic":
         from aletheia import ears
         return ears.spoken()
+    if kind == "mission_leave":
+        from aletheia import apply_run, browser_mission
+        if rehearsing():
+            return "This is a rehearsal, so I didn't clear anything."
+        which = str(cmd["which"] or "").strip()
+        if which.startswith("browser:"):
+            which = which[len("browser:"):]
+        try:
+            record = browser_mission.leave(which, "you cleared it", via=ACTOR)
+        except KeyError:
+            raise act.Refused(f"I don't have a browser mission matching {which!r}.")
+        try:
+            apply_run.close_left_missions([record])
+        except Exception:
+            pass
+        goal = " ".join(str(record.get("goal") or which).split())[:80]
+        return f"Cleared. I've left {goal}; nothing more happens on it."
     if kind == "mic_on":
         from aletheia import ears
         ears.turn_on(via=f"command centre: {quote[:60]}" if quote else "command centre")

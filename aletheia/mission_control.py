@@ -233,7 +233,7 @@ def mission_card(*, id: str, type: str, title: str, status: str, goal: str = "",
                  needs_count: int | None = None, progress: dict | None = None,
                  counts: Iterable[dict] = (), receipts: Iterable[dict] = (), updated: object = None,
                  detail: bool = False, in_browser: bool = False, source: str = "",
-                 action: dict | None = None) -> dict:
+                 action: dict | None = None, actions: Iterable[dict] = ()) -> dict:
     """The one shape every mission takes on the home screen. Pure.
 
     `action` is the one command the card's own sentence asks of him
@@ -254,6 +254,10 @@ def mission_card(*, id: str, type: str, title: str, status: str, goal: str = "",
         "receipts": [dict(r) for r in receipts], "updated": updated, "detail": bool(detail),
         "in_browser": bool(in_browser), "source": source,
         "action": dict(action) if isinstance(action, dict) and action.get("kind") else {},
+        # More than one click when a card honestly has more than one thing he
+        # can do (Clear it; open it). `action` stays the first for anything
+        # that reads one.
+        "actions": [dict(a) for a in actions if isinstance(a, dict) and a.get("kind")],
     }
 
 
