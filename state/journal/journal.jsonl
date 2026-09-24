@@ -190,3 +190,14 @@
 {"ts": "2026-09-24T03:40:44Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:schwab_trader", "text": "health red -> green"}
 {"ts": "2026-09-24T04:59:20Z", "kind": "event", "actor": "aletheia", "subject": "repo:aletheia", "text": "health unknown -> green"}
 {"ts": "2026-09-24T15:40:03Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-09-24"}
+{"ts": "2026-09-24T20:13:40Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-48b41381a9: PENDING"}
+{"ts": "2026-09-24T20:13:40Z", "kind": "alert", "actor": "aletheia-converse", "subject": "converse", "text": "nobody could think for 'what did I ask you yesterday\\n\\n--- WHAT I ACTUALLY DID (my journal, read just now': both subscription paths are unavailable: the Claude CLI could not answer and the browser session could not either (BrowserReasonerUnavailable)"}
+{"ts": "2026-09-24T20:13:40Z", "kind": "event", "actor": "aletheia-intent", "subject": "intent", "text": "answered without planning: what did I ask you yesterday"}
+{"ts": "2026-09-24T20:13:40Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I can't think just now: Claude and ChatGPT are both out and my own model isn't running, so I can't answer that one. Signing in to Claude on the PC fixes it. Everything that doesn't need thinking still works."}
+{"ts": "2026-09-24T20:13:40Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-48b41381a9: READY"}
+{"ts": "2026-09-24T20:13:43Z", "kind": "event", "actor": "aletheia-core", "subject": "quick", "text": "answered from her own stores: thea what did you do yesterday"}
+{"ts": "2026-09-24T20:13:47Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-9955f4b348: PENDING"}
+{"ts": "2026-09-24T20:13:47Z", "kind": "event", "actor": "aletheia-investigate", "subject": "intent", "text": "looked into a question with my tools (0 lookups)"}
+{"ts": "2026-09-24T20:13:47Z", "kind": "action", "actor": "operator-local-core", "subject": "core:intent", "text": "done — I couldn't look into that just now: The big models can't answer right now, and my own model is switched off. Ask me again in a bit."}
+{"ts": "2026-09-24T20:13:47Z", "kind": "event", "actor": "aletheia-followups", "subject": "followup", "text": "fu-9955f4b348: READY"}
+{"ts": "2026-09-24T20:13:51Z", "kind": "event", "actor": "aletheia-core", "subject": "quick", "text": "answered from her own stores: thea what can you do"}

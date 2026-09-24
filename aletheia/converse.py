@@ -302,6 +302,24 @@ def remember_exchange(said: str, reply: str) -> None:
             stateio.write_json_atomic(THREAD_PATH, {"turns": _trim(turns)})
     except Exception:
         pass
+    _journal_his_ask(said)
+
+
+#: His own words, journaled: the thread above keeps a handful of turns for
+#: "do that"; the journal keeps the day. "What did I ask you yesterday"
+#: (2026-09-24, frontier hidden) had NO store to read - his sentences were
+#: nowhere, only her replies - so it went to a model and, offline, to
+#: "I can't think just now". The subject is its own so his notes ("note
+#: that...", subject "operator") and her doing are not mixed with it.
+ASKED_SUBJECT = "operator:asked"
+
+
+def _journal_his_ask(said: str) -> None:
+    try:
+        from aletheia import journal
+        journal.append("note", ASKED_SUBJECT, said[:300], actor="operator")
+    except Exception:
+        pass
 
 
 def _carried_over(turns: list[dict]) -> list[str]:

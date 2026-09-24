@@ -733,6 +733,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?:apply|applied)(?: to| for)?(?: for me)? (?P<applied_on>today|yesterday|so far today|tonight)\s*\??$"
         r"|^(?:who|where|what) (?:did|have) (?:you|u|we) (?:apply|applied)(?: to| for)?(?: for me)? (?P<applied_on2>today|yesterday|tonight)\s*\??$"
         r"|^(?:list|show me|read me) (?P<applied_on3>today'?s?|yesterday'?s?) (?:applications|jobs)\s*\??$")),
+    # WHAT HE ASKED, by day, from the journal of his own words
+    # (`converse.ASKED_SUBJECT`). Offline it was "I can't think just now".
+    ("asked_on", re.compile(
+        r"^what (?:did|have) i (?:ask|asked|tell|told|say to|said to) (?:you|u)(?: to do| for| about)?"
+        r" (?P<asked_on>yesterday|today|this morning|last night|earlier|earlier today|so far today)\s*\??$"
+        r"|^what (?:did|have) i (?:ask|asked) (?:you|u) (?:for|to do) (?P<asked_on2>yesterday|today)\s*\??$"
+        r"|^what (?:have|did) i (?:been asking|asked) (?:you|u) (?:for )?(?P<asked_on3>today|yesterday)\s*\??$")),
     # HER OWN MACHINE. "How much memory do you have free" is a number she
     # can read in a millisecond, and it says which of her own models fits.
     ("memory_free", re.compile(
@@ -804,7 +811,8 @@ def match(question: str) -> tuple[str, str] | None:
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "date_of", "date_of2", "date_of3",
                                            "recall", "recall2", "recall3", "recall4",
-                                           "applied_on", "applied_on2", "applied_on3")
+                                           "applied_on", "applied_on2", "applied_on3",
+                                           "asked_on", "asked_on2", "asked_on3")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
@@ -2261,6 +2269,35 @@ def _applied_on(rest) -> str:
             + (f", and {len(sent) - 6} more" if len(sent) > 6 else "") + ".")
 
 
+def _asked_on(rest) -> str:
+    """What he asked her on a day, from the journal of his own words."""
+    import datetime as dt
+    from aletheia import converse, journal, localtime, recollection, speech
+    words = str(rest or "").casefold()
+    days_ago = 1 if ("yesterday" in words or "last night" in words) else 0
+    when = "yesterday" if days_ago else "today"
+    tz = localtime.operator_tz()
+    date = (dt.datetime.now(tz) - dt.timedelta(days=days_ago)).strftime("%Y-%m-%d")
+    try:
+        rows = [e for e in journal.entries()
+                if e.get("kind") == "note" and e.get("subject") == converse.ASKED_SUBJECT
+                and recollection._local_date(str(e.get("ts") or "")) == date]
+    except Exception:
+        return "I can't read my journal right now."
+    if not rows:
+        return f"Nothing from you {when} that I wrote down."
+    asks = []
+    for e in rows:
+        line = " ".join(str(e.get("text") or "").split()).strip(" .?!")
+        if line and line.casefold() not in {a.casefold() for a in asks}:
+            asks.append(line)
+    shown = [f"'{_shortened(a)}'" for a in asks[-5:]]
+    said = f"{when.capitalize()} you asked me: " + "; ".join(shown)
+    if len(asks) > 5:
+        said += f" - and {speech.count_phrase(len(asks) - 5, 'other thing')}"
+    return said + "."
+
+
 def _memory_free() -> str:
     """Her machine's free memory, and which of her own models fits in it."""
     try:
@@ -2986,6 +3023,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "drafts": lambda rest: _drafts(),
            "sending": lambda rest: _sending(),
            "applied_on": _applied_on,
+           "asked_on": _asked_on,
            "memory_free": lambda rest: _memory_free(),
            "recall": _recall,
            "friction": lambda rest: _friction(),

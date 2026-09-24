@@ -220,10 +220,16 @@ class AnswerCase(unittest.TestCase):
 
     def test_what_he_asked_for_is_not_what_she_did(self):
         # "What did I ask you to do yesterday" asks for HIS instructions;
-        # her journal also holds scheduled work nobody asked for. The fast
-        # lane must not answer the near-miss — that one keeps the model,
-        # which now gets the right day's journal to answer from.
-        self.assertIsNone(quick.match("what did i ask you to do yesterday"))
+        # her journal also holds scheduled work nobody asked for, so the
+        # she-did reader must never answer it. Since 2026-09-24 his own
+        # words are journaled (converse.ASKED_SUBJECT) and the fast lane
+        # reads THOSE back - never her day.
+        found = quick.match("what did i ask you to do yesterday")
+        self.assertEqual(found[0], "asked_on")
+        with mock.patch("aletheia.recollection.on_date", side_effect=AssertionError("her day was read")), \
+                mock.patch("aletheia.journal.entries", return_value=[]):
+            self.assertEqual(quick.answer("what did i ask you to do yesterday"),
+                             "Nothing from you yesterday that I wrote down.")
 
     def test_can_you_answers_from_the_registry(self):
         with stub_registry(REGISTRY_MATCH):

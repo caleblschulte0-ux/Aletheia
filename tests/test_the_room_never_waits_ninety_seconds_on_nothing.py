@@ -156,5 +156,57 @@ class ThreeAnswersSheHadAllAlong(unittest.TestCase):
         self.assertIn("smaller model fits", said)
 
 
+class WhatHeAskedIsAStoreSheCanReadBack(unittest.TestCase):
+    """"What did I ask you yesterday" had no store to read: his sentences were
+    nowhere, only her replies. Every spoken turn journals his words now,
+    and the fast lane reads them back by day, with no model."""
+
+    def setUp(self):
+        from aletheia import converse, journal
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        env = mock.patch.dict(os.environ, {"ALETHEIA_PRIVATE_STATE": str(root / "private")})
+        env.start(); self.addCleanup(env.stop)
+        for module, attr, value in ((journal, "JOURNAL_PATH", root / "journal.jsonl"),
+                                    (converse, "THREAD_PATH", root / "thread.json")):
+            p = mock.patch.object(module, attr, value)
+            p.start(); self.addCleanup(p.stop)
+
+    def test_a_spoken_turn_journals_his_words_under_their_own_subject(self):
+        from aletheia import converse, journal
+        converse.remember_exchange("remind me at 3 to call the dentist", "I'll remind you today at 3 pm.")
+        rows = [e for e in journal.entries() if e.get("subject") == converse.ASKED_SUBJECT]
+        self.assertEqual([r["text"] for r in rows], ["remind me at 3 to call the dentist"])
+        self.assertEqual(rows[0]["actor"], "operator")
+        # not "her doing", not one of his notes
+        from aletheia import recollection
+        self.assertEqual([r for r in recollection.day(hours=1) if "dentist" in str(r.get("what"))], [])
+        self.assertEqual([n for n in quick._notes() if "dentist" in str(n.get("text"))], [])
+
+    def test_what_did_i_ask_you_today_and_yesterday_read_from_it(self):
+        from aletheia import converse, journal, localtime
+        tz = localtime.operator_tz()
+        now = dt.datetime.now(tz)
+        converse.remember_exchange("what's on my calendar tomorrow", "Nothing tomorrow.")
+        converse.remember_exchange("add milk to the shopping list", "Added.")
+        import json
+        yesterday = (now - dt.timedelta(days=1)).astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        with journal.JOURNAL_PATH.open("a", encoding="utf-8") as f:
+            f.write(json.dumps({"ts": yesterday, "kind": "note", "actor": "operator",
+                                "subject": converse.ASKED_SUBJECT, "text": "book the dentist"}) + "\n")
+        today = quick.answer("what did I ask you today")
+        self.assertTrue(today.startswith("Today you asked me:"), today)
+        self.assertIn("calendar tomorrow", today)
+        self.assertIn("shopping list", today)
+        self.assertNotIn("dentist", today)
+        before = quick.answer("what did I ask you yesterday")
+        self.assertTrue(before.startswith("Yesterday you asked me:"), before)
+        self.assertIn("dentist", before)
+
+    def test_nothing_written_down_is_said_as_such(self):
+        self.assertEqual(quick.answer("what did I tell you yesterday"), "Nothing from you yesterday that I wrote down.")
+
+
 if __name__ == "__main__":
     unittest.main()
