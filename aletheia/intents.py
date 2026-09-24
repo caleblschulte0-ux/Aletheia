@@ -974,7 +974,13 @@ def _in_english(capability: str | None) -> str:
             return said
     except Exception:
         pass
-    return speech.deslug(name) or "that"
+    # Not in the registry at all ("social.publish", 2026-09-24): never the
+    # id out loud; "a way to publish social" is sayable and honest.
+    plain = speech.deslug(name)
+    if plain and "." in name:
+        head, _, tail = name.partition(".")
+        return f"a way to {tail.replace('_', ' ')} {head.replace('_', ' ')}".strip()
+    return plain or "that"
 
 
 def _cannot_yet(gaps_named: list[dict], record: dict) -> str:
@@ -1008,7 +1014,19 @@ def _cannot_yet(gaps_named: list[dict], record: dict) -> str:
         if command:
             return f"{said}: {command}."
         return f"{said}."
-    said = "I can't " + speech.and_list([_in_english(c) for c in wanted]) + " yet"
+    # A registry description is a NOUN phrase more often than a verb: "I
+    # can't a local secret vault sealed by Windows DPAPI ... yet" reached
+    # the room (2026-09-24). A thing she lacks is said as a thing she does
+    # not have; an id the registry has never heard of is "a way to ...".
+    named = [_in_english(c) for c in wanted]
+    things = [n for n in named if re.match(r"^(?:a|an|the|some|any)\b|^way to\b|^a way\b", n)]
+    if things and len(things) == len(named):
+        said = "I don't have " + speech.or_list(named) + " yet"
+    elif things:
+        said = ("I can't " + speech.and_list([n for n in named if n not in things])
+                + " yet, and I don't have " + speech.or_list(things))
+    else:
+        said = "I can't " + speech.and_list(named) + " yet"
     if record.get("gap_tasks"):
         return f"{said}. I've put it on the build list."
     return f"{said}."
