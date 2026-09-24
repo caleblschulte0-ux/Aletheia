@@ -452,11 +452,20 @@
       " " + T.esc(v.label) + "</span>").join("");
     const c = r.commit || {};
     const isOpen = fleetOpen === id;
+    // The fault FIRST, in the collector's words: opening a red card used to
+    // read like the README ("Guardrailed paper-trading system...") with the
+    // failure nowhere on it.
+    const alert = (fleet.alerts || []).find((a) => a.repo === id);
+    const faultLine = alert && alert.said
+      ? '<p class="why">' + T.esc(alert.said) +
+        (alert.handled ? " You marked this handled; the next reading will confirm." : "") + "</p>"
+      : "";
     return '<details class="repo ' + (HEALTH_CLASS[r.health] || "dim") + '" data-repo="' + T.esc(id) + '"' +
       (isOpen ? " open" : "") + '><summary><b>' + T.esc(r.github || id) + "</b> " +
-      '<span class="tag">' + T.esc(word) + "</span>" +
+      '<span class="tag">' + T.esc(alert && alert.handled ? "handled" : word) + "</span>" +
       (r.role ? ' <span class="role">' + T.esc(r.role) + "</span>" : "") + "</summary>" +
       '<div class="body">' +
+      faultLine +
       (r.summary ? "<p>" + T.esc(r.summary) + "</p>" : "") +
       (r.error ? '<p class="why">Can\'t read it: ' + T.esc(r.error) + "</p>" : "") +
       (wfs ? '<div class="wfs">' + wfs + "</div>" : "") +
@@ -477,13 +486,23 @@
     const entries = Object.entries(fleet.repos);
     const active = entries.filter(([, r]) => r.status === "active");
     const dormant = entries.filter(([, r]) => r.status !== "active");
+    // The Core says WHAT is wrong (`said`) and whether he has marked it
+    // handled; the page renders. A handled fault is quiet, not gone: it
+    // waits for the next reading. (His words: "I want it to tell me what
+    // the fault is" / "I don't need that being read all night".)
     const faults = (fleet.alerts || []).map((a) => {
       const r = fleet.repos[a.repo] || {};
-      const why = a.failing && a.failing.length
+      const why = a.said || (a.failing && a.failing.length
         ? a.failing.map((f) => f.replace(/\.yml$/, "")).join(", ") + " failing"
-        : a.error ? "can't be read" : a.missing ? "missing its state" : "fault";
-      return '<button class="fault" data-fleet="' + T.esc(a.repo) + '">' +
-        T.esc((r.github || a.github || a.repo) + " — " + why) + "</button>";
+        : a.error ? "can't be read" : a.missing ? "missing its state" : "fault");
+      const name = r.github || a.github || a.repo;
+      if (a.handled) {
+        return '<button class="fault handled" data-fleet="' + T.esc(a.repo) + '">' +
+          T.esc(name + " — handled, waiting for the next reading") + "</button>";
+      }
+      return '<div class="faultrow"><button class="fault" data-fleet="' + T.esc(a.repo) + '">' +
+        T.esc(name + " — " + why) + "</button>" +
+        actButton({ label: "Handled", kind: "fault_ack", args: { repo: a.repo } }) + "</div>";
     }).join("");
     setHTML("fleet",
       (faults ? '<div class="faults">' + faults + "</div>" : "") +

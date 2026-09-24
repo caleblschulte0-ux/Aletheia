@@ -1167,14 +1167,21 @@ def _fleet() -> str:
         return "No fleet reading yet."
     active = [r for r in repos.values() if r.get("status") == "active"]
     dormant = [r for r in repos.values() if r.get("status") != "active"]
-    faults = []
+    from aletheia import faults as _faults
+    faults, handled = [], []
     for a in fleet.get("alerts") or []:
+        if not isinstance(a, dict):
+            continue
         name = (repos.get(a.get("repo")) or {}).get("github") or a.get("github") or a.get("repo")
-        why = (", ".join(f.replace(".yml", "") for f in a.get("failing") or []) + " failing") if a.get("failing") \
-            else ("missing " + ", ".join(a["missing"])) if a.get("missing")             else ("can't be read" if a.get("error") else "a fault")
-        faults.append(f"{name} ({why})")
+        if _faults.is_handled(a):
+            handled.append(str(name))
+            continue
+        why = _faults.said(a, repos.get(str(a.get("repo") or "")) or {}).rstrip(".")
+        faults.append(f"{name} ({why[0].lower() + why[1:]})")
     said = f"{speech.count_phrase(len(active), 'project')} active" + (f", {len(dormant)} dormant" if dormant else "")
-    said += (f"; {speech.count_phrase(len(faults), 'fault')}: " + speech.and_list(faults)) if faults else "; no faults"
+    said += (f"; {speech.count_phrase(len(faults), 'fault')}: " + "; ".join(faults)) if faults else "; no faults"
+    if handled:
+        said += f"; {speech.and_list(handled)} marked handled by you"
     return said + "."
 
 
@@ -1942,19 +1949,32 @@ def _alerts() -> str | None:
         # Not "all green" - and not a model's guess either: with the pulse
         # unwritten this went to a model, which had nothing to read (2026-09-23).
         return "No fleet reading yet - the pulse hasn't been written on this machine, so I can't say what's red."
+    from aletheia import faults
     alerts = [a for a in (latest.get("alerts") or []) if isinstance(a, dict)]
     if not alerts:
         return "Nothing red. The fleet is green."
-    named = []
-    for row in alerts[:3]:
+    # What he has marked handled is said as handled, not as red (his words,
+    # 2026-09-23: "I don't need that being read all night").
+    handled = [a for a in alerts if faults.is_handled(a)]
+    loud = [a for a in alerts if not faults.is_handled(a)]
+    repos = latest.get("repos") if isinstance(latest.get("repos"), dict) else {}
+
+    def name_of(row):
         # the name he knows it by, never the pulse's slug ("schwab_trader")
-        repo = str(row.get("github") or row.get("repo") or "something")
-        failing = [str(f) for f in (row.get("failing") or [])]
-        named.append(repo + (f" ({', '.join(failing[:2])})" if failing else ""))
-    if len(alerts) > 3:
-        named.append(f"{len(alerts) - 3} more")
-    return (f"{speech.count_phrase(len(alerts), 'repo')} red: "
-            + speech.and_list(named) + ".")
+        return str(row.get("github") or row.get("repo") or "something")
+    if not loud:
+        return ("Nothing red that you haven't handled: "
+                + speech.and_list([name_of(a) for a in handled]) + " waiting for the next reading.")
+    named = []
+    for row in loud[:3]:
+        why = faults.said(row, repos.get(str(row.get("repo") or "")) or {}).rstrip(".")
+        named.append(f"{name_of(row)} - {why[0].lower() + why[1:]}")
+    if len(loud) > 3:
+        named.append(f"{len(loud) - 3} more")
+    said = f"{speech.count_phrase(len(loud), 'repo')} red: " + "; ".join(named) + "."
+    if handled:
+        said += " " + speech.and_list([name_of(a) for a in handled]) + " you've marked handled."
+    return said
 
 
 def _repos() -> str | None:

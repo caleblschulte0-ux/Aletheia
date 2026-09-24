@@ -125,6 +125,9 @@ READER_FOR = {
     "calendar_propose": "thread_status",
     # A hold makes that time busy: "when am I free" says so, and names it.
     "calendar_hold": "calendar_find_free",
+    # His "handled" on a red project is read back by the brief and by "is
+    # anything broken": the fault is said as handled, not as red.
+    "fault_ack": "brief",
     # A cleared browser mission is read back by "how are my missions": left,
     # with the reason he gave it.
     "mission_leave": "missions",

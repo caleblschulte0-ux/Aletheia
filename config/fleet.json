@@ -153,7 +153,7 @@
         ],
         "state_files": [
           "signals/holdings.json",
-          "signals/paper_account.json",
+          "signals/sim_account.json",
           "signals/performance.json",
           "reports/track_record.md"
         ]
@@ -184,14 +184,14 @@
         },
         {
           "label": "open positions",
-          "file": "signals/paper_account.json",
+          "file": "signals/sim_account.json",
           "probe": "count",
           "path": "positions",
           "private": true
         },
         {
           "label": "cash",
-          "file": "signals/paper_account.json",
+          "file": "signals/sim_account.json",
           "probe": "field",
           "path": "cash",
           "unit": "usd",

@@ -251,6 +251,10 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "mic":           (set(), set()),
     "mic_on":        (set(), set()),
     "mic_off":       (set(), set()),
+    # "Handled": a red project he has dealt with stops being shouted until
+    # the next reading shows a DIFFERENT fault. His tap; a model that could
+    # mark faults handled is a model that can hide them.
+    "fault_ack":     ({"repo"}, set()),
     # "Clear": a browser mission stopped on him is left, on his tap. Never a
     # model's - a model that can clear walls can clear his questions too.
     "mission_leave": ({"which"}, set()),
@@ -513,6 +517,11 @@ KIND_NOTES: dict[str, str] = {
         'background and tells him when the applications are ready. Prefer '
         'this over apply_prepare, which only writes a packet and does not '
         'touch the form.'),
+    "fault_ack": (
+        'Mark a red project handled - his tap on "Handled" beside a fault on '
+        'the fleet. repo names the project as the page does. It stays quiet '
+        'while the readings show the same fault and is said again the moment '
+        'a different one appears. His own tap or words only, never a plan step.'),
     "mission_leave": (
         'Clear a browser mission that stopped on him - his tap on "Clear" on a '
         'card that says stopped at a CAPTCHA, a sign-in, a question. It is left, '
@@ -764,6 +773,8 @@ READ_ONLY_KINDS = frozenset({
 ROUTINE_KINDS = frozenset({
     "task_new", "task_status", "plan_new", "plan_add_step", "plan_step",
     "preference_set",
+    # His "handled" on a red project: one private row beside the pulse.
+    "fault_ack",
     # His "Clear" on a browser mission: its record left, nothing pressed.
     "mission_leave",
     # A page opened in his own browser, on his PC, from a record she holds.
@@ -968,6 +979,7 @@ PLANNER_FORBIDDEN = frozenset({
     "restart",             # and so is a restart button
     "apply_retry",         # a second send is his tap, never a plan's guess
     "update_now",          # and a pull of her own code is his tap, not a plan step
+    "fault_ack",           # a fault marked handled by a model is a fault hidden
     "mission_leave",       # clearing a card that waits on him is his tap
     "open_page",           # a page on his screen is his tap, never a compiler's
     "apply_pause",         # "stop applying" is his word, never a compiler's guess
@@ -2525,6 +2537,14 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "mic":
         from aletheia import ears
         return ears.spoken()
+    if kind == "fault_ack":
+        from aletheia import faults
+        if rehearsing():
+            return "This is a rehearsal, so I didn't mark anything handled."
+        try:
+            return faults.ack(cmd["repo"], quote=quote)
+        except ValueError as exc:
+            raise act.Refused(str(exc))
     if kind == "mission_leave":
         from aletheia import apply_run, browser_mission
         if rehearsing():

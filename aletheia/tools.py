@@ -737,6 +737,8 @@ SPOKEN_GROUPS_BY_NAME: dict[str, tuple[str, ...]] = {
 #: "somebody added a verb and forgot".
 INTERNAL_KINDS = frozenset({
     "halt", "resume", "close", "open", "restart", "update_now", "approve", "deny", "intent", "handle",
+    # His "handled" beside a fault on the fleet: a tap, like a decision.
+    "fault_ack",
     # His "Clear" on a card that waits on him: a tap, like a decision.
     "mission_leave",
     "running", "brief", "setup_status", "notify_check", "notify_clear",

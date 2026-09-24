@@ -963,7 +963,12 @@ def chain_think(*, timeout_s: float = LOCAL_TIMEOUT_S,
         if "why" not in fell:
             budget = subscription_timeout_s
             if ends is not None:
-                budget = max(MIN_SUBSCRIPTION_S, min(budget, ends - time.monotonic()))
+                # Capped at the deadline itself too: `ends - now` can come
+                # back a hair OVER `deadline_s` (a large monotonic clock
+                # rounds the sum up), and "what is left" is never more than
+                # what there was.
+                left = min(float(deadline_s), ends - time.monotonic())
+                budget = max(MIN_SUBSCRIPTION_S, min(budget, left))
             try:
                 # The STANDARD class, held sticky for the session: frontier
                 # first through the gateway, her own model once it is out.
