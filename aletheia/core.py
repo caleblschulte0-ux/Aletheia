@@ -987,8 +987,16 @@ class Handler(BaseHTTPRequestHandler):
         if url.path.startswith("/api/mission"):
             return self._mission(url)
         if url.path == "/api/notifications":
-            state = parse_qs(url.query).get("state", [None])[0]
-            rows = notifications.all_notifications(state=state)
+            query = parse_qs(url.query)
+            state = query.get("state", [None])[0]
+            # The page asks for the whole unread list and gets it FOLDED:
+            # notices of one story become one row (count, ids). Sixty
+            # "An idea for ..." were sixty cards and a wrong "100 things
+            # worth seeing" - the count had hit the route's default limit.
+            fold = query.get("folded", ["0"])[0] in ("1", "true", "yes")
+            rows = notifications.all_notifications(state=state, limit=500 if fold else 100)
+            if fold:
+                rows = notifications.folded(rows)
             # `says` is the line to SHOW, computed here rather than in
             # each page: every reminder is titled "Reminder", and a
             # surface that renders the title shows him the category

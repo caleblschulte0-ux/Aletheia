@@ -258,8 +258,12 @@
   }
 
   function noticeCard(n) {
-    const heading = n.says || n.title || "";
+    // A story with several notices is ONE card (the Core folded them):
+    // "An idea for Stripe - and 59 more like it". "Got it" clears them all.
+    const more = n.count && n.count > 1 ? " - and " + (n.count - 1) + " more like it" : "";
+    const heading = (n.says || n.title || "") + more;
     const under = n.body && n.body !== heading ? n.body : "";
+    const seenIds = (n.ids && n.ids.length ? n.ids : [n.id]).join(",");
     // The body is CLAMPED, not cut: one of these is a digest listing every
     // question on every form, twelve lines of it, and three of them made
     // the page longer than everything he can actually act on. Tapping it
@@ -270,7 +274,7 @@
       (under ? '<p class="clamp" data-unclamp>' + T.esc(under) + "</p>" : "") +
       '<div class="row"><span class="when">' + T.esc(T.clock(n.created_at)) + "</span>" +
       actButton(n.action, n.id) +
-      '<button class="seen" data-seen="' + T.esc(n.id) + '">Got it</button></div></div>';
+      '<button class="seen" data-seen="' + T.esc(seenIds) + '">Got it</button></div></div>';
   }
 
   /** Every decision is a ROW, and rows that share one consequence say the
@@ -656,7 +660,7 @@
     try {
       const got = await Promise.allSettled([
         T.api("/api/mission"), T.api("/api/status"),
-        T.api("/api/needs?limit=200"), T.api("/api/notifications?state=UNREAD")]);
+        T.api("/api/needs?limit=200"), T.api("/api/notifications?state=UNREAD&folded=1")]);
       clearTimeout(slow);
       if (got[0].status !== "fulfilled") throw got[0].reason;
       m = got[0].value;
@@ -925,9 +929,12 @@
     if (id) { decided.add(id); repaint(); }
     try {
       if (seen) {
-        await T.api("/api/notifications/ack", {
-          method: "POST", body: JSON.stringify({ id: seen.dataset.seen }) });
-        last.notices = last.notices.filter((n) => n.id !== seen.dataset.seen);
+        // One "Got it" may stand for a whole story (a folded card).
+        const ids = seen.dataset.seen.split(",").filter(Boolean);
+        for (const one of ids) {
+          await T.api("/api/notifications/ack", { method: "POST", body: JSON.stringify({ id: one }) });
+        }
+        last.notices = last.notices.filter((n) => !ids.includes(n.id));
         repaint();
       } else {
         await T.command(yes ? { kind: "approve", id }
