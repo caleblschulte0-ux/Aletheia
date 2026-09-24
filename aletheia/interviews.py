@@ -391,11 +391,13 @@ def consider(event: dict, entry: dict, *, subject: str, text: str = "", now: dt.
 def spoken() -> str:
     state = status()
     if not state["on"]:
-        return ("Interviews are yours to schedule; I only tell you when an employer asks. "
-                "'python -m aletheia.interviews on' at your keyboard lets me pick a time "
-                f"{window_words(state['window'])}, draft the reply and hold it for your send.")
-    return (f"When an employer asks for time I pick a slot {window_words(state['window'])} on a weekday "
-            "you're free, pencil it in and draft the reply - it goes when you say send.")
+        return ("Interviews are yours to schedule; I only tell you when an employer asks. Switched on, I book "
+                f"a scheduling link they send at a time {window_words(state['window'])} on a weekday you're "
+                "free and put it on your calendar; no email goes out.")
+    return (f"When an employer sends a scheduling link I book it {window_words(state['window'])} on a weekday "
+            "you're free and put it on your calendar. When they only ask for a time by email I pick one in "
+            "that window, pencil it in and draft the reply - and outward mail is on hold, so nothing goes out "
+            "until you lift it.")
 
 
 def main(argv: list[str] | None = None) -> int:

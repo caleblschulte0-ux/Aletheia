@@ -322,9 +322,15 @@ def put_on_his_calendar(*, title: str, start: str, end: str, spender=None, provi
         if provider is None:
             ok, why = calendar_live.available()
             if not ok:
-                return {"state": "not_connected",
-                        "say": ("the Open Range Interactive calendar is not connected on this PC yet - "
-                                "`python -m aletheia.calendar_auth google --enable-writes` once, at your keyboard")}
+                # No live write is configured on this PC, and none is needed
+                # for the Open Range calendar: the booking was made with the
+                # Open Range address, so the page's own confirmation and its
+                # calendar invitation go to that inbox, and Google Calendar
+                # shows an invitation addressed to its own account. Her own
+                # store already holds it; this is the copy his phone shows.
+                return {"state": "by_invitation",
+                        "say": ("the site's invitation goes to the Open Range inbox, which puts it on that "
+                                "calendar")}
             provider = calendar_live.build_provider()
         if spender is None:
             from aletheia import authority
