@@ -570,13 +570,6 @@ def held_drafts() -> list[dict]:
     return sorted(out, key=lambda d: (str(d.get("created") or ""), int(d.get("_written") or 0)), reverse=True)
 
 
-def _subject_key(subject: str) -> str:
-    """"Re: Re: Mercury AE" and "Mercury AE" are one thread."""
-    s = str(subject or "").casefold()
-    s = re.sub(r"^(?:\s*(?:re|fwd?|aw)\s*:\s*)+", "", s)
-    return " ".join(re.sub(r"[^a-z0-9 ]", " ", s).split())
-
-
 def drafts_ledger() -> list[dict]:
     """Every held draft, newest first, in order: who it is to, what it is
     about, when, and whether a newer draft to the same person about the same

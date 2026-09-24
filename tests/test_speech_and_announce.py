@@ -97,8 +97,11 @@ APPROVALS = [
     {"id": "mail-a1e1957d0f", "state": "PENDING", "capability": "email.send",
      "requested_action": "email.send:abc", "reason": "send email to Dana Okafor",
      "requested_at": _JUST_ASKED},
-    {"id": "book-meet-dana", "state": "PENDING", "capability": "calendar.write",
-     "requested_action": "calendar.write:abc", "requested_at": _JUST_ASKED},
+    # A HIGH-RISK thing, refused by voice. This was calendar.write until
+    # 2026-09-24, when his words moved a calendar entry to a grantable
+    # medium risk; sending mail in his name is still operator_always.
+    {"id": "send-dana", "state": "PENDING", "capability": "email.send",
+     "requested_action": "email.send:abc", "requested_at": _JUST_ASKED},
 ]
 LOW_RISK = {"id": "note-plants", "state": "PENDING", "capability": "journal.append",
             "requested_action": "note: water the plants",

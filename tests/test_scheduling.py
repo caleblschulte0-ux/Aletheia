@@ -48,6 +48,10 @@ class SchedulingCase(unittest.TestCase):
         env = mock.patch.dict(os.environ,
                               {"ALETHEIA_PRIVATE_STATE": str(root / "private")})
         env.start(); self.addCleanup(env.stop)
+        # A fresh private root is under his 2026-09-24 outward-mail hold; these
+        # tests are about what an offer does once he has lifted it.
+        from aletheia import mail as _mail
+        _mail.lift_hold(via="test")
         for module, attr, value in (
                 (policy, "APPROVALS_DIR", root / "approvals"),
                 (policy, "HALT_PATH", root / "halt.json"),
