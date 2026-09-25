@@ -118,9 +118,25 @@ class TheDraftsAreKeptInOrder(Isolated):
             os.utime(path, ns=(1_700_000_000_000_000_000, 1_700_000_000_000_000_000))
         self.assertEqual(stamps, sorted(stamps), "the writer stamps them in the order it wrote them")
         self.assertEqual(len(set(stamps)), 3, "and no two share a stamp")
+        self.assertEqual(stamps, sorted(set(stamps)), "strictly increasing, not merely non-decreasing")
         expected = [r["id"] for r in reversed(made)]          # newest first
         for _ in range(4):
             self.assertEqual([r["id"] for r in mail.drafts_ledger()], expected)
+
+    def test_the_stamp_does_not_depend_on_the_clock_being_fine_grained(self):
+        """Windows ticks its clock about every 15 ms and `time.time_ns()`
+        reports the TICK. Measured on the CI runner: two drafts written back
+        to back got the same value, which is exactly the collision the stamp
+        exists to break. So the stamp is held to being strictly increasing
+        even when the clock does not move at all."""
+        frozen = 1_700_000_000_000_000_000
+        with mock.patch.object(mail.time, "time_ns", return_value=frozen):
+            stamps = [mail._stamp_ns() for _ in range(5)]
+        self.assertEqual(stamps, sorted(set(stamps)), stamps)
+        self.assertEqual(len(set(stamps)), 5, stamps)
+        # ...and it does not run backwards when the clock jumps back.
+        with mock.patch.object(mail.time, "time_ns", return_value=frozen - 10**9):
+            self.assertGreater(mail._stamp_ns(), stamps[-1])
 
     def test_a_draft_written_before_the_stamp_existed_still_has_an_order(self):
         """Nothing rewrites the store, so the old records have to keep working

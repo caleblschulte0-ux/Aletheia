@@ -41,6 +41,7 @@ import hashlib
 import json
 import os
 import re
+import threading
 import time
 import uuid
 from email.message import EmailMessage
@@ -440,6 +441,33 @@ def _draft_sha(d: dict) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+_STAMP_LOCK = threading.Lock()
+_LAST_STAMP = [0]
+
+
+def _stamp_ns() -> int:
+    """A wall-clock stamp that never ties inside this process.
+
+    MEASURED on the GitHub Windows runner, 2026-09-25: a bare `time.time_ns()`
+    came back IDENTICAL for two drafts written back to back, which is the very
+    collision it had just been added to break - Windows' system clock ticks
+    about every 15 ms, and `time_ns` reports that tick, not the nanosecond.
+    Bumping past the last value keeps it strictly increasing here while still
+    being a readable wall-clock time.
+
+    Two drafts written by DIFFERENT processes inside one tick can still tie;
+    the sort falls through to the file's mtime and then the id, so the answer
+    is at least the SAME every time it is asked, which is what "in order"
+    has to mean before it can mean anything else.
+    """
+    with _STAMP_LOCK:
+        now = time.time_ns()
+        if now <= _LAST_STAMP[0]:
+            now = _LAST_STAMP[0] + 1
+        _LAST_STAMP[0] = now
+        return now
+
+
 def draft(to: str, subject: str, body: str, requested_via: str = "voice", *, held: bool = False,
           about: str = "") -> dict:
     """A draft, and the approval that sends it - or, `held`, a draft alone.
@@ -479,10 +507,10 @@ def draft(to: str, subject: str, body: str, requested_via: str = "voice", *, hel
         # SECOND and a pursuit pass writes several drafts inside one, and the
         # file's own mtime was the only tie-break - which on a loaded Windows
         # runner came back IDENTICAL for two drafts, leaving the directory
-        # listing to decide which of them superseded the other. This is
-        # written by the process that made the draft, at the moment it made
-        # it, so two drafts can only tie if the clock did not move at all.
-        "created_ns": time.time_ns(),
+        # listing to decide which of them superseded the other. See
+        # `_stamp_ns`: strictly increasing within the writing process, because
+        # the clock alone was not enough on the machine it had to work on.
+        "created_ns": _stamp_ns(),
         "via": requested_via,
     }
     if about:
