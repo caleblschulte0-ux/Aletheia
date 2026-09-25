@@ -308,7 +308,10 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "interview_status":     (set(), set()),
     # Instagram (his words, 2026-09-24: "automatically post stuff to Instagram").
     # A post reaches the world, so it is world-tier and an approval of his.
-    "instagram_post":  ({"image_url", "caption"}, set()),
+    # `media` is a public https address OR a file on his PC. It was
+    # `image_url`, which stopped being honest the moment video and local
+    # files worked; the caption and a forced media_type are optional.
+    "instagram_post":  ({"media"}, {"caption", "media_type"}),
     "instagram_posts": (set(), set()),
     "announce_set":    ({"on"}, {"quiet_from", "quiet_until"}),
     # `part` is morning/afternoon/evening. He says it constantly and it
@@ -378,11 +381,12 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # shape of a step list from the registry rather than from a guess.
 KIND_NOTES: dict[str, str] = {
     "instagram_post": (
-        'Publish ONE picture with a caption to his Instagram account through the Graph API: '
-        'image_url is a public https address of the picture, caption the words under it (2200 '
-        'characters at most). It reaches the world, so it always waits for his approval; refused '
-        'in words when Instagram is not set up yet (the setup is his: professional account, Meta '
-        'developer app, token in the vault).'),
+        'Publish ONE picture or reel with a caption to his Instagram account: media is either a '
+        'public https address or a path to a file on his PC (a JPEG or PNG picture, an MP4 video), '
+        'caption the words under it (2200 characters at most, line breaks and hashtags kept), '
+        'media_type optional and only to force IMAGE or REELS. It reaches the world, so it always '
+        'waits for his approval; refused in words when Instagram is not set up yet (the setup is '
+        'his: professional account, Meta developer app, one connect command).'),
     "instagram_posts": (
         'What she has posted to Instagram, newest first, from her own ledger - "what have you '
         'posted to Instagram", "did the post go out".'),
@@ -3294,10 +3298,14 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         if not ready:
             raise act.Refused(why)
         try:
-            row = instagram.publish(cmd["image_url"], cmd.get("caption") or "")
+            row = instagram.publish(cmd.get("media") or "",
+                                    cmd.get("caption") or "",
+                                    media_type=cmd.get("media_type") or "")
         except RuntimeError as exc:
             raise act.Refused(str(exc)) from None
-        return "Posted to Instagram" + (f": {row['caption'][:80]}" if row.get("caption") else " (a picture).")
+        what = "a reel" if row.get("kind") == "REELS" else "a picture"
+        first = str(row.get("caption") or "").splitlines()[0][:80] if row.get("caption") else ""
+        return f"Posted {what} to Instagram" + (f": {first}" if first else ".")
     if kind == "instagram_posts":
         from aletheia import instagram
         return instagram.spoken_posts()
