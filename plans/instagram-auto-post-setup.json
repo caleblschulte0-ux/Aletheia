@@ -1,0 +1,58 @@
+{
+  "slug": "instagram-auto-post-setup",
+  "title": "Instagram Auto Post Setup",
+  "goal": "Caleb's Instagram account is set up for automatic posting via the Instagram Graph API with all required permissions and documentation.",
+  "state": "proposed",
+  "created": "2026-09-25T00:17:57Z",
+  "project": {
+    "repo": "aletheia",
+    "base_branch": "live",
+    "risk": "high",
+    "drafted_by": "ollama:qwen3:8b",
+    "why": "Drafted 2026-09-25 by Aletheia's own model while the subscriptions were out, from something Caleb asked for; his to correct before or after he says yes."
+  },
+  "steps": [
+    {
+      "n": 1,
+      "text": "Create a Meta developer app for Instagram Graph API access.",
+      "state": "todo",
+      "owner": "caleb"
+    },
+    {
+      "n": 2,
+      "text": "Switch Caleb's Instagram account to a professional account.",
+      "state": "todo",
+      "owner": "caleb",
+      "needs": [
+        1
+      ]
+    },
+    {
+      "n": 3,
+      "text": "Request the instagram_content_publish permission for the Meta app.",
+      "state": "todo",
+      "owner": "caleb",
+      "needs": [
+        2
+      ]
+    },
+    {
+      "n": 4,
+      "text": "Generate a long-lived access token for the Meta app.",
+      "state": "todo",
+      "owner": "caleb",
+      "needs": [
+        3
+      ]
+    },
+    {
+      "n": 5,
+      "text": "Write documentation on setting up the Instagram Graph API and required permissions.",
+      "state": "todo",
+      "owner": "thea",
+      "needs": [
+        4
+      ]
+    }
+  ]
+}
