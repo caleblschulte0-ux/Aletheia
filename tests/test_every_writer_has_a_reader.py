@@ -108,6 +108,8 @@ READER_FOR = {
     # reminder, a hold, a file), each readable above; the act itself is
     # read back by "what did you do today" and the unattended ledger.
     "undo": "tasks",
+    "instagram_post": "instagram_posts",
+    "interview_window_set": "interview_status",
     # He is the one being told. "What are you announcing" is answered
     # from the announce setting itself, which `setup_status` carries.
     "announce_set": "setup_status",

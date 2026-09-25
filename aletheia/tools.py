@@ -123,6 +123,8 @@ LOCAL_MODEL_WRITES = frozenset({
 STORE_OF = {
     "tasks": "tasks", "task_new": "tasks", "task_status": "tasks", "task_done": "tasks",
     "shopping_list": "shopping", "shopping_add": "shopping", "shopping_off": "shopping",
+    "instagram_post": "instagram", "instagram_posts": "instagram",
+    "interview_window_set": "interviews", "interview_status": "interviews",
     "reminders": "schedules", "remind_at": "schedules", "remind_daily": "schedules",
     "remind_weekly": "schedules", "reminder_off": "schedules",
     "contacts": "contacts", "contact_add": "contacts",
@@ -265,6 +267,8 @@ OUTWARD_ALWAYS = frozenset({
     "browser.act", "browser.pursue",
     # sending and meeting somebody
     "email_draft", "message_send", "thread_send", "meet", "thread.send",
+    # publishing to his Instagram account
+    "instagram_post",
     # publishing into somebody else's repository
     "issue", "dispatch",
     # an account of his, handed over
@@ -276,6 +280,8 @@ OUTWARD_ALWAYS = frozenset({
     "restart", "update_now", "study_decide", "study_confirm", "mission_confirm",
     # taking one of her acts back is his decision; she never undoes herself unasked
     "undo",
+    # his interview hours are his decision
+    "interview_window_set",
     # his desktop, and a new worker with capacity of its own
     "computer_do", "agent_new",
 })
@@ -701,6 +707,8 @@ SPOKEN_GROUPS_BY_NAME: dict[str, tuple[str, ...]] = {
     "email": ("email_check", "email_read", "email_draft", "thread_draft", "thread_send",
               "thread_status", "thread_followup"),
     "texting people": ("message_send",),
+    "posting to Instagram": ("instagram_post", "instagram_posts"),
+    "your interviews": ("interview_window_set", "interview_status"),
     "your calendar and the weather": ("free_time", "meet", "calendar_find_free",
                                       "calendar_hold", "calendar_propose"),
     "people you know": ("contacts", "contact_add", "watch_email_from",

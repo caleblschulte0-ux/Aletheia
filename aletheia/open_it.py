@@ -27,12 +27,35 @@ class NothingToOpen(RuntimeError):
     pass
 
 
+#: Sites he names by one word ("open YouTube") and her own page. A small
+#: table on purpose: a word that is not here is not guessed into a URL.
+KNOWN_SITES = {
+    "youtube": ("https://www.youtube.com/", "YouTube"),
+    "gmail": ("https://mail.google.com/", "Gmail"),
+    "google": ("https://www.google.com/", "Google"),
+    "github": ("https://github.com/", "GitHub"),
+    "linkedin": ("https://www.linkedin.com/", "LinkedIn"),
+    "indeed": ("https://www.indeed.com/", "Indeed"),
+    "google calendar": ("https://calendar.google.com/", "Google Calendar"),
+    "my calendar": ("https://calendar.google.com/", "Google Calendar"),
+    "chatgpt": ("https://chatgpt.com/", "ChatGPT"),
+    "the thea page": ("http://127.0.0.1:8777/", "your Thea page"),
+    "thea page": ("http://127.0.0.1:8777/", "your Thea page"),
+    "my page": ("http://127.0.0.1:8777/", "your Thea page"),
+    "the command center": ("http://127.0.0.1:8777/", "your Thea page"),
+    "the wall": ("http://127.0.0.1:8777/interface/wall.html", "the wall"),
+}
+
+
 def page_for(which: str) -> tuple[str, str]:
-    """(url, what it is) for a mission or an application he named."""
+    """(url, what it is) for a site he names, a mission or an application."""
     from aletheia import apply_run, browser_mission
     key = " ".join(str(which or "").split())
     if not key:
         raise NothingToOpen("say which one")
+    site = KNOWN_SITES.get(key.casefold().removeprefix("the ").strip()) or KNOWN_SITES.get(key.casefold())
+    if site:
+        return site
     record = None
     try:
         if browser_mission.exists(key):

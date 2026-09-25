@@ -373,8 +373,13 @@ def choose_paths(ranked: list[dict], objective: str, evidence: str, *,
                        model=reasoner.INTERPRET_MODEL,
                        validator=_choice_validator(names, MAX_FILES))
     except (reasoner.ReasonerUnavailable, ValueError) as exc:
+        # The REASON, not the class: eleven "file choice unavailable
+        # (ReasonerUnavailable)" lines on 2026-09-24 said nothing about
+        # why, while the same process's other Claude calls worked.
+        from aletheia import speech
+        why = speech.plainly(str(exc)) or type(exc).__name__
         journal.append("event", "code:choose",
-                       f"file choice unavailable ({type(exc).__name__}); reading in ranked order",
+                       f"file choice unavailable ({why[:160]}); reading in ranked order",
                        actor=ACTOR)
         return ranked
     by_path = {str(e["path"]): e for e in ranked}

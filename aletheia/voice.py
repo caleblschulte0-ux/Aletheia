@@ -817,6 +817,22 @@ def _previous_ask() -> str:
     return ""
 
 
+def _interview_hours(a: str, b: str) -> tuple[str, str] | None:
+    """Two spoken times -> ("13:00", "14:30"), read as interview hours: a
+    bare 1 to 7 is the afternoon, 8 to 11 the morning, 12 noon. None when
+    either does not read or the end is not after the start."""
+    out = []
+    for words in (a, b):
+        hhmm = _spoken_time(words)
+        if not hhmm:
+            return None
+        hour, minute = map(int, hhmm.split(":"))
+        if _is_bare_hour(words) and 1 <= hour <= 7:
+            hour += 12
+        out.append(f"{hour:02d}:{minute:02d}")
+    return (out[0], out[1]) if out[0] < out[1] else None
+
+
 def _last_ask_is_undoable() -> bool:
     """Was his last ask a task, a list item, a reminder, a hold or a file -
     the things "cancel it" can take straight back?"""
@@ -1139,6 +1155,34 @@ def _interpret(transcript: str) -> dict:
                 "say": f"Say just \u201c{word}\u201d and I'll do it — I won't "
                        "guess at anything else for the kill switch."}
 
+    # THE OUTWARD MAIL HOLD is lifted at his keyboard, never from a sentence
+    # anything in the room could say (his 2026-09-24 ruling put it on; a
+    # voice rule that lifts it would be a bypass). Said plainly, with where.
+    if re.fullmatch(r"(?:lift|remove|take off|turn off|end|drop|release) (?:the )?(?:outward |outgoing )?"
+                    r"(?:mail|email) hold(?: now| please)?"
+                    r"|(?:let|allow) (?:the )?(?:emails?|mail) (?:go )?out(?: again| now)?"
+                    r"|(?:start|resume) sending (?:emails?|mail)(?: again)?"
+                    r"|(?:stop|quit) holding (?:my |the )?(?:emails?|mail|drafts)", low):
+        try:
+            from aletheia import mail as _mail
+            where = str(_mail.outward_hold().get("command") or "")
+        except Exception:
+            where = ""
+        return {"command": None,
+                "say": ("Lifting the mail hold is yours, at the keyboard - not something I do from a sentence. "
+                        "Until then I draft and keep, and nothing goes out."
+                        + (f" The switch is '{where}'." if where else ""))}
+
+    # THE MACHINE'S OWN POWER is not hers: "shut down the computer" went to
+    # nobody at the bottom rung (2026-09-24). Said plainly, never compiled.
+    if re.fullmatch(r"(?:shut ?down|turn off|power off|restart|reboot|log off|sign out of|lock)"
+                    r" (?:the |my |this )?(?:computer|pc|machine|laptop|desktop|windows)(?: now| please)?", low):
+        act_word = "lock" if low.startswith("lock") else "restart" if low.startswith(("restart", "reboot")) \
+            else "sign out of" if low.startswith(("log off", "sign out")) else "shut down"
+        return {"command": None,
+                "say": f"I don't {act_word} this PC - that's yours at the keyboard. "
+                       "I keep running, and everything I hold is saved as I go."}
+
     # Apostrophes optional: speech-to-text drops them far more often than it
     # keeps them, and "whats going on" was falling past the instant local
     # answer into the planner — twenty seconds for a question worth 50ms.
@@ -1377,8 +1421,10 @@ def _interpret(transcript: str) -> dict:
     # "Do I have any reminders set" waited two minutes on her own model
     # for a store this branch reads (2026-09-22): the question in the
     # shape of a yes/no is the same question.
-    if re.fullmatch(r"(what|which) reminders? (do i have|are set|have i got)"
+    if re.fullmatch(r"(what|which) (?:reminders?|timers?|alarms?) (do i have|are set|have i got|are running)"
                     r"|what am i being reminded (of|about)"
+                    # A timer is a reminder with a countdown (bottom rung 2026-09-24).
+                    r"|(?:any|do i have any|list (?:my )?|my )?(?:timers?|alarms?)(?: running| set| going)?"
                     r"|(do i have|have i got|are there|is there) (any |a )?reminders?( set| pending| coming up)?"
                     r"|any reminders( set| pending| coming up)?"
                     r"|list (my )?reminders|my reminders|reminders"
@@ -2781,6 +2827,101 @@ def _interpret(transcript: str) -> dict:
     m = re.match(r"(?:add a task|new task|task)\s*(?:to|:)?\s+(.+)", low)
     if m:
         return _new_task(m.group(1).strip())
+
+    # "SET MY INTERVIEW WINDOW TO 2 TO 4": his hours, in his own words only.
+    # A bare hour reads as an interview hour: 1 to 7 is the afternoon, 8 to
+    # 11 the morning, 12 noon.
+    m = (re.fullmatch(r"(?:set|make|change|move) (?:my )?interview (?:window|hours|times) (?:to |as |from )?"
+                      r"(?P<a>[\w:]+(?: ?[ap]m)?) (?:to|until|till|-|and) (?P<b>[\w:]+(?: ?[ap]m)?)"
+                      r"(?: (?P<tz>central|eastern|mountain|pacific))?", low)
+         or re.fullmatch(r"(?:i can (?:do |take |have )?interviews?|interviews? (?:are|is) (?:ok|fine|good)|"
+                         r"i(?:'m| am) (?:free|available) for interviews?) (?:from |between )?"
+                         r"(?P<a>[\w:]+(?: ?[ap]m)?) (?:to|until|till|-|and) (?P<b>[\w:]+(?: ?[ap]m)?)"
+                         r"(?: (?P<tz>central|eastern|mountain|pacific))?", low))
+    if m:
+        window = _interview_hours(m.group("a"), m.group("b"))
+        if window:
+            command = {"kind": "interview_window_set", "start": window[0], "end": window[1]}
+            zone = {"central": "America/Chicago", "eastern": "America/New_York", "mountain": "America/Denver",
+                    "pacific": "America/Los_Angeles"}.get(m.group("tz") or "")
+            if zone:
+                command["timezone"] = zone
+            return {"command": command, "say": None}
+    if re.fullmatch(r"what(?:'s| is) my interview (?:window|hours|times)(?: set to)?|are (?:you|u) booking interviews"
+                    r"|what(?:'s| is) the interview (?:switch|booking) set to", low):
+        return {"command": {"kind": "interview_status"}, "say": None}
+
+    # "POST <picture address> TO INSTAGRAM SAYING ...": one post, his approval
+    # (instagram_post is world-tier). "What have you posted to Instagram" is
+    # her own ledger.
+    m = re.fullmatch(r"(?:post|publish|put) (?P<url>https?://\S+) (?:to|on) instagram"
+                     r"(?: (?:saying|with the caption|captioned|with the words|with) (?P<cap>.+))?", low)
+    if m:
+        url = re.search(r"https?://\S+", text, flags=re.IGNORECASE)
+        command = {"kind": "instagram_post", "image_url": url.group(0) if url else m.group("url"),
+                   "caption": _as_he_said(text, m.group("cap").strip()) if m.group("cap") else ""}
+        return {"command": command, "say": None}
+    if re.fullmatch(r"what (?:have (?:you|u)|did (?:you|u)) post(?:ed)? (?:to|on) instagram(?: today| lately| so far)?"
+                    r"|(?:did|has) (?:the |my )?(?:instagram )?post go (?:out|up)(?: on instagram)?"
+                    r"|what(?:'s| is) (?:been )?posted (?:to|on) instagram", low):
+        return {"command": {"kind": "instagram_posts"}, "say": None}
+
+    # "OPEN YOUTUBE" / "open the Thea page": a page on his screen is his tap
+    # (open_page), and a site he names by one word is in a small table -
+    # nothing else is guessed into an address (bottom rung 2026-09-24:
+    # the rules compiled "Open youtube in the browser" for approval).
+    m = re.fullmatch(r"(?:open|open up|go to|bring up|pull up|launch) (?P<site>[a-z][a-z ]{1,24}?)"
+                     r"(?: for me| please| in the browser| in a tab)?", low)
+    if m:
+        try:
+            from aletheia import open_it as _open
+            known = m.group("site").strip().casefold()
+            if known in _open.KNOWN_SITES or known.removeprefix("the ").strip() in _open.KNOWN_SITES:
+                return {"command": {"kind": "open_page", "which": known}, "say": None}
+        except Exception:
+            pass
+
+    # "CANCEL THE PASSPORT TASK": a task he named, cancelled - the same
+    # lookup "mark the passport one done" uses (bottom rung: no verb).
+    m = re.fullmatch(r"(?:cancel|drop|scrap|remove|delete|kill) (?:the |my )?(?P<what>.+?)(?: task| one| item)"
+                     r"(?: from (?:my|the) (?:task )?list)?", low)
+    if m and m.group("what") not in ("that", "it", "this"):
+        try:
+            from aletheia import intercom as _ic
+            found, why = _ic._one_task(_as_he_said(text, m.group("what")))
+        except Exception:
+            found, why = None, ""
+        if found is not None:
+            return {"command": {"kind": "task_status", "id": str(found["id"]), "state": "CANCELLED",
+                                "note": "cancelled by voice"}, "say": None}
+        if why:
+            return {"command": None, "say": str(why)}
+
+    # "MOVE THE DENTIST TO 4": the reminder he named, at the new time.
+    m = re.fullmatch(r"(?:move|push|change|shift) (?:the |my )?(?P<what>.+?)(?: reminder)? to (?:at )?(?P<time>[\w: ]+?)"
+                     r"(?: instead| please)?", low)
+    if m and m.group("what") not in ("that", "it", "this"):
+        hhmm = _spoken_time(m.group("time"))
+        try:
+            from aletheia import intercom as _ic
+            found, _why = _ic._one_reminder(_as_he_said(text, m.group("what")))
+        except Exception:
+            found = None
+        if hhmm and found is not None:
+            said_text = str((found.get("command") or {}).get("text") or m.group("what"))
+            return {"command": {"kind": "remind_at", "at": _next_occurrence_iso(hhmm, bare_hour=_is_bare_hour(m.group("time"))),
+                                "text": said_text, "replaces": said_text}, "say": None}
+
+    # "MAKE ME A WORD DOCUMENT CALLED NOTES WITH THE TEXT HELLO": a document
+    # with words he already has (doc_make; the planner is for authoring).
+    m = re.fullmatch(r"(?:make|create|write|save)(?: me)? (?:a |an )?(?:new )?(?:word |text )?(?:document|doc) "
+                     r"(?:called|named) (?P<name>[\w][\w .-]{0,60}?) (?:with the text|with the words|with|containing|that says|saying) "
+                     r"(?P<body>.+)", low)
+    if m:
+        name = m.group("name").strip()
+        path = name if name.lower().endswith((".docx", ".txt", ".md")) else f"{name}.docx"
+        return {"command": {"kind": "doc_make", "path": path,
+                            "content": [_as_he_said(text, m.group("body").strip())]}, "say": None}
 
     # "MAKE THAT 4" after "remind me at 3 to call the dentist": the same
     # reminder, moved. The previous ask is read back from the thread and

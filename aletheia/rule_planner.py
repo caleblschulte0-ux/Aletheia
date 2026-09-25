@@ -180,6 +180,12 @@ def _close_app(m, request):
                    "I can open it, bring it to the front and read its windows."}
 
 
+_NOT_A_PAGE = re.compile(
+    r"\b(?:door|doors|window|windows|blinds|curtains|garage|gate|jar|bottle|box|lid|drawer|cupboard|fridge|"
+    r"envelope|package|parcel|resume|cv|pdf|document|documents|doc|docx|spreadsheet|note|notes|file|files|"
+    r"folder|photo|photos|picture|pictures|image|images)\b")
+
+
 def _open_site(m, request):
     what = _clean(m.group("what"))
     if not what or len(what) > 40:
@@ -189,6 +195,13 @@ def _open_site(m, request):
     if re.search(r"(?:^| )(?:folder|directory|file|drive)$", what.casefold()):
         return None   # a place on his disk is never a web page
     found = _URL.search(what)
+    # A THING IN THE ROOM OR ON HIS DISK IS NEVER A PAGE: "open the door",
+    # "open the window" and "open my resume" were each compiled as "Open ...
+    # in the browser" for his approval (2026-09-24). Speech arrives in
+    # lowercase, so a name cannot be told from a noun by its capital; a
+    # short list of the things he opens that are not pages is the guard.
+    if not found and _NOT_A_PAGE.search(what.casefold()):
+        return None
     args = {"goal": f"Open {what} in the browser"}
     if found:
         args["url"] = _with_scheme(found.group(1))

@@ -993,6 +993,11 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
                 except Exception:
                     pass
                 continue
+            if ps.url_is_sign_in(obs.get("url")):
+                # A login page that would not load is still a login page:
+                # instagram.com/accounts/login timed out and was written off
+                # as "the page broke" and left (2026-09-24). It is his door.
+                return _stop(record, bm.NEEDS_YOU, "SIGN_IN", obs, step=f"sign in at {str(obs.get('url') or '')[:90]}")
             return _stop(record, bm.NEEDS_YOU, "ERROR", obs, why="; ".join(obs["evidence"]))
         errors = 0
 

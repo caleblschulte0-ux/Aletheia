@@ -264,7 +264,10 @@ class SheReadsOneBody(Isolated):
         self.assertIn("email_read", intercom.KIND_ARGS)
         self.assertIn("email_read", intercom.LOCAL_KINDS)
         self.assertEqual(intercom.tier("email_read"), intercom.TIER_READ)
-        with mock.patch.object(mail, "read_body", return_value=BODIES["<a@smiles>"]):
+        # Mail that is not set up is refused at the door now; this test is
+        # about the kind, so the inbox is said to be there.
+        with mock.patch.object(mail, "read_body", return_value=BODIES["<a@smiles>"]), \
+                mock.patch.object(mail, "available", return_value=(True, "configured")):
             answer = intercom.execute_command({"kind": "email_read", "which": "ana"}, FLEET)
         self.assertIn("Wednesday", answer)
 

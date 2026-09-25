@@ -317,10 +317,14 @@ def compact_context(context: dict | None, *, budget: int = CONTEXT_BUDGET_BYTES)
         return {}
     out: dict = {}
     dropped = False
+    # The `trimmed` line is part of what travels, so it is part of what is
+    # measured: added after the check, it put the context 18 bytes over the
+    # budget on a full-suite run (2026-09-24), and a local prompt over budget
+    # is one that times out on his laptop.
     for key in CONTEXT_KEYS:
         if key not in context:
             continue
-        candidate = {**out, key: context[key]}
+        candidate = {**out, key: context[key], "trimmed": TRIMMED_NOTE}
         try:
             size = len(json.dumps(candidate, default=str).encode("utf-8"))
         except (TypeError, ValueError):
@@ -328,10 +332,13 @@ def compact_context(context: dict | None, *, budget: int = CONTEXT_BUDGET_BYTES)
         if size > budget:
             dropped = True
             continue
-        out = candidate
+        out = {**out, key: context[key]}
     if dropped or set(context) - set(CONTEXT_KEYS) - {"version", "as_of"}:
-        out["trimmed"] = "this is a short view of her state, not all of it"
+        out["trimmed"] = TRIMMED_NOTE
     return out
+
+
+TRIMMED_NOTE = "this is a short view of her state, not all of it"
 
 
 def compact_prompt(kinds, *, catalog: dict[str, "tools.Tool"] | None = None,

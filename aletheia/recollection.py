@@ -191,7 +191,10 @@ SUBJECT_KINDS = {"memory": "remember", "task": "task_new"}
 # and its subject is an id he must never hear.
 # ...and `session` (2026-09-23): "session: Answered, from boards.example.com"
 # is a prefix a person never says.
-SPEAKS_FOR_ITSELF = ("planner", "intent", "scheduling", "applications", "work", "approval", "session")
+SPEAKS_FOR_ITSELF = ("planner", "intent", "scheduling", "applications", "work", "approval", "session",
+                     # "apply: was refused by the site at..." and "jobs: I found 14009
+                     # openings today" on his page (2026-09-24): labels on sentences.
+                     "apply", "jobs")
 
 #: A line that labels itself. "Did it:" is how the planner marks a finished
 #: plan on a SCREEN, where the label is doing work. Read back in answer to
@@ -219,6 +222,25 @@ def _task_move(tid: str, after: str, note: str) -> str:
         return f"{word}: {desc}"
     plain = speech.tidy(speech.strip_ids(note)) if note and not note.startswith(("marked done", "spoken to")) else ""
     return f"{word}: {plain}" if plain else f"{word} a task"
+
+
+def _whole_words(text: str, limit: int) -> str:
+    """Cut a long line at a sentence or clause, never mid-word or inside an
+    open quote: the page showed '...rather than accepting it — it says "We'
+    (2026-09-24)."""
+    if len(text) <= limit:
+        return text
+    head = text[:limit]
+    for mark in (". ", "; ", " - ", " — ", ", "):
+        cut = head.rfind(mark)
+        if cut >= limit // 2:
+            head = head[:cut]
+            break
+    else:
+        head = head[:head.rfind(" ")] if " " in head else head
+    if head.count('"') % 2:
+        head = head[:head.rfind('"')].rstrip(" -—:,")
+    return head.rstrip(" ,;:-—") + "…"
 
 
 def _row(entry: dict) -> dict:
@@ -259,6 +281,12 @@ def _row(entry: dict) -> dict:
         what = (said if not subject or head in SPEAKS_FOR_ITSELF
                 else f"{subject}: {said}")
     what = _SELF_LABEL.sub("", what).strip() or what
+    what = _whole_words(what, TEXT_CHARS)
+    if head in ("apply", "jobs") and what[:1].islower():
+        # Their lines start mid-sentence ("was refused by the site at ...");
+        # every other subject keeps its own first word - "refused — no
+        # address" and "repo:aletheia: ..." are read exactly as written.
+        what = what[:1].upper() + what[1:]
     return {"at": _local(entry.get("ts", "")),
             "kind": entry.get("kind", ""),
             "who": entry.get("actor", ""),

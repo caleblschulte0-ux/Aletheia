@@ -194,6 +194,8 @@ class TheKillSwitchIsNotSomethingASENTENCECanTrip(unittest.TestCase):
                                     "mission_leave",
                                     # 2026-09-24: taking back one of her own acts is his word
                                     "undo",
+                                    # 2026-09-24: his interview hours are his to say
+                                    "interview_window_set",
                                     # 2026-09-23: a page on his screen is his tap
                                     "open_page"}))
 

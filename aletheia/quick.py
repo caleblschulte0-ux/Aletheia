@@ -200,9 +200,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"situation report)(?: please)?$"
         r"|^(?:how are things|how(?:'s| is) everything|how(?:'s| is) it going|what(?:'s| is) (?:going on|the situation|the status))"
         r"(?: today| right now| with you)?$"
-        r"|^(?:catch me up|fill me in|bring me up to speed|where are we)(?: please)?$")),
+        r"|^(?:catch me up|fill me in|bring me up to speed|where are we)(?: please)?$"
+        # "Are we good", "summarize today", "how was your day": the rundown
+        # (bottom rung 2026-09-24: a repo lookup for "we", and nobody).
+        r"|^(?:are we good|is everything (?:ok|okay|alright|fine|good)|all good|everything good)(?: today)?\s*\??$"
+        r"|^(?:summari[sz]e|recap|sum up) (?:today|my day|the day|things)(?: for me)?\s*\??$"
+        r"|^how (?:was|did) (?:your|the|my) day(?: go)?\s*\??$")),
     ("focus", re.compile(
-        r"^what should i (?:focus on|do|work on|prioriti[sz]e|tackle|start with)(?: today| first| right now| this morning| now)?$"
+        r"^what should i (?:focus on|do|work on|prioriti[sz]e|tackle|start with)(?: today| first| right now| this morning| now| next)?$"
         r"|^(?:plan|organi[sz]e|map out|lay out) my day$|^what(?:'s| is) (?:the )?(?:most important|top priority|priority)"
         r"(?: thing)?(?: today| right now)?$|^what(?:'s| is) on (?:my|the) plate(?: today)?$"
         r"|^what do i need to (?:do|get done)(?: today)?$")),
@@ -387,6 +392,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what (?:jobs|openings) (?:have (?:you|u)|did (?:you|u)) (?:found|find)(?: today)?$")),
     # WHO IS WAITING ON HIM in his conversations: a reply nothing of his has
     # answered, or a follow-up that is due (bottom rung 2026-09-24).
+    ("applications_waiting", re.compile(
+        r"^how many (?:applications|apps|jobs) (?:are )?(?:waiting|pending|stuck|held up)(?: on me| for me| on you| to go out| on my tap)?\s*\??$"
+        r"|^how many (?:are )?(?:waiting|pending) (?:on me|for me|to go out)\s*\??$"
+        r"|^how many (?:applications|apps) need (?:me|my answer|my tap|a tap)\s*\??$")),
     ("follow_ups", re.compile(
         r"^what (?:should|do) i (?:need to )?follow up on\s*\??$"
         r"|^who do i (?:need|have|owe) (?:to )?(?:write|get|reply|respond) back to\s*\??$"
@@ -698,8 +707,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("bare_yes_no", re.compile(
         # never "approve", "deny", "go ahead", "do it": those are verbs the
         # decision rules own, and real work is never claimed here
-        # "ok", "sure" and "fine" are filler, left alone (test_filler_and_nudges).
-        r"^(?:no|nope|nah|yes|yeah|yep)\s*[.!]?$")),
+        # "ok", "sure", "fine", "yeah", "yep" are filler or television, left
+        # alone (test_filler_and_nudges, test_she_says_nothing_to_the_television).
+        r"^(?:no|yes)\s*[.!]?$")),
     # WHAT SHE CHANGED, LEARNED AND WROTE TODAY - three journal reads that
     # went to a model (fifth battery, 2026-09-24).
     ("changed_today", re.compile(
@@ -791,7 +801,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how long (?:until|till|before) (?:you|u) can think (?:properly|normally|again|with the big models)(?: again)?$")),
     # Sums he would otherwise wait a minute for.
     ("math", re.compile(
-        r"^what(?:'s| is|s)? (?P<pct>[\d.]+) ?(?:%|percent) of (?P<of>[\d.,]+)$"
+        r"^what(?:'s| is|s)? (?P<pct>[\d.]+) ?(?:%|percent) of (?:\$)?(?P<of>[\d.,]+)(?P<pct_money> dollars| bucks)?$"
         r"|^what(?:'s| is|s)? (?P<a>[\d.,]+) (?P<op>plus|minus|times|divided by|over|x|\+|-|\*|/) (?P<b>[\d.,]+)$"
         r"|^(?:convert |what(?:'s| is|s)? )?(?P<n>[\d.,]+) (?P<from>miles?|km|kilometers?|kilometres?|pounds?|lbs?|"
         r"kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c)"
@@ -834,10 +844,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("sending", re.compile(
         r"^(?:are|do|will|can) (?:you|u) (?:sending|send|going to send) (?:any |out )?(?:emails?|mail|messages)"
         r"(?: right now| now| yet| for me)?\s*\??$"
-        r"|^is (?:outward |outgoing )?(?:mail|email) (?:on hold|held|paused|stopped)\s*\??$"
-        r"|^(?:are|is) (?:emails?|mail) (?:on hold|held)\s*\??$"
-        r"|^is (?:the )?(?:outward |outgoing )?(?:mail|email) hold (?:still )?(?:on|off|lifted|up)\s*\??$"
-        r"|^(?:are|is) (?:you|u) (?:still )?holding (?:my |the )?(?:emails?|mail|drafts)\s*\??$")),
+        # The hold-phrased shapes capture a word so the answer's first word
+        # fits the question: "is the mail hold on" is "Yes", not "No" (2026-09-24).
+        r"|^is (?:outward |outgoing )?(?:mail|email) (?P<hold_q>on hold|held|paused|stopped)\s*\??$"
+        r"|^(?:are|is) (?:emails?|mail) (?P<hold_q2>on hold|held)\s*\??$"
+        r"|^is (?:the )?(?:outward |outgoing )?(?:mail|email) hold (?:still )?(?P<hold_q3>on|off|lifted|up)\s*\??$"
+        r"|^(?:are|is) (?:you|u) (?:still )?(?P<hold_q4>holding) (?:my |the )?(?:emails?|mail|drafts)\s*\??$")),
     # WHICH JOBS TODAY. "Which jobs did you apply to today" went to a model
     # for a list that is in her own records (92 s, then nothing); the
     # all-time list ("applied_to", above) did not know the day words.
@@ -861,14 +873,29 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("memory_free", re.compile(
         r"^how much (?:memory|ram) (?:do (?:you|u) have|is|have (?:you|u) got) (?:free|left|available)\s*\??$"
         r"|^how much free (?:memory|ram) (?:do (?:you|u) have|is there)\s*\??$"
+        r"|^how much (?:memory|ram) (?:are (?:you|u)|is (?:the pc|this pc|the computer|this machine)) (?:using|taking)\s*\??$"
+        r"|^how much (?:memory|ram) is (?:in use|used|taken)\s*\??$"
         r"|^(?:what(?:'s| is)|how(?:'s| is)) (?:your|the) (?:free )?(?:memory|ram)(?: (?:situation|looking))?\s*\??$")),
+    # WHAT IS USING THE CPU is a number this machine can read (psutil), not a
+    # thought (bottom rung 2026-09-24: "I can't think just now").
+    ("cpu", re.compile(
+        r"^what(?:'s| is|s)? (?:using|eating|hogging|taking) (?:the |my |all the )?(?:cpu|processor)\s*\??$"
+        r"|^(?:why is|why's) (?:the |my |this )?(?:pc|computer|machine) (?:so )?slow\s*\??$"
+        r"|^how busy is (?:the |my |this )?(?:cpu|processor|pc|computer)\s*\??$"
+        r"|^what(?:'s| is|s)? (?:the )?cpu (?:at|usage|load)\s*\??$")),
     ("drafts", re.compile(
         r"^(?:what|which)(?: emails?| notes?)? (?:have (?:you|u)|did (?:you|u)) draft(?:ed)?(?: for me)?\s*\??$"
         r"|^(?:any|what|list|show me|read me) (?:my |your |the )?drafts?(?: (?:do (?:you|u) have|waiting|for me|held))?\s*\??$"
         r"|^what(?:'s| is|s) (?:in|on) (?:my |your |the )?drafts?\s*\??$"
         r"|^how many (?:emails? |drafts? )?(?:are |do (?:you|u) have )?(?:in|on|held in) (?:my |the |your )?drafts?(?: folder)?\s*\??$"
         r"|^how many drafts (?:do (?:you|u) have|are (?:there|held|waiting))\s*\??$"
-        r"|^what are (?:you|u) drafting\s*\??$|^what have (?:you|u) (?:got )?drafted\s*\??$")),
+        r"|^what are (?:you|u) drafting\s*\??$|^what have (?:you|u) (?:got )?drafted\s*\??$"
+        r"|^who have (?:you|u) drafted (?:to|for)(?: today)?\s*\??$|^what did (?:you|u) draft(?: today| so far)?\s*\??$")),
+    # ONE DRAFT, read back: "read me the draft to Stripe" (bottom rung 2026-09-24).
+    ("draft_to", re.compile(
+        r"^(?:read me |read |show me |open )?(?:the |my |your )?draft (?:to|for) (?P<draft_to>[a-z0-9][a-z0-9 .&'-]{1,40}?)\s*\??$"
+        r"|^what did (?:you|u) draft (?:to|for) (?P<draft_to2>[a-z0-9][a-z0-9 .&'-]{1,40}?)\s*\??$"
+        r"|^what(?:'s| is|s)? in (?:the |my |your )?draft (?:to|for) (?P<draft_to3>[a-z0-9][a-z0-9 .&'-]{1,40}?)\s*\??$")),
     # HIS INTERVIEW WINDOW is a fact in her own store (offline 2026-09-24:
     # "I don't have your interview window on record" from a model, while
     # `interviews.status()` held 1 to 2:30 PM Central the whole time).
@@ -950,11 +977,13 @@ def match(question: str) -> tuple[str, str] | None:
                                            "time_in3", "date_of", "date_of2", "date_of3",
                                            "recall", "recall2", "recall3", "recall4", "recall5", "ran",
                                            "date_ahead", "date_ahead2", "found_window",
+                                           "hold_q", "hold_q2", "hold_q3", "hold_q4",
+                                           "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3",
                                            "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part",
                                            "place", "place2", "place3")
                      if captured.get(k)), "")
-        if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not"):
+        if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not", "draft_to"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
             # name he said is read back to him: "nowhere inc" is not what
             # he said. His capitals, put back from the sentence itself.
@@ -2312,7 +2341,8 @@ def _math(text: str) -> str | None:
         return f"{v:.10g}" if abs(v - round(v)) > 1e-9 else f"{int(round(v)):,}"
     try:
         if "pct" in g:
-            return f"{said(num(g['pct']) * num(g['of']) / 100)}."
+            # "20 percent of 45 dollars" went to a model for the word "dollars".
+            return f"{'$' if g.get('pct_money') else ''}{said(num(g['pct']) * num(g['of']) / 100)}."
         if "op" in g:
             a, b = num(g["a"]), num(g["b"])
             op = g["op"]
@@ -2537,9 +2567,18 @@ def _notify_count() -> str:
         return "I can't read my notifications right now."
     if not rows:
         return "No unread notifications."
-    named = [speech.notice_line(n) for n in rows[:3]]
-    return (f"{speech.count_phrase(len(rows), 'unread notification')}: " + "; ".join(named)
-            + (f"; and {len(rows) - 3} more" if len(rows) > 3 else "") + ".")
+    # BY STORY, not one by one: live 2026-09-24 this said "500 unread
+    # notifications: ...; and 497 more". The page folds the same way.
+    folded = notifications.folded(rows)
+    named = []
+    for n in folded[:4]:
+        line = speech.notice_line(n)
+        count = int(n.get("count") or 1)
+        named.append(f"{line} and {count - 1} more like it" if count > 1 and not n.get("stale")
+                     else f"{count} older ones you never opened" if n.get("stale") else line)
+    total = f"at least {len(rows)}" if len(rows) >= 500 else str(len(rows))
+    return (f"{total} unread notification{'s' if len(rows) != 1 else ''}: " + "; ".join(named)
+            + (f"; and {len(folded) - 4} more" if len(folded) > 4 else "") + ".")
 
 
 def _jobs_left() -> str:
@@ -2690,19 +2729,50 @@ def _drafts() -> str:
     return mail.held_drafts_words()
 
 
-def _sending() -> str:
-    """Whether outward mail goes out right now, from the hold she keeps."""
+def _draft_to(name: str) -> str:
+    """The newest held draft to `name`, read back: who, when, subject, words."""
+    from aletheia import mail, speech
+    who = " ".join(str(name or "").split()).casefold()
+    if not who:
+        return "Who is the draft to?"
+    try:
+        rows = mail.held_drafts()
+    except Exception:
+        return "I can't read my drafts right now."
+    hit = next((d for d in rows if who in str(d.get("to_name") or "").casefold()
+                or who in str(d.get("to") or "").casefold()), None)
+    if hit is None:
+        return f"I have no draft to {name}."
+    body = " ".join(str(hit.get("body") or "").split())
+    if len(body) > 300:
+        body = body[:300].rsplit(" ", 1)[0] + "…"
+    when = speech.humanize_time(str(hit.get("created") or "")) if hit.get("created") else ""
+    to = str(hit.get("to_name") or hit.get("to") or name)
+    subject = str(hit.get("subject") or "").strip()
+    return (f"To {to}" + (f", drafted {when}" if when else "") + (f", '{subject}'" if subject else "")
+            + f": {body}" if body else f"To {to}" + (f", drafted {when}" if when else "") + ": no words in it yet.")
+
+
+def _sending(asked: str = "") -> str:
+    """Whether outward mail goes out right now, from the hold she keeps.
+    `asked` is the hold word he used ("on hold", "off", "holding"), so a
+    yes-or-no fits HIS question: "is the mail hold on" is "Yes"."""
     from aletheia import mail, speech
     hold = mail.outward_hold()
     try:
         held = [r for r in mail.drafts_ledger() if not r.get("superseded_by")]
     except Exception:
         held = []
+    asked = str(asked or "").strip().casefold()
+    about_hold = bool(asked)
+    asked_if_lifted = asked in ("off", "lifted")
     if hold["on"]:
-        return ("No. Outward mail is on hold since you said so - I draft and keep, nothing goes out"
+        first = ("No, it's still on" if asked_if_lifted else "Yes" if about_hold else "No")
+        return (f"{first}. Outward mail is on hold since you said so - I draft and keep, nothing goes out"
                 + (f"; {speech.count_phrase(len(held), 'draft')} held" if held else "")
                 + ". Lifting it is yours, at the keyboard.")
-    return ("Yes, when you approve one: an approved draft goes out on my next beat"
+    first = ("Yes, the hold is lifted" if asked_if_lifted else "No, the hold is lifted" if about_hold else "Yes")
+    return (f"{first}, so an approved draft goes out on my next beat"
             + (f"; {speech.count_phrase(len(held), 'draft')} still held" if held else "") + ".")
 
 
@@ -2885,8 +2955,18 @@ def _ran_today(name: str) -> str | None:
         c = str(w.get("conclusion") or "")
         return {"success": "green", "failure": "red", "cancelled": "cancelled", "skipped": "skipped"}.get(
             c, c or str(w.get("status") or "still going"))
-    today = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d")
-    ran = [(s, n, w) for s, n, w in runs if s[:10] == today]
+    # HIS day, not UTC's: at 00:30Z the same run read "today ... tomorrow at
+    # 10:57 am" because the date was compared in UTC and said in his zone.
+    from aletheia import localtime
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+
+    def his_day(stamp: str):
+        try:
+            return dt.datetime.fromisoformat(stamp.replace("Z", "+00:00")).astimezone(tz).date()
+        except ValueError:
+            return None
+    ran = [(s, n, w) for s, n, w in runs if his_day(s) == today]
     if ran:
         named = [f"{n.replace('.yml', '')} {verdict(w)} {speech.humanize_time(s).replace('today at ', 'at ')}"
                  for s, n, w in ran[:4]]
@@ -2926,6 +3006,38 @@ def _offline_can() -> str:
             "something new, judging a job, writing prose and reading a page I've never seen" + (f" - {own}." if own else "."))
 
 
+def _cpu() -> str:
+    """The processor right now and the three things using most of it.
+    About a second: two samples, because a process's share is measured
+    between them."""
+    try:
+        import psutil
+        procs = []
+        for p in psutil.process_iter(["name"]):
+            try:
+                p.cpu_percent(None)
+                procs.append(p)
+            except Exception:
+                continue
+        load = psutil.cpu_percent(interval=0.7)
+        shares: dict[str, float] = {}
+        for p in procs:
+            try:
+                name = p.info["name"] or "?"
+                if name.casefold() == "system idle process":     # the idle share is not a user
+                    continue
+                shares[name] = shares.get(name, 0.0) + p.cpu_percent(None)
+            except Exception:
+                continue
+    except Exception:
+        return "I can't read this machine's processor right now."
+    cores = max(1, psutil.cpu_count() or 1)
+    top = sorted(shares.items(), key=lambda kv: kv[1], reverse=True)[:3]
+    named = [f"{n.removesuffix('.exe')} ({v / cores:.0f}%)" for n, v in top if v / cores >= 1]
+    said = f"The processor is at {load:.0f}%."
+    return said + (" Most of it: " + ", ".join(named) + "." if named else " Nothing is working it hard.")
+
+
 def _memory_free() -> str:
     """Her machine's free memory, and which of her own models fits in it."""
     try:
@@ -2934,7 +3046,7 @@ def _memory_free() -> str:
         free, total = vm.available / 1e9, vm.total / 1e9
     except Exception:
         return "I can't read this machine's memory right now."
-    said = f"{free:.1f} GB free of {total:.0f}."
+    said = f"{free:.1f} GB free of {total:.0f}, {total - free:.1f} in use."
     try:
         from aletheia import reasoner
         role, why = reasoner.local_role_that_fits()
@@ -3218,6 +3330,29 @@ def _newest_application() -> str:
         return "No applications on record yet."
     newest = sorted(records, key=lambda r: r.get("submitted_at") or r.get("staged_at") or "", reverse=True)[0]
     return "The newest is " + _application_line(newest)
+
+
+def _applications_waiting() -> str:
+    """"How many applications are waiting": the filled ones not yet sent,
+    and how many of those wait on a question only he can answer."""
+    from aletheia import apply_run, speech
+    try:
+        waiting = apply_run.all_runs("AWAITING_YOU")
+    except Exception:
+        return "I can't read my application records right now."
+    if not waiting:
+        return "None waiting: every filled application has gone out or been closed."
+    try:
+        from aletheia import campaign
+        questions = campaign.open_questions()
+    except Exception:
+        questions = []
+    on_questions = len({j for q in questions for j in (q.get("jobs") or [])})
+    said = f"{speech.count_phrase(len(waiting), 'application')} waiting"
+    if on_questions:
+        said += (f": {on_questions} on {speech.count_phrase(len(questions), 'question')} only you can answer"
+                 + (f", {len(waiting) - on_questions} on the next beat" if len(waiting) > on_questions else ""))
+    return said + "."
 
 
 def _follow_ups_due() -> str:
@@ -3643,6 +3778,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_answer": lambda rest: _to_answer(),
            "found": lambda rest: _found(rest),
            "follow_ups": lambda rest: _follow_ups_due(),
+           "applications_waiting": lambda rest: _applications_waiting(),
            "newest_application": lambda rest: _newest_application(),
            "fleet": lambda rest: _fleet(),
            "focus": lambda rest: _focus(),
@@ -3678,6 +3814,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "interview_window": lambda rest: _interview_window(),
            "jobs_left": lambda rest: _jobs_left(),
            "notify_count": lambda rest: _notify_count(),
+           "cpu": lambda rest: _cpu(),
            "ran_today": lambda rest: _ran_today(rest),
            "plan_today": lambda rest: _plan_today(),
            "stuck": lambda rest: _stuck(),
@@ -3716,7 +3853,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "home": lambda rest: _home(),
            "notes_list": lambda rest: _notes_list(),
            "drafts": lambda rest: _drafts(),
-           "sending": lambda rest: _sending(),
+           "sending": lambda rest: _sending(rest),
+           "draft_to": lambda rest: _draft_to(rest),
            "applied_on": _applied_on,
            "asked_on": _asked_on,
            "hunt_why": lambda rest: _hunt_why(),

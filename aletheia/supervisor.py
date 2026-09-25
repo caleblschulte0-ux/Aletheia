@@ -126,6 +126,31 @@ def repair_registration() -> list[str]:
     return fixed
 
 
+#: How often a watchdog probe that found her running is worth a journal line.
+PROBE_NEWS_S = 3600.0
+
+
+def _watchdog_probe_is_news(now: float | None = None) -> bool:
+    """True once an hour: the first probe, and the first after an hour of
+    quiet. The stamp is a private file, never the journal itself."""
+    import json
+    from aletheia import stateio
+    path = stateio.private_dir("supervisor") / "watchdog-probe.json"
+    moment = time.time() if now is None else float(now)
+    try:
+        last = float(json.loads(path.read_text(encoding="utf-8")).get("at") or 0.0)
+    except (OSError, ValueError, AttributeError, TypeError):
+        last = 0.0
+    if moment - last < PROBE_NEWS_S:
+        return False
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        stateio.write_json_atomic(path, {"at": moment})
+    except Exception:  # noqa: BLE001
+        pass
+    return True
+
+
 def core_alive(port: int = DEFAULT_PORT) -> bool:
     """Is an Aletheia Core already answering on this machine?
 
@@ -252,8 +277,11 @@ def run_forever(core_args: list[str] | None = None, launch=None,
         # is also what makes the watchdog trigger safe (autostart.py): a
         # trigger that fires while she is healthy costs one probe and one
         # exit, not a competing Aletheia.
-        _journal("event", "supervisor",
-                 "another Aletheia is already serving — this one exits")
+        if _watchdog_probe_is_news():
+            # Once an hour, not every five minutes: 869 of these lines by
+            # 2026-09-24, 288 a day, for a probe that found her fine.
+            _journal("event", "supervisor",
+                     "another Aletheia is already serving — this one exits")
         print("Aletheia is already running at http://127.0.0.1:8777/ — nothing to do.")
         return 0
     # A CLOSED WINDOW STAYS CLOSED. The watchdog trigger fires every five

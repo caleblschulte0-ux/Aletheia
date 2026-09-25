@@ -1303,13 +1303,25 @@
       "id": "secret.store",
       "description": "A local secret vault sealed by Windows DPAPI to this user on this machine - never a committed file, never an environment variable",
       "provider": "aletheia.local",
-      "status": "EXPERIMENTAL",
+      "status": "AVAILABLE",
       "risk_class": "high",
       "approval_policy": "operator_once",
       "caller": "python -m aletheia.secret_store; read by aletheia.github_auth and aletheia.gh for the fleet token, and by aletheia.secret_browser to fill a form",
       "module": "aletheia.secret_store",
-      "notes": "available() reports (False, 'Windows DPAPI is only available on Windows') off Windows rather than falling back to something weaker - a vault with a portable fallback is not a vault. Plaintext never reaches git, the journal, a receipt, a screenshot or a command line; callers receive a value and journal only the NAME. EXPERIMENTAL until a secret has been stored and read on the operator's PC in ordinary use.",
+      "notes": "available() reports (False, 'Windows DPAPI is only available on Windows') off Windows rather than falling back to something weaker - a vault with a portable fallback is not a vault. Plaintext never reaches git, the journal, a receipt, a screenshot or a command line; callers receive a value and journal only the NAME. AVAILABLE on live evidence, 2026-09-24: the vault on his PC holds eight secrets (the fleet token since 2026-08-30, the mail app password since 2026-09-03, six job-site accounts) and the pulse and the mailer read them in ordinary use every day. Her own planner had been telling him 'nothing here can safely hold the Instagram access token' while it held all of those.",
       "verification": "tests/test_secret_store.py: the sealed blob contains no plaintext, journal entries carry names only"
+    },
+    {
+      "id": "social.publish",
+      "description": "Post a picture with a caption to your Instagram account through the Instagram Graph API - one post per approval, never on its own",
+      "provider": "aletheia.local",
+      "status": "NEEDS_CONFIGURATION",
+      "risk_class": "medium",
+      "approval_policy": "operator_once",
+      "caller": "python -m aletheia.instagram status|configure|post|posts; the instagram_post kind (world-tier, OUTWARD_ALWAYS) and instagram_posts (read-only) through intercom.execute_command",
+      "module": "aletheia.instagram",
+      "notes": "His words, 2026-09-24: 'I need an app or API or whatever it requires to automatically post stuff to Instagram. I need her to set that up.' Handed the project, she found no door - this is it. NEEDS_CONFIGURATION until three things only he can do are done: the Instagram account is a professional account; a Meta developer app holds the instagram_content_publish permission for it; and the long-lived access token is in the DPAPI vault as instagram.token with the Instagram user id configured. The token is read by name and never written to the journal, a receipt or a ledger. Video and carousel posts are not built.",
+      "verification": "tests/test_instagram_posting.py: two Graph calls in order, the token never reaches the journal, not set up is a refusal naming what is his, a rehearsal posts nothing, the kind is world-tier and outward"
     },
     {
       "id": "secret.fill",

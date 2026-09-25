@@ -509,13 +509,18 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
         import datetime as dt
         import json
         from aletheia import pulse
-        today = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d")
+        from aletheia import localtime
+        # Stamps at 9 and 10 this morning ON HIS CLOCK, written as UTC the way
+        # the pulse writes them: "today" is his day wherever the test runs.
+        tz = localtime.operator_tz()
+        morning = dt.datetime.now(tz).replace(hour=9, minute=49, second=38, microsecond=0)
+        stamp = lambda h: morning.replace(hour=h).astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")  # noqa: E731
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
             (d / "latest.json").write_text(json.dumps({"repos": {
                 "shorts_pipeline": {"github": "Shorts-pipeline", "health": "red", "workflows": {
-                    "daily.yml": {"conclusion": "failure", "updated_at": f"{today}T15:49:38Z"},
-                    "third.yml": {"conclusion": "success", "updated_at": f"{today}T15:57:20Z"},
+                    "daily.yml": {"conclusion": "failure", "updated_at": stamp(9)},
+                    "third.yml": {"conclusion": "success", "updated_at": stamp(10)},
                     "retro.yml": {"conclusion": "success", "updated_at": "2026-09-20T04:55:44Z"}}},
                 "barkly": {"github": "Barkly", "health": "green", "workflows": {
                     "ci.yml": {"conclusion": "success", "updated_at": "2026-09-20T04:55:44Z"}}}}}), encoding="utf-8")
@@ -785,6 +790,119 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
                          {"kind": "email_draft", "to": "Stripe", "body": "thanks for the call"})
         self.assertEqual(voice.interpret("thea reply to Dana saying see you at 6")["command"]["kind"], "email_draft")
         self.assertNotEqual((voice.interpret("thea read me the last email").get("command") or {}).get("which"), "last")
+
+    def test_the_fourteenth_battery_her_machine(self):
+        """Her own machine at the bottom rung (2026-09-24): "20 percent of 45
+        dollars", "how much memory are you using", "what's using the CPU",
+        "what timers do I have", "shut down the computer", and the eyes'
+        NotGranted read out with its class name."""
+        from aletheia import act, eyes, intercom, voice
+        self.assertEqual(quick.answer("what's 20 percent of 45 dollars"), "$9.")
+        self.assertEqual(quick.answer("what's 15 percent of 80"), "12.")
+        for s, name in (("how much memory are you using", "memory_free"),
+                        ("what's using the cpu", "cpu"), ("why is my pc so slow", "cpu"), ("what's the cpu at", "cpu")):
+            self.assertEqual((quick.match(s) or ("",))[0], name, s)
+        self.assertIn((quick.match("how much ram is in use") or ("",))[0], ("memory_free", "machine"))
+        said = quick.answer("what's using the cpu")
+        self.assertTrue(said.startswith(("The processor is at", "I can't read this machine's processor")), said)
+        self.assertNotIn("System Idle Process", said)
+        self.assertEqual((voice.interpret("thea what timers do I have").get("command") or {}).get("kind"), "reminders")
+        for s in ("shut down the computer", "lock the pc", "restart the computer", "turn off my laptop"):
+            out = voice.interpret(f"thea {s}")
+            self.assertIsNone(out["command"], s)
+            self.assertIn("yours at the keyboard", out["say"])
+        self.assertEqual(voice.interpret("thea restart yourself")["command"]["kind"], "restart")
+        with mock.patch("aletheia.eyes.answer", side_effect=eyes.NotGranted("looking at the actual picture of your screen is switched off")), \
+                mock.patch("aletheia.perception.window_named", return_value=None, create=True):
+            with self.assertRaises(act.Refused) as ctx:
+                intercom.execute_command({"kind": "screen_ask", "question": "what's on my screen"}, {}, quote="t")
+        self.assertNotIn("NotGranted", str(ctx.exception))
+
+    def test_the_fifteenth_battery_the_rundown(self):
+        """Casual asks at the bottom rung (2026-09-24): "are we good" looked
+        up a repo called "we"; "summarize today", "how was your day", "what
+        should I do next" and "how many applications are waiting" went to
+        nobody."""
+        for s, name in (("are we good", "status"), ("is everything ok", "status"), ("summarize today", "status"),
+                        ("how was your day", "status"), ("what should I do next", "focus"),
+                        ("how many applications are waiting", "applications_waiting"),
+                        ("how many are waiting on me", "applications_waiting")):
+            self.assertEqual((quick.match(s) or ("",))[0], name, s)
+        rows = [{"id": "a1", "state": "AWAITING_YOU"}, {"id": "a2", "state": "AWAITING_YOU"}, {"id": "a3", "state": "AWAITING_YOU"}]
+        with mock.patch("aletheia.apply_run.all_runs", side_effect=lambda state=None: rows if state == "AWAITING_YOU" else []), \
+                mock.patch("aletheia.campaign.open_questions", return_value=[{"label": "Shift?", "jobs": ["a1", "a2"]}]):
+            said = quick.answer("how many applications are waiting")
+        self.assertEqual(said, "3 applications waiting: 2 on 1 question only you can answer, 1 on the next beat.")
+        with mock.patch("aletheia.apply_run.all_runs", return_value=[]):
+            self.assertTrue(quick.answer("how many applications are waiting").startswith("None waiting"))
+
+    def test_the_sixteenth_battery_the_drafts_ledger(self):
+        """His 2026-09-24 ruling: she tracks the drafts and keeps them in
+        order. At the bottom rung "read me the draft to Stripe" went to
+        nobody, "is the mail hold on" answered "No." while it was on, and
+        "lift the mail hold" went to nobody (it is his, at the keyboard)."""
+        from aletheia import voice
+        drafts = [{"id": "mail-2", "to": "jobs@stripe.com", "to_name": "Stripe", "subject": "Thanks for the call",
+                   "body": "Thanks for the call today. I enjoyed it.", "created": "2026-09-24T20:00:00Z", "held": True},
+                  {"id": "mail-1", "to": "dana@example.com", "to_name": "Dana", "subject": "Dinner",
+                   "body": "See you at six.", "created": "2026-09-24T18:00:00Z", "held": True}]
+        with mock.patch("aletheia.mail.held_drafts", return_value=drafts):
+            said = quick.answer("read me the draft to Stripe")
+            self.assertTrue(said.startswith("To Stripe, drafted"), said)
+            self.assertIn("'Thanks for the call': Thanks for the call today.", said)
+            self.assertIn("See you at six", quick.answer("what did you draft for Dana"))
+            self.assertEqual(quick.answer("what's in the draft to Nobody"), "I have no draft to Nobody.")
+        for s in ("who have you drafted to today", "what did you draft today"):
+            self.assertEqual(quick.match(s)[0], "drafts", s)
+        on = {"on": True, "quote": "q", "since": "", "command": "python -m aletheia.mail hold off"}
+        off = {"on": False, "quote": "", "since": "", "command": "python -m aletheia.mail hold off"}
+        with mock.patch("aletheia.mail.outward_hold", return_value=on), mock.patch("aletheia.mail.drafts_ledger", return_value=[]):
+            self.assertTrue(quick.answer("is the mail hold on").startswith("Yes."))
+            self.assertTrue(quick.answer("are you holding my emails").startswith("Yes."))
+            self.assertTrue(quick.answer("is the mail hold off").startswith("No, it's still on."))
+            self.assertTrue(quick.answer("are you sending emails").startswith("No."))
+        with mock.patch("aletheia.mail.outward_hold", return_value=off), mock.patch("aletheia.mail.drafts_ledger", return_value=[]):
+            self.assertTrue(quick.answer("is the mail hold on").startswith("No, the hold is lifted"))
+            self.assertTrue(quick.answer("is the mail hold lifted").startswith("Yes, the hold is lifted"))
+            self.assertTrue(quick.answer("are you sending emails").startswith("Yes,"))
+        with mock.patch("aletheia.mail.outward_hold", return_value=on):
+            out = voice.interpret("thea lift the mail hold")
+        self.assertIsNone(out["command"])
+        self.assertIn("yours, at the keyboard", out["say"])
+        self.assertIn("mail hold off", out["say"])
+
+    def test_the_seventeenth_battery_four_orders_from_the_whole_replay(self):
+        """247 sentences replayed at the floor: "cancel the passport task"
+        (no verb), "move the dentist to 4" (a named reminder), "make me a
+        word document called notes with the text hello", and "open youtube"
+        (compiled for approval as a browser task)."""
+        import datetime as dt
+        from aletheia import localtime, open_it, voice
+        with mock.patch("aletheia.intercom._one_task", return_value=({"id": "renew-passport", "description": "renew the passport"}, "")):
+            self.assertEqual(voice.interpret("thea cancel the passport task")["command"],
+                             {"kind": "task_status", "id": "renew-passport", "state": "CANCELLED", "note": "cancelled by voice"})
+        with mock.patch("aletheia.intercom._one_task", return_value=(None, "You have no task about the passport.")):
+            out = voice.interpret("thea cancel the passport task")
+            self.assertIsNone(out["command"])
+            self.assertIn("no task", out["say"])
+        with mock.patch("aletheia.intercom._one_reminder", return_value=({"id": "r1", "command": {"text": "call the dentist"}}, "")):
+            moved = voice.interpret("thea move the dentist to 4")["command"]
+        self.assertEqual((moved["kind"], moved["text"], moved["replaces"]), ("remind_at", "call the dentist", "call the dentist"))
+        self.assertEqual(dt.datetime.fromisoformat(moved["at"]).astimezone(localtime.operator_tz()).hour, 16)
+        made = voice.interpret("thea make me a word document called notes with the text hello there")["command"]
+        self.assertEqual(made, {"kind": "doc_make", "path": "notes.docx", "content": ["hello there"]})
+        self.assertEqual(voice.interpret("thea open youtube")["command"], {"kind": "open_page", "which": "youtube"})
+        self.assertEqual(voice.interpret("thea open the thea page")["command"], {"kind": "open_page", "which": "the thea page"})
+        self.assertEqual(open_it.page_for("youtube")[1], "YouTube")
+        self.assertEqual(open_it.page_for("the Thea page")[0], "http://127.0.0.1:8777/")
+        self.assertNotEqual((voice.interpret("thea open my resume").get("command") or {}).get("kind"), "open_page",
+                            "a word not in the table is never guessed into an address")
+        self.assertEqual(voice.interpret("thea open thea")["command"]["kind"], "open", "her own switch keeps its word")
+        # The rules never open a door, a window or his resume "in the browser".
+        from aletheia import rule_planner
+        for s in ("open the door", "open the window", "open my resume", "open the notes file"):
+            self.assertIsNone(rule_planner.match(s), s)
+        self.assertEqual(rule_planner.match("open hacker news")[0], "web_task")
 
     def test_what_did_i_say_about_is_his_note(self):
         with mock.patch.object(quick, "_notes", return_value=[

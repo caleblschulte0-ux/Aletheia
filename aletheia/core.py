@@ -95,6 +95,27 @@ RETIRED_PAGES = frozenset({
 })
 ACTOR = "operator-local-core"
 DEFAULT_PORT = 8777
+
+
+def _be_the_one_module(module, name: str = "aletheia.core") -> None:
+    """The running copy of this file IS `aletheia.core`.
+
+    The supervisor launches `python -m aletheia.core`, so this code runs as
+    `__main__`; every `from aletheia import core` elsewhere then imported a
+    SECOND copy of the file with empty hooks, and his "Update now" tap
+    answered "nothing is running that could update" while she was running
+    under the supervisor the whole time (2026-09-24). Restart had the same
+    hole. Registering the running module under its import name makes the
+    hooks, the sync status and the locks one thing.
+    """
+    sys.modules[name] = module
+    package = sys.modules.get(name.rpartition(".")[0])
+    if package is not None:
+        setattr(package, name.rpartition(".")[2], module)
+
+
+if __name__ == "__main__":
+    _be_the_one_module(sys.modules[__name__])
 #: POSTs that only consume something already delivered. Refused, they cost
 #: nothing but a stale notice, and are journaled as events, never alerts.
 BOOKKEEPING_POSTS = ("/api/voice/followup/ack", "/api/notifications/ack")
@@ -987,8 +1008,16 @@ class Handler(BaseHTTPRequestHandler):
         if url.path.startswith("/api/mission"):
             return self._mission(url)
         if url.path == "/api/notifications":
-            state = parse_qs(url.query).get("state", [None])[0]
-            rows = notifications.all_notifications(state=state)
+            query = parse_qs(url.query)
+            state = query.get("state", [None])[0]
+            # The page asks for the whole unread list and gets it FOLDED:
+            # notices of one story become one row (count, ids). Sixty
+            # "An idea for ..." were sixty cards and a wrong "100 things
+            # worth seeing" - the count had hit the route's default limit.
+            fold = query.get("folded", ["0"])[0] in ("1", "true", "yes")
+            rows = notifications.all_notifications(state=state, limit=500 if fold else 100)
+            if fold:
+                rows = notifications.folded(rows)
             # `says` is the line to SHOW, computed here rather than in
             # each page: every reminder is titled "Reminder", and a
             # surface that renders the title shows him the category

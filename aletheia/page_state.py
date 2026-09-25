@@ -331,6 +331,23 @@ _SUCCESS = re.compile(
 _SIGN_IN_WALL = re.compile(
     r"(?:please |you must |you need to )?(?:sign|log) in to (?:continue|apply|proceed|view)|"
     r"sign in to your account|welcome back", re.I)
+_LOGIN_URL = re.compile(
+    r"/(?:accounts?/)?log-?in\b|/loginpage\b|/sign-?in\b|/auth/(?:login|signin)\b|/oauth2?/|/sso\b|"
+    r"/session/new\b|/users?/sign_in\b", re.I)
+
+
+def url_is_sign_in(url: str) -> bool:
+    """Does the ADDRESS say this is the sign-in door? business.facebook.com
+    /business/loginpage/, instagram.com/accounts/login/, .../signin. The
+    query is not read: "?next=/login" is where a page goes afterwards."""
+    from urllib.parse import urlparse
+    try:
+        path = urlparse(str(url or "")).path
+    except ValueError:
+        return False
+    return bool(_LOGIN_URL.search(path))
+
+
 def reads_as_sign_in(text: str, title: str = "") -> bool:
     """Is this page the site's sign-in door, by its words alone?
 
@@ -403,6 +420,13 @@ def classify(observation: dict) -> dict:
         return out(ERROR, "the page is not there (404)")
 
     passwords = [t for t in typed if t.get("role") == "password"]
+    if url_is_sign_in(url) and not passwords:
+        # THE ADDRESS IS THE DOOR. Meta's business loginpage shows one email
+        # box and "Next" - no password yet, no "sign in" in the words - and
+        # on 2026-09-24 she typed his email into it and pressed on, when the
+        # goal said stop at any login. A URL that says login is a sign-in
+        # wall before anything is filled.
+        return out(ACCOUNT_LOGIN, "the address is the site's sign-in door")
     if not typed and _LINK_WALL.search(f"{title} {text[:3000]}"):
         return out(EMAIL_VERIFICATION, "the page wants a link from email opened")
     if not typed and (_SUCCESS.search(text[:3000]) or _SUCCESS.search(title)):

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 from pathlib import Path
 
 from aletheia import stateio
@@ -186,6 +187,72 @@ def publish(title: str, body: str, *, priority: str = "NORMAL", source: str = "a
         supersede(str(topic), by=notice_id, keys=tuple(topic_keys))
     write_json_atomic(path, value)
     return value
+
+
+#: How many notices of one story it takes before the page shows one card
+#: for all of them. Same number as `mission_control.FOLD_ALIKE_AT`.
+FOLD_AT = 3
+
+
+def story_of(notice: dict) -> str:
+    """The story a notice belongs to: its topic with the particular id taken
+    out ("pursuit:opp-1:idea" -> "pursuit:idea"), or its title's stem before
+    the thing it names ("An idea for Stripe" -> "an idea for")."""
+    topic = str(notice.get("topic") or "").strip()
+    if topic:
+        parts = [p for p in topic.split(":") if not re.match(r"^(?:opp|apply|run|un|conv|mail|notice)-", p)]
+        return ":".join(parts) or topic
+    title = " ".join(str(notice.get("title") or "").split()).casefold()
+    stem = re.split(r"\b(?: for | about | to | from | with | on |: )", title, maxsplit=1)[0].strip()
+    return stem or title
+
+
+#: A notice nobody opened in this many days is not news any more; the page
+#: shows those as one row at the end rather than hundreds of cards.
+STALE_DAYS = 7
+STALE_TITLE = "Older things you never opened"
+
+
+def folded(rows: list[dict], at: int = FOLD_AT, *, stale_days: int = STALE_DAYS,
+           now: str | None = None) -> list[dict]:
+    """The page's list: notices of one story, `at` or more of them, become
+    ONE row - the newest, carrying `count` and every `ids` it stands for.
+    Live, 2026-09-24: "100 things worth seeing", sixty of them "An idea
+    for ..." from the pursuit - and 500 unread underneath, most of them
+    weeks old. Order is kept; a story's row sits where its newest notice
+    was; everything older than `stale_days` is one last row."""
+    import datetime as dt
+    cutoff = ""
+    if stale_days:
+        moment = dt.datetime.strptime(now or utcnow(), "%Y-%m-%dT%H:%M:%SZ") - dt.timedelta(days=int(stale_days))
+        cutoff = moment.strftime("%Y-%m-%dT%H:%M:%SZ")
+    stale = [r for r in rows if cutoff and str(r.get("created_at") or "") < cutoff]
+    rows = [r for r in rows if not (cutoff and str(r.get("created_at") or "") < cutoff)]
+    groups: dict[str, list[dict]] = {}
+    for row in rows:
+        groups.setdefault(story_of(row), []).append(row)
+    out, seen = [], set()
+    if stale:
+        old = dict(stale[0])
+        old.update({"title": STALE_TITLE, "says": STALE_TITLE, "body": "", "count": len(stale),
+                    "ids": [str(m.get("id") or "") for m in stale], "stale": True})
+        tail = [old]
+    else:
+        tail = []
+    for row in rows:
+        story = story_of(row)
+        if story in seen:
+            continue
+        seen.add(story)
+        members = groups[story]
+        if len(members) < max(2, int(at)):
+            out.extend(dict(m) for m in members)
+            continue
+        first = dict(members[0])
+        first["count"] = len(members)
+        first["ids"] = [str(m.get("id") or "") for m in members]
+        out.append(first)
+    return out + tail
 
 
 def supersede(topic: str, *, by: str, keys: tuple[str, ...] = ()) -> list[str]:
