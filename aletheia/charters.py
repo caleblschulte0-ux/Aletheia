@@ -250,10 +250,12 @@ def draft(idea: str, *, fleet: dict, existing: list[dict], think=None,
             model=reasoner.PLAN_MODEL,
             timeout_s=reasoning_gateway.STANDARD_TOTAL_TIMEOUT_S, validator=validate)
         value, drafted_by = result.output, result.provider
+        why_local = str(getattr(result, "degraded", "") or "")
     else:
         value = think(DRAFT_SYSTEM, idea, context=context, model="sonnet",
                       validator=validate)
         drafted_by = "subscription.auto"
+        why_local = ""
     now = _now(now)
     title = _clean(value["title"], 60)
     slug = _slug(title, {str(p.get("slug") or "") for p in existing})
@@ -269,7 +271,13 @@ def draft(idea: str, *, fleet: dict, existing: list[dict], think=None,
     local = str(drafted_by).startswith("ollama:")
     project["drafted_by"] = str(drafted_by)[:80]
     project["why"] = (f"Drafted {now.date().isoformat()} "
-                      + ("by Aletheia's own model while the subscriptions were out, "
+                      # WHY the subscriptions were out travels with the draft: the
+                      # Instagram charter of 2026-09-25 was her own model's while
+                      # Claude answered every other call that hour, and nothing
+                      # said what had failed.
+                      + (f"by Aletheia's own model while the subscriptions were out "
+                         f"({why_local[:160]}), " if local and why_local
+                         else "by Aletheia's own model while the subscriptions were out, "
                          if local else "")
                       + "from something Caleb asked for; his to correct before or "
                         "after he says yes.")

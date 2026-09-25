@@ -278,7 +278,10 @@ def reason_json(system_prompt: str, text: str, *, context: dict | None = None,
             return GatewayResult(
                 local.output, f"ollama:{local.model}", policy,
                 local.role, local.model,
-                degraded=f"subscriptions unavailable: {type(cloud_exc).__name__}",
+                # The WORDS, not the class: "subscriptions unavailable:
+                # ReasonerUnavailable" on a charter said nothing about what
+                # had failed while Claude answered every other call (2026-09-25).
+                degraded=f"subscriptions unavailable: {str(cloud_exc)[:160] or type(cloud_exc).__name__}",
                 turn_id=local.turn_id,
             )
         except local_model_pool.LocalPoolUnavailable as local_exc:
