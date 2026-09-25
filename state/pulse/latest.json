@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-25T05:03:42Z",
+  "generated_at": "2026-09-25T11:56:45Z",
   "fleet_revision": 5,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,58 +11,58 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
-          "sha": "ef1eccbbc4c2",
-          "date": "2026-09-25T04:59:09Z",
-          "message": "Merge pull request #210 from caleblschulte0-ux/claude/instagram-with-instagram-login"
+          "sha": "e0f75675605b",
+          "date": "2026-09-25T07:24:12Z",
+          "message": "Merge pull request #212 from caleblschulte0-ux/claude/two-sentences-that-run-together"
         },
         {
-          "sha": "652546dd2d75",
-          "date": "2026-09-25T04:21:17Z",
-          "message": "A test of mine froze Windows' own candidate order"
+          "sha": "44a5aa31baac",
+          "date": "2026-09-25T06:46:57Z",
+          "message": "The clock was not fine-grained enough to break its own tie"
         },
         {
-          "sha": "c244134391eb",
-          "date": "2026-09-25T03:38:31Z",
-          "message": "The Instagram door on the route his own account actually has"
+          "sha": "8788ff77991f",
+          "date": "2026-09-25T06:14:48Z",
+          "message": "Two sentences that ran together, and an order that was sometimes the other order"
         },
         {
-          "sha": "913d424c6d3d",
-          "date": "2026-09-25T01:54:30Z",
-          "message": "Merge pull request #209 from caleblschulte0-ux/claude/refusals-read-as-refusals"
+          "sha": "230caa7ba679",
+          "date": "2026-09-25T06:11:34Z",
+          "message": "Merge pull request #211 from caleblschulte0-ux/claude/instagram-a-bad-paste-says-so"
         },
         {
-          "sha": "71d93643f602",
-          "date": "2026-09-25T01:07:36Z",
-          "message": "The record fingerprint is one directory listing, not one directory stat"
+          "sha": "03f482214b37",
+          "date": "2026-09-25T05:04:40Z",
+          "message": "A clipped token says what to do about it"
         }
       ],
       "commit": {
-        "sha": "ef1eccbbc4c2",
-        "date": "2026-09-25T04:59:09Z",
-        "message": "Merge pull request #210 from caleblschulte0-ux/claude/instagram-with-instagram-login"
+        "sha": "e0f75675605b",
+        "date": "2026-09-25T07:24:12Z",
+        "message": "Merge pull request #212 from caleblschulte0-ux/claude/two-sentences-that-run-together"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-09-25T05:03:39Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/36096964771"
+          "updated_at": "2026-09-25T11:56:42Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/36132151002"
         },
         "ci.yml": {
-          "status": "in_progress",
-          "conclusion": null,
-          "updated_at": "2026-09-25T04:59:15Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/36096657191"
+          "status": "completed",
+          "conclusion": "success",
+          "updated_at": "2026-09-25T07:45:21Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/36107451737"
         }
       },
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 19616
+          "bytes": 20916
         }
       },
-      "health": "unknown"
+      "health": "green"
     },
     "shorts_pipeline": {
       "github": "Shorts-pipeline",
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "1b859f4209fb",
-          "date": "2026-09-25T04:47:41Z",
-          "message": "claim: mailbox verdicts 2026-09-25T04:47Z [skip ci]"
+          "sha": "ac4fd0058161",
+          "date": "2026-09-25T11:56:33Z",
+          "message": "explainer: update posted log + analytics [skip ci]"
         },
         {
-          "sha": "d058628401db",
-          "date": "2026-09-25T03:47:42Z",
-          "message": "claim: mailbox verdicts 2026-09-25T03:47Z [skip ci]"
+          "sha": "35a3427bf88d",
+          "date": "2026-09-25T11:56:18Z",
+          "message": "explainer: posted colon-cancer-screening-drop [skip ci]"
         },
         {
-          "sha": "d60430b9e115",
-          "date": "2026-09-25T02:47:39Z",
-          "message": "claim: mailbox verdicts 2026-09-25T02:47Z [skip ci]"
+          "sha": "d2fa825774d0",
+          "date": "2026-09-25T11:51:31Z",
+          "message": "daily: 2026-09-25 report + state [skip ci]"
         },
         {
-          "sha": "7d8d565f3c67",
-          "date": "2026-09-25T02:17:51Z",
-          "message": "exchange: phase A bundle for 20260925 [skip ci]"
+          "sha": "8636c0e50a50",
+          "date": "2026-09-25T11:47:33Z",
+          "message": "claim: mailbox verdicts 2026-09-25T11:47Z [skip ci]"
         },
         {
-          "sha": "4470ffacca23",
-          "date": "2026-09-25T01:43:05Z",
-          "message": "claim: mailbox verdicts 2026-09-25T01:43Z [skip ci]"
+          "sha": "dd85ba4139d7",
+          "date": "2026-09-25T11:44:33Z",
+          "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
         }
       ],
       "commit": {
-        "sha": "1b859f4209fb",
-        "date": "2026-09-25T04:47:41Z",
-        "message": "claim: mailbox verdicts 2026-09-25T04:47Z [skip ci]"
+        "sha": "ac4fd0058161",
+        "date": "2026-09-25T11:56:33Z",
+        "message": "explainer: update posted log + analytics [skip ci]"
       },
       "vitals": [
         {
@@ -108,11 +108,11 @@
         },
         {
           "label": "explainer posted",
-          "value": 270
+          "value": 273
         },
         {
           "label": "third posted",
-          "value": 666
+          "value": 670
         },
         {
           "label": "curiosity posted",
@@ -122,15 +122,16 @@
       "workflows": {
         "daily.yml": {
           "status": "completed",
-          "conclusion": "success",
-          "updated_at": "2026-09-24T23:37:55Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/36073110613"
+          "conclusion": "failure",
+          "updated_at": "2026-09-25T11:51:38Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/36129818510",
+          "said": "Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@v4, actions/checkout@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://githu"
         },
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-25T02:30:15Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/36086464051"
+          "updated_at": "2026-09-25T10:08:11Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/36122289509"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
@@ -141,20 +142,20 @@
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-24T20:37:41Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/36055545957"
+          "updated_at": "2026-09-25T10:18:05Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/36123039997"
         },
         "third.yml": {
-          "status": "completed",
-          "conclusion": "success",
-          "updated_at": "2026-09-24T23:52:46Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/36074705595"
+          "status": "pending",
+          "conclusion": null,
+          "updated_at": "2026-09-25T11:31:06Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/36129815891"
         },
         "explainer.yml": {
-          "status": "completed",
-          "conclusion": "success",
-          "updated_at": "2026-09-24T20:43:56Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/36055046628"
+          "status": "queued",
+          "conclusion": null,
+          "updated_at": "2026-09-25T11:56:50Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/36132166481"
         },
         "retro.yml": {
           "status": "completed",
@@ -165,8 +166,8 @@
         "doctor.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-24T09:56:56Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/35984308488"
+          "updated_at": "2026-09-25T10:09:38Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/36122431921"
         }
       },
       "state_files": {
@@ -176,11 +177,11 @@
         },
         "state/explainer_posted_log.json": {
           "exists": true,
-          "bytes": 90796
+          "bytes": 94111
         },
         "state/third_posted_log.json": {
           "exists": true,
-          "bytes": 362475
+          "bytes": 364198
         },
         "state/curiosity_posted_log.json": {
           "exists": true,
@@ -188,14 +189,14 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 1652698
+          "bytes": 1688028
         },
         "config/channel_registry.json": {
           "exists": true,
           "bytes": 16594
         }
       },
-      "health": "green"
+      "health": "red"
     },
     "schwab_trader": {
       "github": "schwab-trader",
@@ -437,7 +438,7 @@
           "text": "Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business."
         },
         "hers": null,
-        "last_progress_at": "2026-09-25T04:59:09Z",
+        "last_progress_at": "2026-09-25T07:24:12Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": []
@@ -506,7 +507,7 @@
           "text": "Make the watchdog say which of the two likely causes a stall is (no trigger runs at all, or runs that fail) so the next stall names itself"
         },
         "last_progress_at": "2026-09-24T11:51:35Z",
-        "days_quiet": 0,
+        "days_quiet": 1,
         "commits_7d": 23,
         "open_prs": [
           {
@@ -522,8 +523,30 @@
     ],
     "evidence": []
   },
-  "transitions": [],
-  "alerts": [],
+  "transitions": [
+    {
+      "repo": "aletheia",
+      "github": "Aletheia",
+      "from": "unknown",
+      "to": "green"
+    },
+    {
+      "repo": "shorts_pipeline",
+      "github": "Shorts-pipeline",
+      "from": "green",
+      "to": "red"
+    }
+  ],
+  "alerts": [
+    {
+      "repo": "shorts_pipeline",
+      "github": "Shorts-pipeline",
+      "health": "red",
+      "failing": [
+        "daily.yml"
+      ]
+    }
+  ],
   "plans": {
     "open": 6,
     "items": [
