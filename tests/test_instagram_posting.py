@@ -157,16 +157,27 @@ class NotSetUpIsARefusalSaidToTheRoom(InstagramCase):
             said = "3.9" if argv[0] == "C:/old" else "3.12"
             return subprocess.CompletedProcess(argv, 0, said + "\n", "")
 
-        # `py` is first on Windows and is a 3.9 here, so the chooser moves on.
-        with mock.patch("shutil.which",
-                        side_effect=lambda w: {"py": "C:/old", "python": "C:/new"}.get(w)), \
+        # The candidate list is named here rather than inherited from the
+        # platform: the RULE is "skip one that is too old, take one that is new
+        # enough", and freezing Windows' own order made this red on the Linux
+        # runner for a reason that had nothing to do with the rule.
+        with mock.patch.object(setup, "PYTHON_CANDIDATES", ("py", "python")), \
+                mock.patch("shutil.which",
+                           side_effect=lambda w: {"py": "C:/old", "python": "C:/new"}.get(w)), \
                 mock.patch.object(proc, "run", side_effect=answered):
             self.assertEqual(setup.python_word(refresh=True), "python")
-        self.assertEqual(seen, ["C:/old", "C:/new"])
+        self.assertEqual(seen, ["C:/old", "C:/new"], "the 3.9 was asked and passed over")
         # Nothing new enough: name the running interpreter rather than guess.
         with mock.patch("shutil.which", return_value=None):
             self.assertEqual(setup.python_word(refresh=True), setup.sys.executable)
         self.assertGreaterEqual(MIN_PYTHON, (3, 10))
+
+    def test_windows_asks_the_launcher_first_and_nothing_else_does(self):
+        """On Windows a bare `python` is whatever is first on the machine PATH,
+        which on his PC is the 3.9. Everywhere else `python` is tried first so
+        a machine where it is already fine keeps printing the plain command."""
+        self.assertEqual(setup.PYTHON_CANDIDATES[0], "py" if os.name == "nt" else "python")
+        self.assertIn("python", setup.PYTHON_CANDIDATES)
 
     def test_the_chooser_opens_no_console_window(self):
         """It is asked by the Core, which runs under pythonw: a bare
