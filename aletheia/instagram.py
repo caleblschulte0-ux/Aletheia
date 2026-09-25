@@ -126,9 +126,20 @@ STAGE_DIR = "thea-media"
 # Said to the room. No commands in it: the exact lines belong on his setup
 # page, and reading a shell command out loud is not an answer (§ the one
 # page is the product — no developer words above the drawer).
-SETUP = ("Instagram isn't set up yet, and the three things left are yours: switch the account to a "
-         "professional account, create the Meta developer app and generate a token for it, then paste "
-         "that token into me once at your keyboard. Your setup page has the exact steps.")
+#
+# This USED to name three Meta steps. It does not any more, because on
+# 2026-09-25 those three turned out to be a door he cannot open: Meta refuses
+# to let his account create an app at all ("Your account must be confirmed
+# before you can create a new app"), on every device and every account he
+# owns, and its bug tool requires the developer account he is being refused.
+# Telling him to go and do the impossible thing is the worst sentence this
+# module could say, so the setup it names is the one that WORKS: one ordinary
+# Instagram sign-in, in her own browser, once.
+SETUP_API = ("Instagram's developer route isn't set up: it needs a Meta app and a token, and Meta "
+             "won't let your account make one.")
+SETUP = ("Instagram isn't connected yet, and it's one sign-in: I'll open my own browser window at "
+         "the Instagram login page, you sign in once, and I'm set from then on. Nothing to do with "
+         "Meta, no developer account, no codes.")
 
 
 # ---------------------------------------------------------------- config
@@ -263,6 +274,76 @@ def _transport(given=None, *, timeout: float = POST_TIMEOUT_S) -> "GraphTranspor
 # ------------------------------------------------------------- readiness
 
 
+ROUTE_WEB = "web"
+
+#: THE ACCOUNT THAT POSTS, and the one that must never be touched.
+#:
+#: His ruling, 2026-09-25, in his own words: *"I want us to set up lenient
+#: memestrong to auto post using the verified meta way. Never touch my
+#: personal account ever."*
+#:
+#: It is here in CODE and not only in a note because of how it was learned. A
+#: session picked `caleb_schulte_1` because it matched his name, said so in
+#: one line, and switched his PERSONAL account to a Business account — which
+#: made his profile public and auto-approved his pending follow requests, and
+#: cannot be fully undone. The evidence for the right account (his Business
+#: portfolio is literally named "Lieutenantmemestrong", his Page is
+#: "Ballerbro") was on the screen before that finished.
+#:
+#: So: posting is refused unless the account is the one he named, and the
+#: refusal fails CLOSED — an account that cannot be identified is not posted
+#: to. `config()["account"]` may name a different one when HE changes it; the
+#: blocklist cannot be reached that way.
+POSTING_ACCOUNT = "lieutenantmemestrong"
+NEVER_TOUCH = frozenset({"caleb_schulte_1"})
+
+
+def posting_account() -> str:
+    """The handle she may post as."""
+    named = str(config().get("account") or "").strip().lstrip("@").lower()
+    return named or POSTING_ACCOUNT
+
+
+def check_account(handle: str) -> None:
+    """Raise unless `handle` is the account he said to post as.
+
+    Fails CLOSED: an empty or unreadable handle is refused, because "I could
+    not tell whose account this is" is the exact moment to stop.
+    """
+    who = str(handle or "").strip().lstrip("@").lower()
+    if who in NEVER_TOUCH:
+        raise RuntimeError(
+            f"@{who} is your personal account and I never touch it — you said so, "
+            f"and I have it written down. The account that posts is @{posting_account()}.")
+    if not who:
+        raise RuntimeError("I could not tell which Instagram account I am signed in as, "
+                           "so I did not post anything.")
+    if who != posting_account():
+        raise RuntimeError(
+            f"I am signed in as @{who}, and the account that posts is @{posting_account()}. "
+            "I did not post anything.")
+
+
+def api_configured() -> bool:
+    """Is the Graph API route set up? Stores only, no network."""
+    if not config().get("user_id"):
+        return False
+    try:
+        from aletheia import secret_store
+        return bool(secret_store.exists(TOKEN_ALIAS))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def route() -> str:
+    """Which door a post goes through.
+
+    The API when it is configured, because it is versioned and stable. Her own
+    browser otherwise, because it is the one that is actually open to him.
+    """
+    return ROUTE_IG if api_configured() else ROUTE_WEB
+
+
 def available() -> tuple[bool, str]:
     """(ready, why) from the STORES only — no network.
 
@@ -270,14 +351,14 @@ def available() -> tuple[bool, str]:
     cost a round trip: it is asked on the beat and rendered on a page. The
     live question is `verify()`.
     """
-    if not config().get("user_id"):
-        return False, SETUP
-    try:
-        from aletheia import secret_store
-        if not secret_store.exists(TOKEN_ALIAS):
-            return False, SETUP
-    except Exception as exc:  # noqa: BLE001
-        return False, f"the vault could not be read ({type(exc).__name__})"
+    if not api_configured():
+        # The web door, which needs no Meta anything.
+        try:
+            from aletheia import instagram_web
+            ok, why = instagram_web.available()
+        except Exception as exc:  # noqa: BLE001
+            return False, f"her browser is not available ({type(exc).__name__})"
+        return (True, "set up to post through her own browser") if ok else (False, why)
     who = config().get("username")
     return True, f"set up for Instagram{' as @' + who if who else ''}"
 
@@ -293,6 +374,9 @@ def verify(*, transport=None) -> tuple[bool, str]:
     ok, why = available()
     if not ok:
         return False, why
+    if route() == ROUTE_WEB:
+        from aletheia import instagram_web
+        return instagram_web.signed_in()
     try:
         token = _token()
     except Exception as exc:  # noqa: BLE001
@@ -513,7 +597,11 @@ def refresh_token(*, transport=None) -> dict:
 def refresh_due(*, now: dt.datetime | None = None) -> bool:
     """Is the token close enough to expiry to be worth a call?"""
     now = now or _now()
-    if not available()[0]:
+    # The API door's token, and only that one. `available()` answers for
+    # whichever door is in use, so asking IT here made a browser-route setup
+    # (no token at all) walk into the refresh, fail, and burn the one attempt
+    # per window that a real token would have needed.
+    if not api_configured():
         return False
     if str(config().get("route") or ROUTE_IG) != ROUTE_IG:
         return False
@@ -860,6 +948,15 @@ def publish(media: str, caption: str = "", *, media_type: str = "", transport=No
     media = str(media or "").strip().strip('"')
     if not media:
         raise RuntimeError("there is nothing to post — name a picture, a video or an https address")
+    if route() == ROUTE_WEB:
+        # Instagram's own composer takes a file off this PC, so none of the
+        # staging below is needed on this road - which is the whole reason it
+        # is the road he gets.
+        from aletheia import instagram_web
+        if media.lower().startswith(("http://", "https://")):
+            raise RuntimeError("through her own browser I post a file from this PC, not a web "
+                               "address — give me the picture or video itself")
+        return instagram_web.publish(media, caption)
     kind = media_kind(media, media_type=media_type)
     text = normalize_caption(caption)
     if len(text) > MAX_CAPTION:
@@ -968,7 +1065,9 @@ def main(argv: list[str] | None = None) -> int:
         description="Post to his Instagram. `connect` is the whole setup.")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("status", help="ask Instagram, live, whether she is connected")
-    con = sub.add_parser("connect", help="paste the token once; everything else is worked out")
+    con = sub.add_parser("connect", help="sign in to Instagram once, in her own browser")
+    con.add_argument("--api", action="store_true",
+                     help="use Meta's developer route instead (needs an app and a token)")
     con.add_argument("--user-id", default="", help="only if discovery cannot see the account")
     con.add_argument("--api-version", default="", help="e.g. v25.0")
     conf = sub.add_parser("configure", help="save the user id by hand")
@@ -987,7 +1086,16 @@ def main(argv: list[str] | None = None) -> int:
             print(("READY: " if ok else "NOT READY: ") + why)
             return 0 if ok else 1
         if args.cmd == "connect":
-            connect(user_id=args.user_id, api=args.api_version)
+            if args.api:
+                # Meta's developer route, kept because it is the better one
+                # when it is available at all.
+                connect(user_id=args.user_id, api=args.api_version)
+            else:
+                # The route that works: one ordinary sign-in in her browser.
+                from aletheia import instagram_web
+                print("Opening my own browser at the Instagram login page.")
+                print("Sign in as you normally would, then close that window.")
+                instagram_web.open_login()
             ok, why = verify()
             print(("READY: " if ok else "NOT READY: ") + why)
             if ok:
