@@ -341,6 +341,19 @@ class SetupIsOneCommand(InstagramCase):
         self.assertEqual(stored, {}, "a bad paste never reaches the vault")
         self.assertEqual(instagram.config(), {}, "or the config")
 
+    def test_metas_words_do_not_run_into_the_next_sentence(self):
+        """Live on the merged code: "... Failed to decode Press Generate token
+        again". Meta's message carries no full stop, so one has to be added
+        rather than assumed."""
+        said = instagram.paste_help(
+            "IGAAsomething", RuntimeError("Instagram said no (400): Failed to decode"))
+        self.assertIn("Failed to decode. Press", said)
+        self.assertNotIn("decode Press", said)
+        # ...and it does not double up when Meta does punctuate.
+        said = instagram.paste_help("IGAAx", RuntimeError("No good."))
+        self.assertIn("No good. Press", said)
+        self.assertNotIn("No good.. ", said)
+
     def test_a_real_looking_token_that_is_refused_is_not_called_a_bad_paste(self):
         class Expired(Fake):
             def get(self, url, params):
