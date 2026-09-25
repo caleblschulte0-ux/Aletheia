@@ -105,19 +105,27 @@ class InstagramCase(unittest.TestCase):
 
 
 class NotSetUpIsARefusalSaidToTheRoom(InstagramCase):
-    def test_not_configured_says_what_is_his_without_a_command_in_it(self):
-        ready, why = instagram.available()
+    def test_not_configured_says_the_ONE_thing_that_actually_works(self):
+        """It used to name three Meta steps. Those turned out to be a door he
+        cannot open at all - Meta refuses his account an app on every device -
+        so the sentence names the sign-in instead. Sending him to do an
+        impossible thing is the worst sentence this module could say."""
+        with mock.patch("aletheia.instagram_web.available", return_value=(False, instagram.SETUP)):
+            ready, why = instagram.available()
         self.assertFalse(ready)
-        self.assertIn("professional account", why)
-        self.assertIn("developer app", why)
+        self.assertIn("one sign-in", why)
+        self.assertNotIn("developer account", why.replace("no developer account", ""))
+        self.assertNotIn("professional account", why)
+        self.assertNotIn("token", why)
         # THE ROOM HEARS THIS. A reply that reads a shell command out loud is
         # not an answer; the exact lines live on the setup page.
         for shell in ("python -m", "instagram.token", "--provider", "secret_store", "configure <"):
             self.assertNotIn(shell, why, f"a spoken refusal must not contain {shell!r}")
-        with self.assertRaises(act.Refused) as ctx:
-            intercom.execute_command({"kind": "instagram_post", "media": "https://x/y.jpg",
-                                      "caption": "hi"}, {}, quote="t")
-        self.assertIn("isn't set up yet", str(ctx.exception))
+        with mock.patch("aletheia.instagram_web.available", return_value=(False, instagram.SETUP)):
+            with self.assertRaises(act.Refused) as ctx:
+                intercom.execute_command({"kind": "instagram_post", "media": "https://x/y.jpg",
+                                          "caption": "hi"}, {}, quote="t")
+        self.assertIn("one sign-in", str(ctx.exception))
         self.assertTrue(intercom.execute_command({"kind": "instagram_posts"}, {},
                                                  quote="t").startswith("Nothing posted to Instagram yet"))
 
@@ -126,15 +134,17 @@ class NotSetUpIsARefusalSaidToTheRoom(InstagramCase):
         text = "\n".join(step.instructions())
         word = setup.python_word()
         self.assertIn(f"{word} -m aletheia.instagram connect", text)
-        # ONE command he runs, plus `status` offered as a later check, and
-        # nothing else. The old checklist had three, and one of them wanted a
-        # number he had no way to find.
+        # ONE command he runs, plus `status` offered as a later check.
         self.assertEqual(text.count(" -m aletheia"), 2, text)
         self.assertNotIn("secret_store put instagram.token", text)
-        self.assertNotIn("configure <instagram-user-id>", text)
-        # Professional account FIRST: the app cannot see a personal account.
-        self.assertLess(text.index("professional account"), text.index("developers.facebook.com"))
-        self.assertIn("instagram_business_content_publish", text)
+        # It must NOT send him to the Meta dashboard any more: that road is
+        # closed to his account and the checklist saying otherwise cost him an
+        # evening (2026-09-25).
+        self.assertNotIn("developers.facebook.com", text.split("WHY NOT")[0])
+        self.assertIn("sign in", text.lower())
+        # ...and it says WHY the official route is not the one offered, rather
+        # than quietly dropping it.
+        self.assertIn("WHY NOT THE OFFICIAL API", text)
 
     def test_the_command_he_is_handed_runs_on_his_machine(self):
         """His PATH has C:\\Python39 first and the package refuses 3.9, so
