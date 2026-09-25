@@ -509,13 +509,18 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
         import datetime as dt
         import json
         from aletheia import pulse
-        today = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d")
+        from aletheia import localtime
+        # Stamps at 9 and 10 this morning ON HIS CLOCK, written as UTC the way
+        # the pulse writes them: "today" is his day wherever the test runs.
+        tz = localtime.operator_tz()
+        morning = dt.datetime.now(tz).replace(hour=9, minute=49, second=38, microsecond=0)
+        stamp = lambda h: morning.replace(hour=h).astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")  # noqa: E731
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
             (d / "latest.json").write_text(json.dumps({"repos": {
                 "shorts_pipeline": {"github": "Shorts-pipeline", "health": "red", "workflows": {
-                    "daily.yml": {"conclusion": "failure", "updated_at": f"{today}T15:49:38Z"},
-                    "third.yml": {"conclusion": "success", "updated_at": f"{today}T15:57:20Z"},
+                    "daily.yml": {"conclusion": "failure", "updated_at": stamp(9)},
+                    "third.yml": {"conclusion": "success", "updated_at": stamp(10)},
                     "retro.yml": {"conclusion": "success", "updated_at": "2026-09-20T04:55:44Z"}}},
                 "barkly": {"github": "Barkly", "health": "green", "workflows": {
                     "ci.yml": {"conclusion": "success", "updated_at": "2026-09-20T04:55:44Z"}}}}}), encoding="utf-8")

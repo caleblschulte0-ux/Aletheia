@@ -2955,8 +2955,18 @@ def _ran_today(name: str) -> str | None:
         c = str(w.get("conclusion") or "")
         return {"success": "green", "failure": "red", "cancelled": "cancelled", "skipped": "skipped"}.get(
             c, c or str(w.get("status") or "still going"))
-    today = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d")
-    ran = [(s, n, w) for s, n, w in runs if s[:10] == today]
+    # HIS day, not UTC's: at 00:30Z the same run read "today ... tomorrow at
+    # 10:57 am" because the date was compared in UTC and said in his zone.
+    from aletheia import localtime
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+
+    def his_day(stamp: str):
+        try:
+            return dt.datetime.fromisoformat(stamp.replace("Z", "+00:00")).astimezone(tz).date()
+        except ValueError:
+            return None
+    ran = [(s, n, w) for s, n, w in runs if his_day(s) == today]
     if ran:
         named = [f"{n.replace('.yml', '')} {verdict(w)} {speech.humanize_time(s).replace('today at ', 'at ')}"
                  for s, n, w in ran[:4]]
