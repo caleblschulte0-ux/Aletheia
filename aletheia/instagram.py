@@ -390,7 +390,11 @@ def paste_help(token: str, exc: Exception) -> str:
     shown once, and the box it comes from is easy to clip.
     """
     text = str(token or "")
-    said = [f"Instagram would not accept that token: {exc}"]
+    # Meta's own message has no full stop on the end, so it ran straight into
+    # the next sentence when this was read: "... Failed to decode Press
+    # Generate token again". Live, on the merged code, 2026-09-25.
+    meta = str(exc).strip().rstrip(".") + "."
+    said = [f"Instagram would not accept that token: {meta}"]
     if not (text.startswith("IGAA") or text.startswith("EAA")):
         said.append("It also does not begin with IGAA or EAA, which every Meta token does, "
                     "so it looks like a partial paste or the wrong value copied.")

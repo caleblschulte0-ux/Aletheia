@@ -41,6 +41,7 @@ import hashlib
 import json
 import os
 import re
+import time
 import uuid
 from email.message import EmailMessage
 from email.utils import parseaddr, parsedate_to_datetime
@@ -474,6 +475,14 @@ def draft(to: str, subject: str, body: str, requested_via: str = "voice", *, hel
         "id": f"mail-{uuid.uuid4().hex[:10]}", "to": addr, "to_name": name,
         "subject": subject, "body": body.strip(),
         "created": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        # The order he reads them in must not be luck. `created` is to the
+        # SECOND and a pursuit pass writes several drafts inside one, and the
+        # file's own mtime was the only tie-break - which on a loaded Windows
+        # runner came back IDENTICAL for two drafts, leaving the directory
+        # listing to decide which of them superseded the other. This is
+        # written by the process that made the draft, at the moment it made
+        # it, so two drafts can only tie if the clock did not move at all.
+        "created_ns": time.time_ns(),
         "via": requested_via,
     }
     if about:
@@ -561,13 +570,19 @@ def held_drafts() -> list[dict]:
             continue
         if isinstance(d, dict) and d.get("held") and not path.with_suffix(".sent.json").exists():
             # `created` is to the second; two drafts in one second (a pursuit
-            # pass writes several) are ordered by the file's own clock.
+            # pass writes several) are ordered by the nanosecond stamp the
+            # writer put in the record. A draft written before that existed
+            # falls back to the file's own clock, and then to its id, so the
+            # answer is at least the SAME every time it is asked.
             try:
                 d["_written"] = path.stat().st_mtime_ns
             except OSError:
                 d["_written"] = 0
             out.append(d)
-    return sorted(out, key=lambda d: (str(d.get("created") or ""), int(d.get("_written") or 0)), reverse=True)
+    return sorted(out, key=lambda d: (str(d.get("created") or ""),
+                                      int(d.get("created_ns") or 0),
+                                      int(d.get("_written") or 0),
+                                      str(d.get("id") or "")), reverse=True)
 
 
 def drafts_ledger() -> list[dict]:
