@@ -95,6 +95,27 @@ RETIRED_PAGES = frozenset({
 })
 ACTOR = "operator-local-core"
 DEFAULT_PORT = 8777
+
+
+def _be_the_one_module(module, name: str = "aletheia.core") -> None:
+    """The running copy of this file IS `aletheia.core`.
+
+    The supervisor launches `python -m aletheia.core`, so this code runs as
+    `__main__`; every `from aletheia import core` elsewhere then imported a
+    SECOND copy of the file with empty hooks, and his "Update now" tap
+    answered "nothing is running that could update" while she was running
+    under the supervisor the whole time (2026-09-24). Restart had the same
+    hole. Registering the running module under its import name makes the
+    hooks, the sync status and the locks one thing.
+    """
+    sys.modules[name] = module
+    package = sys.modules.get(name.rpartition(".")[0])
+    if package is not None:
+        setattr(package, name.rpartition(".")[2], module)
+
+
+if __name__ == "__main__":
+    _be_the_one_module(sys.modules[__name__])
 #: POSTs that only consume something already delivered. Refused, they cost
 #: nothing but a stale notice, and are journaled as events, never alerts.
 BOOKKEEPING_POSTS = ("/api/voice/followup/ack", "/api/notifications/ack")
