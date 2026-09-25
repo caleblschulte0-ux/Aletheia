@@ -1,8 +1,7 @@
 {
-  "kind": "merge",
-  "slug": "schwab-trader",
-  "title": "Schwab trader",
-  "pr": 16,
-  "text": "Schwab trader: review and merge pull request #16, watchdog: name which of the two likely causes a stall is (https://github.com/caleblschulte0-ux/schwab-trader/pull/16)",
+  "kind": "confirm",
+  "slug": "instagram-auto-post-setup",
+  "title": "Instagram Auto Post Setup",
+  "text": "New project drafted: Instagram Auto Post Setup. Caleb's Instagram account is set up for automatic posting via the Instagram Graph API with all required permissions and documentation. 1 step for me and 4 steps for you, starting with: Write documentation on setting up the Instagram Graph API and required permissions.. You merge its work. My own model drafted this while Claude was out, so give it a closer look. Reply yes to start it, or no to drop it.",
   "day": "2026-09-24"
 }

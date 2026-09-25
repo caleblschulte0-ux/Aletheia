@@ -1,28 +1,33 @@
 # ☀️ Fleet brief — 2026-09-24
 
-**1 fault(s) need eyes:** `Shorts-pipeline`
+**All quiet.** No faults anywhere in the fleet.
 
 ## 🧭 Your one thing today
-Schwab trader: review and merge pull request #16, watchdog: name which of the two likely causes a stall is (https://github.com/caleblschulte0-ux/schwab-trader/pull/16)
+New project drafted: Instagram Auto Post Setup. Caleb's Instagram account is set up for automatic posting via the Instagram Graph API with all required permissions and documentation. 1 step for me and 4 steps for you, starting with: Write documentation on setting up the Instagram Graph API and required permissions.. You merge its work. My own model drafted this while Claude was out, so give it a closer look. Reply yes to start it, or no to drop it.
 
 ## Projects
-- **Barkly** — 0/8 steps · moved today · Thea next: Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push · yours next: Turn on GitHub Pages for Money_Machine (Settings, Pages, Source: GitHub Actions) so the playtest link goes live · 1 open builder pull request
+- **Barkly** — 0/8 steps · last moved 1 day ago · Thea next: Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push · yours next: Turn on GitHub Pages for Money_Machine (Settings, Pages, Source: GitHub Actions) so the playtest link goes live · 1 open builder pull request
 - **Holdco platform** — 0/5 steps · last moved 49 days ago · Thea next: Bring the platform up to date and confirm pnpm test, typecheck and build still pass (last verified 2026-08-06) · yours next: Pick the one offer to test first and write it as one sentence in docs/NEXT_OFFER.md on the holdco branch (or tell any Claude session to) · 1 open builder pull request
-- **Open Range demo films** — 0/4 steps · moved today · Thea next: Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open · 1 open builder pull request
+- **Open Range demo films** — 0/4 steps · last moved 1 day ago · Thea next: Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open · 1 open builder pull request
 - **Schwab trader** — 0/5 steps · moved today · Thea next: Make the watchdog say which of the two likely causes a stall is (no trigger runs at all, or runs that fail) so the next stall names itself · yours next: Answer the sell approval waiting since June 26 (schwab-trader issue #5): comment approve, hold, or close it · 1 open builder pull request
+- **Instagram Auto Post Setup** — drafted, waiting for your yes
 
-## Aletheia — OPERATIONAL
-- last commit `cd6ba7882197`: pulse: 2026-09-24T04:59Z
+## Aletheia — NO TELEMETRY
+- last commit `4caa04f0ed02`: pulse: 2026-09-24T17:17Z
 
-## Shorts-pipeline — FAULT
-- trending posted 349 (+2) · explainer posted 269 (+3) · third posted 642 (+7) · curiosity posted 1
-- last commit `cfe801c42eac`: claim: mailbox verdicts 2026-09-24T11:47Z [skip ci]
+## Shorts-pipeline — OPERATIONAL
+- trending posted 351 (+4) · explainer posted 270 (+4) · third posted 661 (+26) · curiosity posted 1
+- last commit `6ff5bf5a5f28`: deadman: repaired 2026-09-24 [skip ci]
 
 ## schwab-trader — OPERATIONAL
-- last commit `ad2d7df07b68`: Merge pull request #21 from caleblschulte0-ux/claude/schwab-trading-integration-wRfeP
+- last commit `a47211bd3f39`: bot: daily snapshot [skip ci]
 
 ## Money_Machine — OPERATIONAL
 - last commit `53c6507f6afe`: Initial commit
+
+## Changes since the last pulse
+- `Aletheia` went green → **unknown**
+- `Shorts-pipeline` went red → **green**
 
 ## Plans in motion
 - **Barkly** — 0/8 steps done (`barkly`)
@@ -42,6 +47,8 @@ Rule with `python -m aletheia.suggestions list --state new`.
 
 ## Last 24h in the journal
 - `03:40` [recovery] repo:schwab_trader: health red -> green
+- `21:34` [recovery] repo:shorts_pipeline: health red -> green
+- `21:34` [recovery] sentinel: fleet recovered — alert issue closed
 
 ---
-pulse `2026-09-24T11:54:34Z` · registry rev 5 · composed by `aletheia.brief`
+pulse `2026-09-24T21:34:39Z` · registry rev 5 · composed by `aletheia.brief`
