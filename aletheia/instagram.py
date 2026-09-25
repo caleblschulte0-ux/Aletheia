@@ -380,6 +380,25 @@ def discover(token: str, *, transport=None) -> dict:
     return found[0]
 
 
+def paste_help(token: str, exc: Exception) -> str:
+    """What Meta said, plus the thing he can actually do about it.
+
+    Measured against the live host 2026-09-25 with a deliberately bad token:
+    the bare answer is "Instagram said no (400): Failed to decode", which is
+    honest and useless at the one moment he is standing there pasting. A
+    partial paste is by far the likeliest cause - the token is long, it is
+    shown once, and the box it comes from is easy to clip.
+    """
+    text = str(token or "")
+    said = [f"Instagram would not accept that token: {exc}"]
+    if not (text.startswith("IGAA") or text.startswith("EAA")):
+        said.append("It also does not begin with IGAA or EAA, which every Meta token does, "
+                    "so it looks like a partial paste or the wrong value copied.")
+    said.append("Press Generate token again and paste the whole thing. Nothing was stored, "
+                "so running this again is safe.")
+    return " ".join(said)
+
+
 def connect(token: str = "", *, user_id: str = "", api: str = "", transport=None) -> dict:
     """ONE command's worth of setup: take the token, work out the route,
     discover the account, store the token by name, prove it live.
@@ -400,8 +419,15 @@ def connect(token: str = "", *, user_id: str = "", api: str = "", transport=None
     route = route_of(token)
     if api:
         _save(api_version=api)
-    who = {"user_id": str(user_id).strip(), "username": ""} if str(user_id).strip() else \
-        discover(token, transport=transport)
+    if str(user_id).strip():
+        who = {"user_id": str(user_id).strip(), "username": ""}
+    else:
+        try:
+            who = discover(token, transport=transport)
+        except RuntimeError as exc:
+            # Nothing has been written yet — the vault put and the config
+            # save are both below this — so "nothing was stored" is a fact.
+            raise RuntimeError(paste_help(token, exc)) from None
     if not str(who["user_id"]).isdigit():
         raise RuntimeError("the Instagram user id came back as something that is not a number")
     secret_store.put(TOKEN_ALIAS, token, provider="instagram", kind="api_token")
@@ -960,6 +986,11 @@ def main(argv: list[str] | None = None) -> int:
             connect(user_id=args.user_id, api=args.api_version)
             ok, why = verify()
             print(("READY: " if ok else "NOT READY: ") + why)
+            if ok:
+                # The last line he reads should say he is DONE and what happens
+                # next, not leave him wondering whether to do something else.
+                print("Nothing else here is yours. Ask me for the first post and "
+                      "I'll bring you the picture and the caption to approve.")
             return 0 if ok else 1
         if args.cmd == "configure":
             print(json.dumps(configure(args.user_id, username=args.username), indent=2))

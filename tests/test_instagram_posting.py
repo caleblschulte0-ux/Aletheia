@@ -320,6 +320,39 @@ class SetupIsOneCommand(InstagramCase):
                 instagram.connect("IGAA-stale", transport=Denies())
         self.assertIn("did not confirm", str(ctx.exception))
 
+    def test_a_bad_paste_says_what_to_do_and_stores_nothing(self):
+        """Measured live 2026-09-25 with a deliberately bad token: the bare
+        answer was "Instagram said no (400): Failed to decode", which is
+        honest and useless at the one moment he is standing there pasting."""
+        class Rejects(Fake):
+            def get(self, url, params):
+                raise RuntimeError("Instagram said no (400): Failed to decode")
+        stored = {}
+        with mock.patch("aletheia.secret_store.available", return_value=(True, "ready")), \
+                mock.patch("aletheia.secret_store.put",
+                           side_effect=lambda n, s, **kw: stored.update({n: s})):
+            with self.assertRaises(RuntimeError) as ctx:
+                instagram.connect("clipped", transport=Rejects())
+        said = str(ctx.exception)
+        self.assertIn("Failed to decode", said, "Meta's own words survive")
+        self.assertIn("Generate token", said, "and the thing he can do about it")
+        self.assertIn("nothing was stored", said.lower())
+        self.assertIn("IGAA", said, "a paste with no known prefix is named as such")
+        self.assertEqual(stored, {}, "a bad paste never reaches the vault")
+        self.assertEqual(instagram.config(), {}, "or the config")
+
+    def test_a_real_looking_token_that_is_refused_is_not_called_a_bad_paste(self):
+        class Expired(Fake):
+            def get(self, url, params):
+                raise RuntimeError("Instagram said no (190): Error validating access token")
+        with mock.patch("aletheia.secret_store.available", return_value=(True, "ready")), \
+                mock.patch("aletheia.secret_store.put"):
+            with self.assertRaises(RuntimeError) as ctx:
+                instagram.connect("IGAAlooks-right-but-expired", transport=Expired())
+        said = str(ctx.exception)
+        self.assertIn("Error validating access token", said)
+        self.assertNotIn("does not begin with", said)
+
     def test_the_facebook_route_finds_the_account_through_the_page(self):
         fake = Fake()
         with mock.patch("aletheia.secret_store.available", return_value=(True, "ready")), \
