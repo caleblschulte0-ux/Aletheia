@@ -43,6 +43,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
 import re
 import sys
 import time
@@ -320,14 +321,31 @@ def _write_record(run_id: str, record: dict) -> None:
 
 
 def _fingerprint(directory) -> tuple:
-    """ONE stat: every record is written by `write_json_atomic`, which renames
-    a temp file into place, and a rename, a create or a delete moves the
-    directory's own mtime. A thousand per-file stats cost 0.17 s on his disk;
-    this costs nothing, and a write by another process is seen at once."""
+    """The file count and the newest mtime, read from ONE directory listing.
+
+    `os.scandir` carries each entry's times on Windows for free (the listing
+    itself returns them), so a thousand records cost one syscall, not a
+    thousand `Path.stat` calls (0.17 s on his disk). The directory's own
+    mtime alone was not enough: NTFS did not move it for a second file
+    written in the same instant, and a write by another process went
+    unseen (CI, 2026-09-25). A write in this process forgets the cache
+    itself (`_write_record`)."""
+    newest, count = 0, 0
     try:
-        return (str(directory), directory.stat().st_mtime_ns)
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                if not entry.name.endswith(".json"):
+                    continue
+                count += 1
+                try:
+                    stamp = entry.stat().st_mtime_ns
+                except OSError:
+                    continue
+                if stamp > newest:
+                    newest = stamp
     except OSError:
-        return (str(directory), 0)
+        return (str(directory), 0, 0)
+    return (str(directory), count, newest)
 
 
 def all_runs(state: str | None = None) -> list[dict]:
