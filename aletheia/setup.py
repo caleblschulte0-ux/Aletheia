@@ -32,7 +32,7 @@ import sys
 from dataclasses import dataclass, field
 from typing import Callable
 
-from aletheia import capabilities
+from aletheia import MIN_PYTHON, capabilities
 
 # Capabilities whose only blocker is something the operator supplies. Each
 # entry says what to do and how to prove it. Anything NEEDS_CONFIGURATION
@@ -59,13 +59,76 @@ class Step:
     def instructions(self) -> list[str]:
         """The lines to show him now. A step whose next command depends on
         this machine computes them (`_remote_how` reads Tailscale), because
-        telling him to install what he already has is worse than silence."""
+        telling him to install what he already has is worse than silence.
+
+        And every command goes out naming an interpreter that will actually
+        run it here (`python_word`) — a checklist command that dies on his
+        PATH is the friction ledger's own definition of a defect.
+        """
         if not callable(self.how):
-            return list(self.how)
+            lines = list(self.how)
+        else:
+            try:
+                lines = list(self.how())
+            except Exception as exc:  # guidance must never break the audit
+                return [f"(could not read this machine's state: {type(exc).__name__})"]
+        word = python_word()
+        if word == "python":
+            return lines
+        # EVERY `python -m` line, not just the aletheia ones: `python -m pip
+        # install playwright` on his PATH installs into the 3.9 this package
+        # refuses, which is a checklist step that appears to succeed and
+        # changes nothing.
+        return [line.replace("python -m ", f"{word} -m ") for line in lines]
+
+
+_PYTHON_WORD: dict[str, str] = {}
+# Windows first asks `py`, the launcher, because a bare `python` there is
+# whatever happens to be first on the machine PATH (3.9 on his PC).
+# Everywhere else `python` is tried first, so a machine where it is
+# already new enough keeps printing the plain, familiar command.
+PYTHON_CANDIDATES = ("py", "python", "python3") if os.name == "nt" else ("python", "python3")
+
+
+def python_word(*, refresh: bool = False) -> str:
+    """The word that runs THIS package on THIS machine, asked rather than
+    assumed.
+
+    Measured on his PC 2026-09-25: `python` is `C:\\Python39\\python.exe`,
+    because that entry is first on the machine PATH, and `aletheia/__init__.py`
+    refuses 3.9 by design — so every `python -m aletheia...` line this
+    checklist has ever printed hands him a traceback instead of a setup. `py`
+    is the Windows launcher and resolves to 3.12 here.
+
+    Asked once per process (a checklist is rendered behind a button, and two
+    subprocesses per line is not a page). Falls back to naming the running
+    interpreter outright, which is ugly and always correct.
+    """
+    import shutil
+
+    from aletheia import proc
+    if not refresh and "word" in _PYTHON_WORD:
+        return _PYTHON_WORD["word"]
+    chosen = ""
+    for word in PYTHON_CANDIDATES:
+        exe = shutil.which(word)
+        if not exe:
+            continue
         try:
-            return list(self.how())
-        except Exception as exc:      # guidance must never break the audit
-            return [f"(could not read this machine's state: {type(exc).__name__})"]
+            # proc.run, never subprocess.run: this is asked by the Core, which
+            # runs under pythonw, and a bare subprocess there FLASHES A CONSOLE
+            # WINDOW on his screen (tests/test_the_night_of_the_console_windows
+            # caught exactly that here).
+            out = proc.run([exe, "-c", "import sys;print('%d.%d' % sys.version_info[:2])"],
+                           capture_output=True, text=True, timeout=20)
+            major, minor = (int(part) for part in (out.stdout or "").strip().split("."))
+        except Exception:  # noqa: BLE001 — an unusable candidate is just skipped
+            continue
+        if (major, minor) >= MIN_PYTHON:
+            chosen = word
+            break
+    _PYTHON_WORD["word"] = chosen or sys.executable
+    return _PYTHON_WORD["word"]
 
 
 EMPTY_CALENDAR = ("read live, and it is EMPTY (0 events in the next 60 days) — "
@@ -126,11 +189,28 @@ def _room() -> tuple[str, str]:
 
 
 def _instagram() -> tuple[str, str]:
-    """Checked from the stores: the user id and the token's NAME in the
-    vault. Never a call to Instagram - that is a post, and a post is his."""
+    """The REAL attempt, because configured is not connected.
+
+    One read-only call that asks Instagram who this token belongs to.
+    Reading is not publishing - a post is his approval and nothing here can
+    make one - and the whole promise of this audit is "checked live rather
+    than assumed". A vault entry plus a saved number only proves somebody
+    typed something; it goes green while a revoked or expired token would
+    fail on his first real ask.
+    """
     from aletheia import instagram
-    ok, why = instagram.available()
-    return (OK, why[:160]) if ok else (MISSING, why[:160])
+    if not instagram.available()[0]:
+        return MISSING, instagram.available()[1][:160]
+    ok, why = instagram.verify()
+    return (OK, why[:160]) if ok else (BROKEN, why[:160])
+
+
+def _instagram_scopes() -> str:
+    """The scope names come from the module that uses them, not from a copy in
+    a checklist: Meta renames these, and a checklist naming a scope the code
+    does not ask for sends him to tick the wrong boxes."""
+    from aletheia import instagram
+    return " and ".join(instagram.SCOPES_IG)
 
 
 def _remote() -> tuple[str, str]:
@@ -452,17 +532,33 @@ def steps() -> list[Step]:
               "If you do not run one, this is not a five-minute task — it is "
               "installing a home automation platform. Skip it until you want one."],
              _room, optional=True),
-        Step("social.publish", "Instagram", 20,
-             "Posting pictures to your Instagram on her own - his words, 2026-09-24. "
-             "Three things are yours: the account has to be a professional account, a Meta "
-             "developer app has to hold the instagram_content_publish permission for it, and "
-             "the token and user id go here once.",
-             ["In the Instagram app: Settings -> Account type and tools -> Switch to professional account.",
-              "At developers.facebook.com: create an app with the Instagram API use case, add the "
-              "instagram_content_publish permission, generate a long-lived access token.",
-              "  python -m aletheia.secret_store put instagram.token --provider instagram --kind api_token",
-              "  python -m aletheia.instagram configure <instagram-user-id> --username <handle>",
-              "Then: python -m aletheia.instagram status"],
+        Step("social.publish", "Instagram", 15,
+             "Posting pictures and reels to your Instagram on her own - his words, 2026-09-24. "
+             "Three things are yours and nothing else is: the account has to be a professional "
+             "account, a Meta developer app has to exist with a token generated for it, and that "
+             "token has to be pasted in here once. She works out the account id herself.",
+             ["1. Make the account professional FIRST - the app cannot see it otherwise.",
+              "   Instagram app -> your profile -> the menu (three lines) -> Settings and privacy",
+              "   -> Account type and tools -> Switch to professional account -> Business.",
+              "2. The developer app, at developers.facebook.com:",
+              "   My Apps -> Create app -> (any name) -> pick the Instagram use case",
+              "   -> app type BUSINESS (Meta requires a Business app for this; if yours",
+              "   is another type you have to make a new one).",
+              "   Then, in the app's left menu: Instagram -> API setup with Instagram",
+              "   business login. Three numbered steps there:",
+              "     1 add your Instagram account (it must be professional by now),",
+              "     2 check " + _instagram_scopes() + ",",
+              "     3 Generate token, beside the account -> copy it.",
+              "   The token starts IGAA and is shown once, so copy it before you close it.",
+              "   (Meta moves these labels around. What matters is the Business app type,",
+              "   the Instagram use case, and the Generate token button on that page.)",
+              "3. One command here, which asks for the token without echoing it:",
+              "     python -m aletheia.instagram connect",
+              "",
+              "That is the whole setup: it stores the token in the vault, finds the account id from",
+              "the token, and says READY only after Instagram confirms the account. The token then",
+              "refreshes itself before its 60 days run out.",
+              "To check it later: python -m aletheia.instagram status"],
              _instagram, optional=True),
         Step("access.remote", "Your phone reaching me", 10,
              "The phone surface has existed since Phase 21 and no phone could "

@@ -1045,6 +1045,19 @@ def _setup_step(capabilities_wanted: list):
     return None
 
 
+# "py" is the Windows launcher and is what the checklist prints on his PC:
+# `setup.Step.instructions` names the interpreter that will actually run the
+# command here, because a bare `python` on his PATH is a 3.9 the package
+# refuses. So this matches ANY of them rather than one literal word — tying it
+# to "python" made the spoken answer silently drop the command and say only
+# "Not yet — that one needs setting up first", which is the exact defect
+# `_how_command` exists to prevent (2026-09-25).
+_INTERPRETER_M = re.compile(r"(?:py|python3?)\s+-m\s", re.IGNORECASE)
+_COMMAND_WORDS = frozenset({"python", "python3", "py", "pip", "winget", "npm",
+                            "npx", "git", "curl", "choco", "docker", "node",
+                            "ollama", "$"})
+
+
 def _how_command(step) -> str:
     """The runnable line out of a step's instructions.
 
@@ -1056,7 +1069,7 @@ def _how_command(step) -> str:
     try:
         for line in step.instructions():
             text = " ".join(str(line).split()).lstrip("$ ")
-            if not text.startswith("python -m"):
+            if not _INTERPRETER_M.match(text):
                 continue
             # The checklist is written for a screen, so a command often
             # carries an aside: "python -m aletheia.phone_cli ready
@@ -1068,8 +1081,6 @@ def _how_command(step) -> str:
     return ""
 
 
-_COMMAND_WORDS = frozenset({"python", "pip", "winget", "npm", "npx", "git",
-                            "curl", "choco", "docker", "node", "ollama", "$"})
 
 
 def _setup_prereq(step) -> str:

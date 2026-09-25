@@ -2851,14 +2851,23 @@ def _interpret(transcript: str) -> dict:
                     r"|what(?:'s| is) the interview (?:switch|booking) set to", low):
         return {"command": {"kind": "interview_status"}, "say": None}
 
-    # "POST <picture address> TO INSTAGRAM SAYING ...": one post, his approval
+    # "POST <picture> TO INSTAGRAM SAYING ...": one post, his approval
     # (instagram_post is world-tier). "What have you posted to Instagram" is
-    # her own ledger.
-    m = re.fullmatch(r"(?:post|publish|put) (?P<url>https?://\S+) (?:to|on) instagram"
+    # her own ledger. The picture is an https address OR a file on his PC -
+    # his content is files here, so a rule that only took a URL took nothing
+    # he owns. A bare word is NOT a file: the token has to look like one (a
+    # picture or video extension), or nothing here matches and the sentence
+    # goes on to the planner rather than being guessed into a post.
+    m = re.fullmatch(r"(?:post|publish|put) (?P<media>https?://\S+|\"[^\"]+\"|\S+\.(?:jpe?g|png|webp|bmp|gif|tiff?|mp4|mov|m4v))"
+                     r" (?:to|on) instagram"
                      r"(?: (?:saying|with the caption|captioned|with the words|with) (?P<cap>.+))?", low)
     if m:
-        url = re.search(r"https?://\S+", text, flags=re.IGNORECASE)
-        command = {"kind": "instagram_post", "image_url": url.group(0) if url else m.group("url"),
+        said = m.group("media")
+        # Take it back out of the ORIGINAL text: a path and a URL are both
+        # case-sensitive and `low` has destroyed that.
+        exact = re.search(re.escape(said), text, flags=re.IGNORECASE)
+        command = {"kind": "instagram_post",
+                   "media": (exact.group(0) if exact else said).strip().strip('"'),
                    "caption": _as_he_said(text, m.group("cap").strip()) if m.group("cap") else ""}
         return {"command": command, "say": None}
     if re.fullmatch(r"what (?:have (?:you|u)|did (?:you|u)) post(?:ed)? (?:to|on) instagram(?: today| lately| so far)?"

@@ -1,26 +1,26 @@
 {
   "slug": "instagram-auto-post-setup",
   "title": "Instagram Auto Post Setup",
-  "goal": "Caleb's Instagram account is set up for automatic posting via the Instagram Graph API with all required permissions and documentation.",
-  "state": "proposed",
+  "goal": "Thea can post a picture or a reel to Caleb's Instagram account on her own, with his approval of each post: the account is professional, a Meta developer app holds an Instagram business login token, the token is in the vault and refreshes itself, and one real post he approved has gone out.",
+  "state": "open",
   "created": "2026-09-25T00:17:57Z",
   "project": {
     "repo": "aletheia",
     "base_branch": "live",
     "risk": "high",
     "drafted_by": "ollama:qwen3:8b",
-    "why": "Drafted 2026-09-25 by Aletheia's own model while the subscriptions were out, from something Caleb asked for; his to correct before or after he says yes."
+    "why": "Drafted 2026-09-25 by Aletheia's own model while the subscriptions were out, from something Caleb asked for. Corrected the same day by a Claude session against Meta's current documentation: switching the account to a professional account has to come FIRST (the developer app cannot see a personal account at all), the route is 'Instagram API with Instagram Login' rather than a Facebook Page, the last step he was never given was the one that actually connects it, and his step count went from four to three because she discovers the account id from the token herself. His version wins over both."
   },
   "steps": [
     {
       "n": 1,
-      "text": "Create a Meta developer app for Instagram Graph API access.",
+      "text": "Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business.",
       "state": "todo",
       "owner": "caleb"
     },
     {
       "n": 2,
-      "text": "Switch Caleb's Instagram account to a professional account.",
+      "text": "Create the Meta developer app and generate the token, by this exact route: developers.facebook.com -> My Apps -> Create app -> any name -> use case 'Other' -> type 'Business' -> Create. In the app: Add use case -> 'Manage everything on your Instagram account' -> Add. Then API setup with Instagram business login: step 1 add the Instagram account, step 2 check instagram_business_basic and instagram_business_content_publish, step 3 Generate token and copy it (it starts IGAA and is shown once).",
       "state": "todo",
       "owner": "caleb",
       "needs": [
@@ -29,7 +29,7 @@
     },
     {
       "n": 3,
-      "text": "Request the instagram_content_publish permission for the Meta app.",
+      "text": "Run the one connect command at the keyboard and paste the token: python -m aletheia.instagram connect. It asks for the token without echoing it, stores it in the DPAPI vault as instagram.token, finds the Instagram account id from the token itself, and says READY only after Instagram confirms the account. Nothing else is his: the token refreshes itself before its 60 days run out.",
       "state": "todo",
       "owner": "caleb",
       "needs": [
@@ -38,21 +38,17 @@
     },
     {
       "n": 4,
-      "text": "Generate a long-lived access token for the Meta app.",
-      "state": "todo",
-      "owner": "caleb",
-      "needs": [
-        3
-      ]
-    },
-    {
-      "n": 5,
-      "text": "Write documentation on setting up the Instagram Graph API and required permissions.",
+      "text": "Make the first real post: Thea publishes one picture to the account, with Caleb's approval of that specific post, and it shows in her posts ledger. That is the step that proves the whole thing works - a passing test is not it.",
       "state": "todo",
       "owner": "thea",
       "needs": [
-        4
+        3
       ]
     }
-  ]
+  ],
+  "confirmed": {
+    "at": "2026-09-25T02:19:20Z",
+    "via": "operator-via-claude-session",
+    "words": "I gave it its permission. And if it didn't give me my permission there, then boom, I'm giving it here. It has my permission. Just get this done. I don't care what it takes."
+  }
 }

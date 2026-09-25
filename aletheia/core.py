@@ -685,6 +685,20 @@ def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
                        actor=ACTOR)
     status["commands_executed"] += len(results)
     try:
+        # The Instagram token lasts 60 days and a dead one is a capability
+        # that stops working silently on a Tuesday. Refreshed here, before
+        # expiry, at most once every few hours; an honest no-op when
+        # Instagram is not set up, not near expiry, or on a route that does
+        # not refresh this way. The refresh is journaled, the token never is.
+        from aletheia import instagram
+        refreshed = instagram.refresh_if_due()
+        if refreshed:
+            status["instagram"] = {"token_expires_at": refreshed.get("token_expires_at")}
+    except Exception as exc:  # a token that will not refresh must not stop the loop
+        journal.append("event", "core:sync",
+                       f"Instagram token refresh error: {type(exc).__name__}: {exc}",
+                       actor=ACTOR)
+    try:
         # calendar feeds: mirror the operator's ICS subscriptions at most
         # every 30 min; honest no-op when unconfigured
         from aletheia import ics

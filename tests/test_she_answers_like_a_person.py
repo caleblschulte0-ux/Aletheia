@@ -162,8 +162,13 @@ class NotYetCase(unittest.TestCase):
         self.assertNotIn("(s)", said)
 
     def test_something_waiting_on_him_gives_him_the_command(self):
+        # The RULE is that the answer carries a command he can run — not that
+        # the command starts with the five letters "python". His PATH's
+        # `python` is a 3.9 this package refuses, so the checklist prints the
+        # interpreter that works here and this asks it for the word (2026-09-25).
+        from aletheia import setup
         said = intents._cannot_yet([{"capability": "room.scene"}], {})
-        self.assertIn("python -m aletheia.apply room", said)
+        self.assertIn(f"{setup.python_word()} -m aletheia.apply room", said)
         self.assertIn("needs setting up", said)
 
     def test_something_that_does_not_exist_says_so_instead(self):

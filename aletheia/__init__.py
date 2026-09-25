@@ -1,9 +1,15 @@
 """Aletheia — the fleet's single pane of truth."""
 import sys
 
-if sys.version_info < (3, 10):  # fail with words, not a SyntaxError blizzard
+# Named once, because something else has to be able to ASK it: the setup
+# checklist picks the interpreter word it prints by testing candidates
+# against this (`setup.python_word`), after every `python -m aletheia...`
+# line it printed turned out to hit a 3.9 first on his PATH.
+MIN_PYTHON = (3, 10)
+
+if sys.version_info < MIN_PYTHON:  # fail with words, not a SyntaxError blizzard
     raise RuntimeError(
-        "Aletheia needs Python 3.10 or newer; this is "
+        f"Aletheia needs Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]} or newer; this is "
         f"{sys.version_info.major}.{sys.version_info.minor}. On Windows: "
         "winget install Python.Python.3.12, then re-run the bootstrap.")
 
