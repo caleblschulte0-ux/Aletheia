@@ -467,18 +467,68 @@ def _recruitee(board: dict) -> list[dict]:
     return out
 
 
+def _bamboohr(board: dict) -> list[dict]:
+    """<token>.bamboohr.com - the public careers list.
+
+    Added 2026-09-26 because the six systems above are what tech and corporate
+    employers use, and he asked for a SECOND JOB in Sioux Falls - a bar, a gym,
+    a salon. None of those are on Greenhouse. BambooHR is what the small local
+    employer actually runs, and it publishes the same shape the others do:
+    `/careers/list` is public JSON, `/careers/<id>` is the posting, and the
+    application form is on that page behind "Apply for This Job".
+
+    Measured the day it was written, against the Sioux Falls YMCA: five
+    openings, including a part-time gym supervisor in Sioux Falls and a
+    part-time site lead in Hartford, which is the town he lives in.
+    """
+    token = board["token"]
+    q = urllib.parse.quote(token)
+    data = _fetch(f"https://{q}.bamboohr.com/careers/list")
+    rows = (data or {}).get("result") if isinstance(data, dict) else data
+    out = []
+    for job in rows or []:
+        if not isinstance(job, dict):
+            continue
+        jid = str(job.get("id") or "")
+        if not jid:
+            continue
+        place = job.get("location") or {}
+        where = ", ".join(str(place.get(k) or "") for k in ("city", "state") if place.get(k)) \
+            if isinstance(place, dict) else ""
+        if str(job.get("isRemote") or "").lower() in ("true", "yes", "1"):
+            where = f"Remote - {where}" if where else "Remote"
+        # The employment status is the whole point of this provider for him:
+        # "Part-Time" is what a second job looks like in a listing.
+        kind = " ".join(str(job.get("employmentStatusLabel") or "").split())
+        out.append({
+            "title": " ".join(str(job.get("jobOpeningName") or "").split()),
+            "company": _published(board, str(job.get("departmentLabel") or ""), token),
+            "location": where,
+            "posting_url": f"https://{q}.bamboohr.com/careers/{jid}",
+            # The form is revealed on the posting itself; there is no separate
+            # apply address to send her to.
+            "apply_url": f"https://{q}.bamboohr.com/careers/{jid}",
+            "provider": "bamboohr", "board": token, "id": jid,
+            "employment_type": kind,
+        })
+    return out
+
+
 #: Every system whose boards she can LIST. A system in `ATS` and not here was
 #: a system she could apply on when something else handed her the link and
 #: never searched herself - which, until 2026-09-13, was every one of them
 #: but Greenhouse and Lever.
 PROVIDERS = {"greenhouse": _greenhouse, "lever": _lever, "ashby": _ashby,
              "workable": _workable, "smartrecruiters": _smartrecruiters,
-             "recruitee": _recruitee}
+             "recruitee": _recruitee, "bamboohr": _bamboohr}
 
 #: What a board token may look like per system, so a learned row can never
 #: carry a path or a host into a request.
 _ANY_TOKEN = re.compile(r"[A-Za-z0-9_.-]{1,80}")
-_TOKEN_OK = {"recruitee": re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")}
+_TOKEN_OK = {"recruitee": re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"),
+             # A bamboohr token is a subdomain, so it may never carry a dot or
+             # an underscore - those would reach a different host.
+             "bamboohr": re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")}
 
 _GREENHOUSE_FORM = re.compile(r"[?&]for=([A-Za-z0-9_-]+).*?[?&]token=(\d+)")
 POSTING_CHARS = 12_000
@@ -971,6 +1021,8 @@ _SMARTRECRUITERS_JOB = re.compile(
     r"https?://jobs\.smartrecruiters\.com/([A-Za-z0-9_.-]+)/(\d{6,})")
 _RECRUITEE_JOB = re.compile(
     r"https?://([A-Za-z0-9-]+)\.recruitee\.com/o/([A-Za-z0-9_-]+)")
+_BAMBOOHR_JOB = re.compile(
+    r"https?://([A-Za-z0-9-]+)\.bamboohr\.com/careers/(\d+)")
 
 
 @dataclass(frozen=True)
@@ -1025,6 +1077,13 @@ ATS: tuple[Ats, ...] = (
         form=False),
     Ats("recruitee", "recruitee.com", _RECRUITEE_JOB,
         lambda t, j: f"https://{urllib.parse.quote(t)}.recruitee.com/o/{j}/c/new"),
+    # BambooHR keeps the application ON the posting, behind an "Apply for This
+    # Job" button, so the apply address IS the posting address. `form=False`
+    # for the same reason SmartRecruiters is: there is no separate form page
+    # to walk straight to.
+    Ats("bamboohr", "bamboohr.com", _BAMBOOHR_JOB,
+        lambda t, j: f"https://{urllib.parse.quote(t)}.bamboohr.com/careers/{j}",
+        form=False),
 )
 
 #: The hosts a sweep searches, derived so the two cannot drift apart.
