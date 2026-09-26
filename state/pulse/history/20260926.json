@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-26T11:31:14Z",
+  "generated_at": "2026-09-26T16:28:27Z",
   "fleet_revision": 5,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,55 +11,55 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
+          "sha": "3f861553b3be",
+          "date": "2026-09-26T15:05:51Z",
+          "message": "Merge pull request #216 from caleblschulte0-ux/claude/bamboohr-and-a-second-job"
+        },
+        {
+          "sha": "4c1e3609f7e5",
+          "date": "2026-09-26T14:49:51Z",
+          "message": "brief: 2026-09-26"
+        },
+        {
+          "sha": "253f78a158c3",
+          "date": "2026-09-26T14:29:24Z",
+          "message": "The employer down the road is not on Greenhouse"
+        },
+        {
+          "sha": "018bb18dd97b",
+          "date": "2026-09-26T11:31:27Z",
+          "message": "pulse: 2026-09-26T11:31Z"
+        },
+        {
           "sha": "6ab6b7937f65",
           "date": "2026-09-26T05:06:49Z",
           "message": "pulse: 2026-09-26T05:06Z"
-        },
-        {
-          "sha": "72af0afa8ff5",
-          "date": "2026-09-25T21:39:25Z",
-          "message": "pulse: 2026-09-25T21:39Z"
-        },
-        {
-          "sha": "41d01603c85e",
-          "date": "2026-09-25T17:17:53Z",
-          "message": "pulse: 2026-09-25T17:17Z"
-        },
-        {
-          "sha": "9c50817748da",
-          "date": "2026-09-25T16:44:12Z",
-          "message": "Merge pull request #214 from caleblschulte0-ux/claude/instagram-without-meta"
-        },
-        {
-          "sha": "dfe762e8ef82",
-          "date": "2026-09-25T16:07:03Z",
-          "message": "Instagram without Meta, because Meta will not open the door"
         }
       ],
       "commit": {
-        "sha": "6ab6b7937f65",
-        "date": "2026-09-26T05:06:49Z",
-        "message": "pulse: 2026-09-26T05:06Z"
+        "sha": "3f861553b3be",
+        "date": "2026-09-26T15:05:51Z",
+        "message": "Merge pull request #216 from caleblschulte0-ux/claude/bamboohr-and-a-second-job"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-09-26T11:31:11Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/36239073555"
+          "updated_at": "2026-09-26T16:28:25Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/36255571620"
         },
         "ci.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-25T17:05:20Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/36162647397"
+          "updated_at": "2026-09-26T15:27:15Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/36250744130"
         }
       },
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 21077
+          "bytes": 20704
         }
       },
       "health": "green"
@@ -71,48 +71,48 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "19ce26447f7c",
-          "date": "2026-09-26T11:30:55Z",
-          "message": "deadman: repaired 2026-09-26 [skip ci]"
+          "sha": "49572d83ef5b",
+          "date": "2026-09-26T16:21:28Z",
+          "message": "watchdog: chatgpt task verdicts 20260926 [skip ci]"
         },
         {
-          "sha": "37156fdd0f75",
-          "date": "2026-09-26T11:24:40Z",
-          "message": "Claim takeover media authored-chair-chargeback-marketplace-listing-s5"
+          "sha": "9ef610387e3a",
+          "date": "2026-09-26T16:13:14Z",
+          "message": "Explainer: counts count whole, multiples are honest, animals are animals (#482)"
         },
         {
-          "sha": "820c06c31554",
-          "date": "2026-09-26T11:24:39Z",
-          "message": "Claim takeover media authored-chair-chargeback-marketplace-listing-s4"
+          "sha": "d1edabba1658",
+          "date": "2026-09-26T16:04:20Z",
+          "message": "explainer: update posted log + analytics [skip ci]"
         },
         {
-          "sha": "cab9bd48d038",
-          "date": "2026-09-26T11:24:39Z",
-          "message": "Claim takeover media authored-chair-chargeback-marketplace-listing-s3"
+          "sha": "b450237d9a39",
+          "date": "2026-09-26T15:55:42Z",
+          "message": "explainer: posted passport-ownership-surge [skip ci]"
         },
         {
-          "sha": "785b04a6590d",
-          "date": "2026-09-26T11:24:38Z",
-          "message": "Claim takeover media authored-chair-chargeback-marketplace-listing-s2"
+          "sha": "1694459891cc",
+          "date": "2026-09-26T15:49:08Z",
+          "message": "daily: 2026-09-26 report + state [skip ci]"
         }
       ],
       "commit": {
-        "sha": "19ce26447f7c",
-        "date": "2026-09-26T11:30:55Z",
-        "message": "deadman: repaired 2026-09-26 [skip ci]"
+        "sha": "49572d83ef5b",
+        "date": "2026-09-26T16:21:28Z",
+        "message": "watchdog: chatgpt task verdicts 20260926 [skip ci]"
       },
       "vitals": [
         {
           "label": "trending posted",
-          "value": 357
+          "value": 361
         },
         {
           "label": "explainer posted",
-          "value": 274
+          "value": 277
         },
         {
           "label": "third posted",
-          "value": 688
+          "value": 713
         },
         {
           "label": "curiosity posted",
@@ -123,20 +123,20 @@
         "daily.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-09-26T11:30:59Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/36239060291"
+          "updated_at": "2026-09-26T15:49:16Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/36252207275"
         },
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-26T09:49:01Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/36233900509"
+          "updated_at": "2026-09-26T16:14:40Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/36254677343"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-09-25T18:45:45Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/36175452084"
+          "updated_at": "2026-09-26T14:45:57Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/36249603779"
         },
         "story_forge.yml": {
           "status": "completed",
@@ -145,16 +145,16 @@
           "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/36234272799"
         },
         "third.yml": {
-          "status": "pending",
-          "conclusion": null,
-          "updated_at": "2026-09-26T11:30:57Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/36239058534"
+          "status": "completed",
+          "conclusion": "success",
+          "updated_at": "2026-09-26T15:04:25Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/36250230163"
         },
         "explainer.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-09-26T11:31:06Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/36239056650"
+          "updated_at": "2026-09-26T16:04:30Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/36252206137"
         },
         "retro.yml": {
           "status": "completed",
@@ -172,15 +172,15 @@
       "state_files": {
         "state/posted_log.json": {
           "exists": true,
-          "bytes": 109978
+          "bytes": 111212
         },
         "state/explainer_posted_log.json": {
           "exists": true,
-          "bytes": 95075
+          "bytes": 98691
         },
         "state/third_posted_log.json": {
           "exists": true,
-          "bytes": 374777
+          "bytes": 387990
         },
         "state/curiosity_posted_log.json": {
           "exists": true,
@@ -188,7 +188,7 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 1817392
+          "bytes": 1939659
         },
         "config/channel_registry.json": {
           "exists": true,
@@ -361,7 +361,7 @@
           "text": "Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push"
         },
         "last_progress_at": "2026-09-23T14:39:43Z",
-        "days_quiet": 2,
+        "days_quiet": 3,
         "commits_7d": 23,
         "open_prs": [
           {
@@ -437,7 +437,7 @@
           "text": "Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business."
         },
         "hers": null,
-        "last_progress_at": "2026-09-26T05:06:49Z",
+        "last_progress_at": "2026-09-26T15:05:51Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": []
@@ -462,7 +462,7 @@
           "text": "Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open"
         },
         "last_progress_at": "2026-09-23T12:07:14Z",
-        "days_quiet": 2,
+        "days_quiet": 3,
         "commits_7d": 30,
         "open_prs": [
           {
@@ -506,7 +506,7 @@
           "text": "Make the watchdog say which of the two likely causes a stall is (no trigger runs at all, or runs that fail) so the next stall names itself"
         },
         "last_progress_at": "2026-09-24T11:51:35Z",
-        "days_quiet": 1,
+        "days_quiet": 2,
         "commits_7d": 22,
         "open_prs": [
           {
@@ -522,14 +522,7 @@
     ],
     "evidence": []
   },
-  "transitions": [
-    {
-      "repo": "shorts_pipeline",
-      "github": "Shorts-pipeline",
-      "from": "red",
-      "to": "green"
-    }
-  ],
+  "transitions": [],
   "alerts": [],
   "plans": {
     "open": 6,
