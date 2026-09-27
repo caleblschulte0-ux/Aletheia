@@ -1,32 +1,32 @@
 # Fleet briefing
 
-Generated 2026-09-27T12:10:03Z from fleet registry rev 5 via GitHubSource.
+Generated 2026-09-27T17:02:00Z from fleet registry rev 5 via GitHubSource.
 
 ## 🟢 `Aletheia` — hub (active)
 
 The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.
 
-Last commit `a2b1939dc91e` at 2026-09-27T05:24:28Z: pulse: 2026-09-27T05:24Z
+Last commit `6f991376ad15` at 2026-09-27T15:29:09Z: brief: 2026-09-27
 
 Watched workflows:
-- `pulse.yml`: queued at 2026-09-27T12:09:56Z
+- `pulse.yml`: in_progress at 2026-09-27T17:01:56Z
 - `ci.yml`: success at 2026-09-26T15:27:15Z
 
 ## 🔴 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `a74f66d41790` at 2026-09-27T12:05:57Z: third: analytics [skip ci]
+Last commit `71569950cb7f` at 2026-09-27T16:56:18Z: watchdog: chatgpt task verdicts 20260927 [skip ci]
 
-Vitals — trending posted: 369 · explainer posted: 279 · third posted: 716 · curiosity posted: 1
+Vitals — trending posted: 372 · explainer posted: 280 · third posted: 720 · curiosity posted: 1
 
 Watched workflows:
-- `daily.yml`: in_progress at 2026-09-27T11:52:49Z
-- `exchange_phase_a.yml`: success at 2026-09-27T10:01:13Z
-- `exchange_phase_b.yml`: success at 2026-09-27T11:35:24Z
+- `daily.yml`: failure at 2026-09-27T12:19:16Z
+- `exchange_phase_a.yml`: success at 2026-09-27T14:49:32Z
+- `exchange_phase_b.yml`: success at 2026-09-27T14:46:02Z
 - `story_forge.yml`: success at 2026-09-27T10:38:35Z
-- `third.yml`: failure at 2026-09-27T12:06:00Z
-- `explainer.yml`: success at 2026-09-27T11:59:55Z
+- `third.yml`: failure at 2026-09-27T15:52:18Z
+- `explainer.yml`: success at 2026-09-27T14:17:57Z
 - `retro.yml`: success at 2026-09-27T05:21:50Z
 - `doctor.yml`: success at 2026-09-27T10:31:39Z
 
@@ -34,7 +34,7 @@ Watched workflows:
 
 Guardrailed paper-trading system. The SELL brain and executor watchdog are active; the subscription-backed BUY brain and trade executor are intentionally paused until the operator resumes them.
 
-Last commit `3ceed9d7e6ea` at 2026-09-26T00:27:16Z: analyst: weekly review [skip ci]
+Last commit `539c2cc43dfd` at 2026-09-27T15:59:01Z: backtest: weekly refresh [skip ci]
 Vitals withheld (5, on his own screen): realized P&L, win rate, closed trades, open positions, cash
 
 Watched workflows:
@@ -66,7 +66,7 @@ Last commit `41ea84afb060` at 2026-06-03T15:08:19Z: Initial commit
 
 - **Barkly** (`Money_Machine` @ `claude/barkley-mvp-mobile-qbegtj`, low risk): 0/8 steps; last human or builder commit 2026-09-23T14:39:43Z; next step 1 (thea): Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push
 - **Holdco platform** (`Money_Machine` @ `claude/ai-holdco-master-playbook-i5q80w`, low risk): 0/5 steps; last human or builder commit 2026-08-06T02:51:23Z; next step 1 (caleb): Pick the one offer to test first and write it as one sentence in docs/NEXT_OFFER.md on the holdco branch (or tell any Claude session to)
-- **Instagram Auto Post Setup** (`Aletheia` @ `live`, high risk): 0/4 steps; last human or builder commit 2026-09-27T05:24:28Z; next step 1 (caleb): Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business.
+- **Instagram Auto Post Setup** (`Aletheia` @ `live`, high risk): 0/4 steps; last human or builder commit 2026-09-27T15:29:09Z; next step 1 (caleb): Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business.
 - **Open Range demo films** (`Money_Machine` @ `claude/open-range-promo-video-4n7k7o`, low risk): 0/4 steps; last human or builder commit 2026-09-23T12:07:14Z; next step 1 (thea): Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open
 - **Schwab trader** (`schwab-trader` @ `main`, high risk): 0/5 steps; last human or builder commit 2026-09-24T11:51:35Z; next step 1 (caleb): Answer the sell approval waiting since June 26 (schwab-trader issue #5): comment approve, hold, or close it
 
