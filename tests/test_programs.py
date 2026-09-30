@@ -415,6 +415,40 @@ class CompositionChoosesByCapability(Sandbox):
         self.assertIn("network", plan["requires"])
         self.assertEqual(plan["gaps"], [])
 
+    def test_where_her_own_output_goes_is_hers_to_decide(self):
+        """The first real mission (2026-09-30) stopped its first task on "what should I use
+        for path?": a file in her own workspace, asked of him in a developer word. A tool
+        that writes something new from words gets a deterministic place; a path that must
+        already exist (a file of his to read or edit) is never invented."""
+        writer = tools.declare("write.it", description="Write a document from an instruction into the workspace",
+                               input_schema={"properties": {"path": {"type": "string"}, "what": {"type": "string"}},
+                                             "required": ["path", "what"]},
+                               handler=lambda a: {}, capability="test.write", risk=intercom.TIER_ROUTINE,
+                               writes=("workspace",))
+        reader = tools.declare("read.it", description="Read a file of his",
+                               input_schema={"properties": {"path": {"type": "string"}}, "required": ["path"]},
+                               handler=lambda a: {}, capability="test.read")
+        task = {"key": "t1", "title": "Write the one-page plan", "detail": "From his answers, set target dates"}
+        mission = {"title": "Try Real Shots at a New Life", "id": "prog-1"}
+        args, missing = program_compose.fill_args(writer, task, mission=mission)
+        self.assertEqual(missing, [])
+        self.assertEqual(args["path"], "missions/try-real-shots-at-a-new-life/t1-write-the-one-page-plan.md")
+        self.assertEqual(args["what"], "From his answers, set target dates")
+        # the same task and step name the same file; a second writing step never overwrites the first
+        again, _ = program_compose.fill_args(writer, task, mission=mission)
+        self.assertEqual(again["path"], args["path"])
+        second, _ = program_compose.fill_args(writer, task, mission=mission, step=1)
+        self.assertNotEqual(second["path"], args["path"])
+        self.assertTrue(second["path"].startswith("missions/try-real-shots-at-a-new-life/"))
+        # a path he gave or a model chose stands
+        kept, _ = program_compose.fill_args(writer, task, {"path": "plans/mine.md"}, mission=mission)
+        self.assertEqual(kept["path"], "plans/mine.md")
+        # a file that has to exist already is his to name
+        _args, missing = program_compose.fill_args(reader, task, mission=mission)
+        self.assertEqual(missing, ["path"])
+        self.assertEqual(program_compose.plainly_missing(["path", "url"]),
+                         "where to save it and which web address to use")
+
     def test_a_named_tool_is_used_and_an_excluded_one_never_is(self):
         cat = fake_catalog()
         plan = program_compose.compose({"title": "x", "uses": ["switch.thing", "look.up"], "does": []}, cat)
@@ -588,7 +622,8 @@ class TasksRunThroughTheBrokerAndWait(Sandbox):
             program_run.run_task(pid, "tcal", now=self.at(minutes=17))
         task = self.task(pid, "tcal")
         self.assertEqual(task["state"], ws.BLOCKED_USER)
-        self.assertIn("what should I use for when", task["reason"])
+        self.assertIn("I need to know when", task["reason"])
+        self.assertNotIn("what should I use for", task["reason"])
 
 
 class TheWorkEngineCarriesIt(Sandbox):

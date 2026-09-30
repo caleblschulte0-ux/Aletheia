@@ -251,9 +251,56 @@ TOPIC_ARGS = ("question", "query", "request", "text", "idea", "what", "goal", "d
 PERSON_ARGS = ("to", "person", "recipient", "who", "contact")
 
 
-def fill_args(tool, task: dict, given: dict | None = None) -> tuple[dict, list[str]]:
-    """(args, still_missing). Topic-shaped string arguments come from the task's words;
-    anything else must come from the step itself, a model, or Caleb."""
+#: Tools whose output FORMAT is chosen by the path's extension (.docx, .xlsx, .pptx). A default
+#: name would also be a default format, which is a guess; the model or Caleb names those.
+FORMAT_BY_PATH = frozenset({"doc_make"})
+#: What a missing argument is called when she has to ask him for it. The first real long
+#: mission (2026-09-30) stopped its first task on "what should I use for path?" - a developer
+#: word, read out loud, about a file in her own workspace.
+ARG_WORDS = {"path": "where to save it", "url": "which web address to use", "to": "who it goes to",
+             "project": "which project it belongs to", "when": "when", "question": "what to ask",
+             "what": "what to write", "text": "what to put in it", "body": "what to say"}
+
+
+def _slug(text: Any, limit: int = 48) -> str:
+    raw = re.sub(r"[^a-z0-9]+", "-", str(text or "").lower()).strip("-")
+    if len(raw) <= limit:
+        return raw
+    cut = raw[:limit].rsplit("-", 1)[0]          # whole words: "set-the-mission", never "set-the-mission-ca"
+    return (cut if len(cut) >= 8 else raw[:limit]).rstrip("-")
+
+
+def makes_its_own_file(tool) -> bool:
+    """A tool that WRITES something new into her workspace from words it is given: the path is
+    where to put it, not a file of his to find, and naming it is hers. `file_read` and
+    `file_edit` need a path that already exists; those are never invented."""
+    if tool.read_only or "workspace" not in tuple(tool.writes or ()) or tool.name in FORMAT_BY_PATH:
+        return False
+    required = set((tool.input_schema or {}).get("required") or [])
+    return "path" in required and bool(required & set(TOPIC_ARGS))
+
+
+def output_path(tool, task: dict, mission: dict | None = None, step: int = 0) -> str:
+    """Where a task's written output goes in her workspace, decided the same way every time:
+    missions/<mission>/<task>.md, a step after the first with its number. Deterministic, so a
+    task run twice writes the same file, and two steps of one task never overwrite each other."""
+    home = _slug((mission or {}).get("title") or (mission or {}).get("id") or "") or "untitled"
+    name = _slug(" ".join(str(x) for x in (task.get("key"), task.get("title")) if x)) or "output"
+    suffix = f"-{step + 1}" if step else ""
+    return f"missions/{home}/{name}{suffix}.md"
+
+
+def plainly_missing(missing: list[str]) -> str:
+    """The missing arguments as words he can answer, never argument names."""
+    from aletheia import speech
+    return speech.and_list([ARG_WORDS.get(m, m.replace("_", " ")) for m in missing])
+
+
+def fill_args(tool, task: dict, given: dict | None = None, *, mission: dict | None = None,
+              step: int = 0) -> tuple[dict, list[str]]:
+    """(args, still_missing). Topic-shaped string arguments come from the task's words, the
+    place a written output goes is hers to decide (`output_path`); anything else must come
+    from the step itself, a model, or Caleb."""
     schema = tool.input_schema or {}
     props = schema.get("properties") or {}
     args = {k: v for k, v in dict(given or {}).items() if k in props}
@@ -270,6 +317,8 @@ def fill_args(tool, task: dict, given: dict | None = None) -> tuple[dict, list[s
             args[key] = who[:200]
         elif key in TOPIC_ARGS and stringy and "enum" not in prop and words_of_task:
             args[key] = words_of_task[:480]
+        elif key == "path" and stringy and "enum" not in prop and makes_its_own_file(tool):
+            args[key] = output_path(tool, task, mission, step)
         else:
             missing.append(key)
     return args, missing

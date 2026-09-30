@@ -388,7 +388,8 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
                         next="compose the task again", not_before=pg.stamp(now))
             _commit(pid, task, now)
             return {"state": ws.RETRY_LATER}
-        args, missing = compose.fill_args(tool, task, step.get("args"))
+        args, missing = compose.fill_args(tool, task, step.get("args"),
+                                          mission={"title": record.get("title"), "id": record.get("id")}, step=i)
         if missing:
             try:
                 args.update(compose.model_args(tool, task, args, missing, think=think))
@@ -406,7 +407,7 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
             missing = [m for m in missing if not str(args.get(m) or "").strip()]
         if missing:
             step["args"] = args
-            question = (f"For \"{task['title']}\", what should I use for {' and '.join(missing)}? "
+            question = (f"For \"{task['title']}\", I need to know {compose.plainly_missing(missing)}. "
                         f"({step.get('for') or tool.name})")
             pg.hold(record, task, {"kind": "user_decision", "question": question}, reason=question,
                     purpose="args", now=now, extra={"step": i, "missing": missing})
