@@ -170,6 +170,20 @@ def find(which: str = "", *, include_finished: bool = False) -> dict | None:
 
 # ---- his words in ---------------------------------------------------------------------
 
+def working_title(words: str, limit: int = 80) -> str:
+    """What she calls the mission until a model names it: his first sentence, whole words.
+
+    Rehearsed 2026-09-30: "how's my mission going" read back the first eighty characters of
+    his objective, cut in the middle of a word and ending in "up until now: a." A working
+    title is his first sentence, and never a fragment."""
+    text = " ".join(str(words or "").split())
+    first = re.split(r"(?<=[.!?])\s+", text, maxsplit=1)[0].rstrip(".!?:,; ") or text
+    if len(first) <= limit:
+        return first
+    cut = first[:limit].rsplit(" ", 1)[0].rstrip(".!?:,; ")
+    return cut if len(cut) >= 3 else first[:limit]
+
+
 def propose(words: str, *, via: str, now: dt.datetime | None = None) -> dict:
     """A new long mission from his sentence. Nothing runs until he confirms a draft."""
     now = _now(now)
@@ -178,7 +192,7 @@ def propose(words: str, *, via: str, now: dt.datetime | None = None) -> dict:
         raise ProgramError("a mission needs a sentence saying what it is for")
     pid = f"prog-{now.strftime('%Y%m%d')}-{secrets.token_hex(3)}"
     record = {
-        "version": VERSION, "id": pid, "state": DRAFTING, "title": words[:80], "objective": words,
+        "version": VERSION, "id": pid, "state": DRAFTING, "title": working_title(words), "objective": words,
         "horizon": "", "created_at": stamp(now), "updated_at": stamp(now),
         "asks": [{"at": stamp(now), "kind": "objective", "words": words, "via": str(via)[:60]}],
         "needs_shape": True, "shape": None, "draft": None, "pending_revision": None,

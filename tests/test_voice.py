@@ -133,6 +133,25 @@ class InterpretCase(unittest.TestCase):
         self.assertEqual(out["command"]["kind"], "task_new")
         self.assertEqual(out["command"]["description"], "water the plants")
 
+    def test_a_long_mission_starts_the_way_a_project_does(self):
+        """Rehearsed 2026-09-30 with his own objective: "new mission: ..." went to the
+        planner and came back as an approval to start a mission - a round trip and a
+        yes away from the door it stood at. The verb is optional; the qualifier or the
+        colon is what keeps "mission status" from becoming a mission about status."""
+        for said in ("new mission: Direct movies and live where things happen",
+                     "thea, a new mission about Direct movies and live where things happen",
+                     "mission: Direct movies and live where things happen",
+                     "long mission: Direct movies and live where things happen",
+                     "start a mission: Direct movies and live where things happen"):
+            out = voice.interpret(said)
+            self.assertEqual(out["command"]["kind"], "mission_new", said)
+            # matched lowercased, stored with his capitals
+            self.assertEqual(out["command"]["objective"], "Direct movies and live where things happen", said)
+        for said in ("mission status", "how's my mission going", "what's my mission waiting on"):
+            self.assertEqual(voice.interpret(said)["command"]["kind"], "missions", said)
+        for said in ("mission accomplished", "new mission status"):
+            self.assertNotEqual((voice.interpret(said)["command"] or {}).get("kind"), "mission_new", said)
+
     def test_unrecognized_speech_goes_to_the_planner_not_a_dead_end(self):
         # Until 2026-08-27 this became a journal note and "I don't have a
         # command for that yet" — the operator's journal is full of real

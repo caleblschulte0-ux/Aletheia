@@ -1624,12 +1624,24 @@ def _interpret(transcript: str) -> dict:
     # and asking what it waits on. The draft is a model's; the yes is his, and
     # it is only ever this layer that reads "confirm my mission" as that yes -
     # the words that start it are matched here, never compiled.
-    m = re.fullmatch(r"(?:(?:i want to |let's |lets |please )?(?:start|begin|create|make|open) )"
-                     r"(?:a |my |the )?(?:new )?(?:(?:long|big|long-term|long term) )?mission"
-                     r"(?: called| about| for| to)?[:,]? (.{3,})", low)
-    if m and not re.fullmatch(r"(?:draft|now|again|please)", m.group(1).strip()):
-        return {"command": {"kind": "mission_new", "objective": _as_he_said(transcript, m.group(1))},
-                "say": None}
+    # Three shapes start one: a verb ("start a mission: ..."), the way a
+    # project starts ("new mission: ..." — rehearsed 2026-09-30 with his own
+    # objective, this went to the planner and came back as an approval to
+    # "start a long mission", one round trip and one yes away from the door
+    # it was standing at), or a bare "mission: ...". Without a verb the
+    # qualifier or the colon is what keeps "mission status" and "mission
+    # accomplished" from becoming missions.
+    m = (re.fullmatch(r"(?:(?:i want to |let's |lets |please )?(?:start|begin|create|make|open) )"
+                      r"(?:a |my |the )?(?:new )?(?:(?:long|big|long-term|long term) )?mission"
+                      r"(?: called| about| for| to)?[:,]? (.{3,})", low)
+         or re.fullmatch(r"(?:a |my |the )?(?:(?:new|long|big|long-term|long term) )+mission"
+                         r"(?: called| about| for| to)?[:,]? (.{3,})"
+                         r"|mission[:,] (.{3,})", low))
+    if m:
+        objective = next((g for g in m.groups() if g), "")
+        if not re.fullmatch(r"(?:draft|now|again|please|status|accomplished)", objective.strip()):
+            return {"command": {"kind": "mission_new", "objective": _as_he_said(transcript, objective)},
+                    "say": None}
     if re.fullmatch(r"(?:yes[,]? )?(?:confirm|activate|launch|go ahead with|start) (?:the |my )?"
                     r"(?:(?:long|big|new) )?mission(?: draft| now)?(?:[,]? please)?", low):
         return {"command": {"kind": "mission_confirm"}, "say": None}

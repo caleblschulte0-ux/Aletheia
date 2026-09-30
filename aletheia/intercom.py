@@ -510,6 +510,32 @@ KIND_NOTES: dict[str, str] = {
         'summary that the last step is his. role is the kind of job ("senior '
         'backend engineer"), count is at most 10, where is an optional '
         'location or "remote", resume is a workspace path.'),
+    # THE THREE WAYS SHE LOOKS THINGS UP ON THE WEB carried the bare "The
+    # 'research' command (question)." until 2026-09-30, when the first real
+    # long-mission draft (his own life, rehearsed through the door) used
+    # browse_shot for eight research tasks - "find open script contests",
+    # "compare cities", "find real listings" - because that was the only web
+    # tool the shaper's menu showed, and a screenshot of a URL nobody has yet
+    # is a question back to him. A tool nothing can describe is a tool the
+    # model cannot choose (rule zero); these say what each one is FOR.
+    "research": (
+        'Look something up on the web and answer from real sources, every '
+        'claim tied to the page it came from. USE THIS when there is a '
+        'QUESTION and no URL yet: which contests, fellowships, journals, '
+        'cities, neighborhoods, listings, groups, events, companies or '
+        'people exist, what they require, what they cost, when they close. '
+        'It finds the pages itself; question is the question in plain '
+        'words. It reads and never acts on a site, and it spends nothing.'),
+    "browse_read": (
+        'Read ONE web page whose url you already have - its title, visible '
+        'text and links - through her own browser profile. For a page that '
+        'is known (a posting, a set of rules, a listing); for a question '
+        'with no page yet, use research.'),
+    "browse_shot": (
+        'A screenshot of ONE web page whose url you already have, saved as '
+        'a file for him to look at. Only for seeing how a known page looks; '
+        'it answers no question and finds nothing - use research for that '
+        'and browse_read for the words.'),
     "compose": (
         'USE THIS, NOT file_write, whenever the content has to be WRITTEN '
         'rather than pasted — "write me a note about X", "summarise my '

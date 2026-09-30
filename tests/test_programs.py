@@ -340,6 +340,39 @@ class ShapingIsGeneral(Sandbox):
         self.assertEqual(row["state"], ws.BLOCKED_MODEL)
         self.assertEqual(self.items(self.at(minutes=20))[f"program:{record['id']}#shape"]["state"], ws.READY)
 
+    def test_the_real_catalog_can_say_how_she_looks_things_up(self):
+        """The first real draft (2026-09-30, his own objective through the door) used a
+        screenshot tool for eight research tasks, because `research` carried the bare
+        fallback description and was the one web tool the menu never showed: a tool
+        nothing can describe is a tool a model cannot choose. A research-shaped need
+        with no URL yet resolves to research, and reading a known page to browse_read."""
+        real = tools.catalog()
+        for need in ("find real open calls", "compare each candidate place", "find fitting journals",
+                     "find real listings", "find neighborhoods"):
+            tool, _score = program_compose.best_tool(need, real)
+            self.assertIsNotNone(tool, need)
+            self.assertEqual(tool.name, "research", need)
+        tool, _score = program_compose.best_tool("read the rules on the page", real)
+        self.assertEqual(tool.name, "browse_read")
+        for name in ("research", "browse_read", "browse_shot"):
+            self.assertFalse(real[name].description.startswith("The '"), name)
+        shown = [line.split(":")[0] for line in program_compose.menu(
+            "I want to submit a script to a contest and a paper to a journal and move somewhere new", real)]
+        self.assertIn("research", shown)
+
+    def test_the_working_title_is_a_sentence_not_a_fragment(self):
+        long = ("Project reboot. I feel like I have been living like an NPC up until now: a normal "
+                "nine to five job and not much else, and I want a radically different life")
+        self.assertEqual(pg.working_title(long), "Project reboot")
+        one = "Look at two places to move and what work there is, then decide between them by the end of spring"
+        title = pg.working_title(one)
+        self.assertLessEqual(len(title), 80)
+        self.assertTrue(one.startswith(title) and not title.endswith((",", ".")), title)
+        self.assertTrue(one[len(title)] == " ", title)          # cut between words, never inside one
+        self.assertEqual(pg.working_title("change things"), "change things")
+        record = pg.propose(long, via="operator-voice", now=NOW)
+        self.assertEqual(record["title"], "Project reboot")
+
     def test_the_menu_it_shows_a_model_comes_from_the_real_catalog_by_relevance(self):
         lines = program_compose.menu("research places and send a message", fake_catalog())
         self.assertTrue(lines[0].startswith(("look.up", "send.message")))
