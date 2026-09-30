@@ -331,18 +331,10 @@ def run(it: dict, now: dt.datetime | None = None, *, investigate: bool = False) 
 
 
 def _failure_words(exc: Exception) -> str:
-    """Why an item did not finish, in a sentence (the class and detail stay in evidence)."""
-    from aletheia import reasoner
-    if isinstance(exc, reasoner.ReasonerUnavailable):
-        return "no model could finish thinking about it in time (my own model ran out of its time slice)"
-    try:
-        from aletheia import project_checkout
-        if isinstance(exc, project_checkout.CheckoutRefused):
-            return str(exc)
-    except Exception:  # noqa: BLE001
-        pass
+    """Why an item did not finish, in a sentence (the class and detail stay in evidence).
+    One implementation with the mission path: `speech.failure_words`."""
     from aletheia import speech
-    return speech.plainly(str(exc))[:200] or "it did not work"
+    return speech.failure_words(exc, generic="it did not work")[:200]
 
 
 def _short(it: dict, limit: int = 90) -> str:

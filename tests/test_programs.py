@@ -698,6 +698,22 @@ class ItIsReadBack(Sandbox):
         waiting = intercom.execute_command(voice.interpret("what are we waiting on")["command"], fleet)
         self.assertIn("needs Caleb's approval", waiting)
 
+    def test_a_question_he_never_answered_survives_his_confirm(self):
+        """Rehearsed 2026-09-30: confirmed with six questions open, every reader said
+        "0 of 22 tasks done" and the questions were gone. He may say yes first and answer
+        later; the status keeps asking until he does, and the answer still lands."""
+        record = pg.propose("over the next two months: look at two places and work there", via="operator-voice",
+                            now=NOW)
+        program_run.do_shape(record["id"], now=NOW)
+        active = pg.confirm(record["id"], words="confirm", via="operator-voice", now=NOW)
+        self.assertEqual(active["state"], pg.ACTIVE)
+        self.assertEqual(pg.summary(active)["questions"], [q["ask"] for q in active["questions"]])
+        said = pg.spoken_status(now=NOW)
+        self.assertIn("still open", said)
+        self.assertIn("Which two places", said)
+        pg.add_words(record["id"], "North and South", via="operator-voice", now=NOW)
+        self.assertNotIn("Which two places", pg.summary(pg.load(record["id"]))["questions"])
+
     def test_the_session_tools_and_the_provider_read_the_same_store(self):
         empty = tools.get("mission.status").handler({})
         self.assertTrue(empty["readable"])

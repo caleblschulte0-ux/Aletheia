@@ -375,7 +375,8 @@ def execute(tool: tools.Tool, args: dict, *, timeout_s: float = TOOL_TIMEOUT_S,
     except intercom.Unavailable as exc:
         return "unavailable", {"error": f"unavailable on this machine: {exc}"}
     except Exception as exc:                                          # noqa: BLE001
-        return "error", {"error": f"the tool failed ({type(exc).__name__})"}
+        from aletheia import speech
+        return "error", {"error": speech.failure_words(exc)}
     if isinstance(result, dict) and set(result) == {"error"}:
         return "error", result
     return "ok", result

@@ -633,6 +633,31 @@ def without_machine_codes(text: str) -> str:
     return " ".join(said.replace("()", "").split())
 
 
+def failure_words(exc: BaseException, *, generic: str = "the tool failed") -> str:
+    """Why something failed, as a sentence he can act on. ONE implementation for the mission
+    path (`agent_session.execute`) and the work-session path (`work_runners`), because two
+    had already drifted: one threw the reason away for a class name, the other read a bare
+    KeyError's key out loud.
+
+    The first long mission (2026-09-30) ran `compose`, which refused honestly - "I don't
+    have Caleb's previous answers about his horizon and hours per week ... Nothing was
+    saved." - and he heard "the tool failed (ComposeError)". An error HER OWN code raised
+    with a message is that message, said plainly. A foreign exception (a KeyError, a
+    socket error) says nothing he can act on and stays the one generic line with its type;
+    the diagnosis is in the log either way."""
+    try:
+        from aletheia import reasoner
+        if isinstance(exc, reasoner.ReasonerUnavailable):
+            return "no model could finish thinking about it in time (my own model ran out of its time slice)"
+    except Exception:  # noqa: BLE001 - the words below still stand
+        pass
+    text = " ".join(str(exc or "").split())
+    hers = str(type(exc).__module__ or "").startswith("aletheia.")
+    if hers and text:
+        return plainly(text)[:400] or f"{generic} ({type(exc).__name__})"
+    return f"{generic} ({type(exc).__name__})"
+
+
 def plainly(detail: str) -> str:
     """A failure as a reason rather than a traceback.
 

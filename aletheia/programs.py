@@ -774,7 +774,10 @@ def summary(record: dict, now: dt.datetime | None = None) -> dict:
         "waiting": waiting_rows,
         "decisions": [{"key": d["key"], "question": d["question"], "options": d.get("options") or [],
                        "wait": d.get("wait")} for d in decisions],
-        "questions": open_q if record.get("state") in (DRAFTING, DRAFT) else [],
+        # Open on a draft AND on a running mission: he may confirm before answering
+        # (rehearsed 2026-09-30, six questions open), and a question that vanished
+        # the moment he said yes would never be asked again by anything.
+        "questions": open_q,
         "needs_confirm": record.get("state") == DRAFT or bool(record.get("pending_revision")),
         "drafting": bool(record.get("needs_shape")),
         "drafting_blocked": ((record.get("shape") or {}).get("blocked") or (record.get("shape") or {}).get("failed"))
@@ -874,7 +877,12 @@ def spoken_status(which: str = "", *, now: dt.datetime | None = None) -> str:
             bits.append(f"{len(m['waiting'])} waiting")
         if m["decisions"]:
             bits.append(f"{speech.count_phrase(len(m['decisions']), 'decision')} for you")
-        parts.append(", ".join(bits) + ".")
+        line = ", ".join(bits) + "."
+        if m.get("questions"):
+            line += (f" {speech.count_phrase(len(m['questions']), 'question')} of yours"
+                     f" {'is' if len(m['questions']) == 1 else 'are'} still open; first, "
+                     f"{m['questions'][0].rstrip('.?!')}?")
+        parts.append(line)
     return " ".join(parts)
 
 

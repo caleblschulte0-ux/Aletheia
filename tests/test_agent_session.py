@@ -183,6 +183,35 @@ class TheLoop(unittest.TestCase):
         self.assertEqual(result.model_answer, "Everything is fine.")
 
 
+class WhatAFailedToolSays(unittest.TestCase):
+    """The first long mission (2026-09-30) heard "the tool failed (ComposeError)" for a refusal
+    written in English for him at the place it was raised. Her own error carries its reason;
+    a foreign exception, which says nothing he can act on, stays the one generic line."""
+
+    def _tool(self, handler):
+        return tools.declare("fails.now", description="x", input_schema={"properties": {}}, handler=handler,
+                             capability="test.fails")
+
+    def test_her_own_reason_is_what_he_hears(self):
+        from aletheia import compose
+        def boom(_args):
+            raise compose.ComposeError("CANNOT WRITE: I don't have his answers yet. Nothing was saved.")
+        outcome, result = s.execute(self._tool(boom), {})
+        self.assertEqual(outcome, "error")
+        self.assertIn("I don't have his answers yet", result["error"])
+        self.assertNotIn("ComposeError", result["error"])
+
+    def test_a_foreign_exception_stays_generic(self):
+        def boom(_args):
+            raise KeyError("generated_at")
+        outcome, result = s.execute(self._tool(boom), {})
+        self.assertEqual(outcome, "error")
+        self.assertEqual(result["error"], "the tool failed (KeyError)")
+        from aletheia import speech
+        self.assertEqual(speech.failure_words(RuntimeError("")), "the tool failed (RuntimeError)")
+        self.assertEqual(speech.failure_words(KeyError("k"), generic="it did not work"), "it did not work (KeyError)")
+
+
 class TheBrokerRefuses(unittest.TestCase):
     def test_an_unknown_tool_and_bad_arguments_are_refused_before_anything_runs(self):
         calls = []
