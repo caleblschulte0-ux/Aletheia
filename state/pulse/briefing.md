@@ -1,34 +1,34 @@
 # Fleet briefing
 
-Generated 2026-10-02T05:47:31Z from fleet registry rev 5 via GitHubSource.
+Generated 2026-10-02T12:45:51Z from fleet registry rev 5 via GitHubSource.
 
 ## 🟢 `Aletheia` — hub (active)
 
 The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.
 
-Last commit `e77988e417fb` at 2026-10-01T22:45:10Z: pulse: 2026-10-01T22:45Z
+Last commit `2705fed79f21` at 2026-10-02T05:47:45Z: pulse: 2026-10-02T05:47Z
 
 Watched workflows:
-- `pulse.yml`: in_progress at 2026-10-02T05:47:28Z
+- `pulse.yml`: in_progress at 2026-10-02T12:45:48Z
 - `ci.yml`: success at 2026-09-26T15:27:15Z
 
 ## 🔴 `Shorts-pipeline` — youtube-automation (active)
 
 Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.
 
-Last commit `36041f47f07a` at 2026-10-02T05:43:56Z: showrunner ledger schema 2: persist structured diagnosis + failure fingerprint; doctor recurrence census (#501)
+Last commit `69d8e5717155` at 2026-10-02T12:43:03Z: explainer: posted glacier-mass-loss-acceleration [skip ci]
 
-Vitals — trending posted: 400 · explainer posted: 288 · third posted: 754 · curiosity posted: 1
+Vitals — trending posted: 404 · explainer posted: 290 · third posted: 770 · curiosity posted: 1
 
 Watched workflows:
-- `daily.yml`: failure at 2026-10-01T12:16:54Z
-- `exchange_phase_a.yml`: success at 2026-10-02T05:44:19Z
-- `exchange_phase_b.yml`: success at 2026-10-01T19:39:03Z
-- `story_forge.yml`: in_progress at 2026-10-02T05:46:31Z
-- `third.yml`: success at 2026-10-01T17:57:04Z
-- `explainer.yml`: success at 2026-10-01T22:19:19Z
+- `daily.yml`: failure at 2026-10-02T12:32:22Z
+- `exchange_phase_a.yml`: success at 2026-10-02T12:27:52Z
+- `exchange_phase_b.yml`: success at 2026-10-02T11:32:09Z
+- `story_forge.yml`: success at 2026-10-02T11:12:02Z
+- `third.yml`: success at 2026-10-02T12:30:25Z
+- `explainer.yml`: pending at 2026-10-02T11:33:03Z
 - `retro.yml`: success at 2026-10-02T05:42:16Z
-- `doctor.yml`: success at 2026-10-02T05:30:59Z
+- `doctor.yml`: success at 2026-10-02T11:04:29Z
 
 ## 🟢 `schwab-trader` — trading-bot (active)
 
@@ -66,7 +66,7 @@ Last commit `41ea84afb060` at 2026-06-03T15:08:19Z: Initial commit
 
 - **Barkly** (`Money_Machine` @ `claude/barkley-mvp-mobile-qbegtj`, low risk): 0/8 steps; last human or builder commit 2026-09-23T14:39:43Z; next step 1 (thea): Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push
 - **Holdco platform** (`Money_Machine` @ `claude/ai-holdco-master-playbook-i5q80w`, low risk): 0/5 steps; last human or builder commit 2026-08-06T02:51:23Z; next step 1 (caleb): Pick the one offer to test first and write it as one sentence in docs/NEXT_OFFER.md on the holdco branch (or tell any Claude session to)
-- **Instagram Auto Post Setup** (`Aletheia` @ `live`, high risk): 0/4 steps; last human or builder commit 2026-10-01T22:45:10Z; next step 1 (caleb): Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business.
+- **Instagram Auto Post Setup** (`Aletheia` @ `live`, high risk): 0/4 steps; last human or builder commit 2026-10-02T05:47:45Z; next step 1 (caleb): Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business.
 - **Open Range demo films** (`Money_Machine` @ `claude/open-range-promo-video-4n7k7o`, low risk): 0/4 steps; last human or builder commit 2026-09-23T12:07:14Z; next step 1 (thea): Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open
 - **Schwab trader** (`schwab-trader` @ `main`, high risk): 0/5 steps; last human or builder commit 2026-10-01T23:46:23Z; next step 1 (caleb): Answer the sell approval waiting since June 26 (schwab-trader issue #5): comment approve, hold, or close it
 
