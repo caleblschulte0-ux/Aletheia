@@ -612,7 +612,7 @@ def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
     # never a dirty journal (the exact conflict that broke a real PC)
     # state/journal is no longer his: the PC writer lives in private state
     # (2026-09-03), so a checkpoint carries the intercom lane and nothing else.
-    syncer.commit(["exchange/commands"], "core: state checkpoint")
+    syncer.commit(["exchange/commands", "state/hunt"], "core: state checkpoint")
     prev_pull = status.get("pull")
     before = syncer.head()
     ok, detail = syncer.pull()
@@ -739,7 +739,7 @@ def core_tick(syncer: GitSync, fleet: dict, status: dict = SYNC_STATUS,
     # pending commits still ride out with the next receipt push.
     now_s = dt.datetime.now(dt.timezone.utc).timestamp()
     if not results and now_s - status.get("last_push_s", 0.0) < 600:
-        syncer.commit(["exchange/commands"], "core: state checkpoint")
+        syncer.commit(["exchange/commands", "state/hunt"], "core: state checkpoint")
         return status
     ok, detail = syncer.commit_push(
         ["exchange/commands"],

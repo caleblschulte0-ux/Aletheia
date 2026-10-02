@@ -164,15 +164,24 @@ def _job_hunt_lines() -> list[str]:
         from aletheia import current_state
         hunt = current_state.job_hunt() or {}
     except Exception:
-        return []
+        hunt = {}
     if not hunt.get("readable", True):
-        return []
+        hunt = {}
     today = hunt.get("today") or {}
     sent, replies = int(today.get("sent") or 0), int(today.get("replies") or 0)
     waiting = list(hunt.get("waiting_on_him") or [])
     ready, blocked = int(today.get("ready") or 0), int(today.get("blocked") or 0)
     if not (sent or replies or waiting or ready or blocked):
-        return []
+        # No records HERE - the brief is composed in the cloud and the
+        # records are on his PC. The PC publishes its counts
+        # (`hunt_funnel`), and until 2026-10-02 nothing read them: the
+        # brief had never once carried the job hunt.
+        try:
+            from aletheia import hunt_funnel
+            published = hunt_funnel.read()
+            return hunt_funnel.words(published) if published else []
+        except Exception:
+            return []
     out = ["## Job hunt"]
     names = [str(r.get("company") or "") for r in (hunt.get("sent_list") or []) if r.get("company")]
     out.append(f"- **{sent} sent** today" + (f": {', '.join(dict.fromkeys(names[:6]))}" if names else ""))

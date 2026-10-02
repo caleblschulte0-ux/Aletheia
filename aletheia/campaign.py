@@ -1502,6 +1502,24 @@ def _essay_facts() -> str:
 
 MAX_DRAFTS_PER_JOB = 4
 
+#: A "cover letter" box is not an essay question: two to four sentences in
+#: it reads as not bothering. Live until 2026-10-02 every textarea got the
+#: essay brief, cover-letter boxes included.
+_COVER_LETTER = re.compile(r"cover\s*letter|letter of (?:interest|motivation)|why (?:should we hire|you'?re a (?:good )?fit)",
+                           re.I)
+COVER_LETTER_BRIEF = (
+    "Write a short cover letter for this job application, in the applicant's own voice, "
+    "using ONLY what his resume below actually says and HIS FACTS below. 150 to 220 words, "
+    "three short paragraphs: why this role and this company (say plainly what the company "
+    "does and connect it to real work on his resume), the two or three most relevant things "
+    "he actually did (name real employers, products and results from the resume), and a plain "
+    "close. No greeting line with a name you do not have - 'Hello,' is fine. No filler, no "
+    "'I am passionate about', no claims of a language, certification, tool or figure the resume "
+    "does not show. NEVER write that he has no experience in something; say what he does bring "
+    "instead. Reply with the letter only, no subject line, no notes.\n\n"
+    "HIS FACTS: {facts}\n\nTHE JOB: {job}\n\n"
+    "THE BOX: {question}")
+
 
 def _any_model_writes(system_prompt: str, text: str, *,
                       timeout_s: float = 120.0) -> str:
@@ -1582,8 +1600,9 @@ def draft_essays(record: dict, resume_text: str, *, think=None) -> dict:
             # wrote Palantir an essay for `h-captcha-response`, keyed to be typed
             # straight into it on the next stage.
             continue
-        prompt = ESSAY_BRIEF.format(job=record.get("job_title") or record["url"],
-                                    question=question["label"], facts=facts)
+        brief = COVER_LETTER_BRIEF if _COVER_LETTER.search(str(question.get("label") or "")) else ESSAY_BRIEF
+        prompt = brief.format(job=record.get("job_title") or record["url"],
+                              question=question["label"], facts=facts)
         try:
             said = think(prompt, resume_text[:8000], timeout_s=120.0)
             if isinstance(said, tuple):
@@ -1593,7 +1612,7 @@ def draft_essays(record: dict, resume_text: str, *, think=None) -> dict:
         body = str(said or "").strip()
         if not body or body.upper().startswith("CANNOT WRITE"):
             continue
-        drafted[question["selector"]] = body[:2000]
+        drafted[question["selector"]] = body[:2600]
     return drafted
 
 

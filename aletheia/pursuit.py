@@ -795,7 +795,10 @@ def _do_note(record: dict, move: dict, now: dt.datetime) -> dict:
                            else "the note was for him, so he has it - nothing to send")}
     if address and ok:
         subject = detail.get("subject") or f"About {record['subject'].get('name', 'this')}"
-        draft = mail.draft(address, subject, detail["text"], requested_via="pursuit")
+        # Asks for his tap even under the outward hold: the hold is on what she
+        # sends on her own; a note he reads and taps is his (`mail.draft`).
+        draft = mail.draft(address, subject, detail["text"], requested_via="pursuit",
+                           asks_anyway=True, about=str(record.get("id") or ""))
         return {"state": "waiting for his yes", "handle": draft.get("id", ""),
                 "effect": f"drafted an email to {name}; it goes when he says yes (stands on {grounded})"}
     # Nobody to send it through: the words still reach him, as a suggestion.
