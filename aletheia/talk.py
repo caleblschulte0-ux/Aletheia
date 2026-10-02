@@ -71,6 +71,7 @@ SANDBOX_STORES = (
     ("aletheia.tasks", "TASKS_DIR", "tasks"),
     ("aletheia.plans", "PLANS_DIR", "plans"),
     ("aletheia.brief", "BRIEF_DIR", "brief"),
+    ("aletheia.hunt_funnel", "FUNNEL_PATH", "hunt/funnel.json"),
     ("aletheia.pulse", "PULSE_DIR", "pulse"),
     ("aletheia.mail", "MAIL_DIR", "mail"),
     ("aletheia.journal", "REPO_JOURNAL_DIR", "journal"),
@@ -124,6 +125,7 @@ SANDBOX_READ_ONLY = {
     ("aletheia.study_observe", "SOURCES_CONFIG"),
     ("aletheia.fleet", "DEFAULT_PATH"),
     ("aletheia.capabilities", "DEFAULT_PATH"),
+    ("aletheia.rulings", "DEFAULT_PATH"),
     ("aletheia.core", "INTERFACE_DIR"),
 }
 

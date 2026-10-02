@@ -4,6 +4,7 @@ between 1 p.m. and 2:30 p.m. Central Time. Preferably, or something close
 to that." Built OFF; on, it picks the slot, drafts a HELD reply (his other
 ruling that morning: drafts yes, sending not yet) and pencils the time in."""
 import datetime as dt
+import json
 import os
 import tempfile
 import unittest
@@ -35,6 +36,15 @@ class Isolated(unittest.TestCase):
                                     (journal, "JOURNAL_PATH", root / "journal.jsonl")):
             p = mock.patch.object(module, attr, value)
             p.start(); self.addCleanup(p.stop)
+
+
+def all_drafts() -> list[dict]:
+    """Every draft on disk, held or asking - the ledger lists held ones only."""
+    out = []
+    for path in sorted(mail.MAIL_DIR.glob("mail-*.json")):
+        if not path.name.endswith((".sent.json", ".refused.json")):
+            out.append(json.loads(path.read_text(encoding="utf-8")))
+    return out
 
 
 class ChoosingTheTime(unittest.TestCase):
@@ -86,14 +96,28 @@ class ChoosingTheTime(unittest.TestCase):
 
 
 class TheSwitch(Isolated):
-    def test_off_by_default_and_on_with_his_words(self):
-        self.assertFalse(interviews.status()["on"])
-        self.assertEqual(interviews.consider({}, {"id": "apply-1", "company": "Fin"}, subject="x"), {"state": "off"})
-        state = interviews.enable(quote="auto schedule an interview for me")
+    def test_off_by_default_without_a_ruling_and_on_with_his_words(self):
+        with mock.patch("aletheia.rulings.for_switch", return_value=None):
+            self.assertFalse(interviews.status()["on"])
+            self.assertEqual(interviews.consider({}, {"id": "apply-1", "company": "Fin"}, subject="x"), {"state": "off"})
+            state = interviews.enable(quote="auto schedule an interview for me")
+            self.assertTrue(state["on"])
+            self.assertEqual(state["window"], WINDOW)
+            self.assertIn("auto schedule", journal.JOURNAL_PATH.read_text(encoding="utf-8"))
+            self.assertFalse(interviews.disable()["on"])
+
+    def test_on_by_his_ruling_where_he_never_touched_the_switch(self):
+        """2026-10-02: nine days after "she'll just auto schedule an
+        interview for me", the switch was still off because nobody had
+        been at the keyboard. His ruling in config/rulings.json is the
+        default; his own hand at the keyboard still wins over it."""
+        state = interviews.status()
         self.assertTrue(state["on"])
+        self.assertEqual(state["ruled_by"], "interviews-on")
+        self.assertIn("scheduling me meetings", state["quote"])
         self.assertEqual(state["window"], WINDOW)
-        self.assertIn("auto schedule", journal.JOURNAL_PATH.read_text(encoding="utf-8"))
-        self.assertFalse(interviews.disable()["on"])
+        self.assertFalse(interviews.disable()["on"])        # his keyboard wins
+        self.assertNotIn("ruled_by", interviews.status())
 
     def test_the_window_is_his_to_move(self):
         state = interviews.set_window("14:00", "15:00")
@@ -121,18 +145,21 @@ class TheAct(Isolated):
             known={"full_name": "Caleb Schulte"})
         self.assertEqual(out["state"], "drafted")
         self.assertEqual(out["chosen"]["start"], at(23, 13, 30)["start"])
-        drafts = mail.held_drafts()
+        # The reply ASKS for his tap - "pending my approval, of course"
+        # (2026-09-13) - instead of waiting in silence where only "what have
+        # you drafted" finds it. Nothing goes without the tap.
+        self.assertEqual(mail.held_drafts(), [])
+        drafts = all_drafts()
         self.assertEqual(len(drafts), 1)
         self.assertEqual(drafts[0]["to"], "recruiter@fin.ai")
         self.assertEqual(drafts[0]["subject"], "Re: Interview - Fin")
         self.assertIn("Wednesday 1:30 PM Central works well", drafts[0]["body"])
-        with self.assertRaises(Exception):
-            policy.load(drafts[0]["id"])        # held: no approval exists to tap
+        self.assertEqual(policy.load(drafts[0]["id"])["state"], "PENDING")
         self.assertEqual(holds[0][1], "Interview: Fin")
         self.assertEqual(marks, [("apply-1", "interview", "asked for time; Wednesday 1:30 PM Central chosen")])
         self.assertEqual(notices[0][0], "Fin wants to talk")
         self.assertIn("I picked Wednesday 1:30 PM Central and pencilled it in", notices[0][1])
-        self.assertIn("drafted and held", notices[0][1])
+        self.assertIn("waiting for your tap", notices[0][1])
         self.assertEqual(notices[0][2]["related"]["draft"], drafts[0]["id"])
 
     def test_nothing_proposed_means_offers_and_no_hold(self):
@@ -147,7 +174,7 @@ class TheAct(Isolated):
         self.assertEqual(len(out["offers"]), 3)
         self.assertEqual(holds, [])
         self.assertIn("offered 3 in your window", notices[0])
-        self.assertIn("Wednesday 1 PM Central", mail.held_drafts()[0]["body"])
+        self.assertIn("Wednesday 1 PM Central", all_drafts()[0]["body"])
 
     def test_the_beat_hook_does_nothing_when_off(self):
         from aletheia import runtime
@@ -155,9 +182,11 @@ class TheAct(Isolated):
             runtime._consider_interview(self.EVENT, self.ENTRY, "Interview - Fin")
 
     def test_the_words_when_off_name_the_switch(self):
+        interviews.disable()
         self.assertIn("python -m aletheia.interviews on", interviews.spoken())
         interviews.enable()
         self.assertIn("1 PM to 2:30 PM Central", interviews.spoken())
+        self.assertIn("tap send", interviews.spoken())
 
 
 if __name__ == "__main__":

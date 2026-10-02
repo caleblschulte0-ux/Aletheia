@@ -66,6 +66,13 @@ CHECK_LIMIT = 5
 POLL_SEEN_LIMIT = 2_000
 POLL_MIN_INTERVAL_S = 300  # one IMAP login per 5 min is plenty; a login per
                            # Core beat got throttled by Gmail live 2026-08-26
+#: THE INBOX IS READ BY DATE, NOT BY THE UNREAD FLAG. Until 2026-10-02 the
+#: poll asked IMAP for UNSEEN only - and he reads his mail on his phone, so
+#: an employer's "are you free Thursday?" opened within five minutes of
+#: arriving was never seen by her at all: "she's not watching my inbox".
+#: Everything dated inside this window is looked at; the seen set (a
+#: fingerprint per message) keeps each one to a single event.
+POLL_LOOKBACK_S = 48 * 3600
 NETWORK_TIMEOUT_S = 15     # a hung socket must never hang the runtime
 
 
@@ -222,6 +229,11 @@ class MailError(RuntimeError):
 
 class MailTransport(Protocol):
     def fetch_unread(self, limit: int) -> list[dict]: ...
+
+    def fetch_since(self, since_epoch: float, limit: int) -> list[dict]:
+        """Headers of everything dated on or after a moment, read or unread.
+        Optional: a transport without it is polled by the unread flag."""
+        return self.fetch_unread(limit)
     def fetch_body(self, message_id: str) -> dict: ...
     def send(self, msg: EmailMessage) -> None: ...
 
@@ -378,6 +390,37 @@ class SmtpImapTransport:
             "text": _body_text(msg),
         }
 
+    def fetch_since(self, since_epoch: float, limit: int) -> list[dict]:
+        """Headers only, read or unread, dated on or after a moment. Read-only
+        (BODY.PEEK of the header). IMAP's SINCE is a whole day, so the exact
+        moment is applied by each message's own Date header."""
+        import imaplib
+        from email import message_from_bytes
+        floor = dt.datetime.fromtimestamp(float(since_epoch or 0), dt.timezone.utc)
+        out: list[dict] = []
+        with imaplib.IMAP4_SSL(self.cfg["imap_host"], timeout=NETWORK_TIMEOUT_S) as imap:
+            imap.login(self.cfg["address"], self.cfg["password"])
+            imap.select("INBOX", readonly=True)
+            _, data = imap.search(None, "SINCE", floor.strftime("%d-%b-%Y"))
+            ids = data[0].split()
+            for mid in reversed(ids[-max(1, int(limit)):]):
+                _, msg_data = imap.fetch(mid, "(BODY.PEEK[HEADER])")
+                msg = message_from_bytes(msg_data[0][1])
+                row = {"from": _header(msg, "From", "?"),
+                       "subject": _header(msg, "Subject", "(no subject)"),
+                       "date": msg.get("Date", ""),
+                       "message_id": msg.get("Message-ID", "")}
+                try:
+                    when = parsedate_to_datetime(str(row["date"]))
+                    if when.tzinfo is None or when.utcoffset() is None:
+                        when = when.replace(tzinfo=dt.timezone.utc)
+                    if when < floor:
+                        continue
+                except (TypeError, ValueError, OverflowError):
+                    pass
+                out.append(row)
+        return out
+
     def fetch_recent(self, since_epoch: float, limit: int = 25) -> list[dict]:
         """Messages dated on or after a moment, read or unread, WITH their text
         and links - for a browser mission waiting on a verification email.
@@ -469,7 +512,7 @@ def _stamp_ns() -> int:
 
 
 def draft(to: str, subject: str, body: str, requested_via: str = "voice", *, held: bool = False,
-          about: str = "") -> dict:
+          about: str = "", asks_anyway: bool = False) -> dict:
     """A draft, and the approval that sends it - or, `held`, a draft alone.
 
     His words, 2026-09-23: "she should be allowed to draft emails ...
@@ -484,8 +527,16 @@ def draft(to: str, subject: str, body: str, requested_via: str = "voice", *, hel
     drafts in order and a newer one about the same thing supersedes it.
     """
     on_hold = False
-    if not held and outward_hold()["on"]:
+    if not held and outward_hold()["on"] and not asks_anyway:
         held = on_hold = True
+    # `asks_anyway`: the hold is on what SHE sends on her own say-so. His
+    # words, 2026-09-13, about an employer writing back: "scheduling times
+    # for interviews, pending my approval, of course" - and 2026-10-02:
+    # "she's not ... scheduling me meetings ... Fix it." So a reply that
+    # answers an employer's ask for time, or a note the pursuit wants to
+    # send a person, files its APPROVAL under the hold: he reads the exact
+    # words on his phone and one tap is his say-so (`send_approved`). It is
+    # never held silently where only "what have you drafted" finds it.
     addr, name = resolve_address(to)
     if addr is None:
         # A QUESTION, not a command with three placeholders in it. She can
@@ -515,6 +566,8 @@ def draft(to: str, subject: str, body: str, requested_via: str = "voice", *, hel
     }
     if about:
         d["about"] = str(about)[:120]
+    if asks_anyway:
+        d["his_tap"] = True
     MAIL_DIR.mkdir(parents=True, exist_ok=True)
     if held:
         d["held"] = True
@@ -535,13 +588,23 @@ def draft(to: str, subject: str, body: str, requested_via: str = "voice", *, hel
     return d
 
 
+def _decided_after(approval: dict, draft_record: dict) -> bool:
+    """Was this approval decided AFTER the draft was written? A decision
+    from before the words existed is not a reading of them."""
+    decided = str(approval.get("decided_at") or "")
+    created = str(draft_record.get("created") or "")
+    return bool(decided) and bool(created) and decided >= created
+
+
 def send_approved(transport: MailTransport | None = None) -> list[dict]:
     if not MAIL_DIR.is_dir():
         return []
-    if outward_hold()["on"]:
-        # His ruling, not a switch of hers: an approved draft from before the
-        # hold waits with the rest until he lifts it at the keyboard.
-        return []
+    hold = outward_hold()["on"]
+    # His ruling, not a switch of hers: under the hold an approved draft
+    # from before it waits with the rest until he lifts it at the keyboard.
+    # The one thing that goes is a draft that ASKED for his tap under the
+    # hold (`his_tap`) and got it after it was written - a reply he read
+    # and said send to, which is his say-so and not hers.
     if (os.environ.get("ALETHEIA_REHEARSAL", "").strip().lower() in ("1", "true", "yes")
             and not getattr(transport, "rehearsal_safe", False)):
         # A sandbox that moves the files does not stop the email (CLAUDE.md):
@@ -561,6 +624,8 @@ def send_approved(transport: MailTransport | None = None) -> list[dict]:
         except Exception:
             continue
         if ap.get("state") == "PENDING":
+            continue
+        if hold and not (d.get("his_tap") and _decided_after(ap, d)):
             continue
         result = {"id": d["id"], "to_name": d.get("to_name", "?"), "subject": d["subject"]}
         sendable, why = policy.usable(d["id"])
@@ -781,7 +846,11 @@ def poll_events(limit: int = 50, transport: MailTransport | None = None) -> list
         except ValueError:
             pass
     driver = transport or SmtpImapTransport()
-    unread = driver.fetch_unread(limit)
+    since = getattr(driver, "fetch_since", None)
+    if callable(since):
+        unread = since(time.time() - POLL_LOOKBACK_S, limit)
+    else:
+        unread = driver.fetch_unread(limit)
     seen_order = [str(x) for x in state.get("seen", []) if isinstance(x, str)]
     if not state_exists:
         baseline = [_fingerprint(message) for message in unread]
@@ -829,7 +898,10 @@ def _observe(message: dict, fp: str) -> list[dict]:
     emitted = events.emit(
         "mail.received", f"email:{sender or 'unknown'}", f"{subject} — from {label}",
         source="mail", occurred_at=occurred,
-        attributes={"sender": sender, "fingerprint": fp[:24]},
+        attributes={"sender": sender, "fingerprint": fp[:24],
+                    # The body is read by this, later, read or unread:
+                    # `read_body` finds only UNREAD mail by subject.
+                    "message_id": str(message.get("message_id") or "")[:200]},
     )
     actions.append({"action": "received", "event": emitted["event"]["id"], "fingerprint": fp})
     if not sender:

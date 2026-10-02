@@ -66,6 +66,21 @@ adding architecture. The architecture build is finished
 
 ## Where it stands (kept honest, newest first)
 
+- **2026-10-02 — the inbox, the interview, and the funnel.** His words:
+  *"she's not watching my inbox, scheduling me meetings ... Fix it."* The
+  poll read UNSEEN mail only and he reads his mail on his phone, so she saw
+  almost nothing; replies were matched by subject alone; a decline was never
+  written down; interview scheduling was off by default and its reply held in
+  silence. Now the inbox is read by date, a reply is matched by the sender's
+  domain and the body, a recruiter he never applied to is heard, a decline is
+  recorded, interview scheduling is ON by his ruling (`config/rulings.json`,
+  his words on it, the grant created from them), a Calendly link is booked in
+  his window, and an emailed ask for time gets a chosen slot and a reply he
+  sends with one tap. The brief carries the hunt's counts for the first time
+  (`state/hunt/funnel.json`), and a cover-letter box gets a letter. What is
+  still his: the tap on each reply, and lifting the outward hold if he wants
+  her sending on her own.
+
 - **2026-09-23, overnight (his brief: "work nonstop through the night...
   hardening, more like Jarvis, handle more when the frontier models are out,
   UX, design like a designer").** What landed, each measured on his PC:
