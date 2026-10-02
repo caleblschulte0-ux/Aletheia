@@ -62,6 +62,13 @@ if not os.environ.get("ALETHEIA_LOCAL_LEASE_DIR"):
 if not os.environ.get("ALETHEIA_HUNT_FUNNEL"):
     os.environ["ALETHEIA_HUNT_FUNNEL"] = str(_suite_root / "hunt" / "funnel.json")
 
+# His rulings (config/rulings.json) make the Core's beat CREATE standing
+# grants. A grant created inside one runtime test's tick stayed live in this
+# shared root for every later test, and a calendar write approved itself.
+# The suite starts with no rulings; a test about them points at the real file.
+if not os.environ.get("ALETHEIA_RULINGS"):
+    os.environ["ALETHEIA_RULINGS"] = str(_suite_root / "rulings.json")
+
 from aletheia import policy  # noqa: E402  (ordering is the safety mechanism)
 policy.APPROVALS_DIR = _suite_root / "approvals"
 policy.HALT_PATH = _suite_root / "halt.json"

@@ -20,11 +20,18 @@ whatever any file says.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from aletheia.fleet import REPO_ROOT
 
-DEFAULT_PATH = REPO_ROOT / "config" / "rulings.json"
+#: The registry, bound from the environment so the suite can point at a
+#: file that does not exist: a ruling makes the beat CREATE a standing
+#: grant, and one created in a runtime test's tick stayed live for every
+#: later test in the process (a calendar write auto-approved itself in
+#: tests/test_calendar_provider.py). The sandbox reads the real one.
+DEFAULT_PATH = Path(os.environ.get("ALETHEIA_RULINGS") or (REPO_ROOT / "config" / "rulings.json"))
+REPO_RULINGS = REPO_ROOT / "config" / "rulings.json"
 SWITCHES = ("interviews",)
 
 

@@ -248,7 +248,8 @@ class AnEmployerIsKnownByItsDomainAndItsWords(unittest.TestCase):
 
 class HisRulingsAreData(unittest.TestCase):
     def test_the_interviews_ruling_carries_his_words(self):
-        ruling = rulings.for_switch("interviews")
+        with mock.patch.object(rulings, "DEFAULT_PATH", rulings.REPO_RULINGS):
+            ruling = rulings.for_switch("interviews")
         self.assertTrue(ruling["on"])
         self.assertEqual(ruling["window"]["timezone"], "America/Chicago")
         self.assertIn("Fix it", rulings.quote(ruling))
@@ -268,7 +269,8 @@ class HisRulingsAreData(unittest.TestCase):
 
     def test_the_beat_creates_the_interviews_grant_from_the_ruling_once(self):
         runtime._RULINGS_CHECKED["at"] = 0.0
-        with mock.patch("aletheia.interviews.status",
+        with mock.patch.object(rulings, "DEFAULT_PATH", rulings.REPO_RULINGS), \
+             mock.patch("aletheia.interviews.status",
                         return_value={"on": True, "window": {}, "ruled_by": "interviews-on", "quote": "q"}), \
              mock.patch("aletheia.standing.interviews_active", return_value=None), \
              mock.patch("aletheia.standing.interviews_enable", return_value={"id": "standing-interviews-1"}) as enable, \

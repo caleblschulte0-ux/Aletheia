@@ -126,6 +126,7 @@ SANDBOX_READ_ONLY = {
     ("aletheia.fleet", "DEFAULT_PATH"),
     ("aletheia.capabilities", "DEFAULT_PATH"),
     ("aletheia.rulings", "DEFAULT_PATH"),
+    ("aletheia.rulings", "REPO_RULINGS"),
     ("aletheia.core", "INTERFACE_DIR"),
 }
 

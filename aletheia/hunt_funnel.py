@@ -139,6 +139,8 @@ def words(funnel: dict, *, now: dt.datetime | None = None) -> list[str]:
 
     yesterday = days.get((today - dt.timedelta(days=1)).isoformat()) or {}
     week, month = window(7), window(30)
+    if not any(month.values()):
+        return []                      # no hunt to speak of is no section, not a row of zeros
     out = ["## Job hunt"]
     out.append(f"- **Yesterday:** {int(yesterday.get('sent') or 0)} sent, "
                f"{int(yesterday.get('replies') or 0)} heard back, {int(yesterday.get('interviews') or 0)} interview(s)")

@@ -111,13 +111,15 @@ class TheSwitch(Isolated):
         interview for me", the switch was still off because nobody had
         been at the keyboard. His ruling in config/rulings.json is the
         default; his own hand at the keyboard still wins over it."""
-        state = interviews.status()
-        self.assertTrue(state["on"])
-        self.assertEqual(state["ruled_by"], "interviews-on")
-        self.assertIn("scheduling me meetings", state["quote"])
-        self.assertEqual(state["window"], WINDOW)
-        self.assertFalse(interviews.disable()["on"])        # his keyboard wins
-        self.assertNotIn("ruled_by", interviews.status())
+        from aletheia import rulings
+        with mock.patch.object(rulings, "DEFAULT_PATH", rulings.REPO_RULINGS):
+            state = interviews.status()
+            self.assertTrue(state["on"])
+            self.assertEqual(state["ruled_by"], "interviews-on")
+            self.assertIn("scheduling me meetings", state["quote"])
+            self.assertEqual(state["window"], WINDOW)
+            self.assertFalse(interviews.disable()["on"])        # his keyboard wins
+            self.assertNotIn("ruled_by", interviews.status())
 
     def test_the_window_is_his_to_move(self):
         state = interviews.set_window("14:00", "15:00")
