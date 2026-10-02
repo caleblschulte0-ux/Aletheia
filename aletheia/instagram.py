@@ -128,15 +128,20 @@ STAGE_DIR = "thea-media"
 # page is the product — no developer words above the drawer).
 #
 # This USED to name three Meta steps. It does not any more, because on
-# 2026-09-25 those three turned out to be a door he cannot open: Meta refuses
-# to let his account create an app at all ("Your account must be confirmed
-# before you can create a new app"), on every device and every account he
-# owns, and its bug tool requires the developer account he is being refused.
-# Telling him to go and do the impossible thing is the worst sentence this
-# module could say, so the setup it names is the one that WORKS: one ordinary
-# Instagram sign-in, in her own browser, once.
-SETUP_API = ("Instagram's developer route isn't set up: it needs a Meta app and a token, and Meta "
-             "won't let your account make one.")
+# 2026-09-25 those three turned out to be a door he could not get through:
+# Business settings said "Your account must be confirmed before you can create
+# a new app", and developers.facebook.com, asked to create one, answered with
+# the "Create a Meta for Developers account" dialog stuck at its email-code
+# step. Read together (2026-10-01, from that day's own screens): his Facebook
+# account has NO developer registration yet, and the registration is the
+# thing that will not finish - the same loop dozens of people reported on
+# Meta's own forum that month, with no reply from Meta. It is not a device
+# check and it is not Instagram. Telling him to go and do the stuck thing is
+# the worst sentence this module could say, so the setup it names is the one
+# that WORKS today: one ordinary Instagram sign-in, in her own browser, once.
+# The three ways through Meta's door are on the setup page and in the charter.
+SETUP_API = ("Instagram's developer route isn't set up: it needs a Meta developer account, and "
+             "Meta's registration for yours is stuck at its verification step.")
 SETUP = ("Instagram isn't connected yet, and it's one sign-in: I'll open my own browser window at "
          "the Instagram login page, you sign in once, and I'm set from then on. Nothing to do with "
          "Meta, no developer account, no codes.")

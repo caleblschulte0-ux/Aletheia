@@ -5,14 +5,20 @@ seeing anywhere to do that and all this meta account and insta account and
 Facebook acount shit is so confusing your supposed to be doing this for me."*
 
 **Why this exists.** The Graph API route (`aletheia.instagram`) is built,
-tested and correct, and he cannot use it. Creating the Meta app it needs is
-refused at the account level — Meta's own words, read off his Business
-portfolio on 2026-09-25: *"Your account must be confirmed before you can
-create a new app. Please confirm your account by adding your mobile phone
-number or credit card."* That is why it failed on his phone, on his PC, and on
-every account he owns: it is not a device check, and no amount of retrying
-moves it. There is also nobody to appeal to — Meta's bug tool requires the
-developer account he cannot create.
+tested and correct, and he could not use it. Business settings said, in
+Meta's words, *"Your account must be confirmed before you can create a new
+app. Please confirm your account by adding your mobile phone number or credit
+card."* Read on 2026-10-01 from the same day's screens, that is Meta's
+DEVELOPER registration gate: developers.facebook.com, asked to create the app,
+answered with the "Create a Meta for Developers account" dialog stuck at its
+email-code step, and that registration is what would not finish - a loop
+dozens of people reported on Meta's own forum in September 2026 with no reply
+from Meta. Not a device check, not Instagram, and the same on every device
+because it is the account's registration state. The ways through (finish the
+registration over mobile data, a payment method on the account, or a friend's
+developer account adding @lieutenantmemestrong as an Instagram tester) are on
+the setup page and in the charter; `instagram.route()` hands back to the API
+the moment a token exists.
 
 So this is the same capability through the door that is actually open:
 instagram.com's own "Create new post", driven in HER dedicated browser profile
