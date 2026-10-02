@@ -18,12 +18,18 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 import time
+from pathlib import Path
 
 from aletheia import stateio
 from aletheia.fleet import REPO_ROOT
 
-FUNNEL_PATH = REPO_ROOT / "state" / "hunt" / "funnel.json"
+#: Repo-anchored on purpose (the checkpoint commit carries it), which is
+#: why the suite and the sandbox must point it elsewhere: the first full
+#: run wrote a funnel of test rows into the real repository
+#: (`tests/__init__.py` sets the variable; `talk.SANDBOX_STORES` moves it).
+FUNNEL_PATH = Path(os.environ.get("ALETHEIA_HUNT_FUNNEL") or (REPO_ROOT / "state" / "hunt" / "funnel.json"))
 DAYS = 30
 PUBLISH_EVERY_S = 1800.0
 _LAST: dict = {"at": 0.0}

@@ -56,6 +56,12 @@ if not os.environ.get("ALETHEIA_JOURNAL_PATH"):
 if not os.environ.get("ALETHEIA_LOCAL_LEASE_DIR"):
     os.environ["ALETHEIA_LOCAL_LEASE_DIR"] = str(_suite_root / "locks")
 
+# The job hunt's published funnel is repo-anchored on purpose (the Core's
+# checkpoint commit carries it to the brief). The first full run wrote a
+# funnel of test rows into the real repository; it binds from this variable.
+if not os.environ.get("ALETHEIA_HUNT_FUNNEL"):
+    os.environ["ALETHEIA_HUNT_FUNNEL"] = str(_suite_root / "hunt" / "funnel.json")
+
 from aletheia import policy  # noqa: E402  (ordering is the safety mechanism)
 policy.APPROVALS_DIR = _suite_root / "approvals"
 policy.HALT_PATH = _suite_root / "halt.json"
