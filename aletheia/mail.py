@@ -579,8 +579,14 @@ def draft(to: str, subject: str, body: str, requested_via: str = "voice", *, hel
                        + (" (outward mail is on hold)" if on_hold else ""), actor=ACTOR)
         return d
     (MAIL_DIR / f"{d['id']}.json").write_text(json.dumps(d, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    # A reply he taps is decided from the row on his phone, so the row
+    # carries the gist of what it says, not only who it is to.
+    gist = ""
+    if asks_anyway:
+        from aletheia import speech
+        gist = " - " + speech.shorten(" ".join(d["body"].split()), 140)
     policy.request(d["id"], f"email.send:{_draft_sha(d)}",
-                   reason=f"send email {subject!r} to {name}",
+                   reason=f"send email {subject!r} to {name}{gist}",
                    consequence="the message is sent in Caleb's name and cannot be recalled",
                    reversible=False, capability="email.send")
     journal.append("action", "mail:draft",
