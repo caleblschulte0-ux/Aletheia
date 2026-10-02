@@ -35,7 +35,10 @@ class AStoryIsOneRow(unittest.TestCase):
         rows = [_n(1, "An idea for Stripe", "pursuit:opp-1:idea"), _n(2, "Reminder"),
                 _n(3, "An idea for Ramp", "pursuit:opp-2:idea"), _n(4, "An idea for Vanta", "pursuit:opp-3:idea"),
                 _n(5, "Application sent"), _n(6, "Application sent")]
-        out = notifications.folded(rows)
+        # The fixture is dated 2026-09-24, so the clock is too: a week later
+        # every row was "older than a week" and folded into the stale row
+        # (CLAUDE.md: a frozen date next to a moving fixture).
+        out = notifications.folded(rows, now="2026-09-24T12:00:00Z")
         self.assertEqual([r["id"] for r in out], ["notice-0001", "notice-0002", "notice-0005", "notice-0006"])
         idea = out[0]
         self.assertEqual((idea["count"], idea["ids"]), (3, ["notice-0001", "notice-0003", "notice-0004"]))
