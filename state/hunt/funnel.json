@@ -1,0 +1,183 @@
+{
+  "days": {
+    "2026-09-12": {
+      "filled": 26,
+      "found": 40,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 0,
+      "sent": 24
+    },
+    "2026-09-13": {
+      "filled": 48,
+      "found": 69,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 0,
+      "sent": 43
+    },
+    "2026-09-14": {
+      "filled": 34,
+      "found": 41,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 0,
+      "sent": 30
+    },
+    "2026-09-15": {
+      "filled": 1,
+      "found": 3,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 0,
+      "sent": 1
+    },
+    "2026-09-16": {
+      "filled": 16,
+      "found": 16,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 0,
+      "sent": 8
+    },
+    "2026-09-17": {
+      "filled": 19,
+      "found": 22,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 0,
+      "sent": 10
+    },
+    "2026-09-18": {
+      "filled": 21,
+      "found": 27,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 0,
+      "sent": 3
+    },
+    "2026-09-19": {
+      "filled": 15,
+      "found": 34,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 0,
+      "sent": 5
+    },
+    "2026-09-20": {
+      "filled": 10,
+      "found": 12,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 0,
+      "sent": 0
+    },
+    "2026-09-21": {
+      "filled": 28,
+      "found": 35,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 0,
+      "sent": 0
+    },
+    "2026-09-22": {
+      "filled": 18,
+      "found": 65,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 4,
+      "sent": 33
+    },
+    "2026-09-23": {
+      "filled": 28,
+      "found": 60,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 7,
+      "sent": 26
+    },
+    "2026-09-24": {
+      "filled": 4,
+      "found": 16,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 4,
+      "sent": 3
+    },
+    "2026-09-25": {
+      "filled": 7,
+      "found": 9,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 0,
+      "sent": 6
+    },
+    "2026-09-26": {
+      "filled": 6,
+      "found": 21,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 0,
+      "sent": 5
+    },
+    "2026-09-27": {
+      "filled": 13,
+      "found": 23,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 1,
+      "sent": 7
+    },
+    "2026-09-28": {
+      "filled": 13,
+      "found": 25,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 2,
+      "sent": 5
+    },
+    "2026-09-29": {
+      "filled": 8,
+      "found": 22,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 1,
+      "sent": 5
+    },
+    "2026-09-30": {
+      "filled": 6,
+      "found": 16,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 2,
+      "sent": 3
+    },
+    "2026-10-01": {
+      "filled": 10,
+      "found": 15,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 1,
+      "sent": 4
+    },
+    "2026-10-02": {
+      "filled": 9,
+      "found": 9,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 0,
+      "sent": 0
+    }
+  },
+  "generated_at": "2026-10-02T13:56:18Z",
+  "sent_all_time": 221,
+  "totals": {
+    "filled": 340,
+    "found": 580,
+    "interviews": 0,
+    "rejections": 0,
+    "replies": 22,
+    "sent": 221
+  },
+  "window_days": 30
+}
