@@ -161,19 +161,19 @@
       "sent": 4
     },
     "2026-10-02": {
-      "filled": 17,
-      "found": 18,
+      "filled": 18,
+      "found": 19,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 3
     }
   },
-  "generated_at": "2026-10-03T02:09:10Z",
+  "generated_at": "2026-10-03T02:39:37Z",
   "sent_all_time": 224,
   "totals": {
-    "filled": 346,
-    "found": 587,
+    "filled": 347,
+    "found": 588,
     "interviews": 0,
     "rejections": 0,
     "replies": 22,
