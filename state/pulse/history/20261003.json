@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-03T16:27:26Z",
+  "generated_at": "2026-10-03T21:23:34Z",
   "fleet_revision": 5,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -10,6 +10,11 @@
       "status": "active",
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
+        {
+          "sha": "6c21bfacfa65",
+          "date": "2026-10-03T16:27:45Z",
+          "message": "pulse: 2026-10-03T16:27Z"
+        },
         {
           "sha": "d614489002d8",
           "date": "2026-10-03T15:01:18Z",
@@ -29,25 +34,20 @@
           "sha": "e37f624b2d2e",
           "date": "2026-10-03T03:49:46Z",
           "message": "core: state checkpoint"
-        },
-        {
-          "sha": "d44cdf4018e7",
-          "date": "2026-10-03T02:48:37Z",
-          "message": "core: state checkpoint"
         }
       ],
       "commit": {
-        "sha": "d614489002d8",
-        "date": "2026-10-03T15:01:18Z",
-        "message": "brief: 2026-10-03"
+        "sha": "6c21bfacfa65",
+        "date": "2026-10-03T16:27:45Z",
+        "message": "pulse: 2026-10-03T16:27Z"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-10-03T16:27:23Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/37136907952"
+          "updated_at": "2026-10-03T21:23:31Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/37154934330"
         },
         "ci.yml": {
           "status": "completed",
@@ -59,7 +59,7 @@
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 21117
+          "bytes": 20900
         }
       },
       "health": "green"
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "93627b3dd565",
-          "date": "2026-10-03T16:15:23Z",
-          "message": "watchdog: chatgpt task verdicts 20261003 [skip ci]"
+          "sha": "cdee466c26e0",
+          "date": "2026-10-03T21:14:54Z",
+          "message": "explainer: update posted log + analytics [skip ci]"
         },
         {
-          "sha": "79e8a51f76d2",
-          "date": "2026-10-03T15:47:48Z",
-          "message": "claim: mailbox verdicts 2026-10-03T15:47Z [skip ci]"
+          "sha": "faeec2b615c1",
+          "date": "2026-10-03T20:48:01Z",
+          "message": "claim: mailbox verdicts 2026-10-03T20:48Z [skip ci]"
         },
         {
-          "sha": "28d3cc22b4c2",
-          "date": "2026-10-03T15:31:01Z",
-          "message": "watchdog: chatgpt task verdicts 20261003 [skip ci]"
+          "sha": "3302ab66bf88",
+          "date": "2026-10-03T20:03:43Z",
+          "message": "claim: mailbox verdicts 2026-10-03T20:03Z [skip ci]"
         },
         {
-          "sha": "80f74eb6d386",
-          "date": "2026-10-03T15:12:59Z",
-          "message": "third: analytics [skip ci]"
+          "sha": "0bb8e3bdcf87",
+          "date": "2026-10-03T19:47:46Z",
+          "message": "claim: mailbox verdicts 2026-10-03T19:47Z [skip ci]"
         },
         {
-          "sha": "d3f490dc23ef",
-          "date": "2026-10-03T15:12:48Z",
-          "message": "third: update posted log + analytics [skip ci]"
+          "sha": "f58b92ca6562",
+          "date": "2026-10-03T19:13:06Z",
+          "message": "explainer: update posted log + analytics [skip ci]"
         }
       ],
       "commit": {
-        "sha": "93627b3dd565",
-        "date": "2026-10-03T16:15:23Z",
-        "message": "watchdog: chatgpt task verdicts 20261003 [skip ci]"
+        "sha": "cdee466c26e0",
+        "date": "2026-10-03T21:14:54Z",
+        "message": "explainer: update posted log + analytics [skip ci]"
       },
       "vitals": [
         {
@@ -136,14 +136,14 @@
         "exchange_phase_b.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-03T14:46:04Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37130778552"
+          "updated_at": "2026-10-03T18:04:26Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37142827837"
         },
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-03T10:29:47Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37116486066"
+          "updated_at": "2026-10-03T20:01:05Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37149861834"
         },
         "third.yml": {
           "status": "completed",
@@ -154,8 +154,8 @@
         "explainer.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-03T15:06:18Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37128152659"
+          "updated_at": "2026-10-03T21:15:02Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37149264756"
         },
         "retro.yml": {
           "status": "completed",
@@ -189,7 +189,7 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 2534820
+          "bytes": 2605279
         },
         "config/channel_registry.json": {
           "exists": true,
@@ -438,7 +438,7 @@
           "text": "Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business."
         },
         "hers": null,
-        "last_progress_at": "2026-10-03T15:01:18Z",
+        "last_progress_at": "2026-10-03T16:27:45Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": []
