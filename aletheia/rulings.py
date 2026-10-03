@@ -32,7 +32,8 @@ from aletheia.fleet import REPO_ROOT
 #: tests/test_calendar_provider.py). The sandbox reads the real one.
 DEFAULT_PATH = Path(os.environ.get("ALETHEIA_RULINGS") or (REPO_ROOT / "config" / "rulings.json"))
 REPO_RULINGS = REPO_ROOT / "config" / "rulings.json"
-SWITCHES = ("interviews",)
+#: The switches a ruling may set. Add one only with his words in the file.
+SWITCHES = ("interviews", "discovery")
 
 
 def load(path: Path | None = None) -> list[dict]:

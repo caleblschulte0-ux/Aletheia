@@ -9,6 +9,7 @@ to do about an opportunity - that is the reasoner's, per opportunity.
 from __future__ import annotations
 
 import datetime as dt
+import re
 
 from aletheia import journal, pursuit
 
@@ -35,6 +36,16 @@ PROFILE_FACTS = ("current_title", "current_employer", "school", "degree", "field
 #: What an employer's subject line says, in the sent ledger's own outcome
 #: words, and what that is for the opportunity.
 REPLY_OUTCOMES = {"wants_time": "conversation", "rejected": "declined", "noted": "replied"}
+#: Days after a sent application with no word from them at which silence is
+#: written down as evidence - so the reasoner DECIDES about a follow-up,
+#: instead of a rule sending "follow-up #2". Two marks, each once.
+SILENCE_DAYS = (8, 21)
+#: Who the person finder looks for when the reasoner names nobody in particular.
+PEOPLE_WORDS = ("talent", "recruit", "hiring", "people", "head of", "director", "founder", "vp", "chief")
+#: Words in a role's title that are the role, not the department.
+_TITLE_NOISE = frozenset("""manager lead senior junior associate specialist coordinator representative rep
+    director head vp vice president chief officer analyst executive assistant intern staff principal of the
+    and for at remote hybrid us usa""".split())
 _DECLINE_WORDS = ("unfortunately", "not moving forward", "not be moving forward", "other candidates",
                   "not selected", "decided not to", "no longer under consideration", "regret to")
 
@@ -157,6 +168,18 @@ def open_from_application(record: dict, *, now: dt.datetime | None = None,
         same = _same_employer(record)
         if same:
             pursuit.add_evidence(opp, "history with them", same, source="applications", now=now)
+        # The case already made for him (`job_angle`): verbatim pairs of what
+        # they ask and what he has, so the reasoner after the form starts
+        # from it instead of finding it again. TRUSTED: every half was checked
+        # against the posting and the resume in code.
+        try:
+            from aletheia import job_angle
+            case = job_angle.evidence_text(record.get("angle"))
+        except Exception:
+            case = ""
+        if case:
+            pursuit.add_evidence(opp, "the case for him", case,
+                                 source="her reading of the posting beside his resume", now=now)
         pursuit.save(opp)
     return opp
 
@@ -199,6 +222,9 @@ def reconcile(records: list[dict], *, now: dt.datetime | None = None) -> list[st
         if not record:
             continue
         state = str(record.get("state") or "")
+        if _silence(opp, record, now=now):
+            changed.append(opp["id"])
+            continue
         if state in OVER_STATES:
             pursuit.record_outcome(opp["id"], OVER_STATES[state],
                                    note=f"the application is {state.lower()}", now=now)
@@ -213,6 +239,35 @@ def reconcile(records: list[dict], *, now: dt.datetime | None = None) -> list[st
                 pursuit.save(fresh)
             changed.append(opp["id"])
     return changed
+
+
+def _silence(opp: dict, record: dict, *, now: dt.datetime) -> bool:
+    """Write "no word from them N days in" onto a sent application's
+    opportunity, once per mark. True when something was written."""
+    if str(record.get("state") or "") != "SUBMITTED" or record.get("outcome") or record.get("outcomes"):
+        return False
+    sent = pursuit._parse(str(record.get("submitted_at") or ""))
+    if sent is None:
+        return False
+    days = (now - sent).days
+    due = [n for n in SILENCE_DAYS if days >= n]
+    if not due:
+        return False
+    top = max(due)
+    noted = set()
+    for row in opp.get("evidence") or []:
+        if row.get("kind") != "silence":
+            continue
+        for n in SILENCE_DAYS:
+            if f"{n} days" in str(row.get("text") or ""):
+                noted.add(n)
+    if top in noted or any(n > top for n in noted):
+        return False
+    pursuit.observe(opp["id"], "silence",
+                    f"No word from them {top} days after the application went in "
+                    f"({str(record.get('submitted_at'))[:10]}).",
+                    source="his inbox", provenance=pursuit.TRUSTED, now=now)
+    return True
 
 
 def decline_words(subject: str) -> bool:
@@ -246,7 +301,64 @@ def heard_back(application_id: str, subject: str, outcome: str, *,
     kind = REPLY_OUTCOMES.get(outcome)
     if kind:
         opp = pursuit.record_outcome(oid, kind, note=subject[:140], now=now)
+    if kind == "conversation":
+        # The brief: "If Caleb gets an interview: the objective changes from
+        # getting noticed to maximizing interview performance."
+        name = _name(record)
+        opp = pursuit.set_objective(
+            oid, f"Do well in the conversation with {record.get('company') or 'them'} about {name}: "
+                 "understand what they do and what the role needs, prepare him for it, and keep the thread warm",
+            because=f"they wrote: {subject[:80]}", now=now)
     return opp
+
+
+def _title_words(name: str) -> list[str]:
+    """The department words of a role's title: "Partnerships Manager" -> partnerships."""
+    return [w for w in re.findall(r"[a-z]+", str(name or "").casefold()) if w not in _TITLE_NOISE and len(w) > 2]
+
+
+def _find_people(record: dict, who: str) -> list[dict]:
+    """The person finder, pointed at this opportunity's organisation: the
+    posting and what she has read, the organisation's own site, a search."""
+    from aletheia import employers, people_finder, research
+    subject = record.get("subject") or {}
+    company = str(subject.get("organisation") or "")
+    domain = employers.domain_of(str(subject.get("posting") or subject.get("url") or ""))
+    if not domain and company:
+        try:
+            about = employers.about(company) or {}
+        except Exception:
+            about = {}
+        domain = next((d for d in (about.get("domains") or []) if d), "") or str(about.get("domain") or "")
+    words = _title_words(who) + _title_words(subject.get("name", "")) + list(PEOPLE_WORDS)
+    seen, title_words = set(), []
+    for w in words:
+        if w not in seen:
+            seen.add(w)
+            title_words.append(w)
+    texts = [(f"{e.get('kind')} ({e.get('source') or '?'})", e.get("text", ""))
+             for e in record.get("evidence") or [] if e.get("kind") in ("posting", "looked")]
+    return people_finder.find_at(company, domain=domain, title_words=title_words, texts=texts,
+                                 search=research.http_search)
+
+
+def _find_person(record: dict, move: dict, now: dt.datetime) -> dict:
+    """The `find_person` door: people land on the record and as evidence, so
+    the next pass can write to somebody by name. Nothing is sent."""
+    from aletheia import people_finder
+    who = str((move.get("detail") or {}).get("who") or "")
+    people = _find_people(record, who)
+    if not people:
+        return {"state": "done", "effect": "looked for a person to write to and found nobody by name"}
+    held = {(p.get("name") or p.get("email") or "").casefold() for p in record.get("people") or []}
+    new = [p for p in people if (p.get("name") or p.get("email") or "").casefold() not in held]
+    record.setdefault("people", []).extend(new)
+    eid = pursuit.add_evidence(record, "people", people_finder.said(people),
+                               source="what the organisation publishes", provenance=pursuit.UNTRUSTED, now=now)
+    named = [p for p in people if p.get("name")]
+    said = ", ".join(f"{p['name']} ({p.get('title') or '?'})" + (" with an address" if p.get("email") else "")
+                     for p in named[:3]) or f"a shared inbox: {people[0].get('email')}"
+    return {"state": "done", "evidence": eid, "effect": f"found {said}", "people": new}
 
 
 def _submit(record: dict, move: dict, now: dt.datetime) -> dict:
@@ -267,6 +379,7 @@ def _submit(record: dict, move: dict, now: dt.datetime) -> dict:
 
 def register() -> None:
     pursuit.DOERS["submit"] = _submit
+    pursuit.DOERS["find_person"] = _find_person
 
 
 register()

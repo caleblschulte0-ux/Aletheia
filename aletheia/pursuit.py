@@ -71,13 +71,15 @@ MOVES = {
                        "yes": True},
     "write": {"does": "write a document (an analysis, a short piece, a page) into her workspace for him to use or send",
               "yes": False},
+    "find_person": {"does": "look for a named person at the organisation who is connected to this opportunity, and a way to reach them, from what the organisation publishes; a note needs somebody by name",
+                    "yes": False},
     "wait": {"does": "decide a date to look at this again, and why", "yes": False},
     "leave": {"does": "nothing else would help; leave it until something happens", "yes": False},
     "close": {"does": "stop pursuing it, with the reason", "yes": False},
     "suggest": {"does": "something she cannot do herself but thinks would help; he hears it", "yes": True},
 }
 #: Moves she may carry out without him (the reversible half).
-UNATTENDED_MOVES = ("look", "write", "wait", "leave", "close")
+UNATTENDED_MOVES = ("look", "write", "find_person", "wait", "leave", "close")
 #: A move's `why` shorter than this is not a reason.
 MIN_WHY_CHARS = 12
 MAX_MOVES_PER_PASS = 4
@@ -254,6 +256,31 @@ def observe(oid: str, kind: str, text: str, *, source: str = "", provenance: str
     return record
 
 
+def set_objective(oid: str, objective: str, *, because: str = "", now: dt.datetime | None = None) -> dict:
+    """The situation changed, so the objective does: the brief's "if he gets
+    a conversation, the objective changes from getting noticed to doing well
+    in it". The opportunity persists; what it is FOR moves. Due at once."""
+    now = _now(now)
+    objective = " ".join(str(objective or "").split())
+    if not objective:
+        raise PursuitError("an objective needs words")
+    with _LOCK:
+        record = load(oid)
+        before = record.get("objective", "")
+        if objective == before:
+            return record
+        record["objective"] = objective
+        record["strategy"] = ""
+        if record["state"] == PARKED:
+            record["state"] = OPEN
+        record["next_look"] = {"at": _stamp(now), "because": "the objective changed"}
+        record["history"].append({"at": _stamp(now), "what": f"objective changed: {objective}"[:220]
+                                  + (f" ({because})" if because else "")})
+        save(record)
+    journal.append("event", f"opportunity:{oid}", f"the objective is now: {objective[:160]}", actor=ACTOR)
+    return record
+
+
 def record_outcome(oid: str, kind: str, *, note: str = "", now: dt.datetime | None = None) -> dict:
     if kind not in OUTCOMES:
         raise PursuitError(f"an outcome is one of {', '.join(OUTCOMES)}")
@@ -324,6 +351,9 @@ Rules:
   sentence in the strategy: a brief to write is a "write" move, a page to
   check is a "look", something only he can do is a "suggest". Never assign
   him a chore in prose; the strategy is the hypothesis, not a to-do list.
+- A note goes to a NAMED person listed under people, with an address where
+  one is known. Nobody there yet and a note would help: "find_person" first,
+  saying who (the kind of person, the team). Never address a note to a role.
 
 Answer with ONE JSON object:
 {"understanding": "<what this situation is, in a few sentences>",
@@ -335,7 +365,7 @@ Answer with ONE JSON object:
             "detail": {<per kind: look: {"question", "url" or "query"};
                        note_to_person: {"to", "subject", "text", "grounded_on": [ids]};
                        write: {"title", "text", "grounded_on": [ids]};
-                       wait: {"days", "for"}; suggest: {"idea"}; others: {}>}}],
+                       find_person: {"who"}; wait: {"days", "for"}; suggest: {"idea"}; others: {}>}}],
  "stop": {"done": <true if nothing more is worth doing now>, "why": "<why>"}}
 """
 
@@ -514,6 +544,10 @@ def validate(proposal: dict, record: dict, *, quoting: bool = False) -> tuple[di
                 continue
             move["detail"] = {"title": title, "text": text, "grounded_on": grounded}
             target = f"write:{title.casefold()}"
+        elif kind == "find_person":
+            who = _clean(detail.get("who") or why, 200)
+            move["detail"] = {"who": who}
+            target = f"find_person:{who[:60].casefold()}"
         elif kind == "wait":
             try:
                 days = max(1, min(30, int(float(detail.get("days", 3)))))
@@ -905,7 +939,7 @@ def act(oid: str, move_id: str, *, doers: dict | None = None, now: dt.datetime |
         fresh = load(oid)
         # the doer may have changed the record in memory (state, next_look,
         # evidence); carry those, then stamp the move
-        for key in ("state", "next_look", "outcome", "evidence"):
+        for key in ("state", "next_look", "outcome", "evidence", "people"):
             fresh[key] = record.get(key, fresh.get(key))
         for stored in fresh["moves"]:
             if stored["id"] == move_id:
