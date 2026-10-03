@@ -181,6 +181,111 @@
       "provider": "lever",
       "token": "ro",
       "company": "Ro"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "a24",
+      "company": "A24"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "riotgames",
+      "company": "Riot Games"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "roblox",
+      "company": "Roblox"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "twitch",
+      "company": "Twitch"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "epicgames",
+      "company": "Epic Games"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "barstoolsports",
+      "company": "Barstool Sports"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "crunchyroll",
+      "company": "Crunchyroll"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "roku",
+      "company": "Roku"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "voxmedia",
+      "company": "Vox Media"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "axios",
+      "company": "Axios"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "crookedmedia",
+      "company": "Crooked Media"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "fandom",
+      "company": "Fandom"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "whalar",
+      "company": "Whalar"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "spotter",
+      "company": "Spotter"
+    },
+    {
+      "provider": "greenhouse",
+      "token": "airbnb",
+      "company": "Airbnb"
+    },
+    {
+      "provider": "lever",
+      "token": "skydance",
+      "company": "Skydance"
+    },
+    {
+      "provider": "ashby",
+      "token": "mubi",
+      "company": "MUBI"
+    },
+    {
+      "provider": "ashby",
+      "token": "philo",
+      "company": "Philo"
+    },
+    {
+      "provider": "ashby",
+      "token": "notion",
+      "company": "Notion"
+    },
+    {
+      "provider": "ashby",
+      "token": "patreon",
+      "company": "Patreon"
+    },
+    {
+      "provider": "ashby",
+      "token": "substack",
+      "company": "Substack"
     }
   ]
 }
