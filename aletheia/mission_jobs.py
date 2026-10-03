@@ -219,9 +219,19 @@ def why_not_sent(record: dict, *, stage: str, approval_state: str = "", his_ok: 
 
 
 def why_this_one(record: dict) -> dict | None:
-    """"Why this one?" from `job_value`'s reasons, else the fit judgement."""
+    """"Why this one?" from the angle a model found (`job_angle`), else
+    `job_value`'s reasons, else the fit judgement."""
     liked = [str(x) for x in (record.get("why_she_liked_it") or []) if str(x).strip()]
     against = [str(x) for x in (record.get("why_not") or []) if str(x).strip()]
+    angle = record.get("angle")
+    if isinstance(angle, dict) and (angle.get("angle") or angle.get("lead_with")):
+        from aletheia import job_angle
+        pairs = [f"they ask for {p['they_ask']}; he has {p['he_has']}" for p in angle.get("lead_with") or []]
+        return {"said": _words(job_angle.spoken(angle) or angle.get("why"), 400),
+                "liked": (pairs + liked)[:6],
+                "against": ([f"not shown on his resume: {w}" for w in angle.get("watch_out") or []] + against)[:4],
+                "value": record.get("value"), "queue": record.get("queue") or "",
+                "worth": angle.get("worth"), "source": "angle"}
     if liked or against:
         from aletheia import job_value
         return {"said": job_value.why(record), "liked": liked[:6], "against": against[:4],

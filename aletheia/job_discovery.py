@@ -841,7 +841,21 @@ def settings_path():
 
 
 def lets_discovery_choose() -> bool:
-    return _read_json(settings_path()).get("choose") is True
+    """His own hand at the keyboard (the settings file) wins; where he has
+    never touched it, his RULING in `config/rulings.json` is the default.
+    2026-10-03, his words: "the jobs they're applying for ... what maximizes
+    the chance of me getting this job" - and the ranking that answers that
+    had been built on 2026-09-16 and switched off ever since, because nobody
+    had been at the keyboard. No ruling file, or a broken one: off."""
+    raw = _read_json(settings_path())
+    if "choose" in raw:
+        return raw.get("choose") is True
+    try:
+        from aletheia import rulings
+        ruled = rulings.for_switch("discovery")
+    except Exception:
+        return False
+    return bool(ruled and ruled.get("on"))
 
 
 def set_discovery_choose(on: bool, *, by: str) -> dict:

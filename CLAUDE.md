@@ -1390,6 +1390,73 @@ carries them, and `brief._job_hunt_lines` reads them when it has no records
 of its own. "Is she doing a good job" is a question the funnel answers;
 until it did, nobody could.
 
+## Every application is its own problem, and the thinking starts before the form
+
+His words, 2026-10-03, the morning after the inbox fix: *"It's so much more
+stuff than this ... the jobs they're applying for, the follow ups, the
+quality of the application, the everything. This needs to not just be
+Python code that applies for jobs. This needs to be an AI whose every
+thought of every job application is how, what maximizes the chance of me
+getting this job."* Read against the code that morning he was right, and
+every gap had the same shape - the brief (`docs/PURSUIT_BRIEF.md`) said
+"reason job by job" and the only reasoning before a form was filled was a
+yes-or-no:
+
+- **The angle comes before the form** (`aletheia/job_angle.py`). Once a
+  job is realistic, a model reads the posting beside his resume and says
+  what makes HIM the candidate for THIS one: two to four pairs of what
+  they ask and what he has, the gaps to address honestly, and how good a
+  shot it is. **Both halves of every pair are verbatim quotes**, checked
+  in code against the posting and the resume, or the pair is dropped and
+  an angle with no pair is no angle - creative strategy, never creative
+  biography, and an invented match comes with an invented quote. It lands
+  on the record (`angle`), every essay and cover letter leads with it
+  (`campaign.draft_essays`), the short-answer writer sees it, the card's
+  "why this one?" is answered in its words (`mission_jobs.why_this_one`),
+  and the opportunity opens with it as TRUSTED evidence. A weak shot -
+  rated 2 or under AND no honest pair, both - is passed over with the
+  reason. **It fails open into a plain application**: nobody to think is
+  the application as it always was, never a withheld one. The refill
+  (`campaign.retry_waiting`) reads an angle for records staged before
+  there was one.
+- **Discovery chooses, by his ruling.** `job_value.rank` had been built
+  2026-09-16 and switched off ever since ("off until he says so"), so she
+  applied in whatever order a board returned. `config/rulings.json` carries
+  his words now (`discovery-chooses`) and `job_discovery.lets_discovery_choose`
+  reads the ruling where he never touched the switch; his own hand at the
+  keyboard still wins. Same mechanism as the interviews ruling, same
+  limits: no ruling file grants nothing.
+- **A note needs somebody, so she can find somebody**
+  (`aletheia/people_finder.py`, the `find_person` move). The pursuit's best
+  move - a specific note to the right human - was dead on arrival:
+  `note_to_person` needs a name and an address, the reasoner had no way to
+  find one, and a note to "the hiring manager" is rightly dropped. The
+  finder is deterministic and bounded: names kept only WITH a title the ask
+  is about, addresses kept only on the employer's own domain and only when
+  plainly the person's or plainly a shared door (careers@), never guessed -
+  a guessed address is spam with his name on it. It reads the posting, a
+  few of the employer's own pages and a web search's snippets (never a
+  sign-in-walled site). People land on the record and as evidence; the
+  note still waits for his tap. Where a person is found with no address,
+  the words still reach him as "yours to send".
+- **The objective moves with the situation.** A conversation outcome
+  rewrites the opportunity's objective to doing well in it and preparing
+  him (`pursuit.set_objective`, from `pursuit_applications.heard_back`);
+  the reasoner's catalog already has `write` for the prep brief. And
+  **silence is evidence**: 8 and 21 days after a sent application with no
+  word, `reconcile` writes "no word from them N days in" onto the
+  opportunity, which makes it due - so the reasoner DECIDES about a
+  follow-up for that employer, and nothing sends "follow-up #2" by rule.
+
+What is still not true, said plainly: the resume file itself is the same
+on every application (the angle changes what is WRITTEN, not the PDF), the
+pursuit still opens after the form rather than before it (so "contact
+someone before applying" cannot happen yet), and a person found on a
+professional network is his to write to - she has no door there and will
+not pretend to one. The funnel (`state/hunt/funnel.json`) is how any of
+this gets judged: "is she doing a good job" is a reply rate, and until it
+reports, nobody can say.
+
 ## The standing assignment
 
 Every session acts on the playbook rather than re-describing it (§156):

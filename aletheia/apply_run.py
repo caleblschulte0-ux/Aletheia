@@ -559,6 +559,9 @@ REMEMBERED = ("job_title", "company", "posting", "found_on", "answered_for_you",
               # What the opening was WORTH and why (`job_value`), so "why this
               # one?" is answered from the record.
               "value", "queue", "why_she_liked_it", "why_not",
+              # What makes him the candidate for THIS job (`job_angle`): the
+              # verbatim pairs the essays lead with and the card answers from.
+              "angle",
               # How many times this form has been filled in (`stage` counts every
               # rebuild), so a form that refused is not rebuilt every batch for ever.
               "stagings")
