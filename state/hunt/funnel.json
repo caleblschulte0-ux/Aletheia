@@ -9,7 +9,7 @@
       "sent": 24
     },
     "2026-09-13": {
-      "filled": 48,
+      "filled": 50,
       "found": 69,
       "interviews": 0,
       "rejections": 0,
@@ -169,10 +169,10 @@
       "sent": 2
     }
   },
-  "generated_at": "2026-10-02T23:34:42Z",
+  "generated_at": "2026-10-03T00:37:26Z",
   "sent_all_time": 223,
   "totals": {
-    "filled": 344,
+    "filled": 346,
     "found": 585,
     "interviews": 0,
     "rejections": 0,
