@@ -251,9 +251,87 @@ TOPIC_ARGS = ("question", "query", "request", "text", "idea", "what", "goal", "d
 PERSON_ARGS = ("to", "person", "recipient", "who", "contact")
 
 
+#: The words that say "remember X is Y", so a memory's key and value are READ off the task
+#: rather than guessed. The subject may carry "my", "the" or "our"; the joiner is "is", "are",
+#: "=" or ":"; a trailing full stop is not part of the value.
+_FACT = re.compile(r"^(?:remember|note|save|keep in mind|record)(?: that|:)?\s+(?:my |the |our )?"
+                   r"(?P<key>.+?)\s+(?:is|are|=|:)\s+(?P<value>.+?)[.!]?$", re.I | re.S)
+#: What the derived id or file name may be made of, and how long. tasks.create insists on
+#: lowercase-kebab; a workspace file name is held to the same so it is sayable and portable.
+_KEBAB_LIMIT = 48
+
+
+def kebab(text: str, limit: int = _KEBAB_LIMIT) -> str:
+    """lowercase-kebab from any words, or "" when nothing survives."""
+    words = re.sub(r"[^a-z0-9]+", "-", str(text or "").lower()).strip("-")
+    if len(words) > limit:
+        words = words[:limit].rsplit("-", 1)[0] if "-" in words[:limit] else words[:limit]
+    return words.strip("-")
+
+
+def _taken_task_ids() -> set[str]:
+    try:
+        from aletheia import tasks
+        return {str(t.get("id") or "") for t in tasks.all_tasks()}
+    except Exception:  # noqa: BLE001 - an unreadable store means no id is known free
+        return set()
+
+
+def derive_args(tool, task: dict, args: dict, missing: list[str]) -> tuple[dict, list[str]]:
+    """Fill a reversible writer's required arguments that are DERIVED from the task's words.
+
+    Found 2026-09-18 in the C4b demonstration: the compose route RUNS a reversible-local step
+    without asking, but `fill_args` filled only topic- and person-shaped strings, so every
+    `task_new` (needs an id), `compose` (needs a path) and `remember` (needs domain, key, value)
+    was handed to Caleb with "which the work does not say" instead of being done. These three
+    are derivable in code, deterministically, and each derivation names a fact somebody can look
+    at: the id is the description's own words in lowercase-kebab (made unique against his task
+    store), the path is the ask's words as a markdown file in her workspace, and a memory is
+    the "X is Y" the sentence literally says, shelved by `memory.domain_for` (the store\n    knows its own shelves; this layer names no category). Anything the
+    words do not settle stays missing - the rule is the same as quick.py's: this may only ever
+    remove a handoff, never invent a value. Returns (args, still_missing).
+    """
+    name = str(getattr(tool, "name", "") or "")
+    words = " ".join(str(x) for x in (task.get("detail") or task.get("title"),) if x).strip()
+    args = dict(args)
+    still = list(missing)
+
+    def settle(key: str, value: str) -> None:
+        if value and key in still:
+            args[key] = value
+            still.remove(key)
+
+    if name == "task_new" and "id" in still:
+        base = kebab(str(args.get("description") or words))
+        if base:
+            taken = _taken_task_ids()
+            tid, n = base, 2
+            while tid in taken:
+                tid, n = f"{base}-{n}", n + 1
+            settle("id", tid)
+    elif name == "compose" and "path" in still:
+        base = kebab(str(args.get("what") or words))
+        if base:
+            settle("path", f"{base}.md")
+    elif name == "remember" and {"key", "value", "domain"} & set(still):
+        m = _FACT.match(" ".join(words.split()))
+        if m:
+            subject = m.group("key").strip()
+            settle("key", kebab(subject, 60))
+            settle("value", m.group("value").strip()[:480])
+            from aletheia import memory
+            about_him = bool(re.match(r"^(?:remember|note|save|keep in mind|record)(?: that|:)?\s+my\b",
+                                      words, re.I))
+            domain = memory.domain_for(subject, about_him=about_him)
+            if domain:
+                settle("domain", domain)
+    return args, still
+
+
 def fill_args(tool, task: dict, given: dict | None = None) -> tuple[dict, list[str]]:
-    """(args, still_missing). Topic-shaped string arguments come from the task's words;
-    anything else must come from the step itself, a model, or Caleb."""
+    """(args, still_missing). Topic-shaped string arguments come from the task's words, a
+    reversible writer's derivable ones (an id, a path, a fact's key/value/domain) are derived
+    from them by `derive_args`; anything else must come from the step itself, a model, or Caleb."""
     schema = tool.input_schema or {}
     props = schema.get("properties") or {}
     args = {k: v for k, v in dict(given or {}).items() if k in props}
@@ -272,6 +350,8 @@ def fill_args(tool, task: dict, given: dict | None = None) -> tuple[dict, list[s
             args[key] = words_of_task[:480]
         else:
             missing.append(key)
+    if missing:
+        args, missing = derive_args(tool, task, args, missing)
     return args, missing
 
 

@@ -223,3 +223,4 @@
 {"ts": "2026-10-02T16:27:01Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-10-02"}
 {"ts": "2026-10-03T15:01:16Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-10-03"}
 {"ts": "2026-10-04T15:36:01Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-10-04"}
+{"ts": "2026-10-04T23:43:03Z", "kind": "task", "actor": "aletheia", "subject": "task:compose-fills-reversible-args", "text": "QUEUED -> COMPLETED — program_compose.derive_args: task_new gets an id from its description (unique against the store), compose a path from the ask, remember its key/value from 'X is Y' and its shelf from memory.domain_for; tests/test_a_reversible_writer_fills_its_own_arguments.py (11)"}

@@ -40,6 +40,38 @@ MEMORY_DIR = private_dir("memory")
 DOMAINS = {"identity", "preferences", "people", "organizations"}
 KINDS = {"explicit", "inferred", "temporary"}
 
+#: Which shelf a fact's SUBJECT belongs on, by the subject's own words. Kept here, beside the
+#: shelves, because the store is the one thing that knows what each domain IS; the composition
+#: layer that derives a `remember` from "remember my landlord is Dana" names no category of its
+#: own (tests/test_programs.py holds it to that). A subject naming none of these words goes
+#: nowhere: a wrong shelf is worse than a question, so `domain_for` answers "" and the caller
+#: leaves the domain to him.
+SHELF_WORDS = {
+    "people": ("landlord", "wife", "husband", "girlfriend", "boyfriend", "partner", "sister",
+               "brother", "mom", "mother", "dad", "father", "son", "daughter", "friend", "boss",
+               "manager", "dentist", "doctor", "neighbor", "neighbour", "roommate", "coworker",
+               "recruiter", "contact", "cousin", "aunt", "uncle", "grandma", "grandpa", "plumber",
+               "mechanic", "barber", "vet", "lawyer", "accountant", "trainer", "coach"),
+    "organizations": ("company", "employer", "bank", "gym", "school", "college", "university",
+                      "church", "clinic", "insurer", "insurance", "store", "shop", "team", "club",
+                      "agency", "firm", "studio", "vendor", "supplier"),
+    "preferences": ("favorite", "favourite", "prefer", "preferred", "usual", "default", "like",
+                    "likes", "go-to", "go to", "preference"),
+}
+
+
+def domain_for(subject: str, *, about_him: bool = False) -> str:
+    """The shelf for a fact about `subject`, or "" when its words do not say.
+
+    `about_him` is the caller's word that the sentence said "my ...": a fact about him that
+    names no person, organization or preference is `identity`."""
+    import re as _re
+    low = " ".join(str(subject or "").lower().split())
+    for domain, words in SHELF_WORDS.items():
+        if any(_re.search(rf"\b{_re.escape(w)}\b", low) for w in words):
+            return domain
+    return "identity" if about_him and low else ""
+
 
 def _path(domain: str) -> Path:
     if domain not in DOMAINS:
