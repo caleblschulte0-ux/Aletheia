@@ -613,8 +613,25 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how many repos$")),
     ("shopping", re.compile(
         r"^what(?:'s| is|s)? on my shopping list$|^what(?:'s| is|s)? on my list$"
-        r"|^(?:my )?shopping list$|^what do i need (?:to buy|from the store)$"
-        r"|^what(?:'s| is|s)? on the shopping list$")),
+        r"|^(?:my )?shopping list$|^what do i need (?:to buy|from the store|to get|at the store)$"
+        r"|^what(?:'s| is|s)? on the shopping list$"
+        # "what's my shopping list" went to a model, which DENIED the store
+        # ("I don't have a shopping list for you ... if you've got one in a
+        # file somewhere") a turn after the fast lane had read it (2026-10-04).
+        r"|^what(?:'s| is|s)? my (?:shopping|grocery|groceries) list$"
+        r"|^(?:read|show|tell) me (?:my |the )?(?:shopping|grocery|groceries) list$"
+        r"|^what(?:'s| is|s)? on (?:my |the )?(?:grocery|groceries) list$|^(?:my )?grocery list$"
+        r"|^(?:what(?:'s| is|s)? )?(?:my |the )?shopping list\?$")),
+    ("pay_for", re.compile(
+        r"^how much (?:do|am|will) i pay(?:ing)? for (?:my |the )?(?P<pay_for>.+?)\??$"
+        r"|^what (?:do|am) i pay(?:ing)? for (?:my |the )?(?P<pay_for2>.+?)\??$"
+        r"|^what does (?:my |the )?(?P<pay_for3>.+?) cost (?:me )?(?:a month|per month|monthly)?\??$"
+        r"|^how much (?:is|does) (?:my |the )?(?P<pay_for4>.+?) (?:subscription )?(?:cost(?:ing)?(?: me)?|a month|per month)\??$")),
+    ("projects", re.compile(
+        r"^what projects (?:are you|r u|are u) (?:carrying|working on|running|on|building)\??$"
+        r"|^what projects (?:do you|do i|do we) have\??$|^which projects are you (?:carrying|working on|on)\??$"
+        r"|^what are (?:my|the|your|our) projects\??$|^(?:list|name) (?:my |the |your )?projects$"
+        r"|^what(?:'s| is|s)? on (?:the|your) (?:project )?(?:books|slate)\??$")),
     # "What is running" was wired into `voice` and NOT here, so SAYING it
     # was instant and TYPING it paid a full planner round trip for the
     # same answer out of the same store. Every door should give the same
@@ -981,7 +998,8 @@ def match(question: str) -> tuple[str, str] | None:
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3",
                                            "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part",
-                                           "place", "place2", "place3")
+                                           "place", "place2", "place3",
+                                           "pay_for", "pay_for2", "pay_for3", "pay_for4")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not", "draft_to"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
@@ -2504,6 +2522,81 @@ def _repos() -> str | None:
             + speech.and_list(shown) + ".")
 
 
+def _pay_for(rest: str) -> str:
+    """"How much do I pay for Netflix": from her subscriptions store, and ONLY from it.
+
+    Asked this with the frontier off, her own model answered "I can look through what's
+    gone through on your accounts for Netflix charges" - an offer to read bank data she
+    does not have, which sounds like helpfulness and is an invented source (CLAUDE.md:
+    an offer is a claim about ability). The store is proved either way: a hit says the
+    amount, a miss says the list and that there is no bank behind it.
+    """
+    from aletheia import speech, subscriptions
+    what = " ".join(str(rest or "").split()).strip(" ?.")
+    try:
+        rows = subscriptions.all_subscriptions()
+    except Exception:
+        rows = []
+    low = what.casefold()
+    hits = [r for r in rows if low and (low in str(r.get("merchant", "")).casefold()
+                                        or str(r.get("merchant", "")).casefold() in low)]
+    if hits:
+        r = hits[0]
+        amount, cadence = r.get("amount"), str(r.get("cadence") or "")
+        each = {"weekly": "a week", "monthly": "a month", "quarterly": "a quarter",
+                "annual": "a year"}.get(cadence, "")
+        status = str(r.get("status") or "")
+        if amount is None:
+            said = f"{r['merchant']} is on your subscriptions list without an amount."
+        else:
+            said = f"You pay ${amount:,.2f}{(' ' + each) if each else ''} for {r['merchant']}."
+        if r.get("next_charge"):
+            said += f" Next charge {r['next_charge']}."
+        if status and status != "ACTIVE":
+            said += f" It is {status.lower().replace('_', ' ')}."
+        return said
+    if not rows:
+        return (f"{what[:1].upper() + what[1:]} isn't on your subscriptions list, and the list is empty. "
+                "I only know the subscriptions you tell me about - I don't see your bank.")
+    return (f"{what[:1].upper() + what[1:]} isn't on your subscriptions list. I have "
+            + speech.and_list([str(r.get("merchant")) for r in rows[:6]])
+            + ("." if len(rows) <= 6 else f", and {len(rows) - 6} more.")
+            + " I don't see your bank.")
+
+
+def _projects() -> str:
+    """The projects she is carrying, from the charters in plans/.
+
+    Asked "what projects are you carrying" with the frontier off, her own model said "I
+    don't see any projects in front of me ... if you tell me one, I'll start it" - a
+    store with a writer (charters) and no fast reader, so the model denied it existed.
+    """
+    from aletheia import plans, speech
+    try:
+        rows = [p for p in plans.all_plans() if plans.is_charter(p)]
+    except Exception:
+        rows = []
+    live = [p for p in rows if p.get("state") == "open"]
+    if not live:
+        drafted = [p for p in rows if p.get("state") == "proposed"]
+        if drafted:
+            return (f"No project is under way; {speech.count_phrase(len(drafted), 'draft')} waiting for your yes: "
+                    + speech.and_list([str(p.get("title")) for p in drafted[:6]]) + ".")
+        return "No projects on the books. Say \"new project:\" and what it is, and I'll draft one."
+    parts = []
+    for p in live[:8]:
+        done, total = plans.progress(p)
+        nxt = plans.next_step(p)
+        who = ""
+        if nxt:
+            who = "yours next" if plans.owner(nxt) == "caleb" else "mine next"
+        parts.append(f"{p.get('title')} ({done} of {total} done{', ' + who if who else ''})")
+    said = f"Carrying {speech.count_phrase(len(live), 'project')}: " + "; ".join(parts)
+    if len(live) > 8:
+        said += f"; and {len(live) - 8} more"
+    return said + "."
+
+
 def _shopping() -> str | None:
     """The same sentence the `shopping_list` command gives, written once."""
     from aletheia import intercom
@@ -3849,6 +3942,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "fleet_read_at": lambda rest: _fleet_read_at(),
            "repos": lambda rest: _repos(),
            "shopping": lambda rest: _shopping(),
+           "pay_for": _pay_for,
+           "projects": lambda rest: _projects(),
            "uptime": lambda rest: _uptime(),
            "version": lambda rest: _version(),
            "free": _free,

@@ -73,7 +73,7 @@ class ANoteIsForgettableToo(unittest.TestCase):
     def test_nothing_to_forget_is_still_said_plainly(self):
         from aletheia import intercom
         said = intercom.execute_command({"kind": "forget", "about": "my landlord"}, {}, quote="forget my landlord")
-        self.assertTrue(said.startswith("I have nothing remembered about my landlord"), said)
+        self.assertTrue(said.startswith("I have nothing remembered about your landlord"), said)
 
 
 if __name__ == "__main__":

@@ -117,7 +117,10 @@ def available() -> tuple[bool, str]:
     try:
         from playwright.sync_api import sync_playwright  # noqa: F401
     except ImportError:
-        return False, "playwright is not installed (pip install playwright)"
+        # No command in it: this sentence reaches the room through "what did
+        # you post to instagram" and "why is the job hunt stopped". The
+        # install line lives on the setup page, where a command belongs.
+        return False, "my browser is not installed on this machine yet"
     exe = _browser_executable()
     if exe and not Path(exe).exists():
         return False, f"browser executable not found at {exe}"

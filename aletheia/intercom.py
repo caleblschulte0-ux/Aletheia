@@ -2337,6 +2337,9 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         # among others) then raised UnboundLocalError. Found by the full suite.
         from aletheia import memory
         about = " ".join(str(cmd.get("about") or "").split())
+        # "I have nothing remembered about my landlord" echoed HIS words as
+        # hers (2026-10-04). What he calls "my" she calls "your".
+        about_said = re.sub(r"^(?:my|our)\b", "your", about, count=1, flags=re.I) or about
         hits = _remembered_matching(about, cmd.get("domain"))
         if not hits:
             # A NOTE IS FORGETTABLE TOO. "Remember that my sister's name is
@@ -2352,8 +2355,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             # leave him believing a fact is gone that is still there.
             known = _remembered_matching("", None)
             if not known:
-                return f"I have nothing remembered about {about}."
-            return (f"I have nothing remembered about {about}. "
+                return f"I have nothing remembered about {about_said}."
+            return (f"I have nothing remembered about {about_said}. "
                     f"What I do have is "
                     + speech.and_list([k for _d, k, _v in known[:6]])
                     + ("." if len(known) <= 6
@@ -2366,7 +2369,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         # SAY WHAT WENT. "Forgotten" alone is unverifiable by ear, and
         # this is the one act in the system with no undo - `remember`
         # keeps what it replaced, and forgetting keeps nothing.
-        return f"forgot {key} - it was {value}"
+        return f"Forgotten: your {str(key).replace('_', ' ')}, which was {value}."
     if kind.startswith("media_"):
         from aletheia import media
         ok, why = media.available()

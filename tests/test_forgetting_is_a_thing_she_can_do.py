@@ -104,7 +104,7 @@ class ItActuallyForgetsCase(_WithMemories):
 class AMissIsStillAnAnswerCase(_WithMemories):
     def test_nothing_matching_says_what_he_does_have(self):
         said = self.run_forget("my accountant")
-        self.assertIn("nothing remembered about my accountant", said)
+        self.assertIn("nothing remembered about your accountant", said)
         self.assertIn("landlord", said)
 
     def test_it_does_not_claim_to_have_forgotten_it(self):
@@ -118,7 +118,7 @@ class AMissIsStillAnAnswerCase(_WithMemories):
             for key in list(memory._load(domain)):
                 memory.forget(domain, key, via="test")
         said = self.run_forget("my landlord")
-        self.assertIn("nothing remembered about my landlord", said)
+        self.assertIn("nothing remembered about your landlord", said)
         self.assertNotIn("What I do have", said)
 
     def test_two_matches_ask_which(self):
