@@ -436,7 +436,16 @@ def collect(fleet: dict, source) -> dict:
             record["commits"] = source.recent_commits(gh, branch)
             record["commit"] = record["commits"][0] if record["commits"] else None
         except Exception as exc:  # a dead repo is a finding, not a crash
-            record["error"] = f"{type(exc).__name__}: {exc}"
+            if isinstance(exc, urllib.error.HTTPError) and exc.code == 404:
+                # GitHub answers 404 for a private repository the token does
+                # not cover exactly as it does for one that is gone, and the
+                # brief said "Unreachable: HTTP Error 404" every day about a
+                # stub that exists and is private (etsy_maker, 2026-10-04).
+                # Say both, and what fixes the first.
+                record["error"] = ("GitHub answers 404: the repository is private and the fleet token "
+                                   "does not cover it (add it to FLEET_TOKEN's repositories), or it is gone")
+            else:
+                record["error"] = f"{type(exc).__name__}: {exc}"
         if "error" not in record:
             record["vitals"], held = _vitals(repo, source)
             if held:

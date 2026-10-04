@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import re
 from pathlib import Path
 
 from aletheia import journal
@@ -60,17 +61,47 @@ SHELF_WORDS = {
 }
 
 
-def domain_for(subject: str, *, about_him: bool = False) -> str:
-    """The shelf for a fact about `subject`, or "" when its words do not say.
+#: "remember that my landlord is Dana Whitfield": the subject, the joiner and the value, read
+#: off the sentence. The subject may carry "my", "the" or "our"; the joiner is "is", "are", "="
+#: or ":"; a trailing full stop is not part of the value. One parser, because the voice layer
+#: and the work session's argument filling both compile this sentence and two copies drift.
+FACT = re.compile(r"^(?:remember|note|save|keep in mind|record)(?: that|:)?\s+(?P<my>my\s+)?(?:the |our )?"
+                  r"(?P<key>.+?)\s+(?:is|are|=|:)\s+(?P<value>.+?)[.!]?$", re.I | re.S)
 
-    `about_him` is the caller's word that the sentence said "my ...": a fact about him that
-    names no person, organization or preference is `identity`."""
-    import re as _re
+
+def key_for(subject: str) -> str:
+    """A memory key from a subject's words: lowercase, words joined by underscores, so
+    "best friend" is stored where "who is my best friend" looks (`quick._person` tries the
+    underscored form)."""
+    words = re.sub(r"[^a-z0-9]+", "_", str(subject or "").lower()).strip("_")
+    return words[:60].rstrip("_")
+
+
+def parse_fact(sentence: str) -> dict | None:
+    """{"subject", "key", "value", "domain"} when the sentence says "remember X is Y", else None.
+
+    `value` keeps his capitals (it is sliced from the sentence as he said it), `domain` is
+    `domain_for` and may be "" when the subject's words name no shelf."""
+    text = " ".join(str(sentence or "").split())
+    found = FACT.match(text)
+    if not found:
+        return None
+    subject = found.group("key").strip()
+    return {"subject": subject, "key": key_for(subject), "value": found.group("value").strip()[:480],
+            "domain": domain_for(subject)}
+
+
+def domain_for(subject: str) -> str:
+    """The shelf for a fact about `subject`, or "" when its words name none.
+
+    No "my ... is" fallback onto `identity`: "my lease is up in March" and "my flight is at
+    six" are facts about his week, not about him, and a note the journal readers find
+    ("what did I tell you about the lease") is the right place for them."""
     low = " ".join(str(subject or "").lower().split())
     for domain, words in SHELF_WORDS.items():
-        if any(_re.search(rf"\b{_re.escape(w)}\b", low) for w in words):
+        if any(re.search(rf"\b{re.escape(w)}\b", low) for w in words):
             return domain
-    return "identity" if about_him and low else ""
+    return ""
 
 
 def _path(domain: str) -> Path:

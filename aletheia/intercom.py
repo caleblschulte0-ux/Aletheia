@@ -2328,7 +2328,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         memory.remember(cmd["domain"], cmd["key"], cmd["value"],
                         source=f"operator via intercom: {quote[:120]}",
                         kind=cmd.get("memory_kind", "explicit"))
-        return f"remembered {cmd['domain']}.{cmd['key']}"
+        # Read out loud: "remembered people.landlord" is a developer's line.
+        return f"Remembered: {str(cmd['key']).replace('_', ' ')} is {cmd['value']}."
     if kind == "forget":
         # `speech` is NOT imported here. It is a module-level name, and an
         # import of it anywhere in this function makes it LOCAL to the whole

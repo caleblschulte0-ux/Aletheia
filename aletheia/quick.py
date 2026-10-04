@@ -2039,7 +2039,15 @@ def _can_you(what: str) -> str | None:
         return f"Yes, but it is {status.lower()}: {name}.{line}"
     if status == "NEEDS_CONFIGURATION":
         step = (list(best.get("to_turn_it_on") or []) or [""])[0]
-        return (f"Not yet — {name} needs setting up first."
+        # A description is a verb phrase with a qualifying clause after a
+        # dash ("Post a picture ... to your Instagram account, straight off
+        # this PC - one post per approval, never on its own"). Read out as
+        # "Not yet — Post a picture ... never on its own needs setting up
+        # first" it was one breath with no sentence in it (found 2026-10-04
+        # by talking to her). The first clause, in her own voice.
+        short = re.split(r"\s[-—]\s", name, maxsplit=1)[0].strip().rstrip(",.")
+        short = (short[:1].lower() + short[1:]) if short else "that"
+        return (f"Not yet — I can {short}, but it needs setting up first."
                 + (f" {str(step)[:160]}" if step else "") + line)
     # "No. {name} is {status}." was broken for EVERY description in the
     # registry, because they are verb phrases by house style: "No. Move
@@ -3663,7 +3671,8 @@ def _person(rest: str) -> str:
     from aletheia import memory
     who = " ".join(str(rest or "").split()).strip(" ,.?")
     try:
-        found = memory.recall("people", who) or memory.recall("people", who.replace(" ", "_"))
+        found = (memory.recall("people", who) or memory.recall("people", who.replace(" ", "_"))
+                 or memory.recall("people", memory.key_for(who)))
     except Exception:
         found = None
     if found:

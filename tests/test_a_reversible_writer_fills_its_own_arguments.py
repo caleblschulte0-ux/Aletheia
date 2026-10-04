@@ -92,17 +92,20 @@ class AFactIsReadOffTheSentenceNeverGuessed(_Catalog):
 
     def test_an_organization_and_a_preference_find_their_shelves(self):
         for text, domain in (("remember my gym is Great Life", "organizations"),
-                             ("remember that my favorite coffee is a flat white", "preferences"),
-                             ("remember my shoe size is 11", "identity")):
+                             ("remember that my favorite coffee is a flat white", "preferences")):
             args, missing = program_compose.fill_args(self.tool("remember"),
                                                       {"title": text, "detail": text})
             self.assertEqual(missing, [], text)
             self.assertEqual(args["domain"], domain, text)
+        # "my ..." alone is not a shelf: a fact about his week is a note, not his identity.
+        text = "remember my lease is up in March"
+        args, missing = program_compose.fill_args(self.tool("remember"), {"title": text, "detail": text})
+        self.assertEqual(missing, ["domain"])
 
     def test_a_fact_with_no_shelf_in_its_words_leaves_the_domain_missing(self):
         text = "remember the wifi password is hunter2"
         args, missing = program_compose.fill_args(self.tool("remember"), {"title": text, "detail": text})
-        self.assertEqual(args["key"], "wifi-password")
+        self.assertEqual(args["key"], "wifi_password")
         self.assertEqual(args["value"], "hunter2")
         self.assertEqual(missing, ["domain"], "a wrong shelf is worse than a question")
 

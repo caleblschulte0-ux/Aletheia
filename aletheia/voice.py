@@ -3036,7 +3036,21 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "preference_set", "field": "notice_period", "value": m.group(1).strip()}, "say": None}
     m = re.match(r"remember(?: that|:)?\s+(?!to\b|me\b)(.+)", low)
     if m and not re.match(r"(?:the |my )?(?:last|previous|earlier)\b", m.group(1)):
-        return {"command": {"kind": "note", "text": m.group(1).strip()}, "say": None}
+        # "REMEMBER THAT MY LANDLORD IS DANA" WENT ON A SHELF NOTHING READS. Found
+        # 2026-10-04 by talking to her in the sandbox: "Noted." and, one turn
+        # later, "I don't have anyone remembered as your landlord" - because
+        # this compiled a journal NOTE, and "who is my landlord" reads the
+        # people shelf of her memory. A store with a writer and no reader
+        # makes her a liar, and so does a reader with no writer. A sentence
+        # of the shape "X is Y" whose subject names a shelf is a `remember`
+        # now (memory.parse_fact, the same parser the work session's
+        # argument filling uses); everything else is still a note.
+        from aletheia import memory
+        fact = memory.parse_fact(text)
+        if fact and fact["domain"]:
+            return {"command": {"kind": "remember", "domain": fact["domain"], "key": fact["key"],
+                                "value": fact["value"]}, "say": None}
+        return {"command": {"kind": "note", "text": _as_he_said(text, m.group(1).strip())}, "say": None}
 
     # Unrecognized by the patterns above — which is not the same as
     # unrecognizable. Until 2026-08-27 this branch journaled the sentence

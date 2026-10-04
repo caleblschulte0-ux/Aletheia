@@ -251,11 +251,6 @@ TOPIC_ARGS = ("question", "query", "request", "text", "idea", "what", "goal", "d
 PERSON_ARGS = ("to", "person", "recipient", "who", "contact")
 
 
-#: The words that say "remember X is Y", so a memory's key and value are READ off the task
-#: rather than guessed. The subject may carry "my", "the" or "our"; the joiner is "is", "are",
-#: "=" or ":"; a trailing full stop is not part of the value.
-_FACT = re.compile(r"^(?:remember|note|save|keep in mind|record)(?: that|:)?\s+(?:my |the |our )?"
-                   r"(?P<key>.+?)\s+(?:is|are|=|:)\s+(?P<value>.+?)[.!]?$", re.I | re.S)
 #: What the derived id or file name may be made of, and how long. tasks.create insists on
 #: lowercase-kebab; a workspace file name is held to the same so it is sayable and portable.
 _KEBAB_LIMIT = 48
@@ -314,17 +309,13 @@ def derive_args(tool, task: dict, args: dict, missing: list[str]) -> tuple[dict,
         if base:
             settle("path", f"{base}.md")
     elif name == "remember" and {"key", "value", "domain"} & set(still):
-        m = _FACT.match(" ".join(words.split()))
-        if m:
-            subject = m.group("key").strip()
-            settle("key", kebab(subject, 60))
-            settle("value", m.group("value").strip()[:480])
-            from aletheia import memory
-            about_him = bool(re.match(r"^(?:remember|note|save|keep in mind|record)(?: that|:)?\s+my\b",
-                                      words, re.I))
-            domain = memory.domain_for(subject, about_him=about_him)
-            if domain:
-                settle("domain", domain)
+        from aletheia import memory
+        fact = memory.parse_fact(words)
+        if fact:
+            settle("key", fact["key"])
+            settle("value", fact["value"])
+            if fact["domain"]:
+                settle("domain", fact["domain"])
     return args, still
 
 

@@ -535,7 +535,7 @@ def steps() -> list[Step]:
         Step("social.publish", "Instagram", 2,
              "Posting pictures and reels to your Instagram on her own - his words, 2026-09-24. "
              "One ordinary Instagram sign-in, in her browser, once. Nothing to do with Meta.",
-             ["She posts through Instagram's own page, signed in as you in HER browser.",
+             ["I post through Instagram's own page, signed in as you in my own browser.",
               "",
               "1. Run this, and a Chrome window opens at the Instagram login page:",
               "     python -m aletheia.instagram connect",
